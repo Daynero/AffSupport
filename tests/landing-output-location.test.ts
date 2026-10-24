@@ -69,3 +69,25 @@ describe('landing optimizer writes results next to the source', () => {
     await optimizer.shutdown();
   }, 60_000);
 });
+
+it('uses a product-facing folder name for a team ZIP staged as source.bin', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'landing-team-transport-'));
+  roots.push(root);
+  vi.stubEnv('AGENT_LANDING_WORKSPACE', path.join(root, 'workspaces'));
+  const source = await landingFolder(root, 'payload');
+  const stagedZip = path.join(root, 'source.bin');
+  await zipDirectory(source, stagedZip);
+  const optimizer = new LandingOptimizer({ ffmpeg: true, ffprobe: true }, () => {});
+  try {
+    const jobId = await optimizer.prepareTeamZip(stagedZip, {
+      ...optimizer.state().settings,
+      archive: true
+    });
+    await optimizer.start([jobId]);
+    const output = optimizer.teamJob(jobId)?.outputPath;
+    expect(output).toBeTruthy();
+    expect(path.basename(output!)).toBe('landing-optimized.zip');
+  } finally {
+    await optimizer.shutdown();
+  }
+}, 60_000);

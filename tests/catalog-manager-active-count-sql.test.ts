@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { expect, it } from 'vitest';
 
+// Cold PGlite/WASM startup shares this functional test's wall-clock budget.
 it('counts live pending work and running verification, not schedules, unknown delivery or another team', async () => {
   const db = new PGlite();
   try {
@@ -44,4 +45,4 @@ it('counts live pending work and running verification, not schedules, unknown de
   } finally {
     await db.close();
   }
-});
+}, 15_000);

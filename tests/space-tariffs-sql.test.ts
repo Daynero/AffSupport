@@ -1746,6 +1746,7 @@ describe('letters (R9)', () => {
     const first = await mine();
     expect(first).toHaveLength(1);
     expect(first[0]).toEqual({
+      tariffToday: await day(0),
       id: expect.any(String),
       kind: 'warn_3d',
       tariffId: tariff,

@@ -63,7 +63,7 @@ export interface TeamDownloadTransfer {
 
 export interface TeamDownloadBridgeOptions {
   transfer: TeamDownloadTransfer;
-  chooseDestination?: () => Promise<string | null>;
+  chooseDestination?: (signal?: AbortSignal) => Promise<string | null>;
   reveal?: (file: string) => void;
   /** Local delegates: 'compressor', 'imageEmbedding', and 015's 'restitch'. */
   delegates?: Readonly<Record<string, TeamProcessDelegate>>;
@@ -80,7 +80,7 @@ export interface TeamDownloadBridgeOptions {
 /** Saves an agent-only download after an explicit native destination choice. */
 export class TeamDownloadBridge {
   readonly #transfer: TeamDownloadTransfer;
-  readonly #chooseDestination: () => Promise<string | null>;
+  readonly #chooseDestination: (signal?: AbortSignal) => Promise<string | null>;
   readonly #reveal: (file: string) => void;
   readonly #delegates: Readonly<Record<string, TeamProcessDelegate>> | null;
   readonly #active = new Map<string, AbortController>();
@@ -129,23 +129,28 @@ export class TeamDownloadBridge {
     const fileName = safeDownloadName(request.fileName);
     if (this.#active.has(request.operationId)) throw new Error('WRONG_STATE');
     const step = normalizeProcess(request);
-    // A remembered folder that has since been moved or deleted asks again instead of failing:
-    // the caller only stored it to save a dialog, never to promise the folder still exists.
-    const remembered = request.destination ? await existingDirectory(request.destination) : null;
-    const destination = remembered ?? (await this.#chooseDestination());
-    if (!destination) throw new Error('DOWNLOAD_CANCELED');
-    const destinationRoot = await realpath(destination);
-    if (!(await lstat(destinationRoot)).isDirectory()) throw new Error('INVALID_INPUT');
-
+    // Register before any wait, including the native destination choice: Stop
+    // and shutdown must own the operation while the person is still choosing.
     const controller = new AbortController();
     this.#active.set(request.operationId, controller);
     let source: DownloadedTeamSource | null = null;
-    this.#events?.update(request.operationId, {
-      state: 'running',
-      stage: 'downloading',
-      progress: 0
-    });
+    const checkCanceled = () => {
+      if (controller.signal.aborted) throw new Error('DOWNLOAD_CANCELED');
+    };
     try {
+      const remembered = request.destination ? await existingDirectory(request.destination) : null;
+      checkCanceled();
+      const destination = remembered ?? (await this.#chooseDestination(controller.signal));
+      checkCanceled();
+      if (!destination) throw new Error('DOWNLOAD_CANCELED');
+      const destinationRoot = await realpath(destination);
+      if (!(await lstat(destinationRoot)).isDirectory()) throw new Error('INVALID_INPUT');
+      checkCanceled();
+      this.#events?.update(request.operationId, {
+        state: 'running',
+        stage: 'downloading',
+        progress: 0
+      });
       source = await this.#transfer.downloadSource(
         {
           operationId: request.operationId,
@@ -155,6 +160,7 @@ export class TeamDownloadBridge {
         },
         controller.signal
       );
+      checkCanceled();
       let produced = source.file;
       let producedCleanup: (() => Promise<void>) | null = null;
       let finalName = fileName;
@@ -195,6 +201,7 @@ export class TeamDownloadBridge {
           stage: 'finalizing',
           progress: 100
         });
+        checkCanceled();
         const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
         if (request.reveal !== false) this.#reveal(target);
         const written = await lstat(target);
@@ -215,7 +222,9 @@ export class TeamDownloadBridge {
         await producedCleanup?.().catch(() => undefined);
       }
     } catch (error) {
-      const canceled = controller.signal.aborted;
+      const canceled =
+        controller.signal.aborted ||
+        (error instanceof Error && error.message === 'DOWNLOAD_CANCELED');
       this.#events?.update(request.operationId, {
         state: canceled ? 'canceled' : 'failed',
         stage: canceled ? 'canceled' : 'failed',

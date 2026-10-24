@@ -1012,3 +1012,58 @@ describe('team processing orchestration and SSE state', () => {
     }
   );
 });
+
+it('registers and cancels a download while its destination picker is still open', async () => {
+  const destination = await temporaryRoot();
+  let choose!: (value: string) => void;
+  const transfer = { downloadSource: vi.fn().mockRejectedValue(new Error('unexpected transfer')) };
+  const bridge = new TeamDownloadBridge({
+    transfer,
+    chooseDestination: () =>
+      new Promise(resolve => {
+        choose = resolve;
+      }),
+    reveal: vi.fn()
+  });
+  const run = bridge.download({
+    operationId: 'picker-wait',
+    transferUrl: 'https://project.supabase.co/range',
+    transferGrant: grant('download_range'),
+    fileName: 'own.mp4'
+  });
+  const busyBeforeChoice = bridge.busy();
+  const canceled = bridge.cancel('picker-wait');
+  choose(destination);
+  const error = await run.then(
+    () => null,
+    error => error as Error
+  );
+  expect(busyBeforeChoice).toBe(true);
+  expect(canceled).toBe(true);
+  expect(error?.message).toBe('DOWNLOAD_CANCELED');
+  expect(transfer.downloadSource).not.toHaveBeenCalled();
+  expect(bridge.busy()).toBe(false);
+});
+
+it('reports a dismissed destination picker as a canceled local operation', async () => {
+  const events = new TeamOperationEvents();
+  const transfer = { downloadSource: vi.fn() };
+  const bridge = new TeamDownloadBridge({ transfer, events, chooseDestination: async () => null });
+  await expect(
+    bridge.download({
+      operationId: 'dismissed-picker',
+      transferUrl: 'https://project.supabase.co/range',
+      transferGrant: grant('download_range'),
+      fileName: 'own.mp4'
+    })
+  ).rejects.toThrow('DOWNLOAD_CANCELED');
+  expect(events.snapshot().operations).toEqual([
+    expect.objectContaining({
+      operationId: 'dismissed-picker',
+      state: 'canceled',
+      stage: 'canceled',
+      errorCode: 'DOWNLOAD_CANCELED'
+    })
+  ]);
+  expect(transfer.downloadSource).not.toHaveBeenCalled();
+});

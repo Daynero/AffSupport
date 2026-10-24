@@ -58,6 +58,7 @@ Deno.serve(request => {
       })) === true,
     send: input => sendEmail(input),
     now: () => Date.now(),
+    tariffNow: () => Date.now(),
     log: (message, detail) => console.error(message, JSON.stringify(detail))
   });
 });

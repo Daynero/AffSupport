@@ -140,50 +140,59 @@ describe('a result that came out bigger', () => {
     expect(job.finalSize).toBe(800);
   });
 
-  it('allows a larger file when the user asked for a still tail', async () => {
-    // The embedded output is validated against the duration the settings imply,
-    // so the probe has to describe the tail the encode would really have added.
-    // Getting this wrong in the fixture is how a test ends up asserting that
-    // the validator rejects its own stub.
-    const instance = queue();
-    const job = await jobWithFiles(1_000, 12_000, {
-      imageEmbedding: {
-        startImage: null,
-        endImage: { id: 'i', fileName: 'end.png' },
-        startDurationMode: 'one-frame',
-        customStartDurationMs: 100,
-        finalDurationMode: 'random-40-50',
-        finalDurationSeconds: 2_700,
-        fitMode: 'cover'
-      } as never
-    });
-    (instance as unknown as { jobs: CompressionJob[] }).jobs = [job];
+  it.each([
+    { nominalFrameRate: 30, frameRate: 30, measuredBodyFrameRate: 30 },
+    { nominalFrameRate: 0.122, frameRate: 30, measuredBodyFrameRate: 30 },
+    { nominalFrameRate: 30, frameRate: 1.1, measuredBodyFrameRate: null }
+  ])(
+    'allows a larger held-tail output with nominal FPS $nominalFrameRate and measured FPS $measuredBodyFrameRate',
+    async ({ nominalFrameRate, frameRate, measuredBodyFrameRate }) => {
+      // The embedded output is validated against the duration the settings imply,
+      // so the probe has to describe the tail the encode would really have added.
+      // Getting this wrong in the fixture is how a test ends up asserting that
+      // the validator rejects its own stub.
+      const instance = queue();
+      const job = await jobWithFiles(1_000, 12_000, {
+        imageEmbedding: {
+          startImage: null,
+          endImage: { id: 'i', fileName: 'end.png' },
+          startDurationMode: 'one-frame',
+          customStartDurationMs: 100,
+          finalDurationMode: 'random-40-50',
+          finalDurationSeconds: 2_700,
+          fitMode: 'cover'
+        } as never
+      });
+      (instance as unknown as { jobs: CompressionJob[] }).jobs = [job];
 
-    const tailSeconds = 2_700;
-    const total = (job.durationSeconds ?? 0) + tailSeconds;
-    await complete(instance, job, {
-      ...probeOf(job),
-      // What the encode would really have produced: the settings' output size
-      // and frame rate, an audio track, and the source plus the still tail.
-      duration: total,
-      videoDuration: total,
-      width: 720,
-      height: 406,
-      frameRate: 30,
-      // What the container declares, which is the body's rate: the still tail
-      // drags the average down without changing what was encoded.
-      nominalFrameRate: 30,
-      hasAudio: true,
-      audioCodec: 'aac',
-      audioDuration: total
-    });
+      const tailSeconds = 2_700;
+      const total = (job.durationSeconds ?? 0) + tailSeconds;
+      await complete(instance, job, {
+        ...probeOf(job),
+        // What the encode would really have produced: the settings' output size
+        // and frame rate, an audio track, and the source plus the still tail.
+        duration: total,
+        videoDuration: total,
+        width: 720,
+        height: 406,
+        frameRate,
+        measuredBodyFrameRate,
+        // A sparse tail can make the declared rate misleading even when the
+        // independently measured moving body is still exactly 30fps.
+        nominalFrameRate,
+        hasAudio: true,
+        audioCodec: 'aac',
+        audioDuration: total
+      });
 
-    // Appending forty minutes of still image makes the file bigger on purpose.
-    // Refusing that would be refusing the feature: the result is kept and its
-    // real size reported.
-    expect(job.status).toBe('completed');
-    expect(job.finalSize).toBe(12_000);
-  });
+      // Appending forty minutes of still image makes the file bigger on purpose.
+      // Refusing that would be refusing the feature: the result is kept and its
+      // real size reported.
+      expect(job.status).toBe('completed');
+      expect(job.finalSize).toBe(12_000);
+      expect(job.finalFrameRate).toBe(30);
+    }
+  );
 });
 
 /** The growth heuristic, exercised through a job exactly as the queue does. */

@@ -43,6 +43,15 @@ afterEach(() => {
 });
 
 describe('team Realtime invalidation', () => {
+  it('urgently rereads current permissions from an own-row signal without catalog traffic', async () => {
+    const onRefetch = vi.fn().mockResolvedValue(undefined);
+    renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+    expect(events.has('team_membership_access_signals')).toBe(true);
+    act(() => events.get('team_membership_access_signals')?.());
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(onRefetch).toHaveBeenCalledOnce();
+  });
+
   it('subscribes to catalog inserts so history cleanup does not refetch the workspace', () => {
     renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch: vi.fn() }));
     const client = vi.mocked(getSupabaseClient).mock.results.at(-1)?.value;
@@ -109,6 +118,7 @@ describe('team Realtime invalidation', () => {
       'team_catalog_events',
       'team_launch_signals',
       'team_launch_workspace_signals',
+      'team_membership_access_signals',
       'team_operations'
     ]);
     act(() => status('SUBSCRIBED'));

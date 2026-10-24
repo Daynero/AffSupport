@@ -49,7 +49,9 @@ export function DiagnosticsBundle() {
     // still carries everything the page itself knows.
     const response: AgentDiagnosticsResponse | null = await fetchAgentDiagnostics(
       0,
-      DIAGNOSTICS_BUNDLE_RECORDS
+      DIAGNOSTICS_BUNDLE_RECORDS,
+      undefined,
+      true
     ).catch(() => null);
     if (!mounted.current) return;
     const lastKnownAgent = agent?.lastKnownAgent ?? null;

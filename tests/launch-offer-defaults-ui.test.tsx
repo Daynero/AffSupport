@@ -4,7 +4,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { LaunchDraft } from '@video-compressor/shared';
 import { launchDefaultValues } from '../packages/shared/src/team/launches/defaults';
-import { newLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
+import { newLaunchDraft } from '../apps/web/src/team/launches/launchDraftDefaults';
 import {
   resolvedLaunchDefaults,
   useOfferDefaults

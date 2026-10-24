@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
+// Prepare real lazy route transforms outside the interaction deadline.
+// Component mounting and section state are still exercised through TeamSpace.
+import '../apps/web/src/team/workspace/WorkspaceShell';
+import '../apps/web/src/team/explorer/ExplorerShell';
 
 afterEach(() => {
   cleanup();
@@ -50,7 +54,7 @@ describe('team space lobby', () => {
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([]) });
     renderSpace(client);
 
-    expect(await screen.findByRole('heading', { name: 'A space to work together' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
     // A page with one way forward: no modal, no waiting list, no "speed up development".
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: 'Write to the administrator' })).toBeTruthy();

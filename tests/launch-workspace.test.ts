@@ -6,6 +6,8 @@ const OWNER = '79000000-0000-4000-8000-000000000001';
 const ASSIGNEE = '79000000-0000-4000-8000-000000000002';
 let db: TeamTestDb;
 let team: string;
+// Full migration-chain setup follows the SQL-suite fixture budget;
+// individual behavior assertions retain their normal test deadline.
 beforeAll(async () => {
   db = await createTeamTestDb();
   await createUser(db, { id: OWNER, email: 'launch-workspace@example.test' });
@@ -18,7 +20,7 @@ beforeAll(async () => {
     "insert into public.team_members(team_id,user_id,base_role) values($1,$2,'editor')",
     [team, ASSIGNEE]
   );
-});
+}, 60_000);
 afterAll(async () => {
   await db?.close();
 });

@@ -2,7 +2,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, isInaccessible, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nProvider } from 'react-aria-components';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -69,7 +69,8 @@ describe('both date surfaces render the inventory calendar', () => {
         <Calendar label="Pick" value={toCalendarDate('2026-09-15')} onChange={() => {}} />
       </I18nProvider>
     );
-    const selected = screen.getByRole('button', { name: /September 15, 2026/ });
+    const selected = screen.getByLabelText(/September 15, 2026/, { selector: '[role="button"]' });
+    expect(isInaccessible(selected)).toBe(false);
     selected.focus();
     await user.keyboard('{PageDown}');
     expect(document.activeElement?.getAttribute('aria-label')).toMatch(/October 15, 2026/);

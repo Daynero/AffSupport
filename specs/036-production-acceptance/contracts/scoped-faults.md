@@ -1,0 +1,48 @@
+# Scoped acceptance faults — T013/T016/T178
+
+This contract covers test tooling only. Production handlers, Auth, permission checks and provider authorization remain authoritative. No request field/header, session GUC or production environment flag activates a fault. The closed adapters live under `scripts/acceptance/`, outside deployable Functions/agent/web inputs. The isolation scanner must reject the fixture marker `soty.acceptance.faults.v1` in release inputs.
+
+## Ownership and lifecycle
+
+An arm request contains only a closed fault kind, synthetic actor/team/operation/flow IDs, bounded TTL and (for delay only) bounded delay. No SQL, JavaScript, command, PID, provider URL, path, credential or user content is accepted. Before arming, independently verify the local acceptance project, beta profile, CLI-returned loopback endpoints, namespace fixtures, actor/team ownership and campaign-owned operation fixture. The adapter receives a trusted operation capability from the actual harness, never a caller-supplied `verified:true` context.
+
+Persist the bounded campaign registry in the private test-only SQL journal, under the fixture namespace transaction advisory lock. A separate schema lock serializes installation and global bounds. Do not publish mutable journal state through a filesystem rename after releasing a database lock: a stalled writer could otherwise replace a newer clear. Serialize mutations inside one process and across processes. A pending fixture cleanup refuses new arms and effect starts. Clear runs under the same lock before Auth/application fixture deletion and affects only the matching campaign. Expiry uses real database wall-clock time, not tariff time. Reads always recheck expiry and clear state before applying an effect; a process crash cannot extend TTL. Invalid/foreign state is explicit and never overwritten to make a test pass.
+
+States distinguish armed, claimed, effect-started, observed, expired and cleared. Claim/effect intent alone does not prove that the caller saw the fault or that the server rolled back. Lost publication/commit acknowledgement is unconfirmed. A case closes only after authoritative server/result readback and the appropriate visible outcome. Diagnostics contain only bounded synthetic IDs, kind, stage, timestamps and stable reasons. Exported evidence contains no request headers/body, provider payload or private state path.
+
+## Closed fault effects
+
+| Kind                          | Actual test seam                                                                           | Required proof                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| lost_acceptance_response      | Await the real scoped acceptance request, then suppress only its reply                     | Server may commit; retry/readback establishes actual outcome and no duplicate                     |
+| lost_status_response          | Suppress a real scoped status reply                                                        | No invented terminal; later authoritative status recovers                                         |
+| drive_429                     | Provider transport dependency used by the actual handler/worker                            | Real retry/backoff path; no whole-API fake success or unscoped provider traffic                   |
+| expired_cursor                | Scoped provider changes transport returns the supported expired-cursor response            | Actual cursor fallback/full scan, bounded restart and no duplicate material                       |
+| worker_crash_after_checkpoint | Stop only the fixture child registered by the runner after durable checkpoint confirmation | Checkpoint survives; restart/refencing and result ownership verified; unrelated processes survive |
+| delayed_delivery              | Delay the actual scoped receipt/callback for a bounded interval                            | UI/API timing remains separate; timeout/censoring retained; clear/expiry disables future delay    |
+| missing_signal                | Omit only the scoped delivery notification while retaining server truth                    | Reconnect/authoritative reread recovers; absent signal is not a successful visible result         |
+
+Network-response adapters operate through the existing injectable transport dependency, without forwarding activation metadata. Worker control accepts an internally owned child handle and a closed checkpoint event, never a PID or executable from JSON. Browser notification adapters attach through the verified test-only probe seam; they cannot add a production reconnect loop or weaken its authority.
+
+## Acceptance boundary
+
+Tests must prove input rejection, target/fixture mismatch, one-shot concurrent claim, bounded expiry, crash recovery, foreign-state preservation, clear during in-flight work, namespace cleanup ordering, privacy and release containment. Include actual loopback HTTP/real local Auth and native owned-child evidence where applicable. Mocks prove only the pure state machine. Missing provider/browser/worker integration is reported per capability and keeps that portion open; a descriptor with no executing seam is not an implemented fault.
+
+## Current implementation boundary — 2026-10-24
+
+`fault-model.mjs`, `fault-schema.mjs`, `fault-journal.mjs` and the local `faults.mjs` entry point implement the bounded private journal. `fault-effects.mjs` supplies operation-scoped response, Drive-read and delivery adapters. The CLI form is `node scripts/release-acceptance.mjs faults <local-target.json> <closed-command.json>`; every result remains `journalOnly:true`, never an acceptance PASS. The private registry is outside the production migration chain. Fixture cleanup removes its own rows and inspects the complete application reference graph in one transaction; a dry run, blocked graph or failed scan restores the rows. Other namespaces are retained and remain subject to the ordinary reference scan.
+
+A response loss or provider response remains `effect_started` until the actual consumer calls `confirmObservation`; the producer cannot prove consumer receipt before returning or throwing. This confirmation alone still cannot close a manual acceptance case: authoritative result/readback and visible recovery are separate evidence.
+
+T013/T016/T178 remain open. The original existing-operation-only boundary was extended by the following guarded intent and scan-resource work. No whole product-recovery acceptance is inferred from its component tests.
+
+
+## Verified follow-up boundaries — 2026-10-24
+
+`resourceKind` is a closed optional input, normalized to `team_operation` or explicitly `catalog_sync_request`. The first resolves public.team_operations by actor/team/idempotency key; the second resolves the requester, request key, connection and exact matching catalog job. There is no caller-selected SQL/table or fallback between resource families. The returned resolvedResourceId identifies the proven row; team operations also return resolvedOperationId, scan requests return resolvedRequestId/resolvedJobId.
+
+Only lost_acceptance_response permits operationId:null. The arm and claim require the matching request to be absent; effect-start requires exactly one actual accepted row. Replay of the same fault ID never extends TTL. A new intent cannot relabel an existing operation as a first acceptance. Ambiguous matches, another actor or mismatched job/connection fail. Real local Auth/Drive upload acceptance loss and same-key operation recovery passed; the harness initially assumed a secret session URI was replayable, but the actual contract explicitly returns sessionUnavailable:true. No bytes were sent and the own pending operation was canceled with its reservation released. Real status-RPC reply loss and unchanged authoritative reread passed. Real folder-scan RPC reply loss, find-by-key and same-request/job replay passed on the authorized QA child; only that own scan request was canceled. No browser unknown/delivery proof is implied. Proof: t178-initial-response-proof.json and the subsequent scan/worker checkpoint.
+
+The expired_cursor adapter targets only GET /drive/v3/files with a non-empty pageToken and injects the supported400/pageToken rejection. It leaves OAuth, upload, media, metadata and changes-feed requests untouched. The real GoogleDriveClient parser and scan engine tests prove fresh-generation restart;429 propagates as retryable without page/terminal commit. This is not native worker retry/backoff, actual provider cursor expiry or changes-feed recovery proof.
+
+fault-worker.mjs registers opaque handles only for its literal native fixture entry. No PID, executable, path or command is accepted from JSON. The fixture uses the actual RecoveryJournal source in an internally created temporary directory, confirms the checkpoint by readback, and can cold-load it in a new process. The crash seam verifies scope and TTL/clear fences before terminating only its registered process tree; unrelated-process preservation and unchanged checkpoint bytes pass native tests. All results say fixtureOnly:true. The fixture writes no provider/user work, accesses no real credentials/profile, and does not run the authenticated RecoveryWorker or prove server claim/refencing/retry behavior. Actual RecoveryWorker resource binding/execution and native UI delivery remain open. The latest complete T170 verification predates these follow-ups; a fresh final candidate verification is still required.

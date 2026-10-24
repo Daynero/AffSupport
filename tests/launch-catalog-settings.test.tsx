@@ -3,7 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchEditor } from '../apps/web/src/team/launches/LaunchEditor';
-import { newLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
+import { newLaunchDraft } from '../apps/web/src/team/launches/launchDraftDefaults';
 vi.mock('../apps/web/src/team/launches/LaunchCreativePicker', () => ({
   LaunchCreativePicker: () => null
 }));

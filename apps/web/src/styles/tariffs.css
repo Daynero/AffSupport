@@ -25,7 +25,8 @@
 }
 
 .tariff-showcase-art {
-  width: min(100%, 220px);
+  width: min(100%, 160px);
+  flex: none;
   height: auto;
   border-radius: var(--radius-lg);
 }
@@ -37,6 +38,7 @@
 
 .tariff-feature-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -47,6 +49,9 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-body);
 }
 
 .tariff-feature-icon {
@@ -72,6 +77,8 @@
 .tariff-showcase-sent p {
   flex: 1 1 280px;
   margin: 0;
+  font-size: var(--text-label);
+  overflow-wrap: anywhere;
 }
 
 .tariff-showcase-email {
@@ -124,6 +131,12 @@
 
 .admin-tariff-search {
   width: min(100%, 280px);
+}
+
+/* Keep nine ledger columns readable; the inventory table owns the scroll. */
+.admin-tariff-table .ui-table-header,
+.admin-tariff-table .ui-table-row {
+  min-width: 1040px;
 }
 
 .admin-tariff-note {

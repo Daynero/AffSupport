@@ -63,4 +63,9 @@ it('layers catalog settings over the retained manager and restores its context o
   expect((search as HTMLInputElement).value).toBe('EG 75');
   expect(new URLSearchParams(window.location.search).get('folder')).toBe('original-folder');
   expect(new URLSearchParams(window.location.search).get('updater')).toBe('1');
+  await user.click(screen.getByRole('button', { name: 'Open catalog defaults' }));
+  await screen.findByRole('dialog', { name: 'Space settings' });
+  await user.keyboard('{Escape}');
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull());
+  expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
 });

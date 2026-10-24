@@ -1098,6 +1098,7 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                 {creating && (
                   <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
                     <AccountNameRow
+                      canSave={canEdit}
                       hold={hold}
                       onDirtyChange={onDirtyChange}
                       onCancel={cancelCreate}

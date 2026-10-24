@@ -186,7 +186,7 @@ function LaunchSpaceContent({
     let active = true;
     void Promise.all([
       launchApi.accounts(teamId),
-      teamApi.listMembers(teamId),
+      teamApi.listAssignees(teamId),
       launchApi.dictionaries(teamId),
       launchApi.defaults(teamId)
     ])
@@ -196,7 +196,7 @@ function LaunchSpaceContent({
         setAssignees(
           members.map(member => ({
             userId: member.userId,
-            label: member.displayName ?? member.email ?? member.userId
+            label: member.displayName ?? t('teamMemberUnnamed')
           }))
         );
         setAssigneeFilter(current => {

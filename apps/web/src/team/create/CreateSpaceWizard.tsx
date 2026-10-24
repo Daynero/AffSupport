@@ -90,6 +90,15 @@ export function CreateSpaceWizard({
    * (`create_team` refuses a duplicate name among your own spaces).
    */
   const submitName = async (name: string): Promise<TeamContextSnapshot> => {
+    const resumed = resumeTeamId ? teams.find(team => team.id === resumeTeamId) : undefined;
+    if (resumed) {
+      if (resumed.name === name) return resumed;
+      // Resuming must preserve the existing space, its tariff and any saved work.
+      // A failed rename stays on this step rather than creating a replacement.
+      if (!client.renameTeam) throw new Error('RENAME_UNAVAILABLE');
+      const renamed = await client.renameTeam(resumed.id, name);
+      return { ...resumed, name: renamed };
+    }
     if (draft && draft.name === name) return draft;
     if (draft) {
       await client.deleteDraftTeam(draft.id);
@@ -148,7 +157,7 @@ export function CreateSpaceWizard({
           createTeam={submitName}
           onCreated={handleCreated}
           onCancel={onCancel}
-          initialName={draft?.name ?? suggestedName}
+          initialName={draft?.name ?? resumeName ?? suggestedName}
         />
       ) : (
         <>

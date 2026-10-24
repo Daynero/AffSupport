@@ -3,7 +3,10 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { RecoveryJournal } from '../apps/agent/src/team-bridge/recovery-journal';
+import {
+  RecoveryJournal,
+  parseRecoveryCheckpoint
+} from '../apps/agent/src/team-bridge/recovery-journal';
 const dirs: string[] = [];
 afterEach(async () => {
   for (const dir of dirs.splice(0)) await removeTemporaryDirectory(dir);
@@ -35,4 +38,39 @@ describe('durable recovery metadata', () => {
     await writeFile(path.join(root, 'recovery.json'), 'x'.repeat(256 * 1024 + 1));
     await expect(journal.load()).rejects.toThrow('INVALID_RESPONSE');
   });
+  it.each([0, 120000])(
+    'preserves the distinct server retry deadline %s across reload',
+    async value => {
+      const root = await mkdtemp(path.join(os.tmpdir(), 'soty-recovery-'));
+      dirs.push(root);
+      const checkpoint = {
+        delegationId: '34000000-0000-4000-8000-000000000001',
+        requestId: '34000000-0000-4000-8000-000000000002',
+        operationId: null,
+        stage: 'blocked' as const,
+        reason: 'retry_exhausted',
+        updatedAt: new Date().toISOString(),
+        retryNotBefore: Date.now() + 120000,
+        serverRetryNotBefore: value === 0 ? 0 : Date.now() + value
+      };
+      await new RecoveryJournal(root).save({ registrations: [], checkpoints: [checkpoint] });
+      expect((await new RecoveryJournal(root).load()).checkpoints).toEqual([checkpoint]);
+    }
+  );
+  it.each([-1, Infinity, NaN, '120000', null])(
+    'rejects an invalid server retry deadline %s',
+    value => {
+      expect(
+        parseRecoveryCheckpoint({
+          delegationId: '34000000-0000-4000-8000-000000000001',
+          requestId: '34000000-0000-4000-8000-000000000002',
+          operationId: null,
+          stage: 'blocked',
+          reason: 'retry_exhausted',
+          updatedAt: new Date().toISOString(),
+          serverRetryNotBefore: value
+        })
+      ).toBeNull();
+    }
+  );
 });

@@ -34,7 +34,7 @@ import { LaunchCreativePicker } from './LaunchCreativePicker';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
-import { newLaunchCatalogConfig } from './useLaunchDraft';
+import { newLaunchCatalogConfig } from './launchCatalogDefaults';
 export function LaunchEditor({
   teamId,
   config,
@@ -96,6 +96,10 @@ export function LaunchEditor({
   const errors: Record<string, string> = {
     ...(preview && !preview.ok ? preview.errors : !parsed.ok ? parsed.errors : {})
   };
+  const invalidSubSettings = Boolean(errors.sub1 || errors.sub2 || errors.sub3);
+  useEffect(() => {
+    if (submitted && invalidSubSettings) setSubSettingsOpen(true);
+  }, [submitted, invalidSubSettings]);
   const account = accounts.find(account =>
     account.agents.some(agent => agent.id === config.agentRowId)
   );
@@ -291,7 +295,10 @@ export function LaunchEditor({
   const missingSubSlots = isLaunchUrl(config.originalUrl)
     ? missingLaunchSubSlots(config.originalUrl)
     : [];
-  const subOpenIds = subSettingsOpen ? new Set(['launch-sub-settings']) : new Set<string>();
+  const subOpenIds =
+    subSettingsOpen || (submitted && invalidSubSettings)
+      ? new Set(['launch-sub-settings'])
+      : new Set<string>();
   return (
     <div ref={editorRef} className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-3">
       <Card role="panel">

@@ -46,6 +46,47 @@ function renderSpace(client: ReturnType<typeof makeClient>) {
 }
 
 describe('create space wizard', () => {
+  it('explains denied creation without reporting a loading failure', async () => {
+    const client = wizardClient();
+    vi.mocked(client.createTeam).mockRejectedValueOnce(new Error('PERMISSION_DENIED'));
+    const user = userEvent.setup();
+    renderSpace(client);
+    await user.click(await screen.findByRole('button', { name: 'Create your first space' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(
+      await screen.findByText(
+        'Your current access does not allow saving this space. Check your space permissions and plan.'
+      )
+    ).toBeTruthy();
+    expect(screen.getByLabelText(/Space name/)).toHaveProperty('value', 'My space');
+    expect(screen.queryByText('Could not load this space.')).toBeNull();
+  });
+
+  it.each([false, true])('keeps a resumed draft identity after Back (rename=%s)', async rename => {
+    const existing = makeTeam({ id: NEW_ID, name: 'Existing draft', connectionState: 'none' });
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([existing]) });
+    const renameTeam = vi.fn().mockResolvedValue('Renamed draft');
+    Object.assign(client, { renameTeam });
+    const user = userEvent.setup();
+    renderSpace(client);
+    await user.click(await screen.findByRole('button', { name: /Existing draft/ }));
+    await user.click(await screen.findByRole('button', { name: 'Back' }));
+    const field = screen.getByLabelText(/Space name/) as HTMLInputElement;
+    expect(field.value).toBe('Existing draft');
+    if (rename) {
+      await user.clear(field);
+      await user.type(field, 'Renamed draft');
+    }
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Connect a Google Drive folder' })
+    ).toBeTruthy();
+    expect(client.createTeam).not.toHaveBeenCalled();
+    expect(client.deleteDraftTeam).not.toHaveBeenCalled();
+    if (rename) expect(renameTeam).toHaveBeenCalledWith(NEW_ID, 'Renamed draft');
+    else expect(renameTeam).not.toHaveBeenCalled();
+  });
+
   it('requires a name and a connected folder, then opens the new space', async () => {
     const client = wizardClient();
     const user = userEvent.setup();

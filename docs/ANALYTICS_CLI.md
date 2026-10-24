@@ -519,3 +519,53 @@ projection доступна. Registered/queued не означає started аб�
 невідомий код, обрізаний список і непідтверджена доставка явно вказуються як blind spots.
 `--as-of` не реконструює попередній стан зміненого recovery item: новіший mutable запис пропускається.
 Результат обмежений 100 items; жодні credentials чи користувацький контент не читаються.
+
+### Відкликання фонового виконавця (036)
+
+`investigate <email> --json` розпізнає native journal `team:recovery_retirement` і повертає
+finding `recovery_retirement`. Кореляція — opaque delegation ID та native instance; усередині
+однієї instance останній запис визначається `seq`, а не порядком доставки. Різні boot не
+впорядковуються лише за локальним годинником. Це спостережений стан, а не live-запит до агента.
+
+- `pending_server`: локальне відкликання збережено; server acknowledgement невідоме.
+- `server_confirmed`: підтвердження сервера збережено; цей етап ще не доводить очищення ключа.
+- `pending_local_cleanup`: серверне відкликання підтверджено, локальне очищення ще не завершене.
+- `local_complete`: спостережено підтвердження сервера та завершення локального очищення.
+- `server_unknown`: потрібного захищеного handle немає; результат на сервері невідомий.
+
+Невідомі етапи/прив'язки залишаються insufficient і не відображають довільний текст із props.
+Відсутній або недоставлений журнал не означає успішного виходу. Залишковий refresh handle не
+видаляти до підтвердження; processing не повторювати для діагностики відкликання.
+
+`audit` має окрему capability `team.recovery_retirement`: читає тільки відповідні journal groups,
+поважає recorded/received `--as-of` і не використовує sync jobs як доказ. Невідомий server ack,
+незавершене очищення та невідомий stage/binding явно в missing. Browser-only logout без доступного
+native і придатної сесії ще не має підтвердженого diagnostic receipt; capability залишається partial
+(або uncovered без даних). Не вважати це production acceptance усієї 036.
+
+### Зміна доступу у відкритому просторі (036)
+
+`investigate <email> --json` додатково повертає `data.membership_access`: не більше 100
+поточних own-row revisions і час їхньої зміни зі restricted projection. Revision доводить
+продукцію invalidation, а не отримання браузером; `browser_delivery` лишається `unknown`.
+Перезаписані revisions не відновлюються історично, зміни після `--as-of` пропускаються явно.
+Якщо view/SELECT privilege немає, `supported=false` і named blind spot, а не нуль змін.
+
+`audit`/`inspect` знають capability `members.access_refresh`: correlated `operation_started`
+→ `operation_completed|failed` з `flow_step=member_access_refresh`. Completion доводить
+authoritative access reread; видимий DOM потребує окремого browser evidence. Відсутній terminal,
+пропущений signal або перерваний браузер не означають успіх. Code map веде до Realtime owner,
+TeamContext та additive membership signal migration. Permission values і target email не збираються.
+
+Own-row revision також змінюється у поточних менеджерів при membership/invitation changes (036,06132000). Це не означає, що власні права цієї особи змінилися: signal лише вимагає reread. MembersSection використовує спільну revision для списку людей, invitations і seats; list attempts мають окремі correlated terminals. RLS усе ще відкриває лише власний signal row.
+
+### Profile synchronization across tabs
+
+`inspect <attempt-id>`, `investigate <email>` and `audit` distinguish
+`account.profile_update` from `account.profile_refresh`. A completed source write
+does not acknowledge delivery to another tab. Refresh failures retain the last
+known profile and retry on activation; a missing terminal after identity change
+remains unknown. Closed causes are `PROFILE_UPDATE_FAILED`,
+`PROFILE_REFRESH_FAILED` and `PROFILE_REFRESH_TIMEOUT`. Diagnostics contain no
+profile values or browser credentials. Automatic beta collection stays disabled;
+explicit synthetic acceptance capture verifies the collector and read-only CLI.

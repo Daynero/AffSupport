@@ -32,6 +32,12 @@ import {
 } from './events';
 import { bindJournalContext, forwardsAgentJournal, journalForwarder } from './journal-forwarder';
 import { productSessionId } from './session';
+import {
+  acceptanceCaptureActive,
+  acceptanceCaptureAdmitted,
+  captureAcceptanceEvent,
+  resetAcceptanceCapture
+} from './acceptance-capture';
 
 const QUEUE_KEY = 'wishly.analytics.queue.v2';
 const LEGACY_QUEUE_KEY = 'wishly.analytics.queue.v1';
@@ -279,13 +285,14 @@ function installationId(storage: Storage | null) {
   return created;
 }
 
-async function sendWithSupabase(events: PendingAnalyticsEvent[]) {
+async function sendWithSupabase(events: PendingAnalyticsEvent[], signal?: AbortSignal) {
   const supabase = getSupabaseClient();
   if (!supabase) return false;
   const payload = events.map(({ attempts: _attempts, ...event }) => event);
-  const { data, error } = await supabase.rpc('ingest_analytics_events', {
+  const request = supabase.rpc('ingest_analytics_events', {
     p_events: payload as unknown as Json
   });
+  const { data, error } = await (signal ? request.abortSignal(signal) : request);
   if (error) {
     console.warn('Soty analytics delivery failed.', {
       code: error.code,
@@ -362,6 +369,7 @@ export class ProductAnalytics {
   }
 
   setUser(userId: string | null) {
+    if (import.meta.env.DEV && this.userId !== userId) resetAcceptanceCapture();
     if (userId) this.queue = this.queue.filter(event => event.user_id === userId);
     else if (this.userId) this.queue = [];
     this.userId = userId;
@@ -387,9 +395,38 @@ export class ProductAnalytics {
     };
   }
 
+  /** Late asynchronous outcomes must never inherit a replacement account's envelope. */
+  trackForActor<E extends AnalyticsEventName>(
+    expectedActorId: string,
+    name: E,
+    properties: AnalyticsEventProperties[E]
+  ): void {
+    if (!expectedActorId || this.userId !== expectedActorId) return;
+    this.track(name, properties);
+  }
+
   track<E extends AnalyticsEventName>(name: E, properties: AnalyticsEventProperties[E]) {
-    if (!ANALYTICS_ENABLED || !this.userId || typeof window === 'undefined') return;
+    if (!this.userId || typeof window === 'undefined') return;
     const sanitized = sanitizeAnalyticsProperties(properties, name);
+    if (!ANALYTICS_ENABLED) {
+      if (import.meta.env.DEV && acceptanceCaptureActive()) {
+        captureAcceptanceEvent(this.buildEvent(name, sanitized), async (events, signal) => {
+          const result = await sendWithSupabase(events, signal);
+          if (result === false) return false;
+          const accepted = new Set(result.acceptedEventIds);
+          for (const event of events) {
+            if (
+              accepted.has(event.event_id) &&
+              forwardsAgentJournal(event.event_name, event.properties)
+            ) {
+              void journalForwarder.forward(event.event_name);
+            }
+          }
+          return accepted;
+        });
+      }
+      return;
+    }
     this.enqueue(this.buildEvent(name, sanitized));
     // 033 FR-003: a failure or a fresh link is when the agent's journal is worth reading.
     if (forwardsAgentJournal(name, sanitized)) void journalForwarder.forward(name);
@@ -398,7 +435,11 @@ export class ProductAnalytics {
   /** What the agent-journal forwarder needs to know about this session (033 FR-003). */
   journalContext() {
     return {
-      enabled: ANALYTICS_ENABLED && Boolean(this.userId) && typeof window !== 'undefined',
+      enabled:
+        (ANALYTICS_ENABLED || (import.meta.env.DEV && acceptanceCaptureAdmitted(this.userId))) &&
+        Boolean(this.userId) &&
+        typeof window !== 'undefined',
+      userId: this.userId,
       installationId: this.installationId,
       instanceId: this.context.instanceId ?? null
     };

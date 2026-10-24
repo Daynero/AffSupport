@@ -10,6 +10,8 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { analytics } from '../analytics/service';
+import { retireAgentActor } from '../api/entitlement-retirement';
+import { retireServerRecovery } from '../api/recovery-server-retirement';
 import { getInitialTheme, trackThemePreference } from '../lib/theme';
 import { publicConfig } from '../lib/config';
 import type { Database, Profile } from '../lib/database.types';
@@ -22,7 +24,29 @@ import {
   sessionHandoffOrigin
 } from './session-handoff';
 import { beginGoogleSignIn, finishGoogleSignIn, isDirectGoogleCallback } from './google-sign-in';
+import { observeSessionLogout } from './session-mutation-analytics';
+import { observeProfileSync } from './profile-sync-analytics';
+import { subscribeProfileInvalidation, type ProfileRefreshSource } from './profile-invalidation';
 import { syncProfileLanguage } from '../i18n';
+import {
+  authSessionMutationCode,
+  captureAuthSessionOwner,
+  runAuthSessionMutation,
+  signOutExpectedSession
+} from './session-mutations';
+
+async function mutateSession<T extends { error: unknown }>(
+  run: () => Promise<T>
+): Promise<T | { error: Error }> {
+  try {
+    if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+    return await runAuthSessionMutation(publicConfig.value.supabaseUrl, run);
+  } catch (error) {
+    // Existing callback/beta error paths must also handle lock refusal and
+    // rejected SDK promises; neither may strand the UI in initialization.
+    return { error: new Error(authSessionMutationCode(error), { cause: error }) };
+  }
+}
 
 export type AuthStatus =
   'initializing' | 'unauthenticated' | 'authenticating' | 'authenticated' | 'signing-out' | 'error';
@@ -170,16 +194,15 @@ async function wait(milliseconds: number) {
   await new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
-async function fetchProfile(userId: string): Promise<Profile> {
+async function fetchProfile(userId: string, signal?: AbortSignal): Promise<Profile> {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('SUPABASE_CONFIGURATION_MISSING');
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    if (data) return data;
+    const query = supabase.from('profiles').select('*').eq('id', userId);
+    const { data, error } = await (signal ? query.abortSignal(signal) : query).maybeSingle();
+    if (signal?.aborted) throw new Error('PROFILE_REFRESH_TIMEOUT');
+    if (data && data.id === userId) return data;
+    if (data) throw new Error('PROFILE_IDENTITY_MISMATCH');
     if (error && error.code !== 'PGRST116') throw error;
     if (attempt < 2) await wait(150 * (attempt + 1));
   }
@@ -205,6 +228,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   const snapshotRef = useRef(snapshot);
   const loadSequence = useRef(0);
+  const signInGeneration = useRef(0);
+  const profileRevision = useRef(0);
+  const profileInvalidation = useRef<ReturnType<typeof subscribeProfileInvalidation> | null>(null);
   snapshotRef.current = snapshot;
 
   const establishIdentity = useCallback(async (session: Session, canRefreshToken = true) => {
@@ -305,9 +331,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || event === 'INITIAL_SESSION') return;
+      // Fence pending logout immediately, before asynchronous profile loading or a render.
+      if (session && event === 'SIGNED_IN') signInGeneration.current += 1;
+      // A signout invalidates profile work, but is not a replacement login:
+      // the initiating logout still owns its journal/handoff cleanup.
+      if (!session || event === 'SIGNED_OUT') profileRevision.current += 1;
       queueMicrotask(() => {
         if (!active) return;
         if (!session || event === 'SIGNED_OUT') {
+          const previousActor = snapshotRef.current.user?.id;
+          if (previousActor) {
+            void retireAgentActor(previousActor);
+            void retireServerRecovery(previousActor);
+          }
           loadSequence.current += 1;
           analytics.setUser(null);
           sessionStorage.removeItem('wishly.auth.analytics-user.v1');
@@ -328,13 +364,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       active = false;
+      loadSequence.current += 1;
       window.clearTimeout(initializationWatchdog);
       subscription.unsubscribe();
     };
   }, [establishIdentity]);
 
+  useEffect(() => {
+    if (LOCAL_DEV_AUTH || !publicConfig.ok) return;
+    let active = true;
+    let controller: AbortController | null = null;
+    let pending: ProfileRefreshSource | null = null;
+    const refresh = async (source: ProfileRefreshSource) => {
+      if (!active) return;
+      if (controller) {
+        pending = source;
+        return;
+      }
+      const current = snapshotRef.current;
+      if (current.status !== 'authenticated' || !current.user) return;
+      const actor = current.user.id,
+        generation = signInGeneration.current,
+        sequence = loadSequence.current,
+        revision = profileRevision.current;
+      const owns = () =>
+        active &&
+        snapshotRef.current.status === 'authenticated' &&
+        snapshotRef.current.user?.id === actor &&
+        generation === signInGeneration.current &&
+        sequence === loadSequence.current &&
+        revision === profileRevision.current;
+      const request = new AbortController();
+      controller = request;
+      const timeout = window.setTimeout(() => request.abort(), 10_000);
+      const observation = observeProfileSync(actor, 'refresh', source);
+      try {
+        const profile = await fetchProfile(actor, request.signal);
+        if (!owns()) {
+          observation.superseded();
+          return;
+        }
+        setSnapshot(value => (owns() && value.user?.id === actor ? { ...value, profile } : value));
+        analytics.setLocale(profile.language);
+        if (profile.onboarding_completed) syncProfileLanguage(profile.language);
+        observation.completed();
+      } catch {
+        if (!owns()) observation.superseded();
+        else
+          observation.failed(
+            request.signal.aborted ? 'PROFILE_REFRESH_TIMEOUT' : 'PROFILE_REFRESH_FAILED'
+          );
+        // Keep the last known profile usable. A later activation retries the read.
+      } finally {
+        window.clearTimeout(timeout);
+        controller = null;
+        const next = pending;
+        pending = null;
+        if (active && next) void refresh(next);
+      }
+    };
+    const subscription = subscribeProfileInvalidation(publicConfig.value.supabaseUrl, source => {
+      void refresh(source);
+    });
+    profileInvalidation.current = subscription;
+    return () => {
+      active = false;
+      controller?.abort();
+      subscription.dispose();
+      if (profileInvalidation.current === subscription) profileInvalidation.current = null;
+    };
+  }, []);
+
   const signInWithGoogle = useCallback(async (returnPath?: string | null) => {
     if (LOCAL_DEV_AUTH) return;
+    signInGeneration.current += 1;
+    try {
+      if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+      await runAuthSessionMutation(publicConfig.value.supabaseUrl, async () => undefined);
+    } catch {
+      setSnapshot(current => ({ ...current, status: 'error', error: 'oauth' }));
+      return;
+    }
     // In the Agent's copy of the app the provider callback is registered against
     // the website, so signing in here means signing in there and being handed the
     // result back. Asking explicitly also lifts a previous sign-out's block.
@@ -350,6 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
       return;
     }
+    const config = publicConfig.value;
     rememberReturnPath(returnPath);
     setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
     try {
@@ -357,20 +468,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // (brand verification); without the function the provider redirect below
       // is the same sign-in it always was.
       const direct = await beginGoogleSignIn({
-        supabaseUrl: publicConfig.value.supabaseUrl,
-        publishableKey: publicConfig.value.supabasePublishableKey
+        supabaseUrl: config.supabaseUrl,
+        publishableKey: config.supabasePublishableKey
       });
       if (direct) {
         location.assign(direct);
         return;
       }
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${publicConfig.value.siteUrl}/auth/callback`,
-          scopes: 'openid email profile'
-        }
-      });
+      const { error } = await mutateSession(() =>
+        supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${config.siteUrl}/auth/callback`,
+            scopes: 'openid email profile'
+          }
+        })
+      );
       if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'oauth' });
     } catch {
       setSnapshot({
@@ -386,16 +499,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // handling, and entitlement checks remain testable without leaving localhost.
   const signInWithBetaFixture = useCallback(async (fixture: 'owner' | 'member' = 'owner') => {
     if (!BETA_AUTH || LOCAL_DEV_AUTH) return;
+    signInGeneration.current += 1;
     const supabase = getSupabaseClient();
     if (!supabase || !publicConfig.ok) {
       setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
       return;
     }
     setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
-    const { error } = await supabase.auth.signInWithPassword({
-      email: fixture === 'member' ? 'member@soty.local' : 'beta@soty.local',
-      password: fixture === 'member' ? 'beta-member-password' : 'beta-password'
-    });
+    const { error } = await mutateSession(() =>
+      supabase.auth.signInWithPassword({
+        email: fixture === 'member' ? 'member@soty.local' : 'beta@soty.local',
+        password: fixture === 'member' ? 'beta-member-password' : 'beta-password'
+      })
+    );
     if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'beta_auth' });
   }, []);
 
@@ -408,13 +524,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const adoptHandedOverSession = useCallback(async (accessToken: string, refreshToken: string) => {
     if (LOCAL_DEV_AUTH) return;
+    signInGeneration.current += 1;
     const supabase = getSupabaseClient();
     if (!supabase) throw new Error('SUPABASE_CONFIGURATION_MISSING');
     setSnapshot(current => ({ ...current, status: 'initializing', error: null }));
-    const { error } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
+    const { error } = await mutateSession(() =>
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      })
+    );
     if (error) {
       setSnapshot({ ...initialSnapshot, status: 'error', error: 'callback' });
       throw new Error('SESSION_HANDOFF_FAILED');
@@ -423,6 +542,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completeOAuthCallback = useCallback(async (code: string, state?: string | null) => {
     if (LOCAL_DEV_AUTH) return;
+    signInGeneration.current += 1;
     const supabase = getSupabaseClient();
     if (!supabase || !publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
     setSnapshot(current => ({ ...current, status: 'initializing', error: null }));
@@ -437,10 +557,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           code
         ).then(
           ({ idToken, nonce }) =>
-            supabase.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce }),
+            mutateSession(() =>
+              supabase.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce })
+            ),
           () => ({ error: new Error('GOOGLE_SIGN_IN_EXCHANGE_FAILED') })
         )
-      : await supabase.auth.exchangeCodeForSession(code);
+      : await mutateSession(() => supabase.auth.exchangeCodeForSession(code));
     if (error) {
       setSnapshot({ ...initialSnapshot, status: 'error', error: 'callback' });
       throw new Error('OAUTH_CALLBACK_FAILED');
@@ -452,20 +574,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseClient();
     if (!supabase) return;
     const actorId = snapshotRef.current.user?.id;
-    setSnapshot(current => ({ ...current, status: 'signing-out', error: null }));
-    analytics.track('user_signed_out', {});
-    await analytics.flush();
-    const error = await (async () => {
-      try {
-        return (await supabase.auth.signOut()).error;
-      } catch {
-        return { message: 'NETWORK' };
-      }
-    })();
-    if (error) {
+    const observation = observeSessionLogout(actorId);
+    let expectedOwner: ReturnType<typeof captureAuthSessionOwner>;
+    try {
+      if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+      expectedOwner = captureAuthSessionOwner(
+        publicConfig.value.supabaseUrl,
+        snapshotRef.current.session
+      );
+    } catch (error) {
+      observation.failed(error);
       setSnapshot(current => ({ ...current, status: 'error', error: 'signout' }));
       return;
     }
+    const generation = signInGeneration.current;
+    const stillOwnsLogout = () =>
+      generation === signInGeneration.current &&
+      (!snapshotRef.current.user || snapshotRef.current.user.id === actorId);
+    // Publish the durable intent before cloud signout or an outstanding token exchange.
+    // Offline native cleanup remains pending; it must not prevent cloud signout.
+    if (actorId) void retireAgentActor(actorId);
+    setSnapshot(current => ({ ...current, status: 'signing-out', error: null }));
+    // The server must see this while the actor's captured JWT is still available.
+    if (actorId) await retireServerRecovery(actorId);
+    if (!stillOwnsLogout()) {
+      observation.superseded();
+      return;
+    }
+    if (actorId) analytics.trackForActor(actorId, 'user_signed_out', {});
+    await analytics.flush();
+    if (!stillOwnsLogout()) {
+      observation.superseded();
+      return;
+    }
+    const result = await (async () => {
+      try {
+        if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+        return await signOutExpectedSession(
+          publicConfig.value.supabaseUrl,
+          supabase.auth,
+          expectedOwner,
+          undefined,
+          undefined,
+          () => observation.acquired()
+        );
+      } catch (error) {
+        observation.failed(error);
+        return {
+          error: { message: authSessionMutationCode(error) },
+          superseded: false,
+          session: null
+        };
+      }
+    })();
+    if (!stillOwnsLogout()) {
+      observation.superseded();
+      return;
+    }
+    if (result.superseded) {
+      observation.superseded();
+      if (result.session) void establishIdentity(result.session);
+      else setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });
+      return;
+    }
+    if (result.error) {
+      observation.failed(result.error);
+      setSnapshot(current => ({ ...current, status: 'error', error: 'signout' }));
+      return;
+    }
+    observation.completed();
     if (actorId) {
       const { WorkspaceOperationJournal } =
         await import('../team/explorer/workspaceOperationJournal');
@@ -473,6 +650,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Remembered sync jobs belong to the account that started them.
     const { clearFolderResyncMemory } = await import('../team/explorer/useFolderResync');
+    if (!stillOwnsLogout()) {
+      observation.superseded();
+      return;
+    }
     clearFolderResyncMemory();
     analytics.setUser(null);
     sessionStorage.removeItem('wishly.auth.analytics-user.v1');
@@ -480,7 +661,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // live and sign the user straight back in.
     if (sessionHandoffOrigin()) declineHandoff();
     setSnapshot({ ...initialSnapshot, status: 'unauthenticated' });
-  }, []);
+  }, [establishIdentity]);
 
   const updateProfile = useCallback(async (patch: EditableProfilePatch) => {
     const current = snapshotRef.current;
@@ -495,7 +676,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return profile;
     }
     const supabase = getSupabaseClient();
-    if (!supabase || !current.user) throw new Error('AUTH_REQUIRED');
+    if (!supabase || !current.user || current.status !== 'authenticated')
+      throw new Error('AUTH_REQUIRED');
+    const actor = current.user.id,
+      generation = signInGeneration.current,
+      sequence = loadSequence.current,
+      revision = ++profileRevision.current;
+    const owns = () =>
+      snapshotRef.current.status === 'authenticated' &&
+      snapshotRef.current.user?.id === actor &&
+      generation === signInGeneration.current &&
+      sequence === loadSequence.current &&
+      revision === profileRevision.current;
+    const observation = observeProfileSync(actor, 'update', 'form');
     const safePatch: Database['public']['Tables']['profiles']['Update'] = {};
     if ('display_name' in patch)
       safePatch.display_name = patch.display_name?.trim().slice(0, 120) || null;
@@ -505,18 +698,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof patch.onboarding_completed === 'boolean')
       safePatch.onboarding_completed = patch.onboarding_completed;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(safePatch)
-      .eq('id', current.user.id)
-      .select('*')
-      .single();
-    if (error) {
-      setSnapshot(value => ({ ...value, error: 'profile_update' }));
-      throw new Error('PROFILE_UPDATE_FAILED');
+    let data: Profile;
+    try {
+      const result = await supabase
+        .from('profiles')
+        .update(safePatch)
+        .eq('id', current.user.id)
+        .select('*')
+        .single();
+      if (!owns()) {
+        observation.superseded();
+        throw new Error('PROFILE_UPDATE_SUPERSEDED');
+      }
+      if (result.error || !result.data || result.data.id !== actor)
+        throw new Error('PROFILE_UPDATE_FAILED');
+      data = result.data;
+    } catch (error) {
+      if (!owns()) {
+        observation.superseded();
+        throw new Error('PROFILE_UPDATE_SUPERSEDED', { cause: error });
+      }
+      observation.failed('PROFILE_UPDATE_FAILED');
+      setSnapshot(value =>
+        owns() && value.user?.id === actor ? { ...value, error: 'profile_update' } : value
+      );
+      throw new Error('PROFILE_UPDATE_FAILED', { cause: error });
     }
-    setSnapshot(value => ({ ...value, profile: data, error: null }));
+    // Invalidate background reads that began while this write was pending.
+    profileRevision.current += 1;
+    const completedRevision = profileRevision.current;
+    setSnapshot(value =>
+      value.user?.id === actor &&
+      generation === signInGeneration.current &&
+      completedRevision === profileRevision.current
+        ? { ...value, profile: data, error: null }
+        : value
+    );
     analytics.setLocale(data.language);
+    profileInvalidation.current?.publish();
+    observation.completed();
     return data;
   }, []);
 

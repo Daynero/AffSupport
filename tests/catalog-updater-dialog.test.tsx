@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type CatalogUpdateProfile } from '@video-compressor/shared';
 import type {
   CatalogRegistryRow,
@@ -169,6 +169,54 @@ it('starts with compact controls, search and closed filters without loading defa
   expect(screen.getAllByRole('toolbar')).toHaveLength(1);
   expect(getDefaults).not.toHaveBeenCalled();
 });
+
+it('filters by confirmed last update and clears the filter and sort together', async () => {
+  const recent = row('1', 'recent', { lastUpdatedAt: new Date(Date.now() - 60_000).toISOString() });
+  const old = row('2', 'old', {
+    lastUpdatedAt: new Date(Date.now() - 10 * 86_400_000).toISOString()
+  });
+  renderDialog(client([recent, old], stopped));
+  await screen.findByLabelText('recent catalog');
+  await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Last update' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Within 24 hours' }));
+  expect(screen.queryByLabelText('old catalog')).toBeNull();
+  expect(screen.getByLabelText('recent catalog')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Sort by' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Last updated' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+  expect(screen.getByLabelText('old catalog')).toBeTruthy();
+  expect((screen.getByRole('combobox', { name: 'Sort by' }) as HTMLInputElement).value).toBe(
+    'Recently created'
+  );
+});
+
+it('keeps unsaved bulk changes until explicit discard and never sends cancelled changes', async () => {
+  const api = client([row('1', 'first'), row('2', 'second')], stopped);
+  renderDialog(api);
+  await userEvent.click(await screen.findByLabelText('Select first catalog'));
+  await userEvent.click(screen.getByLabelText('Select second catalog'));
+  const bar = screen.getByRole('group', { name: 'Selected catalogs' });
+  await userEvent.click(within(bar).getByRole('button', { name: 'Configure' }));
+  const bulk = screen.getByRole('dialog', { name: 'Edit selected update settings' });
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Images · On' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Off' }));
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Close' }));
+  const prompt = screen.getByRole('dialog', { name: 'Discard changes?' });
+  await userEvent.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
+  expect(screen.getByRole('dialog', { name: 'Edit selected update settings' })).toBe(bulk);
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Close' }));
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Discard changes?' })).getByRole('button', {
+      name: 'Discard changes'
+    })
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'Edit selected update settings' })).toBeNull()
+  );
+  expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Select first catalog')).toBeTruthy();
+});
 it('shows all five independent controls, with video first and IDs explained by the legend', async () => {
   renderDialog(client([row('1', 'polo.mp4')], stopped));
   const group = await screen.findByRole('toolbar', { name: 'What to update: polo.mp4 catalog' });
@@ -263,14 +311,20 @@ it('shows an overdue schedule as waiting rather than inventing another date', as
   );
   expect(await screen.findByText('Waiting to start')).toBeTruthy();
 });
-it('searches all 500 catalogs while keeping the initial DOM bounded', async () => {
-  const items = Array.from({ length: 500 }, (_, index) => row(String(index), `video-${index}`));
-  renderDialog(client(items, stopped));
-  await screen.findByLabelText('video-0 catalog');
-  expect(screen.getAllByRole('row')).toHaveLength(61);
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'video-499' } });
-  expect(await screen.findByLabelText('video-499 catalog')).toBeTruthy();
-  expect(screen.getAllByRole('row')).toHaveLength(2);
+describe('a registry with 500 catalogs', () => {
+  beforeEach(async () => {
+    const items = Array.from({ length: 500 }, (_, index) => row(String(index), `video-${index}`));
+    renderDialog(client(items, stopped));
+    await screen.findByLabelText('video-0 catalog');
+  });
+
+  it('searches all 500 catalogs while keeping the initial DOM bounded', async () => {
+    // Count hidden rows too: hiding 500 mounted rows would not bound the DOM.
+    expect(screen.getAllByRole('row', { hidden: true })).toHaveLength(61);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'video-499' } });
+    expect(await screen.findByLabelText('video-499 catalog')).toBeTruthy();
+    expect(screen.getAllByRole('row', { hidden: true })).toHaveLength(2);
+  });
 });
 it('saves one toggle immediately for exactly one catalog', async () => {
   const api = client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped);

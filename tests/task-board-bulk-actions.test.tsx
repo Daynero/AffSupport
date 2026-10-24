@@ -191,3 +191,25 @@ describe('the selection bar', () => {
     expect(screen.queryByRole('button', { name: 'Do to all' })).toBeNull();
   });
 });
+
+it('reads the safe assignee directory for an editor instead of private member management data', async () => {
+  const assigned = task('a', { assigneeId: 'editor-b', assigneeLabelSnapshot: 'Editor B' });
+  const listAssignees = vi
+    .fn()
+    .mockResolvedValue([{ userId: 'editor-b', displayName: 'Editor B' }]);
+  const listMembers = vi.fn().mockRejectedValue(new Error('PERMISSION_DENIED'));
+  const api = client({
+    listTasks: vi.fn().mockResolvedValue([assigned]),
+    getTask: vi.fn().mockResolvedValue({ task: assigned, attachments: [] }),
+    listAssignees,
+    listMembers
+  });
+  const user = userEvent.setup();
+  board(api);
+  await screen.findByText('Task a');
+  await waitFor(() => expect(listAssignees).toHaveBeenCalledWith(TEAM_ID));
+  expect(listMembers).not.toHaveBeenCalled();
+  await user.click(screen.getByText('Task a'));
+  const assignee = await screen.findByLabelText('Assignee');
+  expect(assignee.textContent).toContain('Editor B');
+});

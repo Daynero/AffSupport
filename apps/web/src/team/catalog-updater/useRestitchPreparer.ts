@@ -194,6 +194,8 @@ export function useRestitchPreparer(input: {
   });
 
   const nativeSupported = agent?.capabilities?.includes('team-background-recovery') === true;
+  const agentConnected = agent?.connection === 'connected';
+  const nativeInstanceId = agent?.lastKnownAgent?.instanceId;
   // Unknown native status must not start a competing browser executor.
   const [nativeOwner, setNativeOwner] = useState<boolean | null>(null);
   useEffect(() => {
@@ -201,27 +203,41 @@ export function useRestitchPreparer(input: {
       setNativeOwner(false);
       return;
     }
+    if (!agentConnected) {
+      setNativeOwner(null);
+      return;
+    }
     let live = true;
+    let revision = 0;
     setNativeOwner(null);
     const refresh = () => {
+      const requestedRevision = ++revision;
+      setNativeOwner(null);
       void backgroundRecoveryStatus(teamId)
         .then(value => {
-          if (live) setNativeOwner(value.enabled);
+          if (live && requestedRevision === revision) setNativeOwner(value.enabled);
         })
         .catch(() => {
-          if (live) setNativeOwner(null);
+          if (live && requestedRevision === revision) setNativeOwner(null);
         });
     };
     refresh();
+    const changedInAnotherTab = (event: StorageEvent) => {
+      if (event.key === RECOVERY_CHANGED) refresh();
+    };
     window.addEventListener(RECOVERY_CHANGED, refresh);
+    window.addEventListener('storage', changedInAnotherTab);
+    window.addEventListener('focus', refresh);
     return () => {
       live = false;
       window.removeEventListener(RECOVERY_CHANGED, refresh);
+      window.removeEventListener('storage', changedInAnotherTab);
+      window.removeEventListener('focus', refresh);
     };
-  }, [teamId, nativeSupported]);
+  }, [teamId, nativeSupported, agentConnected, nativeInstanceId]);
 
   useEffect(() => {
-    if (!enabled || (nativeSupported && nativeOwner !== false)) return;
+    if (!enabled || (nativeSupported && (!agentConnected || nativeOwner !== false))) return;
     let stopped = false;
     let timer: number | null = null;
     let failures = 0;
@@ -282,7 +298,7 @@ export function useRestitchPreparer(input: {
       if (timer !== null) window.clearTimeout(timer);
       setPreparing(false);
     };
-  }, [enabled, teamId, nativeSupported, nativeOwner]);
+  }, [enabled, teamId, nativeSupported, nativeOwner, agentConnected]);
 
   return { preparing };
 }

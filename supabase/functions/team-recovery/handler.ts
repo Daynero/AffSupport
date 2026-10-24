@@ -1,3 +1,4 @@
+import { TEAM_RECOVERY_PROTOCOL_VERSION } from '../../../packages/shared/dist/team/recovery.js';
 import { recoveryDigest } from './digest.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
@@ -8,6 +9,7 @@ const ACTIONS = [
   'redeem',
   'rotate',
   'revoke',
+  'disconnect',
   'probe',
   'claim',
   'heartbeat',
@@ -79,8 +81,11 @@ export async function handleRecovery(
   }
   // Desktop-only responses contain credentials. Never return them to a browser origin.
   if (request.headers.has('origin')) throw new TeamFunctionError('PERMISSION_DENIED');
+  if (action !== 'disconnect' && body.protocolVersion !== TEAM_RECOVERY_PROTOCOL_VERSION)
+    throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
   const credential = token(request.headers.get('x-team-recovery-credential'));
   const hash = await deps.hash(credential);
+  if (action === 'disconnect') return deps.rpc('disconnect', hash, {});
   if (action === 'redeem') {
     const refresh = deps.token();
     return deps.rpc('redeem', hash, {
@@ -128,7 +133,11 @@ export async function handleRecovery(
   const operationId = uuid(body.operationId);
   const jobId = uuid(body.jobId);
   const authorized = object(await deps.rpc('authorize_execute', hash, { operationId, jobId }));
-  if (action === 'checkpoint') return deps.rpc('checkpoint', hash, { operationId, jobId });
+  if (action === 'checkpoint') {
+    const receipt = object(await deps.rpc('checkpoint', hash, { operationId, jobId }));
+    if (receipt.executionAllowed !== true) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+    return receipt;
+  }
   if (action === 'heartbeat') {
     const value = await deps.drive('heartbeat', credential, {
       jobId,

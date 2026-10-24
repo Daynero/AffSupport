@@ -130,7 +130,10 @@ export function buildScreenVideoArgs(options: ScreenVideoOptions): string[] {
     '-t',
     decimal(screen.durationSeconds, 9),
     '-vf',
-    upright ? `${upright},${fit}` : fit,
+    // Older FFmpeg decoders attach JPEG orientation to each decoded frame even
+    // with autorotation disabled. Do not let that matrix reach the MP4 after
+    // the explicit pixel transform, or players rotate the upright picture twice.
+    ['sidedata=mode=delete:type=DISPLAYMATRIX', upright, fit].filter(Boolean).join(','),
     '-c:v',
     'libx264',
     '-preset',

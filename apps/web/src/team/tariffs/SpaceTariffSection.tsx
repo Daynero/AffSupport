@@ -79,7 +79,7 @@ export function SpaceTariffSection({
           {tariff.endsOn
             ? t('tariffSettingsPlanUntil', {
                 plan,
-                date: formatTariffDay(tariff.endsOn, language)
+                date: formatTariffDay(tariff.endsOn, language, tariff.tariffToday)
               })
             : plan}
         </p>

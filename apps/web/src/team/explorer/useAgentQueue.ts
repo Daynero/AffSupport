@@ -18,6 +18,9 @@ import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
 import type { MaterialActionsClient } from '../catalog/useMaterialActions';
 import { rememberLocalFolder } from './TeamCompressorDialog';
 import { carryTranscriptAfterProcess, reuseTranscriptFor } from '../materials/tail';
+import { analytics, startTeamWorkflow, completeTeamWorkflow } from '../../analytics/service';
+import type { TeamAnalyticsOutcome, TeamAnalyticsStage } from '@video-compressor/shared';
+import { trackToolError } from '../../analytics/errors';
 
 /**
  * The explorer's one queue for work that runs on the local app (024, FR-095).
@@ -168,6 +171,13 @@ export function useAgentQueue({
   const [tHeld, setTHeld] = useState(false);
   /** The operation this browser has already asked the local app to hold. */
   const heldAsked = useRef<string | null>(null);
+  // Stop can arrive before the cloud receipt (and therefore an operation id).
+  // Keep that intent with this execution, rather than only clearing its queue.
+  const activeRun = useRef<{
+    stopped: boolean;
+    operationId: string | null;
+    localOperationId: string | null;
+  } | null>(null);
   /** Which tools this run carried, so its closing toast names what was done. */
   const runTools = useRef(new Set<AgentQueueItem['tool']>());
   /**
@@ -216,6 +226,15 @@ export function useAgentQueue({
   useEffect(() => {
     if (tActive || tQueue.length === 0 || tPaused) return;
     const next = tQueue[0];
+    const run = {
+      stopped: false,
+      operationId: null as string | null,
+      localOperationId: null as string | null
+    };
+    activeRun.current = run;
+    const checkStopped = () => {
+      if (run.stopped) throw new Error('PROCESS_CANCELED');
+    };
     setTActive({ ...next, operationId: null });
     // What a transcript copy needs (012): the copy itself, and the rename this queue already uses.
     const tailClient = {
@@ -225,13 +244,21 @@ export function useAgentQueue({
     };
     void (async () => {
       let started: string | null = null;
+      const workflow = startTeamWorkflow({
+        category: next.tool === 'compressor' ? 'video' : 'other',
+        stage: 'downloading'
+      });
+      let outcome: TeamAnalyticsOutcome = 'success';
+      let stage: TeamAnalyticsStage = 'downloading';
       try {
         if (next.local) {
           // 013 (B5): no team operation — the agent downloads the source,
           // compresses it locally and saves into a folder on this computer.
           const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
+          checkStopped();
           if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
           const localOperationId = crypto.randomUUID();
+          run.localOperationId = localOperationId;
           setTActive(current =>
             current && current.id === next.id ? { ...current, localOperationId } : current
           );
@@ -277,6 +304,7 @@ export function useAgentQueue({
             return;
           }
         }
+        checkStopped();
         const result = await teamApi.startProcess({
           teamId,
           materialId: next.id,
@@ -292,12 +320,20 @@ export function useAgentQueue({
           agentContractVersion: 1,
           toolContractVersion: agentCtx?.toolContracts?.[next.tool] ?? 0
         });
+        started = result.operationId;
+        run.operationId = result.operationId;
+        analytics.track('operation_started', {
+          tool_identifier: next.tool,
+          run_id: started,
+          workflow_id: workflow.workflowId
+        });
+        checkStopped();
         setTActive(current =>
           current && current.id === next.id
             ? { ...current, operationId: result.operationId }
             : current
         );
-        started = result.operationId;
+        stage = 'processing';
         const finished = await startTeamAgentProcess({
           operationId: result.operationId,
           toolId: next.tool,
@@ -305,6 +341,7 @@ export function useAgentQueue({
           sourceGrant: result.sourceGrant,
           finalizeGrant: result.finalizeGrant
         });
+        stage = 'finalizing';
         /*
          * A transcript is named after its video, including the second time.
          *
@@ -351,7 +388,8 @@ export function useAgentQueue({
         // A run somebody stopped on purpose is not a failure, and saying so in red is how a
         // deliberate act starts looking like a fault. Everything below still happens — the
         // space is told the run is over either way.
-        if (deliberateStop(cause)) {
+        if (run.stopped || deliberateStop(cause)) {
+          outcome = 'cancelled';
           setTStopped(current => current + 1);
           // A local run refused at the folder picker (or stopped) takes the rest of its
           // batch with it: each of them would open the same picker again.
@@ -366,6 +404,15 @@ export function useAgentQueue({
             }
           }
         } else {
+          outcome = 'failure';
+          trackToolError({
+            tool: 'team',
+            stage: 'process',
+            workflowId: workflow.workflowId,
+            ...(started ? { flowId: started } : {}),
+            code: cause instanceof Error ? cause.message : null,
+            retryable: false
+          });
           /* Named for what it was trying to do: "this file could not be processed" says
              nothing a person can act on, and this queue is always transcribing. */
           const ranAndFailed = cause instanceof Error && cause.message === 'PROCESS_FAILED';
@@ -385,9 +432,27 @@ export function useAgentQueue({
         // refused for a conflict with a run that is not happening.
         if (started) await teamApi.cancelOperation(teamId, started).catch(() => undefined);
       } finally {
+        completeTeamWorkflow(workflow, { outcome, retryable: false, stage });
+        if (started)
+          analytics.track(
+            outcome === 'success'
+              ? 'operation_completed'
+              : outcome === 'cancelled'
+                ? 'operation_cancelled'
+                : 'operation_failed',
+            {
+              tool_identifier: next.tool,
+              run_id: started,
+              workflow_id: workflow.workflowId,
+              outcome
+            }
+          );
+        if (activeRun.current === run) activeRun.current = null;
         setTDone(current => current + 1);
         setTActive(null);
-        setTQueue(current => current.slice(1));
+        // Stop may have removed this job already and a fresh batch may now be
+        // waiting. Remove this exact job, never the new batch's first item.
+        setTQueue(current => current.filter(item => item !== next));
         changed();
       }
     })();
@@ -487,15 +552,20 @@ export function useAgentQueue({
    * is coming to give it.
    */
   const stopNow = useCallback(async () => {
-    const operationId = tActive?.operationId ?? null;
-    const localOperationId = tActive?.localOperationId ?? null;
+    const run = activeRun.current;
+    if (run) run.stopped = true;
+    const operationId = run?.operationId ?? tActive?.operationId ?? null;
+    const localOperationId = run?.localOperationId ?? tActive?.localOperationId ?? null;
     setTQueue([]);
     if (tPaused) pauseQueue(false);
     // A local run (B5) is the app's download, stopped through its own door.
     if (localOperationId) await cancelTeamDownload(localOperationId).catch(() => false);
     if (!operationId) return;
+    // Fence finalization as well as asking the local process to stop: the
+    // agent may still be accepting its request when cancellation arrives.
+    await teamApi.cancelOperation(teamId, operationId).catch(() => undefined);
     await cancelTeamAgentProcess(operationId).catch(() => false);
-  }, [pauseQueue, tActive?.localOperationId, tActive?.operationId, tPaused]);
+  }, [pauseQueue, tActive?.localOperationId, tActive?.operationId, tPaused, teamId]);
 
   const activeOperation = useTeamOperation({
     teamId,

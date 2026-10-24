@@ -216,7 +216,16 @@ describeRequiring(ffmpegBinaries, 'manual long static embedding verification', (
         describe: 'the long embedding run to finish'
       });
       const completed = queue.state().jobs;
-      expect(completed.map(job => job.status)).toEqual(['completed', 'completed']);
+      expect(
+        completed.map(job => job.status),
+        JSON.stringify(
+          completed.map(job => ({
+            errorCode: job.errorCode,
+            error: job.error,
+            details: job.errorDetails
+          }))
+        )
+      ).toEqual(['completed', 'completed']);
       expect(completed[0].finalDurationSeconds).not.toBe(completed[1].finalDurationSeconds);
       for (const job of completed) {
         expect(job.finalDurationSeconds).toBeCloseTo(

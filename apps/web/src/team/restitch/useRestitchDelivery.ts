@@ -198,9 +198,9 @@ export function useRestitchDelivery(teamId: string) {
       if (!live || live.state !== 'running') return;
       setStates(current => {
         const state = current[watching.materialId];
-        // The folder question is a person deciding, not the machine working: a stage that
-        // arrives while the picker is open must not overwrite it.
-        if (!state || state.kind !== 'running' || state.phase === 'choosing') return current;
+        // The download bridge emits its first stage only after a destination
+        // has been chosen, so this is authoritative progress past the picker.
+        if (!state || state.kind !== 'running') return current;
         const reported = PHASE_BY_STAGE[live.stage] ?? state.phase;
         // Never backwards: the guess made before the request is only a guess, but a step
         // already reached has happened.
@@ -270,7 +270,7 @@ export function useRestitchDelivery(teamId: string) {
          */
         set(target.materialId, {
           kind: 'running',
-          phase: 'transferring',
+          phase: folder ? 'transferring' : 'choosing',
           fileName: target.fileName
         });
 
@@ -361,7 +361,9 @@ export function useRestitchDelivery(teamId: string) {
               }
         );
         if (flow) {
-          const canceled = error instanceof Error && error.message === 'PROCESS_CANCELED';
+          const canceled =
+            error instanceof Error &&
+            (error.message === 'PROCESS_CANCELED' || error.message === 'DOWNLOAD_CANCELED');
           completeTeamWorkflow(flow, {
             outcome: canceled ? 'cancelled' : 'failure',
             retryable: !canceled

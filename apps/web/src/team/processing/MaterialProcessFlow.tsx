@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { TeamAnalyticsStage, TeamProcessStartResult } from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import { startTeamAgentProcess } from '../../api/client';
@@ -8,7 +8,8 @@ import {
   startTeamWorkflow,
   type TeamWorkflowFlow
 } from '../../analytics/service';
-import { Button } from '../../components/ui';
+import { Alert, Button } from '../../components/ui';
+import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
@@ -177,6 +178,7 @@ export function ActiveOperation({
   onProgress?: (info: { progress: number; state: string }) => void;
 }) {
   const { t } = useI18n();
+  const titleId = useId();
   const state = useTeamOperation({
     teamId,
     operationId,
@@ -200,32 +202,51 @@ export function ActiveOperation({
   useEffect(() => {
     const operation = state.operation;
     if (!operation || !onProgress) return;
-    const running = operation.state === 'pending' || operation.state === 'running';
+    const localValue = state.localProgress?.progress;
     const progress = Math.max(
       operation.progress,
-      running ? (state.localProgress?.progress ?? 0) : 0
+      typeof localValue === 'number' && Number.isFinite(localValue) ? localValue : 0
     );
     onProgress({ progress, state: operation.state });
   }, [state.operation, state.localProgress, onProgress]);
-  if (!state.operation) return <p aria-live="polite">{t('teamOperationLoading')}</p>;
+  const canClose =
+    localFailureCode !== null ||
+    (state.operation !== null && !['pending', 'running'].includes(state.operation.state)) ||
+    Boolean(state.error);
   return (
-    <div className="team-operation-overlay">
-      <OperationStatus
-        operation={state.operation}
-        localProgress={state.localProgress}
-        localFailureCode={localFailureCode}
-        onCancel={async () => {
-          onCancelIntent?.();
-          await state.cancel();
-        }}
-        onRetry={onRetry}
-      />
-      {(localFailureCode !== null || !['pending', 'running'].includes(state.operation.state)) && (
+    <Modal
+      labelledBy={titleId}
+      className="team-operation-overlay"
+      onClose={canClose ? onClose : undefined}
+      closeOnBackdrop={canClose}
+      closeOnEscape={canClose}
+    >
+      <h3 id={titleId}>{t('teamOperationProgressLabel')}</h3>
+      {state.error && (
+        <Alert color="error" variant="soft" live="alert">
+          {teamErrorMessage(state.error, t)}
+        </Alert>
+      )}
+      {state.operation ? (
+        <OperationStatus
+          operation={state.operation}
+          localProgress={state.localProgress}
+          localFailureCode={localFailureCode}
+          onCancel={async () => {
+            onCancelIntent?.();
+            await state.cancel();
+          }}
+          onRetry={onRetry}
+        />
+      ) : !state.error ? (
+        <p aria-live="polite">{t('teamOperationLoading')}</p>
+      ) : null}
+      {canClose && (
         <Button type="button" variant="ghost" onClick={onClose}>
           {t('teamOperationClose')}
         </Button>
       )}
-    </div>
+    </Modal>
   );
 }
 

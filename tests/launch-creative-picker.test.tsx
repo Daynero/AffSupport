@@ -74,6 +74,25 @@ it('rejects a multi-file drop before creating a destination or uploading any fil
   expect(seams.upload).not.toHaveBeenCalled();
 });
 
+it('reports a destination failure as upload failure rather than rejecting a valid video', async () => {
+  seams.folder.mockRejectedValueOnce(new Error('DRIVE_NOT_CONNECTED'));
+  const change = vi.fn();
+  render(
+    <LaunchCreativePicker
+      teamId="team"
+      config={{ creativeAlias: 'video_5' }}
+      onChange={change}
+      disabled={false}
+    />
+  );
+  fireEvent.drop(screen.getByRole('button', { name: 'Choose creative' }), {
+    dataTransfer: { files: [new File(['a'], 'a.mp4', { type: 'video/mp4' })] }
+  });
+  expect((await screen.findByRole('alert')).textContent).toBe('The file could not be uploaded.');
+  expect(change).not.toHaveBeenCalled();
+  expect(seams.upload).not.toHaveBeenCalled();
+});
+
 it('opens the persisted selected material between the alias and chooser, and closes stale previews', () => {
   const props = {
     teamId: 'team',

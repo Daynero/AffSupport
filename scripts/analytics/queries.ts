@@ -1,3 +1,5 @@
+import { getRecoveryRetirementEvidence, inspectRecoveryRetirement } from './recovery-retirement.js';
+import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
 import {
   getRecoveryEvidence,
   inspectRecovery,
@@ -901,6 +903,7 @@ const JOURNEY_COLUMNS = `coalesce(e.event_id::text, 'row-' || e.id::text) as eve
 type JourneyRow = JourneyEvent & { created_at: string };
 /** `inspect` reads the envelope v3 columns beside the journey's; they never reach `events`. */
 type InspectRow = JourneyRow & {
+  observed_actor_id?: string | null;
   attempt_id: string | null;
   agent_instance_id: string | null;
   agent_platform: string | null;
@@ -1559,6 +1562,39 @@ async function getCatalogSettingsAudit(
   };
 }
 
+interface RetirementAuditEvidence {
+  supported: boolean;
+  samples: number;
+  pending_server: number;
+  pending_local: number;
+  unknown: number;
+}
+async function getRetirementAudit(
+  period: ResolvedPeriod,
+  schema: AnalyticsSchema
+): Promise<RetirementAuditEvidence> {
+  if (!schema.tables.agent_journal_records)
+    return { supported: false, samples: 0, pending_server: 0, pending_local: 0, unknown: 0 };
+  const rows = await query<Omit<RetirementAuditEvidence, 'supported'>>(
+    `with latest as (
+    select distinct on (agent_instance_id, props->>'delegation_id')
+      props->>'delegation_id' delegation_id,props->>'stage' stage
+    from public.agent_journal_records
+    where category='team' and code='recovery_retirement'
+      and ($1::timestamptz is null or recorded_at >= $1::timestamptz)
+      and recorded_at <= $2::timestamptz and received_at <= $2::timestamptz
+    order by agent_instance_id,props->>'delegation_id',seq desc
+  ) select count(*)::int samples,
+    count(*) filter(where stage in ('pending_server','server_unknown'))::int pending_server,
+    count(*) filter(where stage in ('server_confirmed','pending_local_cleanup'))::int pending_local,
+    count(*) filter(where stage is null or not(stage=any($3::text[]))
+      or not coalesce(delegation_id ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$',false))::int unknown
+    from latest`,
+    [period.start, period.end, [...RECOVERY_RETIREMENT_STAGES]]
+  );
+  return { supported: true, ...rows[0]! };
+}
+
 export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const schema = await getSchema();
   const AUDIT_EVENTS_CTE = auditEventsCte(eventColumnSql(schema).attemptId);
@@ -1594,14 +1630,14 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     correlated_pairs: number;
   }>(
     `${AUDIT_EVENTS_CTE}, starts as (
-       select distinct capability, cid from ev where role = 'start' and cid is not null
+       select distinct capability, user_id, cid from ev where role = 'start' and cid is not null
      ), terms as (
-       select distinct capability, cid from ev where role = 'terminal' and cid is not null
+       select distinct capability, user_id, cid from ev where role = 'terminal' and cid is not null
      )
      select s.capability,
        count(*) filter (where t.cid is null)::int as orphan_starts,
        count(*) filter (where t.cid is not null)::int as correlated_pairs
-     from starts s left join terms t on t.capability = s.capability and t.cid = s.cid
+     from starts s left join terms t on t.capability = s.capability and t.user_id = s.user_id and t.cid = s.cid
      group by 1 order by 1`,
     params
   );
@@ -1697,6 +1733,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const launchAudit = await getLaunchAudit(period.start, period.end);
   const catalogSettingsAudit = await getCatalogSettingsAudit(period);
   const recoveryAudit = await getRecoveryEvidence(null, period.start, period.end);
+  const retirementAudit = await getRetirementAudit(period, schema);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
@@ -1707,7 +1744,9 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       launchAudit,
       catalogSettingsAudit,
       recoveryAudit,
-      period
+      retirementAudit,
+      period,
+      Boolean(schema.tables.analytics_recovery_retirement)
     )
   );
 
@@ -1771,7 +1810,9 @@ function auditCapability(
   launchAudit: LaunchAuditEvidence | null,
   catalogSettingsAudit: CatalogSettingsAuditEvidence,
   recoveryAudit: RecoveryEvidenceResult,
-  period: ResolvedPeriod
+  retirementAudit: RetirementAuditEvidence,
+  period: ResolvedPeriod,
+  browserRetirementReceiptsSupported = false
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1817,6 +1858,24 @@ function auditCapability(
       status: missing.length ? 'partial' : launchAudit.generations ? 'covered' : 'uncovered',
       missing: launchAudit.generations ? missing : ['launch_evidence_in_period'],
       samples: launchAudit.generations
+    };
+  }
+  if (capability.id === 'team.recovery_retirement') {
+    const missing = [
+      ...(!retirementAudit.supported ? ['agent_journal_records'] : []),
+      ...(!retirementAudit.samples ? ['retirement_evidence_in_period'] : []),
+      ...(retirementAudit.pending_server ? ['server_acknowledgement_unknown'] : []),
+      ...(retirementAudit.pending_local ? ['local_cleanup_unconfirmed'] : []),
+      ...(retirementAudit.unknown ? ['unknown_retirement_stage_or_binding'] : []),
+      browserRetirementReceiptsSupported
+        ? 'browser_only_native_cleanup_unobserved'
+        : 'browser_only_retirement_unobserved'
+    ];
+    return {
+      ...base,
+      status: retirementAudit.supported && retirementAudit.samples ? 'partial' : 'uncovered',
+      missing,
+      samples: retirementAudit.samples
     };
   }
   if (capability.id === 'team.tariff_recovery') {
@@ -1919,6 +1978,19 @@ function auditCapability(
 
   const correlates = capability.start.some(signal => signal.correlate !== 'none');
   if (correlates) {
+    // Browser acknowledgement and SDK logout have explicit missing-outcome gaps.
+    // Partial here means unproven coverage, never that an in-flight SDK call failed.
+    // Preserve the existing long-running-operation policy for other capabilities.
+    if (
+      [
+        'team.recovery_retirement_ack',
+        'account.session_logout',
+        'account.profile_refresh',
+        'account.profile_update'
+      ].includes(capability.id) &&
+      (pairs?.orphan_starts ?? 0) > 0
+    )
+      missing.push('orphan_starts');
     const startCorrelated = observed.some(row => row.role === 'start' && row.correlated > 0);
     const terminalCorrelated = observed.some(row => row.role === 'terminal' && row.correlated > 0);
     if (observedRoles.has('start') && !startCorrelated) missing.push('start_correlation');
@@ -2072,9 +2144,32 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const [core, retirement] = await Promise.all([
+    getInspectCore(id, asOf, limit),
+    getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z')
+  ]);
+  const receiptInspection = inspectRecoveryRetirement(id, retirement);
+  // A browser acknowledgement is not the terminal of native protected-key cleanup.
+  // Preserve an unrelated operation/launch if the opaque identifier also matches it.
+  if (
+    receiptInspection &&
+    (!core.found ||
+      (core.capability === 'team.recovery_retirement_ack' &&
+        !core.recovery &&
+        !core.launches &&
+        !core.accounts &&
+        core.events.every(event => event.properties.flow_step === 'recovery_retirement_ack')))
+  )
+    return receiptInspection;
+  if (core.found)
+    return retirement.receipts.length ? { ...core, recovery_retirement: retirement } : core;
+  return core;
+}
+
+async function getInspectCore(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   const events = await getEventInspect(id, asOf, limit);
   const recovery = await getRecoveryEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z');
-  if (recovery.items.length) {
+  if (recovery.items.length || recovery.execution_fences?.length) {
     if (events.found) return { ...events, recovery };
     const found = inspectRecovery(id, recovery);
     if (found) return found;
@@ -2182,7 +2277,7 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
         }
       : {};
   const rows = await query<InspectRow>(
-    `select ${JOURNEY_COLUMNS},
+    `select ${JOURNEY_COLUMNS}, e.user_id::text as observed_actor_id,
        ${columns.attemptId} as attempt_id,
        ${columns.agentInstanceId} as agent_instance_id, ${columns.agentPlatform} as agent_platform
      from public.analytics_events e
@@ -2213,11 +2308,28 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
   }
 
   const capability = inferCapability(rows);
+  const ambiguousLogoutActor =
+    Boolean(
+      capability &&
+      ['account.session_logout', 'account.profile_refresh', 'account.profile_update'].includes(
+        capability.id
+      )
+    ) &&
+    (rows.some(row => !row.observed_actor_id) ||
+      new Set(rows.map(row => row.observed_actor_id)).size > 1);
   const events = sanitizeJourney(
-    rows.map(({ attempt_id, agent_instance_id: _instance, agent_platform: _platform, ...row }) => ({
-      ...row,
-      properties: { ...row.properties, ...(attempt_id ? { attempt_id } : {}) }
-    }))
+    rows.map(
+      ({
+        attempt_id,
+        agent_instance_id: _instance,
+        agent_platform: _platform,
+        observed_actor_id: _actor,
+        ...row
+      }) => ({
+        ...row,
+        properties: { ...row.properties, ...(attempt_id ? { attempt_id } : {}) }
+      })
+    )
   );
   const stageOf = new Map<string, string>();
   if (capability) {
@@ -2280,17 +2392,23 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
     tool: capability?.toolColumn ?? rows.find(row => row.tool)?.tool ?? null,
     stages: {
       expected,
-      observed: observedStages,
-      missing: expected.filter(stage => !observedStages.includes(stage))
+      observed: ambiguousLogoutActor ? [] : observedStages,
+      missing: ambiguousLogoutActor
+        ? expected
+        : expected.filter(stage => !observedStages.includes(stage))
     },
-    terminal: terminalRow
-      ? {
-          event: terminalRow.event_name,
-          outcome: outcomeOf(terminalRow),
-          occurred_at: isoUtc(terminalRow.occurred_at) ?? terminalRow.occurred_at
-        }
-      : null,
-    last_proven_stage: observedStages.length ? observedStages[observedStages.length - 1] : null,
+    terminal:
+      !ambiguousLogoutActor && terminalRow
+        ? {
+            event: terminalRow.event_name,
+            outcome: outcomeOf(terminalRow),
+            occurred_at: isoUtc(terminalRow.occurred_at) ?? terminalRow.occurred_at
+          }
+        : null,
+    last_proven_stage:
+      !ambiguousLogoutActor && observedStages.length
+        ? observedStages[observedStages.length - 1]
+        : null,
     first_seen_at: isoUtc(rows[0]?.occurred_at),
     last_seen_at: isoUtc(rows[rows.length - 1]?.occurred_at),
     delivery_lag_ms: deliveryLagOf(rows),
@@ -2305,7 +2423,9 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
         [...rows].reverse().find(row => row.agent_instance_id)?.agent_instance_id ?? null,
       agent_instance_ids: distinct(row => row.agent_instance_id),
       agent_platforms: distinct(row => row.agent_platform),
-      note: INSPECT_AGENT_NOTE
+      note: ambiguousLogoutActor
+        ? 'Multiple or unknown actors share this logout attempt identifier; no terminal can be attributed without actor scope.'
+        : INSPECT_AGENT_NOTE
     },
     events,
     ...schemaPart

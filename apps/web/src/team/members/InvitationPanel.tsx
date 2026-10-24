@@ -134,16 +134,38 @@ export function InvitationPanel({
   const auth = useOptionalAuth();
   const team = useOptionalTeam();
   const spaceAccess = useOptionalSpaceAccess();
-  const [tariff, setTariff] = useState<TeamTariff | null>(null);
+  const [tariffSnapshot, setTariffSnapshot] = useState<{
+    teamId: string;
+    client: InvitationPanelClient;
+    value: TeamTariff;
+  } | null>(null);
+  const tariff =
+    tariffSnapshot?.teamId === teamId && tariffSnapshot.client === client
+      ? tariffSnapshot.value
+      : null;
+  const tariffRead = useRef(0);
   const loadTariff = useCallback(() => {
-    if (!client.getTeamTariff) return;
+    const read = ++tariffRead.current;
+    if (!client.getTeamTariff) {
+      setTariffSnapshot(null);
+      return;
+    }
     void client
       .getTeamTariff(teamId)
-      .then(setTariff)
-      .catch(() => setTariff(null));
+      .then(value => {
+        if (read === tariffRead.current) setTariffSnapshot({ teamId, client, value });
+      })
+      .catch(() => {
+        if (read === tariffRead.current) setTariffSnapshot(null);
+      });
   }, [client, teamId]);
   useEffect(() => {
     loadTariff();
+    // Remote revisions and local mutations can overlap. An older reply or
+    // failure must not undo the newest authoritative seat count.
+    return () => {
+      tariffRead.current++;
+    };
   }, [loadTariff, revision]);
   const seated = tariff !== null && SEATED_STATES.has(tariff.state) && tariff.seatsTotal > 0;
   const seatsFull = seated && tariff.seatsUsed >= tariff.seatsTotal;

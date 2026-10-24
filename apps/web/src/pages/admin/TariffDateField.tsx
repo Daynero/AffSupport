@@ -22,16 +22,18 @@ import { kyivToday } from './tariffModel';
 export function TariffDateField({
   value,
   onChange,
+  tariffToday,
   label
 }: {
   value: string | null;
+  tariffToday?: string;
   onChange: (value: string) => void;
   label: string;
 }) {
   const { t, language } = useI18n();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const minValue = toCalendarDate(kyivToday()) ?? undefined;
+  const minValue = toCalendarDate(tariffToday ?? kyivToday()) ?? undefined;
 
   return (
     <>
@@ -41,17 +43,22 @@ export function TariffDateField({
         variant="outline"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={value ? `${label}: ${formatTariffDay(value, language)}` : label}
+        aria-label={value ? `${label}: ${formatTariffDay(value, language, tariffToday)}` : label}
         leading={<CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(current => !current)}
       >
-        {value ? formatTariffDay(value, language) : t('adminTariffPickDate')}
+        {value ? formatTariffDay(value, language, tariffToday) : t('adminTariffPickDate')}
       </Button>
       <Popover
+        initialFocus='[role="grid"] [tabindex="0"]'
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          anchor.current?.focus();
+        }}
         anchor={anchor}
         placement="bottom-start"
+        className="ui-calendar-popover"
         frequent
         label={label}
       >
@@ -63,6 +70,7 @@ export function TariffDateField({
             const day = fromCalendarDate(next);
             if (day) onChange(day);
             setOpen(false);
+            anchor.current?.focus();
           }}
         />
       </Popover>

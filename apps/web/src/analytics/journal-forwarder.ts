@@ -25,7 +25,9 @@ import type { AgentDiagnosticsResponse } from '../support/diagnostics-bundle';
  * node-environment tests that must not load the browser API client.
  */
 
-export const JOURNAL_CURSOR_KEY = 'wishly.agent-journal.cursor.v1';
+// v1 may have skipped retained history in an older web client. Replay under v2;
+// server uniqueness makes previously acknowledged producer records idempotent.
+export const JOURNAL_CURSOR_KEY = 'wishly.agent-journal.cursor.v2';
 export const JOURNAL_PAGE_SIZE = 200;
 export const JOURNAL_MAX_PAGES = 5;
 export const JOURNAL_MIN_INTERVAL_MS = 30_000;
@@ -48,6 +50,8 @@ const CATEGORIES: ReadonlySet<string> = new Set(DIAGNOSTIC_CATEGORIES);
 export interface JournalForwarderContext {
   /** Analytics is on for this build and a user is signed in. */
   enabled: boolean;
+  /** Identity fence for asynchronous reads; never part of journal payloads. */
+  userId?: string | null;
   installationId: string | null;
   /** The agent's per-boot instance id; nothing is forwarded until it is known. */
   instanceId: string | null;
@@ -188,13 +192,17 @@ export function createJournalForwarder(deps: JournalForwarderDeps): JournalForwa
   let timer: unknown = null;
   let lastRunAt: number | null = null;
 
-  function readyInstance(): { installationId: string | null; instanceId: string } | null {
+  function readyInstance(): {
+    installationId: string | null;
+    instanceId: string;
+    userId?: string | null;
+  } | null {
     if (deps.enabled && !deps.enabled()) return null;
     const context = deps.context();
     if (!context.enabled) return null;
     const instanceId = safeUuid(context.instanceId);
     if (!instanceId) return null;
-    return { installationId: safeUuid(context.installationId), instanceId };
+    return { installationId: safeUuid(context.installationId), instanceId, userId: context.userId };
   }
 
   function scheduleTrailing(delayMs: number): void {
@@ -208,20 +216,33 @@ export function createJournalForwarder(deps: JournalForwarderDeps): JournalForwa
     );
   }
 
-  async function drain(target: { installationId: string | null; instanceId: string }) {
+  async function drain(target: {
+    installationId: string | null;
+    instanceId: string;
+    userId?: string | null;
+  }) {
     const { installationId, instanceId } = target;
     const stored = readCursor(deps.storage);
     // A different agent instance numbers its journal afresh, so its cursor starts at 0.
-    const previous = stored && stored.instanceId !== instanceId ? stored : null;
     let since = stored && stored.instanceId === instanceId ? stored.seq : 0;
 
+    const stillCurrent = () => {
+      const current = readyInstance();
+      return (
+        current &&
+        current.userId === target.userId &&
+        current.instanceId === instanceId &&
+        current.installationId === installationId
+      );
+    };
     for (let page = 0; page < JOURNAL_MAX_PAGES; page += 1) {
       const response = await deps.fetchPage(since, JOURNAL_PAGE_SIZE);
+      if (!stillCurrent()) return;
       // An agent older than the journal answers without `log`; nothing to forward.
       if (!response || !Array.isArray(response.log)) return;
       // The agent restarted since the context was read: the next trigger starts it properly.
       const answeredBy = safeUuid(response.instanceId);
-      if (answeredBy && answeredBy !== instanceId) return;
+      if (answeredBy !== instanceId) return;
       const log = response.log.filter(
         record =>
           record &&
@@ -231,30 +252,63 @@ export function createJournalForwarder(deps: JournalForwarderDeps): JournalForwa
       );
       if (log.length === 0) return;
 
-      const startedAt = typeof response.startedAt === 'number' ? response.startedAt : null;
+      const startedAt =
+        typeof response.startedAt === 'number'
+          ? response.startedAt
+          : typeof response.startedAt === 'string'
+            ? Date.parse(response.startedAt)
+            : Number.NaN;
+      // Without a known boot boundary the retained tail has no proven instance.
+      // Leave it local and pending rather than inventing an attribution.
+      if (!Number.isFinite(startedAt) || startedAt <= 0) return;
       const at = now();
-      const records = log
-        .filter(record => isForwardableRecord(record, at))
-        // The journal file carries the previous boot's tail into this one. Records the
-        // previous instance already forwarded are not sent again under the new id.
-        .filter(
-          record =>
-            !(previous && startedAt !== null && record.seq <= previous.seq && record.at < startedAt)
-        )
-        .map(wireRecord);
-      const lastSeq = log.reduce((highest, record) => Math.max(highest, record.seq), since);
+      let deliveryInstance = instanceId;
+      let consumed = log;
+      let records: DiagnosticRecord[];
+      if (response.journalProvenance === 'bound-v1') {
+        // One contiguous producer group per request keeps the five-request budget bounded.
+        // The local seq remains the file cursor; only the proven per-boot seq is ingested.
+        records = [];
+        let boundary = log.length;
+        for (let index = 0; index < log.length; index += 1) {
+          const record = log[index]!;
+          const producer = safeUuid(record.agentInstanceId);
+          if (!producer || !Number.isSafeInteger(record.instanceSeq) || record.instanceSeq! < 1)
+            continue;
+          if (!isForwardableRecord(record, at)) continue;
+          if (records.length > 0 && producer !== deliveryInstance) {
+            boundary = index;
+            break;
+          }
+          deliveryInstance = producer;
+          records.push({ ...wireRecord(record), seq: record.instanceSeq! });
+        }
+        consumed = log.slice(0, boundary);
+      } else {
+        records = log
+          .filter(record => isForwardableRecord(record, at))
+          // A reset/missing browser cursor does not make the prior boot's tail ours.
+          .filter(record => record.at >= startedAt)
+          .map(wireRecord);
+      }
+      const lastSeq = consumed.reduce((highest, record) => Math.max(highest, record.seq), since);
 
       if (records.length > 0) {
-        const result = await deps.send({ installationId, instanceId, records });
+        const result = await deps.send({ installationId, instanceId: deliveryInstance, records });
         if (!isIngestResult(result)) return;
       }
+      if (!stillCurrent()) return;
       since = lastSeq;
       writeCursor(deps.storage, { instanceId, seq: since });
-      if (response.log.length < JOURNAL_PAGE_SIZE) return;
+      if (consumed.length === log.length && response.log.length < JOURNAL_PAGE_SIZE) return;
     }
   }
 
-  async function run(target: { installationId: string | null; instanceId: string }) {
+  async function run(target: {
+    installationId: string | null;
+    instanceId: string;
+    userId?: string | null;
+  }) {
     running = true;
     lastRunAt = now();
     try {
@@ -344,7 +398,7 @@ function defaultStorage(): Storage | null {
 export const journalForwarder: JournalForwarder = createJournalForwarder({
   fetchPage: async (since, limit) => {
     const { fetchAgentDiagnostics } = await import('../api/client');
-    return fetchAgentDiagnostics(since, limit);
+    return fetchAgentDiagnostics(since, limit, undefined, true);
   },
   send: sendWithSupabase,
   storage: defaultStorage(),

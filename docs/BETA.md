@@ -78,12 +78,38 @@ It also mirrors the git-ignored `supabase/functions/.env.local` to the filename 
 Supabase edge runtime. A normal restart therefore needs only this one command; no Docker, Functions,
 agent, or Vite preparation is manual.
 
+The local stack uses an empty, project-owned bridge named `soty-beta-<project>-loopback`.
+Its published ports default to `127.0.0.1`; startup checks every effective container binding
+before starting the agent or web. Remote Docker endpoints, an occupied or foreign bridge,
+and pre-existing project containers are refused. This leaves other local Supabase projects
+alone and does not change the daemon's global network settings.
+
+Ownership is recorded before the stack starts or the Functions environment is copied, and
+updated as child processes appear. After a failed start or a reboot, run `npm run beta:down`
+from the same checkout, then `npm run beta:up`. The retained journal lets `beta:down` reconcile
+a partial start and restore only environment bytes still matching this invocation. A borrowed
+listener remains a refusal; do not delete the ownership record to bypass it.
+
 **`beta:up` does not apply new migrations.** It brings the database back from a snapshot — its own
 log says `Starting database from backup...` — so a migration added since that snapshot is simply not
-there. Only `npm run beta:reset` replays the chain. This is easy to miss because the product does not
-say "your schema is old": a missing function surfaces as whatever the calling screen shows for an
-unexpected server error, which for the team lifecycle actions is the generic "something went wrong"
-toast. **After pulling or writing a migration, reset before validating anything that depends on it.**
+there. `npm run beta:reset` replays the complete chain from a clean baseline. A missing function
+otherwise surfaces as a generic server error. After writing or pulling a migration, prove the actual
+local schema before validating behavior that depends on it.
+
+For a clean baseline, use `beta:reset`. When an acceptance session must preserve its connected
+profile, use a controlled incremental application instead of resetting or asking the owner to sign
+in again. From that session's isolated beta checkout, verify its local project, loopback addresses,
+profile identity, idle runtime and exact applied migration history. Existing migration files must
+match the tested source; only the explicitly reviewed pending files may differ. Run the complete
+chain and its database tests on the disposable database first and retain the tested file hashes.
+
+Use the verified installed CLI's `migration up --local` only after checking that pending set. Never
+substitute a linked or remote target. Preserve rollback function definitions and profile/pairing and
+connection identity snapshots. After application, verify the history, required RPC/projection,
+cleanup coverage, SELECT-only diagnostic access and the preserved snapshots. Restart the owned beta
+services with `beta:down` / `beta:up`, then repeat the affected real local acceptance. An interrupted
+or failed application requires inspection of actual history and schema before any retry. This path
+preserves application rows; it does not establish a clean-baseline or packaged-promotion result.
 
 `beta:up` also proves the local edge runtime is actually serving before it reports beta up, and
 restarts it once if it is not. `supabase start` exits 0 even when it has given up on a service that
@@ -93,7 +119,7 @@ beta still claims to be running, which makes the product look broken rather than
 
 - Web: <http://127.0.0.1:5175>
 - Agent: <http://127.0.0.1:43140>
-- Local Supabase Studio: <http://127.0.0.1:54323>
+- Supabase Studio: excluded from `beta:up`; the source beta does not need this dashboard.
 - Captured outbound mail: <http://127.0.0.1:54324>
 
 ## Flows exercisable in beta
@@ -325,3 +351,38 @@ Enable background recovery explicitly in space settings. Verify with the browser
 from settings and confirm local credential deletion. A corrupt journal requires explicit setup and must
 not replay an uncertain operation. macOS Keychain has a local synthetic roundtrip proof; Windows DPAPI,
 real Drive side effects and exact-SHA packaged LIFE/LOAD evidence remain separate acceptance work.
+
+### Ізольована прийомка 036
+
+Development tooling живе в `scripts/acceptance/cli.mjs`; чинні команди й межі описані в
+`specs/036-production-acceptance/quickstart.md`. Використовується справжній local Auth.
+Generated `apps/web/acceptance-login.html` не містить credentials і не є production entrypoint;
+перед final package його треба прибрати. Звичайна beta analytics залишається вимкненою.
+Окремий capture допускається тільки у DEV build, exact loopback beta origins і для користувача
+з відповідним synthetic namespace. Queue bounded, timeout/retry і missing delivery явні.
+Read-only diagnosis використовує окрему локальну SELECT role і відхиляє змінену privileged role.
+Не використовувати цей workflow для production, не підміняти ним packaged exact-SHA verification.
+
+### Ізольовані PostgreSQL-гонки
+
+`npm run test:db` після pgTAP також виконує native tariff/recovery, output-adoption,
+retention і installation-retirement races на тому самому тимчасовому контейнері.
+Vitest працює одним worker без паралельних файлів. Контейнер і volumes прибираються при завершенні.
+Тести відхиляють робочі `supabase_db_<project>`: дозволені лише exact random names канонічного
+або acceptance runner, а не існуюча local/beta база.
+
+За потреби `SOTY_TEST_DB_SOURCE_PROJECT=acceptance036 npm run test:db` вибирає інший **локальний**
+Supabase project лише як джерело schema/role definitions. Імена перевіряються, remote URL не
+приймається. Application rows і role passwords не копіюються; усі записи, міграції, scheduler
+налаштування й тести залишаються у disposable clone. Running source stack не reset і не мігрується.
+
+### Сумісність actor-bound recovery
+
+Поточний setup потребує обох capability: `team-background-recovery` і
+`team-background-recovery-actor-bound`. Друга доступна лише з protected credential support,
+enforced signed identity та підключеним runtime worker; у fake-auth Dev вона не оголошується.
+Web перевіряє health перед entitlement/enrollment і показує чинне пояснення про оновлення.
+Legacy status/disable лишаються доступними для очищення вже виданої делегації. Flag — hint
+сумісності, а не доказ особи; server-authoritative actor і protocol2 fence лишаються обов’язковими.
+Legacy redeem без actor відхиляється з AGENT_UPDATE_REQUIRED, але валідний refresh зберігається
+до підтвердженого retirement. Permission/malformed receipt не маскуються під повторний sign-in.

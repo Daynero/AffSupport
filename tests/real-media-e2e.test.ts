@@ -6,13 +6,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
+import { transcribe } from '../apps/agent/src/whisper/transcriber.js';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { customEncoding, optimalEncoding } from './helpers.js';
 import {
   describeRequiring,
   allOf,
   requirePath,
-  requireTranscriptionModel
+  requireTranscriptionModel,
+  requireBinaries
 } from './support/requires.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 import { bootAgent, type AgentProcess } from './support/agent-process.js';
@@ -398,19 +400,30 @@ describeRequiring(ffmpegBinaries, 'encode fidelity against real media', () => {
  * release form turns it into a failure that names what is absent.
  */
 describeRequiring(
-  allOf(ffmpegBinaries, requireTranscriptionModel()),
+  allOf(ffmpegBinaries, requireTranscriptionModel(), await requireBinaries('whisper-cli')),
   'transcription fidelity against real media',
   () => {
     it('transcribes a spoken clip into timed segments', async () => {
-      const directory = await mkdtemp(path.join(os.tmpdir(), 'wishly-fidelity-transcribe-'));
-      temporaryDirectories.push(directory);
-      const input = await sourceClip(directory, { name: 'speech.mov' });
-      // The assertion the model is needed for: that words come back at all, and
-      // that they carry timings a caller can seek with. A stub cannot be wrong
-      // about either, which is why this case exists here and not in the suite.
+      const input = path.resolve('tests/fixtures/speech/synthetic-en.wav');
       const media = await probeMedia(input);
-      expect(media.hasAudio).toBe(true);
-      expect(media.duration).toBeGreaterThan(0);
+      const result = await transcribe({ inputPath: input, language: 'en', onProgress: () => {} })
+        .done;
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.cancelled).toBe(false);
+      expect(result.failedStage).toBeNull();
+      expect(result.text.toLowerCase()).toMatch(/verify/);
+      expect(result.text.toLowerCase()).toMatch(/audio/);
+      expect(result.words.length).toBeGreaterThanOrEqual(8);
+      expect(new Set(result.words.map(word => word.startMs)).size).toBeGreaterThanOrEqual(8);
+      expect(
+        result.words.every(
+          (word, index, words) =>
+            word.startMs >= 0 &&
+            word.endMs >= word.startMs &&
+            (index === 0 || word.startMs >= words[index - 1].startMs)
+        )
+      ).toBe(true);
+      expect(result.words.at(-1)!.endMs).toBeLessThanOrEqual((media.duration ?? 0) * 1000 + 750);
     }, 600_000);
   }
 );

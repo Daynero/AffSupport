@@ -1,3 +1,15 @@
+> **Current scope decision — 2026-10-24:** 036 is CLOSED for completed local implementation and verification. Remaining substantial acceptance obligations are OPEN in [042 Production Readiness](../042-production-readiness/spec.md), with exact mapping in [scope-transfer.json](scope-transfer.json). See [closure.md](closure.md). Earlier full-campaign requirements and NO_GO checkpoints below are retained as historical requirements/evidence for 042; no production GO or test PASS is inferred from this scope change.
+
+> Рішення власника 2026-10-23: продовжувати до завершення всього доступного обсягу; нативну перевірку Windows виключено через відсутність реального пристрою. Канон виключення — [acceptance-policy.json](acceptance-policy.json), scope `native-windows-runtime`, case REG-017 і лише Windows-частини T059/T173. Це не PASS і не доказ Windows-сумісності. Unit/contract/build перевірки підтримуваних платформ та macOS multi-device залишаються обов’язковими. Інші зовнішні передумови й невиконані перевірки зберігають власний статус.
+
+> Поточний ручний пріоритет за рішенням власника 2026-10-21: агент перевіряє лише взаємодію двох користувачів за [two-user-focus.md](two-user-focus.md); однокористувацькі екрани передано власнику за [owner-ui-checklist.md](owner-ui-checklist.md). Історичні 174 кейси зберігаються, невиконане не перетворюється на PASS/N/A. Автоматичні регресії залишаються агенту.
+
+> Оновлення 2026-10-20: поточний кандидат `95467002ddc4cbfffa68090f7777f5f79f06edca`, beta, dirty development campaign.
+> Початковий file/hash manifest: `release/acceptance/acceptance-036-20261020/initial-scope.json` (git-ignored).
+> Нижче збережено історичний знімок 2026-10-14, він не є актуальним freeze manifest.
+> 035 Launches включено: реалізація вже закомічена. 037 UX, 038 accounts і 041 schedule analytics також включено.
+> 034 recovery має development evidence; усі acceptance outcomes перевіряються окремо.
+
 # Scope: після 1.2.6 до кандидата
 
 Знімок під час написання: 2026-10-14. База `v1.2.6` = `dfa8ce163e10296255ec57efb25fa28912879f27`. Поточний HEAD = `5e1a714ea0839b775a03198e733e100e4efc81d5`. Гілка: `beta`. Робоче дерево має сторонні незакомічені зміни. Вони не є частиною цього SHA і не були змінені цією роботою.
@@ -496,3 +508,13 @@ SHA256 нижче — хеш **поточних робочих байтів**, �
 ## Правило остаточного охоплення
 
 Перед першим фінальним прогоном оновити manifest до чистого SHA та фактично застосованих backend revisions. Жодного непоясненого рядка без кейсу/gate. Зміни після freeze анулюють залежні докази та вимагають нового exact-SHA packaged record. Якщо Launches виключено, мають бути виключені й його маршрути, shared-контракти, міграції та залежні зміни; проста позначка N/A при присутньому функціоналі недостатня.
+
+## Поточний authoritative development inventory
+
+`release/acceptance/acceptance-036-20261020/current-scope.json` генерується read-only модулем
+`scripts/acceptance/scope-inventory.mjs`: кожен changed/untracked/deleted path проти v1.2.6 має
+content hash (deleted=null), exact case IDs і verify/verify:release gates. Невідомий subsystem
+консервативно отримує всі 174 cases; цей mapping не є execution PASS. Launches включено.
+Нова 036 migration membership signals і зміни picker/analytics/accounts/fixture driver входять
+у scope. Історичні таблиці вище не описують фінальний dirty diff. Перед final потрібен новий
+clean candidate inventory; сторонні зміни i18n/011/team-routes не комітяться автоматично.

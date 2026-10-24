@@ -67,6 +67,7 @@ function deps(rows: unknown[], overrides: Partial<TariffNoticesDeps> = {}) {
     }),
     send: vi.fn(async () => ({ state: 'sent' as const, reason: null })),
     now: () => NOW,
+    tariffNow: () => NOW,
     log: (message, detail) => logs.push([message, detail]),
     ...overrides
   };
@@ -344,5 +345,153 @@ describe('shared Resend sender', () => {
       state: 'failed',
       reason: 'not_configured'
     });
+  });
+});
+
+describe('acceptance tariff-domain clock separation', () => {
+  it('renders at the tariff instant while the operational clock stays real', async () => {
+    const tariffAt = Date.parse('2030-01-01T00:00:00Z');
+    const { value } = deps([row('warn_3d')], { tariffNow: () => tariffAt });
+    const response = await handleTariffNoticesRequest(request(), value);
+    expect((await body(response)).value?.sent).toBe(1);
+    expect(vi.mocked(value.send).mock.calls[0][0].message).toEqual(
+      buildTariffNoticeEmail(parseTariffNotice(row('warn_3d'))!, {
+        siteUrl: value.siteUrl,
+        now: tariffAt
+      })
+    );
+  });
+  it('keeps the real worker deadline with a frozen tariff clock', async () => {
+    const ticks = [NOW, NOW + 30001];
+    const { value } = deps([row('warn_3d')], {
+      now: () => ticks.shift() ?? NOW + 30001,
+      tariffNow: () => Date.parse('2030-01-01T00:00:00Z')
+    });
+    const response = await handleTariffNoticesRequest(request(), value);
+    expect((await body(response)).value?.claimed).toBe(0);
+    expect(value.claim).not.toHaveBeenCalled();
+  });
+});
+it('does not accept tariff clock overrides from worker request payload', async () => {
+  const { value } = deps([row('warn_3d')]);
+  const forged = new Request('http://localhost/functions/v1/tariff-notices', {
+    method: 'POST',
+    headers: { 'x-catalog-sync-secret': SECRET },
+    body: JSON.stringify({ tariffNow: '2030-01-01T00:00:00Z', now: '2030-01-01T00:00:00Z' })
+  });
+  await handleTariffNoticesRequest(forged, value);
+  expect(vi.mocked(value.send).mock.calls[0][0].message).toEqual(
+    buildTariffNoticeEmail(parseTariffNotice(row('warn_3d'))!, { siteUrl: value.siteUrl, now: NOW })
+  );
+});
+it('does not render or consult tariff time on the beta skip path', async () => {
+  const tariffNow = vi.fn(() => {
+    throw new Error('must not render');
+  });
+  const { value } = deps([row('warn_3d')], { environment: 'beta', tariffNow });
+  const response = await handleTariffNoticesRequest(request(), value);
+  expect((await body(response)).value).toEqual({ claimed: 1, sent: 0, skipped: 1, failed: 0 });
+  expect(tariffNow).not.toHaveBeenCalled();
+  expect(value.send).not.toHaveBeenCalled();
+});
+it('renders using the authoritative claiming transaction calendar', async () => {
+  const notice = row('warn_3d', { tariffToday: '2030-10-11', endsOn: '2030-10-14' });
+  const tariffNow = vi.fn(() => NOW);
+  const { value } = deps([notice], { tariffNow });
+  await handleTariffNoticesRequest(request(), value);
+  expect(vi.mocked(value.send).mock.calls[0][0].message).toEqual(
+    buildTariffNoticeEmail(parseTariffNotice(notice)!, {
+      siteUrl: value.siteUrl,
+      now: Date.parse('2030-10-11T12:00:00.000Z')
+    })
+  );
+  expect(tariffNow).not.toHaveBeenCalled();
+});
+it.each(['2030-02-30', '2030-13-01', '2030-01-01T00:00:00Z', null])(
+  'rejects malformed claimed tariff calendar %s',
+  async tariffToday => {
+    const { value, finished } = deps([row('warn_3d', { tariffToday })]);
+    await handleTariffNoticesRequest(request(), value);
+    expect(value.send).not.toHaveBeenCalled();
+    expect(finished[0].slice(1)).toEqual([false, 'invalid_notice', false]);
+  }
+);
+
+describe('trusted local notice capture', () => {
+  it('renders once through the existing worker and records capture separately from delivery', async () => {
+    const capture = vi.fn(async () => undefined);
+    const notice = row('warn_3d');
+    const { value, finished } = deps([notice, notice], {
+      environment: 'beta',
+      siteUrl: 'http://127.0.0.1:5175',
+      sender: { apiKey: '', from: '' },
+      capture
+    });
+    const result = await body(await handleTariffNoticesRequest(request(), value));
+    expect(result.value).toEqual({ claimed: 1, sent: 0, skipped: 1, failed: 0, captured: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture.mock.calls[0]).toEqual([
+      notice.id,
+      notice.kind,
+      buildTariffNoticeEmail(parseTariffNotice(notice)!, { siteUrl: value.siteUrl, now: NOW })
+    ]);
+    expect(finished).toEqual([[notice.id, false, null, true]]);
+    expect(value.send).not.toHaveBeenCalled();
+  });
+  it.each([
+    { environment: 'production' as const },
+    { siteUrl: 'https://soty.pp.ua' },
+    { sender: { apiKey: 'configured-secret', from: '' } },
+    { sender: { apiKey: '', from: 'sender@example.test' } }
+  ])('rejects unsafe capture configuration before a claim: %j', async override => {
+    const { value } = deps([row('granted')], {
+      environment: 'beta',
+      siteUrl: 'http://127.0.0.1:5175',
+      sender: { apiKey: '', from: '' },
+      capture: vi.fn(async () => undefined),
+      ...override
+    });
+    expect((await body(await handleTariffNoticesRequest(request(), value))).error?.code).toBe(
+      'DELIVERY_UNAVAILABLE'
+    );
+    expect(value.claim).not.toHaveBeenCalled();
+    expect(value.send).not.toHaveBeenCalled();
+  });
+  it('keeps a durable capture observable when finishing its skipped receipt fails', async () => {
+    const { value } = deps([row('grace')], {
+      environment: 'beta',
+      siteUrl: 'http://127.0.0.1:5175',
+      sender: { apiKey: '', from: '' },
+      capture: vi.fn(async () => undefined),
+      finish: vi.fn(async () => false)
+    });
+    expect((await body(await handleTariffNoticesRequest(request(), value))).value).toEqual({
+      claimed: 1,
+      sent: 0,
+      skipped: 0,
+      failed: 1,
+      captured: 1
+    });
+    expect(value.send).not.toHaveBeenCalled();
+  });
+  it('records a closed capture failure without claiming delivery or exposing storage errors', async () => {
+    const { value, finished, logs } = deps([row('grace')], {
+      environment: 'beta',
+      siteUrl: 'http://127.0.0.1:5175',
+      sender: { apiKey: '', from: '' },
+      capture: vi.fn(async () => {
+        throw Error('private/path/recipient@example.test');
+      })
+    });
+    expect((await body(await handleTariffNoticesRequest(request(), value))).value).toEqual({
+      claimed: 1,
+      sent: 0,
+      skipped: 0,
+      failed: 1,
+      captured: 0
+    });
+    expect(finished).toEqual([[row('grace').id, false, 'capture_failed', false]]);
+    expect(JSON.stringify(logs)).not.toContain('private');
+    expect(value.send).not.toHaveBeenCalled();
   });
 });

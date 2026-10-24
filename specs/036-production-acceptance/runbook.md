@@ -1,3 +1,7 @@
+> **Current scope decision — 2026-10-24:** 036 is CLOSED for completed local implementation and verification. Remaining substantial acceptance obligations are OPEN in [042 Production Readiness](../042-production-readiness/spec.md), with exact mapping in [scope-transfer.json](scope-transfer.json). See [closure.md](closure.md). Earlier full-campaign requirements and NO_GO checkpoints below are retained as historical requirements/evidence for 042; no production GO or test PASS is inferred from this scope change.
+
+> Поточний ручний пріоритет за рішенням власника 2026-10-21: агент перевіряє лише взаємодію двох користувачів за [two-user-focus.md](two-user-focus.md); однокористувацькі екрани передано власнику за [owner-ui-checklist.md](owner-ui-checklist.md). Історичні 174 кейси зберігаються, невиконане не перетворюється на PASS/N/A. Автоматичні регресії залишаються агенту.
+
 # Порядок ручної beta-прийомки
 
 Цей документ описує майбутнє виконання. Браузери, beta reset та навантаження під час написання специфікації не запускалися.
@@ -7,7 +11,7 @@
 1. Прочитати `docs/BETA.md`, `docs/PRODUCTION.md`, цю специфікацію і scope.md.
 2. Записати `git rev-parse HEAD`, `git status --short`, базовий tag, міграції, версії macOS/Safari/Chrome/агента. Зберегти manifest незакомічених файлів з хешами для дослідного прогону. Для остаточної прийомки потрібен чистий commit; сторонню роботу не видаляти й не комітити автоматично.
 3. Перевірити Node 22 та `npm run beta:doctor`. Не читати/публікувати секрети конфігурації у звіті.
-4. Після нових міграцій потрібен `npm run beta:reset`: він стирає resettable beta-дані, тому виконувати лише на виділеному тестовому стенді після збереження потрібних fixtures. `beta:up` сам міграції не застосовує.
+4. Для чистого одноразового стенду після нових міграцій використати `npm run beta:reset`; він стирає resettable beta-дані. Для збереженої підключеної сесії застосувати контрольоване локальне оновлення за `docs/BETA.md`: спершу повний migration/database proof на disposable clone, точна перевірка local target, історії й SQL hashes, профілю/pairing/Drive та відсутності активної роботи; потім лише перевірені pending migrations через `migration up --local` і readback збереження стану. Не скидати й не перепідключати сесію власника. `beta:up` сам міграції не застосовує.
 5. Запустити `npm run beta:up`. Перевірити локальну web-адресу `http://127.0.0.1:5175`, agent `43140`, локальний Supabase `54321`, health runtime й актуальність схеми. Dev auth має бути вимкнено; beta використовує окремий ключ entitlement.
 
 ## 2. Відкрити два Safari та один Chrome

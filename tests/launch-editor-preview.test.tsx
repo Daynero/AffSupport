@@ -3,8 +3,8 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchEditor } from '../apps/web/src/team/launches/LaunchEditor';
-import { newLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
-import { launchConfig, launchFixtureAccounts } from './fixtures/launches';
+import { newLaunchDraft } from '../apps/web/src/team/launches/launchDraftDefaults';
+import { launchConfig, launchFixtureAccounts, launchSources } from './fixtures/launches';
 import type { LaunchDraft } from '../packages/shared/src/team';
 
 vi.mock('../apps/web/src/team/launches/LaunchCreativePicker', () => ({
@@ -13,6 +13,42 @@ vi.mock('../apps/web/src/team/launches/LaunchCreativePicker', () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+it('reveals the failing SUB setting when generation rejects a non-Latin social value', () => {
+  const config = launchConfig();
+  render(
+    <LaunchEditor
+      teamId="team"
+      config={config}
+      sources={{
+        ...launchSources,
+        social: 'Тест',
+        schemaVersion: 1,
+        agentRowId: config.agentRowId,
+        offerId: config.offerId,
+        buyerId: config.buyerId,
+        materialId: config.materialId,
+        catalogSettingsVersion: null
+      }}
+      accounts={launchFixtureAccounts()}
+      offers={[]}
+      buyers={[]}
+      disabled={false}
+      submitted
+      onChange={vi.fn()}
+      onRefreshSources={vi.fn()}
+    />
+  );
+  expect(
+    screen.getByRole('button', { name: /Fill values in the URL/u }).getAttribute('aria-expanded')
+  ).toBe('true');
+  expect(screen.getByRole('button', { name: 'SUB2' })).toBeTruthy();
+  expect(
+    screen.getByText('Use Latin letters, digits, underscores or hyphens for SUB values.')
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /Fill values in the URL/u }));
+  expect(screen.getByRole('button', { name: 'SUB2' })).toBeTruthy();
 });
 
 it('distinguishes equal account suffixes and updates campaign names without IO', () => {

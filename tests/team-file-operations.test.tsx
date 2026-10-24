@@ -380,6 +380,37 @@ describe('team file operations', () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it.each(['canceled', 'failed'] as const)(
+    'retains measured local progress and translates the terminal %s stage',
+    state => {
+      localStorage.setItem('language', 'uk');
+      render(
+        <OperationStatus
+          operation={{
+            id: 'operation-1',
+            teamId: TEAM_ID,
+            kind: 'process',
+            state,
+            stage: state,
+            progress: 0,
+            sourceMaterialId: 'material-1',
+            resultMaterialId: null,
+            errorCode: null,
+            retryable: false,
+            createdAt: '2026-08-01T12:00:00.000Z',
+            updatedAt: '2026-08-01T12:00:01.000Z'
+          }}
+          localProgress={{ stage: 'processing', progress: 20 }}
+          onCancel={vi.fn()}
+          onRetry={vi.fn()}
+        />
+      );
+      expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('20');
+      expect(screen.queryByText(state)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Скасувати операцію' })).toBeNull();
+    }
+  );
+
   it('shows an indeterminate bar when measured progress is unavailable', () => {
     const operation = {
       id: 'operation-1',

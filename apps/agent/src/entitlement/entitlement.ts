@@ -1,7 +1,15 @@
-import { createPublicKey, verify as verifySignature, type KeyObject } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import {
+  createPublicKey,
+  randomUUID,
+  verify as verifySignature,
+  type KeyObject
+} from 'node:crypto';
+import { mkdir, open, rename, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
-import type { AgentEntitlementStatus } from '@video-compressor/shared';
+import type {
+  AgentEntitlementStatus,
+  EntitlementPublicationRejection
+} from '@video-compressor/shared';
 import { diagnostics, skewBucket } from '../server/diagnostics-log.js';
 
 /**
@@ -33,6 +41,8 @@ export interface EntitlementTokenPayload {
 export type EntitlementStatus = AgentEntitlementStatus;
 
 interface PersistedEntitlement {
+  /** Signed proof is private to this profile; legacy unsigned state is never identity proof. */
+  token?: string;
   sub: string;
   plan: string;
   iat: number;
@@ -49,6 +59,10 @@ export class EntitlementGate {
   private readonly stateFile: string;
   private readonly now: () => number;
   private current: PersistedEntitlement | null = null;
+  private updates: Promise<void> = Promise.resolve();
+  private actorTransitions = new Set<(actorId: string | null) => Promise<void>>();
+  // A fresh boot and every ownership change invalidate already-issued publications.
+  private publicationRevision = randomUUID();
   /** The last decision written to the journal, so a status read only speaks when it changes. */
   private lastDecision: string | null = null;
 
@@ -62,9 +76,40 @@ export class EntitlementGate {
     return this.publicKey !== null;
   }
 
+  /** The actor is available only from verified signed state inside the entitlement grace. */
+  currentActorId(): string | null {
+    if (!this.publicKey || !this.current?.token || !this.evaluate().entitled) return null;
+    if (this.current.iat * 1000 > this.now() + MAX_CLOCK_SKEW_MS) return null;
+    return this.current.sub;
+  }
+
+  identityRevision(): string {
+    return this.publicationRevision;
+  }
+
+  /** Native consumers durably stop old ownership before a new verified actor is published. */
+  onBeforeActorChange(prepare: (actorId: string | null) => Promise<void>): () => void {
+    this.actorTransitions.add(prepare);
+    return () => this.actorTransitions.delete(prepare);
+  }
+
   async load(): Promise<void> {
+    this.publicationRevision = randomUUID();
+    this.current = null;
     try {
-      const raw = JSON.parse(await readFile(this.stateFile, 'utf8')) as PersistedEntitlement;
+      const raw = JSON.parse(await readCachedEntitlement(this.stateFile)) as PersistedEntitlement;
+      if (raw && Object.hasOwn(raw, 'token')) {
+        if (!this.publicKey || typeof raw.token !== 'string') return;
+        const payload = this.verify(raw.token, true);
+        this.current = {
+          sub: payload.sub,
+          plan: payload.plan,
+          iat: payload.iat,
+          exp: payload.exp,
+          token: raw.token
+        };
+        return;
+      }
       if (
         typeof raw?.sub === 'string' &&
         typeof raw?.plan === 'string' &&
@@ -79,11 +124,53 @@ export class EntitlementGate {
   }
 
   /**
-   * Verify a token and, when valid and newer than the recorded one, persist it.
+   * Verify a token and persist a different account or a later expiry for the same account.
    * Returns the resulting status; throws Error('ENTITLEMENT_TOKEN_INVALID') on
    * malformed, mis-signed, not-yet-valid, or already-expired tokens.
    */
-  async acceptToken(token: string): Promise<EntitlementStatus> {
+  acceptToken(token: string, revision: string): Promise<EntitlementStatus> {
+    const accepted = this.updates.then(() => {
+      if (this.publicKey && revision !== this.publicationRevision) {
+        const reason: EntitlementPublicationRejection = 'stale_revision';
+        diagnostics.record('auth', 'identity_publication_rejected', { reason });
+        throw new Error('ENTITLEMENT_TOKEN_INVALID');
+      }
+      return this.applyToken(token);
+    });
+    this.updates = accepted.then(
+      () => undefined,
+      () => undefined
+    );
+    return accepted;
+  }
+
+  /** A paired caller may retire only the actor it observed, never a newer account.
+   * Serialize with token publication and persist the logout before clearing memory.
+   * The retirement callback keeps its protected server handle until acknowledgement.
+   */
+  clearActor(expectedActorId: string): Promise<boolean> {
+    const cleared = this.updates.then(async () => {
+      // Even a nonmatching logout fences an outstanding publication for that actor.
+      this.publicationRevision = randomUUID();
+      // Compare the verified stored subject even after grace expires: cleanup grants no work.
+      if (!this.publicKey || !this.current?.token || this.current.sub !== expectedActorId) {
+        return false;
+      }
+      for (const prepare of this.actorTransitions) await prepare(null);
+      await this.persist(null);
+      this.current = null;
+      this.lastDecision = null;
+      this.observe(this.evaluate().reason);
+      return true;
+    });
+    this.updates = cleared.then(
+      () => undefined,
+      () => undefined
+    );
+    return cleared;
+  }
+
+  private async applyToken(token: string): Promise<EntitlementStatus> {
     if (!this.publicKey) return this.status();
     let payload: EntitlementTokenPayload;
     try {
@@ -94,14 +181,27 @@ export class EntitlementGate {
       diagnostics.record('entitlement', 'decision', { decision: 'invalid', skew: 'unknown' });
       throw error;
     }
-    if (!this.current || payload.exp > this.current.exp) {
-      this.current = {
+    // A different verified account owns its own entitlement and grace window.
+    // Keep the longer expiry only within the same account.
+    if (
+      !this.current?.token ||
+      payload.sub !== this.current.sub ||
+      payload.exp > this.current.exp
+    ) {
+      const next = {
         sub: payload.sub,
         plan: payload.plan,
         iat: payload.iat,
-        exp: payload.exp
+        exp: payload.exp,
+        token
       };
-      await this.persist();
+      const changesActor = this.currentActorId() !== payload.sub;
+      if (changesActor) {
+        for (const prepare of this.actorTransitions) await prepare(payload.sub);
+      }
+      await this.persist(next);
+      this.current = next;
+      if (changesActor) this.publicationRevision = randomUUID();
     }
     // Every accepted token is journaled, even when the decision is unchanged: the skew bucket
     // — how far the issuer's clock sits from this machine's — is the one fact that explains
@@ -160,7 +260,7 @@ export class EntitlementGate {
     diagnostics.record('entitlement', 'decision', { decision, skew });
   }
 
-  private verify(token: string): EntitlementTokenPayload {
+  private verify(token: string, cached = false): EntitlementTokenPayload {
     const invalid = () => new Error('ENTITLEMENT_TOKEN_INVALID');
     if (typeof token !== 'string' || token.length > 4096) throw invalid();
     const [prefix, payloadPart, signaturePart, ...rest] = token.split('.');
@@ -198,16 +298,41 @@ export class EntitlementGate {
     }
     const now = this.now();
     if (payload.iat * 1000 > now + MAX_CLOCK_SKEW_MS) throw invalid();
-    if (payload.exp * 1000 <= now) throw invalid();
+    if (!cached && payload.exp * 1000 <= now) throw invalid();
     return payload;
   }
 
-  private async persist(): Promise<void> {
-    if (!this.current) return;
-    await mkdir(path.dirname(this.stateFile), { recursive: true });
-    const temporary = `${this.stateFile}.tmp`;
-    await writeFile(temporary, JSON.stringify(this.current), 'utf8');
-    await rename(temporary, this.stateFile);
+  private async persist(value: PersistedEntitlement | null): Promise<void> {
+    await mkdir(path.dirname(this.stateFile), { recursive: true, mode: 0o700 });
+    const temporary = `${this.stateFile}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, JSON.stringify(value), {
+        encoding: 'utf8',
+        mode: 0o600,
+        flag: 'wx'
+      });
+      await rename(temporary, this.stateFile);
+    } finally {
+      await rm(temporary, { force: true });
+    }
+  }
+}
+
+/** Read a bounded private cache through one handle, even if the file changes during the read. */
+async function readCachedEntitlement(file: string): Promise<string> {
+  const handle = await open(file, 'r');
+  try {
+    const buffer = Buffer.alloc(16 * 1024 + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, null);
+      if (!bytesRead) break;
+      offset += bytesRead;
+    }
+    if (offset > 16 * 1024) throw new Error('ENTITLEMENT_TOKEN_INVALID');
+    return buffer.subarray(0, offset).toString('utf8');
+  } finally {
+    await handle.close();
   }
 }
 

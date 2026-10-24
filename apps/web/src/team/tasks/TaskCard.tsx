@@ -32,7 +32,7 @@ import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
 import { Card, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
 import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
-import type { TeamMemberSummary } from '../../api/team';
+import type { TeamAssigneeSummary } from '../../api/team';
 import type { TeamTaskLabel } from '@video-compressor/shared';
 
 /** Farther than this and the press was a drag — macOS uses about five pixels. */
@@ -83,7 +83,7 @@ export function TaskCard({
    * which is what a board is for. Absent where the board has not wired it, so
    * a card mounted on its own is still just a card.
    */
-  members?: readonly TeamMemberSummary[];
+  members?: readonly TeamAssigneeSummary[];
   labels?: readonly TeamTaskLabel[];
   actions?: TaskActionHandlers;
   /**

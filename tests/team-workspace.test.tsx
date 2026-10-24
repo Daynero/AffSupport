@@ -7,6 +7,10 @@ import { teamApi, type TeamInvitationSummary } from '../apps/web/src/api/team';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
+// Transform the real lazy route modules during setup, rather than inside the
+// content query's deadline. Native built-page startup is checked separately.
+import '../apps/web/src/team/workspace/WorkspaceShell';
+import '../apps/web/src/team/explorer/ExplorerShell';
 
 afterEach(() => {
   cleanup();

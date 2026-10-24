@@ -148,7 +148,8 @@ export function TariffHistoryDrawer({
   const [failed, setFailed] = useState(false);
   const [confirm, setConfirm] = useState<AdminTariffSeat | null>(null);
   const [busy, setBusy] = useState(false);
-  const day = (value: string | null) => (value ? formatTariffDay(value, language) : '—');
+  const day = (value: string | null) =>
+    value ? formatTariffDay(value, language, row.tariffToday) : '—';
 
   const load = useCallback(() => {
     setFailed(false);

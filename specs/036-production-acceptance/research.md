@@ -1,3 +1,5 @@
+> Повторна звірка 2026-10-20: R1–R4 та native recovery R8 уже мають реалізацію й development evidence у 034 на HEAD 95467002. Історичні Evidence нижче описують базу 2026-10-14, а не поточні дефекти. Чинний recovery handler, п’ять additive migrations та findings 034 мають пріоритет для audit. Acceptance tooling R5–R7 і кампанія залишаються роботою 036.
+
 # Research: рішення для 036
 
 Досліджено локальний код 2026-10-14. Це факти реалізації й рішення дизайну, не результати runtime acceptance. Нижче зафіксовано проєктні рішення, що потребують реалізації та перевірки; доступність hosted/Windows/Google credentials лишається перевірною передумовою виконання.
@@ -93,3 +95,38 @@
 - **U3 — budgets**: точні request/retry/lease/rotation межі винесено у recovery contract; counters входять у діагностику та capacity forecast. Їхня достатність для 30/50 людей ще має бути виміряна.
 
 Ці рішення усувають прогалини документів; вони не є доказом реалізованої безпеки, відновлення чи достатності тарифу Supabase.
+
+## Повторний consistency audit — 2026-10-21
+
+- HIGH / resolved: старий план повторно будував уже завершену 034. Ownership один; 036 аудіює
+  чинні seams та додає нові runtime докази, без копії recovery implementation.
+- HIGH / isolated: початкова wishly DB не містила 13 migration journal entries. Замість replay
+  на користувацьких даних створено окремий acceptance036 stack із повним chain і synthetic Auth.
+- HIGH / fixed: membership mutations не мали сигналу для відкритого клієнта. Own-row RLS signal
+  переживає removal, не відкриває workspace data; existing Realtime owner rereads permissions.
+  Regression before/after, actual Chrome downgrade/removal/reinvite і read-only audit підтверджені.
+- MEDIUM / fixed: picker лишався orphan при штатній зупинці. Track/interrupt/terminate lifecycle,
+  macOS live retest та Windows mocks; unrelated processes не завершуються.
+- HIGH / fixed: blocking Vite advisory; мінімальні patch versions 8.1.6/7.3.7, без exception.
+- MEDIUM / fixed: назва real-media transcription test обіцяла розпізнавання, але лише probe sine.
+  Committed synthetic speech + actual Whisper content/timing assertions; весь набір 11/11.
+- HIGH / open: tariff-domain clock overlay/fault/mail capture, full campaign adoption, hosted load/8h soak,
+  Drive/Windows/backup та clean exact-SHA package не доведені. Це не scope exclusion і не GO.
+
+Нові implementation tasks T084–103 не послаблюють FR/SC. У development report усі незавершені
+174 cases залишаються NOT_RUN/BLOCKED; unit/API smoke не перейменовується на manual acceptance.
+
+
+2026-10-21: actual Realtime показав amplification440 signals per authorized client на110 creates
+у steady profile (три receivers, два outsiders=0). Observed messages не слід прирівнювати до
+кількості user actions. Перший burst мав15 dropped/100, steady300/300 delivered p95≈592ms;
+обидва проводилися під concurrent verification, отже clean capacity baseline ще потрібний.
+RLS real Auth/Postgres8/8 підтверджує own-row membership signals і закриту diagnostic projection.
+Офіційні Supabase pricing/Realtime/Functions/backup джерела повторно відкрито2026-10-21;
+числові квоти в capacity-plan лишаються чинними, actual hosted configuration невідомий.
+
+
+Повторна consistency review: прибрано застарілі накази повторно створювати completed034 recovery,
+у T024–T048 вказано actual seams/tests і forward-only gap handling. Неіснуючі старі test paths
+не породжують duplicate suites. Unfinished runtime/adoption/clock/mail/load/restore/package tasks
+залишені відкритими; жодний автоматичний smoke не підміняє повний manual case.

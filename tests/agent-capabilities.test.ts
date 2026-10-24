@@ -82,3 +82,13 @@ describe('advertised agent capabilities', () => {
     }
   });
 });
+it('gates both recovery protocol capabilities on protected credential support', () => {
+  for (const platform of [macOS, windows, headless]) {
+    expect(advertisedCapabilities({ ...platform, recoveryCredentials: true })).toEqual(
+      expect.arrayContaining(['team-background-recovery', 'team-background-recovery-actor-bound'])
+    );
+    const unavailable = advertisedCapabilities({ ...platform, recoveryCredentials: false });
+    expect(unavailable).not.toContain('team-background-recovery');
+    expect(unavailable).not.toContain('team-background-recovery-actor-bound');
+  }
+});

@@ -538,9 +538,26 @@ describe('investigate · (e) a user with no events', () => {
     expect(data.coverage.blind_spots.map(spot => spot.kind)).toEqual([
       'no_events_in_period',
       'analytics_disabled',
+      'recovery_retirement_gap',
       'tariff_recovery_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
+    ]);
+    expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
+    expect(
+      data.coverage.blind_spots.find(spot => spot.kind === 'recovery_retirement_gap')?.detail
+    ).toContain('unavailable');
+    expect(data.membership_access).toMatchObject({ supported: false, signals: [] });
+    expect(
+      data.coverage.blind_spots.filter(spot => spot.kind === 'workspace_evidence_gap')
+    ).toEqual([
+      expect.objectContaining({
+        detail: expect.stringContaining('Membership access signal projection is unavailable')
+      }),
+      expect.objectContaining({
+        detail: expect.not.stringContaining('Membership access signal projection')
+      })
     ]);
     expect(data.findings[0].evidence).toEqual([
       'blind_spot:no_events_in_period',
@@ -638,4 +655,143 @@ describe('investigate · privacy and determinism', () => {
     expect(result.human).toContain('transcription:model:MODEL_MISSING');
     expect(result.human).not.toContain('trans@example.test');
   });
+});
+
+const U_RETIRE = '0a000000-0000-4000-8000-000000000008';
+const INST_RETIRE = '1b000000-0000-4000-8000-000000000008';
+const AGENT_RETIRE = '2c000000-0000-4000-8000-000000000008';
+const RETIRE_PENDING = '3d000000-0000-4000-8000-000000000081';
+const RETIRE_ACK = '3d000000-0000-4000-8000-000000000082';
+const RETIRE_COMPLETE = '3d000000-0000-4000-8000-000000000083';
+const RETIRE_FUTURE = '3d000000-0000-4000-8000-000000000084';
+const RETIRE_UNKNOWN = '3d000000-0000-4000-8000-000000000085';
+beforeAll(async () => {
+  await db.exec(`insert into public.analytics_users(id,email,email_normalized,last_seen_at)
+    values('${U_RETIRE}','retirement@example.test','retirement@example.test','2026-10-08T11:00:00Z')`);
+  await db.exec(
+    insertEvents([
+      {
+        user: U_RETIRE,
+        name: 'session_started',
+        at: '2026-10-08T10:00:00Z',
+        installation: INST_RETIRE,
+        agent: AGENT_RETIRE,
+        version: '1.2.6'
+      }
+    ])
+  );
+  const base = {
+    user: U_RETIRE,
+    installation: INST_RETIRE,
+    agent: AGENT_RETIRE,
+    category: 'team',
+    code: 'recovery_retirement'
+  };
+  await db.exec(
+    insertJournal([
+      {
+        ...base,
+        seq: 1,
+        at: '2026-10-08T10:01:00Z',
+        props: { stage: 'pending_server', delegation_id: RETIRE_PENDING }
+      },
+      {
+        ...base,
+        seq: 2,
+        at: '2026-10-08T10:02:00Z',
+        received: '2026-10-08T18:00:00Z',
+        props: { stage: 'pending_server', delegation_id: RETIRE_ACK }
+      },
+      {
+        ...base,
+        seq: 3,
+        at: '2026-10-08T10:03:00Z',
+        props: { stage: 'server_confirmed', delegation_id: RETIRE_ACK }
+      },
+      {
+        ...base,
+        seq: 4,
+        at: '2026-10-08T10:04:00Z',
+        props: { stage: 'pending_local_cleanup', delegation_id: RETIRE_ACK }
+      },
+      {
+        ...base,
+        seq: 5,
+        at: '2026-10-08T10:05:00Z',
+        props: { stage: 'server_confirmed', delegation_id: RETIRE_COMPLETE }
+      },
+      {
+        ...base,
+        seq: 6,
+        at: '2026-10-08T10:06:00Z',
+        props: { stage: 'local_complete', delegation_id: RETIRE_COMPLETE }
+      },
+      {
+        ...base,
+        seq: 7,
+        at: '2026-10-10T10:00:00Z',
+        props: { stage: 'local_complete', delegation_id: RETIRE_FUTURE }
+      },
+      {
+        ...base,
+        seq: 8,
+        at: '2026-10-08T10:08:00Z',
+        props: { stage: 'unsupported_native_stage', delegation_id: RETIRE_UNKNOWN }
+      }
+    ])
+  );
+});
+
+describe('native retirement diagnosis through the read-only investigate command', () => {
+  it('distinguishes unknown server acknowledgement from confirmed retirement awaiting local cleanup', async () => {
+    const data = await investigate('retirement@example.test');
+    const rows = data.findings.filter(row => row.rule === 'recovery_retirement');
+    const pending = rows.find(row => row.title.includes(RETIRE_PENDING));
+    expect(pending?.kind).toBe('insufficient');
+    expect(pending?.title).toMatch(/server acknowledgement.*unknown/iu);
+    const local = rows.find(row => row.title.includes(RETIRE_ACK));
+    expect(local?.kind).toBe('fact');
+    expect(local?.title).toMatch(/protected.key cleanup.*pending/iu);
+    expect(
+      local?.code_locations.some(location =>
+        location.files.includes('apps/agent/src/team-bridge/recovery-worker.ts')
+      )
+    ).toBe(true);
+    expect(local?.evidence).toContain(`journal:${AGENT_RETIRE}:4`);
+  });
+  it('reports completed local cleanup separately and excludes a future receipt at as-of', async () => {
+    const data = await investigate('retirement@example.test');
+    const rows = data.findings.filter(row => row.rule === 'recovery_retirement');
+    expect(rows.find(row => row.title.includes(RETIRE_COMPLETE))?.title).toMatch(
+      /local.*completed/iu
+    );
+    expect(rows.some(row => row.title.includes(RETIRE_FUTURE))).toBe(false);
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
+  it('keeps an unsupported diagnostic stage explicitly unknown without echoing it', async () => {
+    const data = await investigate('retirement@example.test');
+    const row = data.findings.find(
+      row => row.rule === 'recovery_retirement' && row.title.includes(RETIRE_UNKNOWN)
+    );
+    expect(row?.kind).toBe('insufficient');
+    expect(row?.title).toMatch(/unknown/iu);
+    expect(row?.title).not.toContain('unsupported_native_stage');
+  });
+});
+it('audits retirement from its journal groups and keeps unobserved browser-only retirement partial', async () => {
+  const result = await executeCommand(parseArgs(['audit', '--as-of', AS_OF, '--json']));
+  const audit = result.data as {
+    capabilities: Array<{ id: string; status: string; samples: number; missing: string[] }>;
+  };
+  const row = audit.capabilities.find(item => item.id === 'team.recovery_retirement');
+  expect(row?.samples).toBe(4);
+  expect(row?.status).toBe('partial');
+  expect(row?.missing).toEqual(
+    expect.arrayContaining([
+      'server_acknowledgement_unknown',
+      'local_cleanup_unconfirmed',
+      'unknown_retirement_stage_or_binding',
+      'browser_only_retirement_unobserved'
+    ])
+  );
 });

@@ -570,6 +570,19 @@ export async function createDurableProductCatalog(
     return result;
   } catch (error) {
     await store.checkpoint(intent, owner, 'interrupted', {}).catch(() => undefined);
+    // The standalone form uses these closed reasons to explain how to repair
+    // its input. Keep only the known enum, never arbitrary provider details.
+    if (
+      error instanceof TeamFunctionError &&
+      error.code === 'WRONG_STATE' &&
+      (error.details?.reason === 'settings_missing' || error.details?.reason === 'not_a_video')
+    ) {
+      throw new TeamFunctionError(error.code, {
+        status: error.status,
+        retryable: error.retryable,
+        details: { reason: error.details.reason }
+      });
+    }
     throw launchFailure(error);
   }
 }

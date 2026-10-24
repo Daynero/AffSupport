@@ -1,0 +1,51 @@
+-- 036: native PostgreSQL tariff-domain boundaries. Disposable transaction only.
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(23);
+select ok(private.tariff_now()=now(),'production tariff clock uses real transaction time');
+do $$ begin perform set_config('soty.tariff_now','2099-01-01',true); end $$;
+select ok(private.tariff_now()=now(),'caller GUC cannot override production tariff time');
+select ok(not has_function_privilege('anon','private.tariff_now()','EXECUTE'),'anonymous callers cannot invoke the private clock');
+select ok(not has_function_privilege('authenticated','private.tariff_now()','EXECUTE'),'authenticated callers cannot invoke the private clock');
+select ok(not has_function_privilege('service_role','private.tariff_now()','EXECUTE'),'service clients cannot invoke the private clock directly');
+set local role authenticated;
+select throws_ok('select private.tariff_now()','42501',null,'actual authenticated private-clock execution is refused');
+reset role;
+select is(extract(epoch from private.kyiv_day_end('2026-03-29')-private.kyiv_day_end('2026-03-28'))::integer,23*3600,'Kyiv spring DST day has23real hours');
+select is(extract(epoch from private.kyiv_day_end('2026-10-25')-private.kyiv_day_end('2026-10-24'))::integer,25*3600,'Kyiv autumn DST day has25real hours');
+select is(private.kyiv_today('2026-12-31T22:00:00Z'),'2027-01-01'::date,'Kyiv year rollover uses the tariff instant');
+create or replace function private.tariff_now() returns timestamptz language sql stable security definer set search_path='' as $$ select '2030-10-11T10:00:00Z'::timestamptz $$;
+select is(private.kyiv_today(),'2030-10-11'::date,'default Kyiv tariff day follows the trusted test seam');
+insert into auth.users(id,aud,role,email,email_confirmed_at,last_sign_in_at,raw_app_meta_data,raw_user_meta_data) values
+ ('e0360000-0000-4000-8000-000000000001','authenticated','authenticated','native-clock-admin@soty.invalid',now(),now(),'{}','{}'),
+ ('e0360000-0000-4000-8000-000000000002','authenticated','authenticated','native-clock-owner@soty.invalid',now(),now(),'{}','{}');
+insert into public.admin_users(user_id) values('e0360000-0000-4000-8000-000000000001');
+create temporary table clock_fixture(team_id uuid,tariff_id uuid);
+do $setup$ declare tariff uuid; team uuid; begin
+ perform set_config('request.jwt.claim.sub','e0360000-0000-4000-8000-000000000001',true);
+ tariff:=(public.admin_grant_space_tariff('native-clock-owner@soty.invalid','lead','2030-10-14',0,null,null,null,false)->>'id')::uuid;
+ perform set_config('request.jwt.claim.sub','e0360000-0000-4000-8000-000000000002',true);
+ select id into team from public.create_team('Native clock synthetic');
+ insert into clock_fixture values(team,tariff);
+end $setup$;
+select ok((select starts_at=private.tariff_now() from public.space_tariffs where id=(select tariff_id from clock_fixture)),'effective tariff start follows the domain clock');
+select ok((select abs(extract(epoch from created_at-now()))<60 from public.space_tariffs where id=(select tariff_id from clock_fixture)),'tariff audit creation remains on real time');
+select ok(private.team_workspace_allowed((select team_id from clock_fixture)),'workspace gate follows the active tariff domain');
+select is((select state from private.space_tariff_state((select team_id from clock_fixture))),'expiring','state projection agrees with the same tariff day');
+select is(private.team_tariff_json((select team_id from clock_fixture),'e0360000-0000-4000-8000-000000000002')->>'tariffToday','2030-10-11','team snapshot transports the authoritative tariff calendar');
+select is(public.get_my_space_access()->>'tariffToday','2030-10-11','owner access transports the same tariff calendar');
+do $$ begin perform set_config('request.jwt.claim.sub','e0360000-0000-4000-8000-000000000001',true); end $$;
+select is(public.admin_get_tariff_settings()->>'tariffToday','2030-10-11','admin calendar uses the same domain');
+do $$ begin perform private.queue_tariff_notices(); end $$;
+select is((select item->>'tariffToday' from jsonb_array_elements(public.service_claim_tariff_notices(20)) item where item->>'tariffId'=(select tariff_id::text from clock_fixture) limit 1),'2030-10-11','claimed notice transports its transaction tariff calendar');
+create or replace function private.tariff_now() returns timestamptz language sql stable security definer set search_path='' as $$ select private.kyiv_day_end('2030-10-14') $$;
+select ok(private.team_workspace_allowed((select team_id from clock_fixture)),'end-of-term boundary retains grace access');
+select is((select state from private.space_tariff_state((select team_id from clock_fixture))),'grace','projection enters grace at the exact domain boundary');
+create or replace function private.tariff_now() returns timestamptz language sql stable security definer set search_path='' as $$ select private.kyiv_day_end('2030-10-17') $$;
+select ok(not private.team_workspace_allowed((select team_id from clock_fixture)),'gate closes at the exclusive grace boundary');
+select is((select state from private.space_tariff_state((select team_id from clock_fixture))),'blocked','projection closes with the gate');
+create or replace function private.tariff_now() returns timestamptz language sql stable security definer set search_path='' as $$ select pg_catalog.now() $$;
+select ok(private.tariff_now()=now(),'removing the fixture restores real time');
+select * from finish();
+rollback;

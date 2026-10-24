@@ -29,16 +29,23 @@ function locale(language: Language): string {
 }
 
 /** «14 жовтня» / "14 October"; the year only when it is not this one. */
-export function formatTariffDay(value: string | null | undefined, language: Language): string {
+export function formatTariffDay(
+  value: string | null | undefined,
+  language: Language,
+  tariffToday?: string
+): string {
   if (!value) return '';
   const instant = instantOf(value);
   if (!instant) return '';
   const timeZone = zoneOf(value);
   const year = new Intl.DateTimeFormat('en', { timeZone, year: 'numeric' }).format(instant);
-  const thisYear = new Intl.DateTimeFormat('en', {
-    timeZone: 'Europe/Kyiv',
-    year: 'numeric'
-  }).format(new Date());
+  const thisYear =
+    tariffToday && DAY.test(tariffToday)
+      ? tariffToday.slice(0, 4)
+      : new Intl.DateTimeFormat('en', {
+          timeZone: 'Europe/Kyiv',
+          year: 'numeric'
+        }).format(new Date());
   return new Intl.DateTimeFormat(locale(language), {
     timeZone,
     day: 'numeric',

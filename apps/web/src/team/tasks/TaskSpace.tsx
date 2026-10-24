@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
-import { teamApi, type TeamMemberSummary } from '../../api/team';
+import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Empty, Input, Switch } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
@@ -31,6 +31,7 @@ export type TaskSpaceClient = TaskCopyClient &
   TaskEditorClient &
   TaskLabelsClient & {
     listMembers(teamId: string): Promise<TeamMemberSummary[]>;
+    listAssignees?: (teamId: string) => Promise<TeamAssigneeSummary[]>;
     deleteTask(input: { teamId: string; taskId: string }): Promise<true>;
     listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
   };
@@ -138,7 +139,7 @@ export function TaskSpace({
     true,
     value => (typeof value === 'boolean' ? value : null)
   );
-  const [members, setMembers] = useState<TeamMemberSummary[]>([]);
+  const [members, setMembers] = useState<TeamAssigneeSummary[]>([]);
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -201,8 +202,10 @@ export function TaskSpace({
 
   useEffect(() => {
     let active = true;
-    void client
-      .listMembers(teamId)
+    const directory = client.listAssignees
+      ? client.listAssignees(teamId)
+      : client.listMembers(teamId);
+    void directory
       .then(value => {
         if (active) setMembers(value);
       })

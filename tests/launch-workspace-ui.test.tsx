@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { LaunchSpace } from '../apps/web/src/team/launches/LaunchSpace';
+import { teamApi } from '../apps/web/src/api/team';
 import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { quickRangeValue } from '../apps/web/src/team/tasks/useTasks';
 import { launchConfig, launchSources } from './fixtures/launches';
@@ -77,7 +78,10 @@ vi.mock('../apps/web/src/api/team', () => ({
     copy: seams.copy,
     selection: seams.selection
   },
-  teamApi: { listMembers: async () => seams.members },
+  teamApi: {
+    listMembers: vi.fn(async () => seams.members),
+    listAssignees: vi.fn(async () => seams.members)
+  },
   TeamApiError: class extends Error {
     constructor(
       public code: string,
@@ -173,13 +177,7 @@ function clickLaunchClose() {
   if (!close) throw new Error('Launch close button is missing');
   fireEvent.click(close);
 }
-afterEach(() => {
-  cleanup();
-  vi.useRealTimers();
-  vi.unstubAllGlobals();
-  if (originalClipboardDescriptor)
-    Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor);
-  else Reflect.deleteProperty(navigator, 'clipboard');
+function resetSeams() {
   seams.actor = 'actor-a';
   seams.revision = 0;
   seams.view = true;
@@ -206,6 +204,16 @@ afterEach(() => {
   seams.selection.mockReset().mockResolvedValue(null);
   seams.list.mockReset().mockResolvedValue({ items: [], nextCursor: null });
   seams.metadata.mockReset();
+}
+beforeEach(resetSeams);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  if (originalClipboardDescriptor)
+    Object.defineProperty(navigator, 'clipboard', originalClipboardDescriptor);
+  else Reflect.deleteProperty(navigator, 'clipboard');
+  resetSeams();
 });
 it('orders launch date shortcuts after the calendar and filters the server list by local day', async () => {
   render(<LaunchSpace teamId={TEAM} query={{ ...emptyTeamRouteQuery(), launchId: null }} />);
@@ -513,6 +521,14 @@ it('retains approved unsaved outputs after a lost generation reply and discards 
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Campaign name #1' }), { key: 'Enter' });
   view.rerender(<LaunchSpace teamId={TEAM} query={query} />);
   fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
+  // Editing can still be saving or refreshing sources. A real user can generate
+  // only once the action is available; a click on the disabled button is ignored.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Generate launch' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
   await screen.findByRole('region', { name: 'Update launch?' });
   fireEvent.click(screen.getByRole('button', { name: 'Update launch' }));
@@ -1005,15 +1021,27 @@ it('keeps unsaved edits and the current result when save before historical resto
   seams.saveWorkingCopy.mockRejectedValue(new TeamApiError('LAUNCH_VERSION_CONFLICT', false));
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('Age: 45');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Age 50' })).toHaveProperty('disabled', false)
+  );
+  // This case exercises the unsaved decision before the real 500ms autosave.
+  // Coverage/accessibility-query wall time must not choose a different branch.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
-  fireEvent.click(screen.getByRole('button', { name: 'History' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Restore configuration' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Save and restore' }));
-  await screen.findByText('This launch changed in another session');
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Restore configuration' }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save and restore' }));
+  });
+  expect(seams.save).not.toHaveBeenCalled();
+  expect(screen.getByText('This launch changed in another session')).toBeTruthy();
   expect(screen.getByText('Age: 50')).toBeTruthy();
   expect(screen.getByText('Date: 2026-10-20')).toBeTruthy();
   expect(seams.saveWorkingCopy).toHaveBeenCalledOnce();
   expect(seams.detail).toHaveBeenCalledTimes(1);
+  vi.useRealTimers();
   view.rerender(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
   expect(await screen.findByText(currentPreview.value.advertisingUrl)).toBeTruthy();
 });
@@ -1040,14 +1068,26 @@ it('acknowledges a saved working copy when the historical read fails afterward',
   seams.save.mockResolvedValue({ id: LAUNCH, version: '3' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('Age: 45');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Age 50' })).toHaveProperty('disabled', false)
+  );
+  // This case exercises the unsaved decision before the real 500ms autosave.
+  // Coverage/accessibility-query wall time must not choose a different branch.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
-  fireEvent.click(screen.getByRole('button', { name: 'History' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Restore configuration' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Save and restore' }));
-  await waitFor(() => expect(seams.detail).toHaveBeenCalledTimes(3));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Restore configuration' }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save and restore' }));
+  });
+  expect(seams.save).not.toHaveBeenCalled();
+  expect(seams.detail).toHaveBeenCalledTimes(3);
   expect(screen.getByText('Age: 50')).toBeTruthy();
   expect(seams.saveWorkingCopy).toHaveBeenCalledOnce();
   expect(screen.queryByRole('button', { name: 'Save and restore' })).toBeNull();
+  vi.useRealTimers();
 });
 
 it('keeps unsaved settings when another tab publishes a workspace revision', async () => {
@@ -1169,17 +1209,26 @@ it('keeps a conflicting local configuration until the user explicitly rebases it
     .mockResolvedValueOnce({ id: LAUNCH, version: '3' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByText('Age: 45');
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Age 50' })).toHaveProperty('disabled', false)
+  );
+  // Keep this conflict/rebase decision ahead of the real autosave debounce.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   fireEvent.click(screen.getByRole('button', { name: 'Age 50' }));
-  clickLaunchClose();
-  await screen.findByText('This launch changed in another session');
+  await act(async () => clickLaunchClose());
+  expect(screen.getByText('This launch changed in another session')).toBeTruthy();
   expect(screen.getByText('Age: 50')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Reload latest' }));
-  await screen.findByRole('button', { name: 'Keep my changes against this version' });
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Reload latest' }));
+  });
+  expect(screen.getByRole('button', { name: 'Keep my changes against this version' })).toBeTruthy();
   expect(screen.getByText('Age: 50')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Keep my changes against this version' }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Keep my changes against this version' }));
+  });
   expect(screen.getByText('Age: 50')).toBeTruthy();
-  clickLaunchClose();
-  await waitFor(() => expect(seams.saveWorkingCopy).toHaveBeenCalledTimes(2));
+  await act(async () => clickLaunchClose());
+  expect(seams.saveWorkingCopy).toHaveBeenCalledTimes(2);
   expect(seams.saveWorkingCopy.mock.calls[1][0].version).toBe('2');
   expect(seams.saveWorkingCopy.mock.calls[1][0].config.age).toBe(50);
   expect(seams.saveWorkingCopy.mock.calls[1][0].requestKey).not.toBe(
@@ -1451,6 +1500,26 @@ it('appends a cursor page and clears a filter that has no matching launches', as
   const clear = await screen.findByRole('button', { name: 'Clear filters' });
   fireEvent.click(clear);
   await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+});
+
+it('loads an editor assignee filter without querying private member management data', async () => {
+  seams.edit = true;
+  seams.members = [{ userId: 'member-b', displayName: 'Editor B' }];
+  const management = vi
+    .spyOn(teamApi, 'listMembers')
+    .mockRejectedValue(new Error('PERMISSION_DENIED'));
+  const directory = vi.spyOn(teamApi, 'listAssignees');
+  try {
+    render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+    await waitFor(() => expect(directory).toHaveBeenCalledWith(TEAM));
+    expect(management).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Assignee' }));
+    expect(screen.getByRole('option', { name: 'Editor B' })).toBeTruthy();
+  } finally {
+    management.mockRestore();
+    directory.mockRestore();
+  }
 });
 
 it('saves an offer with its own version, clears the old proposal, and preserves an uncertain request for retry', async () => {

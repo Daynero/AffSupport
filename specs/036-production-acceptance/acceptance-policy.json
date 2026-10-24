@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "policyId": "036-owner-exclusions-v1",
+  "recordedAt": "2026-10-23T18:20:00.000Z",
+  "authority": "product-owner",
+  "ownerInstruction": "продовжуй до кінця виконання. тільки перевірку на відні не буде бо реального пристрою нема",
+  "scopeExclusions": [
+    {
+      "scope": "native-windows-runtime",
+      "caseIds": ["REG-017"],
+      "taskIds": ["T059", "T173"],
+      "reason": "The owner excludes real-device Windows acceptance because no Windows device is available. Only native Windows portions are excluded; unit, contract, build and macOS multi-device checks remain required."
+    }
+  ]
+}

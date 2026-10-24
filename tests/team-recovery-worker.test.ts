@@ -17,6 +17,11 @@ import type {
   RecoverySecrets,
   RecoverySecretStore
 } from '../apps/agent/src/platform/recovery-credentials';
+import {
+  handleRecovery,
+  type RecoveryHandlerDeps
+} from '../supabase/functions/team-recovery/handler';
+const ACTOR = '34000000-0000-4000-8000-000000000009';
 const TEAM = '34000000-0000-4000-8000-000000000001';
 const DELEGATION = '34000000-0000-4000-8000-000000000002';
 const INSTALL = '34000000-0000-4000-8000-000000000003';
@@ -25,6 +30,27 @@ const OP = '34000000-0000-4000-8000-000000000005';
 const JOB = '34000000-0000-4000-8000-000000000006';
 const dirs: string[] = [];
 const workers: TeamRecoveryWorker[] = [];
+function brokerClaim() {
+  const grant = {
+    ticket: 't'.repeat(43),
+    purpose: 'process_input',
+    expiresAt: new Date(Date.now() + 300000).toISOString(),
+    maxRangeBytes: 1024,
+    maxUses: 1
+  };
+  return {
+    operationCredential: 'x'.repeat(43),
+    job: {
+      jobId: JOB,
+      operationId: OP,
+      leaseToken: 'l'.repeat(43),
+      toolId: 'restitch',
+      options: {},
+      sourceGrant: grant,
+      finalizeGrant: { ...grant, purpose: 'finalize' }
+    }
+  };
+}
 afterEach(async () => {
   for (const worker of workers.splice(0)) await worker.shutdown();
   vi.useRealTimers();
@@ -39,6 +65,7 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
   dirs.push(root);
   const journal = new RecoveryJournal(root);
   const registration: RecoveryRegistration = {
+    actorId: ACTOR,
     teamId: TEAM,
     installationId: INSTALL,
     delegationId: DELEGATION,
@@ -73,7 +100,11 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
     },
     delete: async () => undefined
   };
-  const process = { process: vi.fn(), cancel: vi.fn(() => true), busy: vi.fn(() => false) };
+  const process = {
+    process: vi.fn(),
+    cancel: vi.fn((_operationId: string) => true),
+    busy: vi.fn(() => false)
+  };
   const fetcher = vi.fn<typeof fetch>(
     async () =>
       new Response(JSON.stringify({ ok: true, value: { job: null, operationCredential: null } }), {
@@ -83,6 +114,7 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
   const record = vi.fn();
   const worker = new TeamRecoveryWorker({
     environment: 'beta',
+    currentActorId: () => ACTOR,
     journal,
     process,
     secrets,
@@ -103,6 +135,29 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
   };
 }
 describe('background recovery worker', () => {
+  it('blocks a rewound accepted checkpoint when the server already reserved execution', async () => {
+    const f = await fixture();
+    const saved = await f.journal.load();
+    saved.checkpoints[0] = { ...saved.checkpoints[0], stage: 'accepted', operationId: OP };
+    await f.journal.save(saved);
+    f.setSecrets({ ...f.getSecrets(), active: brokerClaim() });
+    f.fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code: 'PROCESS_RESULT_UNCERTAIN' } }), {
+        status: 409
+      })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.process.process).not.toHaveBeenCalled();
+    expect(f.worker.status(TEAM)).toMatchObject({
+      state: 'blocked',
+      reason: 'checkpoint_unavailable'
+    });
+    await vi.advanceTimersByTimeAsync(3600000);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+  });
   it('refuses production targets from a beta installation', () => {
     expect(() =>
       recoveryEndpoint('https://example.supabase.co/functions/v1/team-recovery', 'beta')
@@ -148,7 +203,11 @@ describe('background recovery worker', () => {
     const started = new Promise<void>(resolve => {
       entered = resolve;
     });
-    f.fetcher.mockImplementation(() => {
+    f.fetcher.mockImplementation((_url, init) => {
+      if (JSON.parse(String(init?.body)).action === 'disconnect')
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, value: { revoked: true } }))
+        );
       entered();
       return new Promise(resolve => {
         resolveClaim = resolve;
@@ -330,6 +389,119 @@ describe('background recovery worker', () => {
     await f.worker.idle();
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason: 'retry_exhausted' });
   });
+  it.each(['seconds', 'http-date'])(
+    'retains %s Retry-After across restart without issuing an early claim',
+    async headerKind => {
+      const f = await fixture();
+      f.fetcher.mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, error: { code: 'RATE_LIMITED' } }), {
+          status: 429,
+          headers: {
+            'retry-after':
+              headerKind === 'seconds' ? '120' : new Date(Date.now() + 120000).toUTCString()
+          }
+        })
+      );
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(f.fetcher).toHaveBeenCalledOnce();
+      expect((await f.journal.load()).checkpoints[0]).toMatchObject({
+        retryAttempt: 1,
+        retryNotBefore:
+          headerKind === 'seconds'
+            ? Date.now() + 120000
+            : Math.floor(Date.now() / 1000) * 1000 + 120000
+      });
+      await f.worker.shutdown();
+      const restarted = new TeamRecoveryWorker(f.worker.options);
+      workers.push(restarted);
+      await restarted.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await restarted.idle();
+      expect(f.fetcher).toHaveBeenCalledOnce();
+      const remaining = (await f.journal.load()).checkpoints[0].retryNotBefore! - Date.now();
+      await vi.advanceTimersByTimeAsync(remaining - 1);
+      await restarted.idle();
+      expect(f.fetcher).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1);
+      await restarted.idle();
+      expect(f.fetcher).toHaveBeenCalledTimes(2);
+      expect(
+        f.fetcher.mock.calls.map(([, options]) => JSON.parse(String(options?.body)).requestId)
+      ).toEqual([REQUEST, REQUEST]);
+    }
+  );
+  it('conservatively retains an unclassified legacy retry deadline on explicit retry', async () => {
+    const f = await fixture();
+    const saved = await f.journal.load();
+    saved.checkpoints[0] = {
+      ...saved.checkpoints[0],
+      stage: 'blocked',
+      reason: 'retry_exhausted',
+      retryNotBefore: Date.now() + 120000,
+      retryEpisodes: [Date.now()]
+    };
+    await f.journal.save(saved);
+    await f.worker.load();
+    await f.worker.retry(TEAM);
+    await vi.advanceTimersByTimeAsync(119999);
+    await f.worker.idle();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(f.fetcher.mock.calls[0][1]?.body)).requestId).toBe(REQUEST);
+  });
+  it('retains the jittered retry delay across restart', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const f = await fixture();
+    f.fetcher.mockRejectedValueOnce(new Error('network'));
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    await f.worker.shutdown();
+    const restarted = new TeamRecoveryWorker(f.worker.options);
+    workers.push(restarted);
+    await restarted.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await restarted.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1999);
+    await restarted.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await restarted.idle();
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('does not let explicit retry bypass the server Retry-After deadline', async () => {
+    const f = await fixture();
+    f.setSecrets({
+      ...f.getSecrets(),
+      claimExpiresAt: new Date(Date.now() + 3_600_000).toISOString()
+    });
+    f.fetcher.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: false, error: { code: 'RATE_LIMITED' } }), {
+        status: 429,
+        headers: { 'retry-after': '601' }
+      })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason: 'retry_exhausted' });
+    await f.worker.retry(TEAM);
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(600999);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(f.fetcher.mock.calls[1][1]?.body)).action).toBe('claim');
+  });
   it('does not claim another operation while the existing process bridge is busy', async () => {
     const f = await fixture();
     f.process.busy.mockReturnValue(true);
@@ -417,5 +589,158 @@ describe('background recovery worker', () => {
     await f.worker.idle();
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
     expect(f.process.process).not.toHaveBeenCalled();
+  });
+  it.each(['succeeded', 'canceled', 'failed'])(
+    'settles authoritative %s after restart without executing the operation again',
+    async operationState => {
+      const f = await fixture('running');
+      f.setSecrets({ ...f.getSecrets(), active: brokerClaim() });
+      const rpc = vi.fn(async (action: string) => {
+        if (action === 'authorize_execute') return { operationState, outputRecorded: true };
+        if (action === 'settle') return {};
+        if (action === 'claim') return { replay: { job: null } };
+        throw new Error('unexpected recovery action');
+      });
+      const drive = vi.fn(async () => ({}));
+      const protocol: RecoveryHandlerDeps = {
+        user: vi.fn(async () => TEAM),
+        rpc,
+        drive,
+        revoke: vi.fn(async () => undefined),
+        token: () => 'z'.repeat(43),
+        hash: async () => 'synthetic-digest'
+      };
+      f.fetcher.mockImplementation(async (url, init) => {
+        const value = await handleRecovery(new Request(String(url), init), protocol);
+        return new Response(JSON.stringify({ ok: true, value }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(f.process.process).not.toHaveBeenCalled();
+      expect(drive).toHaveBeenCalledExactlyOnceWith('complete', 'x'.repeat(43), {
+        jobId: JOB,
+        leaseToken: 'l'.repeat(43),
+        outcome: operationState === 'succeeded' ? 'finalized' : 'failed',
+        errorCode: operationState === 'succeeded' ? null : 'PROCESS_FAILED'
+      });
+      expect(f.getSecrets().active).toBeNull();
+      await f.worker.shutdown();
+      const restarted = new TeamRecoveryWorker(f.worker.options);
+      workers.push(restarted);
+      await restarted.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await restarted.idle();
+      expect(f.process.process).not.toHaveBeenCalled();
+      expect(drive).toHaveBeenCalledOnce();
+      expect(rpc.mock.calls.filter(([action]) => action === 'settle')).toHaveLength(1);
+      expect((await f.journal.load()).checkpoints[0]).toMatchObject({
+        stage: 'settled',
+        reason: null
+      });
+    }
+  );
+  it.each(['AUTH_REQUIRED', 'PERMISSION_DENIED', 'INVALID_INPUT', 'INVALID_RESPONSE'])(
+    'persists permanent %s without retries or execution after restart',
+    async code => {
+      const f = await fixture();
+      f.fetcher.mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: { code } }), { status: 403 })
+      );
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      const reason = code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup';
+      expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+      await vi.advanceTimersByTimeAsync(3_600_000);
+      await f.worker.idle();
+      expect(f.fetcher).toHaveBeenCalledOnce();
+      await f.worker.shutdown();
+      const restarted = new TeamRecoveryWorker(f.worker.options);
+      workers.push(restarted);
+      await restarted.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await restarted.idle();
+      await expect(restarted.retry(TEAM)).rejects.toThrow('WRONG_STATE');
+      expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+      expect(f.fetcher).toHaveBeenCalledOnce();
+      expect(f.process.process).not.toHaveBeenCalled();
+    }
+  );
+  it('cancels active work before removing its durable registration and never restores it', async () => {
+    const f = await fixture();
+    const order: string[] = [];
+    const cleanup = vi.fn(async () => undefined);
+    const uploadResult = vi.fn();
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => {
+      entered = resolve;
+    });
+    const bridge = new TeamProcessBridge({
+      events: new TeamOperationEvents(),
+      transfer: {
+        downloadSource: vi.fn(async () => ({
+          workspace: '/synthetic',
+          file: '/synthetic/source.mp4',
+          sizeBytes: 6,
+          sourceVersion: '7',
+          sourceChecksum: null,
+          cleanup
+        })),
+        uploadResult
+      },
+      delegates: {
+        restitch: input =>
+          new Promise<never>((_resolve, reject) => {
+            input.pausable(paused => {
+              order.push(paused ? 'hold' : 'resume');
+              return true;
+            });
+            input.signal.addEventListener(
+              'abort',
+              () => {
+                order.push('abort');
+                reject(input.signal.reason);
+              },
+              { once: true }
+            );
+            entered();
+          })
+      }
+    });
+    f.process.process.mockImplementation(request => bridge.process(request));
+    f.process.cancel.mockImplementation(id => bridge.cancel(id));
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const action = JSON.parse(String(init?.body)).action;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value:
+            action === 'claim' ? brokerClaim() : action === 'disconnect' ? { revoked: true } : {}
+        })
+      );
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await started;
+    expect(bridge.setPaused(OP, true)).toBe('ok');
+    await expect(f.worker.remove(TEAM)).resolves.toEqual({ disabled: true });
+    expect(f.process.cancel).toHaveBeenCalledExactlyOnceWith(OP);
+    expect(order).toEqual(['hold', 'resume', 'abort']);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(uploadResult).not.toHaveBeenCalled();
+    expect(await f.journal.load()).toEqual({ registrations: [], checkpoints: [] });
+    const count = f.fetcher.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    expect(f.fetcher).toHaveBeenCalledTimes(count);
+    await f.worker.shutdown();
+    const restarted = new TeamRecoveryWorker(f.worker.options);
+    workers.push(restarted);
+    await restarted.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await restarted.idle();
+    expect(restarted.status(TEAM).enabled).toBe(false);
+    expect(f.process.process).toHaveBeenCalledOnce();
+    expect(f.fetcher).toHaveBeenCalledTimes(count);
   });
 });

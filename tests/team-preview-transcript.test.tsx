@@ -8,7 +8,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
-import { PreviewPane } from '../apps/web/src/team/explorer/PreviewPane';
+import { PreviewPane, type PreviewPaneClient } from '../apps/web/src/team/explorer/PreviewPane';
 import { teamApi } from '../apps/web/src/api/team';
 
 afterEach(() => {
@@ -31,14 +31,20 @@ const video = {
   thumbnailReady: false
 } as unknown as TeamMaterialRow;
 
-function renderPane(variants: LibraryVideoTextVariants, onTranscribe = vi.fn()) {
+function renderPane(
+  variants: LibraryVideoTextVariants,
+  onTranscribe = vi.fn(),
+  material = video,
+  overrides: Partial<PreviewPaneClient> = {}
+) {
   vi.spyOn(teamApi, 'listVideoTextVariants').mockResolvedValue(variants);
   const client = {
     mintThumbnailSession: vi.fn().mockResolvedValue({ endpoint: '', token: '', expiresAt: '' }),
     thumbnailUrl: () => '',
-    listFolderTree: vi.fn().mockResolvedValue([])
+    listFolderTree: vi.fn().mockResolvedValue([]),
+    ...overrides
   } as never;
-  render(
+  const view = render(
     // The pane offers the file's actions now, and those are the space's to
     // permit — so it needs the space around it, exactly as it has in the app.
     <ToastProvider>
@@ -56,7 +62,7 @@ function renderPane(variants: LibraryVideoTextVariants, onTranscribe = vi.fn()) 
       >
         <ExplorerProvider teamId="t-1" client={client} folderId={null}>
           <PreviewPane
-            row={video}
+            row={material}
             client={client}
             browseClient={client}
             onChanged={() => {}}
@@ -66,8 +72,50 @@ function renderPane(variants: LibraryVideoTextVariants, onTranscribe = vi.fn()) 
       </TeamProvider>
     </ToastProvider>
   );
-  return { onTranscribe };
+  return { onTranscribe, view };
 }
+
+it('uses only the ready render pointer for the selected landing preview', async () => {
+  const artifact = {
+    materialId: 'landing-1',
+    sourceVersion: '1',
+    fingerprint: 'synthetic',
+    preset: 'default',
+    segmentCount: 1,
+    artifactToken: 'synthetic-token'
+  };
+  const list = vi.fn().mockResolvedValue([
+    {
+      materialId: 'landing-1',
+      state: 'ready',
+      sourceVersion: '1',
+      fingerprint: 'synthetic',
+      preset: 'default',
+      artifact
+    }
+  ]);
+  const imageUrl = vi.fn().mockReturnValue('https://preview.invalid/landing.webp');
+  const landing = {
+    ...video,
+    id: 'landing-1',
+    kind: 'landing',
+    category: 'landing',
+    landingRender: { state: 'ready' }
+  } as unknown as TeamMaterialRow;
+  const { view } = renderPane(
+    { sourceVersion: '1', variants: [], canProcess: false },
+    vi.fn(),
+    landing,
+    { listLandingRenders: list, landingRenderImageUrl: imageUrl }
+  );
+  await waitFor(() =>
+    expect(view.container.querySelector('img')?.getAttribute('src')).toBe(
+      'https://preview.invalid/landing.webp'
+    )
+  );
+  expect(list).toHaveBeenCalledWith('t-1', ['landing-1'], 'default');
+  expect(imageUrl).toHaveBeenCalledWith(artifact, 0);
+});
 
 describe('PreviewPane transcript block (012, T016/T017)', () => {
   it('offers Transcribe when the video has no text yet', async () => {

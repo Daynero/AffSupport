@@ -7,7 +7,7 @@ import {
 } from '@video-compressor/shared';
 import { launchApi } from '../../api/team';
 import { observeLaunchDefaults } from '../../analytics/launch-defaults';
-import { newLaunchDraft } from './useLaunchDraft';
+import { newLaunchDraft } from './launchDraftDefaults';
 
 type Profile = Awaited<ReturnType<typeof launchApi.defaults>>;
 export function resolvedLaunchDefaults(profile: Profile): LaunchDraft {

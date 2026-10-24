@@ -715,6 +715,16 @@ it('marks an actual archived historical correction accepted then applied only wi
     ).toBe('2')
   );
   expect(vi.mocked(teamFinanceApi.set).mock.calls[0]!.at(-1)).toBe('historical_correction');
+  // DOM commit and the provider's passive delivery-proof effect are separate
+  // observations. Seeing version 2 does not synchronously flush that effect.
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(emitAccountSignal)
+        .mock.calls.filter(call => call[0] === 'finance_edit')
+        .map(call => call[1])
+    ).toEqual(['requested', 'accepted', 'applied'])
+  );
   const signals = vi
     .mocked(emitAccountSignal)
     .mock.calls.filter(call => call[0] === 'finance_edit');

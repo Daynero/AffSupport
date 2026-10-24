@@ -77,3 +77,8 @@
 перевіряються перед передачею агенту та прийняттям результату; невідомий output не запускають вдруге.
 Live Windows виключено власником. Релізні LIFE/LOAD та packaged acceptance відкладені до релізу
 за прямою вказівкою власника (034 T044 / 036); це не production promotion proof.
+
+Приймальна кампанія 036 перевіряє ці gateways справжніми local Auth actors: immediate pause
+та undo не потребують підміни календарного часу. Цей smoke не доводить D+1…D+4, DST, Drive
+recovery або hosted budgets. Clock/fault і зовнішні варіанти позначаються окремо в 036 tasks.
+Виключення live Windows, прийняте для завершення 034, саме по собі не закриває Windows proof 036.

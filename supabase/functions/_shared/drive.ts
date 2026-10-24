@@ -238,6 +238,87 @@ async function driveErrorReason(response: Response): Promise<{ reason: string; l
   }
 }
 
+/** Same-response v2 evidence; never combine newer ETags with older ownership reads. */
+export interface ProcessOutputRecoveryFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  etag: string;
+  parents: string[];
+  trashed: boolean;
+  size: number | null;
+  checksum: string | null;
+  ownedByMe: boolean;
+  driveId: string | null;
+  canTrash: boolean;
+  appProperties: Record<string, string>;
+}
+
+function isStrongDriveEtag(value: unknown): value is string {
+  return typeof value === 'string' && /^"[\x21\x23-\x7e]{1,510}"$/u.test(value);
+}
+
+function parseProcessOutputRecoveryFile(value: unknown, fileId: string): ProcessOutputRecoveryFile {
+  if (
+    !isRecord(value) ||
+    value.id !== fileId ||
+    typeof value.title !== 'string' ||
+    typeof value.mimeType !== 'string' ||
+    !isStrongDriveEtag(value.etag) ||
+    !Array.isArray(value.parents) ||
+    !value.parents.every(p => isRecord(p) && typeof p.id === 'string') ||
+    !isRecord(value.labels) ||
+    typeof value.labels.trashed !== 'boolean' ||
+    !isRecord(value.capabilities) ||
+    typeof value.capabilities.canTrash !== 'boolean'
+  ) {
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+  const size =
+    value.fileSize === undefined
+      ? null
+      : typeof value.fileSize === 'string' && /^\d+$/u.test(value.fileSize)
+        ? Number(value.fileSize)
+        : NaN;
+  if (size !== null && (!Number.isSafeInteger(size) || size < 0))
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  const checksum = value.md5Checksum === undefined ? null : value.md5Checksum;
+  if (checksum !== null && (typeof checksum !== 'string' || !/^[a-f0-9]{32}$/u.test(checksum))) {
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+  const appProperties: Record<string, string> = Object.create(null);
+  if (value.properties !== undefined) {
+    if (!Array.isArray(value.properties)) throw new TeamFunctionError('INVALID_RESPONSE');
+    for (const property of value.properties) {
+      if (
+        !isRecord(property) ||
+        typeof property.key !== 'string' ||
+        typeof property.value !== 'string' ||
+        !['PRIVATE', 'PUBLIC'].includes(String(property.visibility))
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      if (property.visibility !== 'PRIVATE') continue;
+      if (Object.hasOwn(appProperties, property.key))
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      appProperties[property.key] = property.value;
+    }
+  }
+  return {
+    id: fileId,
+    name: value.title,
+    mimeType: value.mimeType,
+    etag: value.etag,
+    parents: value.parents.map(p => (p as { id: string }).id),
+    trashed: value.labels.trashed,
+    size,
+    checksum: checksum as string | null,
+    ownedByMe: value.ownedByMe === true,
+    driveId: typeof value.driveId === 'string' && value.driveId.length > 0 ? value.driveId : null,
+    canTrash: value.capabilities.canTrash,
+    appProperties
+  };
+}
+
 export class GoogleDriveClient {
   readonly #accessToken: string;
   readonly #fetch: typeof fetch;
@@ -257,6 +338,50 @@ export class GoogleDriveClient {
     const parsed = parseMetadata(await response.json().catch(() => null));
     if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
     return parsed;
+  }
+
+  /** v3 ignores If-Match; recovery deliberately uses the verified v2 contract. */
+  async getProcessOutputRecoveryFile(
+    fileId: string,
+    signal: AbortSignal
+  ): Promise<ProcessOutputRecoveryFile> {
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v2/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set(
+      'fields',
+      'id,title,mimeType,etag,parents(id),labels(trashed),fileSize,md5Checksum,ownedByMe,driveId,capabilities(canTrash),properties(key,value,visibility)'
+    );
+    const response = await this.#request(url, { signal });
+    return parseProcessOutputRecoveryFile(await response.json().catch(() => null), fileId);
+  }
+
+  /** Request acknowledgement only. The caller must independently confirm trashed readback. */
+  async trashProcessOutputConditionally(
+    fileId: string,
+    etag: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!isStrongDriveEtag(etag)) throw new TeamFunctionError('INVALID_INPUT');
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v2/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', 'id,labels(trashed)');
+    const response = await this.#request(url, {
+      method: 'PATCH',
+      signal,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'if-match': etag },
+      body: JSON.stringify({ labels: { trashed: true } })
+    });
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(payload) ||
+      payload.id !== fileId ||
+      !isRecord(payload.labels) ||
+      payload.labels.trashed !== true
+    ) {
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    }
   }
 
   async listFolders(input: {
@@ -423,7 +548,8 @@ export class GoogleDriveClient {
       input.name.length < 1 ||
       input.name.length > 1024 ||
       input.parentId.length < 1 ||
-      /[\u0000\r\n]/u.test(input.name)
+      input.name.includes('\0') ||
+      /[\r\n]/u.test(input.name)
     ) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
@@ -458,7 +584,8 @@ export class GoogleDriveClient {
       input.name.length < 1 ||
       input.name.length > 1024 ||
       input.parentId.length < 1 ||
-      /[\u0000\r\n]/u.test(input.name)
+      input.name.includes('\0') ||
+      /[\r\n]/u.test(input.name)
     ) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
@@ -685,6 +812,8 @@ export class GoogleDriveClient {
     if (response.status === 404) return { deleted: false };
     if (response.ok) return { deleted: true };
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 412)
+      throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
     if (response.status === 403) throw new TeamFunctionError('PERMISSION_DENIED');
     if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
     if (response.status === 400 && url.searchParams.has('pageToken')) {
@@ -898,12 +1027,35 @@ export class GoogleDriveClient {
     });
   }
 
+  /** The caller must durably bind this unused ID before attempting creation. */
+  async generateFileId(): Promise<string> {
+    const url = new URL('https://www.googleapis.com/drive/v3/files/generateIds');
+    url.searchParams.set('count', '1');
+    url.searchParams.set('space', 'drive');
+    url.searchParams.set('type', 'files');
+    url.searchParams.set('fields', 'ids');
+    const response = await this.#request(url);
+    const payload: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(payload) ||
+      !Array.isArray(payload.ids) ||
+      payload.ids.length !== 1 ||
+      typeof payload.ids[0] !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,200}$/u.test(payload.ids[0])
+    ) {
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+    }
+    return payload.ids[0];
+  }
+
   async startResumableUpload(input: {
     name: string;
     mimeType: string;
     sizeBytes: number;
     parentId: string;
     existingFileId?: string | null;
+    /** A provider-generated ID for a new file; never an overwrite target. */
+    newFileId?: string;
     appProperties?: Record<string, string>;
   }): Promise<{ sessionUri: string; expiresAt: string }> {
     if (
@@ -913,7 +1065,9 @@ export class GoogleDriveClient {
       !Number.isSafeInteger(input.sizeBytes) ||
       input.sizeBytes < 0 ||
       input.parentId.length < 1 ||
-      (input.existingFileId && input.appProperties)
+      (input.existingFileId && (input.appProperties || input.newFileId !== undefined)) ||
+      (input.newFileId !== undefined &&
+        (typeof input.newFileId !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/u.test(input.newFileId)))
     ) {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
@@ -926,6 +1080,7 @@ export class GoogleDriveClient {
     const metadata = input.existingFileId
       ? { name: input.name }
       : {
+          ...(input.newFileId ? { id: input.newFileId } : {}),
           name: input.name,
           mimeType: input.mimeType,
           parents: [input.parentId],
@@ -1058,6 +1213,8 @@ export class GoogleDriveClient {
     }
     if ([200, 201, 308].includes(response.status)) return response;
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 412)
+      throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
     if (response.status === 403 || response.status === 404) {
       throw new TeamFunctionError('PERMISSION_DENIED');
     }
@@ -1152,6 +1309,8 @@ export class GoogleDriveClient {
     }
     if (response.ok) return response;
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 412)
+      throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
     const reason = await driveErrorReason(response);
     if (response.status === 403 || response.status === 404) {
       // Drive spells "slow down" with the same status as "you may not": only

@@ -83,6 +83,10 @@ export default defineConfig(({ mode }) => ({
     manifest: true,
     rollupOptions: {
       output: {
+        // Keep route names for manifest diagnostics. Shared chunks use their
+        // content hash without repeating a long name in every importing chunk.
+        chunkFileNames: chunk =>
+          chunk.isDynamicEntry ? 'assets/[name]-[hash].js' : 'assets/[hash].js',
         /**
          * Keep the heavy dependencies out of whatever chunk happens to
          * reference them first.
@@ -95,6 +99,9 @@ export default defineConfig(({ mode }) => ({
          * across releases that do not change them.
          */
         manualChunks(id: string) {
+          // Dictionaries have no runtime dependencies. Keep their data separate
+          // so UI component edits can reuse the unchanged dictionary chunk.
+          if (/[\\/]src[\\/]locales[\\/](?:en|uk)\.ts$/u.test(id)) return 'locales';
           if (!id.includes('node_modules')) return undefined;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id)) return 'react';
           if (id.includes('@supabase')) return 'supabase';

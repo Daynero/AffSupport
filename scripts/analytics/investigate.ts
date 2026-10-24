@@ -1,3 +1,5 @@
+import { getRecoveryRetirementEvidence } from './recovery-retirement.js';
+import { getMembershipAccessEvidence } from './membership-access.js';
 import { getRecoveryEvidence } from './tariff-recovery.js';
 import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
@@ -361,6 +363,12 @@ async function resolveSubject(
     );
     if (user)
       return { kind: 'user', id: value, userId: user.id, installationId: null, focus: null };
+    // Current producers use UUID attempts as well as older opaque workflow IDs.
+    const attempt = await owner(
+      `$2::uuid is not null and (${eventColumnSql(schema).attemptId} = $1::text
+        or e.properties ->> 'workflow_id' = $1::text)`
+    );
+    if (attempt) return scopeOf('attempt', value, attempt, value);
   } else {
     // `$2::uuid is null` (always true here) also gives Postgres the type of the unused $2.
     const attempt = await owner(
@@ -724,11 +732,16 @@ function endedInSuccess(group: OperationGroup): boolean {
 }
 
 function errorOf(rows: EventRow[], tool: string | null) {
-  const failing = [...rows].reverse().find(row => row.error_code || row.error_fingerprint);
+  const latest = [...rows].reverse();
+  const failing = latest.find(row => row.error_code || row.error_fingerprint);
   const code = failing?.error_code ?? null;
-  const stage = failing?.error_stage ?? null;
+  // A terminal can repeat the code without the preceding error's diagnostic detail.
+  // Only borrow detail for that same code within this already-correlated operation.
+  const detail = latest.find(row => row.error_fingerprint && (!code || row.error_code === code));
+  const stage = failing?.error_stage ?? detail?.error_stage ?? null;
   const fingerprint =
     failing?.error_fingerprint ??
+    detail?.error_fingerprint ??
     (code && stage && tool ? `${tool}:${stage}:${code}` : tool ? `${tool}:*` : null);
   return { code, stage, fingerprint };
 }
@@ -1005,6 +1018,7 @@ function isNotableRecord(record: JournalRecordRow): boolean {
     'stream:close_all',
     'stream:evict',
     'auth:token_mismatch',
+    'auth:identity_publication_rejected',
     'auth:limiter_hit',
     'auth:route_budget_exceeded',
     'update:drain_requested'
@@ -1113,6 +1127,57 @@ function buildFindings(input: {
       at: ''
     });
     if (journal.length === 0) return findings.ranked();
+  }
+
+  // These are observations on one native instance, not a live status check. Sequence
+  // orders a boot's records even when an older record reaches the server later.
+  const retirement = new Map<string, JournalRecordRow>();
+  for (const record of journal) {
+    if (record.category !== 'team' || record.code !== 'recovery_retirement') continue;
+    const rawId = record.props.delegation_id;
+    const delegation = typeof rawId === 'string' && UUID.test(rawId) ? rawId : null;
+    const key = `${record.agent_instance_id}:${delegation ?? record.seq}`;
+    const previous = retirement.get(key);
+    if (!previous || record.seq > previous.seq) retirement.set(key, record);
+  }
+  for (const [key, record] of retirement) {
+    const rawId = record.props.delegation_id;
+    const delegation = typeof rawId === 'string' && UUID.test(rawId) ? rawId : null;
+    const stage = delegation ? record.props.stage : null;
+    let detail = 'Unsupported diagnostic stage; outcome unknown.';
+    let kind: InvestigateFindingKind = 'insufficient';
+    let severity: FindingSeverity = 'medium';
+    if (stage === 'pending_server') {
+      detail = 'Local retirement persisted; server acknowledgement remains unknown.';
+    } else if (stage === 'server_unknown') {
+      detail = 'Protected refresh handle is unavailable; server acknowledgement remains unknown.';
+    } else if (stage === 'server_confirmed') {
+      detail =
+        'Server retirement acknowledgement committed; local protected-key cleanup has no completion receipt in this phase.';
+      kind = 'fact';
+      severity = 'low';
+    } else if (stage === 'pending_local_cleanup') {
+      detail = 'Server retirement confirmed; protected-key cleanup remains pending.';
+      kind = 'fact';
+      severity = 'low';
+    } else if (stage === 'local_complete') {
+      detail =
+        'Server retirement and local protected-key cleanup completed in the observed journal.';
+      kind = 'fact';
+      severity = 'info';
+    }
+    findings.add({
+      rule: 'recovery_retirement',
+      key,
+      kind,
+      severity,
+      title: `Native retirement ${delegation ?? '(unbound diagnostic)'}: ${detail}`,
+      evidence: [journalRef(record)],
+      fingerprint: 'journal:team:recovery_retirement',
+      next_step:
+        'This is the last observation on one agent instance, not a live status check. Reconcile other boots and the scoped server acknowledgement; preserve the last protected refresh until acknowledgement and never replay processing to diagnose retirement. Missing or undelivered journal records remain unknown.',
+      at: record.recorded_at
+    });
   }
 
   // Failed operations.
@@ -1525,7 +1590,52 @@ export async function getInvestigation(
     errors
   });
 
+  const retirementKind =
+    scope.kind === 'user' ? 'actor' : scope.installationId ? 'installation' : 'attempt';
+  const retirementSubject =
+    (scope.kind === 'user' ? scope.userId : (scope.installationId ?? scope.focus)) ?? input;
+  const recovery_retirement = await getRecoveryRetirementEvidence(
+    retirementSubject,
+    period.start,
+    period.end,
+    retirementKind
+  );
+  for (const detail of recovery_retirement.blind_spots)
+    blindSpots.push({ kind: 'recovery_retirement_gap', detail, values: [] });
+  for (const receipt of recovery_retirement.receipts) {
+    const fingerprint = 'team:recovery_retirement:server_confirmed';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['recovery_retirement', receipt.actor_id, receipt.attempt_id]),
+      kind: 'fact',
+      severity: 'low',
+      rule: 'recovery_retirement_server_confirmed',
+      title: `Server confirmed scoped recovery retirement (${receipt.retired_count} delegations); browser acknowledgement is ${receipt.browser_outcome}; native cleanup remains unknown.`,
+      evidence: [`retirement:${receipt.attempt_id}`, ...(receipt.browser_evidence ?? [])],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Correlate the browser attempt and native journal separately; this committed receipt proves only actor-scoped server retirement.'
+    });
+  }
   const recovery = await getRecoveryEvidence(scope.userId ?? input, period.start, period.end);
+  for (const fence of recovery.execution_fences ?? []) {
+    const fingerprint = 'tariff:recovery:execution_reserved';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['recovery_execution', fence.operation_id]),
+      kind: 'fact',
+      severity: 'low',
+      rule: 'recovery_execution_reserved',
+      title:
+        'Execution was reserved once; native start, completion and delivery remain unknown from this receipt.',
+      evidence: [`operation:${fence.operation_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect the operation and native journal. Never replay the reserved operation after an uncertain response or local checkpoint rewind.'
+    });
+  }
   for (const detail of recovery.blind_spots)
     blindSpots.push({ kind: 'tariff_recovery_gap', detail, values: [] });
   for (const item of recovery.items.filter(
@@ -1547,13 +1657,24 @@ export async function getInvestigation(
     });
   }
 
+  const membership_access = await getMembershipAccessEvidence(
+    scope.userId,
+    period.start,
+    period.end
+  );
+  for (const detail of membership_access.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
   const workspaceLocation = lookupCodeLocations('workspace:receipt');
   const workspace = await getWorkspaceEvidence(scope.userId, period.start, period.end);
   for (const detail of workspace.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
   for (const operation of workspace.operations.filter(
     op => !['confirmed', 'trashed', 'cancelled'].includes(op.state)
-  ))
+  )) {
+    const location =
+      operation.action === 'process_output_cleanup'
+        ? lookupCodeLocations('process:output:PROCESS_RESULT_UNCERTAIN')
+        : workspaceLocation;
     findings.push({
       id: hashId(['workspace_receipt', operation.id, operation.state]),
       kind: 'fact',
@@ -1561,10 +1682,17 @@ export async function getInvestigation(
       rule: 'workspace_receipt',
       title: `Workspace ${operation.action}: ${operation.state}${operation.code ? ` (${operation.code})` : ''}`,
       evidence: [`workspace:${operation.id}`],
-      code_locations: workspaceLocation ? [workspaceLocation] : [],
+      code_locations: location ? [location] : [],
       next_step:
-        'Inspect the safe receipt; retain unverified files and reconcile unknown operations before retrying.'
+        operation.action === 'process_output_cleanup' &&
+        operation.cleanup?.provider_material_registered
+          ? 'The captured output is currently registered as material, so cleanup must retain it. Determine whether catalog ingestion or explicit adoption created the reference; do not delete a referenced result.'
+          : operation.action === 'process_output_cleanup' &&
+              operation.cleanup?.provider_result_recorded
+            ? 'A provider result is already recorded for this operation. Preserve it and reconcile publication before retrying cleanup.'
+            : 'Inspect the safe receipt; retain unverified files and reconcile unknown operations before retrying.'
     });
+  }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   if (!launches.supported)
     blindSpots.push({
@@ -1671,6 +1799,8 @@ export async function getInvestigation(
   };
   return {
     subject,
+    recovery_retirement,
+    membership_access,
     recovery,
     workspace,
     launches,

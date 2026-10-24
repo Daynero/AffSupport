@@ -125,9 +125,13 @@ export function kyivToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date());
 }
 
-export function extendBase(row: AdminTariffRow): string {
+export function extendBase(
+  row: Pick<AdminTariffRow, 'state' | 'revokedAt' | 'endsOn' | 'tariffToday'>
+): string {
   // A paused or revoked plan is extended from today (US3.4; a revoked one is restored).
-  return row.state === 'blocked' || row.revokedAt !== null ? kyivToday() : row.endsOn;
+  return row.state === 'blocked' || row.revokedAt !== null
+    ? (row.tariffToday ?? kyivToday())
+    : row.endsOn;
 }
 
 /** People who would lose access — members, not the invitations that also hold seats. */

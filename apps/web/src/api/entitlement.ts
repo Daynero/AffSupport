@@ -1,7 +1,12 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import type { AgentEntitlementStatus } from '@video-compressor/shared';
 import { requireSupabaseClient } from '../lib/supabase';
-import { submitEntitlementToken } from './client';
+import { entitlementPublicationRevision, submitEntitlementToken } from './client';
+import {
+  agentIdentityRevision,
+  flushAgentRetirements,
+  publishAgentIdentity
+} from './entitlement-retirement';
 
 /**
  * How long the online account check may take before it counts as unavailable.
@@ -25,35 +30,54 @@ const EXCHANGE_TIMEOUT_MS = 6_000;
 export async function ensureAgentEntitlement(
   signal?: AbortSignal
 ): Promise<AgentEntitlementStatus> {
+  const revision = agentIdentityRevision();
   const supabase = requireSupabaseClient();
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), EXCHANGE_TIMEOUT_MS);
   const onOuterAbort = () => timeout.abort();
   signal?.addEventListener('abort', onOuterAbort, { once: true });
-  let data: { token?: string } | null;
-  let error: unknown;
+  if (signal?.aborted) timeout.abort();
   try {
-    ({ data, error } = await supabase.functions.invoke<{ token?: string }>('issue-agent-token', {
-      signal: timeout.signal
-    }));
-  } catch (caught) {
-    // The client throws on an aborted signal rather than returning an error.
-    data = null;
-    error = caught;
+    // Drain old logout before capturing the native fence. Capture it before the
+    // cloud exchange, so another tab's logout/handoff can invalidate this request.
+    await flushAgentRetirements(timeout.signal);
+    const nativeRevision = await entitlementPublicationRevision(timeout.signal);
+    let data: { token?: string } | null;
+    let error: unknown;
+    try {
+      ({ data, error } = await supabase.functions.invoke<{ token?: string }>('issue-agent-token', {
+        signal: timeout.signal
+      }));
+    } catch (caught) {
+      data = null;
+      error = caught;
+    }
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        const status = error.context?.status;
+        if (status === 403) throw new Error('ENTITLEMENT_BLOCKED', { cause: error });
+        if (status === 401) throw new Error('ENTITLEMENT_SIGNIN_REQUIRED', { cause: error });
+      }
+      throw new Error('ENTITLEMENT_UNAVAILABLE', { cause: error });
+    }
+    if (typeof data?.token !== 'string' || data.token.length === 0) {
+      throw new Error('ENTITLEMENT_UNAVAILABLE');
+    }
+    const token = data.token;
+    return await publishAgentIdentity(
+      revision,
+      () => submitEntitlementToken(token, nativeRevision, timeout.signal),
+      timeout.signal
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === 'ENTITLEMENT_TOKEN_INVALID' || error.message === 'TIMEOUT')
+    )
+      throw new Error('ENTITLEMENT_UNAVAILABLE', { cause: error });
+    throw error;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onOuterAbort);
   }
-  if (error) {
-    if (error instanceof FunctionsHttpError) {
-      const status = error.context?.status;
-      if (status === 403) throw new Error('ENTITLEMENT_BLOCKED', { cause: error });
-      if (status === 401) throw new Error('ENTITLEMENT_SIGNIN_REQUIRED', { cause: error });
-    }
-    throw new Error('ENTITLEMENT_UNAVAILABLE', { cause: error });
-  }
-  if (typeof data?.token !== 'string' || data.token.length === 0) {
-    throw new Error('ENTITLEMENT_UNAVAILABLE');
-  }
-  return submitEntitlementToken(data.token);
 }

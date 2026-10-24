@@ -36,11 +36,13 @@ export function SpaceNameStep({
       const created = await createTeam(normalized);
       onCreated(created);
     } catch (cause) {
+      const code =
+        cause instanceof TeamApiError ? cause.code : cause instanceof Error ? cause.message : null;
       setError(
-        cause instanceof TeamApiError && cause.code === 'NAME_CONFLICT'
+        code === 'NAME_CONFLICT'
           ? t('teamNameConflict')
-          : cause instanceof Error && cause.message === 'NAME_CONFLICT'
-            ? t('teamNameConflict')
+          : code === 'PERMISSION_DENIED'
+            ? t('teamSpaceSaveDenied')
             : t('teamLoadFailed')
       );
     } finally {

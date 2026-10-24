@@ -559,7 +559,10 @@ describe('agent HTTP surface', () => {
       method: 'POST',
       url: '/api/entitlement',
       headers: { 'x-session-token': TOKEN },
-      payload: { token: 'wat1.bm90LWEtcGF5bG9hZA.bm90LWEtc2lnbmF0dXJl' }
+      payload: {
+        token: 'wat1.bm90LWEtcGF5bG9hZA.bm90LWEtc2lnbmF0dXJl',
+        revision: health.json().entitlementRevision
+      }
     });
     expect(garbage.statusCode).toBe(403);
     expect(garbage.json()).toEqual({ error: 'ENTITLEMENT_TOKEN_INVALID' });
@@ -570,7 +573,8 @@ describe('agent HTTP surface', () => {
       url: '/api/entitlement',
       headers: { 'x-session-token': TOKEN },
       payload: {
-        token: kit.issue({ v: 1, sub: 'user-1', plan: 'pro', iat: now - 10, exp: now + 3600 })
+        token: kit.issue({ v: 1, sub: 'user-1', plan: 'pro', iat: now - 10, exp: now + 3600 }),
+        revision: health.json().entitlementRevision
       }
     });
     expect(accepted.statusCode).toBe(200);

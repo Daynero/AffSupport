@@ -44,3 +44,6 @@ scratchpad/
 # `npm run analytics -- audit --write` artifacts: local snapshots, never committed. The
 # README beside them documents the shape and stays tracked.
 specs/031-platform-autoanalytics/analysis/*.json
+
+# Generated, secret-free local acceptance login driver (never a product entrypoint).
+/apps/web/acceptance-login.html

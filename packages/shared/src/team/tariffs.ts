@@ -91,6 +91,8 @@ export interface AdminContact {
 }
 
 export interface TeamTariff {
+  /** Authoritative Kyiv tariff calendar; absent only on legacy servers. */
+  tariffToday?: string;
   state: TeamTariffState;
   planCode: string | null;
   planNameUk: string | null;
@@ -165,6 +167,8 @@ export interface PendingTariff {
 }
 
 export interface SpaceAccess {
+  /** Authoritative Kyiv tariff calendar; absent only on legacy servers. */
+  tariffToday?: string;
   mode: SpaceAccessMode;
   canCreate: boolean;
   pendingTariff: PendingTariff | null;
@@ -181,6 +185,8 @@ export interface SpaceOwnerNudgeResult {
 }
 
 export interface AdminTariffRow {
+  /** Authoritative tariff calendar, absent on legacy servers. */
+  tariffToday?: string;
   id: string;
   ownerEmail: string;
   ownerId: string | null;
@@ -281,6 +287,8 @@ export interface AdminSpaceRequest {
 }
 
 export interface AdminTariffSettings {
+  /** Authoritative tariff calendar, absent on legacy servers. */
+  tariffToday?: string;
   telegram: string | null;
   email: string | null;
   legacyRuleEnabled: boolean;
@@ -303,6 +311,12 @@ function requiredText(value: unknown): string | null {
 
 function day(value: unknown): string | null {
   return typeof value === 'string' && DAY_PATTERN.test(value) ? value : null;
+}
+
+function tariffCalendar(value: unknown): value is string {
+  if (typeof value !== 'string' || !DAY_PATTERN.test(value)) return false;
+  const instant = Date.parse(value + 'T00:00:00.000Z');
+  return Number.isFinite(instant) && new Date(instant).toISOString().slice(0, 10) === value;
 }
 
 function moment(value: unknown): string | null {
@@ -415,8 +429,9 @@ export const EMPTY_TEAM_TARIFF: TeamTariff = Object.freeze({
 
 export function parseTeamTariff(value: unknown): TeamTariff | null {
   const row = object(value);
-  if (!row) return null;
+  if (!row || (row.tariffToday !== undefined && !tariffCalendar(row.tariffToday))) return null;
   return {
+    ...(row.tariffToday !== undefined ? { tariffToday: row.tariffToday as string } : {}),
     state: oneOf(TEAM_TARIFF_STATES, row.state) ?? 'none',
     planCode: text(row.planCode),
     planNameUk: text(row.planNameUk),
@@ -527,7 +542,7 @@ function parsePendingTariff(value: unknown): PendingTariff | null {
  */
 export function parseSpaceAccess(value: unknown): SpaceAccess | null {
   const row = object(value);
-  if (!row) return null;
+  if (!row || (row.tariffToday !== undefined && !tariffCalendar(row.tariffToday))) return null;
   const teams = list(row.teams, parseAccessTeam);
   const canCreate = flag(row.canCreate);
   const derived: SpaceAccessMode =
@@ -537,6 +552,7 @@ export function parseSpaceAccess(value: unknown): SpaceAccess | null {
         ? 'blocked'
         : 'showcase';
   return {
+    ...(row.tariffToday !== undefined ? { tariffToday: row.tariffToday as string } : {}),
     mode: oneOf(SPACE_ACCESS_MODES, row.mode) ?? derived,
     canCreate,
     pendingTariff: parsePendingTariff(row.pendingTariff),
@@ -563,7 +579,9 @@ export function parseAdminTariffRow(value: unknown): AdminTariffRow | null {
   if (!row || !id || !ownerEmail || !planCode || !endsOn) return null;
   const baseSeats = count(row.baseSeats, 1);
   const extraSeats = count(row.extraSeats);
+  if (row.tariffToday !== undefined && !tariffCalendar(row.tariffToday)) return null;
   return {
+    ...(row.tariffToday !== undefined ? { tariffToday: row.tariffToday as string } : {}),
     id,
     ownerEmail,
     ownerId: text(row.ownerId),
@@ -726,7 +744,9 @@ export function parseAdminSpaceRequests(value: unknown): AdminSpaceRequest[] | n
 export function parseAdminTariffSettings(value: unknown): AdminTariffSettings | null {
   const row = object(value);
   if (!row || typeof row.legacyRuleEnabled !== 'boolean') return null;
+  if (row.tariffToday !== undefined && !tariffCalendar(row.tariffToday)) return null;
   return {
+    ...(row.tariffToday !== undefined ? { tariffToday: row.tariffToday as string } : {}),
     telegram: normalizeTelegramLogin(row.telegram),
     email: contactEmail(row.email),
     legacyRuleEnabled: row.legacyRuleEnabled,

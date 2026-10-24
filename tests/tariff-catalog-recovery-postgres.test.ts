@@ -1,3 +1,4 @@
+import { assertDisposablePostgresContainer } from './support/disposable-postgres';
 import { waitFor } from './support/wait.js';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,7 @@ let team: string;
 let tariff: string;
 let sheet: string;
 
-async function sql(statement: string): Promise<string> {
+async function sql(statement: string, transaction = true): Promise<string> {
   const child = execFile(
     'docker',
     [
@@ -26,7 +27,7 @@ async function sql(statement: string): Promise<string> {
       container!,
       'psql',
       '-X',
-      '--single-transaction',
+      ...(transaction ? ['--single-transaction'] : []),
       '-v',
       'ON_ERROR_STOP=1',
       '-qAt',
@@ -75,8 +76,7 @@ async function waitForTransaction(marker: string): Promise<void> {
 
 describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER]', () => {
   beforeAll(async () => {
-    if (!/^supabase_db_[a-zA-Z0-9_-]+$/.test(container!))
-      throw new Error('Local Supabase container required.');
+    assertDisposablePostgresContainer(container);
     await run('docker', ['exec', container!, 'createdb', '-U', 'postgres', database]);
     created = true;
     const support = readFileSync('tests/support/team-db.ts', 'utf8');
@@ -91,17 +91,21 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
           '  create extension supabase_vault;\n'
         )
     );
-    for (const name of readdirSync('supabase/migrations')
+    // One Docker/psql process avoids hundreds of process launches on a loaded VM.
+    // Keep each migration's transaction boundary, including enum changes that
+    // must commit before a later migration can use the new value.
+    const migrations = readdirSync('supabase/migrations')
       .filter(name => name.endsWith('.sql'))
-      .sort()) {
-      await sql(
-        readFileSync(`supabase/migrations/${name}`, 'utf8')
+      .sort()
+      .map(name => {
+        const source = readFileSync(`supabase/migrations/${name}`, 'utf8')
           .replace(/create extension if not exists citext with schema extensions;/gu, '')
           .replaceAll('extensions.citext', 'text')
           .replace(/create extension if not exists pg_cron with schema pg_catalog;/gu, '')
-          .replace(/create extension if not exists pg_net with schema extensions;/gu, '')
-      );
-    }
+          .replace(/create extension if not exists pg_net with schema extensions;/gu, '');
+        return `BEGIN;\n${source}\n;\nCOMMIT;`;
+      });
+    await sql(migrations.join('\n'), false);
     if (process.env.SOTY_GENERATE_RECOVERY_DB_TYPES === '1') {
       const status = await run('npx', ['supabase', 'status', '--output', 'json'], {
         maxBuffer: 1024 * 1024
@@ -271,7 +275,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     declare challenge jsonb; first_reply jsonb; replay jsonb;
     begin
       challenge:=public.service_team_recovery('delegate',decode(repeat('11',32),'hex'),jsonb_build_object('actorId','${owner}','teamId','${team}','installationId','34000000-0000-4000-8000-000000000003'));
-      perform public.service_team_recovery('redeem',decode(repeat('11',32),'hex'),jsonb_build_object('challengeId',challenge->>'challengeId','refresh',repeat('a',43),'refreshHash','\\x'||repeat('22',32)));
+      perform public.service_team_recovery('redeem',decode(repeat('11',32),'hex'),jsonb_build_object('protocolVersion',2,'challengeId',challenge->>'challengeId','refresh',repeat('a',43),'refreshHash','\\x'||repeat('22',32)));
       first_reply:=public.service_team_recovery('rotate',decode(repeat('22',32),'hex'),jsonb_build_object('rotationId','34000000-0000-4000-8000-000000000004','refresh',repeat('b',43),'refreshHash','\\x'||repeat('33',32),'claim',repeat('c',43),'claimHash','\\x'||repeat('44',32)));
       replay:=public.service_team_recovery('rotate',decode(repeat('22',32),'hex'),jsonb_build_object('rotationId','34000000-0000-4000-8000-000000000004'));
       if replay is distinct from first_reply then raise exception 'rotation replay changed'; end if;
@@ -283,5 +287,39 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
       if exists(select 1 from private.team_recovery_delegations where team_id='${team}' and rotation_secret_id is not null) then raise exception 'expired replay retained'; end if;
     end $proof$; select 'vault-proof-ok';`);
     expect(result).toBe('vault-proof-ok');
+  });
+  it('commits exactly one execution reservation across concurrent native checkpoint calls', async () => {
+    const operation = randomUUID();
+    const installation = randomUUID();
+    const request = randomUUID();
+    await sql(`do $setup$ declare challenge jsonb; begin
+      challenge:=public.service_team_recovery('delegate',decode(repeat('71',32),'hex'),jsonb_build_object('actorId','${owner}','teamId','${team}','installationId','${installation}'));
+      perform public.service_team_recovery('redeem',decode(repeat('71',32),'hex'),jsonb_build_object('protocolVersion',2,'challengeId',challenge->>'challengeId','refresh',repeat('q',43),'refreshHash','\\x'||repeat('72',32)));
+      perform public.service_team_recovery('rotate',decode(repeat('72',32),'hex'),jsonb_build_object('rotationId','${randomUUID()}','refresh',repeat('r',43),'refreshHash','\\x'||repeat('73',32),'claim',repeat('s',43),'claimHash','\\x'||repeat('74',32)));
+      perform public.service_team_recovery('claim',decode(repeat('74',32),'hex'),jsonb_build_object('protocolVersion',2,'requestId','${request}'));
+      insert into public.team_operations(id,team_id,actor_id,kind,state,idempotency_key,request_nonce) values('${operation}','${team}','${owner}','process','pending','${operation}','${operation}');
+      perform public.service_team_recovery('register_claim',decode(repeat('74',32),'hex'),jsonb_build_object('protocolVersion',2,'requestId','${request}','response',jsonb_build_object('job',jsonb_build_object('operationId','${operation}','jobId','${request}'),'operationCredential',repeat('x',43)),'operationHash','\\x'||repeat('77',32)));
+    end $setup$;`);
+    const input = `jsonb_build_object('protocolVersion',2,'operationId','${operation}','jobId','${request}')`;
+    const marker = `execution_fence_${randomUUID().replaceAll('-', '')}`;
+    const first = sql(
+      `select public.service_begin_team_recovery_execution(decode(repeat('77',32),'hex'),${input})->>'executionAllowed';select pg_sleep(2) /*${marker}*/;`
+    );
+    await waitForTransaction(marker);
+    const second = sql(
+      `select public.service_begin_team_recovery_execution(decode(repeat('77',32),'hex'),${input})->>'executionAllowed';`
+    );
+    expect(await first).toBe('true');
+    expect(await second).toBe('false');
+    expect(
+      await sql(
+        `select count(*) from private.team_recovery_execution_fences where operation_id='${operation}'`
+      )
+    ).toBe('1');
+    await expect(
+      sql(
+        `select public.service_team_recovery('checkpoint',decode(repeat('77',32),'hex'),${input})`
+      )
+    ).rejects.toThrow(/PROCESS_RESULT_UNCERTAIN/);
   });
 });

@@ -14,6 +14,7 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbnailSession';
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
+import type { AgentQueue } from '../apps/web/src/team/explorer/useAgentQueue';
 
 /**
  * The team batch queue: what it starts, what it holds, and what it names.
@@ -37,8 +38,19 @@ const shared = vi.hoisted(() => ({
   canceled: [] as string[],
   renamed: [] as Array<{ materialId: string; newName: string; conflictMode: string }>,
   /** Makes the agent's half of the run fail instead of hanging. */
-  failStart: false
+  failStart: false,
+  queueOverride: null as AgentQueue | null
 }));
+
+vi.mock('../apps/web/src/team/processing/AgentQueueProvider', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../apps/web/src/team/processing/AgentQueueProvider')>();
+  return {
+    ...actual,
+    useOptionalSpaceAgentQueue: () =>
+      shared.queueOverride ? { queue: shared.queueOverride, stack: null } : null
+  };
+});
 
 vi.mock('../apps/web/src/api/client', async importOriginal => {
   const actual = await importOriginal<typeof import('../apps/web/src/api/client')>();
@@ -133,6 +145,7 @@ afterEach(() => {
   shared.canceled.length = 0;
   shared.renamed.length = 0;
   shared.failStart = false;
+  shared.queueOverride = null;
   vi.clearAllMocks();
 });
 
@@ -223,6 +236,34 @@ async function transcribe(name: string) {
   const button = await screen.findByRole('button', { name: 'Transcribe' });
   fireEvent.click(button);
 }
+
+it('does not label a compression of the selected video as transcription', async () => {
+  shared.queueOverride = {
+    active: {
+      id: 'id-1',
+      name: 'clip-1.mp4',
+      folderId: 'root',
+      tool: 'compressor',
+      outputName: 'clip-1_small.mp4',
+      operationId: 'compression-op'
+    },
+    queued: [],
+    done: 0,
+    total: 1,
+    paused: false,
+    held: false,
+    activeProgress: 30,
+    enqueue: vi.fn(),
+    enqueueTranscriptions: vi.fn(),
+    pause: vi.fn(),
+    clearQueued: vi.fn(),
+    stopNow: vi.fn()
+  };
+  renderShell([video(1)]);
+  fireEvent.click(await screen.findByText('clip-1.mp4'));
+  await waitFor(() => expect(screen.queryByText('Transcribing…')).toBeNull());
+  expect(await screen.findByRole('button', { name: 'Transcribe' })).toBeTruthy();
+});
 
 describe('pausing the team batch', () => {
   it('holds the queue and the file in flight, then lets both go', async () => {

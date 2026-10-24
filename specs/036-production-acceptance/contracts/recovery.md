@@ -1,6 +1,6 @@
 # Contract: автоматичне відновлення після тарифної паузи
 
-**Проєктований контракт.** Назви нових полів/routes ще не реалізовані. Чинні RPC й envelopes не замінюються; старі клієнти мають лишатися сумісними.
+**Оновлено 2026-10-21.** Recovery реалізовано в 034 на HEAD 95467002; цей документ задає приймальні очікування. Фактичні DTO/budgets: `packages/shared/src/team/recovery.ts`; Edge actions: `supabase/functions/team-recovery/handler.ts`; SQL lifecycle/output fences: міграції 20261205100000–20261206120000. Позначки proposed нижче є історичними, не підставою створювати дублікати. Чинні RPC й envelopes не замінюються. Foreground/cleanup сумісність зберігається; actor-bound background setup/claims потребують protocol2 та явного оновлення старого producer, без мовчазного fallback.
 
 ## Access transition та durable intent
 
@@ -131,3 +131,30 @@ reasons[] { code, count, action }, canManageRecovery
 `investigate`/`inspect`/`sync` читають recovery→items→attempt→terminal і delivery. `audit` перевіряє registered без start, start без terminal, terminal без delivery, пропущені етапи. Діагноз розрізняє факт і гіпотезу. Snapshot polling агентом та UI не є proof of output delivery; потрібне отримання результату цільовим користувачем. Для server-only background work «delivered» означає підтверджено доступний актуальний результат плюс подальше UI observation, яке може залишатися unknown до відкриття.
 
 Обов’язкові regression IDs: LIFE-013/014/020–036, ACL-010/014/015, SYNC-017–022, LAUNCH-007–010 (якщо в scope), OBS-001–003/008. Перевірити repeated renewal, pause/renew/stop races, kill/restart at every durable boundary, no-browser operation, expired delegation, чужа installation/tenant, delayed/replayed receipts, dependency recovery, 50-user burst.
+
+
+## T037 operation execution reservation (353, local acceptance verified)
+
+A local checkpoint is not execution authority after a host crash. The server reserves one execution per operation before acknowledging checkpoint. The existing public RPC delegates internally to a private core but intercepts checkpoint itself, so older Edge clients cannot bypass the reservation by ignoring a new field. Missing or repeated permission is PROCESS_RESULT_UNCERTAIN; the native worker retains the operation and blocks checkpoint_unavailable without automatic retry. Terminal operations, expired or revoked credentials, wrong audience/job/epoch and current rights remain checked by the existing authority boundary. Credential reissue does not clear an operation fence.
+
+The immutable reservation receipt is not native start, completion or user delivery. analytics_recovery_execution projects only opaque correlations, member scope and reservation time; inspect/investigate expose that distinction and never collect credentials or provider content. Read-only queries bound detail to100operations, scope by actor/team/operation and exclude reservations created after as-of. Missing projection is an explicit blind spot. No physical power-loss result is inferred from an fsync call or the reservation itself; the invariant is no duplicate execution even if accepted local metadata rewinds. Local Beta353 cutover and full native acceptance passed. Canonical/lifecycle and broader036 release acceptance remain separate.
+
+
+Local proof:353migrations/877pgTAP35files plus10native cases, including a held-lock concurrent reservation, allPASS. Actual Edge first checkpoint succeeds and repeat returns409 PROCESS_RESULT_UNCERTAIN. The real worker given synthetic accepted metadata for an already reserved operation blocks checkpoint_unavailable with zero process calls. Read-only investigate/inspect confirm the reservation while keeping execution/delivery unknown. The fixture uses service bootstrap for a synthetic actor and does not perform native media work or provider writes; only its own operation/delegation are canceled/revoked. Evidence t037-live-reservation.json and t037-rewind-live-reservation.json.
+
+
+## Actor-bound upgrade (036 follow-up)
+
+New setup requires the paired native `team-background-recovery-actor-bound` capability in addition
+to baseline recovery support. The native app advertises it only with protected storage, enforced
+signed identity and its registered runtime worker. Health preflight precedes entitlement/enrollment.
+Legacy instances may still expose status and retire their existing registration; they may not create
+new background setup through the updated UI/API. Missing actor in an otherwise valid older redeem
+receipt is AGENT_UPDATE_REQUIRED, malformed actor is INVALID_RESPONSE, and a different valid actor
+is PERMISSION_DENIED. In all three cases, preserve the issued refresh until retirement acknowledgement.
+Native confirm routes preserve these closed errors and never echo an arbitrary upstream message.
+
+Ownership must be read before showing setup/disable actions. Changing team, native instance or
+connection discards the old panel projection immediately; late completions cannot control the new
+scope. These are source/development regressions; exact packaged/old-artifact compatibility is a
+separate final acceptance gate. Production version and signed manifests are not changed here.

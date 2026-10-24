@@ -29,6 +29,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   LAUNCH_INTERNAL_ERROR: 'launchesUnexpectedError',
   PROCESS_CANCELED: 'teamErrorProcessCanceled',
   PROCESS_FAILED: 'teamErrorProcessFailed',
+  PROCESS_RESULT_UNCERTAIN: 'teamErrorProcessResultUncertain',
   FINANCE_CLIENT_UPGRADE_REQUIRED: 'financeError',
   FINANCE_HISTORY_PROTECTED: 'financeProtected',
   FINANCE_AMOUNT_INVALID: 'financeInvalid',

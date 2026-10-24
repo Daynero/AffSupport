@@ -1,4 +1,6 @@
-import { mkdir, mkdtemp, open, rm, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, open, rm } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -231,7 +233,8 @@ export class TeamTransferClient {
     validateOperationId(request.operationId);
     validateTransferGrant(request.finalizeGrant, ['finalize']);
     const baseUrl = cloudBaseUrl(request.cloudBaseUrl);
-    const source = await stat(request.file);
+    throwIfAborted(signal);
+    const { source, checksum } = await fingerprintUpload(request.file, request.sizeBytes, signal);
     if (
       !source.isFile() ||
       source.size !== request.sizeBytes ||
@@ -246,12 +249,21 @@ export class TeamTransferClient {
         operationId: request.operationId,
         ticket: request.finalizeGrant.ticket,
         sizeBytes: request.sizeBytes,
-        mimeType: request.mimeType
+        mimeType: request.mimeType,
+        outputUploadProtocolVersion: 2,
+        checksum
       },
       signal
     );
     const sessionUri = recordString(start, 'sessionUri');
     const chunkMultiple = recordInteger(start, 'chunkMultiple');
+    const providerFileId = recordString(start, 'providerFileId');
+    if (
+      isRecord(start) &&
+      Object.hasOwn(start, 'providerFileId') &&
+      (providerFileId === null || !/^[A-Za-z0-9_-]{1,200}$/u.test(providerFileId))
+    )
+      throw new Error('INVALID_RESPONSE');
     if (!sessionUri || chunkMultiple !== UPLOAD_CHUNK_MULTIPLE) throw new Error('INVALID_RESPONSE');
     validateGoogleSession(sessionUri);
 
@@ -259,6 +271,7 @@ export class TeamTransferClient {
     let offset = 0;
     let driveFileId: string | null = null;
     try {
+      if (!sameUploadFile(source, await handle.stat())) throw new Error('SOURCE_CHANGED');
       while (offset < request.sizeBytes && !driveFileId) {
         throwIfAborted(signal);
         const length = Math.min(UPLOAD_CHUNK_BYTES, request.sizeBytes - offset);
@@ -295,6 +308,9 @@ export class TeamTransferClient {
         const payload: unknown = await response.json().catch(() => null);
         driveFileId = isRecord(payload) && typeof payload.id === 'string' ? payload.id : null;
         if (!driveFileId) throw new Error('INVALID_RESPONSE');
+        if (providerFileId !== null && driveFileId !== providerFileId)
+          throw new Error('SOURCE_CHANGED');
+        if (!sameUploadFile(source, await handle.stat())) throw new Error('SOURCE_CHANGED');
         offset = request.sizeBytes;
         request.onProgress?.(offset, request.sizeBytes);
       }
@@ -535,4 +551,45 @@ async function transferRetryDelay(ms: number, signal: AbortSignal): Promise<void
     throwIfAborted(signal);
     throw error;
   }
+}
+
+// A bounded read, never a whole-file buffer: outputs may be up to 100 GiB.
+// MD5 is Drive's binary-file identity checksum, not an authentication primitive.
+async function fingerprintUpload(file: string, expectedSize: number, signal: AbortSignal) {
+  throwIfAborted(signal);
+  const handle = await open(file, 'r');
+  try {
+    const source = await handle.stat();
+    if (!source.isFile() || source.size !== expectedSize || source.size < 1) {
+      throw new Error('SOURCE_CHANGED');
+    }
+    if (source.size > MAX_TRANSFER_BYTES) throw new Error('TOO_LARGE');
+    const digest = createHash('md5');
+    const buffer = Buffer.allocUnsafe(Math.min(UPLOAD_CHUNK_BYTES, source.size));
+    let offset = 0;
+    while (offset < source.size) {
+      throwIfAborted(signal);
+      const length = Math.min(buffer.length, source.size - offset);
+      const { bytesRead } = await handle.read(buffer, 0, length, offset);
+      if (bytesRead !== length) throw new Error('SOURCE_CHANGED');
+      digest.update(buffer.subarray(0, bytesRead));
+      offset += bytesRead;
+    }
+    throwIfAborted(signal);
+    if (!sameUploadFile(source, await handle.stat())) throw new Error('SOURCE_CHANGED');
+    return { source, checksum: digest.digest('hex') };
+  } finally {
+    await handle.close();
+  }
+}
+
+function sameUploadFile(before: Stats, after: Stats): boolean {
+  return (
+    after.isFile() &&
+    before.dev === after.dev &&
+    before.ino === after.ino &&
+    before.size === after.size &&
+    before.mtimeMs === after.mtimeMs &&
+    before.ctimeMs === after.ctimeMs
+  );
 }

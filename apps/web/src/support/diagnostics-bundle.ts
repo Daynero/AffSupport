@@ -34,12 +34,15 @@ export interface AgentDiagnosticsResponse {
   instanceId?: string;
   apiVersion?: number;
   channel?: string;
-  startedAt?: number;
+  /** Native agents publish ISO time; accept numeric timestamps from older agents. */
+  startedAt?: number | string;
   system?: string;
   architecture?: string;
   log?: DiagnosticRecord[];
   nextSeq?: number;
   logRejected?: number;
+  /** Explicit opt-in response: records carry their original boot identity and sequence. */
+  journalProvenance?: 'bound-v1';
 }
 
 export interface DiagnosticsBundleLastKnownAgent {

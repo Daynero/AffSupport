@@ -5,6 +5,7 @@ const context = vi.hoisted(() => ({ revision: 42 }));
 vi.mock('../apps/web/src/team/TeamContext', () => ({ useTeam: () => context }));
 import {
   useCatalogRegistry,
+  useCatalogUpdater,
   type CatalogUpdaterClient
 } from '../apps/web/src/team/catalog-updater/useCatalogUpdater';
 import type { CatalogRegistryRow } from '../apps/web/src/api/team';
@@ -14,6 +15,34 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('catalog registry first read', () => {
+  it('polls confirmed active work and stops the fast poll once the server reports completion', async () => {
+    vi.useFakeTimers();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ activeCount: 1, serverNow: new Date().toISOString() })
+      .mockResolvedValue({ activeCount: 0, serverNow: new Date().toISOString() });
+    const client = { getCatalogUpdater: get } as unknown as CatalogUpdaterClient;
+    const view = renderHook(() => useCatalogUpdater('team', client));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.result.current.state?.activeCount).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(view.result.current.state?.activeCount).toBe(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(get).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('loads immediately at an existing realtime revision and retains embedded profiles', async () => {
     vi.useFakeTimers();
     const profile = { catalogId: 'catalog', version: 7 };

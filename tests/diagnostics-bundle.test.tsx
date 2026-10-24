@@ -101,7 +101,7 @@ describe('DiagnosticsBundle', () => {
     const bundle = JSON.parse(shown);
 
     expect(fetchAgentDiagnostics).toHaveBeenCalledTimes(1);
-    expect(fetchAgentDiagnostics).toHaveBeenCalledWith(0, 200);
+    expect(fetchAgentDiagnostics).toHaveBeenCalledWith(0, 200, undefined, true);
     expect(fetchSpy).not.toHaveBeenCalled();
 
     expect(bundle.agent.log).toHaveLength(2);

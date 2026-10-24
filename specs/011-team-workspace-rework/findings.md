@@ -1,5 +1,16 @@
 # Findings — feature 011 (US5)
 
+## Closure — 2026-10-20
+
+The owner explicitly requested closure: «011 закривай, я користуюсь простором вже більше місяця».
+Feature 011 is accepted on the basis of that reported real use. Remaining historical
+checklist items are retired from this feature by owner acceptance, not recorded as
+executed tests, measured success criteria, verified Google Console configuration or
+new deployments. Earlier findings below remain historical evidence with their original
+limitations. No test, release, production change or scheduled recheck was performed as
+part of this documentation closure. Release-wide acceptance remains tracked in 036.
+
+
 ## Beta run, 2026-08-29 — partial (no Google account)
 
 The beta stack came up on the development machine (colima → `supabase start` →

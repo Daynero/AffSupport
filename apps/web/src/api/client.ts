@@ -1,3 +1,4 @@
+import { rememberRecoveryInstallation } from './recovery-installation';
 import {
   AGENT_TOOL_CONTRACTS,
   type AgentEntitlementStatus,
@@ -45,6 +46,7 @@ import {
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
 import { pairingToken } from './pairing-token';
+import { reportRequestFailure } from './request-failures';
 import type { DroppedFolderSample } from '../components/DropZone';
 import type { AgentDiagnosticsResponse } from '../support/diagnostics-bundle';
 import {
@@ -138,25 +140,8 @@ export function pairWithAgent() {
  * whose token or entitlement no longer matches, or the agent may have gone while the
  * stream had not yet noticed. The owner hears about it here and re-checks.
  */
-export type RequestFailureKind = 'unauthorized' | 'forbidden' | 'connection_failed';
-const requestFailureListeners = new Set<(kind: RequestFailureKind) => void>();
-
-export function onRequestFailure(listener: (kind: RequestFailureKind) => void) {
-  requestFailureListeners.add(listener);
-  return () => {
-    requestFailureListeners.delete(listener);
-  };
-}
-
-function reportRequestFailure(kind: RequestFailureKind) {
-  for (const listener of [...requestFailureListeners]) {
-    try {
-      listener(kind);
-    } catch {
-      // A listener's mistake must not turn into the caller's error.
-    }
-  }
-}
+export { onRequestFailure } from './request-failures';
+export type { RequestFailureKind } from './request-failures';
 
 export async function connect(signal?: AbortSignal): Promise<{
   state: QueueState | null;
@@ -198,6 +183,7 @@ export async function connect(signal?: AbortSignal): Promise<{
   const capabilities = Array.isArray(health.capabilities) ? health.capabilities : [];
   const toolContracts = normalizeToolContracts(health.toolContracts, capabilities, apiVersion);
   const entitlement = health.entitlement ?? null;
+  rememberRecoveryInstallation(health.recoveryInstallationId);
   // An enforced agent without a valid token rejects every tool route, so the
   // caller must submit an entitlement token first and reconnect.
   const state =
@@ -223,8 +209,26 @@ export async function connect(signal?: AbortSignal): Promise<{
     update: health.update ?? null
   };
 }
-export function submitEntitlementToken(entitlementToken: string): Promise<AgentEntitlementStatus> {
-  return requestBody<AgentEntitlementStatus>('/api/entitlement', { token: entitlementToken });
+export async function entitlementPublicationRevision(signal?: AbortSignal): Promise<string | null> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET', signal);
+  const revision = health.entitlementRevision;
+  if (typeof revision === 'string' && /^[0-9a-f-]{36}$/iu.test(revision)) return revision;
+  if (revision !== undefined) throw new Error('INVALID_RESPONSE');
+  if (health.capabilities?.includes('team-background-recovery-actor-bound'))
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  return null;
+}
+export function submitEntitlementToken(
+  entitlementToken: string,
+  revision: string | null,
+  signal?: AbortSignal
+): Promise<AgentEntitlementStatus> {
+  return requestBody<AgentEntitlementStatus>(
+    '/api/entitlement',
+    { token: entitlementToken, ...(revision === null ? {} : { revision }) },
+    'POST',
+    signal
+  );
 }
 /**
  * The per-tool live-update endpoints, kept as the fallback for an agent that does not
@@ -278,9 +282,11 @@ export function setPowerLimit(limitPercent: number): Promise<PowerState> {
 export function fetchAgentDiagnostics(
   since: number,
   limit: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  boundHistory = false
 ): Promise<AgentDiagnosticsResponse> {
   const query = new URLSearchParams({ since: String(since), limit: String(limit) });
+  if (boundHistory) query.set('journal', 'bound-v1');
   return request<AgentDiagnosticsResponse>(`/api/diagnostics?${query}`, 'GET', signal);
 }
 

@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  AUTH_SESSION_MUTATION_CODES,
+  PROFILE_SYNC_CODES,
   COMPRESSION_ERROR_CODES,
   DIAGNOSTIC_CATEGORIES,
   ESTIMATE_ERROR_CODES,
@@ -26,6 +28,19 @@ import { LAUNCH_ANALYTICS_CODES } from '../packages/shared/src/team/launches/lif
  */
 
 const ROOT = join(__dirname, '..');
+it('maps every closed profile synchronization failure', () => {
+  for (const code of PROFILE_SYNC_CODES)
+    expect(lookupCodeLocations(`auth:library:${code}`)?.files).toContain(
+      'apps/web/src/auth/AuthContext.tsx'
+    );
+});
+it('maps process output uncertainty to its durable ownership and upload seams', () => {
+  const fingerprint = 'process:output:PROCESS_RESULT_UNCERTAIN';
+  expect(lookupCodeLocations(fingerprint)?.matched).toBe(fingerprint);
+  expect(lookupCodeLocations(fingerprint)?.files).toContain(
+    'supabase/migrations/20261206134000_process_upload_ownership.sql'
+  );
+});
 it('maps every closed Launch failure to an exact diagnostic code location', () => {
   for (const code of LAUNCH_ANALYTICS_CODES) {
     const fingerprint = `launches:generation:${code}`;
@@ -172,4 +187,10 @@ describe('lookupCodeLocations', () => {
     hit?.files.push('mutated');
     expect(CODE_MAP['link:timeout'].files).not.toContain('mutated');
   });
+});
+
+it('maps every closed browser session mutation failure to its ownership seam', () => {
+  for (const code of AUTH_SESSION_MUTATION_CODES) {
+    expect(lookupCodeLocations(`auth:library:${code}`)?.matched).toBe(`auth:library:${code}`);
+  }
 });

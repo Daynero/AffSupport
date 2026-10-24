@@ -1,12 +1,42 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { syncProfileLanguage, useI18n } from '../apps/web/src/i18n';
 
 beforeEach(() => localStorage.clear());
 
 describe('language persistence', () => {
+  it('follows a valid language change from another tab and ignores cleared or invalid values', () => {
+    localStorage.setItem('language', 'en');
+    const view = renderHook(() => useI18n());
+    act(() =>
+      window.dispatchEvent(new StorageEvent('storage', { key: 'language', newValue: 'uk' }))
+    );
+    expect(view.result.current.language).toBe('uk');
+    expect(document.documentElement.lang).toBe('uk');
+    expect(view.result.current.t('ongoingTimer', { time: '00:01:24' })).toBe('Триває 00:01:24');
+    for (const newValue of [null, 'invalid']) {
+      act(() => window.dispatchEvent(new StorageEvent('storage', { key: 'language', newValue })));
+      expect(view.result.current.language).toBe('uk');
+    }
+    act(() => window.dispatchEvent(new Event('wishly-language-changed')));
+    expect(view.result.current.language).toBe('uk');
+  });
+
+  it('falls back to the browser language when its language list is empty', () => {
+    const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue([]);
+    const language = vi.spyOn(navigator, 'language', 'get').mockReturnValue('uk-UA');
+    try {
+      const view = renderHook(() => useI18n());
+      expect(view.result.current.language).toBe('uk');
+      expect(document.documentElement.lang).toBe('uk');
+    } finally {
+      languages.mockRestore();
+      language.mockRestore();
+    }
+  });
+
   it('keeps Ukrainian after a reload and loading an English profile', () => {
     const first = renderHook(() => useI18n());
     act(() => first.result.current.setLanguage('uk'));

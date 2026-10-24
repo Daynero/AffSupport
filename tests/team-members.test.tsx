@@ -9,7 +9,7 @@ import type {
   TeamContextSnapshot,
   TeamMemberSummary
 } from '../apps/web/src/api/team';
-import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { MemberList, type MemberManagementClient } from '../apps/web/src/team/members/MemberList';
 import {
@@ -259,4 +259,35 @@ it('explains restricted membership access without querying private member or inv
   expect(client.listMembers).not.toHaveBeenCalled();
   expect(client.listInvitations).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: /Edit permissions/ })).toBeNull();
+});
+
+it('refreshes members and invitations when the workspace receives a remote revision', async () => {
+  const client: MembersSectionClient = {
+    listMembers: vi.fn().mockResolvedValueOnce([owner]).mockResolvedValue([owner, editor]),
+    updateMembership: vi.fn(),
+    removeMember: vi.fn(),
+    transferOwnership: vi.fn(),
+    listInvitations: vi.fn().mockResolvedValue([]),
+    createInvitation: vi.fn(),
+    leaveTeam: vi.fn()
+  };
+  function RemoteChange() {
+    const { notifyStateChanged } = useTeam();
+    return <button onClick={notifyStateChanged}>Remote membership changed</button>;
+  }
+  const user = userEvent.setup();
+  render(
+    <TeamProvider initialTeams={[team]} realtime={false}>
+      <ToastProvider>
+        <RemoteChange />
+        <MembersSection teamId={TEAM_ID} client={client} />
+      </ToastProvider>
+    </TeamProvider>
+  );
+  await screen.findByText('Owner User');
+  await waitFor(() => expect(client.listInvitations).toHaveBeenCalledOnce());
+  await user.click(screen.getByRole('button', { name: 'Remote membership changed' }));
+  await waitFor(() => expect(client.listMembers).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText('Alex Editor')).toBeTruthy();
+  expect(client.listInvitations).toHaveBeenCalledTimes(2);
 });

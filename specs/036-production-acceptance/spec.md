@@ -1,8 +1,14 @@
+> **Current scope decision — 2026-10-24:** 036 is CLOSED for completed local implementation and verification. Remaining substantial acceptance obligations are OPEN in [042 Production Readiness](../042-production-readiness/spec.md), with exact mapping in [scope-transfer.json](scope-transfer.json). See [closure.md](closure.md). Earlier full-campaign requirements and NO_GO checkpoints below are retained as historical requirements/evidence for 042; no production GO or test PASS is inferred from this scope change.
+
+> Рішення власника 2026-10-23: продовжувати до завершення всього доступного обсягу; нативну перевірку Windows виключено через відсутність реального пристрою. Канон виключення — [acceptance-policy.json](acceptance-policy.json), scope `native-windows-runtime`, case REG-017 і лише Windows-частини T059/T173. Це не PASS і не доказ Windows-сумісності. Unit/contract/build перевірки підтримуваних платформ та macOS multi-device залишаються обов’язковими. Інші зовнішні передумови й невиконані перевірки зберігають власний статус.
+
+> Поточний пріоритет (2026-10-22): за останнім рішенням власника агент автономно перевіряє все доступне. Two-user evidence — [two-user-focus.md](two-user-focus.md), необов’язковий короткий огляд власнику — [owner-ui-checklist.md](owner-ui-checklist.md). Owner-approved вікно вибору тарифу не переробляти. Drive лише в підключеній папці; видаляти лише власні QA-дані. Історичні174кейси й зовнішні блокери зберігаються; невиконане не перетворюється на PASS/N/A.
+
 # Feature Specification: повна прийомка Soty перед продажами просторів
 
 **Feature Branch**: поточна робоча гілка; нову гілку не створювали.
 **Created**: 2026-10-14
-**Status**: специфікація та [план](plan.md) готові; реалізація змін і тестова кампанія ще не виконані.
+**Status**: кампанія 036 у роботі (2026-10-21); план/таски звірено за 95467002, recovery реалізовано в 034, локальне acceptance tooling та браузерні докази збираються. Final GO не надано.
 **Input**: два незалежні beta-сеанси Safari та один Chrome, повна ручна регресія після 1.2.6, особливо команди, синхронізація, права, тарифи, несплата та місткість для перших 30–50 людей.
 
 ## User Scenarios & Testing _(mandatory)_
@@ -87,7 +93,7 @@
 - **FR-011**: MUST обґрунтувати достатність Free вимірами після виправлень росту бази; якщо він не проходить бюджет або вимоги відновлення, запропонувати найменший придатний платний план і повторно перевірити його.
 - **FR-012**: MUST класифікувати результати як PASS / FAIL / BLOCKED / NOT RUN / N/A з причиною. Відсутня інтеграція, метрика або fixture не можуть давати PASS.
 - **FR-013**: MUST зберігати тестові дані окремо, використовувати реальну beta-автентифікацію, не робити реальних оплат і не надсилати справжніх запрошень; прийомка не змінює production.
-- **FR-014**: MUST включити перевірку пакованої beta, регресію підтримуваного Windows-агента та доказ відновлення з резервної копії в ізольованому середовищі. Один Mac не доводить багатопристроєву або Windows-сумісність.
+- **FR-014**: MUST включити перевірку пакованої beta та доказ відновлення з резервної копії в ізольованому середовищі. Нативна Windows-регресія цієї кампанії виключена окремим рішенням власника в acceptance-policy.json; Windows unit/contract/build перевірки залишаються. Один Mac не доводить багатопристроєву або Windows-сумісність.
 - **FR-015**: MUST сформувати остаточний go/no-go з блокерами, ресурсними вимірами та посиланнями на точний кандидат; дозвіл на production оформлюється за чинним runbook релізу.
 
 - **FR-016**: Поновлення після тарифної зупинки MUST автоматично відновити раніше активні процеси без браузера й додаткової кнопки. Зареєструвати відновлення ≤60 с, почати перший актуальний прохід каталогу ≤5 хв за доступних залежностей; інтервали й налаштування зберігаються. Пропущені періоди згортаються в один прохід, черга обмежує навантаження. Вимкнене вручну, завершене та скасоване не перезапускається. Для перерваних операцій потрібен безпечний checkpoint і повторна перевірка прав/побічних дій; блокери видимі окремо від успіху.
@@ -114,7 +120,7 @@
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% кейсів P0/P1 фінального scope виконано й пройдено; немає відкритих дефектів втрати даних, доступу, тарифів або зависання критичних операцій. Кожне N/A має доказ виключення з кандидата.
+- **SC-001**: 100% кейсів P0/P1 фінального scope виконано й пройдено; немає відкритих дефектів втрати даних, доступу, тарифів або зависання критичних операцій. Кожне N/A має доказ виключення з кандидата. Окремі owner-excluded native перевірки мають hash-bound policy provenance, зберігають фактичний execution status і виключаються лише з required scope; вони не стають PASS.
 - **SC-002**: Для 50 одночасних людей p95 появи підтвердженої зміни в активного іншого учасника ≤5 с; після foreground/reconnect ≤15 с. Виміряти не менше 100 змін на профіль. Нові серверні дії після відкликання прав завжди відхиляються; 5 с — лише бюджет оновлення екрана.
 - **SC-003**: За 8 годин змішаного навантаження немає втрат, дублів чи витоків між командами; ≥99% звичайних дій успішні, p95 відкриття списку/пошуку ≤2 с після прогріву, виміряний у реальному браузері від дії до показу відповідних актуальних результатів під навантаженням; час API записується окремо. Очікувані негативні тести рахуються окремо.
 - **SC-004**: 100% тарифних переходів дають правильний стан у всіх трьох сесіях; після відновлення зберігаються всі контрольні дані та застосовуються актуальні права. Видалене членство, відкликані дозволи й делегації не відновлюються через поновлення тарифу.
@@ -138,3 +144,25 @@
 а не вже доступна можливість. Діагностика має показати для кожного попередньо активного процесу намір,
 чергу, початок, terminal і доставку результату або конкретну причину очікування/відмови, з кореляцією
 до переходу тарифу. Відсутній сигнал — unknown. Критерій SC-004 включає FR-016 та LIFE-021–036.
+
+### Діагностика спільного редагування задач (T106)
+
+Typed lifecycle охоплює create/list/read/update/editor_refresh/editor_preserve_draft. Кожна спроба має opaque flow/attempt UUID, operation start і success/failure/cancellation. Успішний API response не доводить показ користувачу: UI receipt завершується після commit у видимому document, hidden tab чекає visibility, закриття скасовує receipt. SOURCE_CHANGED лишається failure з незалежним explicit conflict choice; take-server приймає newest confirmed same-task snapshot, keep-mine пише з reviewed version і не обходить повторний conflict. Автоматичне збереження pending draft зберігає початкову concurrency base.
+
+Acceptance вимагає шлях producer → sanitized storage → read-only CLI, unknown codes/missing terminal як явні blind spots, privacy й identity-switch regressions. Не збираємо назви, описи, raw cause, credentials чи provider payloads. Legacy task completion/history capability лишається unsupported, доки немає незалежного producer proof. Native F2-08 proof не замінює T106 diagnostic acceptance.
+
+### Discovered reconnect regression — D036-012 / T121
+
+Local subresource authority must be scoped to the current agent origin and pairing session. Replacing that scope or explicitly clearing cached authority invalidates pending replies too; a late response/body must neither repopulate the cache nor remove a newer request. Already-mounted preview/media URL consumers must request current authority on the existing pairing event, unsubscribe on unmount and fence old completions, without new polling. Cache hits and in-flight coalescing remain valid inside one current scope; the early-expiry boundary remains unchanged.
+
+Current HTTP401/403 and transport failures use the same closed request-failure observer as other API calls and the existing correlated link inconsistency/loss/recheck/recovery diagnostics. Retired replies must not report a false failure against the replacement link. No origin, resource path, token or ticket enters these events. Other HTTP/protocol causes remain explicit unknown from link events alone, and a ticket/repaired URL is not evidence that image/media bytes became visible. Existing local query/owner regressions and a native display check from the owner checklist are separate evidence. This does not turn old focused runs into final-SHA acceptance.
+
+### Уточнення native identity publication — 2026-10-22
+
+Вихід, handoff або restart мають відхиляти запізнілу публікацію старого signed actor навіть з іншої вкладки й після підтвердженого logout. Browser-local queue/storage lock не є достатнім fence. Paired health видає opaque native revision, web захоплює його перед cloud issuance, а native порівнює всередині serialized identity transition; revision не замінює pairing/signature/actor authority і не потрапляє у diagnostics. Missing/stale revision має closed refusal reason та code location, без token/actor/content. Same-current-actor renewal не створює зайвого конфлікту. Producer→sanitized storage→read-only diagnosis, unknown/missing receipt, cross-tab й restart acceptance лишаються обов’язковими.
+
+Власник прямо прибрав зі scope видимий header summary «Локальні операції». Це зміна UI entrypoint, а не виключення ізоляції локальних операцій, коректності batch processing, cancellation, recovery або diagnostics з прийомки.
+
+### Native journal boot attribution — 2026-10-22
+
+Справжній producer boot instance має бути UUID для узгодженого проходження web/ingestion/CLI, новим на кожен restart. Не перетворювати старий opaque native ID на вигаданий UUID в capture adapter. Відповідь diagnostics має відповідати захопленому instance. Враховувати ISO startedAt, який реально повертає native, та numeric legacy форму. Retained prior-boot tail не можна перепризначати новому instance навіть після втрати cursor. Невідомий instance/start time — unknown/unforwarded без успішного cursor receipt; локальна історія зберігається. Обов’язковий реальний producer→sanitized ingestion→read-only CLI proof, не лише fixtures з вручну заданим UUID.

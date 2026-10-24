@@ -6,7 +6,7 @@ import {
   type TeamTaskStatus,
   type TeamTaskSummary
 } from '@video-compressor/shared';
-import type { TeamMemberSummary } from '../../api/team';
+import type { TeamAssigneeSummary } from '../../api/team';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { MenuEntry } from '../../components/ui/index';
@@ -58,7 +58,7 @@ export function useTaskActions({
 }: {
   tasks: readonly TeamTaskSummary[];
   canEdit: boolean;
-  members: readonly TeamMemberSummary[];
+  members: readonly TeamAssigneeSummary[];
   labels: readonly TeamTaskLabel[];
   handlers: TaskActionHandlers;
 }): MenuEntry[] {
@@ -93,7 +93,7 @@ export function useTaskActions({
       for (const member of members) {
         entries.push({
           id: `assignee:${member.userId}`,
-          label: member.displayName ?? member.email ?? member.userId,
+          label: member.displayName ?? t('teamMemberUnnamed'),
           icon: <UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
           checked: single ? single.assigneeId === member.userId : undefined,
           onSelect: () => handlers.patch({ assigneeId: member.userId })

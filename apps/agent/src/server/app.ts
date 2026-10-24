@@ -9,7 +9,8 @@ import {
   AGENT_TOOL_CONTRACTS,
   CORE_CONTRACT_VERSION,
   AGENT_API_VERSION,
-  type AppEnvironment
+  type AppEnvironment,
+  type EntitlementPublicationRejection
 } from '@video-compressor/shared';
 import { advertisedCapabilities } from './capabilities.js';
 import { hostPlatform } from '../platform/platform.js';
@@ -93,6 +94,8 @@ export interface ServerDeps {
   requestUpdateDrain: (targetBuildId: string) => void;
   allowedOrigins: ReadonlySet<string>;
   entitlementGate: EntitlementGate;
+  /** Paired, non-secret scope hint used only for actor-scoped server retirement. */
+  recoveryInstallationId?: () => string;
   config: ServerConfig;
   instanceId: string;
   startedAt: string;
@@ -125,7 +128,12 @@ export interface ServerDeps {
 
 // Account entitlement gates every tool route; health stays reachable so the
 // web can read the entitlement state, and /api/entitlement accepts tokens.
-const ENTITLEMENT_EXEMPT_ROUTES = new Set(['/api/health', '/api/diagnostics', '/api/entitlement']);
+const ENTITLEMENT_EXEMPT_ROUTES = new Set([
+  '/api/health',
+  '/api/diagnostics',
+  '/api/entitlement',
+  '/api/entitlement/logout'
+]);
 
 /**
  * Builds the fully wired Fastify instance from explicit dependencies — no
@@ -515,14 +523,38 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   app.post('/api/entitlement', async (request, reply) => {
     const entitlementToken = (request.body as { token?: unknown } | null)?.token;
+    const revision = (request.body as { revision?: unknown } | null)?.revision;
     if (typeof entitlementToken !== 'string') {
       return reply.code(400).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
     }
-    try {
-      return await entitlementGate.acceptToken(entitlementToken);
-    } catch {
-      return reply.code(403).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
+    if (entitlementGate.enforced && typeof revision !== 'string') {
+      const reason: EntitlementPublicationRejection = 'missing_revision';
+      diagnostics?.record('auth', 'identity_publication_rejected', { reason });
+      return reply.code(409).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
     }
+    try {
+      return await entitlementGate.acceptToken(
+        entitlementToken,
+        typeof revision === 'string' ? revision : ''
+      );
+    } catch {
+      return reply
+        .code(revision !== entitlementGate.identityRevision() ? 409 : 403)
+        .send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
+    }
+  });
+
+  // Entitlement-exempt cleanup still passes the same origin and paired-token hooks.
+  app.post('/api/entitlement/logout', async (request, reply) => {
+    const actorId = (request.body as { actorId?: unknown } | null)?.actorId;
+    if (
+      typeof actorId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(actorId)
+    ) {
+      return reply.code(400).send({ error: 'ENTITLEMENT_TOKEN_INVALID' });
+    }
+    // A failed durable retirement must remain a failure, never a successful logout receipt.
+    return { cleared: await entitlementGate.clearActor(actorId) };
   });
 
   app.post('/native/update/drain', async (request, reply) => {
@@ -537,6 +569,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return reply.code(202).send({ accepted: true });
   });
 
+  const runtimeCapabilities = () =>
+    advertisedCapabilities().filter(
+      capability =>
+        (capability !== 'directory-intake' || modules.some(module => module.id === 'files')) &&
+        (capability !== 'team-background-recovery-actor-bound' ||
+          (entitlementGate.enforced &&
+            deps.recoveryInstallationId !== undefined &&
+            modules.some(module => module.id === 'team-workspace')))
+    );
   app.get('/api/health', async () => ({
     ok: tools.ffmpeg && tools.ffprobe,
     tools,
@@ -549,14 +590,15 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: advertisedCapabilities().filter(
-      capability =>
-        capability !== 'directory-intake' || modules.some(module => module.id === 'files')
-    ),
+    capabilities: runtimeCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),
     entitlement: entitlementGate.status(),
+    entitlementRevision: entitlementGate.identityRevision(),
+    ...(deps.recoveryInstallationId
+      ? { recoveryInstallationId: deps.recoveryInstallationId() }
+      : {}),
     heartbeatMs: HEARTBEAT_MS
   }));
   app.get('/health', async () => ({
@@ -572,10 +614,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
-    capabilities: advertisedCapabilities().filter(
-      capability =>
-        capability !== 'directory-intake' || modules.some(module => module.id === 'files')
-    ),
+    capabilities: runtimeCapabilities(),
     coreContractVersion: CORE_CONTRACT_VERSION,
     toolContracts: { ...AGENT_TOOL_CONTRACTS },
     update: queue.updateStatus(),
@@ -584,13 +623,20 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     heartbeatMs: HEARTBEAT_MS
   }));
   app.get('/api/diagnostics', async (request, reply) => {
-    const query = request.query as { since?: unknown; limit?: unknown };
+    const query = request.query as { since?: unknown; limit?: unknown; journal?: unknown };
     const since = diagnosticsCursor(query.since, 0);
     const limit = diagnosticsCursor(query.limit, DIAGNOSTICS_PAGE_DEFAULT);
-    if (since === null || limit === null || limit < 1 || limit > DIAGNOSTICS_PAGE_LIMIT) {
+    if (
+      since === null ||
+      limit === null ||
+      limit < 1 ||
+      limit > DIAGNOSTICS_PAGE_LIMIT ||
+      (query.journal !== undefined && query.journal !== 'bound-v1')
+    ) {
       return reply.code(400).send({ error: 'INVALID_INPUT' });
     }
-    const log = diagnostics?.since(since, limit) ?? [];
+    const boundHistory = query.journal === 'bound-v1';
+    const log = diagnostics?.since(since, limit, !boundHistory) ?? [];
     const last = log[log.length - 1];
     return {
       environment: config.environment,
@@ -622,7 +668,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       // is the last record served, or the journal's head when the page is empty, so a client
       // polling with it never re-reads a record and never skips one.
       log,
-      nextSeq: last ? last.seq : (diagnostics?.latestSeq() ?? 0),
+      ...(boundHistory ? { journalProvenance: 'bound-v1' } : {}),
+      nextSeq: last ? last.seq : (diagnostics?.latestSeq(!boundHistory) ?? 0),
       logRejected: diagnostics?.rejectedCount() ?? 0
     };
   });

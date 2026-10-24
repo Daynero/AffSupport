@@ -1,3 +1,7 @@
+import {
+  AUTH_SESSION_MUTATION_CODES,
+  PROFILE_SYNC_CODES
+} from '../../packages/shared/src/types.js';
 import { RECOVERY_REASONS } from '../../packages/shared/src/team/recovery.js';
 import { ACCOUNT_ANALYTICS_CODES } from '../../packages/shared/src/team/analytics.js';
 /**
@@ -618,6 +622,11 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_ENTITLEMENT],
     check: 'The account check decision and clock skew props; invalid blocks every tool.'
   },
+  'auth:identity_publication_rejected': {
+    files: [AGENT_ENTITLEMENT, 'apps/agent/src/server/app.ts', 'apps/web/src/api/entitlement.ts'],
+    check:
+      'Whether logout, account handoff or restart invalidated the captured publication revision; obtain a fresh authenticated exchange.'
+  },
   'picker:launch': {
     files: [AGENT_PICKER],
     check: 'A native file dialog was launched; pair it with the exit record.'
@@ -1049,12 +1058,35 @@ function build(): Record<string, CodeLocation> {
         'Check the sheet readback and persisted attempt before retrying; an unknown provider reply is not delivery proof.'
     };
   }
-  for (const step of ['members_list', 'member_permissions_save', 'member_remove']) {
+  for (const step of [
+    'members_list',
+    'assignees_list',
+    'member_permissions_save',
+    'member_remove',
+    'member_access_refresh'
+  ]) {
     map[`members:${step}:*`] = {
       files: [
         'apps/web/src/team/members/MemberList.tsx',
         'apps/web/src/team/members/MemberPermissionsDialog.tsx',
         'apps/web/src/team/members/diagnostics.ts',
+        ...(step === 'assignees_list'
+          ? [
+              'apps/web/src/team/tasks/TaskSpace.tsx',
+              'apps/web/src/team/tasks/TaskEditor.tsx',
+              'apps/web/src/team/launches/LaunchSpace.tsx',
+              'supabase/migrations/20261202124000_launch_assignee_options.sql'
+            ]
+          : []),
+        ...(step === 'member_access_refresh'
+          ? [
+              'apps/web/src/team/useTeamRealtime.ts',
+              'apps/web/src/team/TeamContext.tsx',
+              'apps/web/src/team/workspace/MembersSection.tsx',
+              'supabase/migrations/20261206130000_membership_access_signals.sql',
+              'supabase/migrations/20261206132000_membership_manager_invalidation.sql'
+            ]
+          : []),
         'apps/web/src/api/team.ts',
         'supabase/migrations/20260801100000_team_membership_actions.sql'
       ],
@@ -1062,21 +1094,61 @@ function build(): Record<string, CodeLocation> {
         'Inspect the correlated list or membership mutation attempt and current manage_members authority. A valid RPC response proves acceptance, while completion follows UI commit. For missing replies, read the existing protected membership audit and current permissions before retrying; no absence proves rollback.'
     };
   }
+  for (const action of [
+    'create',
+    'list',
+    'read',
+    'update',
+    'editor_refresh',
+    'editor_preserve_draft'
+  ]) {
+    map[`tasks:task_${action}:*`] = {
+      files: [
+        'apps/web/src/team/tasks/diagnostics.ts',
+        'apps/web/src/api/team.ts',
+        'apps/web/src/team/tasks/TaskEditor.tsx',
+        'apps/web/src/team/tasks/useTasks.ts',
+        'apps/web/src/team/tasks/useTaskAutosave.ts',
+        'supabase/migrations/20260814101000_creative_library_actions.sql',
+        'supabase/migrations/20260916140000_task_conflict_answers_at_once.sql'
+      ],
+      check:
+        'Inspect this exact correlated attempt. API completion validates the server response only; visible editor refresh is separate. Implicit preserve-draft keeps local typing and its original conflict version. An explicit Keep mine retries only unacknowledged fields against the reviewed version; a further peer change must conflict again. Take their version clears pending typing and renders the newest confirmed snapshot for that same task. For missing terminals read the protected current task before retrying; do not infer rollback or delivery from missing events.'
+    };
+  }
   return map;
 }
 
 export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   ...build(),
+  'process:output:PROCESS_RESULT_UNCERTAIN': {
+    files: [
+      'supabase/migrations/20261206134000_process_upload_ownership.sql',
+      'supabase/migrations/20261206135000_process_output_adoption_fence.sql',
+      'supabase/migrations/20261206136000_process_upload_service_readback.sql',
+      'supabase/migrations/20261206137000_process_output_cleanup_dispatch.sql',
+      'supabase/migrations/20261206138000_process_output_catalog_ingest_fence.sql',
+      'supabase/functions/drive-ops/process-output-upload.ts',
+      'supabase/functions/drive-ops/process-output-recovery.ts',
+      'supabase/functions/_shared/drive.ts',
+      'supabase/functions/drive-ops/index.ts',
+      'apps/agent/src/team-bridge/transfer.ts',
+      'packages/shared/src/team/transport.ts'
+    ],
+    check:
+      'Inspect the captured new-output identity, grant deadline, cleanup lease, durable mutation and adoption reservation and conditional v2 provider readback. A pending 404 or lost upload reply does not prove absence. Preserve original, published, moved or modified files; never retry the processing operation blindly.'
+  },
   'workspace:receipt': {
     files: [
       'supabase/migrations/20261205122000_task_attachment_cleanup.sql',
+      'supabase/migrations/20261206140500_launch_offer_defaults_reference_fence.sql',
       'supabase/migrations/20261205121000_bulk_trash_receipts.sql',
       'supabase/functions/drive-ops/task-cleanup.ts',
       'apps/web/src/team/tasks/TaskEditor.tsx',
       'apps/web/src/team/explorer/useBulkTrash.ts'
     ],
     check:
-      'Reconcile the durable receipt, current rights and known references before retrying; missing provider or visible delivery remains unknown.'
+      'Reconcile the durable receipt, current rights and known references before retrying. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
   },
   ...Object.fromEntries(
     RECOVERY_REASONS.map(reason => [
@@ -1093,9 +1165,75 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       }
     ])
   ),
+  ...Object.fromEntries(
+    AUTH_SESSION_MUTATION_CODES.map(code => [
+      `auth:library:${code}`,
+      {
+        files: [
+          'apps/web/src/auth/session-mutations.ts',
+          'apps/web/src/auth/session-mutation-analytics.ts',
+          'apps/web/src/auth/AuthContext.tsx',
+          'packages/shared/src/types.ts'
+        ],
+        check:
+          'Check cooperative session ownership and lock availability. A refused or timed-out lane must not clear a replacement session; an absent terminal after SDK signout remains unknown.'
+      }
+    ])
+  ),
+  ...Object.fromEntries(
+    PROFILE_SYNC_CODES.map(code => [
+      `auth:library:${code}`,
+      {
+        files: [
+          'apps/web/src/auth/AuthContext.tsx',
+          'apps/web/src/auth/profile-invalidation.ts',
+          'apps/web/src/auth/profile-sync-analytics.ts',
+          'packages/shared/src/types.ts'
+        ],
+        check:
+          'Inspect the bounded profile refresh or update attempt and actor ownership. A failed refresh retains the last known profile and retries on activation; state publication does not prove sibling receipt or browser paint.'
+      }
+    ])
+  ),
+  'team:library:RECOVERY_RETIREMENT_UNCONFIRMED': {
+    files: [
+      'apps/web/src/api/recovery-server-retirement.ts',
+      'packages/shared/src/types.ts',
+      'supabase/migrations/20261206139980_recovery_retirement_receipts.sql'
+    ],
+    check:
+      'The browser could not confirm its retirement request. Read the closed error category and matching server attempt receipt; do not infer that server retirement failed or that protected-key cleanup completed.'
+  },
+  'team:recovery_retirement:server_confirmed': {
+    files: [
+      'supabase/migrations/20261206139980_recovery_retirement_receipts.sql',
+      'apps/web/src/api/recovery-server-retirement.ts'
+    ],
+    check:
+      'A committed actor-scoped receipt proves server retirement only. Correlate the matching browser attempt and native cleanup separately; a lost response or missing session remains unconfirmed at the client.'
+  },
+  'journal:team:recovery_retirement': {
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'apps/agent/src/team-bridge/recovery-journal.ts',
+      'apps/agent/src/entitlement/entitlement.ts',
+      'supabase/migrations/20261206139975_recovery_actor_retirement.sql'
+    ],
+    check:
+      'Distinguish durable local retirement, committed server acknowledgement and protected-key cleanup. Reconcile the same delegation across boots; a browser signout or missing native record never proves server revocation. Preserve the last protected handle until acknowledgement and do not replay processing.'
+  },
   'journal:team:recovery_state': {
     files: ['apps/agent/src/team-bridge/recovery-worker.ts'],
     check: 'Inspect the persisted recovery checkpoint and current dependency.'
+  },
+  'tariff:recovery:execution_reserved': {
+    files: [
+      'supabase/migrations/20261206139500_recovery_execution_fence.sql',
+      'supabase/functions/team-recovery/handler.ts',
+      'apps/agent/src/team-bridge/recovery-worker.ts'
+    ],
+    check:
+      'A durable start reservation forbids replay; reconcile the terminal operation, output and native journal separately because the reservation alone proves no native execution or delivery.'
   },
   'journal:team:recovery_unavailable': {
     files: ['apps/agent/src/team-bridge/recovery-journal.ts'],

@@ -1,43 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  launchTomorrow,
   launchValuesEqual,
   type LaunchDraft,
   type LaunchDetail,
   type LaunchSourceSnapshot
 } from '@video-compressor/shared';
-export function newLaunchCatalogConfig() {
-  return {
-    productCount: 100,
-    restitchEnabled: false,
-    finalDurationMode: 'random-30-40' as const,
-    customFinalDurationSeconds: null
-  };
-}
-export function newLaunchDraft(): LaunchDraft {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return {
-    schemaVersion: 1,
-    campaignCount: 3,
-    maxBudget: 30,
-    minBudget: 10,
-    adsCount: 3,
-    budgetMode: 'auto',
-    budgets: null,
-    gender: 'M',
-    advantagePlus: true,
-    launchDate: launchTomorrow(new Date(), timezone),
-    timezone,
-    method: 'other',
-    subConfig: {
-      schemaVersion: 1,
-      sub1: ['buyer'],
-      sub2: ['social', 'adAccountSuffix', 'creative'],
-      sub3: ['creative']
-    },
-    catalog: newLaunchCatalogConfig()
-  };
-}
+import { newLaunchDraft } from './launchDraftDefaults';
 export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string | null) {
   const [config, setConfig] = useState<LaunchDraft>(
     () => detail?.draft ?? { ...newLaunchDraft(), ...(materialId ? { materialId } : {}) }

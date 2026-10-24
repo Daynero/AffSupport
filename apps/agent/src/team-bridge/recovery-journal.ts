@@ -12,10 +12,15 @@ export interface RecoveryCheckpoint {
   updatedAt: string;
   retryEpisodes?: number[];
   retryNotBefore?: number;
+  /** Server floor; zero explicitly distinguishes a local-only cooldown from a legacy journal. */
+  serverRetryNotBefore?: number;
   retryAttempt?: number;
   retrySince?: number;
 }
 export interface RecoveryRegistration {
+  actorId?: string;
+  revoking?: boolean;
+  revocationConfirmed?: boolean;
   teamId: string;
   installationId: string;
   endpoint: string;
@@ -43,6 +48,10 @@ export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | nu
       (typeof value.retryNotBefore !== 'number' ||
         !Number.isFinite(value.retryNotBefore) ||
         value.retryNotBefore < 0)) ||
+    (value.serverRetryNotBefore !== undefined &&
+      (typeof value.serverRetryNotBefore !== 'number' ||
+        !Number.isFinite(value.serverRetryNotBefore) ||
+        value.serverRetryNotBefore < 0)) ||
     (value.retryAttempt !== undefined &&
       (typeof value.retryAttempt !== 'number' ||
         !Number.isInteger(value.retryAttempt) ||
@@ -68,7 +77,10 @@ export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | nu
       : {}),
     ...(typeof value.retryAttempt === 'number' ? { retryAttempt: value.retryAttempt } : {}),
     ...(typeof value.retrySince === 'number' ? { retrySince: value.retrySince } : {}),
-    ...(typeof value.retryNotBefore === 'number' ? { retryNotBefore: value.retryNotBefore } : {})
+    ...(typeof value.retryNotBefore === 'number' ? { retryNotBefore: value.retryNotBefore } : {}),
+    ...(typeof value.serverRetryNotBefore === 'number'
+      ? { serverRetryNotBefore: value.serverRetryNotBefore }
+      : {})
   };
 }
 /** Atomic, environment-scoped metadata only. Secrets live in platform storage. */
@@ -110,7 +122,12 @@ export class RecoveryJournal {
         typeof item.endpoint !== 'string' ||
         item.endpoint.length > 2048 ||
         typeof item.account !== 'string' ||
-        !/^soty-recovery-[a-z0-9-]{1,100}$/u.test(item.account)
+        !/^soty-recovery-[a-z0-9-]{1,100}$/u.test(item.account) ||
+        (item.actorId !== undefined &&
+          (typeof item.actorId !== 'string' || !UUID.test(item.actorId))) ||
+        (item.revoking !== undefined && typeof item.revoking !== 'boolean') ||
+        (item.revocationConfirmed !== undefined && typeof item.revocationConfirmed !== 'boolean') ||
+        (item.revocationConfirmed === true && item.revoking !== true)
       )
         throw new Error('INVALID_RESPONSE');
       registrations.push({
@@ -118,7 +135,12 @@ export class RecoveryJournal {
         installationId: item.installationId,
         delegationId: item.delegationId,
         endpoint: item.endpoint,
-        account: item.account
+        account: item.account,
+        ...(typeof item.actorId === 'string' ? { actorId: item.actorId } : {}),
+        ...(item.revoking !== undefined ? { revoking: item.revoking as boolean } : {}),
+        ...(item.revocationConfirmed !== undefined
+          ? { revocationConfirmed: item.revocationConfirmed as boolean }
+          : {})
       });
     }
     const checkpoints = value.checkpoints.map(parseRecoveryCheckpoint);

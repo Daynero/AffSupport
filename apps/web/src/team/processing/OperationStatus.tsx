@@ -37,13 +37,15 @@ export function OperationStatus({
   const running =
     !failedLocally && (operation.state === 'pending' || operation.state === 'running');
   const reportedProgress = measuredProgress === undefined ? operation.progress : measuredProgress;
+  // Terminal state stops the work, not the validity of its last measured
+  // progress. A canceled run may have a sparse cloud counter behind the agent.
   const localValue = localProgress?.progress;
   const progress =
     reportedProgress === null || !Number.isFinite(reportedProgress)
       ? null
       : Math.max(
           reportedProgress,
-          running && localValue !== null && localValue !== undefined && Number.isFinite(localValue)
+          localValue !== null && localValue !== undefined && Number.isFinite(localValue)
             ? localValue
             : 0
         );
@@ -94,7 +96,9 @@ function stageLabel(stage: string, t: ReturnType<typeof useI18n>['t']) {
     processing: t('teamOperationProcessing'),
     uploading: t('teamOperationUploading'),
     finalizing: t('teamOperationFinalizing'),
-    completed: t('teamOperationSucceeded')
+    completed: t('teamOperationSucceeded'),
+    canceled: t('teamOperationCanceled'),
+    failed: t('teamOperationFailed')
   };
   return known[stage] ?? stage.replaceAll('_', ' ');
 }

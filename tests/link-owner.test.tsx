@@ -17,6 +17,7 @@ const fake = vi.hoisted(() => {
       throw new Error('CONNECTION_FAILED');
     }) as Connect,
     connectCalls: 0,
+    retire: (async () => ({ cleared: true })) as () => Promise<unknown>,
     handshake: (async () => null) as () => Promise<string | null>,
     entitlement: (async () => ({
       enforced: true,
@@ -41,6 +42,7 @@ const fake = vi.hoisted(() => {
 
 vi.mock('../apps/web/src/api/client.js', () => ({
   agentUrl: 'http://127.0.0.1:43120',
+  requestBody: () => fake.retire(),
   agentInstallAwaitingPairing: () => false,
   agentKnown: () => true,
   agentProvenAlive: (error: unknown) => Boolean((error as { agentAlive?: boolean })?.agentAlive),
@@ -165,6 +167,8 @@ const text = (id: string) => screen.getByTestId(id).textContent;
 describe('the owner of the connection state', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.clear();
+    fake.retire = async () => ({ cleared: true });
     fake.connectCalls = 0;
     fake.connect = async () => healthy();
     fake.handshake = async () => null;
@@ -195,6 +199,40 @@ describe('the owner of the connection state', () => {
     expect(text('connection')).toBe('connected');
     streamStatus({ open: true });
   }
+
+  it('drains stored logout before handing a new signed entitlement to native', async () => {
+    const key = 'soty.native-retirement.v1.11111111-1111-4111-8111-111111111111';
+    localStorage.setItem(key, '22222222-2222-4222-8222-222222222222');
+    const order: string[] = [];
+    fake.connect = async () => healthy();
+    fake.retire = async () => {
+      order.push('retire');
+      fake.connect = async () =>
+        healthy({ entitlement: { enforced: true, entitled: false, reason: 'missing' } });
+      return { cleared: true };
+    };
+    fake.entitlement = async () => {
+      order.push('publish');
+      expect(localStorage.getItem(key)).toBeNull();
+      fake.connect = async () => healthy();
+      return { enforced: true, entitled: true, reason: 'active' };
+    };
+    await boot();
+    expect(order).toEqual(['retire', 'publish']);
+  });
+
+  it('retries stored retirement even when reconnect health still says entitled', async () => {
+    const key = 'soty.native-retirement.v1.11111111-1111-4111-8111-111111111111';
+    localStorage.setItem(key, '22222222-2222-4222-8222-222222222222');
+    let calls = 0;
+    fake.retire = async () => {
+      calls++;
+      return { cleared: false };
+    };
+    await boot();
+    expect(calls).toBe(1);
+    expect(localStorage.getItem(key)).toBeNull();
+  });
 
   it('gives analytics the agent instance and its own platform after a health read (031 FR-053)', async () => {
     const setAgentContext = vi.spyOn(analytics, 'setAgentContext');
@@ -390,7 +428,9 @@ describe('the owner of the connection state', () => {
   });
 
   it('re-checks when a request is refused while the page believes it is connected', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
     await boot();
+    track.mockClear();
     const calls = fake.connectCalls;
     fake.connect = async () => healthy({ instanceId: 'run-4' });
     await act(async () => {
@@ -399,6 +439,16 @@ describe('the owner of the connection state', () => {
     });
     expect(fake.connectCalls).toBe(calls + 1);
     expect(text('instance')).toBe('run-4');
+    expect(track).toHaveBeenCalledWith(
+      'link_inconsistency',
+      expect.objectContaining({
+        flow_id: expect.any(String),
+        link_transport: 'request',
+        error_code: 'connection_failed',
+        link_stream_open: true
+      })
+    );
+    expect(JSON.stringify(track.mock.calls)).not.toContain('a'.repeat(64));
   });
 
   it('checks the link when the tab comes back, but not when it is already live', async () => {

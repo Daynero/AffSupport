@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { TRANSCRIBE_EXTENSIONS } from '@video-compressor/shared';
 import { powerShellQuote as psQuote, windowsPowerShell } from '../platform/platform.js';
@@ -15,6 +15,93 @@ import { diagnostics } from '../server/diagnostics-log.js';
  * dialogs themselves can only be exercised live on a Windows machine
  * (docs/WINDOWS.md tracks that verification).
  */
+
+interface NativePickerChild {
+  child: ChildProcess;
+  interrupted: boolean;
+  closed: Promise<void>;
+}
+const nativePickerChildren = new Set<NativePickerChild>();
+let stoppingNativePickers = false;
+
+function trackNativePicker(child: ChildProcess, signal?: AbortSignal): NativePickerChild {
+  let complete: () => void = () => {};
+  const closed = new Promise<void>(resolve => {
+    complete = resolve;
+  });
+  const tracked = { child, interrupted: false, closed };
+  nativePickerChildren.add(tracked);
+  let escalation: ReturnType<typeof setTimeout> | undefined;
+  const interrupt = () => {
+    tracked.interrupted = true;
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      /* Already exited. */
+    }
+    escalation = setTimeout(() => {
+      if (nativePickerChildren.has(tracked)) {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* Already exited. */
+        }
+      }
+    }, 1000);
+    escalation.unref();
+  };
+  const finished = () => {
+    signal?.removeEventListener('abort', interrupt);
+    if (escalation) clearTimeout(escalation);
+    nativePickerChildren.delete(tracked);
+    complete();
+  };
+  child.once('close', finished);
+  child.once('error', finished);
+  signal?.addEventListener('abort', interrupt, { once: true });
+  if (signal?.aborted) interrupt();
+  return tracked;
+}
+
+async function waitForPickerExit(children: NativePickerChild[], timeoutMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.all(children.map(entry => entry.closed)),
+      new Promise<void>(resolve => {
+        timer = setTimeout(resolve, timeoutMs);
+        timer.unref();
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Dialogs are not governed media workers, but must still end before their agent exits. */
+export async function shutdownNativePickers(): Promise<void> {
+  stoppingNativePickers = true;
+  const children = [...nativePickerChildren];
+  if (!children.length) return;
+  for (const entry of children) {
+    entry.interrupted = true;
+    try {
+      entry.child.kill('SIGTERM');
+    } catch {
+      /* The child may already have exited. */
+    }
+  }
+  await waitForPickerExit(children, 1000);
+  const remaining = children.filter(entry => nativePickerChildren.has(entry));
+  for (const entry of remaining) {
+    try {
+      entry.child.kill('SIGKILL');
+    } catch {
+      /* Already gone between checks. */
+    }
+  }
+  if (remaining.length) await waitForPickerExit(remaining, 500);
+}
 
 /** Keep in sync with SUPPORTED_VIDEO_EXTENSIONS in queue/queue.ts. */
 const VIDEO_EXTENSIONS = [
@@ -125,27 +212,69 @@ export async function selectDirectoryIntakeFolder(): Promise<string | null> {
 
 // Rapid repeat clicks on the folder button must not stack native dialogs:
 // while one picker is open, every additional request joins its promise.
-let activeFolderPick: Promise<string | null> | null = null;
+interface OutputFolderPick {
+  promise: Promise<string | null>;
+  controller: AbortController;
+  waiters: number;
+  done: boolean;
+}
+let activeFolderPick: OutputFolderPick | null = null;
 
-export function selectOutputFolder(): Promise<string | null> {
-  if (activeFolderPick) return activeFolderPick;
-  activeFolderPick = selectOutputFolderNative().finally(() => {
-    activeFolderPick = null;
+export function selectOutputFolder(signal?: AbortSignal): Promise<string | null> {
+  if (signal?.aborted) return Promise.resolve(null);
+  if (!activeFolderPick || activeFolderPick.controller.signal.aborted) {
+    const pick: OutputFolderPick = {
+      promise: Promise.resolve(null),
+      controller: new AbortController(),
+      waiters: 0,
+      done: false
+    };
+    pick.promise = selectOutputFolderNative(pick.controller.signal).finally(() => {
+      pick.done = true;
+      if (activeFolderPick === pick) activeFolderPick = null;
+    });
+    activeFolderPick = pick;
+  }
+  const pick = activeFolderPick;
+  pick.waiters += 1;
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    const release = () => {
+      if (finished) return false;
+      finished = true;
+      signal?.removeEventListener('abort', abort);
+      pick.waiters -= 1;
+      // One caller leaving cannot dismiss another caller's shared dialog.
+      if (!pick.waiters && !pick.done) pick.controller.abort();
+      return true;
+    };
+    const abort = () => {
+      if (release()) resolve(null);
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    pick.promise.then(
+      value => {
+        if (release()) resolve(value);
+      },
+      error => {
+        if (release()) reject(error);
+      }
+    );
   });
-  return activeFolderPick;
 }
 
-async function selectOutputFolderNative(): Promise<string | null> {
+async function selectOutputFolderNative(signal: AbortSignal): Promise<string | null> {
   if (process.platform === 'win32') {
     const folders = await runWindowsPicker(
       windowsFolderScript('Choose output folder'),
       'Could not choose an output folder.',
-      'output_folder'
+      'output_folder',
+      signal
     );
     return folders[0] ?? null;
   }
   const script = 'POSIX path of (choose folder with prompt "Choose output folder")';
-  return runFolderScript(script, 'Could not choose an output folder.', 'output_folder');
+  return runFolderScript(script, 'Could not choose an output folder.', 'output_folder', signal);
 }
 
 /** `Videos (*.mp4;*.mov)|*.mp4;*.mov|All files (*.*)|*.*` — WinForms filter syntax. */
@@ -258,7 +387,7 @@ type PickerKind =
   | 'intake_folder'
   | 'output_folder';
 
-type PickerOutcome = 'chosen' | 'cancelled' | 'failed' | 'unavailable' | 'timeout';
+type PickerOutcome = 'chosen' | 'cancelled' | 'failed' | 'unavailable' | 'timeout' | 'interrupted';
 
 function journalPickerLaunch(kind: PickerKind, platform: 'windows' | 'macos'): void {
   diagnostics.record('picker', 'launch', { kind, platform });
@@ -277,7 +406,13 @@ function pickerExitJournal(kind: PickerKind): (outcome: PickerOutcome, chosen?: 
   };
 }
 
-function runWindowsPicker(script: string, failure: string, kind: PickerKind): Promise<string[]> {
+function runWindowsPicker(
+  script: string,
+  failure: string,
+  kind: PickerKind,
+  signal?: AbortSignal
+): Promise<string[]> {
+  if (stoppingNativePickers || signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve, reject) => {
     journalPickerLaunch(kind, 'windows');
     const exited = pickerExitJournal(kind);
@@ -293,6 +428,7 @@ function runWindowsPicker(script: string, failure: string, kind: PickerKind): Pr
       reject(new Error('NATIVE_PICKER_UNAVAILABLE'));
       return;
     }
+    const tracked = trackNativePicker(child, signal);
     let settled = false;
     const finish = (callback: () => void) => {
       if (settled) return;
@@ -323,6 +459,11 @@ function runWindowsPicker(script: string, failure: string, kind: PickerKind): Pr
     });
     child.on('error', () =>
       finish(() => {
+        if (tracked.interrupted) {
+          exited('interrupted');
+          resolve([]);
+          return;
+        }
         exited('unavailable');
         reject(new Error('NATIVE_PICKER_UNAVAILABLE'));
       })
@@ -331,6 +472,11 @@ function runWindowsPicker(script: string, failure: string, kind: PickerKind): Pr
       out += outputDecoder.end();
       err = (err + errorDecoder.end()).slice(-4000);
       finish(() => {
+        if (tracked.interrupted) {
+          exited('interrupted');
+          resolve([]);
+          return;
+        }
         if (code === 0) {
           const chosen = grantChosen(
             out
@@ -351,10 +497,12 @@ function runWindowsPicker(script: string, failure: string, kind: PickerKind): Pr
 }
 
 function runMultiplePicker(script: string, failure: string, kind: PickerKind): Promise<string[]> {
+  if (stoppingNativePickers) return Promise.resolve([]);
   return new Promise((resolve, reject) => {
     journalPickerLaunch(kind, 'macos');
     const exited = pickerExitJournal(kind);
     const child = spawn('/usr/bin/osascript', ['-e', script], { shell: false });
+    const tracked = trackNativePicker(child);
     let out = '',
       err = '';
     child.stdout.on('data', d => {
@@ -364,10 +512,20 @@ function runMultiplePicker(script: string, failure: string, kind: PickerKind): P
       err += d;
     });
     child.on('error', error => {
+      if (tracked.interrupted) {
+        exited('interrupted');
+        resolve([]);
+        return;
+      }
       exited('unavailable');
       reject(error);
     });
     child.on('close', code => {
+      if (tracked.interrupted) {
+        exited('interrupted');
+        resolve([]);
+        return;
+      }
       if (code === 0) {
         const chosen = grantChosen(
           out
@@ -401,12 +559,15 @@ function canceledByUser(stderr: string): boolean {
 function runFolderScript(
   script: string,
   failure: string,
-  kind: PickerKind
+  kind: PickerKind,
+  signal?: AbortSignal
 ): Promise<string | null> {
+  if (stoppingNativePickers || signal?.aborted) return Promise.resolve(null);
   return new Promise((resolve, reject) => {
     journalPickerLaunch(kind, 'macos');
     const exited = pickerExitJournal(kind);
     const child = spawn('/usr/bin/osascript', ['-e', script], { shell: false });
+    const tracked = trackNativePicker(child, signal);
     let out = '',
       err = '';
     child.stdout.on('data', d => {
@@ -416,6 +577,11 @@ function runFolderScript(
       err += d;
     });
     child.on('close', code => {
+      if (tracked.interrupted) {
+        exited('interrupted');
+        resolve(null);
+        return;
+      }
       if (code === 0) {
         // A folder is chosen to write into as often as to read from, so the
         // grant covers both; a read-only grant here would refuse the output
@@ -432,6 +598,11 @@ function runFolderScript(
       }
     });
     child.on('error', error => {
+      if (tracked.interrupted) {
+        exited('interrupted');
+        resolve(null);
+        return;
+      }
       exited('unavailable');
       reject(error);
     });

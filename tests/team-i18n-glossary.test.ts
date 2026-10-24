@@ -54,20 +54,39 @@ describe('the object noun', () => {
   /**
    * The object is a Space, for one person as much as for fifty (024). "Team workspace" used to be
    * allowed as the name of the mode; it went, because a name that says "team" tells the media
-   * buyer working alone that this is not for them. People are "members" and "people" — never a
-   * team — and this holds across every string, not only the space's own.
+   * buyer working alone that this is not for them. The owner-approved tariff showcase (9dca022d)
+   * separately names a commercial plan "Team" and describes a group of people. Only its three
+   * reviewed keys have that meaning; product objects and all other strings retain this rule.
    */
   const everyString = (locale: (typeof LOCALES)[number]) =>
     translationKeys.map(key => ({ key, value: translate(locale, key) }));
+  const commercialContexts: ReadonlySet<string> = new Set([
+    'tariffShowcaseLead',
+    'tariffShowcaseTeam',
+    'tariffShowcaseTeamDescription'
+  ]);
+  const objectNounOffenders = (entries: { key: string; value: string }[], pattern: RegExp) =>
+    entries.filter(({ key, value }) => !commercialContexts.has(key) && pattern.test(value));
 
-  it('never says "team" in English', () => {
-    const offenders = everyString('en').filter(({ value }) => /\bteam(s|mates?)?\b/iu.test(value));
+  it('keeps "team" out of object names outside reviewed commercial contexts', () => {
+    const offenders = objectNounOffenders(everyString('en'), /\bteam(s|mates?)?\b/iu);
     expect(offenders).toEqual([]);
   });
 
-  it('never says «команда» in Ukrainian', () => {
-    const offenders = everyString('uk').filter(({ value }) => /команд/iu.test(value));
+  it('keeps «команда» out of object names outside reviewed commercial contexts', () => {
+    const offenders = objectNounOffenders(everyString('uk'), /команд/iu);
     expect(offenders).toEqual([]);
+  });
+  it('does not exempt other showcase copy or product labels', () => {
+    const entries = [
+      { key: 'tariffShowcaseTeam', value: 'Team' },
+      { key: 'tariffShowcaseOther', value: 'Team' },
+      { key: 'teamSpaceSettings', value: 'Team settings' }
+    ];
+    expect(objectNounOffenders(entries, /\bteam\b/iu).map(entry => entry.key)).toEqual([
+      'tariffShowcaseOther',
+      'teamSpaceSettings'
+    ]);
   });
 });
 

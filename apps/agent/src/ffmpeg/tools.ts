@@ -52,12 +52,15 @@ export interface MediaInfo {
   width: number | null;
   height: number | null;
   frameRate: number | null;
+  /** Present only when packet timing proves the moving cadence rather than a header average. */
+  measuredBodyFrameRate?: number | null;
   /**
    * What the container declares the stream's rate to be, as opposed to its average.
    *
    * The two differ whenever a file deliberately holds a picture: a final image held for half
    * an hour drags the average down to a couple of frames a second while the moving part is
-   * still thirty. Checks about "did we encode at the rate we asked for" want this one.
+   * still thirty. This is a fallback when packet timing cannot prove the body rate;
+   * measuredBodyFrameRate takes precedence when it is available.
    */
   nominalFrameRate: number | null;
   bitrate: number | null;
@@ -123,7 +126,12 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
   const nominal = parseFrameRate(video.r_frame_rate);
   const average = parseFrameRate(video.avg_frame_rate);
   const differs = nominal && average && Math.abs(nominal - average) / nominal > 0.01;
-  const bodyRate = differs ? await probeBodyFrameRate(inputPath, nominal, command) : null;
+  // With only one moving frame, both header rates can describe the held tail.
+  const sparseHeader = nominal !== null && nominal < 1 && (videoDuration ?? 0) > 4;
+  const bodyRate =
+    (differs || sparseHeader) && nominal
+      ? await probeBodyFrameRate(inputPath, nominal, command)
+      : null;
 
   return {
     duration,
@@ -132,6 +140,7 @@ export async function probeMedia(inputPath: string, command = ffprobePath): Prom
     height: rotated ? codedWidth : codedHeight,
     // The average includes sparse held screens and cannot time individual body frames.
     frameRate: bodyRate ?? average ?? nominal,
+    ...(bodyRate !== null ? { measuredBodyFrameRate: bodyRate } : {}),
     nominalFrameRate: parseFrameRate(video.r_frame_rate) ?? parseFrameRate(video.avg_frame_rate),
     bitrate: streamBitrate ?? formatBitrate,
     codec: nonEmptyString(video.codec_name),
@@ -156,7 +165,10 @@ export async function probeBodyFrameRate(
   command = ffprobePath
 ): Promise<number | null> {
   const rates: number[] = [];
-  for (const start of [3, 15, 45]) {
+  // Later windows avoid a leading still. A sub-second creative can finish
+  // before every one of them, so inspect its opening only as a fallback.
+  for (const start of [3, 15, 45, 0]) {
+    if (start === 0 && rates.length > 0) break;
     const data = await probeJson(
       [
         '-v',
@@ -166,7 +178,7 @@ export async function probeBodyFrameRate(
         '-read_intervals',
         `${start}%+4`,
         '-show_entries',
-        'packet=pts_time',
+        'packet=pts_time,duration_time',
         '-of',
         'json',
         inputPath
@@ -174,6 +186,13 @@ export async function probeBodyFrameRate(
       command
     );
     const packets: unknown[] = Array.isArray(data?.packets) ? data.packets : [];
+    if (start === 0) {
+      const sparseRate = heldPacketCadence(packets);
+      if (sparseRate !== null) {
+        rates.push(sparseRate);
+        continue;
+      }
+    }
     const times = packets
       .flatMap(packet => {
         if (!packet || typeof packet !== 'object' || !('pts_time' in packet)) return [];
@@ -195,6 +214,40 @@ export async function probeBodyFrameRate(
   const measured = Math.max(...rates);
   const exact = nominal / Math.max(1, Math.round(nominal / measured));
   return Math.abs(exact - measured) / measured <= 0.01 ? exact : measured;
+}
+
+/** A short moving body between sparse holds, proven by packet durations and spacing. */
+export function heldPacketCadence(packets: readonly unknown[]): number | null {
+  const numeric = (value: unknown) =>
+    typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')
+      ? Number(value)
+      : Number.NaN;
+  const timings = packets.map(packet => {
+    if (!packet || typeof packet !== 'object') return null;
+    const entry = packet as { pts_time?: unknown; duration_time?: unknown };
+    const time = numeric(entry.pts_time);
+    const duration = numeric(entry.duration_time);
+    return Number.isFinite(time) && Number.isFinite(duration) && duration > 0
+      ? { time, duration }
+      : null;
+  });
+  if (timings.length < 2 || timings.some(entry => entry === null)) return null;
+  const ordered = timings.filter(entry => entry !== null).sort((a, b) => a.time - b.time);
+  const period = ordered.reduce((minimum, entry) => Math.min(minimum, entry.duration), Infinity);
+  const fast = ordered.map(entry => Math.abs(entry.duration - period) / period <= 0.02);
+  if (!ordered.some(entry => entry.duration >= period * 10)) return null;
+  if (ordered.some((entry, index) => !fast[index] && entry.duration < period * 10)) return null;
+  const first = fast.indexOf(true);
+  const last = fast.lastIndexOf(true);
+  if (fast.slice(first, last + 1).some(value => !value)) return null;
+  if (first === last && last === ordered.length - 1) return null;
+  for (let index = 0; index < ordered.length - 1; index++) {
+    const current = ordered[index]!;
+    const gap = ordered[index + 1]!.time - current.time;
+    if (Math.abs(gap - current.duration) / current.duration > 0.02) return null;
+  }
+  const rate = 1 / period;
+  return Number.isFinite(rate) ? rate : null;
 }
 
 /**

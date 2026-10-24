@@ -3758,6 +3758,36 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_membership_access_signals: {
+        Row: {
+          changed_at: string;
+          revision: number;
+          team_id: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          changed_at?: string;
+          revision?: number;
+          team_id: string;
+          user_id: string;
+        };
+        Update: {
+          changed_at?: string;
+          revision?: number;
+          team_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_membership_access_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_operations: {
         Row: {
           actor_id: string;
@@ -5014,6 +5044,113 @@ export type GeneratedDatabase = {
             referencedColumns: ['id', 'launch_id', 'team_id'];
           }
         ];
+      };
+      analytics_membership_access_signals: {
+        Row: {
+          changed_at: string | null;
+          revision: number | null;
+          team_id: string | null;
+          user_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          changed_at?: string | null;
+          revision?: number | null;
+          team_id?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          changed_at?: string | null;
+          revision?: number | null;
+          team_id?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_membership_access_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_process_output_cleanup: {
+        Row: {
+          actor_id: string | null;
+          attempts: number | null;
+          captured_handoff_expires_at: string | null;
+          cleanup_state: string | null;
+          created_at: string | null;
+          id: string | null;
+          lease_expires_at: string | null;
+          max_attempts: number | null;
+          next_attempt_at: string | null;
+          provider_material_registered: boolean | null;
+          provider_mutation_reserved: boolean | null;
+          provider_result_recorded: boolean | null;
+          updated_at: string | null;
+          upload_state: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          attempts?: number | null;
+          captured_handoff_expires_at?: string | null;
+          cleanup_state?: string | null;
+          created_at?: string | null;
+          id?: string | null;
+          lease_expires_at?: string | null;
+          max_attempts?: never;
+          next_attempt_at?: string | null;
+          provider_material_registered?: never;
+          provider_mutation_reserved?: never;
+          provider_result_recorded?: never;
+          updated_at?: string | null;
+          upload_state?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          attempts?: number | null;
+          captured_handoff_expires_at?: string | null;
+          cleanup_state?: string | null;
+          created_at?: string | null;
+          id?: string | null;
+          lease_expires_at?: string | null;
+          max_attempts?: never;
+          next_attempt_at?: string | null;
+          provider_material_registered?: never;
+          provider_mutation_reserved?: never;
+          provider_result_recorded?: never;
+          updated_at?: string | null;
+          upload_state?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_recovery_execution: {
+        Row: {
+          actor_id: string | null;
+          member_ids: string[] | null;
+          operation_id: string | null;
+          started_at: string | null;
+          team_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          member_ids?: never;
+          operation_id?: string | null;
+          started_at?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          member_ids?: never;
+          operation_id?: string | null;
+          started_at?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [];
       };
       analytics_team_workspace: {
         Row: {
@@ -6652,6 +6789,7 @@ export type GeneratedDatabase = {
       };
       retry_workspace_recovery: { Args: { p_recovery: string }; Returns: boolean };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
+      retire_team_recovery_installation: { Args: { p_installation: string }; Returns: number };
       revoke_team_recovery: { Args: { p_installation: string; p_team: string }; Returns: boolean };
       run_team_catalog_update_now: {
         Args: { p_catalogs: string[]; p_team: string };
@@ -6823,6 +6961,10 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
+      service_authorize_process_output_cleanup: {
+        Args: { p_fence: string; p_operation: string; p_owner: string };
+        Returns: boolean;
+      };
       service_authorize_task_cleanup: { Args: { p_id: string }; Returns: boolean };
       service_begin_catalog_folder: {
         Args: {
@@ -6864,6 +7006,14 @@ export type GeneratedDatabase = {
       service_begin_change_replay: {
         Args: { p_connection: string; p_job: string };
         Returns: boolean;
+      };
+      service_begin_process_output_trash: {
+        Args: { p_fence: string; p_operation: string; p_owner: string };
+        Returns: boolean;
+      };
+      service_begin_team_recovery_execution: {
+        Args: { p_hash: string; p_input: Json };
+        Returns: Json;
       };
       service_bind_drive_credential: {
         Args: { p_actor: string; p_credential: string; p_team: string };
@@ -7059,6 +7209,10 @@ export type GeneratedDatabase = {
           resource_key: string;
           team_id: string;
         }[];
+      };
+      service_claim_process_output_cleanup: {
+        Args: { p_limit?: number; p_owner: string };
+        Returns: Json;
       };
       service_claim_restitch_job: {
         Args: {
@@ -7644,6 +7798,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_get_process_upload: { Args: { p_actor: string; p_operation: string }; Returns: Json };
       service_get_root_operation_context: {
         Args: { p_actor: string; p_permission: string; p_team: string };
         Returns: {
@@ -7953,6 +8108,16 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_operation: string };
         Returns: boolean;
       };
+      service_prepare_process_upload: {
+        Args: {
+          p_actor: string;
+          p_checksum: string;
+          p_connection: string;
+          p_file: string;
+          p_operation: string;
+        };
+        Returns: Json;
+      };
       service_publish_launch_generation: {
         Args: { p_actor: string; p_fence: string; p_generation: string; p_team: string };
         Returns: Json;
@@ -8209,6 +8374,16 @@ export type GeneratedDatabase = {
       service_settle_launch_batch: { Args: { p_limit?: number }; Returns: Json };
       service_settle_launch_restitch_batch: { Args: { p_limit?: number }; Returns: number };
       service_settle_launch_restitch_cancellations: { Args: { p_limit?: number }; Returns: number };
+      service_settle_process_output_cleanup: {
+        Args: {
+          p_code?: string;
+          p_fence: string;
+          p_operation: string;
+          p_owner: string;
+          p_result: string;
+        };
+        Returns: string;
+      };
       service_settle_task_cleanup: { Args: { p_id: string; p_result: string }; Returns: undefined };
       service_start_landing_render: {
         Args: {
@@ -8222,6 +8397,10 @@ export type GeneratedDatabase = {
         Returns: string;
       };
       service_start_launch_process_upload: {
+        Args: { p_actor: string; p_operation: string };
+        Returns: boolean;
+      };
+      service_start_process_upload: {
         Args: { p_actor: string; p_operation: string };
         Returns: boolean;
       };

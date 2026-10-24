@@ -29,15 +29,37 @@ export function useSubresourceUrl(
       setUrl(null);
       return;
     }
-    // A path that changed goes back to "asking", so a stale refusal is not read as this
-    // path's answer.
     setUrl(undefined);
     let active = true;
-    void resolve(path, JSON.parse(extraKey) as Record<string, string>).then(next => {
-      if (active) setUrl(next);
-    });
+    let revision = 0;
+    let unsubscribe: (() => void) | undefined;
+    const load = () => {
+      const requestRevision = ++revision;
+      setUrl(undefined);
+      void resolve(path, JSON.parse(extraKey) as Record<string, string>).then(
+        next => {
+          if (active && requestRevision === revision) setUrl(next);
+        },
+        () => {
+          if (active && requestRevision === revision) setUrl(null);
+        }
+      );
+    };
+    // Subscribe before the first read so a token arriving during an import or
+    // pending request also repairs already-mounted images and media.
+    void import('./pairing-token')
+      .then(({ onPairingToken }) => {
+        if (!active) return;
+        unsubscribe = onPairingToken(load);
+        load();
+      })
+      .catch(() => {
+        if (active) setUrl(null);
+      });
     return () => {
       active = false;
+      revision += 1;
+      unsubscribe?.();
     };
   }, [path, extraKey]);
 

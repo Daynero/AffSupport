@@ -1,0 +1,408 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-24T13:45:15.789506+00:00",
+  "authority": "product-owner",
+  "instruction": "навантаження і хостед тести та і все таке суттєве важко що залишилось відокрем в іншу спєку, а цю завершуй і закоміть все потім",
+  "source": "036-production-acceptance",
+  "destination": "042-production-readiness",
+  "disposition": "scope-transfer-not-test-pass",
+  "priorTaskCount": 182,
+  "previouslyCompleted": 99,
+  "closedOnVerifiedFinalGates": ["T140", "T142", "T151", "T153", "T155"],
+  "transferredOpenTasks": [
+    {
+      "id": "T006",
+      "description": "[P] Написати failing schema/redaction тести campaign/result: PASS без evidence, N/A без причини, stale SHA, секрети, duplicate run IDs у `tests/acceptance-records.test.ts`. Перевірити EvidenceAdoption: foreign SHA без adoption, transitive/змінені dependencies, forbidden categories та підроблені hashes відхиляються.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T007",
+      "description": "Реалізувати strict manifest/record validators і append-only atomic per-run writer у `scripts/acceptance/schema.mjs` та `scripts/acceptance/records.mjs`; дані за `data-model.md`, atomic writes, bounded inputs; довести T006. Додати EvidenceAdoption schema з immutable source/target refs і окремими executed_pass/adopted_pass.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T010",
+      "description": "Реалізувати named local fixture provisioning A/B/C/X/S, W1/W2, Solo/Lead/legacy/pending у `scripts/acceptance/fixtures.mjs`, `variants.mjs` і `cleanup.mjs`; synthetic namespace/manifest, credentials поза evidence, idempotent apply й scoped clear; admin bootstrap відокремити від actor actions.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T011",
+      "description": "Додати failing тести tariff clock gateway/notice/UI узгодженості, DST/місяця, неможливості user override та незмінності lease/JWT часу у `tests/acceptance-clock.test.ts`, `tests/acceptance-clock-deadlines.test.ts` і `tests/space-tariffs-sql.test.ts`. NEXT:76focusedPASS; real fixture ±5years preserves invitation/enrollment/credential/claim-rate/Undo/cleanup-lease deadlines. Merged source includes actual isolated Supabase Auth proof that valid/expired/forged JWT behavior is unchanged under tariff offsets±5years:2native testsPASS on fresh361schema; no Auth host ports, fixture resources removed, beta untouched. Native queue/worker/renderer under+5year overlay and teardownPASS (948pgTAP+29native; proof t011-native-notice-overlay-proof.json). Actual guarded CLI, retained-beta notice capture under overlay and physical UI time remain open; proofs:`clock-deadlines-proof.json`, `t011-native-auth-clock-proof.json`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T012",
+      "description": "Додати production real-time tariff seam у новій `supabase/migrations/20261206141000_tariff_time_seam.sql`; local-only overlay/teardown у `scripts/acceptance/clock.mjs` та `supabase/fixtures/acceptance-clock.sql`; охопити всі tariff gateways/notices, записати rollback в `supabase/migrations/ROLLBACK.md`, довести T011.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T013",
+      "description": "Реалізувати named scoped faults із TTL/teardown у `scripts/acceptance/faults.mjs`; acceptance/status loss, 429/cursor, crash checkpoint, missing/delayed signal; тести cleanup/crash-safe TTL у `tests/acceptance-faults.test.ts`; довільний SQL/code ввід заборонити.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T016",
+      "description": "Додати guard проти включення clock/fault/capture у production у `scripts/verify-beta-env.mjs` та `tests/beta-isolation-guards.test.ts`; довести fixture clear повертає реальний час/мережу й прибирає лише campaign-owned стан. ROOT source/artifact guard and actual release/doctor hooks now integrated;15guard casesPASS, exact local .env alias scanned safely. Fault/teardown and packaged exclusion remain open; proof:`t014-root-integration-proof.json`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T018",
+      "description": "[US1] Підготувати контрольні Drive/media fixtures і очікувані counts/checksums у `scripts/acceptance/media-fixtures.mjs`; не використовувати production папки; посилання на локальний fixture manifest записати у `specs/036-production-acceptance/execution-report.md`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T019",
+      "description": "[US1] Виконати beta doctor/reset/up лише на виділеному стенді, відкрити 2 native Safari profiles + Chrome за `specs/036-production-acceptance/runbook.md`; пройти SET-001–008 та записати `release/acceptance/<campaign-id>/runs/set-<run-id>.json` із browser/agent identity й pairing isolation.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T020",
+      "description": "[US1] Виконати TEAM-001–018 з одночасними last-seat/revoke/accept і двома просторами; записати server denial та триклієнтські докази у `release/acceptance/<campaign-id>/runs/team-<run-id>.json`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T021",
+      "description": "[US1] Виконати ACL-001–016 через UI й actor harness, включно зі старими grants/Realtime та overrides; повторити критичні ролі Safari↔Chrome; записати `release/acceptance/<campaign-id>/runs/acl-<run-id>.json`. Після renewal застосовуються лише актуальні права; старі grants і видалене членство не повертаються.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T022",
+      "description": "[US1] Виконати SYNC-001–025 із faults, sleep/wake, cancel, stale lease, partial/reconnect і pagination; записати terminal та фактичну delivery у `release/acceptance/<campaign-id>/runs/sync-<run-id>.json`, використати read-only sync/investigate за перевіреної test target.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T023",
+      "description": "[US1] Для кожного FAIL US1 додати failing regression у відповідний `tests/team-realtime.test.tsx`, `tests/team-bridge.test.ts` або `tests/team-sync-claim-sql.test.ts`, виправити встановлений origin у apps/supabase, повторити affected cases; IDs/fix SHA/retest зберегти у `release/acceptance/<campaign-id>/defects.jsonl`; за відсутності дефектів записати доказ review.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T029",
+      "description": "[US2] Аудіювати наявні WorkspaceRecovery/RecoveryItem/WorkspacePause/PauseItem у застосованих `supabase/migrations/20261205110000_tariff_recovery.sql`, `20261206110000_recovery_lifecycle.sql`, `20261206120000_recovery_output_fences.sql`: unique epoch/resource keys, captured provenance, RLS/projections, snapshot до renewal і без user content. Довести відповідність current code; застосовані migrations не переписувати, gap fix — тільки additive.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T030",
+      "description": "[US2] Перевірити чинні after_space_tariff_change/apply_tariff_pauses у `supabase/migrations/20261205110000_tariff_recovery.sql` та lifecycle/output follow-ups: atomic capture-before-clear, monotonic epoch, expiry-before-cron, lock order stop/set/renew, current rights. Використати T024–T025; старий snapshot не відновлює старі permissions.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T031",
+      "description": "[US2] Аудіювати чинний claim/dispatch/retry/schedule restore у `supabase/migrations/20261205110000_tariff_recovery.sql` і `20261206110000_recovery_lifecycle.sql`: one-off залишається one-off, manual generation перемагає, missed intervals coalesce, updater12/sync3 budgets, durable registration failures. Новий runtime enqueue≤60s proof належить T050, не виводиться зі статичного audit.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T032",
+      "description": "[US2] Звірити існуючі sync reconciliation, restitch/preview/archive/cleanup та housekeeping seams у recovery migrations і `supabase/functions/catalog-updater/index.ts`: pause не витрачає retries, errors не ковтаються, source/references/current rights перечитуються перед side effects. Розбіжність відтворити regression, а не будувати другого scheduler.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T033",
+      "description": "[US2] Перевірити вже застосовані `supabase/migrations/20261206100000_team_recovery_delegation.sql`, `20261206110000_recovery_lifecycle.sql` та `20261206120000_recovery_output_fences.sql`: delegation hash/rotation/revocation, membership/profile/process loss, enrollment challenge TTL120s і encrypted rotation replay TTL60s. Пройти current tests; нову schema створювати лише для доведеного gap, forward-only.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T034",
+      "description": "[US2] Аудіювати чинні closed Edge actions у `supabase/functions/team-recovery/index.ts`, `handler.ts`, agent `apps/agent/src/team-bridge/recovery-enrollment.ts` і explicit gateway config: delegate/redeem/rotate/revoke, refresh≤30d, short credentials≤5min, protected paired handoff, lost response/replay. Спиратися на T026; чинний endpoint 034 вже існує.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T035",
+      "description": "[US2] Звірити наявні claim/heartbeat/checkpoint/settle у `supabase/functions/team-recovery/handler.ts` із SQL output fences: operation/lease/epoch/generation/source/current-rights, tenant bounds, rate limits, cancellation та durable output/catalog receipt. ClaimCredential не виконує operation, OperationCredential не claim; accepted/settled/delivered — окремі докази.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T038",
+      "description": "[US2] Перевірити чинний background executor у `apps/agent/src/team-bridge/recovery-worker.ts` і lifecycle `index.ts`: managed spawn/hold/resumeForTermination, real/scaled deadlines, offline waiting, checkpoint/current authorization. Повторити T027/034–037 і native no-browser variants; bounded claim/probe/rotation/episode exhaustion має durable reason. Не створювати паралельного executor.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T039",
+      "description": "[US2] Звірити існуючий native ownership handoff у `apps/web/src/team/catalog-updater/useRestitchPreparer.ts`, `apps/web/src/api/team.ts`, `apps/web/src/team/tariffs/BackgroundRecoverySettings.tsx` і `tests/recovery-browser-ownership.test.tsx`: delegate→protected local challenge→agent redeem→durable credential. Browser не запускає другу копію і не оголошує setup до storage receipt.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T040",
+      "description": "[US2] Source upgrade/capability path реалізовано: actor-bound flag залежить від protected credentials, enforced identity й registered runtime; old native не отримує new setup/token, legacy cleanup доступний, native route зберігає closed upgrade/permission/invalid-response codes. Legacy reply без actor не губить refresh handle.124relatedPASS, ownership pending/team/native-instance UI regressions covered. Лишаються live paired/old-artifact compatibility і final gates; production version/manifest не змінювалися.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T041",
+      "description": "[US2] Аудіювати current recovery projection/compatibility resume RPC у `supabase/migrations/20261205110000_tariff_recovery.sql` і lifecycle follow-up; manual-disabled не re-enable. Звірити generated `apps/web/src/lib/database.types.ts` та `supabase/migrations/ROLLBACK.md`; типи вже генерувалися на fresh local full chain, повтор лише після schema change.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T042",
+      "description": "[US2] Повторити `tests/tariff-recovery-ui.test.tsx` для pending/running/partial/blocked/completed, current permissions, stale/reconnect і toast лише після proof. Existing passing behavior 034 не переписувати; новий missing variant спершу зробити failing.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T043",
+      "description": "[US2] Звірити current `apps/web/src/team/tariffs/UpdaterResumeNotice.tsx`, `apps/web/src/team/tariffs/useSpaceAccess.ts`, `apps/web/src/team/workspace/WorkspaceShell.tsx` та uk/en i18n: normal renewal автоматичний, manual resume лише fallback; truthful dependency state, reused UI/tokens, existing Realtime без нового polling. Довести T042 та новим live evidence; файли шукати під `apps/web/src/team/tariffs/` і `apps/web/src/team/workspace/`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T044",
+      "description": "[US2] Аудіювати чинні owner-only updater warnings у `apps/web/src/team/tariffs/TariffBanner.tsx`, `supabase/functions/tariff-notices/templates.ts`, `tests/tariff-notices.test.ts`: exact state/date/content/dedup та active-updater distinction. Captured≠delivered; NEXT recording adapter, baseline359 live capture і actual scheduled producer/updater bilingual content/dedup verified (`t014-mail-updater-proof.json`). Owner-only UI, full overlay acceptance and ROOT integration remain open.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T045",
+      "description": "[US2] Звірити існуючі typed recovery stages/correlation у `packages/shared/src/team/analytics.ts`, web analytics events, agent journal/worker і current `tests/analytics-tariff-recovery.test.ts`: acceptance/started/terminal/delivered розділені, privacy-safe bounded payload. Не створювати другий vocabulary або неіснуючий старий test path.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T046",
+      "description": "[US2] Перевірити чинні `scripts/analytics/investigate.ts`, `queries.ts`, `schema.ts`, `code-map.ts`, `coverage-registry.ts` та `tests/analytics-tariff-recovery.test.ts`: recovery/item/reason/last-proven-stage, missing/delayed signals, retry_exhausted/episode/probe/claim counters і credential stage без secrets. Новий local read-only diagnosis має зберігати standard envelope та explicit unknown.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T047",
+      "description": "[US2] Аудіювати наявну retention у `supabase/migrations/20261206110000_recovery_lifecycle.sql` і SQL/delegation regressions: terminal≥30d, active/waiting/audit не видаляються, PauseItem/WorkspacePause зберігаються до всіх dependent terminals та потрібного horizon. Фактичний byte-growth/cleanup/reconnect proof включити в capacity evidence; final workload counts невідомі до LOAD.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T048",
+      "description": "[US2] Після audit T024–T047 пройти current single-worker recovery suites, real PostgreSQL/Vault concurrency і canonical verify. Оновити 034 contracts/findings та `docs/ADMIN-TARIFFS.md` лише новими доведеними фактами. Development closure 034 не переносити у manual/final acceptance 036; release-only 034 T044 лишається окремим.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T049",
+      "description": "[US2] Виконати TARIFF-001–022 та LIFE-001–020 на synthetic fixtures; зберегти clock/legacy/internal/admin distinctions і capture evidence у `release/acceptance/<campaign-id>/runs/tariff-<run-id>.json` та `cases/life.jsonl`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T050",
+      "description": "[US2] Виконати LIFE-021–031 та LIFE-033–036: warning, no-browser executor, 60с/5хв, offline dependencies, double renewal/stop race/crash та частковий diagnosis; записати `release/acceptance/<campaign-id>/runs/recovery-<run-id>.json`; LIFE-032 належить T074 (US5 LOAD-08), тому не блокує початок US5. Включити snapshot restart до оплати, current-permission denial та enrollment/rotation loss variants.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T051",
+      "description": "[US2] Для нових FAIL US2: failing regression→fix→retest, повтор affected ACL/SYNC/LAUNCH, immutable defect evidence у `release/acceptance/<campaign-id>/`. Звірити завершені development milestones 034 і відкритий release-only T044; не перевідкривати 034 T029 і не закривати acceptance T049–050 без нового runtime proof.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T052",
+      "description": "[US3] Підготувати needs_reauth/некешований original/removed member/combined tariff fixtures у `scripts/acceptance/read-only-fixtures.mjs`; setup/teardown лише synthetic Drive, описати manifest у `specs/036-production-acceptance/runbook.md`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T053",
+      "description": "[US3] Виконати RO-001–006 з UI та прямими actor calls, повторити ролі Safari↔Chrome; записати відмінності причин/дій/доступних preview у `release/acceptance/<campaign-id>/runs/read-only-<run-id>.json`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T054",
+      "description": "[US3] На кожний дефект додати regression у `tests/team-read-only-acceptance.test.tsx` та при серверній помилці у `supabase/tests/database/team-read-only-acceptance.test.sql`; виправити підтверджене місце й повторити RO/ACL/LIFE перетини, evidence у `release/acceptance/<campaign-id>/defects.jsonl`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T055",
+      "description": "[US4] Написати failing report completeness tests: missing case/variant, duplicate/stale evidence, invalid exclusions, totals та wrong-target metrics у `tests/acceptance-report.test.ts`. Перевірити окремі adopted/executed totals, dependency closure і відмову adoption для P0/security/tariffs/recovery/load/backup/Windows credentials/package.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T056",
+      "description": "[US4] Реалізувати report/join/hash verification у `scripts/acceptance/report.mjs`, registry 174 ID у `scripts/acceptance/catalog.mjs` та CLI report command у `scripts/acceptance/cli.mjs`; не перезаписувати canonical verification-result/beta record; довести T055. Додати scripts/acceptance/adopt-evidence.mjs і CLI adopt-evidence, reviewed closure/hash validation за data-model §5a; source records незмінні.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T057",
+      "description": "[US4] Виконати REG-001–016, REG-018–020: пошук/виділення, landing, компресор, transcript, restitch/audio, фінанси/РК, tasks/catalogs, local tools, power/security/2FA; записати `release/acceptance/<campaign-id>/runs/regression-<run-id>.json`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T058",
+      "description": "[US4] Виконати LAUNCH-001–013 якщо включено у candidate: generation/revisions/checkpoints/cancel/authority/cleanup; докази у `release/acceptance/<campaign-id>/runs/launches-<run-id>.json`; N/A можливе лише з доказом виключення routes/shared/migrations у `specs/036-production-acceptance/scope.md`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T059",
+      "description": "[US4] Виконати REG-017 на Windows і multi-device agent flows, перевірити credential storage/recovery/cancel/sleep; записати `release/acceptance/<campaign-id>/runs/windows-<run-id>.json`; Native Windows execution owner-excluded за acceptance-policy.json; фактичний NOT_RUN зберігається, Windows-сумісність не підтверджено. Не виключати macOS multi-device checks.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T060",
+      "description": "[US4] Виконати OBS-001–007: diagnosis terminal/delivery/missing signals, 60-хв idle gallery, grants reuse/retention/physical disk; зберегти `release/acceptance/<campaign-id>/runs/observability-<run-id>.json`, cumulative counters тільки з reset-aware delta.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T061",
+      "description": "[US4] Виправити REG/LAUNCH/OBS дефекти з failing tests у відповідних `tests/launch-*.test.ts`, `tests/landing-grant-reuse.test.ts` або інших реально зачеплених suites; fix/retest/affected-scope evidence внести у `release/acceptance/<campaign-id>/defects.jsonl`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T062",
+      "description": "[US4] Згенерувати проміжний report у `release/acceptance/<campaign-id>/report.md` та `.json`; зіставити кожен файл `specs/036-production-acceptance/scope.md` з конкретним case/gate, винести pending LOAD/backup/package як NOT_RUN, не GO.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T063",
+      "description": "[P] [US5] Написати failing load accounting tests для offered/achieved rate, timeout/missing delivery, dropped actions, stop/recovery і sockets cleanup у `tests/acceptance-load.test.ts`. Перевірити browser action→correct visible DOM latency, stale results, warmup, timeout/censored denominator і окрему API latency.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T064",
+      "description": "[P] [US5] Написати failing metrics tests mixed SQL/management target, unavailable gauges, counter reset та projection cycles у `tests/acceptance-metrics.test.ts`. Додати tests/acceptance-hosted-runtime.test.ts: missing cron/functions/ingestion, stale readiness, wrong SHA/config, відмова до першого запису поза allowlist.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T065",
+      "description": "[US5] Реалізувати authenticated clients з реальними Realtime subscriptions, arrival scheduler і latency recorder у `scripts/acceptance/load.mjs` та `scripts/acceptance/load-clients.mjs`; використовувати actors harness, bounded concurrency й service-role тільки в окремому provisioning; довести T063. Додати scripts/acceptance/browser-probes.mjs та test-only apps/web/src/analytics/acceptance-probe.ts; реальні Safari A/B і Chrome C, action/DOM revision hooks та collector за acceptance-tooling contract.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T066",
+      "description": "[US5] Реалізувати LOAD-01–10 profiles/data seeds у `scripts/acceptance/load-profiles.mjs` та `scripts/acceptance/load-fixtures.mjs` за `specs/036-production-acceptance/capacity-plan.md`; 30/50 осіб, 1/10/50 команд, 150-tab burst, actual media size/cache mix; CLI load у `scripts/acceptance/cli.mjs`. Browser probe sessions входять до загальних 30/50; LOAD-02/03/04/06/07 мають ≥100 measured attempts/action/browser після 10 warmups.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T067",
+      "description": "[US5] Додати explicit verified acceptance binding для management у `scripts/analytics/database-health.ts` і `scripts/analytics/cli.ts`; mismatch SQL/auth/functions/management та production target відхиляти, не використовувати activeBinding мовчки; довести T064.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T068",
+      "description": "[US5] Реалізувати bounded read-only metrics collector у `scripts/acceptance/metrics.mjs`: CPU/RAM/IO/pool, DB/index/grants/history, Functions, Storage/egress, Realtime; unavailable=null+reason, heavy scans start/end, local agent/generator load окремо; не писати ad-hoc production SQL. Окремо рахувати idle claim/probe/rotation/heartbeat/diagnostic cost з числових recovery budgets.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T069",
+      "description": "[US5] Реалізувати stop thresholds та recovery observation у `scripts/acceptance/load.mjs`: ≥85% ресурсу, >1% unexpected errors/5 хв, leakage/loss/storm; залишити evidence, зупинити лише власний generator, перевірити повернення baseline ≤10 хв.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T070",
+      "description": "[US5] Реалізувати 30/90-day forecast з idle/onboarding/fan-out/other-projects, physical≠logical DB, separate egress buckets та ≥30% headroom у `scripts/acceptance/projection.mjs`; тести формул/unknown у `tests/acceptance-projection.test.ts`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T071",
+      "description": "[US5] Підготувати окремий hosted acceptance manifest і synthetic provisioning через `scripts/acceptance/hosted-target.mjs`, інтегрувати preflight; існуючі local beta guards не послаблювати; ціль і джерела метрик задокументувати у `release/acceptance/<campaign-id>/target.json`; відсутність дозволеного стенду — BLOCKED, без production fallback чи автоматичної покупки. Реалізувати scripts/acceptance/hosted-runtime.mjs і CLI hosted prepare/verify: immutable candidate runtime manifest, migrations/Functions/web deployment, Realtime/RLS, scheduler/test secrets, scoped ingestion roundtrip, actual worker/Auth/agent readiness і scoped teardown. Prepare виконує synthetic smoke; verify read-only перевіряє evidence/identity/freshness. Bootstrap повністю за acceptance-tooling contract.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T072",
+      "description": "[US5] Виконати LOAD-01 локально й LOAD-02–05 на verified hosted target: 30/50 людей та fan-out/per-team extremes; ≥100 delivery samples/profile, записати raw/summary у `release/acceptance/<campaign-id>/load/`; локальні результати позначити local, не hosted proof. Вимагати hosted readiness ≤15 хв та незмінні digests; LOAD-02/03/04 включає native UI probes, API-only result не доводить SC-003.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T073",
+      "description": "[US5] Виконати LOAD-06 8 годин і LOAD-07 150-вкладковий reconnect burst, включно з macOS/browser foreground; записати percentiles/error/queue/ресурсні тренди у `release/acceptance/<campaign-id>/load/soak.json` та `burst.json`. LOAD-06/07 включає ті самі native browser probes та censored/timeout облік; identity перевірити після прогону.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T074",
+      "description": "[US5] Виконати LOAD-08–10: mass renewal/permission loss, великий індекс+cleanup та backend recovery; закрити LIFE-032/OBS-008 доказами у `release/acceptance/<campaign-id>/load/recovery.json`, підтвердити 60с/5хв і ≤10хв recovery без дубльованих результатів. Довести budgets retry/idle requests і bounded exhaustion під faults, без приховування 5-хвилинних порушень.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T075",
+      "description": "[US5] Виконати ізольований backup/restore drill для DB/потрібного Storage/Drive references та прав, RPO ≤24год/RTO ≤4год; OBS-009 evidence й контрольні hashes зберегти у `release/acceptance/<campaign-id>/backup-restore.json`; зовнішні файли не оголошувати покритими DB dump.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T076",
+      "description": "[US5] Оновити офіційні квоти/ціни на дату execution та resource decision у `specs/036-production-acceptance/capacity-plan.md` і `release/acceptance/<campaign-id>/capacity.json`; Free тільки з доказами, якщо не проходить — кошторис Pro+Micro/найменшого compute і повтор LOAD-03/04/06/07 до verdict; невиконаний paid trial лишити unproven.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T077",
+      "description": "[US5] Для bottleneck/recovery дефектів додати failing regression у відповідні `tests/analytics-database-health.test.ts`, `tests/catalog-updater-worker.test.ts` або справжній origin, виправити й повторити affected load profiles; докази у `release/acceptance/<campaign-id>/defects.jsonl`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T078",
+      "description": "Оновити `docs/ADMIN-TARIFFS.md`, `docs/ANALYTICS_CLI.md`, `docs/BETA.md` та `specs/036-production-acceptance/quickstart.md` під реально реалізовані команди/автовідновлення; синхронізувати закриття 034 T023–T029 за mapping і доказами.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T079",
+      "description": "Зафіксувати фінальний clean candidate/artifact/schema manifest та impact analysis у `release/acceptance/<campaign-id>/manifest.json`; повторити P0/P1 affected cases і весь critical smoke, інвалідувати stale evidence; не комітити сторонню роботу автоматично. Створити нову immutable campaign для нового SHA. Перенесення лише через валідний EvidenceAdoption; усі P0, tariff/security/recovery, LOAD/performance, backup, Windows credentials/recovery і packaged evidence виконати заново.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T081",
+      "description": "На тому самому SHA виконати beta down/package/verify за `docs/BETA.md`, перевірити digests/clean-tree/exact SHA у `release/beta/verification.json`; записати OBS-010 у `release/acceptance/<campaign-id>/runs/package-<run-id>.json`, real-time smoke без fixture overlay.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T082",
+      "description": "Звірити 174 case outcomes/required variants, LOAD-01–10, Windows, backup, privacy і сліпі зони; сформувати SC-001–007/FR-016 verdict у `specs/036-production-acceptance/execution-report.md` та `release/acceptance/<campaign-id>/report.json`; FAIL/BLOCKED/NOT_RUN критичного тесту забороняє GO.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T083",
+      "description": "Оформити handoff у `release/acceptance/<campaign-id>/handoff.md`: GO/NO-GO, blockers/owners, вибраний plan/compute, bounded read-only monitoring перших 14 днів і хвиль 10/30/50; не створювати розклад/оплату/deploy, production лише окремо за `docs/PRODUCTION.md`.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T139",
+      "description": "Виправити late provider result після cancel generic process. Agent bounded MD5/protocolv2, captured-ID Edge start/finalize, v2 If-Match recovery, durable adoption/ingestion fences, one-minute scheduler і privacy-safe CLI реалізовано. Local351 migrations applied безreset;869pgTAP/34files+9nativePASS. Real captured-ID success, old-producer refusal, inflight finalPUT/cancel/revokedfinalize403/automatictrash1attempt PASS. T146/T147 actual UI success/Stop download+processing і visible progressModalPASS; T148 officialrestart cleanupPASS; T149 renamed/moved preservationPASS. Registered firstfixture retained якevidence. Залишаються remaining adversarial coverage review/actual UI last-upload Stop таfinal gates; units не називати liveproviderproof. Не послаблювати revoked grants іне видаляти original/overwrite/published/moved/modified files.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T141",
+      "description": "Додаткові opt-in реальні media/Whisper/translation та PostgreSQL tariff concurrency checks: виконати доступне послідовно, записати skips і resource/tool limits.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T160",
+      "description": "Завершити actor binding фонового виконавця: signed native cache, authoritative server actor у redeem, обов’язковий verified identity callback, перевірки після async boundaries, legacy fail-closed protocol2 та unknown-identity wait реалізовано. Source357 canonical885pgTAP+14nativePASS. Лишаються зрозумілий upgrade старого desktop/Edge, live paired A/B acceptance, current fullgates і решта T034/T038 mapping. Не закривати за самими mocks або boolean entitlement guard.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T161",
+      "description": "Завершити durable retirement: revoking marker перед зміною native actor, керований cancel, scoped current/previous-refresh server revoke, authenticated actor+installation logout, protected handles до acknowledgement, offline/restart і newer-handle separation реалізовано.2RED persistence regressions виправлено; native journal має distinct pending/server-ack/local-cleanup phases, investigate/audit розрізняють їх. Canonical885pgTAP+14nativePASS;153 related diagnosticPASS. Лишаються server/browser-only receipt після втрати native/session, delegate/rotation/cross-tab races, live paired acceptance і current fullgates. Browser sign-out/local preparation не прирівнювати до server acknowledgement; critical diagnostic gap залишає audit partial.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T162",
+      "description": "Закрити native publication race: paired revision capture before cloud exchange, serialized native CAS, invalidation on logout/account handoff/restart, same-actor renewal compatibility, post-reply browser fence й bounded abort.7RED→GREEN/98relatedPASS, shared closed diagnostic reasons/code map реалізовано. Повторити broader types/lint/static checks, live paired A/B і actual journal→local capture→read-only CLI; потім current full gates. Не вважати localStorage або Web Locks самостійним native ordering fence.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T167",
+      "description": "Complete browser-only/session-loss retirement diagnostics. ROOT source and guarded beta358 now implement transactional actor-scoped receipts, typed bounded acknowledgement correlation and read-only CLI. Actual X/W2 vs A isolation, before-write/after-commit loss, cached-attempt replay after fresh setup and original endpoint compatibilityPASS;8/8capture events accepted and diagnosed. Current full verification/T170 and genuinely unobservable browser/native stages with their documented fallback remain to audit before closure.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T169",
+      "description": "Fence old logout across replacement session and pending OAuth intent. ROOT and source beta now run cooperative SDK/session-intent ownership plus typed diagnostics/actor-safe CLI; real SDK regressions and actual local capture/CLI passed. Schema358/runtime cutover preserved profile/pairing/Drive and owner tariff files; native X→A handoff and journal replay repeatPASS. Current full verification/T170, physical two-tab Web Locks and old non-cooperating tab compatibility remain open; raw upstream SDK unchanged.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T177",
+      "description": "Finish verified non-transitive evidence-adoption loading, dependency/policy/runtime closure and immutable review publication, then integrate separate executed/adopted report accounting per US4/AC1, plan:data-model§5a and T006/T007/T056 (partial). Reuse NEXT's tested Git/source/schema readers; reject incomplete dependencies, changed drivers/policy, foreign artifacts and all protected categories. Never enable adoption merely from caller-supplied context. Runtime/environment closure depends on verified producer observations from T181; implement that prerequisite before enabling the writer.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T178",
+      "description": "Implement the missing named scoped fault lifecycle and actual test-only seams, bounded TTL, owned clear/crash recovery, privacy-safe diagnostics and production containment regressions per FR-005/FR-008/FR-013/FR-016, plan:controlled faults and T013/T016 (missing). Closed allowlist only; no arbitrary SQL/code or production target.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T179",
+      "description": "Complete authenticated workload clients, arrival profiles, correct-result native-browser probes, bounded stop/recovery and CLI orchestration per FR-010, SC-002/SC-003, US5/AC1 and T063/T065/T066/T069/T072–T074 (missing). Keep API/UI latency separate, retain warmups/timeouts/censored attempts, and measure actual 30/50-user delivery rather than relabel calibration as load acceptance.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T180",
+      "description": "Implement explicit verified SQL/Auth/Functions/management acceptance binding and bounded resource collection, including reset-aware counters and unknown gauges, then connect existing 30/90-day projection per FR-011, SC-005, US5/AC2 and T064/T067/T068/T070/T076 (partial). Management must never silently fall back to activeBinding for an acceptance run; no production mutation or unapproved paid resource.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T181",
+      "description": "Implement hosted acceptance target/runtime prepare/verify/teardown with exact identity, fresh readiness and scheduler/Auth/Realtime/worker/diagnostic proofs per FR-010/FR-013, SC-002/SC-003 and T064/T071 (missing). Execution needs a separately authorized test project; absent configuration remains an external blocker, never a production fallback. Depend on T180's explicit binding.",
+      "status": "OPEN"
+    },
+    {
+      "id": "T182",
+      "description": "Implement and execute the isolated backup/restore drill with bounded source/restore ownership, schema/data/control-record and permission readbacks, measured RPO/RTO and explicit external-file coverage per FR-014, SC-007 and T075 (missing). Never overwrite the retained connected beta or claim a database dump backs up Drive contents; record unavailable hosted prerequisites honestly.",
+      "status": "OPEN"
+    }
+  ],
+  "retainedCompleted": 104,
+  "transferredOpen": 78,
+  "productionReadiness": "NOT_ESTABLISHED",
+  "nativeWindows": "owner-excluded; not PASS"
+}

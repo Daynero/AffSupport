@@ -445,11 +445,14 @@ describe('writers', () => {
       { decision: 'missing', skew: 'unknown' }
     ]);
 
-    await expect(gate.acceptToken('wat1.garbage.garbage')).rejects.toThrow(
+    await expect(gate.acceptToken('wat1.garbage.garbage', gate.identityRevision())).rejects.toThrow(
       'ENTITLEMENT_TOKEN_INVALID'
     );
     const iat = Math.floor(now / 1000) + 120;
-    await gate.acceptToken(issue({ v: 1, sub: 'user-1', plan: 'free', iat, exp: iat + 3600 }));
+    await gate.acceptToken(
+      issue({ v: 1, sub: 'user-1', plan: 'free', iat, exp: iat + 3600 }),
+      gate.identityRevision()
+    );
     now += 3600 * 1000 + 130_000;
     gate.status();
     expect(records('entitlement').map(record => record.props)).toEqual([

@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select has_table('private','team_recovery_execution_fences','one-time execution fences exist');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.team_recovery_execution_fences'::regclass),'execution fence forces RLS');
+select ok(not has_table_privilege('service_role','private.team_recovery_execution_fences','SELECT,INSERT,UPDATE,DELETE'),'service cannot alter the durable fence directly');
+select ok(not has_function_privilege('anon','public.service_begin_team_recovery_execution(bytea,jsonb)','EXECUTE'),'anonymous callers cannot reserve execution');
+select ok(not has_function_privilege('authenticated','public.service_begin_team_recovery_execution(bytea,jsonb)','EXECUTE'),'browser roles cannot reserve execution');
+select ok(has_function_privilege('service_role','public.service_begin_team_recovery_execution(bytea,jsonb)','EXECUTE'),'trusted Edge can reserve execution');
+select ok(not has_function_privilege('service_role','private.service_team_recovery_core(text,bytea,jsonb)','EXECUTE'),'legacy core cannot bypass the public checkpoint wrapper');
+select ok(exists(select 1 from pg_trigger where tgrelid='private.team_recovery_execution_fences'::regclass and tgname='task_cleanup_reference_fence' and tgenabled<>'D'),'execution metadata registers the material reference fence');
+select ok(private.task_cleanup_coverage_verified(),'the complete current consumer schema has registered reference fences');
+select is((select array_agg(column_name::text order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='analytics_recovery_execution'),array['operation_id','team_id','actor_id','started_at','member_ids']::text[],'diagnostic projection contains only correlation and reservation metadata');
+select * from finish();
+rollback;

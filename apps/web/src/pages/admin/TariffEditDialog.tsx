@@ -104,7 +104,12 @@ export function TariffEditDialog({
           />
         </FormField>
         <FormField label={t('adminTariffEndsOn')}>
-          <TariffDateField value={endsOn} onChange={setEndsOn} label={t('adminTariffEndsOn')} />
+          <TariffDateField
+            tariffToday={row.tariffToday}
+            value={endsOn}
+            onChange={setEndsOn}
+            label={t('adminTariffEndsOn')}
+          />
         </FormField>
         {(selected?.extraSeatsAllowed ?? true) && (
           <FormField label={t('adminTariffExtraSeats')} htmlFor={seatsId}>

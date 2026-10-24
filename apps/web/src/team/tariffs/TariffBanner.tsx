@@ -25,7 +25,8 @@ import { useOptionalSpaceAccess } from './useSpaceAccess';
 
 const DISMISS_KEY = 'soty.tariff-banner.dismissed.v1';
 
-function kyivToday(): string {
+function kyivToday(tariffToday?: string): string {
+  if (tariffToday) return tariffToday;
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date());
 }
 
@@ -33,21 +34,24 @@ function dismissKey(banner: SpaceAccessBanner): string {
   return `${banner.teamId}:${banner.endsOn}`;
 }
 
-function readDismissed(banner: SpaceAccessBanner): boolean {
+function readDismissed(banner: SpaceAccessBanner, tariffToday?: string): boolean {
   try {
     const stored = JSON.parse(window.localStorage.getItem(DISMISS_KEY) ?? '{}') as Record<
       string,
       string
     >;
-    return stored[dismissKey(banner)] === kyivToday();
+    return stored[dismissKey(banner)] === kyivToday(tariffToday);
   } catch {
     return false;
   }
 }
 
-function writeDismissed(banner: SpaceAccessBanner): void {
+function writeDismissed(banner: SpaceAccessBanner, tariffToday?: string): void {
   try {
-    window.localStorage.setItem(DISMISS_KEY, JSON.stringify({ [dismissKey(banner)]: kyivToday() }));
+    window.localStorage.setItem(
+      DISMISS_KEY,
+      JSON.stringify({ [dismissKey(banner)]: kyivToday(tariffToday) })
+    );
   } catch {
     // A private window: the banner simply comes back on the next visit.
   }
@@ -69,8 +73,10 @@ export function TariffBanner({ teamId }: { teamId: string }) {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    setDismissed(banner ? banner.kind === 'warn_3d' && readDismissed(banner) : false);
-  }, [banner]);
+    setDismissed(
+      banner ? banner.kind === 'warn_3d' && readDismissed(banner, access?.tariffToday) : false
+    );
+  }, [access?.tariffToday, banner]);
 
   if (!banner || dismissed) return null;
 
@@ -80,7 +86,8 @@ export function TariffBanner({ teamId }: { teamId: string }) {
   const copy = bannerCopy(banner);
   const date = formatTariffDay(
     banner.kind === 'grace' ? banner.graceUntil : banner.endsOn,
-    language
+    language,
+    access?.tariffToday
   );
   const text = [
     t(copy.key, copy.dated ? { date } : {}),
@@ -117,7 +124,7 @@ export function TariffBanner({ teamId }: { teamId: string }) {
               label={t('tariffBannerHide')}
               size="sm"
               onClick={() => {
-                writeDismissed(banner);
+                writeDismissed(banner, access?.tariffToday);
                 setDismissed(true);
               }}
             >
@@ -155,11 +162,11 @@ export function TariffToastNotice({
     push({
       tone: 'success',
       text: t(toast.kind === 'granted' ? 'tariffToastGranted' : 'tariffToastRenewed', {
-        date: formatTariffDay(toast.endsOn, language)
+        date: formatTariffDay(toast.endsOn, language, spaceAccess?.access?.tariffToday)
       })
     });
     void ack(toast.eventId).catch(() => undefined);
-  }, [ack, language, push, t, toast]);
+  }, [ack, language, push, spaceAccess?.access?.tariffToday, t, toast]);
 
   return null;
 }

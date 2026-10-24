@@ -52,7 +52,7 @@ export interface TaskAutosave {
   /** Send the refused write anyway, over the newer version. */
   overwrite: () => void;
   /** Drop the refused write and take the server's task. */
-  takeNewer: () => void;
+  takeNewer: (confirmed?: TeamTaskSummary) => void;
 }
 
 const TYPING_PAUSE_MS = 700;
@@ -74,6 +74,9 @@ export function useTaskAutosave({
   const pending = useRef<TeamTaskPatch | null>(null);
   const timer = useRef<number | null>(null);
   const savedFor = useRef<number | null>(null);
+  const blocked = useRef(false);
+  const readEpoch = useRef(0);
+  const live = useRef(true);
 
   const writeRef = useRef(write);
   writeRef.current = write;
@@ -86,7 +89,16 @@ export function useTaskAutosave({
     merge: (held, next) => ({ ...held, ...next }),
     write: async patch => {
       const updated = await writeRef.current(patch);
+      // A successful earlier edit must not be replayed with a later refused field.
+      if (refused.current) {
+        const remaining = { ...refused.current };
+        for (const key of Object.keys(patch) as Array<keyof TeamTaskPatch>) {
+          if (remaining[key] === patch[key]) delete remaining[key];
+        }
+        refused.current = Object.keys(remaining).length ? remaining : null;
+      }
       savedRef.current(updated);
+      if (!live.current) return;
       setState('saved');
       // "Saved" is a receipt, not a status: it says so and then gets out of
       // the way, because a permanent badge is something to read every time.
@@ -94,19 +106,31 @@ export function useTaskAutosave({
       savedFor.current = window.setTimeout(() => setState('idle'), 2_500);
     },
     onError: async error => {
+      blocked.current = true;
+      const epoch = ++readEpoch.current;
+      refused.current = { ...refused.current, ...pending.current };
+      pending.current = null;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+      if (savedFor.current !== null) window.clearTimeout(savedFor.current);
+      savedFor.current = null;
+      setConflict(null);
       if (teamErrorCodeOf(error) !== 'SOURCE_CHANGED') {
         setState('failed');
         return;
       }
       setState('conflict');
       const newer = await readRef.current().catch(() => null);
-      setConflict(newer);
+      if (live.current && readEpoch.current === epoch && blocked.current) setConflict(newer);
     }
   });
 
   const send = useCallback(
     (patch: TeamTaskPatch) => {
       refused.current = { ...refused.current, ...patch };
+      if (blocked.current) return;
+      if (savedFor.current !== null) window.clearTimeout(savedFor.current);
+      savedFor.current = null;
       setState('saving');
       writer.send(patch);
     },
@@ -139,6 +163,13 @@ export function useTaskAutosave({
 
   const saveSoon = useCallback(
     (patch: TeamTaskPatch) => {
+      if (blocked.current) {
+        refused.current = { ...refused.current, ...pending.current, ...patch };
+        pending.current = null;
+        if (timer.current !== null) window.clearTimeout(timer.current);
+        timer.current = null;
+        return;
+      }
       pending.current = { ...pending.current, ...patch };
       if (timer.current !== null) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => {
@@ -151,30 +182,52 @@ export function useTaskAutosave({
     [send]
   );
 
-  // A field left with a word in it is a word the person meant to keep.
-  useEffect(
-    () => () => {
+  // Close still flushes an ordinary draft, but never bypasses a known conflict.
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+      readEpoch.current += 1;
       if (timer.current !== null) window.clearTimeout(timer.current);
       if (savedFor.current !== null) window.clearTimeout(savedFor.current);
       const held = pending.current;
-      if (held) void writeRef.current(held).catch(() => undefined);
-    },
-    []
-  );
+      pending.current = null;
+      if (held && !blocked.current) void writeRef.current(held).catch(() => undefined);
+    };
+  }, []);
 
   const overwrite = useCallback(() => {
-    const patch = refused.current;
+    const patch = { ...refused.current, ...pending.current };
+    pending.current = null;
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+    readEpoch.current += 1;
+    blocked.current = false;
     setConflict(null);
-    if (patch) send(patch);
+    if (Object.keys(patch).length) send(patch);
   }, [send]);
 
-  const takeNewer = useCallback(() => {
-    const newer = conflict;
-    refused.current = null;
-    setConflict(null);
-    setState('idle');
-    if (newer) savedRef.current(newer);
-  }, [conflict]);
+  const takeNewer = useCallback(
+    (confirmed?: TeamTaskSummary) => {
+      const newer =
+        confirmed &&
+        conflict &&
+        confirmed.id === conflict.id &&
+        confirmed.teamId === conflict.teamId
+          ? confirmed
+          : conflict;
+      readEpoch.current += 1;
+      blocked.current = false;
+      refused.current = null;
+      pending.current = null;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+      setConflict(null);
+      setState('idle');
+      if (newer) savedRef.current(newer);
+    },
+    [conflict]
+  );
 
   return { save, saveSoon, flush, state, conflict, overwrite, takeNewer };
 }

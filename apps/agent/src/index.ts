@@ -1,6 +1,6 @@
 import { TeamRecoveryWorker } from './team-bridge/recovery-worker.js';
 import { RecoveryJournal } from './team-bridge/recovery-journal.js';
-import { randomBytes } from 'node:crypto';
+import { createAgentInstance } from './server/instance.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ import { allowedOrigins, config } from './config.js';
 import { EntitlementGate } from './entitlement/entitlement.js';
 import { EstimationWorker } from './estimate/worker.js';
 import { applicationSupportRoot } from './files/support-dir.js';
+import { shutdownNativePickers } from './files/picker.js';
 import {
   ffmpegPath,
   ffprobePath,
@@ -88,12 +89,12 @@ const entitlementGate = new EntitlementGate({
   stateFile: path.join(applicationSupportRoot(), 'entitlement.json')
 });
 await entitlementGate.load();
-const instanceId = randomBytes(12).toString('hex');
-const startedAt = new Date().toISOString();
+const { instanceId, startedAt } = createAgentInstance();
 // The bounded local journal (031 FR-054). Loaded before anything else can write to it, so
 // the sequence continues from the previous boot and its shutdown reason is still on the page;
 // installed process-wide so the deep seams (spawn, pickers, drop resolver, streams) reach it.
 const diagnosticsLog = new DiagnosticsLog({
+  instanceId,
   file: path.join(applicationSupportRoot(), DIAGNOSTICS_FILE_NAME)
 });
 await diagnosticsLog.load();
@@ -515,6 +516,7 @@ const teamProcessBridge = new TeamProcessBridge({
 });
 const teamRecoveryWorker = new TeamRecoveryWorker({
   environment: config.environment,
+  currentActorId: () => entitlementGate.currentActorId(),
   journal: new RecoveryJournal(path.join(applicationSupportRoot(), 'Recovery', config.environment)),
   process: teamProcessBridge,
   allowed: () => entitlementGate.status().entitled,
@@ -523,6 +525,7 @@ const teamRecoveryWorker = new TeamRecoveryWorker({
 await teamRecoveryWorker
   .load()
   .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
+entitlementGate.onBeforeActorChange(actorId => teamRecoveryWorker.prepareActorChange(actorId));
 const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
@@ -608,6 +611,7 @@ const app = await buildServer({
   requestUpdateDrain,
   allowedOrigins,
   entitlementGate,
+  recoveryInstallationId: () => teamRecoveryWorker.installationId,
   config,
   instanceId,
   startedAt,
@@ -662,6 +666,7 @@ async function shutdown(code: number, reason: ShutdownReason) {
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
   if (updateDrainTimer) clearInterval(updateDrainTimer);
   try {
+    await shutdownNativePickers();
     await saveChain;
     if (transcriptionPersistTimer) await persistTranscriptionState();
     await transcriptionSaveChain;

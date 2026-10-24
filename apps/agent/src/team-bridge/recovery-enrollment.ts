@@ -30,8 +30,13 @@ export function registerRecoveryRoutes(
       return reply.code(400).send({ error: 'INVALID_INPUT' });
     try {
       return await worker.enroll(body.enrollmentId, body.challengeId);
-    } catch {
-      return reply.code(409).send({ error: 'AUTH_REQUIRED' });
+    } catch (error) {
+      const code =
+        error instanceof Error &&
+        ['AGENT_UPDATE_REQUIRED', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(error.message)
+          ? error.message
+          : 'AUTH_REQUIRED';
+      return reply.code(409).send({ error: code });
     }
   });
   app.post<{ Body?: unknown }>('/api/team/recovery/retry', async (request, reply) => {

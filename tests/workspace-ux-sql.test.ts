@@ -153,6 +153,60 @@ it('keeps shared and unknown-origin files and atomically undoes detach before it
   )[0]!.r;
   expect(unknown).toMatchObject({ state: 'retained', reason: 'cleanup_unverified' });
 });
+it('tracks execution reservation references and refuses new ones after cleanup is claimed', async () => {
+  const first = await ownedAttachment();
+  const detached = await h.asUser<{ r: { id: string } }>(
+    actor,
+    'select public.detach_task_material_safely($1,$2,$3) r',
+    [team, first.task, first.material]
+  );
+  const operation = (
+    await h.root<{ id: string }>(
+      "insert into public.team_operations(team_id,actor_id,kind,idempotency_key,request_nonce) values($1,$2,'process',gen_random_uuid()::text,gen_random_uuid()::text) returning id",
+      [team, actor]
+    )
+  )[0]!.id;
+  await h.root(
+    'insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)',
+    [operation, team, actor, first.material]
+  );
+  await h.root(
+    "update private.task_attachment_cleanup set not_before=clock_timestamp()-interval '1 minute' where id=$1",
+    [detached[0]!.r.id]
+  );
+  await h.root('select public.service_claim_task_cleanup()');
+  expect(
+    (
+      await h.root<{ reason: string }>(
+        'select reason from private.task_attachment_cleanup where id=$1',
+        [detached[0]!.r.id]
+      )
+    )[0]!.reason
+  ).toBe('cleanup_referenced');
+  const second = await ownedAttachment();
+  const receipt = (
+    await h.asUser<{ r: { id: string } }>(
+      actor,
+      'select public.detach_task_material_safely($1,$2,$3) r',
+      [team, second.task, second.material]
+    )
+  )[0]!.r;
+  await h.root(
+    "update private.task_attachment_cleanup set not_before=clock_timestamp()-interval '1 minute' where id=$1",
+    [receipt.id]
+  );
+  const claims = (
+    await h.root<{ r: Array<{ id: string }> }>('select public.service_claim_task_cleanup() r')
+  )[0]!.r;
+  expect(claims.some(x => x.id === receipt.id)).toBe(true);
+  await expect(
+    h.root(
+      'insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)',
+      [second.operation, team, actor, second.material]
+    )
+  ).rejects.toThrow('WRONG_STATE');
+  await h.root("select public.service_settle_task_cleanup($1,'trashed')", [receipt.id]);
+});
 it('claims only a verified orphan, fences new references and recovers unknown provider results', async () => {
   const { task, material } = await ownedAttachment();
   const receipt = (
@@ -502,6 +556,115 @@ it('restores the original link when a second task detach supersedes its waiting 
       )
     )[0]!.state
   ).toBe('retained');
+});
+
+it('tracks offer-profile references and fences future material columns after cleanup is claimed', async () => {
+  const offer = (
+    await h.asUser<{ result: { id: string } }>(
+      actor,
+      "select public.create_launch_dictionary($1,'offers','Cleanup profile',$2) as result",
+      [team, crypto.randomUUID()]
+    )
+  )[0].result.id;
+  await h.asUser(
+    actor,
+    `select public.set_launch_offer_defaults($1,$2,null,$3,'{}'::jsonb,
+      '{"schemaVersion":1,"sub1":[],"sub2":[],"sub3":[]}'::jsonb)`,
+    [team, offer, crypto.randomUUID()]
+  );
+  await h.root(
+    'alter table public.team_launch_offer_defaults add column future_material_id uuid references public.team_materials(id)'
+  );
+  try {
+    const first = await ownedAttachment();
+    const detach = async (value: Awaited<ReturnType<typeof ownedAttachment>>) => {
+      const receipt = (
+        await h.asUser<{ r: { id: string } }>(
+          actor,
+          'select public.detach_task_material_safely($1,$2,$3) r',
+          [team, value.task, value.material]
+        )
+      )[0].r;
+      await h.root(
+        "update private.task_attachment_cleanup set not_before=clock_timestamp()-interval '1 minute' where id=$1",
+        [receipt.id]
+      );
+      return receipt;
+    };
+    const firstReceipt = await detach(first);
+    await h.root(
+      'update public.team_launch_offer_defaults set future_material_id=$1 where team_id=$2 and offer_id=$3',
+      [first.material, team, offer]
+    );
+    await h.root('select public.service_claim_task_cleanup()');
+    expect(
+      (
+        await h.root<{ reason: string }>(
+          'select reason from private.task_attachment_cleanup where id=$1',
+          [firstReceipt.id]
+        )
+      )[0].reason
+    ).toBe('cleanup_referenced');
+    const second = await ownedAttachment();
+    const secondReceipt = await detach(second);
+    const claims = (
+      await h.root<{ r: Array<{ id: string }> }>('select public.service_claim_task_cleanup() r')
+    )[0].r;
+    expect(claims.some(row => row.id === secondReceipt.id)).toBe(true);
+    await expect(
+      h.root(
+        'update public.team_launch_offer_defaults set future_material_id=$1 where team_id=$2 and offer_id=$3',
+        [second.material, team, offer]
+      )
+    ).rejects.toThrow('WRONG_STATE');
+    await h.root("select public.service_settle_task_cleanup($1,'trashed')", [secondReceipt.id]);
+
+    const unverifiedReceipt = await detach(await ownedAttachment());
+    await h.root(
+      'alter table public.team_launch_offer_defaults disable trigger task_cleanup_reference_fence'
+    );
+    try {
+      await h.root('select public.service_claim_task_cleanup()');
+    } finally {
+      await h.root(
+        'alter table public.team_launch_offer_defaults enable trigger task_cleanup_reference_fence'
+      );
+    }
+    const { setQueryExecutor } = await import('../scripts/analytics/db');
+    const { getWorkspaceEvidence } = await import('../scripts/analytics/workspace');
+    const { lookupCodeLocations } = await import('../scripts/analytics/code-map');
+    setQueryExecutor((sql, params) => h.root(sql, params));
+    try {
+      await h.root('set default_transaction_read_only=on');
+      const evidence = await getWorkspaceEvidence(
+        actor,
+        null,
+        new Date(Date.now() + 60000).toISOString()
+      );
+      for (const [id, code] of [
+        [firstReceipt.id, 'cleanup_referenced'],
+        [unverifiedReceipt.id, 'cleanup_unverified']
+      ]) {
+        expect(evidence.operations.find(operation => operation.id === id)).toMatchObject({
+          action: 'task_cleanup',
+          state: 'retained',
+          code,
+          confirmed_count: 0
+        });
+      }
+      expect(lookupCodeLocations('workspace:receipt')?.files).toContain(
+        'supabase/migrations/20261206140500_launch_offer_defaults_reference_fence.sql'
+      );
+      expect(JSON.stringify(evidence)).not.toContain('Cleanup profile');
+      expect(JSON.stringify(evidence)).not.toContain('ux-drive');
+      expect(evidence.blind_spots.some(spot => spot.includes('browser delivery'))).toBe(true);
+    } finally {
+      await h.root('set default_transaction_read_only=off');
+      setQueryExecutor(null);
+    }
+  } finally {
+    await h.root('alter table public.team_launch_offer_defaults drop column future_material_id');
+  }
 });
 
 it('forces RLS on every private workspace intent and provenance table', async () => {

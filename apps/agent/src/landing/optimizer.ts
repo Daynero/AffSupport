@@ -297,8 +297,8 @@ class LandingJobOptimizer {
   }
 
   /** Prepares from a ZIP already present on disk (native picker). */
-  async prepareFromZipPath(zipPath: string, uploaded = false) {
-    const input = await this.freshWorkspace('zip', zipPath);
+  async prepareFromZipPath(zipPath: string, uploaded = false, displayName?: string) {
+    const input = await this.freshWorkspace('zip', displayName ?? zipPath);
     this.sourcePath = uploaded ? null : zipPath;
     this.destinationDir = this.destinationFor(this.sourcePath);
     this.repeatSource = this.sourcePath ? { kind: 'zip', path: this.sourcePath } : null;
@@ -892,7 +892,9 @@ export class LandingOptimizer {
     const worker = this.addWorker(settings);
     this.teamWorkers.add(worker);
     try {
-      await worker.prepareFromZipPath(zipPath, false);
+      // Team transfers stage bytes as source.bin; that transport name must not
+      // become the folder inside the delivered landing archive.
+      await worker.prepareFromZipPath(zipPath, false, 'landing');
       const jobId = worker.state().job?.id;
       if (!jobId) throw new Error('PROCESS_FAILED');
       this.teamJobIds.add(jobId);

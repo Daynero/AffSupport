@@ -360,6 +360,8 @@ export interface PopoverProps {
   /** Floor for that width, so a short chip does not open an unreadable list. */
   minWidth?: number;
   maxHeight?: number;
+  /** Focus an editor only after its anchored surface has become visible. */
+  initialFocus?: string;
   label?: string;
   /**
    * What the surface itself is. `dialog` for a panel of controls a person
@@ -382,6 +384,7 @@ export function Popover({
   matchWidth = false,
   minWidth,
   maxHeight,
+  initialFocus,
   label,
   surface: surfaceRole = 'dialog',
   className,
@@ -397,6 +400,18 @@ export function Popover({
     minWidth,
     maxHeight
   });
+  const focusedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      focusedOnOpen.current = false;
+      return;
+    }
+    if (!initialFocus || focusedOnOpen.current || (anchor && !placed)) return;
+    const target = surface.current?.querySelector<HTMLElement>(initialFocus);
+    target?.focus();
+    // Resizing or scrolling must never steal focus back from another day/control.
+    if (target && document.activeElement === target) focusedOnOpen.current = true;
+  }, [open, initialFocus, anchor, placed]);
 
   useEffect(() => {
     if (!open) return;

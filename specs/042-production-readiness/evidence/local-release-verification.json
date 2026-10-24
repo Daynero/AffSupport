@@ -1,0 +1,198 @@
+{
+  "status": "PASS_LOCAL_SOURCE_SNAPSHOT",
+  "run": {
+    "startedAt": "2026-10-24T12:30:57.031Z",
+    "finishedAt": "2026-10-24T13:04:34.122Z",
+    "exitCode": 0,
+    "command": "npm run verify:release",
+    "serial": true,
+    "frozenPaths": 3134,
+    "sourcePathSetUnchanged": true,
+    "changedInputs": [],
+    "retainedShards": [
+      "1.blob",
+      "2.blob",
+      "3.blob",
+      "4.blob",
+      "5.blob",
+      "6.blob",
+      "7.blob",
+      "8.blob"
+    ],
+    "status": "PASS"
+  },
+  "verification": {
+    "ok": true,
+    "command": "verify",
+    "generated_at": "2026-10-24T13:04:33.232Z",
+    "form": "release",
+    "data": {
+      "duration_ms": 2015758,
+      "totals": {
+        "gates": 22,
+        "passed": 22,
+        "failed": 0,
+        "tests": 7415,
+        "skipped_tests": 41,
+        "skip_reasons": {
+          "disposable native PostgreSQL": 15,
+          "SOTY_TARIFF_POSTGRES_CONTAINER": 6,
+          "script:scripts/sign-mac-app.sh": 2,
+          "env:SOTY_TEST_EXPECT_NOTARIZED": 1,
+          "env:RUN_REAL_KARAOKE_SMOKE": 1,
+          "platform:darwin": 1,
+          "env:RUN_REAL_MEDIA_SMOKE": 1,
+          "ffmpeg": 2,
+          "ffprobe": 2,
+          "disposable process PostgreSQL container": 5,
+          "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+          "HINDI_TRANSCRIPTION_SAMPLE": 1,
+          "SOTY_TRANSITION_REPORT": 1,
+          "env:RUN_REAL_TRANSLATION_SMOKE": 2,
+          "env:SOTY_POWER_LOAD": 2,
+          "disposable PostgreSQL": 3
+        },
+        "coverage_lines": 81.38
+      },
+      "gates": [
+        {
+          "id": "build:shared",
+          "ok": true,
+          "duration_ms": 3059
+        },
+        {
+          "id": "format",
+          "ok": true,
+          "duration_ms": 35615
+        },
+        {
+          "id": "lint",
+          "ok": true,
+          "duration_ms": 27211
+        },
+        {
+          "id": "typecheck:projects",
+          "ok": true,
+          "duration_ms": 28484
+        },
+        {
+          "id": "typecheck:tests",
+          "ok": true,
+          "duration_ms": 34173
+        },
+        {
+          "id": "typecheck:scripts",
+          "ok": true,
+          "duration_ms": 4294
+        },
+        {
+          "id": "design-tokens",
+          "ok": true,
+          "duration_ms": 184
+        },
+        {
+          "id": "tailwind-classes",
+          "ok": true,
+          "duration_ms": 2097
+        },
+        {
+          "id": "styles",
+          "ok": true,
+          "duration_ms": 122
+        },
+        {
+          "id": "i18n",
+          "ok": true,
+          "duration_ms": 123
+        },
+        {
+          "id": "env-registry",
+          "ok": true,
+          "duration_ms": 163
+        },
+        {
+          "id": "csp",
+          "ok": true,
+          "duration_ms": 91
+        },
+        {
+          "id": "audit",
+          "ok": true,
+          "duration_ms": 2401
+        },
+        {
+          "id": "suite",
+          "ok": true,
+          "duration_ms": 1634046
+        },
+        {
+          "id": "build:web",
+          "ok": true,
+          "duration_ms": 29802
+        },
+        {
+          "id": "build:agent",
+          "ok": true,
+          "duration_ms": 6264
+        },
+        {
+          "id": "contract:release",
+          "ok": true,
+          "duration_ms": 686
+        },
+        {
+          "id": "contract:team",
+          "ok": true,
+          "duration_ms": 3610
+        },
+        {
+          "id": "contract:web-env",
+          "ok": true,
+          "duration_ms": 763
+        },
+        {
+          "id": "database",
+          "ok": true,
+          "duration_ms": 176101
+        },
+        {
+          "id": "a11y",
+          "ok": true,
+          "duration_ms": 22929
+        },
+        {
+          "id": "csp:browser",
+          "ok": true,
+          "duration_ms": 3515
+        }
+      ]
+    }
+  },
+  "moduleLifecycle": {
+    "reportedFiles": 843,
+    "counts": {
+      "COLLECT": 843,
+      "START": 843,
+      "END": 843
+    },
+    "missing": {
+      "COLLECT": [],
+      "START": [],
+      "END": []
+    },
+    "unexpected": {
+      "COLLECT": [],
+      "START": [],
+      "END": []
+    },
+    "duplicates": {
+      "COLLECT": {},
+      "START": {},
+      "END": {}
+    },
+    "status": "PASS_COMPLETE_MODULE_LIFECYCLE"
+  },
+  "postCompletedLogTestsPassed": 106,
+  "sourceSnapshotSha256": "99d40d249527ac62076b46d0ea396c0a031d384a743519586b10d635e53eb179",
+  "scope": "Local source verification only; subsequent edits are scope/report documentation. Not exact-commit packaged or hosted acceptance."
+}

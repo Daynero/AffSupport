@@ -5,6 +5,7 @@ const owner = '23100000-0000-4000-8000-000000000011';
 const stranger = '23100000-0000-4000-8000-000000000012';
 let harness: TeamTestDb;
 let team: string;
+// Cold PGlite/WASM initialization exceeded 10s in the serial suite; bound setup separately.
 beforeAll(async () => {
   harness = await createTeamTestDb();
   await createUser(harness, { id: owner, email: 'owner@storage.test' });
@@ -18,7 +19,7 @@ beforeAll(async () => {
   await harness.db.exec(`alter table storage.objects enable row level security;
     grant usage on schema storage to authenticated;
     grant select, insert on storage.objects to authenticated;`);
-});
+}, 30000);
 afterAll(async () => {
   await harness?.close();
 });

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskSummary } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { analytics } from '../apps/web/src/analytics/service';
 import { TaskEditor } from '../apps/web/src/team/tasks/TaskEditor';
 
 /**
@@ -107,6 +108,41 @@ function open(api: ReturnType<typeof client>, onClose = vi.fn(), initialTask = t
 }
 
 beforeEach(() => localStorage.setItem('language', 'en'));
+it('serializes a status choice behind an in-flight text save using the returned version', async () => {
+  let finish!: (value: TeamTaskSummary) => void;
+  const updatedAt = '2026-09-05T10:01:00.000Z';
+  const api = client({
+    updateTask: vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<TeamTaskSummary>(resolve => {
+            finish = resolve;
+          })
+      )
+      .mockImplementationOnce(async (_team, _id, patch) =>
+        task({ title: 'Named', ...patch, updatedAt: '2026-09-05T10:02:00.000Z' })
+      )
+  });
+  open(api);
+  await act(async () => {});
+  fireEvent.change(document.querySelector('#team-task-title')!, { target: { value: 'Named' } });
+  fireEvent.blur(document.querySelector('#team-task-title')!);
+  await waitFor(() => expect(api.updateTask).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: 'In progress' }));
+  expect(api.updateTask).toHaveBeenCalledTimes(1);
+  await act(async () => finish(task({ title: 'Named', updatedAt })));
+  await waitFor(() => expect(api.updateTask).toHaveBeenCalledTimes(2));
+  expect(api.updateTask).toHaveBeenLastCalledWith(
+    TEAM_ID,
+    TASK_ID,
+    expect.objectContaining({ status: 'in_progress', expectedUpdatedAt: updatedAt })
+  );
+  expect(screen.getByRole('button', { name: 'In progress' }).getAttribute('aria-pressed')).toBe(
+    'true'
+  );
+});
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -269,7 +305,11 @@ describe('the task editor saves itself', () => {
   });
 
   it('keeps the words on screen and offers the retry when a write fails', async () => {
-    const api = client({ updateTask: vi.fn().mockRejectedValue(new Error('DRIVE_UNAVAILABLE')) });
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('DRIVE_UNAVAILABLE'))
+      .mockResolvedValue(task({ title: 'Still here' }));
+    const api = client({ updateTask: write });
     open(api);
     await screen.findByRole('heading', { name: 'Task details' });
 
@@ -277,12 +317,173 @@ describe('the task editor saves itself', () => {
     fireEvent.change(title, { target: { value: 'Still here' } });
     fireEvent.blur(title);
 
-    expect(await screen.findByText('Could not save the latest task changes.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    const failure = await screen.findByText('Could not save the latest task changes.');
+    const retry = within(failure).getByRole('button', { name: 'Try again' });
+    expect(retry).toBeTruthy();
     // The value the person typed is not rolled back under them.
     expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe(
       'Still here'
     );
+    await act(async () => {
+      fireEvent.click(retry);
+    });
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1]?.[2]).toMatchObject({
+      title: 'Still here',
+      expectedUpdatedAt: STAMP
+    });
+    expect(await screen.findByText('Saved')).toBeTruthy();
+  });
+
+  it.each(['Take their version', 'Cancel'])(
+    'applies every reviewed server field when choosing %s',
+    async choice => {
+      const theirs = task({
+        title: 'Peer title',
+        note: 'Peer brief',
+        status: 'in_progress',
+        assigneeId: 'peer',
+        assigneeLabelSnapshot: 'Peer member',
+        dateOn: '2026-09-18',
+        progressMax: 50,
+        progressValue: 5,
+        updatedAt: '2026-09-05T11:00:00.000Z'
+      });
+      const api = client({
+        updateTask: vi.fn().mockRejectedValue(new Error('SOURCE_CHANGED')),
+        getTask: vi
+          .fn()
+          .mockResolvedValueOnce({ task: task(), attachments: [] })
+          .mockResolvedValue({ task: theirs, attachments: [] })
+      });
+      const user = userEvent.setup();
+      open(api);
+      const title = await screen.findByDisplayValue(task().title);
+      fireEvent.change(title, { target: { value: 'My draft' } });
+      fireEvent.blur(title);
+      await screen.findByRole('heading', { name: 'Somebody else changed this task' });
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Somebody else changed this task' })).getByRole(
+          'button',
+          { name: choice }
+        )
+      );
+      expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe(
+        'Peer title'
+      );
+      expect((document.querySelector('#team-task-description') as HTMLTextAreaElement).value).toBe(
+        'Peer brief'
+      );
+      expect(screen.getByRole('button', { name: 'In progress' }).getAttribute('aria-pressed')).toBe(
+        'true'
+      );
+      expect(screen.getByLabelText('Assignee').textContent).toContain('Peer member');
+      expect(screen.getByRole('button', { name: /^Date: / }).getAttribute('aria-label')).toContain(
+        '18'
+      );
+      expect((document.querySelector('#team-task-progress-max') as HTMLInputElement).value).toBe(
+        '50'
+      );
+      expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('5');
+      expect(api.updateTask).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('retries local edits against the explicitly reviewed newer version when choosing Keep mine', async () => {
+    const theirs = task({ title: 'Peer title', updatedAt: '2026-09-05T11:00:00.000Z' });
+    const write = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('SOURCE_CHANGED'))
+      .mockImplementation(async (_team: string, _id: string, patch: Record<string, unknown>) => {
+        if (patch.expectedUpdatedAt !== theirs.updatedAt) throw new Error('SOURCE_CHANGED');
+        return task({ title: String(patch.title), updatedAt: '2026-09-05T11:01:00.000Z' });
+      });
+    const api = client({
+      updateTask: write,
+      getTask: vi
+        .fn()
+        .mockResolvedValueOnce({ task: task(), attachments: [] })
+        .mockResolvedValue({ task: theirs, attachments: [] })
+    });
+    const user = userEvent.setup();
+    open(api);
+    const title = await screen.findByDisplayValue(task().title);
+    fireEvent.change(title, { target: { value: 'My draft' } });
+    fireEvent.blur(title);
+    await screen.findByRole('heading', { name: 'Somebody else changed this task' });
+    await user.click(screen.getByRole('button', { name: 'Keep mine' }));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    expect(write.mock.calls[1]?.[2]).toMatchObject({
+      title: 'My draft',
+      expectedUpdatedAt: theirs.updatedAt
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'Somebody else changed this task' })).toBeNull()
+    );
+    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe('My draft');
+  });
+
+  it('preserves another concurrency check after choosing Keep mine', async () => {
+    const signals: Array<{ event: string; step: unknown }> = [];
+    vi.spyOn(analytics, 'track').mockImplementation((event, props) => {
+      signals.push({ event, step: props && 'flow_step' in props ? props.flow_step : null });
+    });
+    const theirs = task({ title: 'Peer first', updatedAt: '2026-09-05T11:00:00.000Z' });
+    const newest = task({ title: 'Peer second', updatedAt: '2026-09-05T12:00:00.000Z' });
+    const write = vi.fn().mockRejectedValue(new Error('SOURCE_CHANGED'));
+    const api = client({
+      updateTask: write,
+      getTask: vi
+        .fn()
+        .mockResolvedValueOnce({ task: task(), attachments: [] })
+        .mockResolvedValueOnce({ task: theirs, attachments: [] })
+        .mockResolvedValue({ task: newest, attachments: [] })
+    });
+    const user = userEvent.setup();
+    open(api);
+    const title = await screen.findByDisplayValue(task().title);
+    fireEvent.change(title, { target: { value: 'My draft' } });
+    fireEvent.blur(title);
+    await screen.findByRole('heading', { name: 'Somebody else changed this task' });
+    await user.click(screen.getByRole('button', { name: 'Keep mine' }));
+    await screen.findByText('Peer second');
+    expect(write.mock.calls[1]?.[2]).toMatchObject({
+      title: 'My draft',
+      expectedUpdatedAt: theirs.updatedAt
+    });
+    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe('My draft');
+  });
+
+  it('preserves the draft when the reviewed server version could not be read', async () => {
+    const api = client({
+      updateTask: vi.fn().mockRejectedValue(new Error('SOURCE_CHANGED')),
+      getTask: vi
+        .fn()
+        .mockResolvedValueOnce({ task: task(), attachments: [] })
+        .mockRejectedValue(new Error('NETWORK_FAILED'))
+    });
+    const user = userEvent.setup();
+    open(api);
+    const title = await screen.findByDisplayValue(task().title);
+    fireEvent.change(title, { target: { value: 'My draft' } });
+    fireEvent.blur(title);
+    const dialog = await screen.findByRole('dialog', { name: 'Somebody else changed this task' });
+    expect(
+      (
+        within(dialog).getByRole('button', {
+          name: 'Take their version'
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (within(dialog).getByRole('button', { name: 'Keep mine' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect((document.querySelector('#team-task-title') as HTMLInputElement).value).toBe('My draft');
+    expect(
+      await screen.findByText('Could not refresh this task. Nothing you typed was lost.')
+    ).toBeTruthy();
+    expect(api.updateTask).toHaveBeenCalledOnce();
   });
 
   it('offers a choice rather than a snap-back when somebody else got there first', async () => {

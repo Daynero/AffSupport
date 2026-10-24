@@ -1,3 +1,4 @@
+import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { requireDriveOAuthGate, requireNamedWorkerSecret } from '../_shared/auth.ts';
 import {
@@ -98,205 +99,227 @@ Deno.serve(async request => {
       }
       return drive;
     };
-    const pending = await rpcValue(service, 'service_claim_catalog_reconciliations', {
-      p_limit: 3
-    });
-    for (const row of Array.isArray(pending) ? pending : []) {
-      if (!row || typeof row !== 'object') continue;
-      const item = row as Record<string, unknown>;
-      if (
-        typeof item.catalog_material_id !== 'string' ||
-        typeof item.marker !== 'string' ||
-        typeof item.drive_file_id !== 'string' ||
-        typeof item.credential_id !== 'string'
-      )
-        continue;
-      try {
-        const drive = await driveFor(item.credential_id);
-        const file = await drive.getFile(
-          item.drive_file_id,
-          typeof item.resource_key === 'string' ? item.resource_key : null
-        );
-        const outcome = classifyCatalogReadback(file, {
-          fileId: item.drive_file_id,
-          marker: item.marker,
-          baselineVersion: typeof item.baseline_version === 'string' ? item.baseline_version : null
-        });
-        if (outcome !== 'inconclusive') {
-          await rpcValue(service, 'service_resolve_catalog_reconciliation', {
-            p_item: item.catalog_material_id,
-            p_marker: item.marker,
-            p_outcome: outcome,
-            p_worker: workerId
-          });
-        }
-      } catch (error) {
-        console.error(
-          '[catalog-updater] reconciliation readback pending',
-          item.catalog_material_id,
-          mapUnknownError(error).code
-        );
-      }
-    }
-    // Cleanup failures retain their durable leases and must not starve regular
-    // catalog rounds or the other Launch cleanup lane.
-    await runTaskCleanupTick(service, driveFor).catch(() => ({ completed: 0, pending: 1 }));
-    const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
+    // Start the bounded one-file cleanup independently of catalog work. Always
+    // join it below, including catalog failure, so it survives a quiet catalog
+    // without becoming unobserved work after the request has returned.
+    const processCleanup = runProcessOutputCleanupTick(service, driveFor).catch(() => ({
       completed: 0,
       pending: 1,
+      retained: 0,
       unavailable: true
     }));
-    const launchVideoCleanup = await runLaunchVideoCleanupTick(service, driveFor).catch(() => ({
-      completed: 0,
-      pending: 1,
-      unavailable: true
-    }));
-    const summary = await runCatalogUpdaterTick(
-      {
-        workerId,
-        drawImages: async (teamId, count) => {
-          const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
-            p_team: teamId,
-            p_count: count
-          });
-          return (Array.isArray(rows) ? rows : []).flatMap(row =>
-            row &&
-            typeof row === 'object' &&
-            typeof (row as Record<string, unknown>).drive_file_id === 'string'
-              ? [
-                  {
-                    driveFileId: (row as Record<string, unknown>).drive_file_id as string,
-                    resourceKey:
-                      typeof (row as Record<string, unknown>).resource_key === 'string'
-                        ? ((row as Record<string, unknown>).resource_key as string)
-                        : null,
-                    // What the picture shows, as the owner named the file (024, US27).
-                    name:
-                      typeof (row as Record<string, unknown>).name === 'string'
-                        ? ((row as Record<string, unknown>).name as string)
-                        : null
-                  }
-                ]
-              : []
+    try {
+      const pending = await rpcValue(service, 'service_claim_catalog_reconciliations', {
+        p_limit: 3
+      });
+      for (const row of Array.isArray(pending) ? pending : []) {
+        if (!row || typeof row !== 'object') continue;
+        const item = row as Record<string, unknown>;
+        if (
+          typeof item.catalog_material_id !== 'string' ||
+          typeof item.marker !== 'string' ||
+          typeof item.drive_file_id !== 'string' ||
+          typeof item.credential_id !== 'string'
+        )
+          continue;
+        try {
+          const drive = await driveFor(item.credential_id);
+          const file = await drive.getFile(
+            item.drive_file_id,
+            typeof item.resource_key === 'string' ? item.resource_key : null
           );
-        },
-        drawTexts: async (teamId, count) => {
-          const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
-            p_team: teamId,
-            p_count: count
+          const outcome = classifyCatalogReadback(file, {
+            fileId: item.drive_file_id,
+            marker: item.marker,
+            baselineVersion:
+              typeof item.baseline_version === 'string' ? item.baseline_version : null
           });
-          return (Array.isArray(rows) ? rows : []).flatMap(row => {
-            const record = row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
-            return record &&
-              typeof record.title === 'string' &&
-              typeof record.description === 'string'
-              ? [{ title: record.title, description: record.description }]
-              : [];
-          });
+          if (outcome !== 'inconclusive') {
+            await rpcValue(service, 'service_resolve_catalog_reconciliation', {
+              p_item: item.catalog_material_id,
+              p_marker: item.marker,
+              p_outcome: outcome,
+              p_worker: workerId
+            });
+          }
+        } catch (error) {
+          console.error(
+            '[catalog-updater] reconciliation readback pending',
+            item.catalog_material_id,
+            mapUnknownError(error).code
+          );
+        }
+      }
+      // Cleanup failures retain their durable leases and must not starve regular
+      // catalog rounds or the other Launch cleanup lane.
+      await runTaskCleanupTick(service, driveFor).catch(() => ({ completed: 0, pending: 1 }));
+      const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
+        completed: 0,
+        pending: 1,
+        unavailable: true
+      }));
+      const launchVideoCleanup = await runLaunchVideoCleanupTick(service, driveFor).catch(() => ({
+        completed: 0,
+        pending: 1,
+        unavailable: true
+      }));
+      const summary = await runCatalogUpdaterTick(
+        {
+          workerId,
+          drawImages: async (teamId, count) => {
+            const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+              p_team: teamId,
+              p_count: count
+            });
+            return (Array.isArray(rows) ? rows : []).flatMap(row =>
+              row &&
+              typeof row === 'object' &&
+              typeof (row as Record<string, unknown>).drive_file_id === 'string'
+                ? [
+                    {
+                      driveFileId: (row as Record<string, unknown>).drive_file_id as string,
+                      resourceKey:
+                        typeof (row as Record<string, unknown>).resource_key === 'string'
+                          ? ((row as Record<string, unknown>).resource_key as string)
+                          : null,
+                      // What the picture shows, as the owner named the file (024, US27).
+                      name:
+                        typeof (row as Record<string, unknown>).name === 'string'
+                          ? ((row as Record<string, unknown>).name as string)
+                          : null
+                    }
+                  ]
+                : []
+            );
+          },
+          drawTexts: async (teamId, count) => {
+            const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
+              p_team: teamId,
+              p_count: count
+            });
+            return (Array.isArray(rows) ? rows : []).flatMap(row => {
+              const record =
+                row && typeof row === 'object' ? (row as Record<string, unknown>) : null;
+              return record &&
+                typeof record.title === 'string' &&
+                typeof record.description === 'string'
+                ? [{ title: record.title, description: record.description }]
+                : [];
+            });
+          },
+          openRounds: async () =>
+            Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
+          claim: async (limit, leaseSeconds) => {
+            const rows = await rpcValue(service, 'service_claim_catalog_updater_items', {
+              p_worker: workerId,
+              p_limit: limit,
+              p_lease_seconds: leaseSeconds
+            });
+            return Array.isArray(rows) ? rows : [];
+          },
+          driveFor,
+          progress: async (catalogId, stage) =>
+            (await rpcValue(service, 'service_set_catalog_update_progress', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_stage: stage
+            })) === true,
+          beginWrite: async (catalogId, input) =>
+            (await rpcValue(service, 'service_begin_catalog_update_write', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_marker: input.marker,
+              p_baseline_version: input.baselineVersion,
+              p_expected_count: input.expectedCount,
+              p_swapped_copy: input.swappedCopy,
+              p_product_count: input.became.productCount,
+              p_settings_snapshot: input.became.snapshot
+            })) === true,
+          finishWrite: async catalogId =>
+            (await rpcValue(service, 'service_finish_catalog_update_write', {
+              p_item: catalogId
+            })) === true,
+          recordChanges: async (catalogId, changes) =>
+            (await rpcValue(service, 'service_record_catalog_update_changes', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_changes: changes
+            })) === true,
+          complete: async (catalogId, updateCount, swappedCopy, became) =>
+            (await rpcValue(service, 'service_complete_catalog_update', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_update_count: updateCount,
+              p_swapped_copy: swappedCopy,
+              ...(became
+                ? { p_product_count: became.productCount, p_settings_snapshot: became.snapshot }
+                : {})
+            })) === true,
+          claimOrphans: async (limit, leaseSeconds) => {
+            const rows = await rpcValue(service, 'service_claim_orphan_cleanups', {
+              p_worker: workerId,
+              p_limit: limit,
+              p_lease_seconds: leaseSeconds
+            });
+            return Array.isArray(rows) ? rows : [];
+          },
+          clearOrphan: async (materialId, trashed) =>
+            (await rpcValue(service, 'service_complete_orphan_cleanup', {
+              p_material: materialId,
+              p_worker: workerId,
+              p_trashed: trashed
+            })) === true,
+          retry: async (catalogId, errorCode, nextAttemptAt) =>
+            (await rpcValue(service, 'service_retry_catalog_update', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_error: errorCode,
+              p_next_attempt_at: nextAttemptAt.toISOString()
+            })) === true,
+          unknown: async (catalogId, errorCode) =>
+            (await rpcValue(service, 'service_mark_catalog_update_unknown', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_error: errorCode
+            })) === true,
+          markNeedsReauth: async credentialId => {
+            await rpcValue(service, 'service_mark_drive_needs_reauth', {
+              p_credential: credentialId
+            });
+          },
+          claimRetired: async limit => {
+            const rows = await rpcValue(service, 'service_claim_retired_restitch_copies', {
+              p_limit: limit
+            });
+            return Array.isArray(rows) ? rows : [];
+          },
+          authorizeCleanup: async (materialId, kind) =>
+            (await rpcValue(service, 'service_authorize_catalog_cleanup', {
+              p_material: materialId,
+              p_kind: kind,
+              p_worker: workerId
+            })) === true,
+          forgetCopy: async (materialId, deleted) =>
+            (await rpcValue(service, 'service_forget_restitch_copy', {
+              p_material: materialId,
+              p_deleted: deleted
+            })) === true,
+          now: () => Date.now(),
+          log: (message, detail) => console.error(message, detail)
         },
-        openRounds: async () =>
-          Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
-        claim: async (limit, leaseSeconds) => {
-          const rows = await rpcValue(service, 'service_claim_catalog_updater_items', {
-            p_worker: workerId,
-            p_limit: limit,
-            p_lease_seconds: leaseSeconds
-          });
-          return Array.isArray(rows) ? rows : [];
-        },
-        driveFor,
-        progress: async (catalogId, stage) =>
-          (await rpcValue(service, 'service_set_catalog_update_progress', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_stage: stage
-          })) === true,
-        beginWrite: async (catalogId, input) =>
-          (await rpcValue(service, 'service_begin_catalog_update_write', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_marker: input.marker,
-            p_baseline_version: input.baselineVersion,
-            p_expected_count: input.expectedCount,
-            p_swapped_copy: input.swappedCopy,
-            p_product_count: input.became.productCount,
-            p_settings_snapshot: input.became.snapshot
-          })) === true,
-        finishWrite: async catalogId =>
-          (await rpcValue(service, 'service_finish_catalog_update_write', {
-            p_item: catalogId
-          })) === true,
-        recordChanges: async (catalogId, changes) =>
-          (await rpcValue(service, 'service_record_catalog_update_changes', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_changes: changes
-          })) === true,
-        complete: async (catalogId, updateCount, swappedCopy, became) =>
-          (await rpcValue(service, 'service_complete_catalog_update', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_update_count: updateCount,
-            p_swapped_copy: swappedCopy,
-            ...(became
-              ? { p_product_count: became.productCount, p_settings_snapshot: became.snapshot }
-              : {})
-          })) === true,
-        claimOrphans: async (limit, leaseSeconds) => {
-          const rows = await rpcValue(service, 'service_claim_orphan_cleanups', {
-            p_worker: workerId,
-            p_limit: limit,
-            p_lease_seconds: leaseSeconds
-          });
-          return Array.isArray(rows) ? rows : [];
-        },
-        clearOrphan: async (materialId, trashed) =>
-          (await rpcValue(service, 'service_complete_orphan_cleanup', {
-            p_material: materialId,
-            p_worker: workerId,
-            p_trashed: trashed
-          })) === true,
-        retry: async (catalogId, errorCode, nextAttemptAt) =>
-          (await rpcValue(service, 'service_retry_catalog_update', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_error: errorCode,
-            p_next_attempt_at: nextAttemptAt.toISOString()
-          })) === true,
-        unknown: async (catalogId, errorCode) =>
-          (await rpcValue(service, 'service_mark_catalog_update_unknown', {
-            p_item: catalogId,
-            p_worker: workerId,
-            p_error: errorCode
-          })) === true,
-        markNeedsReauth: async credentialId => {
-          await rpcValue(service, 'service_mark_drive_needs_reauth', {
-            p_credential: credentialId
-          });
-        },
-        claimRetired: async limit => {
-          const rows = await rpcValue(service, 'service_claim_retired_restitch_copies', {
-            p_limit: limit
-          });
-          return Array.isArray(rows) ? rows : [];
-        },
-        authorizeCleanup: async (materialId, kind) =>
-          (await rpcValue(service, 'service_authorize_catalog_cleanup', {
-            p_material: materialId,
-            p_kind: kind,
-            p_worker: workerId
-          })) === true,
-        forgetCopy: async (materialId, deleted) =>
-          (await rpcValue(service, 'service_forget_restitch_copy', {
-            p_material: materialId,
-            p_deleted: deleted
-          })) === true,
-        now: () => Date.now(),
-        log: (message, detail) => console.error(message, detail)
-      },
-      { budgetMs: BUDGET_MS }
-    );
-    return successResponse({ ...summary, launches, launchCleanup, launchVideoCleanup });
+        { budgetMs: BUDGET_MS }
+      );
+      return successResponse({
+        ...summary,
+        launches,
+        launchCleanup,
+        launchVideoCleanup,
+        processOutputCleanup: await processCleanup
+      });
+    } catch (cause) {
+      await processCleanup;
+      throw cause;
+    }
   } catch (error) {
     return errorResponse(mapUnknownError(error));
   }

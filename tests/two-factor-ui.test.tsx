@@ -88,8 +88,11 @@ afterEach(() => {
 async function openWallet(entries: TwoFactorEntry[] = []) {
   api.listEntries.mockResolvedValue(entries);
   render(<TwoFactorPage />);
+  // Resolve this stable control before 200 rows add hundreds of unrelated labels.
+  const search = screen.getByLabelText(en('twoFactorSearchLabel'));
   await waitFor(() => expect(api.listEntries).toHaveBeenCalled());
   await waitFor(() => expect(screen.queryByText(en('twoFactorLoading'))).toBeNull());
+  return search;
 }
 
 /** The row carrying a given account name. */
@@ -650,10 +653,12 @@ describe('a wallet that has grown', () => {
   );
 
   it('narrows 200 rows on three typed characters, without asking the server', async () => {
-    await openWallet(many);
+    const search = await openWallet(many);
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(200);
     expect(api.listEntries).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(en('twoFactorSearchLabel')), {
+    // A jsdom getByLabelText scan across all 200 rows is test-driver overhead, not filtering.
+    fireEvent.change(search, {
       target: { value: '199' }
     });
 

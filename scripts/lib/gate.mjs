@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { admissionFromEnvironment } from './release/admission-client.mjs';
+import { terminateGateTree } from './gate-process-tree.mjs';
 
 /**
  * Running one gate, bounding what it can cost, and keeping its own words.
@@ -133,12 +134,17 @@ function admissionFailure(gate, error) {
 async function runGateNow(gate) {
   const startedAt = Date.now();
   const ring = new OutputRing();
+  const timeoutMessage =
+    `Gate '${gate.id}' exceeded its ${gate.timeoutMs} ms budget. ` +
+    'A gate that hangs fails; it does not hold the command open.';
 
   const result = await new Promise(resolve => {
     let child;
     try {
       child = spawn(gate.command, gate.args, {
         shell: gate.shell ?? false,
+        detached: process.platform !== 'win32',
+        windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, ...gate.env }
       });
@@ -157,18 +163,18 @@ async function runGateNow(gate) {
     };
 
     const timer = setTimeout(() => {
+      ring.push(timeoutMessage);
+      const termination = terminateGateTree(child);
       ring.push(
-        `Gate '${gate.id}' exceeded its ${gate.timeoutMs} ms budget and was stopped. ` +
-          'A gate that hangs fails; it does not hold the command open.'
+        termination === 'unconfirmed'
+          ? 'Owned gate process-tree termination is unconfirmed; descendants may remain.'
+          : 'Termination requested for the owned gate process tree.'
       );
-      // SIGKILL rather than SIGTERM: this gate has already proven it is not
-      // responding to its own schedule, and the aggregator has a result to
-      // write either way.
-      try {
-        child.kill('SIGKILL');
-      } catch {
-        // Already gone between the deadline and the signal.
-      }
+      // A refused tree kill must not leave inherited output pipes holding the
+      // verifier open forever. Its result remains failed and explicitly uncertain.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      child.unref();
       finish({ ok: false, timedOut: true });
     }, gate.timeoutMs);
     timer.unref?.();
@@ -189,7 +195,7 @@ async function runGateNow(gate) {
     duration_ms: Date.now() - startedAt,
     timedOut: result.timedOut,
     lines,
-    subject: result.ok ? '' : subjectFor(gate.id, lines)
+    subject: result.ok ? '' : result.timedOut ? timeoutMessage : subjectFor(gate.id, lines)
   };
 }
 

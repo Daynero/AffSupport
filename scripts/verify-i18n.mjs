@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const I18N = path.join(root, 'apps/web/src/i18n.ts');
+const LOCALES = path.join(root, 'apps/web/src/locales');
 const DYNAMIC = path.join(root, 'i18n-dynamic.json');
 const SOURCE_ROOTS = [path.join(root, 'apps/web/src')];
 
@@ -33,7 +34,7 @@ function sourceFiles(directory) {
   return found;
 }
 
-const i18nSource = readFileSync(I18N, 'utf8');
+const englishSource = readFileSync(path.join(LOCALES, 'en.ts'), 'utf8');
 
 /**
  * Keys declared in the English dictionary.
@@ -42,16 +43,15 @@ const i18nSource = readFileSync(I18N, 'utf8');
  * same set, and a key present in one and missing from the other is a different
  * problem with a different fix.
  */
-const firstDictionary = i18nSource.slice(0, i18nSource.indexOf('const uk'));
 const declared = new Set(
-  [...firstDictionary.matchAll(/^\s{2}([A-Za-z][A-Za-z0-9_]*)\s*:/gmu)].map(match => match[1])
+  [...englishSource.matchAll(/^\s{2}([A-Za-z][A-Za-z0-9_]*)\s*:/gmu)].map(match => match[1])
 );
 
 /** Every string literal anywhere in the interface source. */
 const literals = new Set();
 for (const directory of SOURCE_ROOTS) {
   for (const file of sourceFiles(directory)) {
-    if (file === I18N) continue;
+    if (file === I18N || file.startsWith(LOCALES + path.sep)) continue;
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(/['"`]([A-Za-z][A-Za-z0-9_]{2,})['"`]/gu)) {
       literals.add(match[1]);

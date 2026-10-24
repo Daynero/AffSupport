@@ -53,6 +53,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 export function TariffGrantDialog({
   plans,
+  tariffToday,
   prefill,
   requests,
   client,
@@ -60,6 +61,7 @@ export function TariffGrantDialog({
   onGranted
 }: {
   plans: readonly TariffPlan[];
+  tariffToday?: string;
   prefill: GrantPrefill;
   requests: readonly AdminSpaceRequest[];
   client: AdminTariffClient;
@@ -98,7 +100,8 @@ export function TariffGrantDialog({
   const normalized = email.trim().toLocaleLowerCase('en-US');
   const valid = EMAIL.test(normalized);
   const selected = plans.find(item => item.code === plan) ?? null;
-  const endsOn = term === 'date' ? date : addMonthsPreview(kyivToday(), Number(term));
+  const endsOn =
+    term === 'date' ? date : addMonthsPreview(tariffToday ?? kyivToday(), Number(term));
 
   /* Suggestions as the address is typed: accounts, then requests. */
   useEffect(() => {
@@ -244,7 +247,9 @@ export function TariffGrantDialog({
             onClick={() => void submit()}
           >
             {endsOn
-              ? t('adminTariffGrantSubmitUntil', { date: formatTariffDay(endsOn, language) })
+              ? t('adminTariffGrantSubmitUntil', {
+                  date: formatTariffDay(endsOn, language, tariffToday)
+                })
               : t('adminTariffGrantSubmit')}
           </Button>
         </>
@@ -315,11 +320,18 @@ export function TariffGrantDialog({
             onChange={setTerm}
           />
           {term === 'date' ? (
-            <TariffDateField value={date} onChange={setDate} label={t('adminTariffEndsOn')} />
+            <TariffDateField
+              tariffToday={tariffToday}
+              value={date}
+              onChange={setDate}
+              label={t('adminTariffEndsOn')}
+            />
           ) : (
             endsOn && (
               <span className="text-ink-muted">
-                {t('adminTariffUntilInclusive', { date: formatTariffDay(endsOn, language) })}
+                {t('adminTariffUntilInclusive', {
+                  date: formatTariffDay(endsOn, language, tariffToday)
+                })}
               </span>
             )
           )}

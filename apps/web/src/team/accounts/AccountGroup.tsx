@@ -118,6 +118,7 @@ function nameErrorKey(error: unknown): TranslationKey {
     const { code } = error as { code: unknown };
     if (code === 'NAME_CONFLICT') return 'teamAccountNameConflict';
     if (code === 'INVALID_INPUT') return 'teamAccountNameInvalid';
+    if (code === 'PERMISSION_DENIED' || code === 'NOT_A_MEMBER') return 'teamErrorPermissionDenied';
   }
   return 'teamAccountsSaveFailed';
 }
@@ -407,6 +408,7 @@ export function AccountGroup({
         <AccountNameRow
           initialName={account.name}
           twoFactorSeed={account.twoFactorSeed ?? null}
+          canSave={canEdit}
           hold={hold}
           onDirtyChange={onDirtyChange}
           onCancel={() => closeEditor(...HEAD_FOCUS)}
@@ -804,6 +806,7 @@ export function AccountGroup({
  * A new account is named in two steps: Enter (or ✓) on the name offers the
  * optional 2FA key, and Enter there creates it — an empty key included. */
 export function AccountNameRow({
+  canSave = true,
   initialName = '',
   twoFactorSeed = null,
   hold = false,
@@ -811,6 +814,7 @@ export function AccountNameRow({
   onSave,
   onCancel
 }: {
+  canSave?: boolean;
   initialName?: string;
   twoFactorSeed?: string | null;
   hold?: boolean;
@@ -856,7 +860,7 @@ export function AccountNameRow({
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const submit = async () => {
-    if (savingRef.current) return;
+    if (savingRef.current || !canSave) return;
     const clean = normalizeTeamAccountName(name);
     if (!clean) {
       setError('teamAccountNameInvalid');
@@ -929,9 +933,9 @@ export function AccountNameRow({
             onKeyDown={onKeyDown}
           />
         )}
-        {error && (
+        {(error || !canSave) && (
           <span className="team-accounts-edit-error" role="alert">
-            {t(error)}
+            {t(!canSave ? 'teamErrorPermissionDenied' : error!)}
           </span>
         )}
         {seedError && (
@@ -950,7 +954,7 @@ export function AccountNameRow({
           title=""
           label={t('teamAccountsSave')}
           className="team-agent-action is-confirm"
-          disabled={saving}
+          disabled={saving || !canSave}
           onClick={() => void submit()}
         >
           <Check size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />

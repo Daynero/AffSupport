@@ -2086,10 +2086,10 @@ export class JobQueue {
     // A long final image is deliberately encoded as a sparse held segment.
     // FFprobe's average rate then describes that still frame distribution, not
     // the encoded video rate people chose and see while the creative moves.
-    // Keep the result card consistent with validation and report the stream's
-    // nominal (body) rate in that case.
+    // probeMedia measures the moving cadence; a sparse stream's nominal rate
+    // can also be misleading. Keep the result card consistent with validation.
     job.finalFrameRate = heldFinalImage(job)
-      ? (media.nominalFrameRate ?? media.frameRate)
+      ? (media.measuredBodyFrameRate ?? media.nominalFrameRate ?? media.frameRate)
       : media.frameRate;
     job.finalBitrate = media.bitrate;
     job.finalDurationSeconds = media.duration;
@@ -2523,11 +2523,12 @@ function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
    * A final image held for half an hour is a few hundred pictures spread across it — that is
    * the whole reason such a file encodes in a minute instead of twelve. Averaged over the
    * finished file that reads as two frames a second, and this check called a correct output
-   * broken. `nominalFrameRate` is what the container declares the stream to be, which is the
-   * body's rate and the number this was ever meant to test.
+   * broken. probeMedia reads moving packet cadence, including a short opening
+   * when later windows contain only the held image. Prefer that measurement:
+   * the container's nominal rate can describe the sparse tail as well.
    */
   const measured = heldFinalImage(job)
-    ? (media.nominalFrameRate ?? media.frameRate)
+    ? (media.measuredBodyFrameRate ?? media.nominalFrameRate ?? media.frameRate)
     : media.frameRate;
   if (!measured || Math.abs(measured - frameRate) > Math.max(0.03, frameRate * 0.001)) {
     errors.push(`fps=${measured ?? 'missing'}, expected=${frameRate}`);

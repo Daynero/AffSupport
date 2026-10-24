@@ -51,6 +51,17 @@ function renderChip(state: CatalogUpdaterState | null, offsetMs = 0) {
 }
 
 describe('the updater chip', () => {
+  it('distinguishes an unscheduled round and an unknown deadline from an hour-scale schedule', () => {
+    renderChip({ ...running, nextRunAt: null });
+    expect(screen.getByRole('link').textContent).toContain('Updating…');
+    expect(document.querySelector('.ui-chip-spinner')).toBeTruthy();
+    cleanup();
+    renderChip({ ...running, nextRunAt: 'invalid-deadline' });
+    expect(screen.getByRole('link').textContent).toContain('Next: unknown');
+    cleanup();
+    renderChip({ ...running, nextRunAt: new Date(NOW + 3_900_000).toISOString() });
+    expect(screen.getByRole('link').textContent).toContain('1 hr 5 min');
+  });
   it('says nothing while the updater is stopped', () => {
     // Idle, the updater is a line in the space's menu; the header speaks only
     // when there is news (024, FR-094).

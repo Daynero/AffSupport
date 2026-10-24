@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,6 +25,10 @@ async function fixture(size: number, cancelAfterChunk = false) {
   let received = 0;
   const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
     if (String(url).endsWith('/process/output/start')) {
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        outputUploadProtocolVersion: 2,
+        checksum: createHash('md5').update(source).digest('hex')
+      });
       return Response.json({
         ok: true,
         value: {
@@ -83,7 +88,7 @@ async function fixture(size: number, cancelAfterChunk = false) {
       },
       controller.signal
     );
-  return { run, lengths, progress, fetchImpl };
+  return { run, lengths, progress, fetchImpl, controller, file };
 }
 
 it.each([
@@ -110,3 +115,46 @@ it('cancels between large chunks without sending more bytes or finalizing', asyn
     0
   );
 });
+
+it('does not start a provider upload when canceled before checksum production', async () => {
+  const f = await fixture(MIB);
+  f.controller.abort(new Error('PROCESS_CANCELED'));
+  await expect(f.run()).rejects.toThrow('PROCESS_CANCELED');
+  expect(f.fetchImpl).not.toHaveBeenCalled();
+});
+
+it('refuses a file changed after hashing before sending its first provider chunk', async () => {
+  const f = await fixture(MIB);
+  const original = f.fetchImpl.getMockImplementation()!;
+  f.fetchImpl.mockImplementation(async (url, init) => {
+    const response = await original(url, init);
+    if (String(url).endsWith('/process/output/start')) {
+      await writeFile(f.file, Buffer.alloc(MIB + 1));
+    }
+    return response;
+  });
+  await expect(f.run()).rejects.toThrow('SOURCE_CHANGED');
+  expect(f.lengths).toEqual([]);
+});
+
+it.each(['different-provider-file', '../unsafe', 42])(
+  'refuses an unexpected provider identity: %j',
+  async providerFileId => {
+    const f = await fixture(1024);
+    const original = f.fetchImpl.getMockImplementation()!;
+    f.fetchImpl.mockImplementation(async (url, init) => {
+      const response = await original(url, init);
+      if (!String(url).endsWith('/process/output/start')) return response;
+      const payload = await response.json();
+      payload.value.providerFileId = providerFileId;
+      return Response.json(payload);
+    });
+    await expect(f.run()).rejects.toThrow(
+      providerFileId === 'different-provider-file' ? 'SOURCE_CHANGED' : 'INVALID_RESPONSE'
+    );
+    expect(
+      f.fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/finalize'))
+    ).toHaveLength(0);
+    if (providerFileId !== 'different-provider-file') expect(f.lengths).toEqual([]);
+  }
+);

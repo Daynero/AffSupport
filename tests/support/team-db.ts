@@ -130,10 +130,14 @@ export async function createTeamTestDb(
     throughMigration?: string;
     /** PGlite contrib extensions to load (e.g. pg_trgm), so a migration can create them. */
     extensions?: Extensions;
+    /** Model Supabase's public service-role table defaults when testing view ACLs. */
+    supabaseServiceDefaultPrivileges?: boolean;
   } = {}
 ): Promise<TeamTestDb> {
   const db = await PGlite.create(options.extensions ? { extensions: options.extensions } : {});
   await db.exec(SUPABASE_STUBS);
+  if (options.supabaseServiceDefaultPrivileges)
+    await db.exec('alter default privileges in schema public grant all on tables to service_role;');
 
   const files = readdirSync(MIGRATIONS_DIR)
     .filter(

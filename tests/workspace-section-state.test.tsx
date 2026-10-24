@@ -3,9 +3,13 @@ import React, { useState } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
+// Prepare real lazy route transforms outside the interaction deadline.
+// Component mounting and section state are still exercised through TeamSpace.
+import '../apps/web/src/team/workspace/WorkspaceShell';
+import '../apps/web/src/team/explorer/ExplorerShell';
 
 /**
  * Leaving a section and coming back must not undo what somebody just did.
@@ -155,4 +159,43 @@ describe('switching workspace sections', () => {
     await user.click(tab('Tasks'));
     expect(window.location.search).toBe('?account=acc-7');
   });
+});
+
+it('discards mounted workspace content when authoritative view permission is revoked', async () => {
+  const team = makeTeam();
+  const client = makeClient({
+    listTeams: vi.fn().mockResolvedValue([team]),
+    listMaterials: vi.fn().mockResolvedValue([])
+  });
+  localStorage.setItem(STORAGE_KEY, team.id);
+  function PermissionControl() {
+    const { replaceTeams } = useTeam();
+    return (
+      <>
+        <button
+          onClick={() =>
+            replaceTeams([{ ...team, permissions: { ...team.permissions, view: false } }])
+          }
+        >
+          Revoke view
+        </button>
+        <button onClick={() => replaceTeams([team])}>Restore view</button>
+      </>
+    );
+  }
+  render(
+    <TeamProvider realtime={false}>
+      <PermissionControl />
+      <TeamSpace client={client} directAddMode="disabled" />
+    </TeamProvider>
+  );
+  const user = userEvent.setup();
+  await screen.findByRole('heading', { name: 'Media buyers' });
+  await user.click(tab('Tasks'));
+  await user.type(await screen.findByLabelText('tasks filter'), 'private retained draft');
+  await user.click(screen.getByRole('button', { name: 'Revoke view' }));
+  expect(screen.queryByLabelText('tasks filter')).toBeNull();
+  expect(screen.getByRole('alert').textContent).toMatch(/permission|дозвол/i);
+  await user.click(screen.getByRole('button', { name: 'Restore view' }));
+  expect(((await screen.findByLabelText('tasks filter')) as HTMLInputElement).value).toBe('');
 });

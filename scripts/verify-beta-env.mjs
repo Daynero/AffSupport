@@ -12,6 +12,7 @@
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { parseEnvFile } from './lib/env-file.mjs';
+import { scanAcceptanceIsolation } from './lib/acceptance-isolation.mjs';
 import { createServer } from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
 import {
@@ -95,6 +96,8 @@ function productionEntitlementKey() {
 }
 
 async function main() {
+  const isolation = scanAcceptanceIsolation({ productionArtifacts: false });
+  if (!isolation.ok) fail(`ACCEPTANCE_ISOLATION: ${JSON.stringify(isolation.problems)}`);
   if (!existsSync(PROFILE_FILE)) {
     fail(
       `BETA_ENV_MISSING: ${PROFILE_FILE} does not exist.\n` +

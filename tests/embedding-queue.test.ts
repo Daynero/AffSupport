@@ -86,9 +86,9 @@ describe('sequential queue with embedded images', () => {
       expect(job.processingStage).toBeNull();
       expect(media.hasAudio).toBe(true);
       expect(media.audioChannels).toBe(2);
-      // A held end card is stored sparsely, so its average FPS is lower than
-      // the body. The card must show the nominal stream/body FPS instead.
-      expect(media.frameRate).toBeLessThan(30);
+      // Packet timing can prove the short body; otherwise the average still
+      // describes the held tail and the declared rate is the explicit fallback.
+      expect(media.measuredBodyFrameRate ?? media.nominalFrameRate).toBeCloseTo(30, 2);
       expect(media.nominalFrameRate).toBeCloseTo(30, 2);
       expect(job.finalFrameRate).toBeCloseTo(30, 2);
       // Source minus the static edges it replaces, plus one frame of opening

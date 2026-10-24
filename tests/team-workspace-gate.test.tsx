@@ -91,13 +91,12 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
       </AuthContextOverride>
     );
 
-    expect(await screen.findByRole('heading', { name: 'A space to work together' })).toBeTruthy();
-    // A page, not a modal, with one way forward and no prices.
+    expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
+    // The accepted showcase stays a page with a plan choice and one contact action.
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('button', { name: 'Write to the administrator' })).toBeTruthy();
-    expect(
-      screen.getByText('The administrator will open the space for outside@example.com')
-    ).toBeTruthy();
+    expect((screen.getByRole('radio', { name: /Solo/ }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: /Team/ }) as HTMLInputElement).checked).toBe(false);
     expect(rpc).toHaveBeenCalledWith('get_my_space_access', {});
     expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });

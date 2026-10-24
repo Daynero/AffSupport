@@ -164,7 +164,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
         tone: 'info',
         text: t('adminTariffExtended', {
           email: row.ownerEmail,
-          date: formatTariffDay(updated.endsOn, language)
+          date: formatTariffDay(updated.endsOn, language, updated.tariffToday)
         }),
         ...(updated.eventId
           ? {
@@ -209,7 +209,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
       tone: 'success',
       text: t('adminTariffGranted', {
         email: row.ownerEmail,
-        date: formatTariffDay(row.endsOn, language)
+        date: formatTariffDay(row.endsOn, language, row.tariffToday)
       })
     });
     if (prefill.requestUserId) {
@@ -228,10 +228,10 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
   return (
     <div className="admin-tariffs flex flex-col gap-4">
       <Card className="admin-card" aria-labelledby="admin-tariffs-heading">
-        <div className="admin-card-heading">
-          <div>
+        <div className="admin-card-heading flex-wrap">
+          <div className="flex min-w-0 flex-col gap-1">
             <h3 id="admin-tariffs-heading">{t('adminTabTariffs')}</h3>
-            <p>{summary}</p>
+            <p className="m-0 text-label text-ink-muted">{summary}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -328,7 +328,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
           <Table
             size="sm"
             className="admin-table admin-tariff-table"
-            columns="minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.8fr)"
+            columns="minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(10rem, 1.8fr)"
             label={t('adminTabTariffs')}
           >
             <TableHeader>
@@ -376,6 +376,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
       {granting && (
         <TariffGrantDialog
           plans={data.plans}
+          tariffToday={data.settings.tariffToday}
           prefill={granting}
           requests={data.requests}
           client={client}

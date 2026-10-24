@@ -35,7 +35,7 @@ export function LaunchCreativePicker({
   const fileInput = useRef<HTMLInputElement>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'selection' | 'upload' | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [aliasTouched, setAliasTouched] = useState(false);
   const aliasValid = normalizeLaunchSub(config.creativeAlias ?? '') !== null;
@@ -55,7 +55,7 @@ export function LaunchCreativePicker({
   const upload = async (files: File[]) => {
     if (disabledRef.current || busyRef.current) return;
     if (files.length !== 1) {
-      setError(true);
+      setError('selection');
       return;
     }
     const kind = classifyMaterial({
@@ -64,13 +64,13 @@ export function LaunchCreativePicker({
       fileExtension: files[0].name.split('.').pop()
     }).category;
     if (kind !== 'video' && (kind !== 'image' || config.method === 'catalog')) {
-      setError(true);
+      setError('selection');
       return;
     }
     busyRef.current = true;
     setBusy(true);
     onBusyChange?.(true);
-    setError(false);
+    setError(null);
     try {
       const folder = await teamApi.ensureTaskDropFolder(teamId);
       const result = await uploadTeamFile({
@@ -89,7 +89,7 @@ export function LaunchCreativePicker({
       });
       setSelectedName(files[0].name);
     } catch {
-      if (mounted.current) setError(true);
+      if (mounted.current) setError('upload');
     } finally {
       busyRef.current = false;
       if (mounted.current) {
@@ -144,7 +144,7 @@ export function LaunchCreativePicker({
             onAdd={items => {
               if (!mounted.current || disabledRef.current || busyRef.current) return;
               if (items.length !== 1) {
-                setError(true);
+                setError('selection');
                 return;
               }
               onChange({
@@ -203,7 +203,7 @@ export function LaunchCreativePicker({
       )}
       {error && (
         <p role="alert" className="text-error-text">
-          {t('launchesOneFile')}
+          {t(error === 'upload' ? 'errorUploadFailed' : 'launchesOneFile')}
         </p>
       )}
     </div>

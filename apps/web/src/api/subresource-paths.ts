@@ -1,3 +1,5 @@
+import { reportRequestFailure } from './request-failures';
+
 /**
  * Paths of the subresources the browser fetches for itself.
  *
@@ -40,12 +42,20 @@ const ticketCache = new Map<string, { ticket: string; expiresAt: number }>();
 const TICKET_REFRESH_MARGIN_MS = 60_000;
 /** Requests still on the wire, so two callers a moment apart share one ticket. */
 const ticketsInFlight = new Map<string, Promise<string | null>>();
+let scopeOrigin: string | null = null;
+let scopeToken: string | null = null;
+let epoch = 0;
 
 export function subresourceTicket(
   agentOrigin: string,
   token: string,
   path: string
 ): Promise<string | null> {
+  if (scopeOrigin !== agentOrigin || scopeToken !== token) {
+    clearSubresourceTickets();
+    scopeOrigin = agentOrigin;
+    scopeToken = token;
+  }
   const cached = ticketCache.get(path);
   if (cached && cached.expiresAt - TICKET_REFRESH_MARGIN_MS > Date.now()) {
     return Promise.resolve(cached.ticket);
@@ -54,9 +64,9 @@ export function subresourceTicket(
   // one file) asked twice; the second answer is the first one's.
   const pending = ticketsInFlight.get(path);
   if (pending) return pending;
-  const request = requestTicket(agentOrigin, token, path).finally(() =>
-    ticketsInFlight.delete(path)
-  );
+  const request = requestTicket(agentOrigin, token, path, epoch).finally(() => {
+    if (ticketsInFlight.get(path) === request) ticketsInFlight.delete(path);
+  });
   ticketsInFlight.set(path, request);
   return request;
 }
@@ -64,16 +74,29 @@ export function subresourceTicket(
 async function requestTicket(
   agentOrigin: string,
   token: string,
-  path: string
+  path: string,
+  requestEpoch: number
 ): Promise<string | null> {
+  let response: Response;
   try {
-    const response = await fetch(`${agentOrigin}/api/tickets`, {
+    response = await fetch(`${agentOrigin}/api/tickets`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-session-token': token },
       body: JSON.stringify({ path })
     });
-    if (!response.ok) return null;
+  } catch {
+    if (requestEpoch === epoch) reportRequestFailure('connection_failed');
+    return null;
+  }
+  if (requestEpoch !== epoch) return null;
+  if (!response.ok) {
+    if (response.status === 401) reportRequestFailure('unauthorized');
+    else if (response.status === 403) reportRequestFailure('forbidden');
+    return null;
+  }
+  try {
     const body = (await response.json()) as { ticket?: unknown; expiresInMs?: unknown };
+    if (requestEpoch !== epoch) return null;
     if (typeof body.ticket !== 'string') return null;
     const lifetime = typeof body.expiresInMs === 'number' ? body.expiresInMs : 5 * 60_000;
     ticketCache.set(path, { ticket: body.ticket, expiresAt: Date.now() + lifetime });
@@ -83,7 +106,11 @@ async function requestTicket(
   }
 }
 
-/** Forgets every cached ticket. Called when the session token changes. */
+/** Invalidates cached authority and pending replies, including late decoded bodies. */
 export function clearSubresourceTickets(): void {
+  epoch += 1;
   ticketCache.clear();
+  ticketsInFlight.clear();
+  scopeOrigin = null;
+  scopeToken = null;
 }

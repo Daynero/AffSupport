@@ -1,0 +1,14 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(6);
+select ok(has_table_privilege('service_role','public.analytics_recovery_execution','SELECT'),'service can read execution reservations');
+select ok(not has_table_privilege('service_role','public.analytics_recovery_execution','INSERT,UPDATE,DELETE'),'execution reservation projection cannot mutate the fence');
+select ok(has_table_privilege('service_role','public.analytics_process_output_cleanup','SELECT'),'service can read output cleanup');
+select ok(not has_table_privilege('service_role','public.analytics_process_output_cleanup','INSERT,UPDATE,DELETE'),'cleanup projection cannot mutate ownership');
+set local role service_role;
+select throws_ok('delete from public.analytics_recovery_execution where false','42501',null,'actual service-role execution-fence deletion is refused');
+select throws_ok('delete from public.analytics_process_output_cleanup where false','42501',null,'actual service-role ownership deletion is refused');
+reset role;
+select * from finish();
+rollback;

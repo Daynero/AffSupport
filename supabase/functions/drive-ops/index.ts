@@ -1,3 +1,8 @@
+import {
+  requireProcessUploadProducer,
+  startOwnedProcessUpload,
+  verifyOwnedProcessUploadResult
+} from './process-output-upload.ts';
 import { recoveryTokenHash } from '../team-recovery/digest.ts';
 import { publicFunctionEndpoint } from '../_shared/function-endpoints.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
@@ -646,7 +651,7 @@ async function cacheGeneratedTextResult(input: {
   let state: 'full' | 'truncated' | 'invalid_encoding' | 'unavailable' = 'unavailable';
   let text: string | null = null;
   let indexedBytes = 0;
-  let errorCode: string | null = null;
+  let errorCode: string | null;
   try {
     const body = await input.client.downloadFileRange({
       fileId: input.result.id,
@@ -1043,6 +1048,13 @@ async function handleUploadFinalize(
   ) {
     console.error('[finalize] mismatch', 'SOURCE_CHANGED');
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+  }
+  if (operation.kind === 'process') {
+    const ownership = await rpcValue(service, 'service_get_process_upload', {
+      p_operation: operationId,
+      p_actor: actorId
+    });
+    verifyOwnedProcessUploadResult(ownership, result, operationId);
   }
   await verifyBoundSource(service, operation, request, driveFileId.value);
   try {
@@ -2097,6 +2109,8 @@ async function handleProcessOutputStart(
     })) === true;
   if (launchRestitch && operation.versionOfMaterialId)
     throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+  const protectedNewOutput = !launchRestitch && !operation.versionOfMaterialId;
+  const producerChecksum = protectedNewOutput ? requireProcessUploadProducer(body) : null;
   let overwriteTarget: DriveFileMetadata | null = null;
   if (operation.versionOfMaterialId) {
     const context = await loadContext({
@@ -2133,14 +2147,31 @@ async function handleProcessOutputStart(
       p_actor: grant.actorId
     });
   }
-  const session = await destination.client.startResumableUpload({
-    name: operation.expectedName,
-    mimeType: operation.mimeType,
-    sizeBytes,
-    parentId: destination.live.id,
-    existingFileId: overwriteTarget?.id ?? null,
-    ...(launchRestitch ? { appProperties: { 'soty.launch.restitch.operation': operationId } } : {})
-  });
+  const session = protectedNewOutput
+    ? await startOwnedProcessUpload({
+        rpc: (name, args) => rpcValue(service, name, args),
+        client: destination.client,
+        operationId,
+        actorId: grant.actorId,
+        teamId: operation.teamId,
+        connectionId: destination.context.connectionId,
+        rootId: destination.context.rootFolderId,
+        parentId: destination.live.id,
+        name: operation.expectedName,
+        mimeType: operation.mimeType,
+        sizeBytes,
+        checksum: producerChecksum!
+      })
+    : await destination.client.startResumableUpload({
+        name: operation.expectedName,
+        mimeType: operation.mimeType,
+        sizeBytes,
+        parentId: destination.live.id,
+        existingFileId: overwriteTarget?.id ?? null,
+        ...(launchRestitch
+          ? { appProperties: { 'soty.launch.restitch.operation': operationId } }
+          : {})
+      });
   await transitionOperation({
     service,
     operationId,
@@ -2152,6 +2183,7 @@ async function handleProcessOutputStart(
     operationId,
     sessionUri: session.sessionUri,
     expiresAt: session.expiresAt,
+    ...('providerFileId' in session ? { providerFileId: session.providerFileId } : {}),
     chunkMultiple: UPLOAD_CHUNK_MULTIPLE_BYTES
   };
 }
@@ -2509,7 +2541,13 @@ async function handleEnsureUploadFolder(
 function requireFolderName(value: unknown): string {
   if (typeof value !== 'string') throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   const name = value.normalize('NFC').trim();
-  if (name.length < 1 || name.length > 200 || /[\u0000-\u001f/\\]/u.test(name)) {
+  if (
+    name.length < 1 ||
+    name.length > 200 ||
+    name.includes('/') ||
+    name.includes('\\') ||
+    [...name].some(character => character.charCodeAt(0) < 32)
+  ) {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
   return name;

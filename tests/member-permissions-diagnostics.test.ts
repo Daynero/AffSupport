@@ -51,6 +51,9 @@ beforeAll(async () => {
   attempts.push(removed);
   removed.accepted();
   removed.finish('success');
+  const assignees = memberAttempt('assignees_list', flow);
+  attempts.push(assignees);
+  assignees.finish('success');
   await Promise.all(pending);
   vi.restoreAllMocks();
 }, 30_000);
@@ -63,7 +66,8 @@ it('connects real producer signals through sanitizer, storage and CLI without mi
     [0, 'members.permissions', 'operation_completed'],
     [1, 'members.permissions', 'operation_failed'],
     [2, 'members.list', 'operation_cancelled'],
-    [5, 'members.remove', 'operation_completed']
+    [5, 'members.remove', 'operation_completed'],
+    [6, 'members.assignees', 'operation_completed']
   ] as const) {
     const found = await getInspect(attempts[index].properties.attempt_id);
     if (!found.found) throw Error('Expected attempt');

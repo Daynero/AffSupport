@@ -180,11 +180,12 @@ export const runStitchPipeline: StitchPipeline = async context => {
    * The promise, restated from the parts that actually exist.
    *
    * Before an outro, concat advances by the body's corrected container duration. With only
-   * an intro, the body is last and concat removes its timestamp origin. Left alone, the
-   * finished file keeps the body's own video track. These are different measurements.
+   * an intro, the body is last and concat removes its timestamp origin. The standalone
+   * remux also removes that origin, including the positive origin of copied B-frames.
+   * These are different measurements from the absolute end timestamp in the body file.
    */
   const joining = segments.length > 1;
-  let bodySeconds = measuredBody.videoTrackSeconds;
+  let bodySeconds = measuredBody.videoTrackSeconds - measuredBody.startTimeSeconds;
   if (joining) {
     bodySeconds = outro.path
       ? bodyConcatSeconds

@@ -1,5 +1,16 @@
 # Quickstart — Team Workspace That Works
 
+## Closure — 2026-10-20
+
+The owner explicitly requested closure: «011 закривай, я користуюсь простором вже більше місяця».
+Feature 011 is accepted on the basis of that reported real use. Remaining historical
+checklist items are retired from this feature by owner acceptance, not recorded as
+executed tests, measured success criteria, verified Google Console configuration or
+new deployments. Earlier findings below remain historical evidence with their original
+limitations. No test, release, production change or scheduled recheck was performed as
+part of this documentation closure. Release-wide acceptance remains tracked in 036.
+
+
 Validation runs, not implementation. Every step names one command and one expected outcome.
 **On the owner's machine: one command at a time; check `uptime` before anything heavy.**
 

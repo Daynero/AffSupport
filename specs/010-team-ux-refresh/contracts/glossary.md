@@ -43,3 +43,8 @@ team-mode string in both locales.
 `tests/team-i18n-glossary.test.ts` imports both bundles and asserts the forbidden list, the
 canonical section labels, the gate-title replacement, and the Close/Cancel key-role map.
 The test is part of `npm test` — the glossary cannot silently rot.
+
+
+## Commercial showcase context (owner acceptance2026-10-22)
+
+The owner-approved subscription redesign9dca022d names a commercial plan Team/Команда and refers to a human team in its lead and plan description. These meanings are allowed only for tariffShowcaseLead, tariffShowcaseTeam and tariffShowcaseTeamDescription. They do not rename the product object: it remains Space/Простір. The glossary test exempts these exact reviewed keys, with a regression that keeps other showcase copy and product labels covered.

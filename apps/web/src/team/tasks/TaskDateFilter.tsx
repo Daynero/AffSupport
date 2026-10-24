@@ -108,6 +108,11 @@ export function TaskDateFilterControl({
   const { language, t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const closeCalendar = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
   const selectedLabel = useMemo(() => formatSelectedDate(language, value), [language, value]);
 
   /**
@@ -146,6 +151,7 @@ export function TaskDateFilterControl({
         className={`task-date-filter-calendar ${value.kind !== 'all' ? 'is-active' : ''}`.trim()}
       >
         <button
+          ref={trigger}
           type="button"
           className="task-date-filter-trigger"
           aria-label={calendarLabel ?? t('teamTasksCalendarOpen')}
@@ -167,8 +173,9 @@ export function TaskDateFilterControl({
           </button>
         )}
         <Popover
+          initialFocus='[role="grid"] [tabindex="0"]'
           open={open}
-          onClose={() => setOpen(false)}
+          onClose={() => closeCalendar()}
           anchor={root}
           placement="bottom-start"
           frequent
@@ -195,7 +202,7 @@ export function TaskDateFilterControl({
             label={t('teamTasksCalendar')}
             value={range}
             onChange={next => {
-              setOpen(false);
+              closeCalendar();
               onChange({
                 kind: 'range',
                 from: fromCalendarDate(next.start) ?? '',
@@ -218,7 +225,7 @@ export function TaskDateFilterControl({
                         className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
                         aria-pressed={quick === option.range}
                         onClick={() => {
-                          setOpen(false);
+                          closeCalendar();
                           onChange(
                             option.range === 'all'
                               ? { kind: 'all' }

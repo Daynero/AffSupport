@@ -1,6 +1,8 @@
+> **Current scope decision — 2026-10-24:** 036 is CLOSED for completed local implementation and verification. Remaining substantial acceptance obligations are OPEN in [042 Production Readiness](../042-production-readiness/spec.md), with exact mapping in [scope-transfer.json](scope-transfer.json). See [closure.md](closure.md). Earlier full-campaign requirements and NO_GO checkpoints below are retained as historical requirements/evidence for 042; no production GO or test PASS is inferred from this scope change.
+
 # Місткість на 30–50 людей і рішення щодо Supabase
 
-**Статус: протокол та попередня оцінка, не виконаний load test.** Дата перевірки джерел: 2026-10-14. Квоти повторно звірити перед продажами.
+**Статус: протокол та попередня оцінка, не виконаний load test.** Дата повторної перевірки джерел: 2026-10-21. Квоти повторно звірити перед продажами.
 
 ## Відомі дані та межа висновку
 
@@ -100,3 +102,68 @@ rotation ≤1/4 хв, до 5 transient retries/episode та до 3 automatic epi
 кількість installations/delegations, long-poll duration/cost та server dispatch окремо; не рахувати idle=0.
 Після змін agent/protocol/capture повторити affected load на кінцевому SHA; capacity доказ не переноситься
 через EvidenceAdoption. Надто коротке вікно або невідома метрика не доводять достатність Free.
+
+## Повторна перевірка офіційних квот — 2026-10-21
+
+Це довідкові тарифи, не виміряна місткість Soty і не дозвіл на покупку. Фактичні plan,
+compute, spend cap та project limits hosted acceptance-стенду ще не підтверджені.
+
+| Ресурс за billing cycle            | Free           | Pro                                      |
+| ---------------------------------- | -------------- | ---------------------------------------- |
+| План                               | $0             | від $25/місяць                           |
+| Auth MAU                           | 50 000         | 100 000; далі $0.00325/MAU               |
+| Database                           | 500 MB/project | 8 GB disk/project; далі $0.125/GB        |
+| File Storage                       | 1 GB           | 100 GB; далі $0.0213/GB/місяць, GB-hours |
+| Uncached egress                    | 5 GB           | 250 GB; далі $0.09/GB                    |
+| Cached egress                      | 5 GB           | 250 GB; далі $0.03/GB                    |
+| Edge Function invocations          | 500 000        | 2 млн; далі $2 за пакет 1 млн            |
+| Realtime messages                  | 2 млн          | 5 млн; далі $2.50 за пакет 1 млн         |
+| Included peak Realtime connections | 200            | 500; далі $10/1000                       |
+
+Джерела: [Pricing](https://supabase.com/pricing),
+[Storage accounting](https://supabase.com/docs/guides/platform/manage-your-usage/storage-size),
+[Functions accounting](https://supabase.com/docs/guides/platform/manage-your-usage/edge-function-invocations),
+[Billing overview](https://supabase.com/docs/guides/platform/billing-on-supabase).
+Invocations рахуються незалежно від response status; OPTIONS не тарифікуються.
+
+Micro: $0.01344/годину (приблизно $10/місяць), shared CPU, 1 GB RAM, 60 DB connections,
+200 pooler clients, рекомендований maximum DB size 10 GB. Paid organization має $10 monthly
+compute credits для одного Micro; додатковий project додає compute cost. Це не доказ, що
+Micro витримає Soty. [Compute billing](https://supabase.com/docs/guides/platform/manage-your-usage/compute),
+[Compute and disk](https://supabase.com/docs/guides/platform/compute-and-disk).
+
+Runtime Realtime limits відрізняються від included billing quota: Free 200 connections / 100
+messages та joins за секунду; Pro зі spend cap 500 / 500; Pro без spend cap 10 000 / 2500.
+Channels/connection — 100. Ліміти configurable, тож actual configuration треба записати окремо.
+Postgres change рахується для кожного listening client; Broadcast — send плюс кожний recipient.
+[Runtime limits](https://supabase.com/docs/guides/realtime/limits),
+[Message accounting](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages),
+[Peak accounting](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-peak-connections).
+
+Functions runtime: 256 MB RAM, 2 s CPU/request, wall clock Free 150 s / paid 400 s,
+request idle timeout 150 s. [Functions limits](https://supabase.com/docs/guides/functions/limits).
+
+Невідомі: hosted configuration, інше споживання organization, RLS/query cost, фізичні індекси,
+fan-out, байти egress, retry amplification та background/idle cost. Локальна свіжа БД близько
+25 MB містить лише синтетичні fixtures і не замінює production baseline чи 30/90-day forecast.
+MAU, pooler clients, Realtime connections та активні люди мають різні знаменники.
+**Resource verdict залишається UNPROVEN; hosted LOAD-02–10 не виконані.**
+
+
+## Локальна protocol calibration2026-10-21
+
+Steady1 write/s:110 offered,10 warmup,100/100 correct writes;300/300 measured receiver deliveries,
+p95≈592ms. Burst5/s:15/100 actions dropped через concurrency bound4,255/300 deliveries.
+5 independent Auth clients/channels, три authorized receivers; X/S не одержали жодного сигналу;
+teardown перевірений. Steady мав440 signals на кожний authorized client за110 creates: це1320
+observed received messages на три receivers, не110. Actual hosted billable total та інші channels
+не вимірювалися. Обидва прогони мали concurrent verification на Mac; це не clean baseline,
+не native DOM latency і не доказ50-user capacity/Free quotas. Історія обох profiles збережена в
+`release/acceptance/acceptance-036-realtime-20261021/`.
+
+Billing fan-out потрібно рахувати за кожним listening client, а не за однією user action;
+peak connections сумуються за per-project peaks. Джерела повторно перевірено21 жовтня:
+[message accounting](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-messages),
+[connection accounting](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-peak-connections).
+DB backup не повертає Storage object bytes, тому full restore proof досі потребує окремої
+Storage/Drive копії; [official backup limits](https://supabase.com/docs/guides/platform/backups).

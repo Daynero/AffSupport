@@ -1,4 +1,5 @@
 import { recoveryDigest, recoveryTokenHash } from '../supabase/functions/team-recovery/digest';
+import { authorizeCaller } from '../supabase/functions/_shared/auth';
 import { describe, expect, it, vi } from 'vitest';
 import {
   handleRecovery,
@@ -23,10 +24,83 @@ function request(body: unknown, origin = false) {
       'x-team-recovery-credential': SECRET,
       ...(origin ? { origin: 'https://web.test' } : {})
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(
+      body && typeof body === 'object' && !Array.isArray(body)
+        ? { protocolVersion: 2, ...body }
+        : body
+    )
   });
 }
 describe('native recovery protocol', () => {
+  it.each(['redeem', 'claim', 'checkpoint'])(
+    'rejects an older %s producer before consuming a credential',
+    async action => {
+      const d = deps();
+      await expect(
+        handleRecovery(
+          request({
+            action,
+            protocolVersion: undefined,
+            challengeId: ID,
+            requestId: ID,
+            operationId: ID,
+            jobId: ID
+          }),
+          d
+        )
+      ).rejects.toThrow('AGENT_UPDATE_REQUIRED');
+      expect(d.rpc).not.toHaveBeenCalled();
+      expect(d.drive).not.toHaveBeenCalled();
+    }
+  );
+  it.each([1, '2', null])(
+    'does not coerce an unsupported producer version %s',
+    async protocolVersion => {
+      const d = deps();
+      await expect(
+        handleRecovery(request({ action: 'claim', protocolVersion, requestId: ID }), d)
+      ).rejects.toThrow('AGENT_UPDATE_REQUIRED');
+      expect(d.rpc).not.toHaveBeenCalled();
+    }
+  );
+
+  it('retires a desktop refresh without accepting actor or operation selection from the request', async () => {
+    const d = deps();
+    await handleRecovery(request({ action: 'disconnect', actorId: 'forged', operationId: ID }), d);
+    expect(d.rpc).toHaveBeenCalledWith('disconnect', 'hashed', {});
+    expect(d.user).not.toHaveBeenCalled();
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+  it('never consumes a retirement credential from a browser origin', async () => {
+    const d = deps();
+    await expect(handleRecovery(request({ action: 'disconnect' }, true), d)).rejects.toThrow();
+    expect(d.rpc).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a positive execution reservation after authorization', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockImplementation(async action =>
+      action === 'checkpoint' ? { executionAllowed: true } : { operationState: 'running' }
+    );
+    expect(
+      await handleRecovery(request({ action: 'checkpoint', operationId: ID, jobId: ID }), d)
+    ).toEqual({ executionAllowed: true });
+    expect(vi.mocked(d.rpc).mock.calls.map(([action]) => action)).toEqual([
+      'authorize_execute',
+      'checkpoint'
+    ]);
+  });
+  it.each([false, undefined])(
+    'refuses execution without a positive one-time checkpoint receipt: %s',
+    async executionAllowed => {
+      const d = deps();
+      vi.mocked(d.rpc).mockResolvedValue({ executionAllowed });
+      await expect(
+        handleRecovery(request({ action: 'checkpoint', operationId: ID, jobId: ID }), d)
+      ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+      expect(d.drive).not.toHaveBeenCalled();
+    }
+  );
   it('encodes a SHA-256 digest as 32 PostgreSQL bytea bytes', async () => {
     const digest = await recoveryTokenHash(SECRET);
     expect(digest.length).toBe(66);
@@ -61,6 +135,22 @@ describe('native recovery protocol', () => {
       teamId: ID,
       installationId: ID
     });
+  });
+  it('refuses delegation when bearer authentication resolves no user', async () => {
+    const d = deps();
+    const getUser = vi.fn(async () => ({ data: { user: null }, error: null }));
+    d.user = async request => (await authorizeCaller(request, { auth: { getUser } })).userId;
+    const req = request({
+      action: 'delegate',
+      teamId: ID,
+      installationId: ID,
+      ticketDigest: 'b'.repeat(64)
+    });
+    req.headers.set('authorization', 'Bearer synthetic-service-credential-without-user');
+    await expect(handleRecovery(req, d)).rejects.toThrow('AUTH_REQUIRED');
+    expect(getUser).toHaveBeenCalledWith('synthetic-service-credential-without-user');
+    expect(d.rpc).not.toHaveBeenCalled();
+    expect(d.revoke).not.toHaveBeenCalled();
   });
   it('returns a durable claim replay without claiming another job', async () => {
     const d = deps();

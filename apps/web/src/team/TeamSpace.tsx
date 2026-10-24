@@ -5,7 +5,7 @@ import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
-import { Empty } from '../components/ui/index';
+import { Alert, Empty } from '../components/ui/index';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { spaceTariffApi, teamApi } from '../api/team';
 import { useI18n } from '../i18n';
@@ -594,6 +594,18 @@ export function TeamSpace({
   }
 
   if (entry.kind === 'space' && activeTeam?.id === entry.teamId) {
+    // Authoritative permission loss must unmount retained sections and media,
+    // not leave cached content behind a failed reread. Restoring access mounts
+    // a fresh workspace rather than reviving old dialogs and local drafts.
+    if (!activeTeam.permissions.view) {
+      return wrap(
+        <section className="team-space-lobby">
+          <Alert color="error" live="alert">
+            {t('teamErrorPermissionDenied')}
+          </Alert>
+        </section>
+      );
+    }
     return wrap(
       <WorkspaceShell
         key={`shell:${entry.teamId}`}

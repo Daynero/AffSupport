@@ -1,3 +1,4 @@
+import { memberAttempt } from './members/diagnostics';
 import { realtimeTopic } from '../lib/realtimeTopic';
 import { useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -26,6 +27,8 @@ export function useTeamRealtime(input: {
     let subscribed = false;
     let dirty = false;
     let urgentDirty = false;
+    let membershipDirty = false;
+    let membershipFlowId: string | null = null;
     let refreshing = false;
     let failedReads = 0;
     let refetchTimer: number | null = null;
@@ -35,15 +38,25 @@ export function useTeamRealtime(input: {
       dirty = false;
       urgentDirty = false;
       refreshing = true;
+      const attempt = membershipDirty
+        ? memberAttempt('member_access_refresh', membershipFlowId ?? crypto.randomUUID())
+        : null;
+      membershipDirty = false;
       try {
         await onRefetch();
         if (!active) return;
+        attempt?.finish('success');
+        if (!membershipDirty) membershipFlowId = null;
         failedReads = 0;
         if (subscribed) setState('connected');
-      } catch {
+      } catch (cause) {
         if (!active) return;
+        attempt?.finish('failure', cause);
         failedReads += 1;
-        if (failedReads <= 2) dirty = true;
+        if (failedReads <= 2) {
+          dirty = true;
+          if (attempt) membershipDirty = true;
+        }
         setState('reconnecting');
       } finally {
         refreshing = false;
@@ -123,6 +136,23 @@ export function useTeamRealtime(input: {
           filter: `team_id=eq.${teamId}`
         },
         refetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_membership_access_signals',
+          filter: `team_id=eq.${teamId}`
+        },
+        () => {
+          if (!active) return;
+          membershipFlowId ??= crypto.randomUUID();
+          membershipDirty = true;
+          dirty = true;
+          urgentDirty = true;
+          if (!refreshing) schedule(true);
+        }
       )
       .subscribe(status => {
         if (!active) return;

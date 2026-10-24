@@ -187,6 +187,11 @@ export class E5Aligner implements Aligner {
         // typical segment embedding batch completes in under a second.
         '--n-gpu-layers',
         '0',
+        // Empty-context warmup delays the first useful alignment. Embedding
+        // requests initialize the same engine themselves; include that first
+        // request in the real-model latency regression rather than pre-running
+        // an unused context while the translator is already resident.
+        '--no-warmup',
         '--no-webui',
         '--log-disable'
       ],

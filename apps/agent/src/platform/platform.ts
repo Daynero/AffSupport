@@ -309,14 +309,23 @@ function runCommand(command: string, args: string[]): Promise<CommandResult> {
 
 /**
  * Zips a directory so the archive contains the directory itself as its single
- * top-level entry. macOS keeps using `ditto`; elsewhere the pure-JS writer
+ * top-level entry. Web content carries no macOS resource forks or extended
+ * attributes. macOS keeps using `ditto`; elsewhere the pure-JS writer
  * records UTF-8 entry names explicitly, avoiding both bsdtar's Windows code
  * page ambiguity and PowerShell startup/policy failures.
  */
 export async function zipDirectory(dir: string, zipPath: string): Promise<void> {
   const result =
     process.platform === 'darwin'
-      ? await runCommand('/usr/bin/ditto', ['-c', '-k', '--keepParent', dir, zipPath])
+      ? await runCommand('/usr/bin/ditto', [
+          '-c',
+          '-k',
+          '--norsrc',
+          '--noextattr',
+          '--keepParent',
+          dir,
+          zipPath
+        ])
       : await writeZipDirectory(dir, zipPath).then(
           () => ({ code: 0, stderr: '' }),
           error => ({ code: 1, stderr: error instanceof Error ? error.message : String(error) })

@@ -134,6 +134,44 @@ function fixture(lostReply: boolean) {
   return { store, deps, drive, state, create };
 }
 describe('durable reuse of existing catalog generator', () => {
+  it('keeps the bounded missing-settings reason so the form can offer the settings repair', async () => {
+    const f = fixture(false);
+    vi.mocked(f.deps.readSettings).mockResolvedValue({
+      title: null,
+      description: null,
+      imageLink: null,
+      priceMin: 9,
+      priceMax: 30
+    });
+    await expect(
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+    ).rejects.toMatchObject({ code: 'WRONG_STATE', details: { reason: 'settings_missing' } });
+    expect(f.create).not.toHaveBeenCalled();
+  });
+
+  it('does not expose arbitrary details beside an allowed catalog refusal reason', async () => {
+    const f = fixture(false);
+    vi.mocked(f.deps.readSettings).mockRejectedValue(
+      new TeamFunctionError('WRONG_STATE', {
+        details: { reason: 'settings_missing', payload: 'SYNTHETIC_SECRET' }
+      })
+    );
+    const error = await createDurableProductCatalog(
+      f.deps,
+      f.store,
+      async () => f.drive,
+      body,
+      ACTOR
+    ).then(
+      () => {
+        throw new Error('Expected a catalog refusal');
+      },
+      error => error as TeamFunctionError
+    );
+    expect(error.details).toEqual({ reason: 'settings_missing' });
+    expect(JSON.stringify(error)).not.toContain('SYNTHETIC_SECRET');
+  });
+
   it('reconciles a lost Drive create reply using a marker without creating a second sheet', async () => {
     const f = fixture(true);
     await expect(

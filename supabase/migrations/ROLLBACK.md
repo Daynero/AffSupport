@@ -1953,7 +1953,6 @@ them. No product profile, schedule, material or credential needs to be deleted.
 
 Forward-only additive RPC field. To roll back presentation, deploy the prior web; it ignores `activeCount`. If reverting the database separately, restore `public.get_team_catalog_updater(uuid)` from `20260915140000_catalog_updater.sql` (the same authentication/view permission guard and `private.catalog_updater_state(p_team)` return). Do not reset catalog schedules, attempts or history. Apply through the normal release process; local beta application is not production promotion.
 
-
 ## 20261205100000_tariff_catalog_recovery
 
 034 recurring-catalog increment. No new tables or columns. Before rollback stop candidate rollout;
@@ -2000,7 +1999,6 @@ revocation. Keychain/DPAPI deletion is per explicit installation disable, never 
 
 These migrations have only local implementation evidence here; this is not a production rollback command.
 
-
 ### 034 late-output fence (`20261206120000`)
 
 Keep the source/version/configuration receipt columns on `private.catalog_restitch_operations`.
@@ -2011,6 +2009,68 @@ must deploy with `service_authorize_catalog_cleanup`; a missing/failed authoriza
 A provider HTTP request already sent cannot be canceled atomically by PostgreSQL: retain its actual
 completion receipt even if access closes in flight. Never report such a receipt as a resumed job.
 
+### 20261206130000_membership_access_signals
+
+If06132000 is present, roll it back first as described below.
+Rollback requires web rollback first: stop subscribing to `team_membership_access_signals`.
+Then drop view `public.analytics_membership_access_signals`, trigger `membership_access_changed`
+on `public.team_members`, function `private.signal_membership_access_change()`, and table
+`public.team_membership_access_signals` (Postgres removes its publication membership).
+This discards only invalidation metadata. It does not restore or change memberships, roles,
+permission overrides or protected audit history. Clients must authoritative-reread on reconnect.
+
+`20261206131000` adds the attachment-reference fence on that new team table. Removing
+only this trigger intentionally makes cleanup coverage incomplete and retains orphan candidates;
+do not bypass the coverage check. Rolling back the table removes the trigger with it.
+
+### 20261206132000_membership_manager_invalidation
+
+Restore only the body of `private.signal_membership_access_change()` from06130000 (do not replay its table-creation migration). Drop `membership_invitation_changed` on `public.team_invitations`, then `private.signal_membership_invitation_change()`, then `private.bump_membership_access_signals(uuid,uuid)`. Own-row table/RLS, affected-client invalidation and cleanup reference fence remain. This removes manager live invalidation; manager pages again require reconnect/refresh. Shared revision wiring in the web is backward compatible. No membership, invitation or audit data is deleted.
+
+### 20261206133000_membership_signal_force_rls
+
+Retain FORCE ROW LEVEL SECURITY while the team signal table exists: it is part of the
+platform-wide team-table boundary. A web/function rollback does not require removing it.
+For a complete feature rollback, remove the manager invalidation functions/triggers as
+described above, then remove the signal table/view using the06130000 procedure; dropping
+the table removes the flag too. Do not leave a non-forced team table behind as a standalone
+rollback. No membership, invitation or protected content rows are changed by this migration.
+
+
+### 20261206139000_process_error_codes
+
+Retain the additive PROCESS_RESULT_UNCERTAIN catalog row when rolling back agent or Edge code. Historical operations and diagnosis may continue to contain this code. No schema, permissions, user rows or provider objects need removal; deleting the catalog row is not a required rollback step. The applied base seed and account-code extension remain immutable.
+
+
+### 20261206139500_recovery_execution_fence
+
+Keep the one-time operation fences and public checkpoint wrapper during an agent or Edge rollback. Older Edge code must still receive a failure on a reserved checkpoint rather than permission to execute again. Do not grant service_role direct execution of private.service_team_recovery_core, rename that core back over the wrapper, or delete a fence to retry an uncertain operation. Resolve the existing operation and its output first; a new explicit operation has its own identity. Fences follow normal operation retention through the foreign key. The read-only reservation projection contains no credential or provider payload and can remain for diagnosis.
+
+
+### 20261206139700_recovery_execution_reference_fence
+
+Retain this trigger while team_recovery_execution_fences exists. It registers the execution metadata as a conservative material consumer and blocks late references to an already claimed task-file cleanup. Dropping it disables verified orphan cleanup through the existing unknown-consumer check; bypassing that check or exempting the table is not an acceptable rollback. Removing the complete execution feature requires reconciling its operation fences first, as described above.
+
+
+### 20261206139900_recovery_diagnostics_readonly
+
+Retain the explicit SELECT-only service-role grants on both recovery diagnostic views. Application rollback does not require mutation through a diagnostic projection. Do not restore ALL privileges or allow deletion of execution/ownership fences through an updatable view. Keep source schema-scoped default ACL restoration in isolated verification so its privileges match the running Supabase baseline; removing that restoration weakens test fidelity rather than rolling back product behavior.
+
+## 20261206139950 — bounded recovery retention
+
+Keep the bounded sweep when rolling application code back: its signature and lifecycle guards are unchanged. It selects at most100 records per security-retention class and100 eligible lifecycle roots, skipping locked candidates; cascaded descendants are not a fixed row budget. Vault pointer/receipt detachment and secret deletion remain transactional. Do not restore the unbounded deletion statements as an application rollback. The six supporting indexes may remain; removing them does not restore different access or retention rights. No local Beta application or production deployment is implied by this source migration.
+
+## 20261206139975 — recovery actor receipt and scoped retirement (source only)
+
+Not applied locally or deployed at this checkpoint. Preserve the one-time checkpoint wrapper and private-core ACL when changing this function. Desktop redeem's actorId is additive; retirement is authenticated only by its own current/previous refresh hash and cannot select a different actor or operation. It cancels only unfinished process operations bound by that delegation's credentials/receipts, revokes their transfer grants and uses canonical cancellation audit; published results and unrelated operations are not selected. Once a native retirement queue is in use, do not roll the server back to an endpoint that cannot acknowledge those handles, and do not delete the pending handle merely because an old endpoint refuses the action. Older producer/agent compatibility still requires validation before cutover. This does not authorize production deployment.
+
+
+## 20261206139980 — browser retirement attempt receipts (T167 isolated draft)
+
+Not applied to Beta or production at this checkpoint. Revert the matching observed-RPC web/CLI code before removing this contract. Preserve any diagnostic evidence required by the operator; dropping the new receipt tables destroys that evidence. The original `public.retire_team_recovery_installation(uuid)` and its actor/installation locking must remain intact.
+
+In one guarded schema transaction: drop `public.analytics_recovery_retirement`; drop `public.retire_team_recovery_installation_observed(uuid,uuid)`; drop the new wrapper `private.sweep_workspace_recovery()`; rename `private.sweep_workspace_recovery_before_retirement_receipts()` back to `sweep_workspace_recovery`; drop `private.sweep_recovery_retirement_receipts()`; then drop only `private.team_recovery_retirement_rates` and `private.team_recovery_retirement_attempts`. Restore the original sweep privileges and the complete preceding definition of `private.task_cleanup_reference_tables()` from migration20261205122000; remove only the two exact identity-table exemptions introduced by358, preserving all conservative consumer checks. Do not alter/delete native delegations, credentials, enrollment state, the normal lifecycle sweep implementation or the existing cron schedule. Rerun the isolated migration chain and retirement/retention diagnostics checks. This is a rollback procedure, not an instruction to run it against production.
+
 ## 20261206140000 — launch offer defaults
 
 Source migration only; no production application is implied. Roll back the web feature first and retain the new table, RPCs, validation and content-free invalidation trigger: older clients continue using the unchanged workspace RPC signature and replay digests. Keeping dormant offer profiles preserves saved settings. Do not drop the table or narrow the budget validator while saved manual-budget profiles exist. A destructive schema downgrade requires an explicit data-preservation plan; ordinary application rollback requires no database writes.
@@ -2019,3 +2079,10 @@ Source migration only; no production application is implied. Roll back the web f
 ## 20261206140500 — Launch offer defaults reference fence
 
 Retain `task_cleanup_reference_fence` while `team_launch_offer_defaults` exists. It registers this consumer with the existing conservative reference scan and rejects late material references after cleanup has been claimed. An application rollback requires no schema action. Removing or disabling this trigger makes cleanup coverage unknown and retains files as `cleanup_unverified`; do not bypass that check or exempt this table. A complete offer-defaults feature removal must preserve saved profiles as described above. This source fix does not authorize a production migration.
+
+
+## 20261206141000 — Tariff domain clock
+
+The forward migration is now present in ROOT source; retained beta remains on360 migrations and production was not changed. Restore real tariff time and remove any owned local acceptance overlay before applying `supabase/rollback/20261206141000_tariff_time_seam.sql`. The rollback restores19 prior function definitions, the real-time starts_at default and named hourly notice schedule before dropping private.tariff_now. It does not delete application rows. Production rollback requires the canonical production runbook and authorization.
+
+The combined361migration disposable run passed948pgTAP assertions,2actual Auth clock tests and26native tests, including actual rollback/forward with nonempty synthetic tariff and Launch-offer data preserved. This is a NEXT source integration proof, not a production rollback or current ROOT full canonical result. Evidence: `release/acceptance/acceptance-036-fresh-20261021/drive-followup/t011-native-auth-clock-proof.json`. Guarded live CLI, notice capture under overlay and physical UI calendar agreement remain open.

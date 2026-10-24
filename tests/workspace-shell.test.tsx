@@ -25,6 +25,7 @@ function renderEnteredSpace(client: ReturnType<typeof makeClient>, teamId: strin
 }
 
 describe('content-first workspace shell', () => {
+  // Functional navigation includes cold lazy-module startup; product latency is measured separately.
   it('opens an empty space with no filters and no side panels, management behind settings', async () => {
     const team = makeTeam();
     const client = makeClient({
@@ -50,7 +51,7 @@ describe('content-first workspace shell', () => {
     await user.click(screen.getByRole('button', { name: 'Space' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Space settings' }));
     expect(await screen.findByRole('heading', { name: 'Google Drive storage' })).toBeTruthy();
-  });
+  }, 15_000);
 
   it('keeps the indexed catalog browsable, read-only, when storage needs a person', async () => {
     // Found in the beta run: every non-connected state fell through to the

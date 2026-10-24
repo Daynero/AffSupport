@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -821,26 +821,22 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
 
   it('declines a source the fast path cannot serve, without touching it', async () => {
     const hevc = path.join(directory, 'hevc.mp4');
-    await ffmpeg([
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'testsrc2=size=320x320:rate=30:duration=2',
-      '-c:v',
-      'libx265',
-      '-preset',
-      'ultrafast',
-      '-tag:v',
-      'hvc1',
-      '-an',
-      hevc
-    ]);
+    // Shipping FFmpeg decodes HEVC but deliberately does not ship an HEVC
+    // encoder. Refusing an existing source must not depend on generating it.
+    await copyFile(new URL('./fixtures/stitcher-hevc-hvc1.mp4', import.meta.url), hevc);
+    const before = createHash('sha256')
+      .update(await readFile(hevc))
+      .digest('hex');
     const probed = { ok: true as const, value: unwrap(await probeSource(hevc)) };
     expect(planStitch(probed.value, await detectStitching(probed.value), SCREENS)).toEqual({
       ok: false,
       error: 'video-codec'
     });
+    expect(
+      createHash('sha256')
+        .update(await readFile(hevc))
+        .digest('hex')
+    ).toBe(before);
   }, 120_000);
 
   /** Every encoded video frame's hash, so "the same frames" means bit-for-bit. */

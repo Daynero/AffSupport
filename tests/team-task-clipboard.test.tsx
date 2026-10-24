@@ -144,3 +144,40 @@ it('keeps one attempt key after a lost reply and suppresses concurrent paste', a
     client.copyTasks.mock.calls[0][0].idempotencyKey
   );
 });
+
+it('recovers the same paste intent after remount and discards malformed clipboard payloads', async () => {
+  const storageKey = `soty.task-copy.${TEAM}`;
+  sessionStorage.removeItem(storageKey);
+  const client = {
+    copyTasks: vi.fn().mockRejectedValueOnce(new Error('lost reply')).mockResolvedValue(['copy'])
+  };
+  const onSettled = vi.fn();
+  const options = {
+    teamId: TEAM,
+    selected: IDS.map(id => ({ id }) as TeamTaskSummary),
+    canEdit: true,
+    client,
+    onPasted: vi.fn(),
+    onSettled
+  };
+  const first = renderHook(() => useTaskClipboard(options), { wrapper });
+  const data = clipboard();
+  fireEvent.copy(document, { clipboardData: data });
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(onSettled).toHaveBeenCalledOnce());
+  const intent = JSON.parse(sessionStorage.getItem(storageKey)!);
+  first.unmount();
+  renderHook(() => useTaskClipboard(options), { wrapper });
+  fireEvent.paste(document, { clipboardData: data });
+  await waitFor(() => expect(options.onPasted).toHaveBeenCalledWith(['copy']));
+  expect(client.copyTasks.mock.calls[1][0].idempotencyKey).toBe(intent.key);
+  expect(sessionStorage.getItem(storageKey)).toBeNull();
+  for (const text of [
+    'SOTY_TASKS_V1:{broken',
+    'SOTY_TASKS_V1:' + JSON.stringify({ teamId: TEAM, taskIds: ['invalid-id'] })
+  ]) {
+    data.setData('text/plain', text);
+    fireEvent.paste(document, { clipboardData: data });
+  }
+  expect(client.copyTasks).toHaveBeenCalledTimes(2);
+});

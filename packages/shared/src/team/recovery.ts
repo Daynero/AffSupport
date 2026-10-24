@@ -1,5 +1,18 @@
 import { isRecord } from './contract.js';
 
+/** Actor-bound desktop protocol. A version marker is compatibility, not identity proof. */
+export const TEAM_RECOVERY_PROTOCOL_VERSION = 2;
+
+/** Closed native retirement observations; local preparation is not server acknowledgement. */
+export const RECOVERY_RETIREMENT_STAGES = [
+  'pending_server',
+  'server_confirmed',
+  'pending_local_cleanup',
+  'local_complete',
+  'server_unknown'
+] as const;
+export type RecoveryRetirementStage = (typeof RECOVERY_RETIREMENT_STAGES)[number];
+
 export const RECOVERY_REASONS = [
   'waiting_agent',
   'waiting_drive',

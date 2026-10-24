@@ -2,6 +2,7 @@ import { requireNamedWorkerSecret } from '../_shared/auth.ts';
 import {
   emailSenderConfigured,
   type EmailDeliveryInput,
+  type EmailMessage,
   type EmailDeliveryResult
 } from '../_shared/email.ts';
 import {
@@ -36,7 +37,13 @@ export interface TariffNoticesDeps {
   /** `service_finish_tariff_notice(p_id, p_sent, p_error, p_skipped)`. */
   finish: (id: string, sent: boolean, error: string | null, skipped: boolean) => Promise<boolean>;
   send: (input: EmailDeliveryInput) => Promise<EmailDeliveryResult>;
+  /** Trusted local tooling only; never supplied by the deployed entrypoint or request body. */
+  capture?: (id: string, kind: string, message: EmailMessage) => Promise<void>;
+
+  /** Operational wall time: deadlines only, never the acceptance tariff overlay. */
   now: () => number;
+  /** Trusted tariff-domain instant for letter rendering; production supplies real time. */
+  tariffNow: () => number;
   log?: (message: string, detail: Record<string, string | number | boolean | null>) => void;
 }
 
@@ -45,6 +52,8 @@ export interface TariffNoticesSummary {
   sent: number;
   skipped: number;
   failed: number;
+  /** Durable local records, independent of whether the database finish was acknowledged. */
+  captured?: number;
 }
 
 export const CLAIM_LIMIT = 20;
@@ -52,7 +61,21 @@ const MAX_BATCHES = 5;
 const BUDGET_MS = 30_000;
 
 export async function runTariffNotices(deps: TariffNoticesDeps): Promise<TariffNoticesSummary> {
-  const summary: TariffNoticesSummary = { claimed: 0, sent: 0, skipped: 0, failed: 0 };
+  if (
+    deps.capture &&
+    (deps.environment !== 'beta' ||
+      !['http://127.0.0.1:5175', 'http://127.0.0.1:5175/'].includes(deps.siteUrl) ||
+      deps.sender.apiKey.trim() ||
+      deps.sender.from.trim())
+  )
+    throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: false });
+  const summary: TariffNoticesSummary = {
+    claimed: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    ...(deps.capture ? { captured: 0 } : {})
+  };
   const beta = deps.environment === 'beta';
   const startedAt = deps.now();
   const seen = new Set<string>();
@@ -94,8 +117,26 @@ export async function runTariffNotices(deps: TariffNoticesDeps): Promise<TariffN
         continue;
       }
 
+      const render = () =>
+        buildTariffNoticeEmail(notice, {
+          siteUrl: deps.siteUrl,
+          now: notice.tariffToday
+            ? Date.parse(notice.tariffToday + 'T12:00:00.000Z')
+            : deps.tariffNow()
+        });
       if (beta) {
-        // Beta never delivers: the letter is marked, not sent.
+        if (deps.capture) {
+          try {
+            await deps.capture(notice.id, notice.kind, render());
+            summary.captured = (summary.captured ?? 0) + 1;
+          } catch {
+            log('tariff-notice-capture-failed', { id: notice.id, kind: notice.kind });
+            await finish(notice.id, notice.kind, false, 'capture_failed', false);
+            summary.failed += 1;
+            continue;
+          }
+        }
+        // Beta never delivers: a captured or ordinary beta letter is skipped.
         if (await finish(notice.id, notice.kind, false, null, true)) summary.skipped += 1;
         else summary.failed += 1;
         continue;
@@ -107,7 +148,7 @@ export async function runTariffNotices(deps: TariffNoticesDeps): Promise<TariffN
           apiKey: deps.sender.apiKey,
           from: deps.sender.from,
           to: notice.recipientEmail,
-          message: buildTariffNoticeEmail(notice, { siteUrl: deps.siteUrl, now: deps.now() })
+          message: render()
         });
       } catch {
         delivery = { state: 'failed', reason: 'network' };

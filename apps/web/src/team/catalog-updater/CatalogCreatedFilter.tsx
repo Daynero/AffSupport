@@ -25,6 +25,11 @@ export function CatalogCreatedFilter({
   const { t, language } = useI18n();
   const anchor = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const closeCalendar = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
   const active = Boolean(value.from || value.to);
   const range = useMemo(() => {
     const start = toCalendarDate(value.from);
@@ -58,6 +63,7 @@ export function CatalogCreatedFilter({
   return (
     <div ref={anchor} className={`task-date-filter-calendar ${active ? 'is-active' : ''}`.trim()}>
       <button
+        ref={trigger}
         type="button"
         className="task-date-filter-trigger"
         aria-label={`${t('catalogCreatedFilter')}${selectedLabel ? `: ${selectedLabel}` : ''}`}
@@ -79,8 +85,9 @@ export function CatalogCreatedFilter({
         </button>
       )}
       <Popover
+        initialFocus='[role="grid"] [tabindex="0"]'
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => closeCalendar()}
         anchor={anchor}
         placement="bottom-start"
         frequent
@@ -95,7 +102,7 @@ export function CatalogCreatedFilter({
               from: fromCalendarDate(next.start) ?? '',
               to: fromCalendarDate(next.end) ?? ''
             });
-            setOpen(false);
+            closeCalendar();
           }}
         />
       </Popover>

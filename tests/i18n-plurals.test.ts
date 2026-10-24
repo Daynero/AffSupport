@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   catalogCountKey,
   catalogSelectedCountKey,
+  fileCountKey,
+  landingCountKey,
   selectedCountKey,
   translate,
   type Language
@@ -37,6 +39,24 @@ const CASES: { count: number; uk: 'one' | 'few' | 'many'; en: 'one' | 'many' }[]
 ];
 
 const KEY = { one: 'selectedOne', few: 'selectedFew', many: 'selectedMany' } as const;
+
+describe('file and landing count labels', () => {
+  it.each(CASES)(
+    'uses the matching count form for $count in both languages',
+    ({ count, uk, en }) => {
+      const fileKeys = { one: 'chipFilesOne', few: 'chipFilesFew', many: 'chipFilesMany' } as const;
+      const landingKeys = {
+        one: 'landingQueueCountOne',
+        few: 'landingQueueCountFew',
+        many: 'landingQueueCount'
+      } as const;
+      expect(fileCountKey('uk', count)).toBe(fileKeys[uk]);
+      expect(fileCountKey('en', count)).toBe(fileKeys[en]);
+      expect(landingCountKey('uk', count)).toBe(landingKeys[uk]);
+      expect(landingCountKey('en', count)).toBe(landingKeys[en]);
+    }
+  );
+});
 
 describe('the selection count', () => {
   it.each(CASES)('picks the Ukrainian form for $count', ({ count, uk }) => {

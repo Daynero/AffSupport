@@ -2189,7 +2189,9 @@ function ExplorerBody({
               : undefined
           }
           transcribing={
-            queue.active ? { videoId: queue.active.id, progress: queue.activeProgress } : null
+            queue.active?.tool === 'transcription'
+              ? { videoId: queue.active.id, progress: queue.activeProgress }
+              : null
           }
           onCreateTask={onCreateTask}
         />

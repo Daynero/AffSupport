@@ -2,7 +2,12 @@ import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 import type { AnalyticsEventName, AnalyticsProperties } from '../../analytics/events';
 
-export type MemberDiagnosticStep = 'members_list' | 'member_permissions_save' | 'member_remove';
+export type MemberDiagnosticStep =
+  | 'members_list'
+  | 'assignees_list'
+  | 'member_permissions_save'
+  | 'member_remove'
+  | 'member_access_refresh';
 export function memberSignal(event: AnalyticsEventName, properties: AnalyticsProperties): void {
   try {
     analytics.track(event, properties);

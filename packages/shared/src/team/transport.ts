@@ -27,8 +27,12 @@ export const TEAM_ACCOUNT_ERROR_CODES = [
   'REQUEST_REPLAY_MISMATCH'
 ] as const;
 
+/** Additive process-recovery catalog; never regenerate the applied baseline seed. */
+export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
+
 export const TEAM_ERROR_CODES = [
   ...TEAM_ACCOUNT_ERROR_CODES,
+  ...TEAM_PROCESS_ERROR_CODES,
   'LAUNCH_VERSION_CONFLICT',
   'LAUNCH_BUSY',
   'LAUNCH_URL_INVALID',

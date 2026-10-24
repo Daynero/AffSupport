@@ -22,6 +22,7 @@
  * per-signal `producerStatus` overrides. Nothing here touches the database.
  */
 import type { AnalyticsEventName } from '../../apps/web/src/analytics/events.js';
+import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
 
 /**
  * Event names this registry references before `apps/web/src/analytics/events.ts`
@@ -62,12 +63,19 @@ export interface CapabilitySignal {
   flowStep?:
     | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash'}`
     | 'theme'
+    | 'recovery_retirement_ack'
+    | 'auth_session_sdk_logout'
+    | 'auth_profile_refresh'
+    | 'auth_profile_update'
     | `launch_defaults_${'read' | 'save' | 'apply'}_${'offer' | 'workspace'}`
     | 'launch_settings_editor'
     | 'launch_detail_session'
     | 'members_list'
+    | 'assignees_list'
+    | `task_${'create' | 'list' | 'read' | 'update' | 'editor_refresh' | 'editor_preserve_draft'}`
     | 'member_permissions_save'
     | 'member_remove'
+    | 'member_access_refresh'
     | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
 }
 
@@ -105,6 +113,84 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  {
+    id: 'team.process_output_cleanup',
+    tool: 'team',
+    title: 'Team · canceled process output reconciliation',
+    stages: [
+      'reserved',
+      'upload_started',
+      'published',
+      'cleanup_pending',
+      'trash_confirmed',
+      'attention'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'authoritative_table',
+    unobservable: [
+      'A settled local request or provider 404 does not prove that a late upload cannot commit.',
+      'Legacy operations without captured ownership remain unknown. The current projection omits rows changed after as-of instead of reconstructing history.',
+      'Database state and provider readback do not prove browser delivery. Producer and worker integration is implemented but full real-agent and scheduled-provider acceptance is not yet verified.'
+    ],
+    note: 'The private ownership ledger and restricted workspace projection record exact operation identity, grant expiry, bounded leases and cleanup outcomes without exposing provider identifiers or content. investigate reads the projection and points uncertainty at the ownership code map. Keep pending_producer until the real agent, Edge start/finalize and cleanup worker are wired and verified.'
+  },
+  {
+    id: 'members.access_refresh',
+    tool: 'team',
+    title: 'Membership signal and authoritative access reread',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'member_access_refresh' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'member_access_refresh' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'member_access_refresh' }
+    ],
+    error: { event: 'error_occurred', correlate: 'attempt_id', flowStep: 'member_access_refresh' },
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'A signal never delivered to a disconnected browser cannot emit a refresh attempt. Inspect the durable own-row revision and current membership.',
+      'Completion proves an authoritative access reread, not a visible DOM commit. Browser interruption or absent terminal remains unknown.',
+      'The separate invitation/seat read is not proved by access or member-list completion. Compare the current protected tariff/invitation snapshot and native counts; absent evidence remains unknown.'
+    ],
+    note: '036: role changes and removal invalidate the affected client; membership and invitation changes also invalidate current managers through their own content-free rows. Members and pending seats reread the shared workspace revision. Reconnect/foreground still reread authoritatively. Opaque attempt/flow IDs only; no target identity, role or permission values. Synthetic local capture is separate from ordinary disabled beta analytics. Authoritative view=false also unmounts retained workspace content and media (036 T133); a successful access-refresh attempt proves the reread, while browser removal/restoration needs separate UI evidence. No permission values or content are emitted.'
+  },
+
+  {
+    id: 'members.assignees',
+    tool: 'team',
+    title: 'Safe assignee directory read',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [{ event: 'operation_started', correlate: 'attempt_id', flowStep: 'assignees_list' }],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'assignees_list' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'assignees_list' }
+    ],
+    error: { event: 'error_occurred', correlate: 'attempt_id', flowStep: 'assignees_list' },
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Completion proves a validated view-authorized directory response, not a visible selected option. Native browser evidence is separate.',
+      'A missing terminal or unavailable directory remains unknown; the stored task assignee snapshot is a safe display fallback.'
+    ],
+    note: 'Tasks and Launches reuse the existing narrow projection. No assignee identity, label, email, role or permission values enter events. Full member-management reads stay restricted.'
+  },
+
   ...(['members_list', 'member_permissions_save', 'member_remove'] as const).map(
     (step): Capability => ({
       id:
@@ -184,7 +270,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
       'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.'
     ],
-    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. Neither a toast nor an emitted event substitutes for provider readback.'
+    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
   })),
   ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
@@ -618,7 +704,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: ['landing archive content'],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: '036 T135 verifies web ZIP packaging with synthetic fixtures: no macOS AppleDouble/resource metadata and no transport-only source.bin folder name. Lifecycle events prove processing outcomes, not archive contents or size savings; inspect the synthetic archive and browser render separately. No filenames, paths or archive content are added to diagnostics.'
   },
   {
     id: 'landing_preview.open',
@@ -805,7 +892,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['material content'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Catalog restitch processing includes a Drive result upload. Local acknowledged-byte progress is covered by tests/team-transfer-upload.test.ts and partial acknowledgements/terminal states by tests/team-bridge.test.ts. Workflow lifecycle events do not establish per-request latency or a measured upload speedup.'
+    note: 'Catalog restitch processing includes a Drive result upload. Explorer queue jobs also emit workflow start/terminal before requesting a grant; a late cloud receipt canceled before agent dispatch retains its run_id and workflow_id. tests/agent-queue-cancel.test.tsx covers early cancellation, local grant cancellation, fresh queued work and durable cancellation. A canceled pre-grant workflow has no operation id; final file delivery and provider cleanup remain separate evidence. Local acknowledged-byte progress is covered by tests/team-transfer-upload.test.ts and partial acknowledgements/terminal states by tests/team-bridge.test.ts. Workflow lifecycle events do not establish per-request latency or a measured upload speedup.'
   },
   {
     id: 'team.restitch',
@@ -823,7 +910,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Shares the workflow lifecycle with team.process; `category` tells them apart. Drive-screen downloads require teamRestitchSources revision 2: revision 1 dropped screens in the HTTP route. For historical 1.2.6 failures without a forwarded agent journal, intermediate transfer/cache stages remain unknown.'
+    note: 'Shares the workflow lifecycle with team.process; `category` tells them apart. Drive-screen downloads require teamRestitchSources revision 2: revision 1 dropped screens in the HTTP route. For historical 1.2.6 failures without a forwarded agent journal, intermediate transfer/cache stages remain unknown. 036 T134 registers destination selection as active before opening the native picker and passes per-waiter cancellation through macOS/Windows. The picker journal records bounded interrupted/chosen outcomes, never paths. DOWNLOAD_CANCELED finishes the delivery workflow as cancelled; the browser stays in choosing until actual agent progress. A missing picker exit or missing workflow terminal remains unknown; native visibility and saved-file delivery still need browser/filesystem evidence.'
   },
   {
     id: 'team.find',
@@ -890,8 +977,65 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['task text and attachments'],
     producerStatus: 'unsupported_by_producer',
     source: 'events',
-    note: 'No task event is emitted; the task tables are the only record.'
+    note: 'Legacy team_task_completed remains unsupported and cannot reconstruct historical journeys. Current036 API and visible editor attempts are inventoried separately under team.tasks.create/list/read/update/editor_refresh/editor_preserve_draft.'
   },
+  ...(['create', 'list', 'read', 'update', 'editor_refresh', 'editor_preserve_draft'] as const).map(
+    action => ({
+      id: `team.tasks.${action}`,
+      tool: 'team' as const,
+      title: `Task ${action}`,
+      stages: ['requested', 'accepted', 'terminal'],
+      stageEvents: {
+        requested: ['operation_started' as const],
+        accepted: ['operation_stage_completed' as const],
+        terminal: [
+          'operation_completed' as const,
+          'operation_failed' as const,
+          'operation_cancelled' as const
+        ]
+      },
+      start: [
+        {
+          event: 'operation_started' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `task_${action}` as const
+        }
+      ],
+      terminal: [
+        {
+          event: 'operation_completed' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `task_${action}` as const
+        },
+        {
+          event: 'operation_failed' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `task_${action}` as const
+        },
+        {
+          event: 'operation_cancelled' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `task_${action}` as const
+        }
+      ],
+      error: {
+        event: 'error_occurred' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `task_${action}` as const
+      },
+      platforms: BOTH,
+      producerStatus: 'emitted' as const,
+      source: 'events' as const,
+      unobservable: [
+        'No title, description, attachment, assignee identity, account tag or task content is collected.',
+        'RPC completion proves a validated server response, not a visible board, editor or another user’s delivery.',
+        'Editor refresh completion follows a committed render in a visible document; it is not proof of user attention or pixels. Implicit preserve-draft retains local fields and their original conflict version. Explicit Keep mine selects the reviewed version and still rejects any further change; Take their version applies the newest confirmed snapshot for the same task.',
+        'Missing terminal after browser interruption remains unknown. An absent refresh cannot prove no server update; inspect the protected current task and version before retrying.',
+        'A list response covers its server page, not visibility of each row. In-memory reply correlation can be lost across transformed objects or reload; only observed flow links may be joined.'
+      ],
+      note: '036 T106: separate attempts for API create/list/read/update, clean editor refresh and local-draft preservation. Opaque flow/attempt IDs only. Task-object UUID may correlate later edits and refreshes without content. Closed failures map to authority and UI sources; raw exception messages are never recorded. Historical task events remain unsupported and cannot be reconstructed.'
+    })
+  ),
   {
     id: 'team.accounts_finance',
     tool: 'team',
@@ -974,7 +1118,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['why the OS dropped the socket'],
     producerStatus: 'emitted',
     source: 'events',
-    sinceWebBuild: LINK_SINCE_WEB_BUILD
+    sinceWebBuild: LINK_SINCE_WEB_BUILD,
+    note: 'API calls and subresource ticket requests share api/request-failures.ts. Current ticket 401/403 and transport failures reach the existing AgentProvider inconsistency/loss/recheck flow; stale replies from a replaced origin/session are discarded without blaming the new link. subresource-tickets, subresource-request-failures, subresource-repair, link-owner and analytics-connection-command regressions cover the producer, observer, recovery owner and read-only diagnosis. Legacy clients can emit link events without the ticket producer, so absent ticket failures are not proof of zero failures. Other HTTP/protocol failures remain unknown from these link events. A confirmed ticket or repaired URL is not image/media visibility; native display/output evidence is still needed.'
   },
   {
     id: 'link.blocked',
@@ -1133,6 +1278,93 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Only onboarding_completed is emitted (AuthContext, after sign-up); the rest are names without a producer.'
   },
   {
+    id: 'account.session_logout',
+    tool: 'onboarding',
+    title: 'Account · coordinated SDK logout',
+    stages: ['requested', 'lane_acquired', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      lane_acquired: ['operation_stage_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'auth_session_sdk_logout' }
+    ],
+    terminal: [
+      {
+        event: 'operation_completed',
+        correlate: 'attempt_id',
+        flowStep: 'auth_session_sdk_logout'
+      },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'auth_session_sdk_logout' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'auth_session_sdk_logout' }
+    ],
+    platforms: BOTH,
+    source: 'events',
+    producerStatus: 'emitted',
+    unobservable: [
+      'Anonymous or already-lost sessions cannot emit actor-attributed diagnostics. Never inherit the current replacement actor.',
+      'SDK signout can clear analytics identity before acquisition or terminal delivery; missing evidence remains unknown, including a still-running SDK request.',
+      'A completed SDK boundary does not prove browser UI settlement, committed recovery retirement or native protected-key cleanup.',
+      'Older tabs not participating in the session lane and physical-browser ordering require separate compatibility acceptance.'
+    ],
+    note: 'One attempt joins requested, lane acquisition and the SDK outcome using the same actor. Only closed failure codes are collected. Superseded means the old logout was abandoned. Acquisition waits expire after10seconds; an acquired SDK operation is never released early by that timer. Missing terminal remains a coverage gap, never a fabricated success. Real typed producer, session ownership and read-only command regressions are separate from automatic beta collection.'
+  },
+  {
+    id: 'account.profile_refresh',
+    tool: 'onboarding',
+    title: 'Account · profile refresh',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'auth_profile_refresh' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'auth_profile_refresh' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'auth_profile_refresh' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'auth_profile_refresh' }
+    ],
+    platforms: BOTH,
+    source: 'events',
+    producerStatus: 'emitted',
+    unobservable: [
+      'A terminal proves profile state publication or a closed read/write failure, not browser paint or delivery to every sibling tab.',
+      'Closed, frozen, offline or storage-restricted tabs may not observe an invalidation until activation; no active-tab inventory is collected.',
+      'Identity replacement suppresses late old-actor diagnostics. Missing terminal or delivery stays unknown rather than borrowing another actor outcome.'
+    ],
+    note: 'Opaque project-scoped invalidation triggers an authenticated read of the recipient own profile. Reads are bounded to10seconds, coalesced and retried on activation; late responses are fenced by identity/load/write revisions. No profile values, names, emails or credentials are collected. Update attempts and recipient refresh attempts are separate: there is no claim of end-to-end message acknowledgement.'
+  },
+  {
+    id: 'account.profile_update',
+    tool: 'onboarding',
+    title: 'Account · profile update',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'auth_profile_update' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'auth_profile_update' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'auth_profile_update' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'auth_profile_update' }
+    ],
+    platforms: BOTH,
+    source: 'events',
+    producerStatus: 'emitted',
+    unobservable: [
+      'A terminal proves profile state publication or a closed read/write failure, not browser paint or delivery to every sibling tab.',
+      'Closed, frozen, offline or storage-restricted tabs may not observe an invalidation until activation; no active-tab inventory is collected.',
+      'Identity replacement suppresses late old-actor diagnostics. Missing terminal or delivery stays unknown rather than borrowing another actor outcome.'
+    ],
+    note: 'Opaque project-scoped invalidation triggers an authenticated read of the recipient own profile. Reads are bounded to10seconds, coalesced and retried on activation; late responses are fenced by identity/load/write revisions. No profile values, names, emails or credentials are collected. Update attempts and recipient refresh attempts are separate: there is no claim of end-to-end message acknowledgement.'
+  },
+  {
     id: 'account.auth',
     tool: 'onboarding',
     title: 'Account · sign in / sign out',
@@ -1224,6 +1456,53 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events'
   },
   {
+    id: 'team.recovery_retirement_ack',
+    tool: 'team',
+    title: 'Browser recovery retirement acknowledgement',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'recovery_retirement_ack' }
+    ],
+    terminal: [
+      {
+        event: 'operation_completed',
+        correlate: 'attempt_id',
+        flowStep: 'recovery_retirement_ack'
+      },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'recovery_retirement_ack' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Missing browser session or delivery can prevent these events reaching the collector. Missing evidence never proves server revocation.',
+      'An acknowledgement failure can follow a committed server action; protected-key cleanup requires separate native evidence.'
+    ],
+    note: 'The exact attempt is also the observed server-RPC key. Closed acknowledgement categories carry no credentials or provider text. Old-actor callbacks are dropped when the current analytics actor differs. Server receipts remain authoritative, and generic event coverage here proves browser acknowledgement observability only.'
+  },
+  {
+    id: 'team.recovery_retirement',
+    tool: 'team',
+    title: 'Team · native recovery retirement',
+    stages: [...RECOVERY_RETIREMENT_STAGES],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    source: 'authoritative_table',
+    producerStatus: 'emitted',
+    unobservable: [
+      'Native observations reach the server only when the browser forwards the bounded journal. Missing delivery never proves retirement.',
+      'Browser server receipts and acknowledgements are diagnosed separately. Without a usable matching session, delivery may be absent; neither receipt nor acknowledgement proves native protected-key cleanup.',
+      'One native instance observation is not a live status check and cannot order different boots by wall clock alone.'
+    ],
+    note: 'The worker emits only a closed phase and opaque delegation ID, after durable local preparation or acknowledgement commits. investigate distinguishes pending server, confirmed server with unfinished protected-key cleanup and observed local completion. audit reads matching journal groups by per-instance sequence, not unrelated sync jobs. Browser server outcome can be proven by the separate committed receipt; native cleanup and original-actor attribution still require their own evidence and keep this capability partial.'
+  },
+  {
     id: 'team.tariff_recovery',
     tool: 'team',
     title: 'Team · tariff pause and recovery',
@@ -1236,9 +1515,10 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     producerStatus: 'emitted',
     unobservable: [
       'A queued schedule is not a worker start.',
-      'A server terminal without a correlated output observation has unknown user delivery.'
+      'A server terminal without a correlated output observation has unknown user delivery.',
+      'Eligible terminal lifecycle histories older than 30 days can be pruned; absence is not proof of successful recovery.'
     ],
-    note: 'Durable pause provenance, actor checks, original attempts and recovery items are read through analytics_workspace_recovery. inspect and investigate expose safe reasons and last proven stages; audit refuses unrelated sync rows as recovery proof.'
+    note: 'Durable pause provenance, actor checks, original attempts and recovery items are read through analytics_workspace_recovery. inspect and investigate expose safe reasons and last proven stages; audit refuses unrelated sync rows as recovery proof. The separate immutable execution reservation is read through analytics_recovery_execution even without a tariff recovery item. A reservation forbids replay but proves neither native start nor delivery. The reader bounds and scopes reservations by actor, team or operation and excludes future reservations at as-of; an older database leaves an explicit projection gap. Lifecycle cleanup retains unresolved dependencies and at least 30 days of terminal history; each retention class and lifecycle-root deletion is bounded to 100 candidates per sweep, with locked candidates skipped. Cascaded descendant counts and overall dispatch time are not a fixed bound. Current complete acceptance and LOAD resource measurements remain required.'
   },
   {
     id: 'team.tariff',
@@ -1260,7 +1540,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events.'
+    note: 'The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events. Local acceptance mail capture reports its own claim, capture and database-commit result. A skipped notice and a matching redacted local artifact prove neither provider delivery nor user receipt; an unconfirmed commit and absent artifact remain explicit. This tooling evidence is separate from production mail diagnostics.'
   },
   {
     id: 'analytics.delivery',

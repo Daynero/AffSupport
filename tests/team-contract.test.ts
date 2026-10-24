@@ -15,6 +15,7 @@ import {
   TEAM_MAX_ACTIVE_MEMBERS,
   TEAM_PERMISSION_FLAGS,
   TEAM_ACCOUNT_ERROR_CODES,
+  TEAM_PROCESS_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -212,6 +213,8 @@ describe('team contract', () => {
     const deltaPath = 'supabase/migrations/20261202143000_account_error_codes.sql';
     const base = readFileSync(basePath, 'utf8');
     const delta = readFileSync(deltaPath, 'utf8');
+    const processPath = 'supabase/migrations/20261206139000_process_error_codes.sql';
+    const processDelta = readFileSync(processPath, 'utf8');
     const codes = (sql: string) => {
       const block =
         /insert into public\.team_error_codes \(code\) values\n([\s\S]*?)(?:;\n|\non conflict)/u.exec(
@@ -223,11 +226,15 @@ describe('team contract', () => {
     expect(
       codes(base).filter(code => (TEAM_ACCOUNT_ERROR_CODES as readonly string[]).includes(code))
     ).toEqual([]);
-    expect([...codes(base), ...codes(delta)].sort()).toEqual([...TEAM_ERROR_CODES].sort());
+    expect(codes(processDelta)).toEqual([...TEAM_PROCESS_ERROR_CODES]);
+    expect([...codes(base), ...codes(delta), ...codes(processDelta)].sort()).toEqual(
+      [...TEAM_ERROR_CODES].sort()
+    );
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
     temporaryPaths.push(directory);
     const temporaryBase = join(directory, 'base.sql');
     const temporaryDelta = join(directory, 'delta.sql');
+    const temporaryProcess = join(directory, 'process.sql');
     const rendered = spawnSync(
       process.execPath,
       [
@@ -235,14 +242,18 @@ describe('team contract', () => {
         '--output',
         temporaryBase,
         '--extension-output',
-        temporaryDelta
+        temporaryDelta,
+        '--process-extension-output',
+        temporaryProcess
       ],
       { encoding: 'utf8' }
     );
     expect(rendered.status, rendered.stderr).toBe(0);
     expect(readFileSync(temporaryBase, 'utf8')).toBe(base);
     expect(readFileSync(temporaryDelta, 'utf8')).toBe(delta);
+    expect(readFileSync(temporaryProcess, 'utf8')).toBe(processDelta);
     expect(readFileSync(basePath, 'utf8')).toBe(base);
+    expect(readFileSync(processPath, 'utf8')).toBe(processDelta);
     writeFileSync(temporaryDelta, delta.replaceAll('\n', '\r\n'));
     expect(
       spawnSync(
@@ -259,6 +270,22 @@ describe('team contract', () => {
     );
     expect(stale.status).not.toBe(0);
     expect(stale.stderr).toContain('out of date');
+    writeFileSync(
+      temporaryProcess,
+      processDelta.replace('PROCESS_RESULT_UNCERTAIN', 'STALE_PROCESS_RESULT')
+    );
+    const staleProcess = spawnSync(
+      process.execPath,
+      [
+        'scripts/generate-team-contract-sql.mjs',
+        '--check',
+        '--process-extension-output',
+        temporaryProcess
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(staleProcess.status).not.toBe(0);
+    expect(staleProcess.stderr).toContain('out of date');
     const db = await createTeamTestDb();
     try {
       const catalog = await db.root<{ code: string }>(

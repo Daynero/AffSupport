@@ -23,11 +23,7 @@ import {
 } from '../packages/shared/dist/release.js';
 import { BETA_MARKERS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { activeBinding } from './lib/release/bindings.mjs';
-
-// Every destination assertion below reads this one validated binding rather
-// than a constant of its own, so a sandbox release verifies exactly the same
-// rules against a different, provably disjoint place.
-const releaseBinding = activeBinding();
+import { scanAcceptanceIsolation } from './lib/acceptance-isolation.mjs';
 
 /**
  * Reports and exits.
@@ -88,6 +84,15 @@ function resolveMode(argv, env) {
 }
 
 const mode = resolveMode(process.argv.slice(2), process.env);
+
+const acceptanceIsolation = scanAcceptanceIsolation();
+if (!acceptanceIsolation.ok)
+  fail(`ACCEPTANCE_ISOLATION: ${JSON.stringify(acceptanceIsolation.problems)}`);
+
+// Every destination assertion below reads this one validated binding rather
+// than a constant of its own, so a sandbox release verifies exactly the same
+// rules against a different, provably disjoint place.
+const releaseBinding = activeBinding();
 
 if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(PRODUCT_VERSION)) {
   fail(`invalid product version ${PRODUCT_VERSION}`);

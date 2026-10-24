@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+// Never inherit the user's normal application profile in a test worker.
+const stateNamespace = `Soty Verification-${randomUUID()}`;
+
+const coverageRun = process.argv.includes('--coverage');
 
 /**
  * Tests live in the central `tests/` directory and nowhere else — never
@@ -81,6 +87,13 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
+          globalSetup: ['tests/support/isolated-agent-state.ts'],
+          env: { AGENT_SUPPORT_DIRECTORY_NAME: `${stateNamespace}-unit` },
+          // A multi-step instrumented flow needs more than the 5s allowed to
+          // one individual Testing Library query in setup-dom.ts. These are
+          // hang watchdogs; explicit performance assertions stay unchanged.
+          testTimeout: coverageRun ? 15_000 : 5_000,
+          hookTimeout: coverageRun ? 30_000 : 10_000,
           include: ['tests/**/*.test.{ts,tsx}'],
           exclude: ['**/node_modules/**', '**/dist/**', 'release/**', 'tests/**/*-e2e.test.ts']
         }
@@ -89,6 +102,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'e2e',
+          globalSetup: ['tests/support/isolated-agent-state.ts'],
+          env: { AGENT_SUPPORT_DIRECTORY_NAME: `${stateNamespace}-e2e` },
           include: ['tests/**/*-e2e.test.ts'],
           maxWorkers: 1,
           testTimeout: 120_000,

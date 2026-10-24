@@ -12,6 +12,7 @@ import { capabilities, type PlatformCapabilities } from '../platform/platform.js
  */
 const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapabilities>> = {
   'team-background-recovery': 'recoveryCredentials',
+  'team-background-recovery-actor-bound': 'recoveryCredentials',
   'finder-image-conversion': 'shellContextMenuIntegration',
   'native-file-picker': 'nativeFilePicker',
   'directory-intake': 'directoryIntake'

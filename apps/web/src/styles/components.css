@@ -941,6 +941,7 @@
 .launch-editor-fields-row > .field {
   min-width: 8rem;
 }
+.ui-calendar-popover,
 .launch-date-popover {
   width: min(20rem, calc(100vw - var(--space-4) * 2));
   padding: var(--space-3);

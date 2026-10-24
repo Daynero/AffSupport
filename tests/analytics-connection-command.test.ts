@@ -1,5 +1,9 @@
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { subresourceTicket, clearSubresourceTickets } from '../apps/web/src/api/subresource-paths';
+import { onRequestFailure } from '../apps/web/src/api/request-failures';
+import { trackLinkInconsistency } from '../apps/web/src/analytics/link';
+import { sanitizeAnalyticsProperties } from '../apps/web/src/analytics/events';
 import { setQueryExecutor } from '../scripts/analytics/db';
 import { formatConnection } from '../scripts/analytics/format';
 import { resolvePeriod } from '../scripts/analytics/periods';
@@ -90,6 +94,63 @@ afterAll(async () => {
 });
 
 describe('analytics connection command', () => {
+  it('diagnoses an actual sanitized ticket failure through the read-only connection query', async () => {
+    const flowId = '10000000-0000-4000-8000-000000000003';
+    const captured: Array<{
+      name: string;
+      properties: ReturnType<typeof sanitizeAnalyticsProperties>;
+    }> = [];
+    const stop = onRequestFailure(errorCode =>
+      trackLinkInconsistency(
+        { flowId, errorCode, streamOpen: true },
+        {
+          track: (name, properties) => {
+            captured.push({ name, properties: sanitizeAnalyticsProperties(properties) });
+          }
+        }
+      )
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    clearSubresourceTickets();
+    let inserted: number | undefined;
+    try {
+      expect(
+        await subresourceTicket(
+          'http://127.0.0.1:43140',
+          'synthetic-private-token',
+          '/api/images/synthetic-private-id/content'
+        )
+      ).toBeNull();
+      expect(captured).toHaveLength(1);
+      expect(captured[0].properties).toMatchObject({
+        flow_id: flowId,
+        error_code: 'unauthorized',
+        link_transport: 'request',
+        link_stream_open: true
+      });
+      expect(JSON.stringify(captured)).not.toMatch(/synthetic-private|127\.0\.0\.1|\/api\/images/);
+      const result = await db.query<{ id: number }>(
+        'insert into public.analytics_events(user_id,event_name,flow_id,web_build_id,properties,occurred_at) values($1,$2,$3,$4,$5::jsonb,$6::timestamptz) returning id',
+        [
+          ALICE,
+          captured[0].name,
+          captured[0].properties.flow_id,
+          NEW_BUILD,
+          JSON.stringify(captured[0].properties),
+          new Date(Date.now() - 60_000).toISOString()
+        ]
+      );
+      inserted = result.rows[0].id;
+      const diagnosis = await getConnection(resolvePeriod('all', undefined));
+      expect(diagnosis.inconsistencies).toEqual({ events: 2, users: 1 });
+    } finally {
+      stop();
+      clearSubresourceTickets();
+      vi.unstubAllGlobals();
+      if (inserted !== undefined)
+        await db.query('delete from public.analytics_events where id=$1', [inserted]);
+    }
+  });
   it('counts losses, recoveries and the time a break lasted', async () => {
     const data = await getConnection(ALL);
     expect(data.users_with_loss).toBe(2);

@@ -57,3 +57,9 @@ Hooks: `.specify/extensions.yml` відсутній під час створен
 | I2      | EvidenceAdoption, окремі totals та заборонені категорії; T006–007, T055–056, T079    |
 | G2      | Native browser visible-result latency під load; T063, T065–066, T072–073             |
 | U3      | Числові retry/request budgets та exhaustion; T027–028, T038, T046, T068, T074        |
+
+
+Оновлення2026-10-21: нотатки про відсутність execution вище є історією створення checklist.
+Чинний стан реалізації/доказів — [execution-report.md](../execution-report.md) і [tasks.md](../tasks.md).
+034 development recovery закрито до цієї кампанії;036 перевіряє його, не створює другу реалізацію.
+Formal development executions5PASS,4BLOCKED,165NOT_RUN; production NO_GO.

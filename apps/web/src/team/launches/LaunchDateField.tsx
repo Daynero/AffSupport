@@ -82,6 +82,7 @@ export function LaunchDateField({
           <CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
         <Popover
+          initialFocus='[role="grid"] [tabindex="0"]'
           open={open && !disabled}
           onClose={() => {
             setOpen(false);

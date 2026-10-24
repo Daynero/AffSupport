@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
+import { createAgentInstance } from '../apps/agent/src/server/instance';
 import type { DiagnosticRecord } from '@video-compressor/shared';
 import {
   journalForwarder,
@@ -91,6 +92,7 @@ function harness(options: { analyticsOn?: boolean } = {}): Harness {
     const log = records.filter(record => record.seq > since).slice(0, limit);
     return {
       instanceId: context.instanceId ?? undefined,
+      startedAt: T0 - 120_000,
       log,
       nextSeq: log.at(-1)?.seq ?? since,
       ...extra
@@ -486,5 +488,162 @@ describe('service.ts hook', () => {
     expect(context).toMatchObject({ enabled: true, instanceId: INSTANCE });
     expect(context.installationId).toMatch(/^[0-9a-f-]{36}$/);
     analytics.setUser(null);
+  });
+});
+
+describe('identity changes while reading local journal', () => {
+  for (const change of ['signout', 'actor', 'instance'] as const) {
+    it(`does not forward a stale page after ${change}`, async () => {
+      const h = harness();
+      h.context.userId = 'actor-a';
+      let finish!: (value: AgentDiagnosticsResponse) => void;
+      h.fetchPage.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            finish = resolve;
+          })
+      );
+      const pending = h.forwarder.forward('link_recovered');
+      if (change === 'signout') h.context.enabled = false;
+      else if (change === 'actor') h.context.userId = 'actor-b';
+      else h.context.instanceId = RESTARTED;
+      finish({ instanceId: INSTANCE, log: journal(1), nextSeq: 1 });
+      await pending;
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.storage.getItem(JOURNAL_CURSOR_KEY)).toBeNull();
+    });
+  }
+});
+
+describe('real native boot metadata and prior-boot attribution', () => {
+  it('does not infer a producer for legacy records in a bound-history page', async () => {
+    const h = harness();
+    h.setJournal(
+      journal(2).map((record, index) =>
+        index === 0 ? record : { ...record, agentInstanceId: INSTANCE, instanceSeq: 1 }
+      ),
+      { journalProvenance: 'bound-v1' }
+    );
+    await h.forwarder.forward('link_recovered');
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]?.records.map(record => record.seq)).toEqual([1]);
+    expect(cursor(h.storage)?.seq).toBe(2);
+  });
+  it('does not let an older web cursor suppress previously unforwarded bound history', async () => {
+    const h = harness();
+    h.storage.setItem(
+      'wishly.agent-journal.cursor.v1',
+      JSON.stringify({ instanceId: INSTANCE, seq: 99 })
+    );
+    h.setJournal(
+      journal(1).map(record => ({ ...record, agentInstanceId: RESTARTED, instanceSeq: 1 })),
+      { journalProvenance: 'bound-v1' }
+    );
+    await h.forwarder.forward('link_recovered');
+    expect(h.sent[0]?.instanceId).toBe(RESTARTED);
+    expect(cursor(h.storage)?.seq).toBe(1);
+  });
+  it('bounds mixed-boot history to five sends and resumes its physical cursor', async () => {
+    const h = harness();
+    const records = journal(8).map((record, index) => ({
+      ...record,
+      agentInstanceId: index % 2 === 0 ? RESTARTED : INSTANCE,
+      instanceSeq: Math.floor(index / 2) + 1
+    }));
+    h.setJournal(records, { journalProvenance: 'bound-v1' });
+    await h.forwarder.forward('error_occurred');
+    expect(h.sent).toHaveLength(5);
+    expect(h.fetches).toHaveLength(5);
+    expect(cursor(h.storage)?.seq).toBe(5);
+    h.clock.now += JOURNAL_MIN_INTERVAL_MS;
+    await h.forwarder.forward('link_recovered');
+    expect(h.sent).toHaveLength(8);
+    expect(cursor(h.storage)?.seq).toBe(8);
+  });
+  it('retries only the unacknowledged producer group after partial delivery', async () => {
+    const h = harness();
+    h.setJournal(
+      journal(2).map((record, index) => ({
+        ...record,
+        agentInstanceId: index === 0 ? RESTARTED : INSTANCE,
+        instanceSeq: 1
+      })),
+      { journalProvenance: 'bound-v1' }
+    );
+    h.send
+      .mockResolvedValueOnce({ accepted: 1, duplicates: 0, rejected: [] })
+      .mockRejectedValueOnce(new Error('offline'));
+    await h.forwarder.forward('error_occurred');
+    expect(cursor(h.storage)?.seq).toBe(1);
+    h.clock.now += JOURNAL_MIN_INTERVAL_MS;
+    await h.forwarder.forward('link_recovered');
+    expect(cursor(h.storage)?.seq).toBe(2);
+    expect(h.send.mock.calls.map(([input]) => input.instanceId)).toEqual([
+      RESTARTED,
+      INSTANCE,
+      INSTANCE
+    ]);
+  });
+  it('delivers retained bound records under their producing boot, with per-boot sequences', async () => {
+    const h = harness();
+    const records = [...journal(2, 10, T0 - 60_000), ...journal(1, 12, T0 - 1_000)].map(
+      (record, index) => ({
+        ...record,
+        agentInstanceId: index < 2 ? RESTARTED : INSTANCE,
+        instanceSeq: index < 2 ? index + 1 : 1
+      })
+    );
+    h.setJournal(records, { startedAt: T0 - 30_000, journalProvenance: 'bound-v1' });
+    await h.forwarder.forward('error_occurred');
+    expect(
+      h.sent.map(input => ({
+        instanceId: input.instanceId,
+        seqs: input.records.map(record => record.seq)
+      }))
+    ).toEqual([
+      { instanceId: RESTARTED, seqs: [1, 2] },
+      { instanceId: INSTANCE, seqs: [1] }
+    ]);
+    expect(cursor(h.storage)).toEqual({ instanceId: INSTANCE, seq: 12 });
+  });
+  it('forwards records using an instance produced by the actual native boot factory', async () => {
+    const boot = createAgentInstance();
+    const h = harness();
+    const at = Date.parse(boot.startedAt);
+    h.clock.now = at + 1_000;
+    h.context.instanceId = boot.instanceId;
+    h.setJournal(journal(1, 1, at), boot);
+    await h.forwarder.forward('error_occurred');
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.instanceId).toBe(boot.instanceId);
+    expect(h.sent[0]!.records.map(record => record.seq)).toEqual([1]);
+    expect(createAgentInstance().instanceId).not.toBe(boot.instanceId);
+  });
+  it.each([T0 - 30_000, new Date(T0 - 30_000).toISOString()])(
+    'never relabels prior-boot records when no previous cursor exists (%s)',
+    async startedAt => {
+      const h = harness();
+      h.setJournal([...journal(2, 1, T0 - 60_000), ...journal(2, 3, T0 - 1_000)], { startedAt });
+      await h.forwarder.forward('error_occurred');
+      expect(h.sent[0]!.records.map(record => record.seq)).toEqual([3, 4]);
+      expect(cursor(h.storage)).toEqual({ instanceId: INSTANCE, seq: 4 });
+    }
+  );
+  it.each([undefined, 'invalid-native-start', Number.NaN])(
+    'keeps boot attribution unknown when the start time is unavailable (%s)',
+    async startedAt => {
+      const h = harness();
+      h.setJournal(journal(2), { startedAt });
+      await h.forwarder.forward('error_occurred');
+      expect(h.sent).toHaveLength(0);
+      expect(cursor(h.storage)).toBeNull();
+    }
+  );
+  it('does not assign records from an unbound response to the remembered native instance', async () => {
+    const h = harness();
+    h.setJournal(journal(1), { instanceId: undefined });
+    await h.forwarder.forward('error_occurred');
+    expect(h.sent).toHaveLength(0);
+    expect(cursor(h.storage)).toBeNull();
   });
 });

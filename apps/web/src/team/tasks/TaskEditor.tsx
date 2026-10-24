@@ -1,3 +1,4 @@
+import { taskAttempt, taskFlowFor } from './diagnostics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   teamTaskDate,
@@ -16,7 +17,7 @@ import {
   beginWorkspaceOperation,
   type WorkspaceOperationFlow
 } from '../workspace/operationAnalytics';
-import { teamApi, type TeamMemberSummary } from '../../api/team';
+import { teamApi, type TeamAssigneeSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { InvitationPanel, type InvitationPanelClient } from '../members/InvitationPanel';
 import { useAttachmentFolders, type AttachmentFoldersClient } from './useAttachmentFolders';
@@ -111,6 +112,17 @@ export interface TaskEditorClient
 
 const defaultClient: TaskEditorClient = { ...teamApi, uploadFile: uploadTeamFile };
 const TASK_PROGRESS_MAX = 10_000;
+/** PostgreSQL versions retain sub-millisecond precision; Date.parse alone loses it. */
+function compareTaskVersions(left: string, right: string): number {
+  const milliseconds = Date.parse(left) - Date.parse(right);
+  if (Number.isFinite(milliseconds) && milliseconds !== 0) return milliseconds;
+  const fraction = (value: string) =>
+    (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? '').padEnd(9, '0');
+  const a = fraction(left),
+    b = fraction(right);
+  return a === b ? 0 : a > b ? 1 : -1;
+}
+
 /** The assignee list's last line, which invites rather than assigns. */
 const INVITE_OPTION = '__invite__';
 
@@ -229,7 +241,7 @@ export function TaskEditor({
 }: {
   teamId: string;
   task: TeamTaskSummary;
-  members: TeamMemberSummary[];
+  members: TeamAssigneeSummary[];
   canEdit: boolean;
   client?: TaskEditorClient;
   /** The space's tag dictionary (018), for the picker. */
@@ -326,6 +338,28 @@ export function TaskEditor({
   const [task, setTask] = useState(initialTask);
   const taskRef = useRef(task);
   taskRef.current = task;
+  const confirmedTask = useRef(initialTask);
+  const pendingConflictChoice = useRef<ReturnType<typeof taskAttempt> | null>(null);
+  useEffect(
+    () => () => {
+      pendingConflictChoice.current?.finish('cancelled');
+      pendingConflictChoice.current = null;
+    },
+    []
+  );
+  const [refreshReceipt, setRefreshReceipt] = useState<ReturnType<typeof taskAttempt> | null>(null);
+  useEffect(() => {
+    if (!refreshReceipt) return;
+    const visible = () => {
+      if (document.visibilityState === 'visible') refreshReceipt.finish('success');
+    };
+    visible();
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      document.removeEventListener('visibilitychange', visible);
+      refreshReceipt.finish('cancelled');
+    };
+  }, [refreshReceipt]);
   // Relation writes commit separately from the task row. A read already in
   // flight must not replace an account/tag change made after it started.
   const relationRevision = useRef({ agents: 0, labels: 0 });
@@ -385,7 +419,6 @@ export function TaskEditor({
   }, [client, teamId, task.id, revision]);
   const [persistedAttachments, setPersistedAttachments] = useState<TeamTaskAttachmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingStatus, setSavingStatus] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   /**
    * What went wrong last, if anything: reading the task, or writing it.
@@ -450,29 +483,80 @@ export function TaskEditor({
     };
   }, [teamId]);
 
-  /**
-   * Refresh the form from the server's copy — but never over typing. The
-   * first read resolves after the editor opens, and a person who started on
-   * the title at once had it wiped by a slow round trip. Each field is
-   * replaced only while it still holds the value the editor opened with;
-   * anything edited in the meantime stays.
-   */
-  const hydrateTask = (next: TeamTaskSummary) => {
-    setTitle(current => (current === initialTask.title ? next.title : current));
-    setNote(current => (current === (initialTask.note ?? '') ? (next.note ?? '') : current));
-    setStatus(current => (current === initialTask.status ? next.status : current));
-    setAssigneeId(current =>
-      current === (initialTask.assigneeId ?? '') ? (next.assigneeId ?? '') : current
-    );
-    setDateOn(current => (current === initialTask.dateOn ? next.dateOn : current));
-    setProgressMax(current => (current === initialTask.progressMax ? next.progressMax : current));
-    setProgressMaxInput(current =>
-      current === String(initialTask.progressMax) ? String(next.progressMax) : current
-    );
-    setProgressValue(current =>
-      current === initialTask.progressValue ? next.progressValue : current
+  // Keep the confirmed server copy separate from the version used by pending
+  // typing. A remote update may refresh untouched fields, but must not silently
+  // rebase a pending write over a teammate's change and bypass SOURCE_CHANGED.
+  const draft = useRef({
+    title,
+    note,
+    status,
+    assigneeId,
+    dateOn,
+    progressMax,
+    progressMaxInput,
+    progressValue
+  });
+  draft.current = {
+    title,
+    note,
+    status,
+    assigneeId,
+    dateOn,
+    progressMax,
+    progressMaxInput,
+    progressValue
+  };
+  const hasLocalEdits = (previous: TeamTaskSummary) => {
+    const current = draft.current;
+    return (
+      current.title !== previous.title ||
+      current.note !== (previous.note ?? '') ||
+      current.status !== previous.status ||
+      current.assigneeId !== (previous.assigneeId ?? '') ||
+      current.dateOn !== previous.dateOn ||
+      current.progressMax !== previous.progressMax ||
+      current.progressMaxInput !== String(previous.progressMax) ||
+      current.progressValue !== previous.progressValue
     );
   };
+  const hydrateTask = (next: TeamTaskSummary, previous = confirmedTask.current) => {
+    setTitle(current => (current === previous.title ? next.title : current));
+    setNote(current => (current === (previous.note ?? '') ? (next.note ?? '') : current));
+    setStatus(current => (current === previous.status ? next.status : current));
+    setAssigneeId(current =>
+      current === (previous.assigneeId ?? '') ? (next.assigneeId ?? '') : current
+    );
+    setDateOn(current => (current === previous.dateOn ? next.dateOn : current));
+    setProgressMax(current => (current === previous.progressMax ? next.progressMax : current));
+    setProgressMaxInput(current =>
+      current === String(previous.progressMax) ? String(next.progressMax) : current
+    );
+    setProgressValue(current =>
+      current === previous.progressValue ? next.progressValue : current
+    );
+  };
+
+  useEffect(() => {
+    const previous = confirmedTask.current;
+    if (
+      initialTask.id !== previous.id ||
+      compareTaskVersions(initialTask.updatedAt, previous.updatedAt) <= 0
+    )
+      return;
+    const dirty = hasLocalEdits(previous);
+    const receipt = taskAttempt(
+      dirty ? 'task_editor_preserve_draft' : 'task_editor_refresh',
+      taskFlowFor(initialTask)
+    );
+    receipt.accepted();
+    hydrateTask(initialTask, previous);
+    setRefreshReceipt(receipt);
+    confirmedTask.current = initialTask;
+    setTask(current => ({
+      ...initialTask,
+      updatedAt: dirty ? current.updatedAt : initialTask.updatedAt
+    }));
+  }, [initialTask]);
 
   const load = useCallback(
     async ({
@@ -489,9 +573,17 @@ export function TaskEditor({
       const relations = { ...relationRevision.current };
       try {
         const value = await client.getTask({ teamId, taskId: task.id, attachmentPageSize: 50 });
-        if (request !== readRevision.current) return;
+        if (
+          request !== readRevision.current ||
+          compareTaskVersions(value.task.updatedAt, confirmedTask.current.updatedAt) < 0
+        )
+          return;
+        const previous = confirmedTask.current;
+        const dirty = hasLocalEdits(previous);
+        confirmedTask.current = value.task;
         setTask(current => ({
           ...value.task,
+          updatedAt: dirty ? current.updatedAt : value.task.updatedAt,
           agents:
             relations.agents === relationRevision.current.agents
               ? value.task.agents
@@ -501,7 +593,15 @@ export function TaskEditor({
               ? value.task.labels
               : current.labels
         }));
-        if (hydrate) hydrateTask(value.task);
+        if (hydrate) {
+          const receipt = taskAttempt(
+            dirty ? 'task_editor_preserve_draft' : 'task_editor_refresh',
+            taskFlowFor(value.task)
+          );
+          receipt.accepted();
+          hydrateTask(value.task, previous);
+          setRefreshReceipt(receipt);
+        }
         if (resetAttachmentDraft) {
           setPersistedAttachments(value.attachments);
         } else {
@@ -522,6 +622,9 @@ export function TaskEditor({
 
   useEffect(() => {
     void load({ hydrate: true, resetAttachmentDraft: true });
+    return () => {
+      readRevision.current += 1;
+    };
   }, [load]);
 
   // A result made from this task arrived (or was taken off again).
@@ -1007,11 +1110,71 @@ export function TaskEditor({
       return value?.task ?? null;
     },
     onSaved: updated => {
+      versionRef.current = updated.updatedAt;
+      if (pendingConflictChoice.current) {
+        setRefreshReceipt(pendingConflictChoice.current);
+        pendingConflictChoice.current = null;
+      }
+      hydrateTask(updated);
+      confirmedTask.current = updated;
       setTask(updated);
       setError(null);
       onChanged(updated);
     }
   });
+
+  useEffect(() => {
+    const attempt = pendingConflictChoice.current;
+    if (!attempt || (autosave.state !== 'failed' && autosave.state !== 'conflict')) return;
+    attempt.finish(
+      'failure',
+      autosave.state === 'conflict' ? { code: 'SOURCE_CHANGED' } : undefined
+    );
+    pendingConflictChoice.current = null;
+  }, [autosave.state, autosave.conflict]);
+
+  const takeServerVersion = () => {
+    pendingConflictChoice.current?.finish('cancelled');
+    pendingConflictChoice.current = null;
+    const reviewed = autosave.conflict;
+    if (!reviewed) {
+      // A failed read cannot supply a version to accept. Cancel preserves RAM edits.
+      autosave.takeNewer();
+      setError('read');
+      return;
+    }
+    const observed = confirmedTask.current;
+    const newer =
+      observed.id === reviewed.id &&
+      observed.teamId === reviewed.teamId &&
+      compareTaskVersions(observed.updatedAt, reviewed.updatedAt) > 0
+        ? observed
+        : reviewed;
+    const receipt = taskAttempt('task_editor_refresh', taskFlowFor(newer));
+    receipt.accepted();
+    setTitle(newer.title);
+    setNote(newer.note ?? '');
+    setStatus(newer.status);
+    setAssigneeId(newer.assigneeId ?? '');
+    setDateOn(newer.dateOn);
+    setProgressMax(newer.progressMax);
+    setProgressMaxInput(String(newer.progressMax));
+    setProgressValue(newer.progressValue);
+    setRefreshReceipt(receipt);
+    autosave.takeNewer(newer);
+  };
+  const keepLocalVersion = () => {
+    const newer = autosave.conflict;
+    if (!canEdit || !newer) return;
+    pendingConflictChoice.current?.finish('cancelled');
+    const attempt = taskAttempt('task_editor_preserve_draft', taskFlowFor(newer));
+    attempt.accepted();
+    pendingConflictChoice.current = attempt;
+    // Explicit review selects this version; a further peer change still conflicts.
+    versionRef.current = newer.updatedAt;
+    setTask(current => ({ ...current, updatedAt: newer.updatedAt }));
+    autosave.overwrite();
+  };
 
   /*
    * Progress is saved the moment it is let go, like the status. It carries the
@@ -1021,6 +1184,7 @@ export function TaskEditor({
   const progressWriter = useCoalescedWrite<{ progressValue: number; progressMax: number }>({
     write: async value => {
       const response = await client.updateTask(teamId, task.id, value);
+      confirmedTask.current = response;
       setTask(current => ({
         ...response,
         attachmentCount: current.attachmentCount,
@@ -1037,39 +1201,13 @@ export function TaskEditor({
     onError: () => setError('write')
   });
 
-  const saveStatus = async (next: TeamTaskSummary['status']) => {
-    if (!canEdit || next === status || savingStatus) return;
-    const previousTask = task;
-    const previousStatus = status;
+  const saveStatus = (next: TeamTaskSummary['status']) => {
+    if (!canEdit || next === status) return;
     setStatus(next);
-    setSavingStatus(true);
     setError(null);
-    try {
-      const response = await client.updateTask(teamId, task.id, {
-        status: next,
-        expectedUpdatedAt: previousTask.updatedAt
-      });
-      const updated = {
-        ...response,
-        attachmentCount: taskRef.current.attachmentCount,
-        agents: taskRef.current.agents,
-        labels: taskRef.current.labels
-      };
-      setTask(updated);
-      // Preserve a locally edited scale; otherwise reflect automatic completion progress.
-      setProgressMax(current =>
-        current === previousTask.progressMax ? updated.progressMax : current
-      );
-      setProgressValue(current =>
-        current === previousTask.progressValue ? updated.progressValue : current
-      );
-      onChanged({ ...updated, attachmentCount: task.attachmentCount });
-    } catch {
-      setStatus(previousStatus);
-      setError('write');
-    } finally {
-      setSavingStatus(false);
-    }
+    // Status and text share one versioned queue: blur can have started a text
+    // write immediately before this click. Preserve conflicts for peer edits.
+    autosave.save({ status: next });
   };
 
   /**
@@ -1153,7 +1291,7 @@ export function TaskEditor({
                   {canEdit && autosave.state === 'failed' && (
                     <small className="team-task-save-failed" role="alert">
                       {t('teamTaskSaveFailed')}
-                      <Button size="sm" color="error" variant="ghost" onClick={autosave.flush}>
+                      <Button size="sm" color="error" variant="ghost" onClick={autosave.overwrite}>
                         {t('teamTaskRetrySave')}
                       </Button>
                     </small>
@@ -1210,7 +1348,7 @@ export function TaskEditor({
                 <TaskStatusControl
                   adaptive
                   value={status}
-                  disabled={!canEdit || savingStatus}
+                  disabled={!canEdit}
                   onChange={next => void saveStatus(next)}
                 />
                 {/* Always in the editor (the owner, 024, revising FR-089): hidden
@@ -1229,9 +1367,20 @@ export function TaskEditor({
                     disabled={!canEdit}
                     placeholder={t('teamTaskUnassigned')}
                     options={[
+                      ...(assigneeId && !members.some(member => member.userId === assigneeId)
+                        ? [
+                            {
+                              value: assigneeId,
+                              label:
+                                task.assigneeId === assigneeId
+                                  ? (task.assigneeLabelSnapshot ?? t('teamFormerMember'))
+                                  : t('teamFormerMember')
+                            }
+                          ]
+                        : []),
                       ...members.map(member => ({
                         value: member.userId,
-                        label: member.displayName ?? member.email ?? member.userId
+                        label: member.displayName ?? t('teamMemberUnnamed')
                       })),
                       ...(canEdit && can('manage_members') && client.createInvitation
                         ? [{ value: INVITE_OPTION, label: `+ ${t('teamTaskInviteSomeone')}` }]
@@ -1397,6 +1546,7 @@ export function TaskEditor({
               {error && (
                 <ErrorState
                   message={t(error === 'read' ? 'teamTaskReadFailed' : 'teamTaskSaveFailed')}
+                  onRetry={error === 'read' ? () => void load({ hydrate: true }) : undefined}
                 />
               )}
             </form>
@@ -1655,13 +1805,14 @@ export function TaskEditor({
         <Modal
           nested
           labelledBy="team-task-conflict-title"
-          onClose={autosave.takeNewer}
+          onClose={takeServerVersion}
           closeLabel={t('teamCancel')}
           size="sm"
         >
           <div className="team-task-conflict">
             <h2 id="team-task-conflict-title">{t('teamTaskConflictTitle')}</h2>
             <p>{t('teamTaskConflictDescription')}</p>
+            {!autosave.conflict && <p role="alert">{t('teamTaskReadFailed')}</p>}
             {autosave.conflict && (
               <p className="team-task-conflict-newer">
                 <strong>{autosave.conflict.title}</strong>
@@ -1669,10 +1820,20 @@ export function TaskEditor({
               </p>
             )}
             <div className="team-dialog-actions">
-              <Button color="neutral" variant="ghost" onClick={autosave.takeNewer}>
+              <Button
+                color="neutral"
+                variant="ghost"
+                disabled={!autosave.conflict}
+                onClick={takeServerVersion}
+              >
                 {t('teamTaskConflictTakeNewer')}
               </Button>
-              <Button color="primary" variant="solid" onClick={autosave.overwrite}>
+              <Button
+                color="primary"
+                variant="solid"
+                disabled={!canEdit || !autosave.conflict}
+                onClick={keepLocalVersion}
+              >
                 {t('teamTaskConflictKeepMine')}
               </Button>
             </div>

@@ -766,6 +766,10 @@ export interface AgentEntitlementStatus {
   graceUntil: string | null;
 }
 
+/** Closed diagnostic reasons; revisions and identities never enter the journal. */
+export const ENTITLEMENT_PUBLICATION_REJECTIONS = ['missing_revision', 'stale_revision'] as const;
+export type EntitlementPublicationRejection = (typeof ENTITLEMENT_PUBLICATION_REJECTIONS)[number];
+
 /** The host operating system as the agent itself reports it (031 FR-053). */
 export type AgentHostPlatform = 'macos' | 'windows' | 'linux';
 
@@ -792,6 +796,10 @@ export interface HealthResponse {
   update?: QueueState['update'];
   /** Absent on agents older than the entitlement rollout. */
   entitlement?: AgentEntitlementStatus;
+  /** Paired-only publication fence captured before requesting a signed token. */
+  entitlementRevision?: string;
+  /** Paired native installation selector; not a credential and absent on older agents. */
+  recoveryInstallationId?: string;
   /**
    * How often the live-update stream sends a heartbeat, in milliseconds. A client derives
    * its read watchdog from it. Absent on agents older than 032.
@@ -808,6 +816,7 @@ export interface HealthResponse {
  */
 export const AGENT_CAPABILITIES = [
   'team-background-recovery',
+  'team-background-recovery-actor-bound',
   /**
    * One connection carries every channel, instead of one connection per tool.
    *
@@ -862,8 +871,12 @@ export type DiagnosticPropValue = number | boolean | string;
  * the writers' discipline.
  */
 export interface DiagnosticRecord {
-  /** Monotonic within the journal; continues across restarts when the file was readable. */
+  /** Physical journal cursor on disk/bound history; default API pages expose the per-boot sequence. */
   seq: number;
+  /** Proven producer boot; absent on legacy retained records. Never inferred on reload. */
+  agentInstanceId?: string;
+  /** Sequence within the producing boot, used with agentInstanceId for server ingestion. */
+  instanceSeq?: number;
   /** Epoch milliseconds. */
   at: number;
   category: DiagnosticCategory;
@@ -2321,3 +2334,39 @@ export function isNewerSnapshot(
   if (options.sameInstance === false) return true;
   return (next.revision ?? 0) >= (current.revision ?? 0);
 }
+
+/** Browser acknowledgement can be unknown even after server retirement committed. */
+export const RECOVERY_RETIREMENT_ACK_CODES = ['RECOVERY_RETIREMENT_UNCONFIRMED'] as const;
+export type RecoveryRetirementAckCode = (typeof RECOVERY_RETIREMENT_ACK_CODES)[number];
+export const RECOVERY_RETIREMENT_ACK_REASONS = [
+  'missing_scope',
+  'configuration',
+  'missing_session',
+  'session_mismatch',
+  'auth_unavailable',
+  'timeout',
+  'network',
+  'server_refused',
+  'invalid_receipt',
+  'legacy_contract',
+  'unknown'
+] as const;
+export type RecoveryRetirementAckReason = (typeof RECOVERY_RETIREMENT_ACK_REASONS)[number];
+
+/** Closed browser session-coordination failures; never include tokens or provider text. */
+export const AUTH_SESSION_MUTATION_CODES = [
+  'AUTH_SESSION_LOCK_UNAVAILABLE',
+  'AUTH_SESSION_SCOPE_INVALID',
+  'AUTH_SESSION_STATE_UNAVAILABLE',
+  'AUTH_SESSION_LOCK_TIMEOUT',
+  'AUTH_SESSION_MUTATION_FAILED'
+] as const;
+export type AuthSessionMutationCode = (typeof AUTH_SESSION_MUTATION_CODES)[number];
+
+/** Profile synchronization has no user content or provider error payload in diagnostics. */
+export const PROFILE_SYNC_CODES = [
+  'PROFILE_REFRESH_FAILED',
+  'PROFILE_REFRESH_TIMEOUT',
+  'PROFILE_UPDATE_FAILED'
+] as const;
+export type ProfileSyncCode = (typeof PROFILE_SYNC_CODES)[number];

@@ -131,7 +131,13 @@ describe('protected routing and safe OAuth returns', () => {
 describe('environment and localization foundation', () => {
   it('never exposes configuration diagnostics on the user-facing outage screen', async () => {
     const authScreens = await readFile('apps/web/src/auth/AuthScreens.tsx', 'utf8');
-    const translations = await readFile('apps/web/src/i18n.ts', 'utf8');
+    const translations = (
+      await Promise.all(
+        ['i18n.ts', 'locales/en.ts', 'locales/uk.ts'].map(file =>
+          readFile(`apps/web/src/${file}`, 'utf8')
+        )
+      )
+    ).join('\n');
 
     expect(authScreens).not.toContain('publicConfig.errors.map');
     expect(translations).not.toContain('Soty needs Supabase configuration');

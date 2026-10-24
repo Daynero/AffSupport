@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "policyId": "036-required-variants-v1",
+  "catalogSha256": "c1140bcbdba13552cfb588a13745e04a0a7ef6a8a2a88aba87946be0ec50858e",
+  "groupRequiredVariants": {
+    "SET": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      }
+    ],
+    "TEAM": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      },
+      {
+        "id": "role-browser-swap",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md preamble and T053: repeat critical TEAM/ACL/LIFE/SYNC and RO with Safari/Chrome roles exchanged"
+      }
+    ],
+    "ACL": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      },
+      {
+        "id": "role-browser-swap",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md preamble and T053: repeat critical TEAM/ACL/LIFE/SYNC and RO with Safari/Chrome roles exchanged"
+      }
+    ],
+    "TARIFF": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      },
+      {
+        "id": "participant-state",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "SC-004: the owner and both participant sessions show the authoritative tariff state"
+      }
+    ],
+    "LIFE": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      },
+      {
+        "id": "participant-state",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "SC-004: the owner and both participant sessions show the authoritative tariff state"
+      },
+      {
+        "id": "role-browser-swap",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md preamble and T053: repeat critical TEAM/ACL/LIFE/SYNC and RO with Safari/Chrome roles exchanged"
+      }
+    ],
+    "SYNC": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-terminal",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-005: actual terminal, count/checksum and denial; queue acceptance alone is insufficient"
+      },
+      {
+        "id": "recipient-visible",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "FR-005: corresponding confirmed result is visible to another authorized participant"
+      },
+      {
+        "id": "role-browser-swap",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md preamble and T053: repeat critical TEAM/ACL/LIFE/SYNC and RO with Safari/Chrome roles exchanged"
+      }
+    ],
+    "RO": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      },
+      {
+        "id": "role-browser-swap",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md preamble and T053: repeat critical TEAM/ACL/LIFE/SYNC and RO with Safari/Chrome roles exchanged"
+      }
+    ],
+    "REG": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      }
+    ],
+    "LAUNCH": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "manual-test-cases.md: execute the complete scenario, prerequisites and expected visible result"
+      },
+      {
+        "id": "server-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "FR-004/FR-008: actual authoritative allow/denial, including stale actions; hidden controls do not prove authorization"
+      }
+    ],
+    "OBS": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["native-browser", "manual", "actor", "database"],
+        "basis": "OBS: actual diagnostic/resource observation, not an implementation-only unit test"
+      }
+    ]
+  },
+  "caseOverrides": {
+    "OBS-008": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["load"],
+        "basis": "OBS-008 / LOAD: actual measured workload evidence with verified target"
+      }
+    ],
+    "OBS-009": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["database", "manual"],
+        "basis": "OBS-009 / SC-007: actual isolated backup/restore with record and permission readbacks"
+      }
+    ],
+    "OBS-010": [
+      {
+        "id": "required",
+        "allowedTestKinds": ["packaged"],
+        "basis": "OBS-010: actual clean exact-SHA packaged beta verification"
+      }
+    ]
+  },
+  "caseAdditions": {
+    "SET-001": [
+      {
+        "id": "safari-profile-isolation",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "FR-002: two independent native Safari profiles retain distinct actors"
+      },
+      {
+        "id": "chrome-session-isolation",
+        "allowedTestKinds": ["native-browser", "manual"],
+        "basis": "SET-001: Chrome viewer remains isolated during Safari sign-out"
+      }
+    ],
+    "SET-006": [
+      {
+        "id": "native-actor-authority",
+        "allowedTestKinds": ["actor", "database"],
+        "basis": "SET-006 / FR-008: actual paired native actor authority across another user and handoff"
+      }
+    ]
+  }
+}

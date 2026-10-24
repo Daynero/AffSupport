@@ -73,6 +73,7 @@ export function TaskDateField({
         {formatTaskDate(language, value)}
       </button>
       <Popover
+        initialFocus='[role="grid"] [tabindex="0"]'
         open={open}
         /* The calendar closes, the editor it sits in stays: the shared stack
            gives Escape to the innermost surface, which is this one. */

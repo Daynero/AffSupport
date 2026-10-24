@@ -35,6 +35,7 @@ export const DIAGNOSTICS_PAGE_DEFAULT = 200;
 export const DIAGNOSTICS_FILE_NAME = 'diagnostics.jsonl';
 
 const CODE_PATTERN = /^[a-z][a-z0-9_]{1,63}$/u;
+const INSTANCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PROP_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/u;
 const MAX_PROPS = 16;
 const MAX_STRING_LENGTH = 64;
@@ -93,7 +94,10 @@ function parseStoredRecord(line: string): DiagnosticRecord | null {
     return null;
   }
   if (!raw || typeof raw !== 'object') return null;
-  const { seq, at, category, code, props } = raw as Record<string, unknown>;
+  const { seq, at, category, code, props, agentInstanceId, instanceSeq } = raw as Record<
+    string,
+    unknown
+  >;
   if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 1) return null;
   if (typeof at !== 'number' || !Number.isFinite(at)) return null;
   if (typeof category !== 'string' || !CATEGORIES.has(category)) return null;
@@ -101,11 +105,25 @@ function parseStoredRecord(line: string): DiagnosticRecord | null {
   const cleanProps = sanitizeProps(props);
   if (cleanProps === null) return null;
   const record: DiagnosticRecord = { seq, at, category: category as DiagnosticCategory, code };
+  if (agentInstanceId !== undefined || instanceSeq !== undefined) {
+    if (
+      typeof agentInstanceId !== 'string' ||
+      !INSTANCE_PATTERN.test(agentInstanceId) ||
+      typeof instanceSeq !== 'number' ||
+      !Number.isSafeInteger(instanceSeq) ||
+      instanceSeq < 1
+    )
+      return null;
+    record.agentInstanceId = agentInstanceId.toLowerCase();
+    record.instanceSeq = instanceSeq;
+  }
   if (cleanProps && Object.keys(cleanProps).length > 0) record.props = cleanProps;
   return record;
 }
 
 export interface DiagnosticsLogOptions {
+  /** The real boot factory's UUID. Omit only for legacy/bare assemblies. */
+  instanceId?: string;
   /** Where the journal is persisted; null keeps it in memory only (tests, bare assemblies). */
   file?: string | null;
   now?: () => number;
@@ -116,6 +134,8 @@ export interface DiagnosticsLogOptions {
 }
 
 export class DiagnosticsLog {
+  private readonly instanceId: string | undefined;
+  private instanceSeq = 0;
   private readonly file: string | null;
   private readonly now: () => number;
   private readonly flushIntervalMs: number;
@@ -138,6 +158,10 @@ export class DiagnosticsLog {
   private closed = false;
 
   constructor(options: DiagnosticsLogOptions = {}) {
+    if (options.instanceId !== undefined && !INSTANCE_PATTERN.test(options.instanceId)) {
+      throw new TypeError('INVALID_DIAGNOSTIC_INSTANCE');
+    }
+    this.instanceId = options.instanceId?.toLowerCase();
     this.file = options.file ?? null;
     this.now = options.now ?? Date.now;
     this.flushIntervalMs = options.flushIntervalMs ?? DIAGNOSTICS_FLUSH_INTERVAL_MS;
@@ -165,6 +189,9 @@ export class DiagnosticsLog {
     for (const record of parsed) {
       if (record.seq <= this.lastSeq) continue;
       this.lastSeq = record.seq;
+      if (this.instanceId && record.agentInstanceId === this.instanceId) {
+        this.instanceSeq = Math.max(this.instanceSeq, record.instanceSeq ?? 0);
+      }
       this.push(record, JSON.stringify(record));
     }
     this.flushedSeq = this.lastSeq;
@@ -186,6 +213,10 @@ export class DiagnosticsLog {
       return false;
     }
     const record: DiagnosticRecord = { seq: this.lastSeq + 1, at: this.now(), category, code };
+    if (this.instanceId) {
+      record.agentInstanceId = this.instanceId;
+      record.instanceSeq = ++this.instanceSeq;
+    }
     if (cleanProps && Object.keys(cleanProps).length > 0) record.props = cleanProps;
     this.lastSeq = record.seq;
     this.push(record, JSON.stringify(record));
@@ -194,9 +225,23 @@ export class DiagnosticsLog {
   }
 
   /** Records with `seq > since`, oldest first, at most `limit` (capped at the page limit). */
-  since(since: number, limit: number = DIAGNOSTICS_PAGE_DEFAULT): DiagnosticRecord[] {
+  since(
+    since: number,
+    limit: number = DIAGNOSTICS_PAGE_DEFAULT,
+    currentBootOnly = false
+  ): DiagnosticRecord[] {
     const cap = Math.max(1, Math.min(DIAGNOSTICS_PAGE_LIMIT, Math.floor(limit)));
     const floor = Number.isFinite(since) ? since : 0;
+    if (currentBootOnly && this.instanceId) {
+      // Older web clients ingest seq directly. They must use the same per-boot
+      // uniqueness key as bound-history clients, including for pagination.
+      return this.records
+        .filter(
+          record => record.agentInstanceId === this.instanceId && (record.instanceSeq ?? 0) > floor
+        )
+        .slice(0, cap)
+        .map(record => ({ ...record, seq: record.instanceSeq! }));
+    }
     // The ring is ordered by seq, so the first qualifying index is a binary search away.
     let low = 0;
     let high = this.records.length;
@@ -209,8 +254,8 @@ export class DiagnosticsLog {
   }
 
   /** The highest sequence number assigned so far; 0 before the first record. */
-  latestSeq(): number {
-    return this.lastSeq;
+  latestSeq(currentBootOnly = false): number {
+    return currentBootOnly && this.instanceId ? this.instanceSeq : this.lastSeq;
   }
 
   /** How many records writers tried to add and the fence refused. */

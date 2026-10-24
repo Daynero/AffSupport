@@ -3,9 +3,18 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRestitchPreparer } from '../apps/web/src/team/catalog-updater/useRestitchPreparer';
 import { RECOVERY_CHANGED } from '../apps/web/src/api/recovery';
-const state = vi.hoisted(() => ({ native: true, status: vi.fn() }));
+const state = vi.hoisted(() => ({
+  native: true,
+  status: vi.fn(),
+  connection: 'connected',
+  instanceId: 'agent-one'
+}));
 vi.mock('../apps/web/src/AgentContext', () => ({
-  useOptionalAgent: () => ({ capabilities: state.native ? ['team-background-recovery'] : [] })
+  useOptionalAgent: () => ({
+    capabilities: state.native ? ['team-background-recovery'] : [],
+    connection: state.connection,
+    lastKnownAgent: { instanceId: state.instanceId }
+  })
 }));
 vi.mock('../apps/web/src/api/useAgentEventStream', () => ({ useAgentEventStream: () => {} }));
 vi.mock('../apps/web/src/api/recovery', () => ({
@@ -17,8 +26,10 @@ afterEach(() => {
   vi.useRealTimers();
   state.status.mockReset();
   state.native = true;
+  state.connection = 'connected';
+  state.instanceId = 'agent-one';
 });
-function fixture() {
+function controller() {
   const claim = vi.fn(async () => null);
   const client = {
     claimRestitchJob: claim,
@@ -27,10 +38,164 @@ function fixture() {
     startProcess: vi.fn(),
     cancelProcess: vi.fn()
   };
-  renderHook(() => useRestitchPreparer({ teamId: 'synthetic', enabled: true, client }));
-  return claim;
+  const hook = renderHook(() =>
+    useRestitchPreparer({
+      teamId: 'synthetic',
+      enabled: state.connection === 'connected',
+      client
+    })
+  );
+  return { claim, rerender: hook.rerender };
+}
+function fixture() {
+  return controller().claim;
 }
 describe('one restitch executor owner', () => {
+  it('rechecks ownership before browser claims after reconnect with unchanged capabilities', async () => {
+    vi.useFakeTimers();
+    state.status.mockResolvedValueOnce({ enabled: false }).mockResolvedValue({ enabled: true });
+    let view!: ReturnType<typeof controller>;
+    await act(async () => {
+      view = controller();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(view.claim).toHaveBeenCalledOnce();
+    await act(async () => {
+      state.connection = 'disconnected';
+      view.rerender();
+    });
+    await act(async () => {
+      state.connection = 'connected';
+      view.rerender();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(state.status).toHaveBeenCalledTimes(2);
+    expect(view.claim).toHaveBeenCalledOnce();
+  });
+  it('rechecks ownership when a different native instance connects', async () => {
+    vi.useFakeTimers();
+    state.status.mockResolvedValueOnce({ enabled: false }).mockResolvedValue({ enabled: true });
+    let view!: ReturnType<typeof controller>;
+    await act(async () => {
+      view = controller();
+    });
+    await act(async () => {
+      state.instanceId = 'agent-two';
+      view.rerender();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(state.status).toHaveBeenCalledTimes(2);
+    expect(view.claim).not.toHaveBeenCalled();
+  });
+  it.each(['storage', 'focus'])(
+    'refreshes ownership on %s from another tab or return to this tab',
+    async kind => {
+      vi.useFakeTimers();
+      state.status.mockResolvedValueOnce({ enabled: false }).mockResolvedValue({ enabled: true });
+      let claim!: ReturnType<typeof fixture>;
+      await act(async () => {
+        claim = fixture();
+      });
+      await act(async () => {
+        window.dispatchEvent(
+          kind === 'storage'
+            ? new StorageEvent('storage', { key: RECOVERY_CHANGED, newValue: 'synthetic-change' })
+            : new Event('focus')
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60000);
+      });
+      expect(state.status).toHaveBeenCalledTimes(2);
+      expect(claim).not.toHaveBeenCalled();
+    }
+  );
+  it('ignores a stale disabled response after a newer native-owner confirmation', async () => {
+    vi.useFakeTimers();
+    let resolveOld!: (value: { enabled: boolean }) => void;
+    state.status
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveOld = resolve;
+          })
+      )
+      .mockResolvedValue({ enabled: true });
+    let claim!: ReturnType<typeof fixture>;
+    await act(async () => {
+      claim = fixture();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event(RECOVERY_CHANGED));
+    });
+    await act(async () => {
+      resolveOld({ enabled: false });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(claim).not.toHaveBeenCalled();
+  });
+  it('pauses browser claims while ownership is being rechecked', async () => {
+    vi.useFakeTimers();
+    let resolveRefresh!: (value: { enabled: boolean }) => void;
+    state.status.mockResolvedValueOnce({ enabled: false }).mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveRefresh = resolve;
+        })
+    );
+    let claim!: ReturnType<typeof fixture>;
+    await act(async () => {
+      claim = fixture();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event(RECOVERY_CHANGED));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(claim).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveRefresh({ enabled: true });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(claim).not.toHaveBeenCalled();
+  });
+  it('ignores an obsolete read failure after the browser owner is confirmed', async () => {
+    vi.useFakeTimers();
+    let rejectOld!: (reason: Error) => void;
+    state.status
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOld = reject;
+          })
+      )
+      .mockResolvedValue({ enabled: false });
+    let claim!: ReturnType<typeof fixture>;
+    await act(async () => {
+      claim = fixture();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event(RECOVERY_CHANGED));
+    });
+    await act(async () => {
+      rejectOld(new Error('old read failed'));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(claim).toHaveBeenCalledOnce();
+  });
   it('does not poll for work while the native owner is enabled, then resumes after explicit disabling', async () => {
     vi.useFakeTimers();
     state.status.mockResolvedValue({ enabled: true });

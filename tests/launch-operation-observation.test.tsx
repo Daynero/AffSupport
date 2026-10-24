@@ -113,3 +113,58 @@ it('clears stale local progress on disconnect and reconciles the same child when
   expect(seams.getOperation.mock.calls.length).toBeGreaterThan(before);
   expect(result.current.localProgress).toBeNull();
 });
+
+it.each(['canceled', 'failed'] as const)(
+  "retains this operation's measured progress after authoritative %s readback",
+  async state => {
+    seams.getOperation.mockResolvedValue({
+      ...snapshot('child'),
+      stage: 'processing',
+      progress: 0
+    });
+    const { result } = renderHook(() =>
+      useTeamOperation({ teamId: 'team', operationId: 'child', workspaceObservation: true })
+    );
+    await act(async () => undefined);
+    const stream = () => vi.mocked(useAgentEventStream).mock.calls.at(-1)![0];
+    act(() =>
+      stream().onMessage({
+        type: 'team:operations',
+        operations: [
+          {
+            operationId: 'child',
+            state: 'running',
+            stage: 'processing',
+            progress: 20,
+            errorCode: null,
+            updatedAt: '2026-10-22T11:00:00Z'
+          }
+        ]
+      })
+    );
+    expect(result.current.localProgress?.progress).toBe(20);
+    seams.getOperation.mockResolvedValue({
+      ...snapshot('child'),
+      state,
+      stage: state,
+      progress: 0
+    });
+    await act(async () =>
+      stream().onMessage({
+        type: 'team:operations',
+        operations: [
+          {
+            operationId: 'child',
+            state,
+            stage: state,
+            progress: 20,
+            errorCode: null,
+            updatedAt: '2026-10-22T11:00:01Z'
+          }
+        ]
+      })
+    );
+    expect(result.current.operation?.state).toBe(state);
+    expect(result.current.localProgress?.progress).toBe(20);
+  }
+);

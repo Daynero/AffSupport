@@ -27,6 +27,8 @@ export interface AdminContact {
 
 /** One row of `service_claim_tariff_notices`, after parsing. */
 export interface TariffNotice {
+  /** Authoritative tariff calendar from the claiming transaction; absent on legacy SQL. */
+  tariffToday?: string;
   id: string;
   kind: TariffNoticeKind;
   tariffId: string | null;
@@ -122,6 +124,13 @@ export function noticeId(row: unknown): string | null {
 export function parseTariffNotice(row: unknown): TariffNotice | null {
   const value = record(row);
   if (!value) return null;
+  if (
+    value.tariffToday !== undefined &&
+    (typeof value.tariffToday !== 'string' ||
+      !DAY.test(value.tariffToday) ||
+      !kyivDay(value.tariffToday))
+  )
+    return null;
   const id = uuidOrNull(value.id);
   const kind = (TARIFF_NOTICE_KINDS as readonly string[]).includes(value.kind as string)
     ? (value.kind as TariffNoticeKind)
@@ -130,6 +139,7 @@ export function parseTariffNotice(row: unknown): TariffNotice | null {
   if (!id || !kind || !recipientEmail) return null;
   const contact = record(value.contact);
   const notice: TariffNotice = {
+    ...(value.tariffToday !== undefined ? { tariffToday: value.tariffToday as string } : {}),
     id,
     kind,
     tariffId: uuidOrNull(value.tariffId),

@@ -7,6 +7,7 @@ import {
   type CatalogSyncJob
 } from '../supabase/functions/catalog-sync/engine';
 import { GoogleDriveClient } from '../supabase/functions/_shared/drive';
+import { executeProviderFault } from '../scripts/acceptance/fault-effects.mjs';
 
 const folderMime = 'application/vnd.google-apps.folder';
 
@@ -829,4 +830,60 @@ describe('one scheduler tick, many slices (011, findings I3)', () => {
       expect.objectContaining({ phase: 'initial_scan', folderQueue: ['folder-c'] })
     );
   });
+});
+
+it('restarts the real scan engine generation after a scoped transport page-token fault passes through the real Drive parser', async () => {
+  const control = vi.fn().mockResolvedValue({ ok: true });
+  const transport = vi.fn(
+    async () => new Response('{"files":[]}', { headers: { 'content-type': 'application/json' } })
+  );
+  const drive = new GoogleDriveClient('synthetic-token-for-test-only', (input, init) =>
+    executeProviderFault({ kind: 'expired_cursor' }, control, input, init, transport)
+  );
+  const scan = {
+    beginFolder: vi
+      .fn()
+      .mockResolvedValueOnce({ generation: 'old', pageToken: 'expired' })
+      .mockResolvedValueOnce({ generation: 'old', pageToken: 'expired' })
+      .mockResolvedValue({ generation: 'fresh', pageToken: null }),
+    frontier: vi
+      .fn()
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'listing' }])
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'listing' }])
+      .mockResolvedValueOnce([{ folderId: 'root', state: 'reconciling' }])
+      .mockResolvedValue([]),
+    commitPage: vi.fn().mockResolvedValue(true),
+    missingCandidates: vi.fn().mockResolvedValue([]),
+    resolveCandidate: vi.fn().mockResolvedValue(true),
+    finishFolder: vi.fn().mockResolvedValue(true)
+  };
+  const deps = dependencies({
+    durableScan: scan,
+    listChildren: input => drive.listChildren(input),
+    complete: vi.fn().mockResolvedValue(true)
+  });
+  await runCatalogSyncJob({ ...baseJob, jobKind: 'user_subtree' }, deps, { budgetMs: 10000 });
+  expect(scan.beginFolder).toHaveBeenCalledWith('root', true);
+  expect(scan.commitPage).toHaveBeenCalledOnce();
+  expect(scan.commitPage).toHaveBeenCalledWith(
+    expect.objectContaining({ generation: 'fresh', expectedPageToken: null })
+  );
+  expect(deps.tombstoneFiles).not.toHaveBeenCalled();
+  expect(transport).toHaveBeenCalledOnce();
+  expect(control.mock.calls.map(call => call[0])).toEqual(['claim', 'effect-start']);
+});
+
+it('propagates scoped provider 429 through the real scan engine without committing a page or terminal success', async () => {
+  const drive = new GoogleDriveClient('synthetic-token-for-test-only', (input, init) =>
+    executeProviderFault({ kind: 'drive_429' }, async () => ({ ok: true }), input, init, vi.fn())
+  );
+  const deps = dependencies({ listChildren: input => drive.listChildren(input) });
+  await expect(runCatalogSyncSlice(baseJob, deps)).rejects.toMatchObject({
+    code: 'RATE_LIMITED',
+    retryable: true
+  });
+  expect(deps.upsertFiles).not.toHaveBeenCalled();
+  expect(deps.checkpoint).not.toHaveBeenCalled();
+  expect(deps.complete).not.toHaveBeenCalled();
+  expect(deps.tombstoneFiles).not.toHaveBeenCalled();
 });

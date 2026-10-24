@@ -80,7 +80,8 @@ export function useTeamOperation(input: {
       setOperation(value);
       setError(null);
       reportTeamOperationFailure(value, workflowId);
-      if (!['pending', 'running'].includes(value.state)) setLocalProgress(null);
+      // Keep this operation's last measured agent progress when cloud state
+      // settles. Operation changes and stream disconnects still clear it.
     } catch (caught) {
       if (sequence !== readSequence.current) return;
       setError(caught instanceof Error ? caught.message : 'INVALID_RESPONSE');

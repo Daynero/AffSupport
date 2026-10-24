@@ -6,8 +6,12 @@
  * a port check and an `exit(1)`.
  */
 
-/** Parses a dotenv-style file into a plain object. Values are not expanded. */
+/**
+ * Parses a dotenv-style file into a plain object. Values are not expanded.
+ * @returns {Record<string, string>}
+ */
 export function parseEnvFile(contents) {
+  /** @type {Record<string, string>} */
   const result = {};
   for (const line of contents.split(/\r?\n/)) {
     const trimmed = line.trim();

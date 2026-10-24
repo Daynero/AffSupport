@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -24,6 +24,8 @@ import { adminAuthStub } from './support/auth-stub';
 const SPACE_ID = '20000000-0000-4000-8000-000000000001';
 
 afterEach(() => {
+  // Unmount effects before restoring their async client implementations.
+  cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
 });

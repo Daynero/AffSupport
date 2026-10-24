@@ -1,11 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 
-it('keeps seven days, active runs and audit records; clamps both cleanup batches', async () => {
-  const db = await PGlite.create();
-  try {
-    await db.exec(`
+let db: PGlite;
+
+// Database startup and fixture installation are infrastructure preparation,
+// separate from the bounded cleanup operations asserted below.
+beforeAll(async () => {
+  db = await PGlite.create();
+  await db.exec(`
       create schema private; create schema cron;
       create role anon; create role authenticated; create role service_role;
       create role history_migrator;
@@ -30,36 +33,37 @@ it('keeps seven days, active runs and audit records; clamps both cleanup batches
       alter table public.team_catalog_events owner to history_migrator;
       set role history_migrator;
     `);
-    await db.exec(
-      await readFile('supabase/migrations/20261202110000_operational_history_retention.sql', 'utf8')
-    );
-    await db.exec('reset role');
-    const clean = async (name: string) =>
-      (await db.query<{ removed: number }>(`select private.${name}(10000) as removed`)).rows[0]
-        ?.removed;
-    expect(await clean('cleanup_team_catalog_events')).toBe(50);
-    expect(await clean('cleanup_team_catalog_events')).toBe(1);
-    expect(await clean('cleanup_team_catalog_events')).toBe(0);
-    expect(await clean('cleanup_cron_history')).toBe(500);
-    expect(await clean('cleanup_cron_history')).toBe(1);
-    expect(await clean('cleanup_cron_history')).toBe(0);
-    expect((await db.query('select id from public.team_catalog_events')).rows).toEqual([
-      { id: 100 }
-    ]);
-    expect((await db.query('select runid from cron.job_run_details order by runid')).rows).toEqual([
-      { runid: 1000 },
-      { runid: 1001 },
-      { runid: 1002 }
-    ]);
-    expect((await db.query('select id from public.team_audit_events')).rows).toHaveLength(1);
-    expect(
-      (
-        await db.query<{ allowed: boolean }>(
-          "select has_function_privilege('service_role', 'private.cleanup_cron_history(integer)', 'EXECUTE') as allowed"
-        )
-      ).rows[0]?.allowed
-    ).toBe(false);
-  } finally {
-    await db.close();
-  }
+  await db.exec(
+    await readFile('supabase/migrations/20261202110000_operational_history_retention.sql', 'utf8')
+  );
+  await db.exec('reset role');
+});
+afterAll(async () => {
+  await db?.close();
+});
+
+it('keeps seven days, active runs and audit records; clamps both cleanup batches', async () => {
+  const clean = async (name: string) =>
+    (await db.query<{ removed: number }>(`select private.${name}(10000) as removed`)).rows[0]
+      ?.removed;
+  expect(await clean('cleanup_team_catalog_events')).toBe(50);
+  expect(await clean('cleanup_team_catalog_events')).toBe(1);
+  expect(await clean('cleanup_team_catalog_events')).toBe(0);
+  expect(await clean('cleanup_cron_history')).toBe(500);
+  expect(await clean('cleanup_cron_history')).toBe(1);
+  expect(await clean('cleanup_cron_history')).toBe(0);
+  expect((await db.query('select id from public.team_catalog_events')).rows).toEqual([{ id: 100 }]);
+  expect((await db.query('select runid from cron.job_run_details order by runid')).rows).toEqual([
+    { runid: 1000 },
+    { runid: 1001 },
+    { runid: 1002 }
+  ]);
+  expect((await db.query('select id from public.team_audit_events')).rows).toHaveLength(1);
+  expect(
+    (
+      await db.query<{ allowed: boolean }>(
+        "select has_function_privilege('service_role', 'private.cleanup_cron_history(integer)', 'EXECUTE') as allowed"
+      )
+    ).rows[0]?.allowed
+  ).toBe(false);
 });

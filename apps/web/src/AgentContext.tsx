@@ -38,6 +38,7 @@ import {
   type RequestFailureKind
 } from './api/client';
 import { ensureAgentEntitlement } from './api/entitlement';
+import { flushAgentRetirements } from './api/entitlement-retirement';
 import {
   handshakeForToken,
   hasPendingPairingToken,
@@ -412,6 +413,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           result = await connect(first.signal);
         } finally {
           first.done();
+        }
+        // Retire a previous browser actor before any new native identity is published,
+        // including reconnect while the browser itself is already signed out.
+        if (versionState(result.apiVersion) === 'connected') {
+          if (await flushAgentRetirements(controller.signal)) {
+            // Retirement may have cleared the entitlement reported by the first health read.
+            const refreshed = probeSignal();
+            try {
+              result = await connect(refreshed.signal);
+            } finally {
+              refreshed.done();
+            }
+          }
         }
         // An enforced agent without a fresh token refuses tool routes: exchange
         // the Supabase session for a signed entitlement token, then reconnect.

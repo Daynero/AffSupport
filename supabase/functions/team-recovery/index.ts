@@ -1,3 +1,4 @@
+import { TEAM_RECOVERY_PROTOCOL_VERSION } from '../../../packages/shared/dist/team/recovery.js';
 import { recoveryTokenHash } from './digest.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { authorizeCaller } from '../_shared/auth.ts';
@@ -31,14 +32,24 @@ Deno.serve(async request => {
         const { data, error } = await service.rpc('service_team_recovery', {
           p_action: action,
           p_hash: digest,
-          p_input: input
+          p_input: { ...input, protocolVersion: TEAM_RECOVERY_PROTOCOL_VERSION }
         });
         if (error)
           throw new TeamFunctionError(
-            (['AUTH_REQUIRED', 'PERMISSION_DENIED', 'SPACE_BLOCKED', 'RATE_LIMITED'].find(code =>
-              error.message.includes(code)
-            ) as 'AUTH_REQUIRED' | 'PERMISSION_DENIED' | 'SPACE_BLOCKED' | 'RATE_LIMITED') ??
-              'INVALID_RESPONSE'
+            ([
+              'AUTH_REQUIRED',
+              'PERMISSION_DENIED',
+              'SPACE_BLOCKED',
+              'RATE_LIMITED',
+              'AGENT_UPDATE_REQUIRED',
+              'PROCESS_RESULT_UNCERTAIN'
+            ].find(code => error.message.includes(code)) as
+              | 'AUTH_REQUIRED'
+              | 'PERMISSION_DENIED'
+              | 'SPACE_BLOCKED'
+              | 'RATE_LIMITED'
+              | 'AGENT_UPDATE_REQUIRED'
+              | 'PROCESS_RESULT_UNCERTAIN') ?? 'INVALID_RESPONSE'
           );
         return data;
       },

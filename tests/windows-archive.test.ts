@@ -112,3 +112,22 @@ describe('zipDirectory on the current platform', () => {
     expect(entries.some(entry => entry.includes('index.html'))).toBe(true);
   });
 });
+
+it.runIf(realPlatform === 'darwin')(
+  'does not add macOS extended attributes to a web-content ZIP',
+  async () => {
+    const root = await workspace();
+    const payload = await sampleTree(root);
+    execFileSync('/usr/bin/xattr', [
+      '-w',
+      'com.soty.acceptance.fixture',
+      'test-only metadata',
+      path.join(payload, 'index.html')
+    ]);
+    const archive = path.join(root, 'without-metadata.zip');
+    await zipDirectory(payload, archive);
+    const entries = await listZipEntries(archive);
+    expect(entries.some(entry => entry.includes('index.html'))).toBe(true);
+    expect(entries.filter(entry => /(^|\/)(?:\._|__MACOSX)/u.test(entry))).toEqual([]);
+  }
+);

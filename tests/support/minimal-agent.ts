@@ -48,12 +48,15 @@ export interface MinimalAgent {
 }
 
 export interface MinimalAgentOptions {
+  diagnostics?: DiagnosticsLog;
+  instanceId?: string;
   config?: Partial<ServerConfig>;
   allowedOrigins?: Iterable<string>;
   /** Bind a real port on 127.0.0.1 rather than only serving `inject`. */
   listen?: boolean;
   /** Enforce entitlement against this key; absent means the gate is not enforced. */
   entitlementPublicKey?: string;
+  recoveryInstallationId?: string;
   /** Tool modules to register; none by default. */
   modules?: ToolModule[];
   /** Fastify's logger option; off by default. */
@@ -103,7 +106,7 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
   );
 
   // In memory only: the route and the writers are what these tests drive, not the file.
-  const diagnostics = new DiagnosticsLog();
+  const diagnostics = options.diagnostics ?? new DiagnosticsLog();
   setActiveDiagnosticsLog(diagnostics);
 
   const app = await buildServer({
@@ -113,12 +116,15 @@ export async function startMinimalAgent(options: MinimalAgentOptions = {}): Prom
     updateHandoffToken: null,
     requestUpdateDrain: () => undefined,
     allowedOrigins,
+    ...(options.recoveryInstallationId
+      ? { recoveryInstallationId: () => options.recoveryInstallationId! }
+      : {}),
     entitlementGate: new EntitlementGate({
       publicKeyBase64: options.entitlementPublicKey ?? null,
       stateFile: path.join(dir, 'entitlement.json')
     }),
     config,
-    instanceId: 'minimal-instance',
+    instanceId: options.instanceId ?? 'minimal-instance',
     startedAt: new Date().toISOString(),
     tools,
     queue,

@@ -16,15 +16,18 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  realpathSync,
-  renameSync,
-  writeFileSync
+  realpathSync
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BETA_LOCAL_STACK_PORTS, BETA_PROFILE } from '../packages/shared/dist/environment.js';
 import { parseEnvFile } from './verify-beta-env.mjs';
 import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
+import {
+  prepareBetaLoopbackNetwork,
+  verifyBetaLoopbackBindings
+} from './lib/beta-loopback-network.mjs';
+import { claimBetaStartup } from './lib/beta-startup-record.mjs';
 import { admissionFromEnvironment } from './lib/release/admission-client.mjs';
 import { digestOf, residentBetaReservation } from './lib/release/adapters/beta.mjs';
 
@@ -92,6 +95,12 @@ const children = [];
 const writtenEnvironment = [];
 const ownershipDirectory = 'release/automation';
 const ownershipPath = path.join(ownershipDirectory, 'beta-service.json');
+/** @type {ReturnType<typeof claimBetaStartup> | null} */
+let startupOwnership = null;
+function updateStartupOwnership(fields) {
+  if (!startupOwnership) throw new Error('BETA_STARTUP_OWNERSHIP_MISSING');
+  startupOwnership.update(fields);
+}
 
 function start(label, command, args, cwd) {
   const child = spawn(command, args, { shell: false, stdio: 'inherit', env: environment, cwd });
@@ -103,6 +112,10 @@ function start(label, command, args, cwd) {
     }
   });
   children.push({ label, child });
+  updateStartupOwnership({
+    agentPid: children.find(entry => entry.label === 'agent')?.child.pid ?? null,
+    webPid: children.find(entry => entry.label === 'web')?.child.pid ?? null
+  });
   return child;
 }
 
@@ -313,33 +326,36 @@ function seedVadModel() {
 process.on('SIGINT', () => shutdown(0));
 process.on('SIGTERM', () => shutdown(0));
 
-// Supabase's local edge runtime reads `supabase/functions/.env`, while the
-// beta setup deliberately keeps local secrets in `.env.local`. Mirror the
-// latter immediately before startup so entitlement and other Functions always
-// receive the same beta-only configuration. Both paths are git-ignored.
 const functionsLocalEnv = 'supabase/functions/.env.local';
 const functionsRuntimeEnv = 'supabase/functions/.env';
-if (existsSync(functionsLocalEnv)) {
-  const alreadySameFile =
-    existsSync(functionsRuntimeEnv) &&
-    realpathSync(functionsRuntimeEnv) === realpathSync(functionsLocalEnv);
-  if (!alreadySameFile) {
-    // Keep whatever was there before this beta overwrote it, so stopping can
-    // put the machine back rather than merely removing our copy.
-    let restoreFrom = null;
-    if (existsSync(functionsRuntimeEnv)) {
-      mkdirSync(ownershipDirectory, { recursive: true, mode: 0o700 });
-      restoreFrom = path.join(ownershipDirectory, 'functions-env.backup');
-      copyFileSync(functionsRuntimeEnv, restoreFrom);
+function prepareFunctionsEnvironment() {
+  // Supabase's local edge runtime reads `supabase/functions/.env`, while the
+  // beta setup deliberately keeps local secrets in `.env.local`. Mirror the
+  // latter immediately before startup so entitlement and other Functions always
+  // receive the same beta-only configuration. Both paths are git-ignored.
+  if (existsSync(functionsLocalEnv)) {
+    const alreadySameFile =
+      existsSync(functionsRuntimeEnv) &&
+      realpathSync(functionsRuntimeEnv) === realpathSync(functionsLocalEnv);
+    if (!alreadySameFile) {
+      // Keep whatever was there before this beta overwrote it, so stopping can
+      // put the machine back rather than merely removing our copy.
+      let restoreFrom = null;
+      if (existsSync(functionsRuntimeEnv)) {
+        mkdirSync(ownershipDirectory, { recursive: true, mode: 0o700 });
+        restoreFrom = path.join(ownershipDirectory, 'functions-env.backup');
+        copyFileSync(functionsRuntimeEnv, restoreFrom);
+      }
+      // Journal the intended bytes before writing them. An interruption must
+      // not leave an unrecorded environment change behind.
+      writtenEnvironment.push({
+        file: functionsRuntimeEnv,
+        digest: digestOf(readFileSync(functionsLocalEnv)),
+        restoreFrom
+      });
+      updateStartupOwnership({ writtenEnvironment });
+      copyFileSync(functionsLocalEnv, functionsRuntimeEnv);
     }
-    copyFileSync(functionsLocalEnv, functionsRuntimeEnv);
-    // Remember exactly what we put there. Anything else found at this path
-    // later belongs to whoever edited it, and is not ours to roll back.
-    writtenEnvironment.push({
-      file: functionsRuntimeEnv,
-      digest: digestOf(readFileSync(functionsRuntimeEnv)),
-      restoreFrom
-    });
   }
 }
 
@@ -352,7 +368,26 @@ if (existsSync(ownershipPath)) {
 // the one host-wide slot; run by hand there is no admission socket and this is
 // exactly the command it always was.
 const admission = admissionFromEnvironment();
+let stackNetwork = null;
 const bringStackUp = async () => {
+  const network = prepareBetaLoopbackNetwork(projectId());
+  // Journal ownership before any stack or environment mutation. A failed start
+  // (including a killed CLI) can then be reconciled by the ordinary beta:down.
+  startupOwnership = claimBetaStartup(ownershipPath, {
+    schemaVersion: 1,
+    ownerPid: process.pid,
+    agentPid: null,
+    webPid: null,
+    ports: [BETA_PROFILE.agentPort, BETA_PROFILE.webPort],
+    stackStarted: true,
+    phase: 'starting',
+    stackNetwork: { name: network.name },
+    reservation: residentBetaReservation(resourceProfiles.default),
+    writtenEnvironment,
+    runId: process.env.SOTY_RELEASE_RUN_ID ?? null,
+    writtenAt: new Date().toISOString()
+  });
+  prepareFunctionsEnvironment();
   // Studio is an optional database dashboard, not a beta runtime dependency; its
   // health probe must not block the authenticated app when all serving APIs are healthy.
   // Beta disables product analytics, so the local log collector is not part of
@@ -361,11 +396,24 @@ const bringStackUp = async () => {
   // not available inside the VM's containers; excluding both services keeps
   // the auth, database, and Edge Function stack usable on the documented
   // Colima runtime.
-  const stack = spawnSync('npx', ['supabase', 'start', '--exclude', 'studio,logflare,vector'], {
-    shell: false,
-    stdio: 'inherit'
-  });
+  const stack = spawnSync(
+    'npx',
+    ['supabase', 'start', '--network-id', network.name, '--exclude', 'studio,logflare,vector'],
+    {
+      shell: false,
+      stdio: 'inherit'
+    }
+  );
   if (stack.status !== 0) fail('the local Supabase stack did not start.');
+  try {
+    stackNetwork = { name: network.name, ...verifyBetaLoopbackBindings(projectId(), network.name) };
+  } catch {
+    // The preflight proved no existing project containers were borrowed.
+    // Stop only this newly started project before refusing unsafe bindings.
+    spawnSync('npx', ['supabase', 'stop'], { shell: false, stdio: 'inherit' });
+    fail('BETA_LOOPBACK_BINDING_INVALID: local stack ports were not confined to loopback.');
+  }
+  updateStartupOwnership({ stackNetwork });
   await requireEdgeFunctions();
   seedWorkerSecrets();
   seedVadModel();
@@ -392,29 +440,8 @@ const bringStackUp = async () => {
 if (admission) await admission.withAdmission('readiness', bringStackUp);
 else await bringStackUp();
 
-// beta:down may act only on children and a stack this invocation created.
-// A port number is not ownership: another developer's beta is always borrowed.
-mkdirSync(ownershipDirectory, { recursive: true, mode: 0o700 });
-const ownershipTemporary = `${ownershipPath}.${process.pid}.tmp`;
-writeFileSync(
-  ownershipTemporary,
-  JSON.stringify({
-    schemaVersion: 1,
-    ownerPid: process.pid,
-    agentPid: children.find(entry => entry.label === 'agent')?.child.pid ?? null,
-    webPid: children.find(entry => entry.label === 'web')?.child.pid ?? null,
-    ports: [BETA_PROFILE.agentPort, BETA_PROFILE.webPort],
-    stackStarted: true,
-    // The exclusive slot is handed back once the stack is up; what remains is a
-    // standing claim the scheduler subtracts while beta keeps running.
-    reservation: residentBetaReservation(resourceProfiles.default),
-    writtenEnvironment,
-    runId: process.env.SOTY_RELEASE_RUN_ID ?? null,
-    writtenAt: new Date().toISOString()
-  }),
-  { mode: 0o600 }
-);
-renameSync(ownershipTemporary, ownershipPath);
+// Retain the journal through shutdown; beta:down also restores the owned environment.
+updateStartupOwnership({ phase: 'running' });
 
 process.stdout.write(
   `\nBeta is up.\n` +

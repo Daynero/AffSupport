@@ -19,6 +19,13 @@ export interface RecoveryEvidenceResult {
   supported: boolean;
   items: RecoveryEvidence[];
   blind_spots: string[];
+  execution_fences?: RecoveryExecutionFence[];
+}
+export interface RecoveryExecutionFence {
+  operation_id: string;
+  reserved_at: string;
+  execution: 'unknown';
+  delivery: 'unknown';
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const STAGES = ['registered', 'queued', 'claimed', 'started', 'terminal', 'delivered'];
@@ -28,7 +35,7 @@ export async function getRecoveryEvidence(
   asOf: string
 ): Promise<RecoveryEvidenceResult> {
   const schema = await getSchema();
-  if (!schema.tables.analytics_workspace_recovery)
+  if (!schema.tables.analytics_workspace_recovery && !schema.tables.analytics_recovery_execution)
     return {
       supported: false,
       items: [],
@@ -37,14 +44,48 @@ export async function getRecoveryEvidence(
       ]
     };
   if (id !== null && !UUID.test(id)) return { supported: true, items: [], blind_spots: [] };
-  const rows = await query<Record<string, unknown>>(
-    `select recovery_id::text,item_id::text,kind,state,stage,reason_code,registered_at::text,updated_at::text,
+  const rows = schema.tables.analytics_workspace_recovery
+    ? await query<Record<string, unknown>>(
+        `select recovery_id::text,item_id::text,kind,state,stage,reason_code,registered_at::text,updated_at::text,
  operation_id::text,attempt_id::text,delivered_at::text from public.analytics_workspace_recovery
  where ($1::uuid is null or recovery_id=$1::uuid or item_id=$1::uuid or operation_id=$1::uuid or attempt_id=$1::uuid or actor_id=$1::uuid or team_id=$1::uuid or $1::uuid=any(member_ids))
  and ($2::timestamptz is null or registered_at >= $2::timestamptz) and registered_at <= $3::timestamptz and updated_at <= $3::timestamptz
  order by registered_at desc,item_id limit 101`,
-    [id, since, asOf]
-  );
+        [id, since, asOf]
+      )
+    : [];
+  const relatedOperations = rows
+    .slice(0, 100)
+    .map(row => row.operation_id)
+    .filter((id): id is string => typeof id === 'string' && UUID.test(id));
+  const fenceRows = schema.tables.analytics_recovery_execution
+    ? await query<Record<string, unknown>>(
+        `select operation_id::text,started_at::text from public.analytics_recovery_execution
+     where ($1::uuid is null or operation_id=$1::uuid or team_id=$1::uuid or actor_id=$1::uuid or $1::uuid=any(member_ids) or operation_id=any($4::uuid[]))
+      and ($2::timestamptz is null or started_at >= $2::timestamptz) and started_at <= $3::timestamptz
+     order by started_at desc,operation_id limit 101`,
+        [id, since, asOf, relatedOperations]
+      )
+    : [];
+  const execution_fences: RecoveryExecutionFence[] = [];
+  let malformedFence = false;
+  for (const row of fenceRows.slice(0, 100)) {
+    if (
+      typeof row.operation_id !== 'string' ||
+      !UUID.test(row.operation_id) ||
+      typeof row.started_at !== 'string' ||
+      !Number.isFinite(Date.parse(row.started_at))
+    ) {
+      malformedFence = true;
+      continue;
+    }
+    execution_fences.push({
+      operation_id: row.operation_id,
+      reserved_at: new Date(row.started_at).toISOString(),
+      execution: 'unknown',
+      delivery: 'unknown'
+    });
+  }
   const items: RecoveryEvidence[] = [];
   let malformed = false;
   for (const row of rows.slice(0, 100)) {
@@ -110,7 +151,20 @@ export async function getRecoveryEvidence(
   return {
     supported: true,
     items,
+    execution_fences,
     blind_spots: [
+      ...(!schema.tables.analytics_recovery_execution
+        ? ['Execution reservation projection is unavailable; absence is not permission to replay.']
+        : []),
+      ...(execution_fences.length
+        ? [
+            'A server execution reservation does not prove that native work started, finished or reached the user.'
+          ]
+        : []),
+      ...(fenceRows.length > 100
+        ? ['Execution reservation evidence is truncated at 100 operations.']
+        : []),
+      ...(malformedFence ? ['Malformed execution reservation evidence was omitted.'] : []),
       ...(items.some(item => item.delivery === 'unknown')
         ? ['A server recovery receipt is not proof that its output reached the user.']
         : []),
@@ -123,6 +177,39 @@ export async function getRecoveryEvidence(
   };
 }
 export function inspectRecovery(id: string, result: RecoveryEvidenceResult): InspectFound | null {
+  if (!result.items.length && result.execution_fences?.length) {
+    const latest = result.execution_fences[0];
+    return {
+      found: true,
+      id,
+      capability: 'team.tariff_recovery',
+      tool: 'team',
+      matched_by: ['authoritative_table'],
+      stages: {
+        expected: ['execution_reserved', 'started', 'terminal', 'delivered'],
+        observed: ['execution_reserved'],
+        missing: ['started', 'terminal', 'delivered']
+      },
+      terminal: null,
+      last_proven_stage: 'execution_reserved',
+      first_seen_at: result.execution_fences.at(-1)!.reserved_at,
+      last_seen_at: latest.reserved_at,
+      delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+      events: [],
+      recovery: result,
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'The reservation forbids replay; native execution and output delivery remain unknown.'
+      }
+    };
+  }
   if (!result.items.length) return null;
   const observed = [...new Set(result.items.map(item => item.stage))];
   const expected = ['registered', 'queued', 'started', 'terminal', 'delivered'];

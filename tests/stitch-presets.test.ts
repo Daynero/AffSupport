@@ -82,7 +82,9 @@ describe('screen segments carry the body’s own parameters (D5)', () => {
     // Autorotation is off on every screen, so a phone photo stands the same way on every build.
     expect(args).toContain('-noautorotate');
     expect(valueAfter(args, '-display_rotation')).toBe('0');
-    expect(valueAfter(args, '-vf')?.startsWith('scale=')).toBe(true);
+    expect(
+      valueAfter(args, '-vf')?.startsWith('sidedata=mode=delete:type=DISPLAYMATRIX,scale=')
+    ).toBe(true);
     const turned = buildScreenVideoArgs({
       imagePath: '/photos/phone.jpg',
       output: '/tmp/screen.mp4',
@@ -91,7 +93,7 @@ describe('screen segments carry the body’s own parameters (D5)', () => {
       fitMode: 'cover',
       orientation: 6
     });
-    expect(valueAfter(turned, '-vf')?.startsWith('transpose=1,scale=')).toBe(true);
+    expect(valueAfter(turned, '-vf')).toContain('transpose=1,scale=');
   });
 
   it('converts the photo out of JPEG full range, in the filter and on the encoder', () => {

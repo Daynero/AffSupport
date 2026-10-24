@@ -51,7 +51,7 @@ export function SpaceBlocked({
   const [nudging, setNudging] = useState(false);
   const [nudge, setNudge] = useState<SpaceOwnerNudgeResult | null>(null);
   const plan = planName(team.tariff, language);
-  const ended = formatTariffDay(team.tariff.endsOn, language);
+  const ended = formatTariffDay(team.tariff.endsOn, language, team.tariff.tariffToday);
 
   const remind = async () => {
     setNudging(true);

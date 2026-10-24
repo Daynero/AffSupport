@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
@@ -8,8 +8,11 @@ import { memoizePresence, WHISPER_MODELS } from '../apps/agent/src/whisper/tools
 import { transcriptPreview } from '../apps/agent/src/queue/transcription-queue.js';
 import { loadTranscriptionState } from '../apps/agent/src/queue/transcription-store.js';
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe('quality modes', () => {
   it('runs beam search on both models and loads a different file for each', () => {
+    vi.stubEnv('WHISPER_MODEL_PATH', undefined);
     const build = (quality: 'fast' | 'accurate', platform: 'darwin' | 'win32' | 'linux') =>
       buildWhisperArgs(
         { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality },
@@ -29,6 +32,18 @@ describe('quality modes', () => {
     const accurate = build('accurate', 'darwin');
     expect(fast[fast.indexOf('-m') + 1]).toContain(WHISPER_MODELS.fast.fileName);
     expect(accurate[accurate.indexOf('-m') + 1]).toContain(WHISPER_MODELS.accurate.fileName);
+  });
+
+  it('honors an explicit model override for both quality modes', () => {
+    const model = path.join(os.tmpdir(), 'synthetic-explicit-whisper-model.bin');
+    vi.stubEnv('WHISPER_MODEL_PATH', model);
+    for (const quality of ['fast', 'accurate'] as const) {
+      const args = buildWhisperArgs(
+        { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality },
+        { threads: 4, vadModelPath: null, platform: 'darwin' }
+      );
+      expect(args[args.indexOf('-m') + 1]).toBe(model);
+    }
   });
 
   it('describes two verifiable models, the fast one a fraction of the size', () => {
