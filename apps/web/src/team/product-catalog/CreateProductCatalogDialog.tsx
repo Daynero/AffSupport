@@ -40,6 +40,7 @@ import {
   saveCatalogDurationPreference
 } from './duration-preference';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
+import { CatalogRestitchProgress } from './CatalogRestitchProgress';
 import { PRICE_RANGE_DEFAULT } from './ProductCatalogSettingsSection';
 import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
@@ -56,6 +57,7 @@ export interface CreateProductCatalogClient {
   prepareRestitchScreens?: typeof prepareRestitchScreens;
   ensureRestitchedFolder?: typeof teamApi.ensureRestitchedFolder;
   cancelOperation?: typeof teamApi.cancelOperation;
+  getOperation?: typeof teamApi.getOperation;
   createProductCatalog: (input: {
     teamId: string;
     videoMaterialId: string;
@@ -162,6 +164,14 @@ export function CreateProductCatalogDialog({
     catalogKey: string;
   } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
+  const [restitchOperationId, setRestitchOperationId] = useState<string | null>(null);
+  const observationRun = useRef(0);
+  useEffect(
+    () => () => {
+      observationRun.current += 1;
+    },
+    [teamId, video.id]
+  );
   const [failure, setFailure] = useState<string | null>(null);
   /** The refusal was "no catalog settings yet": the way to fix it goes right under it. */
   const [failureNeedsSettings, setFailureNeedsSettings] = useState(false);
@@ -275,6 +285,8 @@ export function CreateProductCatalogDialog({
     event.preventDefault();
     setTouched({ link: true, count: true });
     if (!linkCheck.ok || !countCheck.ok || !canConfirm || phase.kind !== 'form') return;
+    const run = ++observationRun.current;
+    setRestitchOperationId(null);
     setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
     setFailureNeedsSettings(false);
@@ -307,6 +319,9 @@ export function CreateProductCatalogDialog({
           durationRangeSeconds: duration.finalDurationRangeSeconds,
           catalogKey,
           previous: processed,
+          onOperationStarted: id => {
+            if (observationRun.current === run) setRestitchOperationId(id);
+          },
           client
         });
         restitchOperationId = receipt.operationId;
@@ -583,9 +598,12 @@ export function CreateProductCatalogDialog({
           </div>
 
           {phase.kind === 'busy' && phase.step === 'restitch' && (
-            <p className="field-hint" role="status">
-              {t('productCatalogRestitching')}
-            </p>
+            <CatalogRestitchProgress
+              key={`${teamId}:${restitchOperationId ?? 'preparing'}`}
+              teamId={teamId}
+              operationId={restitchOperationId}
+              client={client}
+            />
           )}
           <ProductCatalogProgress
             active={phase.kind === 'busy' && phase.step === 'catalog'}

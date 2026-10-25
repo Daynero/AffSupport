@@ -18575,6 +18575,9 @@ a.history-subject {
 .product-catalog-progress.is-compact {
   margin-top: var(--space-1);
 }
+.product-catalog-restitch-indeterminate {
+  grid-column: 1 / -1;
+}
 .product-catalog-progress-step {
   margin: 0;
   color: var(--color-neutral-text);

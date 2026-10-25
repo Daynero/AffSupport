@@ -1,3 +1,4 @@
+import type { TeamErrorCode } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 
 export type CatalogUiAction = 'list' | 'filter' | 'profile' | 'bulk' | 'template';
@@ -12,7 +13,7 @@ export type CatalogUiStage =
   | 'readback_requested'
   | 'undo_requested';
 export type CatalogUiFailure =
-  'READ_FAILED' | 'SAVE_FAILED' | 'CONFLICT' | 'VALIDATION' | 'UNKNOWN';
+  'READ_FAILED' | 'SAVE_FAILED' | 'CONFLICT' | 'VALIDATION' | 'UNKNOWN' | TeamErrorCode;
 type Tracker = Pick<typeof analytics, 'track'>;
 
 /** No names, search terms, paths, settings values or provider errors enter this seam. */

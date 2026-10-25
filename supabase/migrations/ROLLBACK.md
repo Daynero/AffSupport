@@ -2086,3 +2086,11 @@ Retain `task_cleanup_reference_fence` while `team_launch_offer_defaults` exists.
 The forward migration is now present in ROOT source; retained beta remains on360 migrations and production was not changed. Restore real tariff time and remove any owned local acceptance overlay before applying `supabase/rollback/20261206141000_tariff_time_seam.sql`. The rollback restores19 prior function definitions, the real-time starts_at default and named hourly notice schedule before dropping private.tariff_now. It does not delete application rows. Production rollback requires the canonical production runbook and authorization.
 
 The combined361migration disposable run passed948pgTAP assertions,2actual Auth clock tests and26native tests, including actual rollback/forward with nonempty synthetic tariff and Launch-offer data preserved. This is a NEXT source integration proof, not a production rollback or current ROOT full canonical result. Evidence: `release/acceptance/acceptance-036-fresh-20261021/drive-followup/t011-native-auth-clock-proof.json`. Guarded live CLI, notice capture under overlay and physical UI calendar agreement remain open.
+
+## 20261206145000 — Launch catalog live updates
+
+Forward-only behavior correction; no data rewrites. To restore the old blocking behavior, reapply only private.guard_launch_catalog_updater and private.guard_launch_catalog_reference from 20261201130000, and public.service_reuse_launch_catalog from 20261202136000. Existing schedules would then be blocked again; disable them through the normal ACL-checked updater before rollback. Do not delete catalogs, revisions or update attempts. No grants, RLS or retention guards change.
+
+## 20261206145100 — Launch restitch updater swaps
+
+Preserve the reference-based cleanup fences and the catalog-SUB wrapper. Revert this change only together with disabling Launch-linked catalog updates: restoring guard_launch_copy_retirement from 20261201152000 while leaving swaps enabled can strand a delivered update. The prior linker and inner attach definitions are in 20261201151000 (the inner attach is named service_attach_launch_catalog_before_catalog_sub after 20261206142000). Never delete retained video materials or their ledger/reference rows as part of rollback.

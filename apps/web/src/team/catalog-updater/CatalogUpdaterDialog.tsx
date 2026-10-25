@@ -1,3 +1,4 @@
+import { TeamApiError } from '../../api/team';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   MoreHorizontal,
@@ -1071,15 +1072,10 @@ export function CatalogUpdaterDialog({
                         schedule={row.profile?.schedule}
                         nextRunAt={row.nextRunAt}
                         onSaveSchedule={async (interval, schedule) => {
-                          if (
-                            !mayRun ||
-                            busyRef.current.has(row.catalogId) ||
-                            !(await inline.change(row.catalogId, 'schedule', {
-                              interval,
-                              schedule
-                            }))
-                          )
-                            throw new Error('Schedule not confirmed');
+                          if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                          if (busyRef.current.has(row.catalogId))
+                            throw new TeamApiError('WRONG_STATE', false);
+                          await inline.saveSchedule(row.catalogId, { interval, schedule });
                         }}
                         onChange={value => changeField(row, 'updateInterval', value)}
                       />
@@ -1296,12 +1292,10 @@ export function CatalogUpdaterDialog({
                       schedule={row.profile?.schedule}
                       nextRunAt={row.nextRunAt}
                       onSaveSchedule={async (interval, schedule) => {
-                        if (
-                          !mayRun ||
-                          busyRef.current.has(row.catalogId) ||
-                          !(await inline.change(row.catalogId, 'schedule', { interval, schedule }))
-                        )
-                          throw new Error('Schedule not confirmed');
+                        if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                        if (busyRef.current.has(row.catalogId))
+                          throw new TeamApiError('WRONG_STATE', false);
+                        await inline.saveSchedule(row.catalogId, { interval, schedule });
                       }}
                       onChange={value => changeField(row, 'updateInterval', value)}
                     />

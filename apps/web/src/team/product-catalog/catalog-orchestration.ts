@@ -40,6 +40,8 @@ export async function prepareCatalogRestitch(input: {
   processKey?: string;
   previous?: CatalogRestitchReceipt | null;
   checkpoint?: CatalogRestitchCheckpointAdapter;
+  /** Publish only the child ID, before the long local request starts. */
+  onOperationStarted?: (operationId: string) => void;
   client: Pick<
     CreateProductCatalogClient,
     | 'canRestitch'
@@ -138,6 +140,7 @@ export async function prepareCatalogRestitch(input: {
   });
   const receipt = { operationId: started.operationId, choice, catalogKey: input.catalogKey };
   try {
+    input.onOperationStarted?.(started.operationId);
     await input.checkpoint?.started(receipt);
     const finished = await (client.runAgentProcess ?? startTeamAgentProcess)({
       operationId: started.operationId,

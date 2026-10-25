@@ -364,6 +364,35 @@ it('saves a precise catalog schedule only after explicit confirmation', async ()
   );
   expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
+it.each(['row', 'details'])(
+  'keeps the typed schedule rejection visible in the %s picker',
+  async surface => {
+    const api = client([row('1', 'polo.mp4')], stopped, {
+      patchCatalogUpdateProfile: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('PERMISSION_DENIED', false))
+    });
+    renderDialog(api);
+    await screen.findByRole('button', { name: 'How often polo.mp4 catalog updates: Off' });
+    if (surface === 'details') {
+      fireEvent.click(screen.getByRole('button', { name: /^Actions (for|on) polo/ }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Configure' }));
+    }
+    const container = screen.getAllByRole('dialog').at(-1)!;
+    fireEvent.click(
+      within(container).getByRole('button', { name: 'How often polo.mp4 catalog updates: Off' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Something went wrong. Try again in a moment.')).toBeNull()
+    );
+    expect(await screen.findAllByText('You do not have permission for this.')).toHaveLength(
+      surface === 'details' ? 3 : 2
+    );
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+  }
+);
 it('shows the saved schedule forecast immediately while the registry refresh is delayed', async () => {
   const item = row('1', 'polo.mp4', {
     updateInterval: '1w',

@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -223,6 +223,95 @@ describe('creating a catalog', () => {
     expect(vi.mocked(client.runAgentProcess!).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(client.createProductCatalog).mock.invocationCallOrder[0]
     );
+  });
+
+  it('shows preparation immediately, observes the video percentage and waits for its receipt before creating the catalog', async () => {
+    let allowStart;
+    let finishVideo;
+    let finishCatalog;
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      canRestitch: vi.fn(
+        () =>
+          new Promise(resolve => {
+            allowStart = () => resolve('yes');
+          })
+      ),
+      prepareRestitchScreens: vi.fn().mockResolvedValue({ kind: 'ready', screens: [] }),
+      ensureRestitchedFolder: vi
+        .fn()
+        .mockResolvedValue({ folderId: 'cache', materialId: 'cache-material' }),
+      startProcess: vi.fn().mockResolvedValue({
+        operationId: 'observed-restitch',
+        sourceGrant: { ticket: 'synthetic-source' },
+        finalizeGrant: { ticket: 'synthetic-finalize' }
+      }),
+      runAgentProcess: vi.fn(
+        () =>
+          new Promise(resolve => {
+            finishVideo = resolve;
+          })
+      ),
+      getOperation: vi.fn().mockResolvedValue({
+        id: 'observed-restitch',
+        teamId: TEAM_ID,
+        kind: 'process',
+        state: 'running',
+        stage: 'processing',
+        progress: 42,
+        sourceMaterialId: VIDEO.id,
+        resultMaterialId: null,
+        errorCode: null,
+        retryable: false,
+        createdAt: '2026-10-25T00:00:00Z',
+        updatedAt: '2026-10-25T00:00:01Z'
+      }),
+      createProductCatalog: vi.fn(
+        () =>
+          new Promise(resolve => {
+            finishCatalog = resolve;
+          })
+      )
+    });
+    renderDialog(client);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await screen.findAllByRole('slider');
+    await user.type(
+      screen.getByLabelText(/^Link(?: · Required)?$/),
+      'https://example.invalid/progress'
+    );
+    await user.click(confirm());
+    const label = 'Video re-stitching progress';
+    expect(
+      screen.getByRole('progressbar', { name: label }).getAttribute('aria-valuenow')
+    ).toBeNull();
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    await act(async () => {
+      allowStart();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar', { name: label }).getAttribute('aria-valuenow')).toBe(
+        '42'
+      )
+    );
+    expect(client.getOperation).toHaveBeenCalledWith(TEAM_ID, 'observed-restitch');
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    await act(async () => {
+      finishVideo({
+        operationId: 'observed-restitch',
+        state: 'succeeded',
+        materialId: 'finished-video',
+        reused: false
+      });
+    });
+    await waitFor(() => expect(client.createProductCatalog).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('progressbar', { name: label })).toBeNull();
+    expect(screen.queryByText('42%')).toBeNull();
+    await act(async () => {
+      finishCatalog(created);
+    });
+    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
   });
 
   it('does not write a copy beside the original when the cache folder cannot be resolved', async () => {

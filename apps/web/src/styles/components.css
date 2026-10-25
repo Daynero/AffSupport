@@ -2392,7 +2392,8 @@
   width: 40%;
   animation: ui-progress-slide var(--motion-slow) var(--ease-in-out-curve) infinite alternate;
 }
-.launch-generation-progress .ui-progress.is-indeterminate .ui-progress-fill {
+.launch-generation-progress .ui-progress.is-indeterminate .ui-progress-fill,
+.product-catalog-restitch-indeterminate.is-indeterminate .ui-progress-fill {
   animation-duration: var(--motion-progress);
 }
 @keyframes ui-progress-slide {
@@ -2408,6 +2409,9 @@
     animation: none;
     width: 100%;
     opacity: 0.4;
+  }
+  .product-catalog-restitch-indeterminate.is-indeterminate .ui-progress-fill {
+    transform: none;
   }
 }
 

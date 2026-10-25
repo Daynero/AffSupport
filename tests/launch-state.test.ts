@@ -6,8 +6,10 @@ import {
   runLaunchCatalogRecovery
 } from '../supabase/functions/drive-ops/launch-recovery';
 import { vi } from 'vitest';
+import { getCatalogUpdateDiagnosis } from '../scripts/analytics/catalog-updates';
 import { getLaunchEvidence } from '../scripts/analytics/launches';
 import { setQueryExecutor } from '../scripts/analytics/db';
+import { updateLaunchCatalog } from './support/launch-catalog-updater';
 import {
   launchPreview,
   launchRevisionImpact,
@@ -832,12 +834,15 @@ it('rejects malformed workspace defaults without persisting them', async () => {
   expect(saved.version).toBe('1');
 });
 
-it('attaches one registered catalog, reuses it for names-only revisions and blocks mutations', async () => {
+it('updates a published catalog manually and on schedule, reuses it, and preserves Launch history', async () => {
   await db.root('update public.team_materials set checksum=$2 where id=$1', [
     material,
     'a'.repeat(32)
   ]);
-  const p = await prepare({ method: 'catalog' });
+  const p = await prepare({
+    method: 'catalog',
+    catalog: { ...launchConfig().catalog, productCount: 3 }
+  });
   const accepted = await accept(p.args);
   const owner = 'catalog-executor-owner';
   const claim = (
@@ -858,7 +863,7 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
     teamId: team,
     videoMaterialId: material,
     sourceLink: url,
-    productCount: 100,
+    productCount: 3,
     replacesMaterialId: null,
     restitchOperationId: null,
     idempotencyKey: key,
@@ -876,9 +881,13 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
       [material, `catalog-${seq}`]
     )
   )[0].id;
+  await db.root(
+    "update public.team_materials set companion_of=$2,companion_kind='product_catalog' where id=$1",
+    [cat, material]
+  );
   const sheetUrl = 'https://docs.google.com/spreadsheets/d/launch-synthetic';
   await db.root(
-    'insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot,created_by,variant) values($1,$2,$3,$4,100,$5,$6,$7,$8,$9)',
+    'insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot,created_by,variant) values($1,$2,$3,$4,3,$5,$6,$7,$8,$9)',
     [
       cat,
       team,
@@ -886,7 +895,12 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
       url,
       sheetUrl,
       'https://drive.google.com/file/d/synthetic',
-      JSON.stringify({ title: 'Synthetic' }),
+      JSON.stringify({
+        title: 'Synthetic',
+        description: 'Product',
+        price: 10,
+        imageLink: 'https://example.invalid/image.jpg'
+      }),
       ACTOR,
       intent.variant
     ]
@@ -899,14 +913,14 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
       name: 'Launch catalog',
       sheetUrl,
       sourceLink: url,
-      productCount: 100,
+      productCount: 3,
       createdAt: null,
       variant: intent.variant
     }
   };
   await db.root(
-    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'registered','{}',null,$6)",
-    [team, intent.id, ACTOR, childOwner, intent.fence, JSON.stringify(result)]
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'registered',jsonb_build_object('materialId',$7::text),null,$6)",
+    [team, intent.id, ACTOR, childOwner, intent.fence, JSON.stringify(result), cat]
   );
   expect(
     (
@@ -925,6 +939,22 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
       )
     )[0].retained
   ).toBe(true);
+  await db.root(
+    'insert into public.team_catalog_updaters(team_id) values($1) on conflict do nothing',
+    [team]
+  );
+  await db.root(
+    "insert into public.team_catalog_updater_items(catalog_material_id,team_id,update_interval,next_run_at,round_due_at) values($1,$2,'15h',now(),now())",
+    [cat, team]
+  );
+  expect(
+    (
+      await db.root(
+        'select update_interval,next_run_at,round_due_at from public.team_catalog_updater_items where catalog_material_id=$1',
+        [cat]
+      )
+    )[0]
+  ).toEqual({ update_interval: null, next_run_at: null, round_due_at: null });
   const recovered = (
     await db.root<{ v: boolean }>(
       'select public.service_restore_registered_launch_catalog($1,$2,$3,$4,$5) v',
@@ -953,6 +983,50 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
     }>(ACTOR, 'select public.get_launch($1,$2,null) v', [team, p.id])
   )[0].v;
   expect(detail.activeRevision.catalog.materialId).toBe(cat);
+  // A published Launch owns an enduring reference, not a frozen working spreadsheet.
+  let profile = (
+    await db.root<{ version: number }>(
+      'select version from public.team_catalog_update_profiles where catalog_material_id=$1',
+      [cat]
+    )
+  )[0];
+  for (const interval of ['1h', '1d', '1w', '15h']) {
+    await db.asUser(ACTOR, 'select public.patch_team_catalog_update_profile($1,$2,$3,$4)', [
+      team,
+      cat,
+      profile.version,
+      JSON.stringify({
+        updateInterval: interval,
+        schedule: null,
+        refreshImages: false,
+        refreshTexts: false,
+        growProducts: true,
+        restitch: false
+      })
+    ]);
+    profile = (
+      await db.root<{ version: number }>(
+        'select version from public.team_catalog_update_profiles where catalog_material_id=$1',
+        [cat]
+      )
+    )[0];
+  }
+  const history = () =>
+    db.root(
+      'select to_jsonb(r) revision,to_jsonb(c) catalog from public.team_launch_revisions r join public.team_launch_revision_catalogs c on c.revision_id=r.id where r.launch_id=$1 order by r.created_at,r.id',
+      [p.id]
+    );
+  const originalHistory = await history();
+  expect(
+    (
+      await db.asUser<{ n: number }>(ACTOR, 'select public.run_team_catalog_update_now($1,$2) n', [
+        team,
+        [cat]
+      ])
+    )[0].n
+  ).toBe(1);
+  expect(await updateLaunchCatalog(db, cat)).toMatchObject({ updated: 1, failed: 0 });
+  expect(await history()).toEqual(originalHistory);
   await db.root("update public.team_materials set drive_version='2' where id=$1", [material]);
   const config = { ...p.config, age: 50 };
   const sources = (
@@ -1026,20 +1100,38 @@ it('attaches one registered catalog, reuses it for names-only revisions and bloc
       [team, ACTOR, cat]
     )
   ).rejects.toThrow('WRONG_STATE');
+  const reusedHistory = await history();
   await db.root(
-    'insert into public.team_catalog_updaters(team_id) values($1) on conflict do nothing',
-    [team]
+    "update public.team_catalog_updater_items set next_run_at=now()-interval '1 minute' where catalog_material_id=$1",
+    [cat]
   );
-  await db.root(
-    'insert into public.team_catalog_updater_items(catalog_material_id,team_id) values($1,$2)',
-    [cat, team]
-  );
-  await expect(
-    db.root(
-      'update public.team_catalog_updater_items set round_due_at=now() where catalog_material_id=$1',
-      [cat]
-    )
-  ).rejects.toThrow('WRONG_STATE');
+  expect(await updateLaunchCatalog(db, cat)).toMatchObject({ rounds: 1, updated: 1, failed: 0 });
+  expect(await history()).toEqual(reusedHistory);
+  expect(
+    (
+      await db.root<{ update_count: number; sheet_url: string }>(
+        'select update_count,sheet_url from public.team_product_catalogs where material_id=$1',
+        [cat]
+      )
+    )[0]
+  ).toEqual({ update_count: 2, sheet_url: sheetUrl });
+  setQueryExecutor(async (sql, params) => db.root(sql, params));
+  try {
+    const diagnosis = await getCatalogUpdateDiagnosis(cat);
+    expect(diagnosis.profile?.interval).toBe('15h');
+    expect(diagnosis.attempts).toHaveLength(2);
+    expect(diagnosis.attempts.map(attempt => attempt.trigger).sort()).toEqual([
+      'manual',
+      'schedule'
+    ]);
+    expect(
+      diagnosis.attempts.every(attempt => attempt.result === 'success' && attempt.delivery_proven)
+    ).toBe(true);
+    expect(JSON.stringify(diagnosis)).not.toContain(sheetUrl);
+    expect(JSON.stringify(diagnosis)).not.toContain(url);
+  } finally {
+    setQueryExecutor(null);
+  }
   for (const kind of ['rename', 'move', 'content_edit', 'new_version']) {
     await expect(
       db.root(
@@ -1807,6 +1899,10 @@ it('settles a completed restitch receipt once and never advances a canceled pare
       [material, `restitch-catalog-${seq}`]
     )
   )[0].id;
+  await db.root(
+    "update public.team_materials set companion_of=$2,companion_kind='product_catalog' where id=$1",
+    [cat, material]
+  );
   const sheetUrl = 'https://docs.google.com/spreadsheets/d/restitch-synthetic';
   await db.root(
     'insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot,created_by,variant) values($1,$2,$3,$4,100,$5,$6,$7,$8,$9)',
@@ -1817,7 +1913,12 @@ it('settles a completed restitch receipt once and never advances a canceled pare
       url,
       sheetUrl,
       'https://drive.google.com/file/d/original',
-      JSON.stringify({ title: 'Synthetic' }),
+      JSON.stringify({
+        title: 'Synthetic',
+        description: 'Product',
+        price: 10,
+        imageLink: 'https://example.invalid/image.jpg'
+      }),
       ACTOR,
       child.variant
     ]
@@ -1884,6 +1985,72 @@ it('settles a completed restitch receipt once and never advances a canceled pare
     accepted.id,
     ACTOR,
     claim.fence
+  ]);
+  const spare = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version,checksum) select team_id,connection_id,$2,'Updater spare','file','video','video/mp4','1',$3 from public.team_materials where id=$1 returning id",
+      [material, `updater-spare-${seq}`, 'd'.repeat(32)]
+    )
+  )[0].id;
+  const profile = (
+    await db.root<{ version: number }>(
+      'select version from public.team_catalog_update_profiles where catalog_material_id=$1',
+      [cat]
+    )
+  )[0];
+  await db.asUser(ACTOR, 'select public.patch_team_catalog_update_profile($1,$2,$3,$4)', [
+    team,
+    cat,
+    profile.version,
+    JSON.stringify({
+      updateInterval: '15h',
+      restitch: true,
+      refreshImages: false,
+      refreshTexts: false,
+      growProducts: false
+    })
+  ]);
+  await db.root(
+    "insert into public.team_catalog_restitch_copies(material_id,catalog_material_id,team_id,role,drive_file_id,shared_link) values($1,$2,$3,'spare',$4,'https://example.invalid/spare')",
+    [spare, cat, team, `updater-spare-${seq}`]
+  );
+  await db.asUser(ACTOR, 'select public.run_team_catalog_update_now($1,$2)', [team, [cat]]);
+  expect(await updateLaunchCatalog(db, cat)).toMatchObject({ updated: 1, failed: 0 });
+  expect(
+    (
+      await db.root<{ role: string }>(
+        'select role from public.team_catalog_restitch_copies where material_id=$1',
+        [copy]
+      )
+    )[0].role
+  ).toBe('retired');
+  expect(
+    (
+      await db.root<{ role: string }>(
+        'select role from public.team_catalog_restitch_copies where material_id=$1',
+        [spare]
+      )
+    )[0].role
+  ).toBe('in_use');
+  expect(
+    (
+      await db.root(
+        'select restitch_material_id,restitch_operation_id,settings_snapshot from public.team_launch_revision_catalogs where revision_id=$1',
+        [accepted.revisionId]
+      )
+    )[0]
+  ).toEqual(reference);
+  expect(
+    (
+      await db.root<{ current_video_link: string }>(
+        'select current_video_link from public.team_product_catalogs where material_id=$1',
+        [cat]
+      )
+    )[0].current_video_link
+  ).toBe('https://example.invalid/spare');
+  await db.asUser(ACTOR, 'select public.set_team_catalog_update_interval($1,$2,null)', [
+    team,
+    [cat]
   ]);
   // Exercise the public revision boundary against a real completed video/catalog.
   // Roll back each scenario so every edit is compared with the same proven baseline.
@@ -2409,7 +2576,7 @@ it('settles a completed restitch receipt once and never advances a canceled pare
         [copy]
       )
     )[0].role
-  ).toBe('in_use');
+  ).toBe('retired');
   const orphanClaims = await db.root<{ material_id: string }>(
     "select * from public.service_claim_orphan_cleanups('launch-orphan-test',50,60)"
   );

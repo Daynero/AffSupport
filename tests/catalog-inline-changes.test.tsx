@@ -13,6 +13,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CatalogUpdateProfile } from '@video-compressor/shared';
 import { TeamApiError, type CatalogRegistryRow } from '../apps/web/src/api/team';
 import { useCatalogInlineChanges } from '../apps/web/src/team/catalog-updater/useCatalogInlineChanges';
+import { analytics } from '../apps/web/src/analytics/service';
 import { CatalogIconControls } from '../apps/web/src/team/catalog-updater/CatalogIconControls';
 const profile: CatalogUpdateProfile = {
   catalogId: 'one',
@@ -26,7 +27,10 @@ const profile: CatalogUpdateProfile = {
 };
 const row = { catalogId: 'one', profile, updateInterval: null } as CatalogRegistryRow;
 beforeEach(() => localStorage.setItem('language', 'en'));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 function setup(patch = vi.fn().mockResolvedValue({ ...profile, restitch: true, version: 2 })) {
   const client = {
     getCatalogUpdater: vi.fn(),
@@ -268,4 +272,23 @@ it('retains one immediate schedule forecast until authoritative registry readbac
   rows = [{ ...rows[0], profile: { ...profile, schedule, version: 2 }, nextRunAt: authoritative }];
   rerender();
   expect(result.current.snapshotFor('one')?.nextRunAt).toBe(authoritative);
+});
+
+it('keeps a typed server refusal in the correlated diagnostic flow and the schedule picker', async () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const { result } = setup(vi.fn().mockRejectedValue(new TeamApiError('PERMISSION_DENIED', false)));
+  await act(async () => {
+    await expect(
+      result.current.saveSchedule('one', { interval: '15h', schedule: null })
+    ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+  });
+  const failure = track.mock.calls.find(([event]) => event === 'operation_failed');
+  expect(failure?.[1]).toMatchObject({
+    flow_step: 'catalog_manager_profile',
+    action_identifier: 'save_requested',
+    error_code: 'PERMISSION_DENIED',
+    attempt_id: expect.any(String),
+    flow_id: expect.any(String)
+  });
+  expect(result.current.states.one).toMatchObject({ phase: 'error', code: 'PERMISSION_DENIED' });
 });

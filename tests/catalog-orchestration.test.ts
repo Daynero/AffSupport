@@ -201,3 +201,30 @@ it('uses the selected exact seconds and the selected legacy random center', asyn
     );
   }
 });
+
+it('announces only the child ID before awaiting the long local process and does not observe a reused receipt', async () => {
+  const f = fixture();
+  let finish!: (value: { state: string; materialId: string }) => void;
+  f.client.runAgentProcess.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      })
+  );
+  const onOperationStarted = vi.fn();
+  const pending = prepareCatalogRestitch({ ...f.input, onOperationStarted });
+  await vi.waitFor(() => expect(f.client.runAgentProcess).toHaveBeenCalledTimes(1));
+  expect(onOperationStarted).toHaveBeenCalledExactlyOnceWith('operation');
+  expect(onOperationStarted.mock.invocationCallOrder[0]).toBeLessThan(
+    f.client.runAgentProcess.mock.invocationCallOrder[0]
+  );
+  expect(f.checkpoint.finished).not.toHaveBeenCalled();
+  finish({ state: 'succeeded', materialId: 'copy' });
+  const receipt = await pending;
+  vi.mocked(f.checkpoint.completed).mockResolvedValue(receipt);
+  onOperationStarted.mockClear();
+  await expect(prepareCatalogRestitch({ ...f.input, onOperationStarted })).resolves.toEqual(
+    receipt
+  );
+  expect(onOperationStarted).not.toHaveBeenCalled();
+});

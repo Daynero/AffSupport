@@ -133,12 +133,19 @@ export function useCatalogInlineChanges({
     reload();
     onChanged?.();
   };
-  const change = async (id: string, field: CatalogField, value: Value, undoEntry?: CatalogUndo) => {
-    if (locks.current.has(id) || !client.patchCatalogUpdateProfile) return false;
+  const mutate = async (
+    id: string,
+    field: CatalogField,
+    value: Value,
+    undoEntry?: CatalogUndo
+  ): Promise<{ confirmed: boolean; error?: unknown }> => {
+    if (locks.current.has(id) || !client.patchCatalogUpdateProfile)
+      return { confirmed: false, error: new TeamApiError('WRONG_STATE', false) };
     const base = snapshotFor(id);
-    if (!base) return false;
-    if (!undoEntry && equal(readValue(base, field), value)) return true;
+    if (!base) return { confirmed: false, error: new TeamApiError('NOT_FOUND', false) };
+    if (!undoEntry && equal(readValue(base, field), value)) return { confirmed: true };
     let confirmed = false;
+    let failure: unknown = new Error('Catalog save outcome is unknown');
     locks.current.add(id);
     setStates(current => ({ ...current, [id]: { phase: 'pending', field, intended: value } }));
     const flow = beginCatalogUiFlow('profile', {
@@ -164,7 +171,7 @@ export function useCatalogInlineChanges({
             [id]: { phase: 'conflict', field, intended: value, code: 'STALE_RESULT' }
           }));
           flow.fail('CONFLICT');
-          return false;
+          return { confirmed: false, error: new TeamApiError('STALE_RESULT', false) };
         }
       }
       flow.stage('save_requested');
@@ -216,6 +223,7 @@ export function useCatalogInlineChanges({
       );
     } catch (cause) {
       const conflict = cause instanceof TeamApiError && cause.code === 'STALE_RESULT';
+      if (conflict) failure = cause;
       // A typed server rejection proves no write. Transport failures require reconciliation.
       if (
         cause instanceof TeamApiError &&
@@ -227,7 +235,8 @@ export function useCatalogInlineChanges({
           ...current,
           [id]: { phase: 'error', field, intended: value, code: cause.code }
         }));
-        flow.fail('SAVE_FAILED');
+        failure = cause;
+        flow.fail(cause.code);
       } else {
         flow.stage(conflict ? 'conflict' : 'readback_requested');
         try {
@@ -264,7 +273,13 @@ export function useCatalogInlineChanges({
     } finally {
       locks.current.delete(id);
     }
-    return confirmed;
+    return { confirmed, error: confirmed ? undefined : failure };
+  };
+  const change = async (id: string, field: CatalogField, value: Value, undoEntry?: CatalogUndo) =>
+    (await mutate(id, field, value, undoEntry)).confirmed;
+  const saveSchedule = async (id: string, selection: CatalogScheduleSelection) => {
+    const result = await mutate(id, 'schedule', selection);
+    if (!result.confirmed) throw result.error;
   };
   const reconcile = async (id: string) => {
     if (locks.current.has(id)) return;
@@ -324,6 +339,7 @@ export function useCatalogInlineChanges({
     states,
     undo,
     change,
+    saveSchedule,
     reconcile,
     blocked,
     hasPending,
