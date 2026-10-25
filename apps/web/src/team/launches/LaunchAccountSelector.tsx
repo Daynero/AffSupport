@@ -1,18 +1,12 @@
 import { useState } from 'react';
+import { ChevronRight, UserRound } from 'lucide-react';
+import { isTeamAgentFree, type TeamAccountSummary } from '@video-compressor/shared';
 import { LaunchAccountBrowser } from './LaunchAccountBrowser';
-import { Button } from '../../components/ui';
-import { Check } from 'lucide-react';
-import {
-  TEAM_ACCOUNT_NAME_COLORS,
-  isTeamAgentFree,
-  teamAgentRunsSummary,
-  type TeamAccountSummary
-} from '@video-compressor/shared';
-import { SelectMenu } from '../../components/ui/index';
+import { Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
-/** Keep the workspace order and actual row identity, even when account suffixes collide. */
+/** A single trigger selects existing workspace rows through the account browser. */
 export function LaunchAccountSelector({
   id,
   value,
@@ -28,34 +22,47 @@ export function LaunchAccountSelector({
 }) {
   const { t } = useI18n();
   const [browsing, setBrowsing] = useState(false);
-  const options = accounts
+  const selected = accounts
     .filter(account => !account.archivedAt)
     .flatMap(account =>
       account.agents
         .filter(agent => !agent.archivedAt)
-        .map(agent => ({
-          value: agent.id,
-          label: `${account.name} · ${agent.agentId.slice(-3)}`,
-          description: `ID ${agent.agentId}`,
-          searchText: `${account.name} ${agent.agentId}`,
-          social: account.name,
-          free: isTeamAgentFree(agent),
-          runs: teamAgentRunsSummary(agent),
-          nameColor: TEAM_ACCOUNT_NAME_COLORS[agent.nameColor ?? 0],
-          suffix: agent.agentId.slice(-3)
-        }))
-    );
-  const rowsById = new Map(options.map(option => [option.value, option]));
-  const selected = options.find(option => option.value === value);
+        .map(agent => ({ ...agent, label: `${account.name} · ${agent.agentId.slice(-3)}` }))
+    )
+    .find(agent => agent.id === value);
+  const free = selected ? isTeamAgentFree(selected) : false;
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Button
+        id={id}
         type="button"
         variant="secondary"
+        block
+        className="launch-account-trigger"
+        aria-label={
+          selected ? `${t('launchesAccountBrowse')}: ${selected.label}` : t('launchesAccountBrowse')
+        }
+        aria-describedby={selected ? `${id}-details` : value ? `${id}-unavailable` : undefined}
+        aria-haspopup="dialog"
+        aria-expanded={browsing && !disabled}
+        leading={<UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+        trailing={<ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
         disabled={disabled}
         onClick={() => setBrowsing(true)}
       >
-        {t('launchesAccountBrowse')}
+        <span className="flex min-w-0 flex-1 flex-col gap-1 text-left">
+          <span className="whitespace-normal break-words">
+            {selected?.label ?? t('launchesAccountBrowse')}
+          </span>
+          {selected && (
+            <span id={`${id}-details`} className="flex flex-wrap gap-x-3 text-caption">
+              <span className="break-all font-mono text-muted">ID {selected.agentId}</span>
+              <span className={free ? 'text-success-text' : 'text-warning-text'}>
+                {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
+              </span>
+            </span>
+          )}
+        </span>
       </Button>
       {browsing && !disabled && (
         <LaunchAccountBrowser
@@ -65,59 +72,8 @@ export function LaunchAccountSelector({
           onClose={() => setBrowsing(false)}
         />
       )}
-      <SelectMenu
-        id={id}
-        label={t('launchesAccount')}
-        value={value}
-        options={options}
-        onChange={onChange}
-        disabled={disabled}
-        showSearchIcon
-        placeholder={t('launchesAccountSearch')}
-        emptyLabel={t('launchesAccountEmpty')}
-        noResultsLabel={t('launchesAccountNoResults')}
-        errorLabel={t('launchesInvalid')}
-        renderOption={(option, isSelected) => {
-          const row = rowsById.get(option.value)!;
-          return (
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="whitespace-normal break-words">{row.social}</span>
-                <span
-                  className={
-                    row.free ? 'text-caption text-success-text' : 'text-caption text-warning-text'
-                  }
-                >
-                  {t(row.free ? 'teamAgentFree' : 'teamAgentBusy')}
-                  {row.runs && ` · ${row.runs}`}
-                </span>
-                <span className="break-all font-mono text-caption text-muted">
-                  {row.description}
-                </span>
-              </div>
-              <span
-                data-name-color-value={row.nameColor}
-                className="launch-account-suffix shrink-0 rounded-sm bg-neutral-soft px-2 py-1 font-mono text-caption"
-              >
-                {row.suffix}
-              </span>
-              {isSelected && (
-                <Check
-                  size={ICON_SIZE}
-                  strokeWidth={ICON_STROKE}
-                  aria-hidden="true"
-                  className="shrink-0"
-                />
-              )}
-            </div>
-          );
-        }}
-      />
-      {selected && (
-        <span className="break-all font-mono text-caption text-muted">{selected.description}</span>
-      )}
       {value && !selected && (
-        <span role="status" className="text-caption text-warning-text">
+        <span id={`${id}-unavailable`} role="status" className="text-caption text-warning-text">
           {t('launchesAccountUnavailable')}
         </span>
       )}

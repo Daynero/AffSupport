@@ -13,6 +13,7 @@ import { commitKnownFiles, promoteBeta, remoteBetaSha } from './adapters/git.mjs
 import { retryDelay } from './retry.mjs';
 import { readJournal } from './journal.mjs';
 import { releaseNotesForVersion } from './notes.mjs';
+import { withLegacyBackendWriter, legacyBackendWriterAdapter } from '../mini-db-writer-lock.mjs';
 
 const exec = promisify(execFile);
 
@@ -307,7 +308,7 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
  *   sourceSha: string,
  *   cwd?: string,
  *   env?: Record<string, string>,
- *   binding: {bindingId: string, kind: string},
+ *   binding: {bindingId: string, kind: string, digest?: string},
  *   backendPlan?: {changes: readonly object[]} | null,
  *   backendAdapter?: object | null,
  *   journal?: {journalPath?: string, append: (type: string, payload: unknown) => Promise<unknown>} | null,
@@ -566,13 +567,18 @@ export async function createStepAdapter({
       if (!resolvedBackendAdapter || !journal)
         return fail('ACCESS_UNAVAILABLE', 'no backend adapter or journal is configured');
       try {
-        const result = await applyBackendPlan({
+        const result = await withLegacyBackendWriter({
+          root:cwd,owner:`full-backend:${runId}`,sourceSha,binding,
+          journalPath:journal.journalPath ?? '',runId,
+          inheritedToken:env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? process.env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? null
+        }, async ({markWriting}) => {
+          const appliedResult = await applyBackendPlan({
           binding,
           plan: backendPlan,
           sourceSha,
           previousReceipts: (journal.journalPath ? await readJournal(journal.journalPath, runId) : [])
             .filter(event => event.type === 'backend_receipt').map(event => event.payload),
-          adapter: resolvedBackendAdapter,
+          adapter: legacyBackendWriterAdapter(resolvedBackendAdapter,markWriting),
           /**
            * The receipt sink `applyBackendPlan` has always asked for.
            *
@@ -593,6 +599,11 @@ export async function createStepAdapter({
               await journal.append('backend_receipt', receipt);
             }
           }
+          });
+          if (appliedResult.ok && appliedResult.applied.every(item => ['observed','already-applied'].includes(item.state ?? ''))) await journal.append('backend_write_confirmed',{
+            sourceSha,bindingDigest:binding.digest,applied:appliedResult.applied
+          });
+          return appliedResult;
         });
         return result.ok ? { ok: true } : fail('GATE_FAILED', 'backend apply did not complete');
       } catch (error) {

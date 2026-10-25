@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { bundlesToKeep, parseHistory, selectRollbackTarget } from '../scripts/lib/web-rollback.mjs';
+import {
+  assertRollbackBinding,
+  bundlesToKeep,
+  parseHistory,
+  rollbackReceipt,
+  selectRollbackTarget
+} from '../scripts/lib/web-rollback.mjs';
 
 const entry = (sourceSha: string, outputDigest: string, deployedAt: string) => ({
   sourceSha,
@@ -84,5 +90,42 @@ describe('choosing what to roll the site back to', () => {
     const redeployed = [...history, entry('d'.repeat(40), 'd3', '2026-09-12T11:00:00.000Z')];
     expect(bundlesToKeep(redeployed, 2)).toEqual(['d3', 'd2']);
     expect(bundlesToKeep(history, 5)).toEqual(['d3', 'd2', 'd1']);
+  });
+
+  it('accepts flat markers and matching legacy nested bindings', () => {
+    expect(assertRollbackBinding({ bindingId: 'production' }, 'production')).toBe('production');
+    expect(assertRollbackBinding({ binding: { bindingId: 'production' } }, 'production')).toBe(
+      'production'
+    );
+    expect(() =>
+      assertRollbackBinding(
+        { bindingId: 'sandbox', binding: { bindingId: 'production' } },
+        'production'
+      )
+    ).toThrow('ROLLBACK_BINDING_MISMATCH');
+    expect(() => assertRollbackBinding({}, 'production')).toThrow('ROLLBACK_BINDING_MISMATCH');
+  });
+
+  it('records rollback as the new current deployment with its actual new timestamp', () => {
+    const receipt = rollbackReceipt({
+      target: history[0],
+      current: history[2],
+      deployedAt: '2026-09-13T12:00:00.000Z'
+    });
+    expect(receipt).toMatchObject({
+      sourceSha: history[0].sourceSha,
+      outputDigest: 'd1',
+      bindingId: 'production',
+      deployedAt: '2026-09-13T12:00:00.000Z',
+      rolledBackFrom: {
+        sourceSha: history[2].sourceSha,
+        outputDigest: 'd3',
+        deployedAt: history[2].deployedAt
+      }
+    });
+    expect(
+      selectRollbackTarget([...history, receipt], { archived: ['d1', 'd2', 'd3'] }).target
+        ?.outputDigest
+    ).toBe('d3');
   });
 });

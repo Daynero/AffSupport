@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { useState } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TeamAccountSummary } from '@video-compressor/shared';
@@ -39,58 +39,77 @@ function setup(accounts: TeamAccountSummary[] = rows(), initial = '') {
     ...view,
     changed,
     user: userEvent.setup(),
-    input: screen.getByRole('combobox', { name: 'Ad account' })
+    trigger: screen.getByRole('button', { name: /^Choose account/ })
   };
 }
-it('searches by full ID and mixed social/ID terms without saving search text', async () => {
-  const { user, input, changed } = setup();
-  expect(input).toHaveProperty('placeholder', 'Social name or account ID');
-  await user.type(input, 'main 9999');
-  expect(screen.getAllByRole('option')).toHaveLength(1);
+it('opens one existing-account browser, searches and replaces the trigger selection', async () => {
+  const { user, trigger, changed } = setup();
+  expect(screen.getAllByRole('button')).toHaveLength(1);
+  expect(screen.queryByRole('combobox')).toBeNull();
+  expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+  await user.click(trigger);
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), 'main 9999');
   expect(changed).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('option', { name: 'Main social · 892, ID 9999999892' }));
+  await user.click(screen.getByRole('button', { name: /ID 9999999892/ }));
   expect(changed).toHaveBeenCalledWith('second');
-  expect(input).toHaveProperty('value', 'Main social · 892');
-  expect(screen.getByText('ID 9999999892')).toBeTruthy();
+  expect(trigger.textContent).toContain('Main social · 892');
+  expect(within(trigger).getByText('ID 9999999892')).toBeTruthy();
+  expect(within(trigger).getByText('Free')).toBeTruthy();
+  expect(screen.getAllByRole('button')).toEqual([trigger]);
 });
-it('distinguishes duplicate suffixes within the same social and preserves workspace order', async () => {
-  const { user } = setup();
-  await user.click(screen.getByRole('button', { name: 'Ad account' }));
-  const options = screen.getAllByRole('option');
-  expect(options.map(row => row.getAttribute('aria-label'))).toEqual([
-    'Main social · 892, ID 1234567892',
-    'Main social · 892, ID 9999999892',
-    'g2 · 892, ID 9876543892'
+it('distinguishes duplicate suffixes and preserves workspace order in the browser', async () => {
+  const { user, trigger } = setup();
+  await user.click(trigger);
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), '892');
+  expect(
+    within(screen.getByRole('dialog'))
+      .getAllByRole('button', { name: /ID / })
+      .map(row => row.textContent)
+  ).toEqual([
+    'Main social · 892ID 1234567892Free',
+    'Main social · 892ID 9999999892Free',
+    'g2 · 892ID 9876543892Free'
   ]);
 });
-it('selects an actual result by keyboard and restores the selected value after abandoning a search', async () => {
-  const { user, input, changed } = setup();
-  await user.type(input, '9876543');
-  await user.keyboard('{ArrowDown}{Enter}');
+it('selects by keyboard and preserves selection when an unmatched search is dismissed', async () => {
+  const { user, trigger, changed } = setup();
+  trigger.focus();
+  await user.keyboard('{Enter}');
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), '9876543');
+  const account = screen.getByRole('button', { name: /ID 9876543892/ });
+  account.focus();
+  await user.keyboard('{Enter}');
   expect(changed).toHaveBeenCalledWith(launchFixtureAccounts()[1].agents[0].id);
-  expect(input).toHaveProperty('value', 'g2 · 892');
-  await user.clear(input);
-  await user.type(input, 'missing');
+  expect(trigger.textContent).toContain('g2 · 892');
+  expect(document.activeElement).toBe(trigger);
+  await user.click(trigger);
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), 'missing');
   expect(
     screen.getByText('No matching ad accounts. Try a social name or another part of the ID.')
   ).toBeTruthy();
-  await user.tab();
-  expect(input).toHaveProperty('value', 'g2 · 892');
+  await user.keyboard('{Escape}');
+  expect(trigger.textContent).toContain('g2 · 892');
   expect(changed).toHaveBeenCalledOnce();
+  expect(document.activeElement).toBe(trigger);
 });
-it('shows an honest empty state and hides archived socials and accounts', async () => {
+it('hides archived socials and accounts and never accepts free-form search text', async () => {
   const accounts = rows();
   accounts[0].archivedAt = '2026-10-23';
   accounts[1].agents[0].archivedAt = '2026-10-23';
-  const { user, changed } = setup(accounts);
-  await user.click(screen.getByRole('button', { name: 'Ad account' }));
-  expect(screen.getByText('No ad accounts available in this workspace.')).toBeTruthy();
-  // React Aria wraps its empty-state announcement in a non-selectable option.
-  expect(screen.getAllByRole('option').every(row => !row.hasAttribute('data-key'))).toBe(true);
-  await user.keyboard('{ArrowDown}{Enter}');
+  const { user, trigger, changed } = setup(accounts);
+  await user.click(trigger);
+  await user.type(
+    screen.getByRole('textbox', { name: 'Social name or account ID' }),
+    'new account'
+  );
+  expect(
+    screen.getByText('No matching ad accounts. Try a social name or another part of the ID.')
+  ).toBeTruthy();
+  await user.keyboard('{Enter}');
   expect(changed).not.toHaveBeenCalled();
+  expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /ID / })).toBeNull();
 });
-it('does not silently replace a revoked selection or permit selection through a locked control', async () => {
+it('does not replace an unavailable selection or open a locked control', async () => {
   const changed = vi.fn();
   render(
     <LaunchAccountSelector
@@ -104,9 +123,10 @@ it('does not silently replace a revoked selection or permit selection through a 
   expect(
     screen.getByText('The selected ad account is no longer available. Choose another.')
   ).toBeTruthy();
-  expect(screen.getByRole('combobox', { name: 'Ad account' })).toHaveProperty('disabled', true);
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Ad account' }));
-  expect(screen.queryByRole('option')).toBeNull();
+  const trigger = screen.getByRole('button', { name: 'Choose account' });
+  expect(trigger).toHaveProperty('disabled', true);
+  await userEvent.setup().click(trigger);
+  expect(screen.queryByRole('dialog')).toBeNull();
   expect(changed).not.toHaveBeenCalled();
 });
 it('browses socials with occupancy counts, filters running RK and selects the real row', async () => {
@@ -121,9 +141,8 @@ it('browses socials with occupancy counts, filters running RK and selects the re
     }
   ];
   const { user, changed } = setup(accounts);
-  await user.click(screen.getByRole('button', { name: 'Browse accounts' }));
+  await user.click(screen.getByRole('button', { name: 'Choose account' }));
   const dialog = screen.getByRole('dialog');
-  const { within } = await import('@testing-library/react');
   const ui = within(dialog);
   expect(ui.getByRole('button', { name: /Free · 2/ })).toBeTruthy();
   await user.click(ui.getByRole('button', { name: /^Running · 1$/ }));
@@ -137,11 +156,14 @@ it('browses socials with occupancy counts, filters running RK and selects the re
     expect.objectContaining({ flow_step: 'launch_account_picker', attempt_id: expect.any(String) })
   );
   expect(screen.queryByRole('dialog')).toBeNull();
+  expect(
+    within(screen.getByRole('button', { name: /Choose account:/ })).getByText('Running')
+  ).toBeTruthy();
 });
 it('searches inside the browser without changing selection and cancels safely', async () => {
   const track = vi.spyOn(analytics, 'track');
   const { user, changed } = setup();
-  await user.click(screen.getByRole('button', { name: 'Browse accounts' }));
+  await user.click(screen.getByRole('button', { name: 'Choose account' }));
   await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), 'main 9999');
   expect(screen.getByRole('button', { name: /ID 9999999892/ })).toBeTruthy();
   expect(changed).not.toHaveBeenCalled();

@@ -208,6 +208,9 @@ ditto -c -k --keepParent "$app" "$archive"
 (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
 
 after_state=$(protected_state)
+# Seal the actual package payload before any verification record can attest it.
+node "${0:A:h}/beta-package-provenance.mjs" --record >/dev/null
+
 after_tags=$(git tag --list | sort)
 [[ "$before_state" == "$after_state" ]] || {
   print -u2 "Beta packaging modified a production-identity file. Refusing to continue:"

@@ -67,6 +67,12 @@ export const en = {
   launchesProgressRetryCancel: 'Retry cancellation',
   launchesProgressRefresh: 'Check status',
   launchesProgressChecking: 'Checking current status…',
+  launchesProgressStopped: 'Generation stopped',
+  launchesProgressErrorUnconfirmed: 'Error — check the status',
+  launchesProgressActionRequired: 'Action required',
+  launchesProgressUnconfirmed: 'Status not confirmed',
+  launchesProgressUnconfirmedHint:
+    'The operation may still be running. Check its status before continuing.',
   launchesProgressLastConfirmed: 'Last confirmed: {stage}',
   launchesProgressWaiting: 'No new confirmation yet. The operation may still be running.',
   launchesProgressConnectionLost:
@@ -175,7 +181,7 @@ export const en = {
   launchesAccountEmpty: 'No ad accounts available in this workspace.',
   launchesAccountNoResults: 'No matching ad accounts. Try a social name or another part of the ID.',
   launchesAccountUnavailable: 'The selected ad account is no longer available. Choose another.',
-  launchesAccountBrowse: 'Browse accounts',
+  launchesAccountBrowse: 'Choose account',
   launchesAccount: 'Ad account',
   launchesAllAccounts: 'All ad accounts',
   launchesFilterAccount: 'Account',

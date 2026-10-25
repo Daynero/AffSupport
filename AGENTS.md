@@ -276,6 +276,66 @@ Invitations are **not** delivered in beta: they bypass the local mail catcher
 and would reach real recipients, so no delivery credential may be configured and
 the invitation link is surfaced in the UI instead. Full details in `docs/BETA.md`.
 
+## Soty web-only mini releases
+
+Feature 043's owner-selected MVP reuses the trusted local release workflow:
+
+```bash
+npm run release:web -- --check        # read-only eligibility; no builds or publication
+npm run beta:verify:web               # exact new web + unchanged sealed packaged beta
+npm run release:web -- --deploy       # explicit production action, existing activation gates
+npm run release:web -- --report       # read-only last local outcome
+npm run release:web -- --reconcile    # read-only provider readback after an unknown upload
+```
+
+The separate web proof does not replace or relabel the full packaged-beta record.
+The candidate must be clean and contained in beta; agent/shared/config/dependency,
+function and unknown changes are refused. DB changes require the narrow explicit
+phase below. Both bundles/configurations, historical
+package seal, target and unchanged live signed channel are bound to the proof.
+Default full packaging/promotion still requires its exact-SHA record. Old beta
+packages without package-time payload provenance need one-time normal beta
+preparation and verification; the mini command must never build an installer.
+
+Publish only the verified snapshot; recovery must retain the current signed
+agent channel and correct binding and record the new deployed state. Inspect
+partial/unknown outcomes before retry; no automatic rollback or stale-lock removal.
+Only one heavy child at a time, nice 15, one test worker, bounded memory/thread pools
+and measured headroom checks. Never stop somebody else's app or verification.
+Broader DB/functions, semantic shared exceptions, universal runner changes and
+dedicated OS/PF/TLS isolation remain deferred. Implementation does not authorize production.
+
+The owner-approved DB mini phase admits only nullable builtin columns without
+defaults/constraints and plain nonunique btree indexes on safe builtin scalar
+columns of ordinary `public` tables. PostgreSQL 17+ is required. Unknown SQL,
+hooks/ledger shape, functions/RLS, data writes, partitions/inheritance and custom
+types/collations/opclasses block. Use a dedicated `SOTY_MINI_DATABASE_URL`; never
+analytics credentials or credential-bearing arguments/artifacts.
+
+```bash
+npm run release:web -- --plan-db
+npm run beta:verify:web -- --backend-plan="/absolute/path/from-plan.json"
+npm run release:web -- --deploy --backend-plan="/absolute/path/from-plan.json"
+npm run release:web -- --reconcile-db
+```
+
+Planning and verification never write production. Verification uses pinned
+Supabase CLI 2.117 in an owned one-CPU/512-MiB disposable container with schema/role
+definitions only, no application rows/passwords: official A must equal mini A and
+the next full CLI B must succeed. Real beta must already match the exact planned
+after-schema through canonical beta preparation; mini never resets/migrates the
+running beta stack. Exact before/after source/target proof and real browser plus
+unchanged sealed packaged-agent acceptance remain required. No native rebuild or
+agent version change occurs. Explicit production activation atomically commits
+the approved DDL batch and official ledger tuples before verified web upload.
+Until a full agent release absorbs the baseline, later pure web fixes still need
+a fresh DB draft/`--backend-plan`; zero pending migrations adopt the exact already
+applied state read-only, without empty apply or history replay.
+Unknown DB outcomes block every web/backend writer until read-only reconciliation
+proves committed/aborted. Never replay uncertain SQL, delete evidence, run down
+migrations or automatically roll back. Critical beta checks and missing diagnostic
+coverage must be recorded; bounded local CLI reports do not prove user success.
+
 ## Soty production releases
 
 The deterministic runner is additive to this runbook, never a bypass. Use

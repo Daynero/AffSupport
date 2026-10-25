@@ -3999,6 +3999,32 @@
 .launch-generation-progress .ui-stage-progress-segment > span {
   transition: transform var(--motion-slow) var(--ease-in-out-curve);
 }
+.launch-generation-progress.is-error {
+  border-color: var(--color-error-border);
+}
+.launch-generation-progress.is-error .ui-stage-progress-heading,
+.launch-generation-progress.is-unconfirmed .ui-stage-progress-heading {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.launch-generation-progress.is-error .ui-stage-progress-heading > strong,
+.launch-generation-progress.is-unconfirmed .ui-stage-progress-heading > strong {
+  font-size: inherit;
+  font-weight: var(--weight-body);
+}
+.launch-generation-progress.is-error li[data-state='attention'] .ui-stage-progress-segment {
+  background: var(--color-error-soft);
+}
+.launch-generation-progress.is-error li[data-state='attention'] .ui-stage-progress-segment > span {
+  background: var(--color-error-solid);
+}
+.launch-generation-progress.is-error li[data-state='attention'] .ui-stage-progress-label {
+  color: var(--color-error-text);
+}
+.launch-progress-error-hint {
+  display: block;
+  margin-top: var(--space-2);
+}
 .launch-progress-notice {
   min-height: 2lh;
   overflow-wrap: anywhere;
@@ -4306,6 +4332,14 @@
   max-width: 100%;
 }
 
+.ui-button.launch-account-trigger {
+  height: auto;
+  white-space: normal;
+}
+.launch-account-trigger .ui-button-label {
+  flex: 1;
+}
+
 /* Keep picker copy in the flexible track even without a leading file icon. */
 .launch-account-browser .team-task-picker-results button {
   display: flex;
@@ -4323,9 +4357,11 @@
   overflow-wrap: anywhere;
 }
 
+.launch-account-trigger .text-success-text,
 .launch-account-browser .team-task-picker-item-copy small.text-success-text {
   color: var(--color-success-text);
 }
+.launch-account-trigger .text-warning-text,
 .launch-account-browser .team-task-picker-item-copy small.text-warning-text {
   color: var(--color-warning-text);
 }

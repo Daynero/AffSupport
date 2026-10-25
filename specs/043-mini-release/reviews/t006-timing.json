@@ -1,0 +1,39 @@
+{
+  "task": "T006",
+  "status": "completed-test-first",
+  "started_at": "2026-10-25T15:30:41Z",
+  "completed_at": "2026-10-25T15:35:25Z",
+  "elapsed_seconds": 284,
+  "scope": "Read existing contracts; author and format 30 mini contract tests; execute alongside the existing full-release contract tests; inspect machine-readable result.",
+  "excluded": "Earlier shared planning/context preparation; subsequent timing-report bookkeeping; runtime implementation T007 onwards.",
+  "command": "nice -n 15 node node_modules/vitest/vitest.mjs run tests/mini-release-contract.test.ts tests/release-runner-contract.test.ts --maxWorkers=1 --reporter=json --outputFile=release/automation/mini-task-timing/t006-vitest.json",
+  "result": {
+    "total": 32,
+    "passed": 9,
+    "failed": 23,
+    "skipped": 0,
+    "mini": {
+      "passed": 7,
+      "expected_red": 23
+    },
+    "existing_full_contract": {
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "failure_reason": "Mini v2 boundary/registry/state are not implemented yet (T007–T009). RED was required by T006, not an observed regression in existing full mode.",
+  "remaining_tasks": 81,
+  "forecast": {
+    "all_82_active_hours_low": 18,
+    "all_82_active_hours_high": 30,
+    "basis": "One small test-writing task measured. Difficulty weighting for OS isolation, DB atomicity/vendor interoperability, provider reconciliation, native/hosted acceptance; simple linear 6.47h is not a representative workload estimate.",
+    "confidence": "low; update after one backend/runtime task and one integration task",
+    "excluded_calendar_waits": [
+      "Host isolated-identity/PF enrollment requiring operator setup",
+      "Native Windows verification availability",
+      "Authorized hosted sandbox availability and governance ratification"
+    ]
+  },
+  "production": "not touched",
+  "other_implementation_tasks": "not executed after user requested one timed task"
+}

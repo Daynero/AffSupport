@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "feature": "043-mini-release",
+  "recorded_at": "2026-10-25T18:05:33.917726+00:00",
+  "verdict": "implementation_complete; native beta acceptance required before production",
+  "scope": "Owner-selected trusted-local web-only MVP, within 3\u20134h implementation budget; broad DB/functions/shared/isolated-runner design deferred.",
+  "reviews": {
+    "independent_reviewers": 2,
+    "open_critical": 0,
+    "open_high": 0,
+    "ledger": "mvp-review.md"
+  },
+  "verification": {
+    "static": {
+      "ok": true,
+      "command": "verify",
+      "generated_at": "2026-10-25T17:59:38.864Z",
+      "form": "fast",
+      "data": {
+        "duration_ms": 384585,
+        "totals": {
+          "gates": 13,
+          "passed": 13,
+          "failed": 0,
+          "tests": 0,
+          "skipped_tests": 0,
+          "skip_reasons": {},
+          "coverage_lines": null
+        },
+        "gates": [
+          {
+            "id": "build:shared",
+            "ok": true,
+            "duration_ms": 15158
+          },
+          {
+            "id": "format",
+            "ok": true,
+            "duration_ms": 147346
+          },
+          {
+            "id": "lint",
+            "ok": true,
+            "duration_ms": 61096
+          },
+          {
+            "id": "typecheck:projects",
+            "ok": true,
+            "duration_ms": 57257
+          },
+          {
+            "id": "typecheck:tests",
+            "ok": true,
+            "duration_ms": 85788
+          },
+          {
+            "id": "typecheck:scripts",
+            "ok": true,
+            "duration_ms": 8697
+          },
+          {
+            "id": "design-tokens",
+            "ok": true,
+            "duration_ms": 346
+          },
+          {
+            "id": "tailwind-classes",
+            "ok": true,
+            "duration_ms": 3636
+          },
+          {
+            "id": "styles",
+            "ok": true,
+            "duration_ms": 230
+          },
+          {
+            "id": "i18n",
+            "ok": true,
+            "duration_ms": 240
+          },
+          {
+            "id": "env-registry",
+            "ok": true,
+            "duration_ms": 295
+          },
+          {
+            "id": "csp",
+            "ok": true,
+            "duration_ms": 187
+          },
+          {
+            "id": "audit",
+            "ok": true,
+            "duration_ms": 4298
+          }
+        ]
+      }
+    },
+    "unit": {
+      "method": "All eight canonical unit shards; changed/failed files replaced by later regression results per file. Not a fresh single full-run receipt.",
+      "unit_files": 854,
+      "expected_unit_files": 854,
+      "missing_files": [],
+      "failed_files": [],
+      "tests": 7611,
+      "passed": 7570,
+      "failed": 0,
+      "skipped": 41,
+      "unexplained_skipped": 0,
+      "evidence": [
+        "suite-shards-1-6.json",
+        "suite-shard-7.json",
+        "suite-shard-8.json",
+        "final-regression.json",
+        "managed-execute-final.json",
+        "cancellation-hygiene-final.json",
+        "managed-existing-gates-final.json"
+      ]
+    },
+    "important_method_note": "Initial all-form fast run stopped at static issues; canonical unit runner completed shards1\u20136 before two new-test hygiene failures. Shards7\u20138 then ran through the same canonical unitSuiteShardArgs; all853 original unitfiles were covered with no duplicates/missingfiles. Failed/changed files and the new854th file were rerun. Latest result perfile has zero failures; this report is implementation evidence, not a fresh single full-run or release promotion proof.",
+    "resources": {
+      "heavy_stages": "one at a time",
+      "nice": 15,
+      "test_workers": 1,
+      "default_node_heap_mib": 1024,
+      "static_node_heap_mib": 2048,
+      "static_min_memory_headroom_percent": 25,
+      "native_pool_threads": 2,
+      "min_disk_gib": 3,
+      "min_memory_headroom_percent": 15,
+      "max_load_per_core": 2,
+      "timeout_cleanup": "owned hierarchy; no later gates; unknown cleanup retains writer lock"
+    },
+    "heap_adjustment": "A bounded1GiB TypeScript run exhausted its own heap. Static/compiler verification alone now permits2GiB with >=25% measured headroom; builds retain1GiB.",
+    "actual_worktree_check": {
+      "outcome": "expected WEB_ONLY_INELIGIBLE before builds/publication for mixed dirty source",
+      "observed_blockers": 26,
+      "log": "release/automation/web-only-implementation/check-working-tree.log"
+    },
+    "whitespace": "git diff --check passed",
+    "managed_existing_gate_regressions": {
+      "files": 3,
+      "tests_passed": 8,
+      "environment": "SOTY_WEB_MANAGED_TREE=1, depth0, serial",
+      "evidence": "release/automation/web-only-implementation/managed-existing-gates-final.json"
+    }
+  },
+  "acceptance_not_run": {
+    "real_candidate_beta_browser_and_packaged_runtime": "NOT_RUN: current source is mixed/dirty and existing beta package has no historical package-provenance.json. Prepare and verify a sealed beta once from a clean eligible base before using the new command.",
+    "production_upload_and_live_smoke": "NOT_RUN; implementation does not authorize production",
+    "native_agent_builds": "NOT_RUN",
+    "database_migrations": "NOT_RUN",
+    "windows_native_matrix": "DEFERRED; default full-runner semantics preserved and POSIX-only fixture skips carry needs markers"
+  },
+  "prerequisite_presence": {
+    "release/beta/Soty Beta.app": true,
+    "release/beta/verification.json": true,
+    "release/beta/package-provenance.json": false,
+    ".env.beta": true
+  },
+  "production_side_effects": {
+    "deployments": false,
+    "database_writes": false,
+    "agent_packaging": false,
+    "version_bumps": false,
+    "tag_or_asset_changes": false
+  },
+  "handoff": "../quickstart.md"
+}

@@ -1,9 +1,19 @@
 #!/usr/bin/env node
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { createPrivateKey, sign } from 'node:crypto';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  openSync,
+  closeSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { BETA_PROFILE } from '../packages/shared/dist/environment.js';
 
 /**
@@ -42,7 +52,8 @@ function configuredBetaOrigin() {
 function agentListeners() {
   const result = spawnSync('lsof', ['-tiTCP:' + BETA_PROFILE.agentPort, '-sTCP:LISTEN'], {
     encoding: 'utf8',
-    shell: false
+    shell: false,
+    timeout: 5000
   });
   if (result.error) fail(`cannot check the beta agent port: ${result.error.message}`);
   return (result.stdout ?? '').split('\n').map(Number).filter(Number.isInteger).filter(Boolean);
@@ -65,20 +76,23 @@ function launchedProcessTree(app) {
     const parent = Number(
       spawnSync('ps', ['-o', 'ppid=', '-p', String(listener)], {
         encoding: 'utf8',
-        shell: false
+        shell: false,
+        timeout: 5000
       }).stdout?.trim()
     );
     if (!Number.isInteger(parent) || parent <= 1) continue;
     const command =
       spawnSync('ps', ['-o', 'command=', '-p', String(parent)], {
         encoding: 'utf8',
-        shell: false
+        shell: false,
+        timeout: 5000
       }).stdout ?? '';
     if (command.includes(`${app}/Contents/MacOS/`)) tree.push(parent);
   }
   return tree;
 }
 
+/** @returns {never} */
 function fail(message) {
   throw new Error(message);
 }
@@ -123,6 +137,20 @@ function betaEntitlementToken(subject) {
     dsaEncoding: 'ieee-p1363'
   }).toString('base64url');
   return `wat1.${payload}.${signature}`;
+}
+
+/** Only a listener parented by the exact process this attempt spawned is ours. */
+export function selectOwnedRuntimePids(listeners, launcherPid, app, readParent, readCommand) {
+  if (!Number.isSafeInteger(launcherPid) || launcherPid < 1 || !listeners.length)
+    throw new Error('WEB_ONLY_RUNTIME_OWNERSHIP_UNPROVEN');
+  const owned = [launcherPid];
+  for (const listener of listeners) {
+    const parent = readParent(listener);
+    if (parent !== launcherPid || !readCommand(parent).includes(`${app}/Contents/MacOS/`))
+      throw new Error('WEB_ONLY_RUNTIME_OWNERSHIP_UNPROVEN');
+    owned.push(listener);
+  }
+  return [...new Set(owned)];
 }
 
 async function main() {
@@ -188,12 +216,14 @@ async function main() {
       '3',
       '-c:v',
       'libx264',
+      '-threads',
+      '2',
       '-c:a',
       'aac',
       '-shortest',
       input
     ],
-    { shell: false }
+    { shell: false, timeout: Math.min(30_000, remainingMs()) }
   );
   const jobId = 'beta-runtime-journey';
   writeFileSync(
@@ -220,38 +250,105 @@ async function main() {
     })
   );
 
+  const webOnlyJourney = process.argv.some(arg => arg.startsWith('--web-only-bundle='));
+  /** @type {import('node:child_process').ChildProcess | null} */
+  let nativeLauncher = null;
+  /** @type {Error | null} */
+  let launchError = null;
   // A clean environment and a private HOME: this journey must not read or write
   // the developer's own beta state.
-  spawnSync(
-    'env',
-    [
-      '-i',
-      'PATH=/usr/bin:/bin',
-      '/usr/bin/open',
-      '-n',
-      '--env',
-      'NO_OPEN=1',
-      '--env',
-      'WISHLY_ALLOW_UNINSTALLED_AGENT=1',
-      '--env',
-      'TMPDIR=/tmp',
-      `--env`,
-      `HOME=${home}`,
-      '--stdout',
-      path.join(work, 'agent.log'),
-      '--stderr',
-      path.join(work, 'agent.log'),
-      app
-    ],
-    { shell: false, stdio: 'inherit' }
-  );
+  if (webOnlyJourney) {
+    // Direct launch gives us an owned PID and inherited nice priority; LaunchServices
+    // cannot prove which existing application's listener it adopted.
+    const log = openSync(path.join(work, 'agent.log'), 'a', 0o600);
+    try {
+      nativeLauncher = spawn(path.join(app, 'Contents/MacOS/SotyBetaAgent'), [], {
+        env: {
+          PATH: '/usr/bin:/bin',
+          HOME: home,
+          TMPDIR: '/tmp',
+          NO_OPEN: '1',
+          WISHLY_ALLOW_UNINSTALLED_AGENT: '1',
+          NODE_OPTIONS: '--max-old-space-size=1024',
+          GOMAXPROCS: '2',
+          UV_THREADPOOL_SIZE: '2'
+        },
+        shell: false,
+        stdio: ['ignore', log, log]
+      });
+      nativeLauncher.on('error', error => {
+        launchError = error;
+      });
+    } finally {
+      closeSync(log);
+    }
+  } else {
+    spawnSync(
+      'env',
+      [
+        '-i',
+        'PATH=/usr/bin:/bin',
+        '/usr/bin/open',
+        '-n',
+        '--env',
+        'NO_OPEN=1',
+        '--env',
+        'WISHLY_ALLOW_UNINSTALLED_AGENT=1',
+        '--env',
+        'TMPDIR=/tmp',
+        `--env`,
+        `HOME=${home}`,
+        '--stdout',
+        path.join(work, 'agent.log'),
+        '--stderr',
+        path.join(work, 'agent.log'),
+        app
+      ],
+      { shell: false, stdio: 'inherit', timeout: Math.min(30_000, remainingMs()) }
+    );
+  }
 
+  const processMarker = pid =>
+    spawnSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+      encoding: 'utf8',
+      shell: false,
+      timeout: 5000
+    }).stdout?.trim() ?? '';
+  const ownedMarkers = new Map();
+  if (nativeLauncher?.pid) ownedMarkers.set(nativeLauncher.pid, processMarker(nativeLauncher.pid));
   let stopped = false;
   /** Only what this run caused to exist is stopped by this run. */
   const stop = launched => {
     if (stopped) return;
     stopped = true;
+    if (
+      webOnlyJourney &&
+      nativeLauncher?.pid &&
+      ownedMarkers.get(nativeLauncher.pid) === processMarker(nativeLauncher.pid)
+    ) {
+      const children =
+        spawnSync('pgrep', ['-P', String(nativeLauncher.pid)], {
+          encoding: 'utf8',
+          shell: false,
+          timeout: 5000
+        }).stdout ?? '';
+      for (const pid of children
+        .trim()
+        .split(/\s+/u)
+        .map(Number)
+        .filter(pid => Number.isSafeInteger(pid) && pid > 1)) {
+        if (!launched.includes(pid)) {
+          launched.push(pid);
+          ownedMarkers.set(pid, processMarker(pid));
+        }
+      }
+    }
     for (const pid of launched) {
+      if (
+        webOnlyJourney &&
+        (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid))
+      )
+        continue;
       try {
         process.kill(pid, 'SIGTERM');
       } catch {
@@ -263,7 +360,12 @@ async function main() {
     for (let attempt = 0; attempt < 40 && agentListeners().length; attempt += 1) {
       spawnSync('sleep', ['0.1'], { shell: false });
     }
-    for (const pid of agentListeners().filter(pid => launched.includes(pid))) {
+    for (const pid of launched) {
+      if (
+        webOnlyJourney &&
+        (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid))
+      )
+        continue;
       try {
         process.kill(pid, 'SIGKILL');
       } catch {
@@ -274,23 +376,66 @@ async function main() {
     if (copied) rmSync(copied, { recursive: true, force: true });
   };
 
-  let launched = [];
+  let launched = nativeLauncher?.pid ? [nativeLauncher.pid] : [];
+  let terminateBrowser = () => {};
+  const terminate = () => {
+    // The supervising private group stops the native app; Chromium owns a
+    // separate group and must be stopped before this runtime can be killed.
+    terminateBrowser();
+    process.exit(1);
+  };
+  if (webOnlyJourney) {
+    process.once('SIGTERM', terminate);
+    process.once('SIGINT', terminate);
+  }
   try {
-    await until(
-      'the packaged beta agent never became reachable',
-      async () => (await fetch(`${AGENT}/health`)).ok
-    );
-    launched = launchedProcessTree(app);
+    await until('the packaged beta agent never became reachable', async () => {
+      if (launchError) throw launchError;
+      return (
+        await fetch(`${AGENT}/health`, {
+          signal: AbortSignal.timeout(Math.min(5000, remainingMs()))
+        })
+      ).ok;
+    });
+    if (webOnlyJourney) {
+      const launcherPid = nativeLauncher?.pid;
+      if (!launcherPid || ownedMarkers.get(launcherPid) !== processMarker(launcherPid))
+        fail('WEB_ONLY_RUNTIME_OWNERSHIP_UNPROVEN');
+      launched = selectOwnedRuntimePids(
+        agentListeners(),
+        launcherPid,
+        app,
+        pid =>
+          Number(
+            spawnSync('ps', ['-o', 'ppid=', '-p', String(pid)], {
+              encoding: 'utf8',
+              shell: false,
+              timeout: 5000
+            }).stdout?.trim()
+          ),
+        pid =>
+          spawnSync('ps', ['-o', 'command=', '-p', String(pid)], {
+            encoding: 'utf8',
+            shell: false,
+            timeout: 5000
+          }).stdout ?? ''
+      );
+      for (const pid of launched) ownedMarkers.set(pid, processMarker(pid));
+    } else launched = launchedProcessTree(app);
 
     // Pairing is the real local login: the agent hands back a session token
     // through a redirect, exactly as the beta web app receives one.
-    const pairing = await fetch(`${AGENT}/pair`, { redirect: 'manual' });
+    const pairing = await fetch(`${AGENT}/pair`, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(Math.min(10_000, remainingMs()))
+    });
     const token = /#agentToken=([a-f0-9]{64})/u.exec(pairing.headers.get('location') ?? '')?.[1];
     if (!token) fail('pairing did not return a session token');
 
     const api = async (route, init = {}) => {
       const response = await fetch(`${AGENT}${route}`, {
         ...init,
+        signal: AbortSignal.timeout(Math.min(10_000, remainingMs())),
         headers: { Origin: origin, 'x-session-token': token, ...(init.headers ?? {}) }
       });
       if (!response.ok) fail(`${route} answered ${response.status}`);
@@ -335,20 +480,73 @@ async function main() {
     if (!(statSync(finished.outputPath).size > 0))
       fail('the packaged operation produced no output');
 
+    const candidateBundle = process.argv
+      .find(arg => arg.startsWith('--web-only-bundle='))
+      ?.slice('--web-only-bundle='.length);
+    if (candidateBundle) {
+      const expectedDigest = process.argv
+        .find(arg => arg.startsWith('--web-only-digest='))
+        ?.slice('--web-only-digest='.length);
+      const expectedSource = process.argv
+        .find(arg => arg.startsWith('--web-only-package-source='))
+        ?.slice('--web-only-package-source='.length);
+      if (!expectedDigest || !expectedSource || health.sourceRevision !== expectedSource)
+        fail('WEB_ONLY_PACKAGED_RUNTIME_IDENTITY_UNPROVEN');
+      const { verifyCandidateWeb } = await import('./lib/web-only-runtime.mjs');
+      const browserResult = await verifyCandidateWeb({
+        directory: candidateBundle,
+        expectedDigest,
+        origin,
+        token,
+        expectedFileName: 'beta runtime input.mp4',
+        timeoutMs: remainingMs(),
+        onShutdownReady: cleanup => {
+          terminateBrowser = cleanup;
+        }
+      });
+      const receipt = process.argv
+        .find(arg => arg.startsWith('--web-only-receipt='))
+        ?.slice('--web-only-receipt='.length);
+      const candidateSource = process.argv
+        .find(arg => arg.startsWith('--web-only-source='))
+        ?.slice('--web-only-source='.length);
+      if (!receipt || !/^[a-f0-9]{40}$/u.test(candidateSource ?? ''))
+        fail('WEB_ONLY_RUNTIME_RECEIPT_REQUIRED');
+      writeFileSync(
+        receipt,
+        JSON.stringify({
+          schemaVersion: 1,
+          sourceSha: candidateSource,
+          packageSourceSha: expectedSource,
+          betaBundleDigest: expectedDigest,
+          completedAt: new Date().toISOString(),
+          ...browserResult
+        }),
+        { mode: 0o600, flag: 'wx' }
+      );
+      process.stdout.write(
+        'New web candidate authenticated and displayed the completed packaged operation.\n'
+      );
+    }
+
     process.stdout.write(
       `Packaged beta authenticated, accepted a beta entitlement, and completed one operation ` +
         `in ${Math.round((Date.now() - started) / 1000)}s.\n`
     );
   } finally {
+    process.removeListener('SIGTERM', terminate);
+    process.removeListener('SIGINT', terminate);
     stop(launched);
   }
 }
 
-try {
-  await main();
-} catch (error) {
-  process.stderr.write(
-    `Beta runtime journey failed: ${error instanceof Error ? error.message : String(error)}\n`
-  );
-  process.exitCode = 1;
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    await main();
+  } catch (error) {
+    process.stderr.write(
+      `Beta runtime journey failed: ${error instanceof Error ? error.message : String(error)}\n`
+    );
+    process.exitCode = 1;
+  }
 }

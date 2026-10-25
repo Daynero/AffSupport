@@ -74,14 +74,18 @@ it('distinguishes equal account suffixes and updates campaign names without IO',
   render(<Host />);
   fireEvent.click(screen.getByRole('button', { name: /Preview/u }));
   expect(screen.getByText('[g1-892-v5] ProCaps TR $10 m45+ 13/10 #1(1-3)')).toBeTruthy();
-  expect(screen.getByRole('combobox', { name: 'Ad account' })).toHaveProperty('value', 'g1 · 892');
+  const accountTrigger = screen.getByRole('button', { name: 'Choose account: g1 · 892' });
+  expect(accountTrigger.textContent).toContain('ID 1234567892');
   expect((screen.getByText('Ad account').closest('label') as HTMLLabelElement).htmlFor).toBe(
-    screen.getByRole('combobox', { name: 'Ad account' }).id
+    accountTrigger.id
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Ad account' }));
-  expect(screen.getByRole('option', { name: 'g1 · 892, ID 1234567892' })).toBeTruthy();
-  expect(screen.getByRole('option', { name: 'g2 · 892, ID 9876543892' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('option', { name: 'g1 · 892, ID 1234567892' }));
+  fireEvent.click(accountTrigger);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Social name or account ID' }), {
+    target: { value: '892' }
+  });
+  expect(screen.getByRole('button', { name: /g1 · 892.*ID 1234567892/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /g2 · 892.*ID 9876543892/ })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /g1 · 892.*ID 1234567892/ }));
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Campaign count' }), {
     target: { value: '5' }
   });

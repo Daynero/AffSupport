@@ -1041,6 +1041,27 @@ export function LaunchSession({
       }
     });
   };
+  const generationRetryActions = (
+    <>
+      {generation.hasUnresolvedRequest && (
+        <Button disabled={generation.busy} onClick={() => void generate()}>
+          {t(generation.pendingStage === 'cancel' ? 'launchesProgressRetryCancel' : 'retry')}
+        </Button>
+      )}
+      {editable &&
+        detail?.generation?.requestKey &&
+        !['succeeded', 'canceled'].includes(detail.generation.state) && (
+          <Button
+            disabled={
+              working || generation.busy || draft.dirty || (overridesDirty && !unchangedApproval)
+            }
+            onClick={() => void resumeGeneration()}
+          >
+            {t('retry')}
+          </Button>
+        )}
+    </>
+  );
   return (
     <div
       ref={progressScroll.anchor}
@@ -1199,23 +1220,7 @@ export function LaunchSession({
             }}
           />
         )}
-      {generation.hasUnresolvedRequest && (
-        <Button disabled={generation.busy} onClick={() => void generate()}>
-          {t(generation.pendingStage === 'cancel' ? 'launchesProgressRetryCancel' : 'retry')}
-        </Button>
-      )}
-      {editable &&
-        detail?.generation?.requestKey &&
-        !['succeeded', 'canceled'].includes(detail.generation.state) && (
-          <Button
-            disabled={
-              working || generation.busy || draft.dirty || (overridesDirty && !unchangedApproval)
-            }
-            onClick={() => void resumeGeneration()}
-          >
-            {t('retry')}
-          </Button>
-        )}
+      {!showProgress && generationRetryActions}
       {saveIntent.current && (
         <Button disabled={working} onClick={() => void run(save)}>
           {t('retry')}
@@ -1336,6 +1341,7 @@ export function LaunchSession({
           onRefresh={detail ? refreshProgress : undefined}
           generation={detail?.generation ?? null}
           disabled={working || !editable}
+          retryActions={generationRetryActions}
           onCancel={() => {
             if (preflighting && !generation.busy) preflightAbort.current?.abort();
             else if (generation.hasUnresolvedRequest) void run(generation.cancelPending);

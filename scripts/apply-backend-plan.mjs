@@ -9,6 +9,7 @@ import { describePlan } from './lib/release/backend-scan.mjs';
 import { applyBackendPlan } from './lib/release/adapters/backend.mjs';
 import { createSupabaseBackendAdapter } from './lib/release/adapters/supabase-backend.mjs';
 import { createJournal } from './lib/release/journal.mjs';
+import { withLegacyBackendWriter, legacyBackendWriterAdapter } from './lib/mini-db-writer-lock.mjs';
 
 /**
  * Applies a backend plan on its own, without cutting a client release.
@@ -100,17 +101,43 @@ const runId = `backend-${new Date().toISOString().replace(/[:.]/gu, '-')}`;
 const journal = await createJournal(path.join(root, 'release/automation/backend', runId), runId);
 
 try {
-  const result = await applyBackendPlan({
-    binding,
-    plan,
-    sourceSha,
-    adapter,
-    journal: {
-      flush: async receipt => {
-        await journal.append('backend-receipt', receipt);
-      }
-    }
-  });
+  const result = !plan.changes.length
+    ? { ok: true, applied: [], writes: 0 }
+    : await withLegacyBackendWriter(
+        {
+          root,
+          owner: 'standalone-backend',
+          sourceSha,
+          binding,
+          journalPath: journal.journalPath,
+          runId
+        },
+        async ({ markWriting }) => {
+          const appliedResult = await applyBackendPlan({
+            binding,
+            plan,
+            sourceSha,
+            adapter: legacyBackendWriterAdapter(adapter, markWriting),
+            journal: {
+              flush: async receipt => {
+                await journal.append('backend-receipt', receipt);
+              }
+            }
+          });
+          if (
+            appliedResult.ok &&
+            appliedResult.applied.every(item =>
+              ['observed', 'already-applied'].includes(item.state ?? '')
+            )
+          )
+            await journal.append('backend_write_confirmed', {
+              sourceSha,
+              bindingDigest: binding.digest,
+              applied: appliedResult.applied
+            });
+          return appliedResult;
+        }
+      );
   for (const applied of result.applied) process.stdout.write(`  ${applied.id}: ${applied.state}\n`);
   process.stdout.write(
     `Applied ${result.writes} change(s). Journal: ${path.relative(root, journal.journalPath)}\n`

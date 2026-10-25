@@ -386,3 +386,76 @@ Legacy status/disable лишаються доступними для очище�
 сумісності, а не доказ особи; server-authoritative actor і protocol2 fence лишаються обов’язковими.
 Legacy redeem без actor відхиляється з AGENT_UPDATE_REQUIRED, але валідний refresh зберігається
 до підтвердженого retirement. Permission/malformed receipt не маскуються під повторний sign-in.
+
+## Web-only candidate verification (043 MVP)
+
+`npm run beta:verify:web` tests a new clean web candidate on an unchanged packaged
+beta. It does not run `beta:package`, create installers, change stable.json or
+rewrite `release/beta/verification.json`. It writes a separate exact-source,
+configuration, bundle and package-bound proof for web deployment, valid for 30
+minutes only while all inputs still match. The browser uses exact new static
+assets, real local Supabase fixture sign-in, the packaged session/pairing and
+enforced entitlement, and must display the completed controlled operation.
+
+Normal beta packaging now records the actual sealed app payload in
+`release/beta/package-provenance.json`; normal full beta verification independently
+matches it after runtime and includes `packagePayloadDigest` in its record.
+Metadata-only legacy packages cannot be retroactively declared byte-verified.
+Prepare beta once from the exact clean base if this prerequisite is missing;
+subsequent web-only releases reuse it. Full production package promotion retains
+its exact-SHA rules, including the existing signed-manifest-only verification.
+
+Check eligibility with `npm run release:web -- --check`; read the last local
+outcome with `npm run release:web -- --report`. Real beta/native/browser acceptance
+requires its actual services and package; missing prerequisites remain blocked,
+never a mocked PASS. A busy beta port belongs to its current owner: verification
+must not kill it or claim it as the package started by this attempt.
+
+### Additive DB mini candidate (043)
+
+For the narrow DB extension, create a read-only production draft, then verify it
+with the exact web candidate:
+
+```bash
+npm run release:web -- --plan-db
+npm run beta:verify:web -- --backend-plan="/absolute/path/from-plan.json"
+```
+
+Use the printed draft path unchanged. `SOTY_MINI_DATABASE_URL` is the dedicated
+production release connection supplied through local secret configuration; never
+reuse analytics credentials or include credentials in arguments/artifacts.
+PostgreSQL 17+, Docker and pinned Supabase CLI 2.117 are required. Only nullable
+builtin columns without defaults/constraints and plain nonunique btree indexes on
+safe builtin scalar columns of ordinary `public` tables qualify. Functions/RLS,
+data changes, destructive or unknown SQL and unsupported hooks/ledger shape block.
+
+The verifier owns a disposable one-CPU/512-MiB local container. It copies only
+schema/role definitions, without application rows/passwords, reconstructs the exact
+target baseline, compares official CLI A with mini A using source-bound official
+statement tuples, then proves the next full CLI migration B succeeds. This writes
+only the owned clone; it does not migrate production or the running local beta.
+
+Prepare real beta through its canonical workflow at the exact planned after-schema
+before verification. Mini verification refuses a schema mismatch and never resets
+the running beta stack. The browser still uses real Auth, enforced entitlement,
+the unchanged sealed packaged agent and exact new web assets. Record critical
+feature checks manually where automation has no coverage; schema replay or mocked
+browser evidence cannot replace them. No native package rebuild/version change is
+part of this phase.
+
+After a DB mini release, later pure web fixes also need a fresh `--plan-db` draft
+and `--backend-plan` until a full agent release absorbs the baseline. Historical
+migration paths still differ from the unchanged agent tag. Zero pending migrations
+adopt the already-applied exact state read-only; no empty DB apply/history replay.
+
+The separate proof binds target/source, exact before/after schema and history,
+rehearsal, beta schema, web bundles and unchanged package. Keep the same draft for
+explicit `release:web --deploy --backend-plan="/absolute/path/from-plan.json"` under the production
+runbook. DB DDL and official ledger inserts apply atomically before web publication;
+unknown DB outcomes block every writer until read-only `release:web --reconcile-db`
+proves committed/aborted. Never replay uncertain SQL or run a down migration.
+
+Private bounded CLI reports and plan/session evidence explain release outcomes;
+central analytics does not observe commit/rehearsal directly. Missing DB/browser
+prerequisites remain blocked, and implementation/test fixtures do not attest a
+real beta pass or authorize production.

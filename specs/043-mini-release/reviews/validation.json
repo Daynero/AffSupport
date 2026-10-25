@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "scope": "documentation-only; no runtime/production acceptance",
+  "checks": {
+    "taskSyntaxAndSequence": true,
+    "tasksUnchecked": true,
+    "taskPathsPresent": true,
+    "requirementCoverage": true,
+    "localLinks": true,
+    "noTemplateMarkers": true,
+    "specChecklist": true,
+    "activeFeature": true,
+    "noExtensionHooks": true,
+    "independentDesignFindingsClosed": 11
+  },
+  "counts": {
+    "tasks": 82,
+    "requirements": 42,
+    "specChecklistCompleted": 16,
+    "userStories": {
+      "US1": 15,
+      "US2": 15,
+      "US3": 8,
+      "US4": 10,
+      "US5": 8
+    }
+  },
+  "coreDocumentDigests": {
+    "checklists/requirements.md": "05f6f5d36f9d1b93a3f0b8c7464cea305b64bdf196eeea31ebcf197bd7ae2c34",
+    "contracts/executor.md": "56d29e0478b51a178691e7c17f96f0f9f5235db26ad3540a5aa16ab50b479f0e",
+    "contracts/governance.md": "c138ffe045c3bf2c0f1bcfeebcf008511bc8b03038f701e7893c6b1bfa6a20bf",
+    "contracts/migration-history.md": "f9aa32f2e7f64cced6f6cf3ed37393ea1b7d836fc27bb3c6bca5d664f5db3081",
+    "contracts/mini-release.md": "3f5e97934119852054b5da5e385df38610625a2d3b24a3bf5a876f9179fcc238",
+    "contracts/support-matrix.md": "53cadfba3f1b4a25a307b734673e84e0a092492e7318256254504b35b7940d96",
+    "contracts/verification.md": "50cfff0cba43f74acb1485762d7c33e36edf751210c16ca9cac6dc7393cadd89",
+    "data-model.md": "c87063d85b31a8a773d9e83f235d238734d9b42e00e91631b798960a4f6a791c",
+    "plan.md": "c9f0ddc8d81512f88807c6a8b69c7ba2c1fd93c7071bced8ddc48493b1f5ffef",
+    "quickstart.md": "ec4e0e09942e078f0ba19cbc0368e29c50090f62e9383288c03cbe6658694c3d",
+    "research.md": "ed3e90f6e72a5ff86cde0273267a54835ce9a7588590179652ed31e5a333fb21",
+    "spec.md": "56e9206d90d068dd5f78028902b7a51cc68b8117585314c5b2827e2d667b177e",
+    "tasks.md": "670296d2501e9b037da80167ade0bf4d420b1c2d6421721620ec3415b00da07c"
+  },
+  "runtimeTests": "NOT_RUN: no runtime code changed",
+  "production": "NOT_TOUCHED",
+  "designVerdict": "READY_FOR_IMPLEMENTATION",
+  "productionVerdict": "NOT_ASSESSED: governance/native/hosted/timing acceptance pending implementation"
+}

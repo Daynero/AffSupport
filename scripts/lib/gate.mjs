@@ -25,6 +25,17 @@ const OUTPUT_RING_LINES = 400;
 
 /** Lines longer than this are cut; a minified bundle on one line is not a diagnosis. */
 const MAX_LINE_LENGTH = 500;
+const WEB_CLEANUP_SENTINEL = 'WEB_MANAGED_CLEANUP_UNCONFIRMED';
+
+// Only the web-only supervisor opts in. Once its owner was cancelled, this
+// process must not start another heavy gate even if the phase loop continues.
+let webManagedCancelled = false;
+const webManaged = () => process.env.SOTY_WEB_MANAGED_TREE === '1';
+
+function cancelledGate(gate) {
+  const line = `Gate '${gate.id}' was not started: managed verification was cancelled.`;
+  return { id: gate.id, ok: false, duration_ms: 0, timedOut: false, lines: [line], subject: line };
+}
 
 class OutputRing {
   #lines = [];
@@ -103,6 +114,7 @@ export function subjectFor(id, lines) {
  * envelope at all.
  */
 export async function runGate(gate) {
+  if (webManaged() && webManagedCancelled) return cancelledGate(gate);
   let admission;
   try {
     admission = admissionFromEnvironment();
@@ -132,6 +144,11 @@ function admissionFailure(gate, error) {
 }
 
 async function runGateNow(gate) {
+  if (webManaged() && webManagedCancelled) return cancelledGate(gate);
+  const managed = webManaged();
+  const depth = Number(process.env.SOTY_WEB_MANAGED_DEPTH ?? '0');
+  if (managed && (!Number.isSafeInteger(depth) || depth < 0 || depth >= 8))
+    return admissionFailure(gate, new Error('WEB_MANAGED_GATE_DEPTH_UNSUPPORTED'));
   const startedAt = Date.now();
   const ring = new OutputRing();
   const timeoutMessage =
@@ -146,7 +163,13 @@ async function runGateNow(gate) {
         detached: process.platform !== 'win32',
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...gate.env }
+        env: {
+          ...process.env,
+          ...gate.env,
+          ...(managed
+            ? { SOTY_WEB_MANAGED_TREE: '1', SOTY_WEB_MANAGED_DEPTH: String(depth + 1) }
+            : {})
+        }
       });
     } catch (error) {
       ring.push(messageOf(error));
@@ -155,15 +178,102 @@ async function runGateNow(gate) {
     }
 
     let settled = false;
+    /** @type {NodeJS.Timeout|null} */
+    let cancellationTimer = null;
+    /** @type {NodeJS.Timeout|null} */
+    let cancellationDrain = null;
+    /** @type {NodeJS.Timeout|null} */
+    let cancellationPoll = null;
+    /** @type {string|null} */
+    let cancellation = null;
+    const term = () => cancel('SIGTERM');
+    const interrupt = () => cancel('SIGINT');
+    const groupAbsent = () => {
+      if (!child.pid) return true;
+      if (process.platform === 'win32') return false;
+      try {
+        process.kill(-child.pid, 0);
+        return false;
+      } catch (error) {
+        return error instanceof Error && 'code' in error && error.code === 'ESRCH';
+      }
+    };
     const finish = value => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (cancellationTimer) clearTimeout(cancellationTimer);
+      if (cancellationDrain) clearTimeout(cancellationDrain);
+      if (cancellationPoll) clearTimeout(cancellationPoll);
+      if (managed) {
+        process.removeListener('SIGTERM', term);
+        process.removeListener('SIGINT', interrupt);
+      }
       resolve(value);
     };
 
+    function cancel(reason) {
+      if (settled || cancellation) return;
+      webManagedCancelled = true;
+      cancellation = reason;
+      clearTimeout(timer);
+      ring.push(`Gate '${gate.id}' cancelled by ${reason}; no later managed gate will start.`);
+      const pid = child.pid;
+      if (Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid) {
+        try {
+          if (process.platform === 'win32') child.kill('SIGTERM');
+          else process.kill(-pid, 'SIGTERM');
+        } catch {
+          // The forced tree cleanup below reports whether termination is known.
+        }
+      }
+      // Nested runGate owners receive a smaller grace than their parent, so
+      // they can terminate their own detached children before being escalated.
+      const graceMs = Math.max(1, Math.floor(500 / 2 ** depth));
+      cancellationTimer = setTimeout(() => {
+        terminateGateTree(child);
+        const complete = confirmed => {
+          if (settled) return;
+          if (!confirmed) {
+            ring.push(WEB_CLEANUP_SENTINEL);
+            // The outer managed owner must see uncertainty even if it needs
+            // to terminate this aggregator before it can print its report.
+            process.stderr.write(
+              `${WEB_CLEANUP_SENTINEL}: owned process group ${child.pid ?? 'unknown'}\n`
+            );
+          }
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          child.unref();
+          finish({ ok: false, timedOut: reason === 'timeout' });
+        };
+        const observe = () => {
+          if (settled) return;
+          if (groupAbsent()) {
+            complete(true);
+            return;
+          }
+          cancellationPoll = setTimeout(observe, 10);
+        };
+        cancellationDrain = setTimeout(
+          () => complete(groupAbsent()),
+          Math.max(1, Math.floor(250 / 2 ** depth))
+        );
+        observe();
+      }, graceMs);
+    }
+
+    if (managed) {
+      process.on('SIGTERM', term);
+      process.on('SIGINT', interrupt);
+    }
+
     const timer = setTimeout(() => {
       ring.push(timeoutMessage);
+      if (managed) {
+        cancel('timeout');
+        return;
+      }
       const termination = terminateGateTree(child);
       ring.push(
         termination === 'unconfirmed'
@@ -179,13 +289,43 @@ async function runGateNow(gate) {
     }, gate.timeoutMs);
     timer.unref?.();
 
-    child.stdout?.on('data', chunk => ring.push(String(chunk)));
-    child.stderr?.on('data', chunk => ring.push(String(chunk)));
+    let forwardedUncertainty = false;
+    const capture = () => {
+      let tail = '';
+      return chunk => {
+        const text = String(chunk);
+        ring.push(text);
+        if (!managed || forwardedUncertainty) return;
+        const combined = tail + text;
+        if (combined.includes(WEB_CLEANUP_SENTINEL)) {
+          forwardedUncertainty = true;
+          // Nested owners have private stdout/stderr pipes. Propagate their
+          // uncertainty immediately instead of waiting for report rendering.
+          process.stderr.write(`${WEB_CLEANUP_SENTINEL}\n`);
+        }
+        tail = combined.slice(-(WEB_CLEANUP_SENTINEL.length - 1));
+      };
+    };
+    child.stdout?.on('data', capture());
+    child.stderr?.on('data', capture());
     child.once('error', error => {
       ring.push(messageOf(error));
+      if (cancellation) return;
       finish({ ok: false, timedOut: false });
     });
-    child.once('close', code => finish({ ok: code === 0, timedOut: false }));
+    child.once('close', code => {
+      // Even an exited wrapper may have left members in its private group.
+      // Keep the escalation timer alive through close during cancellation.
+      if (cancellation) return;
+      if (managed && !groupAbsent()) {
+        cancel(code === 0 ? 'lingering_descendants' : 'failed_owner_descendants');
+        return;
+      }
+      // A nested owner reports its own cancellation as a failed exit. Do not
+      // start new managed work after that owner has stopped its detached tree.
+      if (managed && code !== 0) webManagedCancelled = true;
+      finish({ ok: code === 0, timedOut: false });
+    });
   });
 
   const lines = ring.lines();

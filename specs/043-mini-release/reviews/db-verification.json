@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-25T20:08:15.277Z",
+  "feature": "043-mini-release/additive-db",
+  "verdict": "implementation_complete_local_database_acceptance_passed; exact_candidate_beta_acceptance_required_before_production",
+  "scope": "Nullable builtin columns and ordinary nonunique btree indexes; unchanged native agent/version/channel. PostgreSQL17+.",
+  "focusedTests": {
+    "ok": true,
+    "files": 13,
+    "passed": 394,
+    "log": "release/automation/web-only-implementation/db-target-tests.log"
+  },
+  "legacyRegression": {
+    "ok": true,
+    "files": 7,
+    "passed": 69,
+    "log": "release/automation/web-only-implementation/db-legacy-regression.log"
+  },
+  "realDatabase": {
+    "ok": true,
+    "checks": {
+      "baseline": "matched",
+      "miniVendor": "matched",
+      "nextFullCli": "verified",
+      "productSmoke": "not_performed",
+      "syntheticOldNewRows": "verified",
+      "authenticatedAllowed": "verified",
+      "anonDenied": "verified",
+      "commitResponseLossAdoptedOnce": true,
+      "absoluteBudgetAtomicAbort": true
+    },
+    "planDigest": "0cc9cad6f29a8cb2400eb6f3e5ddae3dd08f3528a81f93fd24bac11ef23e3e17",
+    "pinnedCli": "2.117.0",
+    "postgresImage": "public.ecr.aws/supabase/postgres:17.11.0.004",
+    "localSource": "affsupport037 (schema/role definitions read only)",
+    "fixtures": "Synthetic rows only; no application rows or role passwords copied",
+    "cleanup": "Verified no owned labeled containers or networks remain",
+    "log": "release/automation/web-only-implementation/db-self-test.log"
+  },
+  "static": {
+    "ok": true,
+    "passed": 13,
+    "kind": "latest successful result per canonical gate; affected gate repeated after fix",
+    "note": "Canonical static run passed shared/format/lint/projects/tests, then found a missing JSDoc session type. Only that annotation changed. The affected scripts typecheck and all canceled remaining canonical gates were run through runGate successfully; touched-file formatting was rechecked. No fresh single all-green canonical command receipt is claimed.",
+    "initialReceipt": "release/automation/web-only-implementation/db-static-initial.json",
+    "completionReceipt": "release/automation/web-only-implementation/db-static-completion.json",
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 4492
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 58343
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 36056
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 38392
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 45945
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 6454,
+        "timedOut": false,
+        "lines": [],
+        "subject": ""
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 249,
+        "timedOut": false,
+        "lines": [
+          "Design tokens: clean across 15 stylesheets."
+        ],
+        "subject": ""
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2572,
+        "timedOut": false,
+        "lines": [
+          "Tailwind classes: clean across 531 components."
+        ],
+        "subject": ""
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 165,
+        "timedOut": false,
+        "lines": [
+          "styles: 488 declared, 445 referenced, 49 set from components, 78 unread"
+        ],
+        "subject": ""
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 165,
+        "timedOut": false,
+        "lines": [
+          "i18n: 3831 keys, 6099 literals scanned, 8 declared dynamic, 353 unused"
+        ],
+        "subject": ""
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 169,
+        "timedOut": false,
+        "lines": [
+          "Environment registry matches the code (web 17, functions 18, agent 5)."
+        ],
+        "subject": ""
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 137,
+        "timedOut": false,
+        "lines": [
+          "csp: headers are current."
+        ],
+        "subject": ""
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 3729,
+        "timedOut": false,
+        "lines": [
+          "audit: 9 advisories (0 development-only, 0 excepted, 0 blocking)"
+        ],
+        "subject": ""
+      }
+    ]
+  },
+  "independentReview": {
+    "reviewers": [
+      "policy/catalog safety",
+      "transaction/writer/recovery integration",
+      "owned rehearsal/interop transport"
+    ],
+    "findingsClosed": [
+      "Unvetted event/ledger rules, constraints, expression indexes and custom table access methods",
+      "Server whole-transaction/idle deadlines verified before BEGIN, including ignored pooler startup options",
+      "Inherited writer token cannot bypass unknown DB result",
+      "Prepared DB proof cannot authorize web upload; fresh applied snapshot is mandatory",
+      "Unknown result retains a shared durable marker; proven commit/abort reconciles without replay",
+      "Owned internal-network proxy and cancellation cleanup reviewed"
+    ],
+    "integrationFixes": [
+      "Tracked ROLLBACK.md is documentation only",
+      "Raw-source preflight precedes vendor tuple creation",
+      "Catalog default-ACL internal char is explicitly converted to text",
+      "Standard pgrst hook bytes are pinned and trusted administrator owners admitted",
+      "Owned pg_cron baseline is sealed before template cloning",
+      "Deadline fixture uses a concurrent reader lock",
+      "macOS temporary directory is canonicalized before private artifact checks"
+    ]
+  },
+  "resourceBudget": {
+    "heavyCommands": "serial nice15",
+    "testWorkers": 1,
+    "nodeHeapMiB": {
+      "tests": 1024,
+      "static": 2048
+    },
+    "nativeThreads": 2,
+    "ownedDatabaseCpu": 1,
+    "ownedDatabaseMemoryMiB": 512,
+    "proxyConnections": 16,
+    "network": "internal; loopback-only owned broker",
+    "lastHeadroom": {
+      "memoryFreePercent": 45,
+      "diskFreeBytes": 6857797632,
+      "load": 4.236328125,
+      "cores": 8
+    }
+  },
+  "notRun": {
+    "exactCandidateBetaBrowserAndPackagedAgent": "Required before production; no sealed package provenance currently available, mixed workingtree is ineligible",
+    "productionDatabase": "NOT_RUN",
+    "productionUploadAndLiveSmoke": "NOT_RUN",
+    "nativeBuildsTagsAssetsVersions": "NOT_CHANGED",
+    "fullApplicationSuite": "Not rerun for this DB extension; prior web-only receipt remains historical. Focused and release regressions listed above."
+  },
+  "checkedCode": {
+    "scripts/release-web-only.mjs": "764ea763490b90f17301389d6f8df3d281ad5cdbe8deadf9bdb683d8268c8458",
+    "scripts/verify-web-only.mjs": "130d0037e171f53e8008915e53b695add71dd694e9ca619e92cdc08c5eacaf64",
+    "scripts/test-mini-db-isolated.mjs": "60498990abc848bf5138e509c98018494e635b1afdf0329c5c90a1130b73a35e",
+    "scripts/test-mini-db-self.mjs": "21d53c24b875ca767ff57cb0845aa4588e9a1aa459eb9a80b40ae44977f3784b",
+    "scripts/lib/mini-db-policy.mjs": "36b7481f6ec220a3d3168437513867f830a4e107bc1a055cadb78ffcf2012c44",
+    "scripts/lib/mini-db-plan.mjs": "2420a944974a1a1319444a8c94cdba46cf7b74f37778fd6d2b64475142e89b7e",
+    "scripts/lib/mini-db-release.mjs": "c2e59b9308ca9d5b9020c5c3b1607ed11e851d01fc8ed86f4b98fb26473431a0",
+    "scripts/lib/mini-db-rehearsal.mjs": "e05566ac9b59f4801ca2dc446caa6bc7e55c1aba15934e6e4818b288bc66b808",
+    "scripts/lib/mini-db-transaction.mjs": "9b2027a12fbb623227719eacb5119faa1fdd696ce5e256a07fef9c271cecdb18",
+    "scripts/lib/mini-db-writer-lock.mjs": "157c0e5af98bd5f1b74146df2f39b4d5ef92be2192eec6ce4e7c30539ca8cbc9",
+    "scripts/lib/web-only-lock.mjs": "858f98b2cdef6cfc84d46b90aa17599b9135874a7926e2a3d84311003bbf63b1",
+    "scripts/lib/web-only-proof.mjs": "a485453b1b2891c292316a0a0d4d35de307ea7ce281e1b3a5f8d76160178b895",
+    "scripts/lib/web-only-policy.mjs": "5e08eab596f1efe4b05dcce343ffef47893b641887bfbb8db4f7f6797eef5cbe",
+    "scripts/apply-backend-plan.mjs": "e8334ca0835bef5c4ebb1730dc99004205c7942547c62fd6ad7a9825834163dc",
+    "scripts/lib/release/step-adapter.mjs": "4fac043b70fd80944cbbba5d842c0e3de039933ee7771786e08c4944984ff315",
+    "tests/mini-db-policy.test.ts": "49f912609a0068289050301a5b8e6a5fc867e164f067b6887d42d6562cffdf6f",
+    "tests/mini-db-plan.test.ts": "3ceba3c413ef17ee24e36fa83ff62a03d0ba7d151b5986bb91278c3e9692a337",
+    "tests/mini-db-release.test.ts": "b30a460738bbcc7356e1070745171e15667e6130e8207ec06c825390b0b82b3c",
+    "tests/mini-db-transaction.test.ts": "cffb3a130d1e5ed2b0e96e79f143a7b7b6691ec7f274c9b31f655a586e910f06",
+    "tests/mini-db-rehearsal.test.ts": "2ca867254d92689a42708dff22a76ebf269c63b09b316d53a5ef5dfda49747cc",
+    "tests/mini-db-writer-lock.test.ts": "2963d03d8546d24fe845e639e6d52f75bc8d1dcdccc6520d92bb13c5d49f7214",
+    "scripts/analytics/coverage-registry.ts": "e84cde7401ae9bccc97e8f1fc9397307b1b7a7dfd4f9b5dcb94337b844622d5e"
+  },
+  "candidateCheck": {
+    "ok": false,
+    "state": "ineligible",
+    "reason": "Current mixed uncommitted changes are refused before builds or writes",
+    "log": "release/automation/web-only-implementation/db-candidate-check.log"
+  }
+}

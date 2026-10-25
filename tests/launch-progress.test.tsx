@@ -61,7 +61,7 @@ it('keeps catalog progress steady through cache invalidation and preserves it on
   view.rerender(<LaunchGenerationProgress {...props} />);
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(screen.getByText(/Live progress is unavailable/u)).toBeTruthy();
-  expect(catalog.dataset.state).toBe('active');
+  expect(catalog.dataset.state).toBe('attention');
   expect(fill()).toBe(confirmed);
   workspace.realtimeConnectionState = 'connected';
   view.rerender(<LaunchGenerationProgress {...props} />);
@@ -73,7 +73,7 @@ it('keeps catalog progress steady through cache invalidation and preserves it on
     />
   );
   expect(catalog.dataset.state).toBe('attention');
-  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toContain('Generation stopped');
 });
 
 it('retains measured fill through missing or older samples and resets it for another attempt', () => {
@@ -114,10 +114,24 @@ it('retains measured fill through missing or older samples and resets it for ano
 });
 it('shows indeterminate progress without inventing a percentage', () => {
   const cancel = vi.fn();
-  render(<LaunchGenerationProgress generation={generation} onCancel={cancel} disabled={false} />);
+  const retry = vi.fn();
+  render(
+    <LaunchGenerationProgress
+      generation={generation}
+      onCancel={cancel}
+      disabled={false}
+      retryActions={<button onClick={retry}>Repeat</button>}
+    />
+  );
   expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false);
   expect(screen.queryByText(/\d+%/u)).toBeNull();
-  fireEvent.click(screen.getByRole('button'));
+  const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+  const retryButton = screen.getByRole('button', { name: 'Repeat' });
+  expect(retryButton.previousElementSibling).toBe(cancelButton);
+  fireEvent.click(retryButton);
+  expect(retry).toHaveBeenCalledOnce();
+  expect(cancel).not.toHaveBeenCalled();
+  fireEvent.click(cancelButton);
   expect(cancel).toHaveBeenCalledTimes(1);
 });
 it('does not repeat the generic preparing status while a request is unresolved', () => {
@@ -190,7 +204,8 @@ it('keeps cancellation available after failure without showing work as still run
     />
   );
   expect(screen.queryByRole('progressbar')).toBeNull();
-  fireEvent.click(screen.getByRole('button'));
+  const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+  fireEvent.click(cancelButton);
   expect(cancel).toHaveBeenCalledTimes(1);
 });
 
@@ -517,4 +532,24 @@ it('keeps a durably finalized video complete when catalog planning resumes', () 
   expect(
     screen.getAllByRole('listitem').find(item => item.textContent === 'Catalog')?.dataset.state
   ).toBe('active');
+});
+
+it('makes an uncertain request error explicit without claiming the server stopped', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={null}
+      pendingStage="preparing"
+      requestError="The server returned an unexpected response. Try again."
+      requestErrorCode="INVALID_RESPONSE"
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toContain('Error — check the status');
+  expect(alert.textContent).toContain('The operation may still be running');
+  expect(screen.queryByText('Generation stopped')).toBeNull();
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(document.querySelector('.launch-generation-progress.is-error')).toBeTruthy();
+  expect(screen.getAllByRole('listitem').some(item => item.dataset.state === 'active')).toBe(false);
 });

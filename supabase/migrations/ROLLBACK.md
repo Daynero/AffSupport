@@ -2094,3 +2094,7 @@ Forward-only behavior correction; no data rewrites. To restore the old blocking 
 ## 20261206145100 — Launch restitch updater swaps
 
 Preserve the reference-based cleanup fences and the catalog-SUB wrapper. Revert this change only together with disabling Launch-linked catalog updates: restoring guard_launch_copy_retirement from 20261201152000 while leaving swaps enabled can strand a delivered update. The prior linker and inner attach definitions are in 20261201151000 (the inner attach is named service_attach_launch_catalog_before_catalog_sub after 20261206142000). Never delete retained video materials or their ledger/reference rows as part of rollback.
+
+### 20261206145200 — Launch restitch with a versioned catalog SUB
+
+Restore `service_link_launch_restitch_catalog` from 20261206145100 only after active Launch catalog registrations settle. This restores the previous URL check and therefore reintroduces refusal of a restitched catalog whose SUB includes its reserved catalog name; no rows or published revision snapshots are rewritten. Keep the catalog-SUB publication wrapper and all provenance/lease guards.

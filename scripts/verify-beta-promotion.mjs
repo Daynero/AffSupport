@@ -105,48 +105,62 @@ if (!contained) {
   );
 }
 
-if (!existsSync(RECORD_PATH)) {
-  fail(
-    `no beta verification record at ${RECORD_PATH}. ` +
-      'Run `npm run beta:package` then `npm run beta:verify` before releasing.'
+if (process.argv.includes('--web-only')) {
+  // A distinct proof for this exact web candidate; full package promotion below is unchanged.
+  const { activeBinding } = await import('./lib/release/bindings.mjs');
+  const { assertStoredWebOnlyProof } = await import('./lib/web-only-proof.mjs');
+  try {
+    const proof = await assertStoredWebOnlyProof({ cwd: process.cwd(), binding: activeBinding() });
+    process.stdout.write(
+      `Web-only beta verification confirmed: ${proof.sourceSha.slice(0, 12)} with unchanged packaged agent.\n`
+    );
+  } catch (error) {
+    fail(error instanceof Error ? error.message : 'web-only candidate proof is unavailable');
+  }
+} else {
+  if (!existsSync(RECORD_PATH)) {
+    fail(
+      `no beta verification record at ${RECORD_PATH}. ` +
+        'Run `npm run beta:package` then `npm run beta:verify` before releasing.'
+    );
+  }
+
+  let record;
+  try {
+    record = JSON.parse(readFileSync(RECORD_PATH, 'utf8'));
+  } catch {
+    fail(`the beta verification record at ${RECORD_PATH} is not readable JSON.`);
+  }
+
+  if (typeof record?.sourceRevision !== 'string' || !record.sourceRevision) {
+    fail('the beta verification record does not name a source revision.');
+  }
+  if (record.sourceRevision !== head) {
+    fail(
+      `the beta verification record is for ${record.sourceRevision.slice(0, 12)}, ` +
+        `but the release commit is ${head.slice(0, 12)}. A pass on other code proves nothing about this one.`
+    );
+  }
+  // Required to be exactly `false`, not merely "not true". The record's whole
+  // claim is that this build corresponds to this commit, and a record that does
+  // not say whether the tree was clean has not made that claim — a hand-written
+  // or truncated one would otherwise satisfy the gate by omission.
+  if (record.dirty !== false) {
+    fail(
+      record.dirty === true
+        ? 'the packaged beta was built from a dirty worktree, so it does not correspond to any commit.'
+        : 'the beta verification record does not state whether the worktree was clean.'
+    );
+  }
+  if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) {
+    fail('the beta verification record has no verification timestamp.');
+  }
+  if (typeof record.packageDigest !== 'string' || !/^[a-f0-9]{64}$/u.test(record.packageDigest)) {
+    fail('the beta verification record has no valid packaged release digest.');
+  }
+
+  process.stdout.write(
+    `Beta verification confirmed: ${head.slice(0, 12)} was exercised on packaged build ` +
+      `${record.buildId ?? 'unknown'} at ${record.verifiedAt}.\n`
   );
 }
-
-let record;
-try {
-  record = JSON.parse(readFileSync(RECORD_PATH, 'utf8'));
-} catch {
-  fail(`the beta verification record at ${RECORD_PATH} is not readable JSON.`);
-}
-
-if (typeof record?.sourceRevision !== 'string' || !record.sourceRevision) {
-  fail('the beta verification record does not name a source revision.');
-}
-if (record.sourceRevision !== head) {
-  fail(
-    `the beta verification record is for ${record.sourceRevision.slice(0, 12)}, ` +
-      `but the release commit is ${head.slice(0, 12)}. A pass on other code proves nothing about this one.`
-  );
-}
-// Required to be exactly `false`, not merely "not true". The record's whole
-// claim is that this build corresponds to this commit, and a record that does
-// not say whether the tree was clean has not made that claim — a hand-written
-// or truncated one would otherwise satisfy the gate by omission.
-if (record.dirty !== false) {
-  fail(
-    record.dirty === true
-      ? 'the packaged beta was built from a dirty worktree, so it does not correspond to any commit.'
-      : 'the beta verification record does not state whether the worktree was clean.'
-  );
-}
-if (typeof record.verifiedAt !== 'string' || !record.verifiedAt) {
-  fail('the beta verification record has no verification timestamp.');
-}
-if (typeof record.packageDigest !== 'string' || !/^[a-f0-9]{64}$/u.test(record.packageDigest)) {
-  fail('the beta verification record has no valid packaged release digest.');
-}
-
-process.stdout.write(
-  `Beta verification confirmed: ${head.slice(0, 12)} was exercised on packaged build ` +
-    `${record.buildId ?? 'unknown'} at ${record.verifiedAt}.\n`
-);

@@ -1,4 +1,17 @@
 <!--
+Sync Impact Report — 2026-10-25
+Version: 3.0.1 → 3.1.0 (proposed scoped web-only admission).
+Owner explicitly narrowed feature 043 to the trusted-local web-only MVP and
+requested implementation. Full packaging exact-SHA beta rules remain unchanged.
+The owner subsequently approved a narrow additive DB mini phase; the scoped
+exception below preserves dedicated credentials, atomicity and fail-closed recovery.
+A new web candidate requires its own fresh proof against a historically sealed,
+unchanged packaged beta; no metadata-only/stale-record or compatibility skip.
+AGENTS.md and beta/production runbooks synchronized. This is a working-tree
+proposal; no maintainer merge/ratification or production GO is claimed.
+-->
+
+<!--
 Sync Impact Report — 2026-09-24
 ==============================
 Version change: 3.0.0 → 3.0.1 (clarification of existing transport scopes).
@@ -111,6 +124,31 @@ identity and contract versions are intentionally decoupled and MUST stay so.
   pass. Candidate validation MUST NOT substitute for final deployment validation.
   Versioned gate contexts MUST distinguish preparation from packaging: a preparation
   check may precede beta, but production packaging MUST require the exact-SHA beta proof.
+- A separately scoped web-only MVP MAY verify a new clean web candidate against an
+  unchanged packaged beta without rebuilding agent installers. It MUST retain ancestry,
+  immutable agent/shared/config/dependency inputs, signed-channel byte equality, final
+  contract/signature and published-asset checks, and current production activation.
+  Its separate fresh proof MUST bind exact candidate/config/bundle/package bytes and
+  real authenticated, entitlement-enforced candidate UI/runtime evidence. A package-time
+  payload seal matched by full beta verification is required; metadata-only legacy
+  records MUST NOT be promoted to payload proof. Full package promotion retains its
+  exact-SHA packaged-beta requirement. Broader DB/functions/shared exceptions and
+  untrusted-code isolation remain outside this trusted-local MVP, not bypass flags.
+- The owner-approved additive DB mini phase MAY add nullable builtin columns without
+  defaults/constraints and plain nonunique btree indexes over safe builtin scalar
+  columns of ordinary `public` tables without changing agent versions/installers.
+  It MUST require PostgreSQL 17+, a dedicated release connection (never analytics),
+  source-bound official statement tuples, exact before/after catalog/history proof,
+  and pinned CLI 2.117 interoperability in an owned resource-bounded schema-only
+  clone: official A equals mini A and next full CLI B succeeds. Verification MUST
+  NOT write production or reset the running beta stack; real beta MUST already
+  have the candidate after-schema and pass actual browser/unchanged packaged-agent
+  acceptance. Production activation MUST precede one atomic transaction containing
+  all approved DDL and official history inserts. Unknown SQL/hooks/ledger shape and
+  all unsupported changes MUST block. Unknown outcomes MUST block every writer
+  until explicit read-only reconciliation proves committed or aborted; replay,
+  down migrations, evidence deletion and automatic rollback are forbidden. A later
+  failed web upload MUST NOT reverse the committed compatible additive schema.
 - Because `packages/shared/dist` is committed, any script or command that consumes the
   contract MUST rebuild shared first (`npm run build -w @video-compressor/shared`) so it
   validates against current constants, not a stale `dist`.
@@ -219,7 +257,7 @@ one token layer, and no data-fetching library — keep new code inside these est
   token from `apps/web/src/styles/tokens.css` instead of writing a colour, radius, type step or
   duration. That token file is the only place in the product allowed to spell a value, and its
   exemption list is empty. The inventory is implemented on **HeroUI v3** (React Aria +
-  Tailwind v4) and is themed *from* the token layer, never the reverse: the library wears
+  Tailwind v4) and is themed _from_ the token layer, never the reverse: the library wears
   Soty's skin. New style is written as utilities against that token-derived theme; a
   screen-level stylesheet is a debt a screen keeps only until its migration deletes it.
   Theming stays CSS custom properties + `data-theme`, and inline `style` stays reserved for
@@ -315,4 +353,4 @@ precedents to extend (each anti-pattern above marks one such debt).
   Spec Kit templates under `.specify/` provide operational detail and MUST stay consistent
   with these principles.
 
-**Version**: 3.0.1 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-09-24
+**Version**: 3.1.0 | **Ratified**: 2026-08-01 | **Last Amended**: 2026-10-25

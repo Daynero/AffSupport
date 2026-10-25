@@ -1,6 +1,8 @@
 import type { LaunchGeneration, LaunchStage } from '@video-compressor/shared';
-import { useRef } from 'react';
-import { Button, Card, StageProgress } from '../../components/ui/index';
+import { useRef, type ReactNode } from 'react';
+import { CircleAlert } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Alert, Button, Card, StageProgress } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { useOptionalTeam } from '../TeamContext';
@@ -22,10 +24,12 @@ export function LaunchGenerationProgress({
   requestError,
   onRefresh,
   onOpenRestitchSettings,
-  requestErrorCode
+  requestErrorCode,
+  retryActions
 }: {
   onOpenRestitchSettings?: () => void;
   requestErrorCode?: string | null;
+  retryActions?: ReactNode;
   generation: LaunchGeneration | null;
   onCancel: () => void;
   disabled: boolean;
@@ -156,7 +160,7 @@ export function LaunchGenerationProgress({
       restitch: restitchEnabled,
       childSucceeded,
       // A stale observation does not undo completed work or turn it into a failure.
-      attention: needsAttention || cancelling,
+      attention: needsAttention || cancelling || uncertain,
       fraction
     },
     t
@@ -191,10 +195,45 @@ export function LaunchGenerationProgress({
           ? `${Math.round(childPercent)}%`
           : count
       : count;
+  const failed = Boolean(
+    childFailed || (current && ['failed', 'partial', 'interrupted'].includes(current.state))
+  );
+  const showError =
+    !cancelling &&
+    needsAttention &&
+    current?.state !== 'succeeded' &&
+    current?.state !== 'canceled';
+  const unconfirmed =
+    showError && !failed && Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
   const showNotice =
-    cleanupPending || Boolean(requestError || code || uncertain || current?.stepsTruncated);
+    cleanupPending || (!showError && uncertain) || Boolean(current?.stepsTruncated);
   return (
-    <Card role="section" className="launch-generation-progress" title={t('launchesProgressTitle')}>
+    <Card
+      role="section"
+      className={`launch-generation-progress${showError ? ' is-error' : uncertain ? ' is-unconfirmed' : ''}`}
+      title={t('launchesProgressTitle')}
+    >
+      {showError && (
+        <Alert
+          color="error"
+          live="alert"
+          icon={<CircleAlert size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+          title={t(
+            failed
+              ? 'launchesProgressStopped'
+              : unconfirmed
+                ? 'launchesProgressErrorUnconfirmed'
+                : 'launchesProgressActionRequired'
+          )}
+        >
+          {requestError || (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
+          {unconfirmed && (
+            <span className="launch-progress-error-hint">
+              {t('launchesProgressUnconfirmedHint')}
+            </span>
+          )}
+        </Alert>
+      )}
       <StageProgress
         captionBelow
         stages={stages}
@@ -207,12 +246,8 @@ export function LaunchGenerationProgress({
         <div className="launch-progress-notice">
           {cleanupPending ? (
             <p role="status">{t('launchesCleanupPending')}</p>
-          ) : requestError ? (
-            <p role="alert">{requestError}</p>
-          ) : code ? (
-            <p role="alert">{teamErrorMessage(code, t)}</p>
-          ) : uncertain ? (
-            <p role="status">
+          ) : uncertain && !showError ? (
+            <Alert color="warning" title={t('launchesProgressUnconfirmed')}>
               {t(
                 watch.readFailed
                   ? 'launchesProgressRefreshFailed'
@@ -220,7 +255,7 @@ export function LaunchGenerationProgress({
                     ? 'launchesProgressConnectionLost'
                     : 'launchesProgressWaiting'
               )}
-            </p>
+            </Alert>
           ) : null}
           {current?.stepsTruncated && <p>{t('launchesStepsTruncated')}</p>}
         </div>
@@ -239,6 +274,7 @@ export function LaunchGenerationProgress({
             {t('launchesCancel')}
           </Button>
         )}
+        {retryActions}
       </div>
     </Card>
   );

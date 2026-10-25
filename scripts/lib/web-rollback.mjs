@@ -10,6 +10,95 @@
  * Nothing here touches the network or the disk; the gate does that with what
  * these functions choose.
  */
+import { createPublicKey, verify } from 'node:crypto';
+import {
+  RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
+  releaseManifestSigningPayload
+} from '../../packages/shared/dist/release.js';
+
+function refuse(code, message) {
+  const error = new Error(`${code}: ${message}`);
+  return Object.assign(error, { code });
+}
+
+/** Flat markers are current; legacy nested bindings must agree if also present. */
+export function assertRollbackBinding(deployment, bindingId) {
+  const flat = deployment?.bindingId;
+  const nested = deployment?.binding?.bindingId;
+  if (
+    typeof bindingId !== 'string' ||
+    !bindingId ||
+    (flat === undefined && nested === undefined) ||
+    (flat !== undefined && flat !== bindingId) ||
+    (nested !== undefined && nested !== bindingId)
+  )
+    throw refuse('ROLLBACK_BINDING_MISMATCH', 'deployment is not proven to belong to this target');
+  return bindingId;
+}
+
+/** The local current signed channel must survive rollback byte-for-byte. */
+export function assertRollbackManifest({
+  local,
+  archived,
+  live,
+  publicKeySpki = RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
+}) {
+  const current = Buffer.from(local);
+  if (!current.equals(Buffer.from(archived)) || !current.equals(Buffer.from(live)))
+    throw refuse(
+      'ROLLBACK_CHANNEL_CHANGED',
+      'local, archived and live stable manifest bytes differ'
+    );
+  let manifest;
+  try {
+    manifest = JSON.parse(current.toString('utf8'));
+    if (
+      !manifest ||
+      manifest.schemaVersion !== 1 ||
+      manifest.channel !== 'stable' ||
+      typeof manifest.signature !== 'string' ||
+      !/^[A-Za-z0-9_-]+$/u.test(manifest.signature) ||
+      !verify(
+        'sha256',
+        Buffer.from(releaseManifestSigningPayload(manifest), 'utf8'),
+        {
+          key: createPublicKey({
+            key: Buffer.from(publicKeySpki, 'base64'),
+            format: 'der',
+            type: 'spki'
+          }),
+          dsaEncoding: 'ieee-p1363'
+        },
+        Buffer.from(manifest.signature, 'base64url')
+      )
+    )
+      throw new Error('invalid signature');
+  } catch {
+    throw refuse('ROLLBACK_MANIFEST_INVALID', 'current stable manifest signature does not verify');
+  }
+  return manifest;
+}
+
+/** A rollback is a new deployment, so future selection sees the actual current bytes. */
+export function rollbackReceipt({ target, current, deployedAt }) {
+  if (typeof deployedAt !== 'string' || !Number.isFinite(Date.parse(deployedAt)))
+    throw refuse('ROLLBACK_RECEIPT_INVALID', 'a fresh deployment timestamp is required');
+  const bindingId = target.bindingId ?? target.binding?.bindingId;
+  assertRollbackBinding(target, bindingId);
+  assertRollbackBinding(current, bindingId);
+  const deployment = { ...target };
+  delete deployment.rolledBackFrom;
+  return {
+    ...deployment,
+    bindingId,
+    deployedAt,
+    rolledBackFrom: {
+      sourceSha: current.sourceSha,
+      outputDigest: current.outputDigest,
+      deployedAt: current.deployedAt ?? null
+    }
+  };
+}
 
 /**
  * @param {string} text
@@ -30,6 +119,7 @@ export function parseHistory(text) {
  *   sourceSha: string,
  *   outputDigest: string,
  *   deployedAt?: string,
+ *   bindingId?: string,
  *   binding?: {bindingId?: string}
  * }} Deployment
  *

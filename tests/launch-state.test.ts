@@ -4127,6 +4127,7 @@ it('records revoked actor authority once and drains those rows from recovery wit
 it('binds the exact reserved catalog version without changing the child request, then freezes the published SUB', async () => {
   const p = await prepare({
     method: 'catalog',
+    originalUrl: 'https://example.invalid/?sub1=old&x={{campaign.id}}',
     subConfig: { schemaVersion: 1, sub1: ['catalogName'], sub2: [], sub3: [] }
   });
   const accepted = await accept(p.args);
@@ -4519,4 +4520,196 @@ it('keeps copy receipts personal, value-sensitive and stable across manual saves
     [team, viewer]
   );
   await expect(db.asUser(viewer, get, viewerArgs)).rejects.toThrow();
+});
+
+it('registers a restitched catalog with the staged versioned SUB before publishing the revision', async () => {
+  await db.root('update public.team_restitch_defaults set configured=false where team_id=$1', [
+    team
+  ]);
+  const p = await prepare({
+    method: 'catalog',
+    originalUrl: 'https://example.invalid/?sub1=old&x={{campaign.id}}',
+    subConfig: { schemaVersion: 1, sub1: ['catalogName'], sub2: [], sub3: [] },
+    catalog: {
+      productCount: 100,
+      restitchEnabled: true,
+      finalDurationMode: 'custom',
+      customFinalDurationSeconds: 120
+    }
+  });
+  const g = await accept(p.args);
+  const prep = (
+    await db.asUser<{ v: { processKey: string } }>(
+      ACTOR,
+      'select public.prepare_launch_restitch($1,$2) v',
+      [team, g.id]
+    )
+  )[0].v;
+  const op = (
+    await db.root<{ id: string }>(
+      "insert into public.team_operations(team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce) values($1,$2,'process','pending',$3,$4,$5) returning id",
+      [team, ACTOR, material, prep.processKey, `versioned-restitch-${++seq}`]
+    )
+  )[0].id;
+  await db.root(
+    "insert into private.team_operation_intents(operation_id,team_id,tool_id,tool_contract_version,relation) values($1,$2,'restitch',2,'processed_from')",
+    [op, team]
+  );
+  await db.asUser(ACTOR, 'select public.bind_launch_restitch($1,$2,$3)', [team, g.id, op]);
+  await db.root("update public.team_operations set state='running' where id=$1", [op]);
+  const video = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version,checksum) select team_id,connection_id,$2,'sub-restitch.mp4','file','video','video/mp4','1',$3 from public.team_materials where id=$1 returning id",
+      [material, `sub-restitch-${seq}`, 'a'.repeat(32)]
+    )
+  )[0].id;
+  await db.root(
+    "update public.team_operations set state='succeeded',finished_at=now(),result_material_id=$2 where id=$1",
+    [op, video]
+  );
+  await db.asUser(ACTOR, 'select public.settle_launch_restitch($1,$2)', [team, g.id]);
+  const owner = 'versioned-restitch-owner';
+  const claim = (
+    await db.root<{ v: { fence: string } }>(
+      'select public.service_claim_launch_generation($1,$2,$3,$4) v',
+      [team, g.id, ACTOR, owner]
+    )
+  )[0].v;
+  const authority = [team, g.id, ACTOR, owner, claim.fence];
+  const original = (
+    await db.root<{ url: string }>(
+      'select generated_url url from public.team_launch_revisions where id=$1',
+      [g.revisionId]
+    )
+  )[0].url;
+  const key = `launch:${g.id}:catalog`;
+  const childOwner = crypto.randomUUID();
+  const payload = {
+    teamId: team,
+    videoMaterialId: material,
+    sourceLink: original,
+    productCount: 100,
+    replacesMaterialId: null,
+    restitchOperationId: op,
+    idempotencyKey: key,
+    randomLinkVariation: true
+  };
+  const child = (
+    await db.root<{ v: { id: string; fence: string; variant: number } }>(
+      'select public.service_begin_catalog_intent($1,$2,$3,$4,$5,$6) v',
+      [team, material, ACTOR, key, JSON.stringify(payload), childOwner]
+    )
+  )[0].v;
+  const name = `v5_v${child.variant}_catalog`;
+  await db.root(
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'planned',$6,null,null)",
+    [
+      team,
+      child.id,
+      ACTOR,
+      childOwner,
+      child.fence,
+      JSON.stringify({ namePlan: { name, reservationKey: name } })
+    ]
+  );
+  const source = parseLaunchSources(JSON.parse(p.args[7] as string))!;
+  const preview = launchPreview(p.config, source, name);
+  if (!preview.ok) throw new Error('fixture');
+  const cat = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) select team_id,connection_id,$2,$3,'file','other','application/vnd.google-apps.spreadsheet','1' from public.team_materials where id=$1 returning id",
+      [material, `sub-sheet-${seq}`, name]
+    )
+  )[0].id;
+  await db.root(
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'finalized',$6,null,null)",
+    [team, child.id, ACTOR, childOwner, child.fence, JSON.stringify({ materialId: cat })]
+  );
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/sub-restitch-synthetic';
+  const record = {
+    sourceLink: preview.value.advertisingUrl,
+    productCount: 100,
+    sheetUrl,
+    videoLink: 'https://drive.google.com/file/d/original',
+    currentVideoLink: 'https://drive.google.com/file/d/restitch',
+    restitchMaterialId: video,
+    restitchOperationId: op,
+    settingsSnapshot: {
+      title: 'Synthetic',
+      description: 'Product',
+      price: 10,
+      imageLink: 'https://example.invalid/image.jpg'
+    },
+    createdBy: ACTOR,
+    variant: child.variant
+  };
+  const link = 'select public.service_link_launch_restitch_catalog($1,$2,$3,$4,$5,$6,$7) v';
+  await expect(db.root(link, [...authority, cat, JSON.stringify(record)])).rejects.toThrow(
+    'WRONG_STATE'
+  );
+  await db.root('select public.service_bind_launch_catalog_subs($1,$2,$3,$4,$5,$6,$7,$8)', [
+    ...authority,
+    name,
+    preview.value.advertisingUrl,
+    JSON.stringify(preview.value.subValues)
+  ]);
+  await expect(
+    db.root(link, [...authority, cat, JSON.stringify({ ...record, sourceLink: original })])
+  ).rejects.toThrow('WRONG_STATE');
+  expect(
+    (
+      await db.root<{ v: { linked: boolean } }>(link, [...authority, cat, JSON.stringify(record)])
+    )[0].v.linked
+  ).toBe(true);
+  expect(
+    (
+      await db.root<{ url: string }>(
+        'select generated_url url from public.team_launch_revisions where id=$1',
+        [g.revisionId]
+      )
+    )[0].url
+  ).toBe(original);
+  const result = {
+    outcome: 'created',
+    videoShared: true,
+    catalog: {
+      materialId: cat,
+      name,
+      sheetUrl,
+      sourceLink: preview.value.advertisingUrl,
+      productCount: 100,
+      createdAt: null,
+      variant: child.variant
+    }
+  };
+  await db.root(
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'registered','{}',null,$6)",
+    [team, child.id, ACTOR, childOwner, child.fence, JSON.stringify(result)]
+  );
+  await db.root('select public.service_attach_launch_catalog($1,$2,$3,$4,$5)', authority);
+  await db.root('select public.service_publish_launch_generation($1,$2,$3,$4)', [
+    team,
+    g.id,
+    ACTOR,
+    claim.fence
+  ]);
+  setQueryExecutor((sql, params) => db.root(sql, params));
+  try {
+    const evidence = (await getLaunchEvidence(g.id)).generations[0];
+    expect(evidence.state).toBe('succeeded');
+    expect(evidence.catalog_sub_binding).toEqual({
+      required: true,
+      resolved: true,
+      committed: true
+    });
+    expect(JSON.stringify(evidence)).not.toContain(preview.value.advertisingUrl);
+  } finally {
+    setQueryExecutor(null);
+  }
+  await expect(
+    db.root(
+      "update public.team_launch_revisions set generated_url='https://changed.invalid/' where id=$1",
+      [g.revisionId]
+    )
+  ).rejects.toThrow('WRONG_STATE');
 });

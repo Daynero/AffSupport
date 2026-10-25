@@ -11,7 +11,9 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { activeBinding } from './lib/release/bindings.mjs';
-import { writeWebMarker } from './release-web-meta.mjs';
+import { writeWebMarker, outputDigest } from './release-web-meta.mjs';
+import { createHash } from 'node:crypto';
+import { acquireWebReleaseLock, assertWebReleaseUnlocked } from './lib/web-only-lock.mjs';
 import { bundlesToKeep, parseHistory } from './lib/web-rollback.mjs';
 
 /**
@@ -37,7 +39,12 @@ const KEEP_BUNDLES = 5;
 const MANIFEST = 'apps/web/public/.well-known/wishly/stable.json';
 
 function gitSha(args) {
-  return execFileSync('git', args, { encoding: 'utf8', shell: false }).trim();
+  return execFileSync('git', ['-c', 'core.fsmonitor=false', ...args], {
+    encoding: 'utf8',
+    shell: false,
+    timeout: 10000,
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
+  }).trim();
 }
 
 export function deploymentIdentity(cwd = process.cwd()) {
@@ -51,62 +58,91 @@ export function deploymentIdentity(cwd = process.cwd()) {
 
 if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const binding = activeBinding();
-  if (!existsSync(BUNDLE)) {
-    process.stderr.write(`Nothing to deploy: ${BUNDLE} does not exist. Build the web app first.\n`);
-    process.exit(1);
-  }
-  const { sourceSha, manifestSha } = deploymentIdentity();
-  // Deliberately outside the bundle: the digest describes exactly the bytes
-  // that get uploaded, and a receipt stored among them would not be covered by
-  // the number it carries.
-  mkdirSync('release/automation', { recursive: true, mode: 0o700 });
-  const marker = await writeWebMarker({
-    directory: path.resolve(BUNDLE),
-    output: path.resolve('release/automation/web-deployment.json'),
-    binding,
-    sourceSha,
-    manifestSha
-  });
-  process.stdout.write(
-    `Deploying ${binding.bindingId} → Cloudflare project ${binding.cloudflareProject} ` +
-      `(source ${marker.sourceSha.slice(0, 12)}, bundle ${marker.outputDigest.slice(0, 12)}).\n`
-  );
-  const result = spawnSync(
-    'npx',
-    [
-      '--yes',
-      WRANGLER,
-      'pages',
-      'deploy',
-      BUNDLE,
-      '--project-name',
-      binding.cloudflareProject,
-      '--branch',
-      'main'
-    ],
-    { shell: false, stdio: 'inherit' }
-  );
+  const inheritedToken = process.env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? null;
+  await assertWebReleaseUnlocked(process.cwd(), inheritedToken);
+  const ownedLock = inheritedToken
+    ? null
+    : await acquireWebReleaseLock({ root: process.cwd(), owner: 'deploy-web' });
+  try {
+    let webProof = null;
+    if (process.argv.includes('--web-only')) {
+      const { assertStoredWebOnlyProof } = await import('./lib/web-only-proof.mjs');
+      webProof = await assertStoredWebOnlyProof({ cwd: process.cwd(), binding });
+    }
 
-  // Archived only after the upload succeeded, and keyed by the digest of what
-  // was uploaded. Rolling back then means redeploying bytes this project has
-  // actually served, rather than rebuilding from source and shipping something
-  // nobody has ever run — which would be a second unverified deploy calling
-  // itself a rollback.
-  if (result.status === 0) {
+    if (!existsSync(BUNDLE)) {
+      process.stderr.write(
+        `Nothing to deploy: ${BUNDLE} does not exist. Build the web app first.\n`
+      );
+      throw new Error('WEB_BUNDLE_MISSING');
+    }
+    const { sourceSha, manifestSha } = deploymentIdentity();
+    // Deliberately outside the bundle: the digest describes exactly the bytes
+    // that get uploaded, and a receipt stored among them would not be covered by
+    // the number it carries.
+    mkdirSync('release/automation', { recursive: true, mode: 0o700 });
+    const marker = await writeWebMarker({
+      directory: path.resolve(BUNDLE),
+      output: path.resolve('release/automation/web-deployment.json'),
+      binding,
+      sourceSha,
+      manifestSha
+    });
+    const manifestDigest = createHash('sha256').update(readFileSync(MANIFEST)).digest('hex');
+    if (
+      webProof &&
+      (webProof.productionBundleDigest !== marker.outputDigest ||
+        webProof.manifestDigest !== manifestDigest)
+    )
+      throw new Error('WEB_ONLY_ARTIFACT_CHANGED');
+    // Freeze owned bytes before the upload, including when its response is later lost.
     const destination = path.join(ARCHIVE, marker.outputDigest);
     mkdirSync(ARCHIVE, { recursive: true, mode: 0o700 });
     if (!existsSync(destination)) cpSync(BUNDLE, destination, { recursive: true });
-    appendFileSync(
-      HISTORY,
-      `${JSON.stringify({ ...marker, deployedAt: new Date().toISOString() })}\n`,
-      {
-        mode: 0o600
-      }
+    if ((await outputDigest(destination)) !== marker.outputDigest)
+      throw new Error('WEB_ARCHIVE_CHANGED');
+    process.stdout.write(
+      `Deploying ${binding.bindingId} → Cloudflare project ${binding.cloudflareProject} ` +
+        `(source ${marker.sourceSha.slice(0, 12)}, bundle ${marker.outputDigest.slice(0, 12)}).\n`
     );
-    const keep = new Set(bundlesToKeep(parseHistory(readFileSync(HISTORY, 'utf8')), KEEP_BUNDLES));
-    for (const entry of readdirSync(ARCHIVE))
-      if (!keep.has(entry)) rmSync(path.join(ARCHIVE, entry), { recursive: true, force: true });
-  }
+    const result = spawnSync(
+      'npx',
+      [
+        '--yes',
+        WRANGLER,
+        'pages',
+        'deploy',
+        destination,
+        '--project-name',
+        binding.cloudflareProject,
+        '--branch',
+        'main'
+      ],
+      { shell: false, stdio: 'inherit' }
+    );
 
-  process.exit(result.status ?? 1);
+    // A successful upload advances history; its exact bytes were frozen before upload. Rolling back then means redeploying bytes this project has
+    // actually served, rather than rebuilding from source and shipping something
+    // nobody has ever run — which would be a second unverified deploy calling
+    // itself a rollback.
+    if (result.status === 0) {
+      appendFileSync(
+        HISTORY,
+        `${JSON.stringify({ ...marker, manifestDigest, bindingDigest: binding.digest, ...(webProof ? { kind: 'web-only', webBuildId: webProof.webBuildId } : {}), deployedAt: new Date().toISOString() })}\n`,
+        {
+          mode: 0o600,
+          flush: true
+        }
+      );
+      const keep = new Set(
+        bundlesToKeep(parseHistory(readFileSync(HISTORY, 'utf8')), KEEP_BUNDLES)
+      );
+      for (const entry of readdirSync(ARCHIVE))
+        if (!keep.has(entry)) rmSync(path.join(ARCHIVE, entry), { recursive: true, force: true });
+    }
+
+    process.exitCode = result.status ?? 1;
+  } finally {
+    await ownedLock?.release();
+  }
 }

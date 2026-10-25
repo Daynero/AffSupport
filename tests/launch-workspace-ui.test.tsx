@@ -139,14 +139,20 @@ vi.mock('../apps/web/src/team/launches/LaunchEditor', () => ({
 vi.mock('../apps/web/src/team/launches/LaunchGenerationProgress', () => ({
   LaunchGenerationProgress: ({
     generation,
-    onOpenRestitchSettings
+    onOpenRestitchSettings,
+    retryActions
   }: {
     generation: { errorCode?: string } | null;
     onOpenRestitchSettings: () => void;
-  }) =>
-    generation?.errorCode === 'RESTITCH_POOL_EMPTY' ? (
-      <button onClick={onOpenRestitchSettings}>Choose re-stitching images</button>
-    ) : null
+    retryActions?: React.ReactNode;
+  }) => (
+    <section aria-label="Generation progress">
+      {generation?.errorCode === 'RESTITCH_POOL_EMPTY' && (
+        <button onClick={onOpenRestitchSettings}>Choose re-stitching images</button>
+      )}
+      {retryActions}
+    </section>
+  )
 }));
 vi.mock('../apps/web/src/team/launches/analytics', () => ({
   launchIntent: vi.fn(),

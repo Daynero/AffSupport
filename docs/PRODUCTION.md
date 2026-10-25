@@ -29,6 +29,100 @@ the release unless the commit is contained in the `beta` branch **and** a packag
 record exists for that exact revision. Run `npm run beta:package && npm run beta:verify` on the beta
 line first. Full workflow in [BETA.md](./BETA.md).
 
+## Web-only mini release (043 MVP)
+
+Use `npm run release:web -- --check` for read-only eligibility, `npm run
+beta:verify:web` to verify a new web candidate without rebuilding the sealed beta
+agent, and explicit `npm run release:web -- --deploy` to publish it. The new path
+keeps production activation, beta containment, web environment/team gates,
+`verify-release --mode=final`, signature and published artifact checks. It adds a
+fresh exact-input web proof; normal full packaging/promotion is unchanged.
+
+Only committed clean web/static changes qualify by default. Agent/shared/config/lockfile,
+function and unknown changes refuse before mutation; DB changes require the explicit
+additive DB phase below. A historical actual
+package payload seal is required, matched by full beta verification and a fresh
+hash/signature check; an old release.json-only record is insufficient. Prepare a
+sealed beta once using the canonical BETA workflow if missing. Mini verification
+builds only the beta and production web configurations, authenticates for real,
+uses enforced entitlement and confirms a completed packaged operation in the new
+UI. The full verification record is never rewritten to label old code as new.
+
+The verified production bundle is archived before upload and only those bytes are
+published. Live smoke and sequential byte readback must pass before completion.
+`npm run release:web -- --report` reads the local outcome; `published_unverified`
+or `unknown` is not success. Inspect external state before retrying a lost upload.
+Recovery uses archived exact bytes only when binding and local/archive/live signed
+channel match, then appends a new history receipt. It cannot restore an older agent
+channel or remove data. There is no automatic rollback.
+
+The MVP assumes trusted local source/operator and retains shared writer state
+across worktrees; the additive DB phase uses an isolated local rehearsal, while
+broader server automation remains deferred. New heavy boundaries check disk/memory/load, use nice 15,
+one test worker and bounded heap/native pools. Production action still requires
+explicit authorization and current governance/activation evidence. This source
+change itself is not ratification or a production GO.
+
+### Additive DB mini phase (043)
+
+For an agent-compatible web change, the explicit DB path supports only nullable
+builtin columns without defaults/constraints and plain nonunique btree indexes
+over safe builtin scalar columns of ordinary `public` tables. Functions, RLS,
+data writes, table creation, destructive SQL, custom types/collations/opclasses,
+partition/inheritance and unknown hooks/ledger write effects block. PostgreSQL
+17+ is required for the server-enforced whole-transaction deadline. Installers,
+agent versions, published assets and the signed update channel stay unchanged.
+
+Configure a dedicated release connection as `SOTY_MINI_DATABASE_URL` through local
+secret configuration. It must match the active production binding. Never use the
+analytics connection, put credentials in command arguments, or save them in plans
+or reports. Existing G0, beta containment and production activation gates apply.
+
+```bash
+npm run release:web -- --plan-db
+npm run beta:verify:web -- --backend-plan="/absolute/path/from-plan.json"
+npm run release:web -- --deploy --backend-plan="/absolute/path/from-plan.json"
+npm run release:web -- --report
+```
+
+Use the same exact draft path printed by `--plan-db` for verification and deploy.
+Planning is read-only against production. Verification uses pinned Supabase CLI
+2.117 and an owned one-CPU/512-MiB local disposable PostgreSQL container, copying
+schema/role definitions only, without application rows/passwords. It proves the
+exact target baseline, official CLI A equals mini A, source-bound official ledger
+tuples, and successful next full CLI B. Real beta must already have the exact
+planned after-schema, followed by real browser/unchanged packaged-agent acceptance.
+The mini command never resets the running beta stack or rebuilds an installer.
+
+The proof binds source/target, exact before/after catalog and migration history,
+rehearsal, beta schema, unchanged package and both web bundles. Drift, unsupported
+shape or missing real evidence blocks. After authorization and final revalidation,
+all approved DDL and official history inserts commit in one bounded transaction;
+independent readback confirms commit before the verified web snapshot uploads.
+If web publication later fails, the compatible additive schema remains committed.
+
+Until the next full agent release absorbs that baseline, later pure web hotfixes
+still use `--plan-db` and the same new draft for verify/deploy. The unchanged agent
+tag still predates those migration paths. Zero pending migrations are valid:
+adopt the exact already-applied state read-only, without an empty apply or replay.
+
+An unknown DB outcome blocks all web/backend writers across worktrees. Inspect
+bounded private reports and plan/session evidence, then run only:
+
+```bash
+npm run release:web -- --reconcile-db
+```
+
+Reconciliation is read-only and clears uncertainty only after exact committed or
+aborted evidence. Missing/changed state or an active owner needs manual inspection.
+Never delete the marker, replay uncertain SQL, run a down migration or automate
+rollback. Web upload uncertainty uses separate `--reconcile`. A web rollback
+restores web bytes only and must remain compatible with the additive schema.
+
+Release diagnosis uses bounded local CLI outcomes/fingerprints; central analytics
+does not observe DB commit. Record manual critical beta feature checks and missing
+signals explicitly. Implementation is not acceptance evidence or deployment GO.
+
 ## Production build environment
 
 Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.
@@ -635,3 +729,5 @@ bundle, тож відкат повертає і канал оновлень де
 7. Cloudflare custom domain.
 
 Потім запустіть `npm run release:check`.
+
+Web-only публікація з невідомим результатом зберігає спільний для Git worktree запис `release/automation/web-publication-pending.json`. Усі web writers блокуються до read-only `--reconcile`: він перевіряє завершення попередньої групи процесів та точні live-байти замороженого архіву. Невідповідність або відсутня ідентичність процесу потребує ручного розбору; повторний upload та автоматичне видалення запису заборонені. Якщо завершення дочірніх процесів не підтверджене, команда також залишає writer lock для розбору.

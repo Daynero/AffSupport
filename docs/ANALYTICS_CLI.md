@@ -569,3 +569,7 @@ remains unknown. Closed causes are `PROFILE_UPDATE_FAILED`,
 `PROFILE_REFRESH_FAILED` and `PROFILE_REFRESH_TIMEOUT`. Diagnostics contain no
 profile values or browser credentials. Automatic beta collection stays disabled;
 explicit synthetic acceptance capture verifies the collector and read-only CLI.
+
+### Web-only release diagnosis
+
+A web-only mini release keeps `local_app_version` unchanged and sets `web_build_id` to `web:<source SHA>:<configuration digest prefix>`. Compare web cohorts separately from agent cohorts. Operator stages have no central event producer: `update.web_release` explicitly reports this blind spot. Read `npm run release:web -- --report` for the correlated local run, stage durations and bounded failure; candidate runtime receipt and exact live-byte readback provide fallback evidence. An unresolved publication blocks further release writes until `npm run release:web -- --reconcile` confirms its archived bytes on the live binding. Reconciliation never uploads or rebuilds.

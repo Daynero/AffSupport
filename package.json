@@ -77,7 +77,9 @@
     "build:soty-review": "npm run build -w @video-compressor/soty-review",
     "preview:soty-review": "npm run preview -w @video-compressor/soty-review",
     "verify:soty-review": "npm run verify -w @video-compressor/soty-review",
-    "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs"
+    "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs",
+    "release:web": "node scripts/release-web-only.mjs",
+    "beta:verify:web": "node scripts/verify-web-only.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

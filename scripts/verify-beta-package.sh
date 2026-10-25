@@ -77,6 +77,7 @@ codesign --verify --deep --strict "$app"
 # exact-SHA record still belong to the candidate working directory.
 node "${0:A:h}/verify-beta-runtime.mjs"
 
+package_payload_digest=$(node "${0:A:h}/beta-package-provenance.mjs" --verify)
 source_revision=$(git rev-parse HEAD)
 package_digest=$(shasum -a 256 "$app/Contents/Resources/release.json" | awk '{print $1}')
 build_id=$(/usr/bin/plutil -extract buildId raw "$app/Contents/Resources/release.json" 2>/dev/null \
@@ -96,6 +97,7 @@ cat > "$temporary_record" <<JSON
   "sourceRevision": "$source_revision",
   "buildId": "$build_id",
   "packageDigest": "$package_digest",
+  "packagePayloadDigest": "$package_payload_digest",
   "verifiedAt": "$verified_at",
   "dirty": $dirty
 }
