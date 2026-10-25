@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { waitFor } from './support/wait.js';
 import {
   createSupabaseBackendAdapter,
   lastJsonLine
@@ -42,19 +43,27 @@ describe('the Supabase backend adapter', () => {
     const timer = setInterval(() => {
       heartbeats += 1;
     }, 1);
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => {
+      release = resolve;
+    });
     const adapter = createSupabaseBackendAdapter({
       projectRef: 'ref',
       targetId: 'production',
       accessToken: 'token',
       run: async () => {
-        await new Promise(resolve => setTimeout(resolve, 20));
+        await waiting;
         return MIGRATIONS;
       }
     });
     try {
-      expect(await adapter.pendingMigrations()).toEqual(['20260912150000']);
+      const pending = adapter.pendingMigrations();
+      await waitFor(() => heartbeats > 0, { describe: 'heartbeat while CLI is pending' });
+      release();
+      expect(await pending).toEqual(['20260912150000']);
       expect(heartbeats).toBeGreaterThan(0);
     } finally {
+      release();
       clearInterval(timer);
     }
   });

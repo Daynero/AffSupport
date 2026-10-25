@@ -868,6 +868,32 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     return () => observer.disconnect();
   }, [hasStickyHeader]);
 
+  // Size the independent scroll viewport from its actual document position,
+  // including the workspace tabs, heading and any wrapped toolbar rows.
+  useLayoutEffect(() => {
+    const surface = panel.current;
+    if (!surface || client) return;
+    const measure = () => {
+      const table = surface.querySelector<HTMLElement>('.team-accounts-table');
+      if (table) {
+        surface.style.setProperty(
+          '--team-accounts-table-offset',
+          `${table.getBoundingClientRect().top + window.scrollY}px`
+        );
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(surface);
+    if (surface.parentElement) observer?.observe(surface.parentElement);
+    return () => {
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+      surface.style.removeProperty('--team-accounts-table-offset');
+    };
+  }, [client, creating, accounts.accounts.length]);
+
   return (
     <section
       ref={panel}

@@ -90,6 +90,7 @@ export function TaskDateFilterControl({
   disabled = false,
   calendarLabel,
   inlineDays = false,
+  inlineTomorrow = false,
   children
 }: {
   value: TaskDateFilter;
@@ -102,6 +103,8 @@ export function TaskDateFilterControl({
   calendarLabel?: string;
   /** "Yesterday" and "Today" beside the calendar, one press each — the board's two most asked ranges. */
   inlineDays?: boolean;
+  /** Include tomorrow after today for planning upcoming launches. */
+  inlineTomorrow?: boolean;
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -130,6 +133,15 @@ export function TaskDateFilterControl({
 
   const now = new Date();
   const quick = activeQuickRange(value, now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowRange = quickRangeValue('today', tomorrow);
+  const tomorrowActive =
+    value.kind === 'range' &&
+    tomorrowRange.kind === 'range' &&
+    value.from === tomorrowRange.from &&
+    value.to === tomorrowRange.to;
+
   const quickRanges: ReadonlyArray<{ range: QuickRange; label: string }> = [
     { range: 'today', label: t('teamTasksToday') },
     { range: 'yesterday', label: t('teamTasksYesterday') },
@@ -272,6 +284,23 @@ export function TaskDateFilterControl({
                 {option.label}
               </button>
             ))}
+          {inlineTomorrow && (
+            <button
+              type="button"
+              className={`task-quick-range${tomorrowActive ? ' is-active' : ''}`}
+              aria-pressed={tomorrowActive}
+              disabled={disabled}
+              onClick={() => {
+                const next = new Date();
+                next.setDate(next.getDate() + 1);
+                onChange(
+                  tomorrowActive && allowAll ? { kind: 'all' } : quickRangeValue('today', next)
+                );
+              }}
+            >
+              {t('teamTasksTomorrow')}
+            </button>
+          )}
         </div>
       )}
       {children}

@@ -340,3 +340,18 @@ it('opens a Launch from its heading, padding and date while keeping selection an
   await user.keyboard('{Enter}');
   expect(open).toHaveBeenCalledTimes(4);
 });
+
+it('offers the catalog variable and explains its deferred version without a validation error', () => {
+  const change = vi.fn();
+  render(
+    <SubBuilder slot="sub1" selected={['catalogName']} onChange={change} preview={null} submitted />
+  );
+  expect(screen.getByText('After generation')).toBeTruthy();
+  expect(screen.queryByText('Required')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'SUB1' }));
+  expect(
+    screen
+      .getAllByRole('button', { name: /Catalog name/ })
+      .some(button => button.getAttribute('aria-pressed') === 'true')
+  ).toBe(true);
+});

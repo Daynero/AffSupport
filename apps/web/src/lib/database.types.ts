@@ -5863,6 +5863,27 @@ export type GeneratedDatabase = {
         }[];
       };
       get_effective_restitch_defaults: { Args: { p_team: string }; Returns: Json };
+      get_launch_copy_marks: {
+        Args: {
+          p_team: string;
+          p_launch: string;
+          p_revision: string;
+          p_actor: string;
+          p_values: Json;
+        };
+        Returns: Json;
+      };
+      set_launch_copy_marks: {
+        Args: {
+          p_team: string;
+          p_launch: string;
+          p_revision: string;
+          p_actor: string;
+          p_values: Json;
+          p_copied: boolean;
+        };
+        Returns: undefined;
+      };
       get_launch: {
         Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;

@@ -3956,3 +3956,400 @@ it('records revoked actor authority once and drains those rows from recovery wit
     );
   }
 });
+
+it('binds the exact reserved catalog version without changing the child request, then freezes the published SUB', async () => {
+  const p = await prepare({
+    method: 'catalog',
+    subConfig: { schemaVersion: 1, sub1: ['catalogName'], sub2: [], sub3: [] }
+  });
+  const accepted = await accept(p.args);
+  const owner = 'versioned-catalog-executor';
+  const claim = (
+    await db.root<{ v: { fence: string } }>(
+      'select public.service_claim_launch_generation($1,$2,$3,$4) v',
+      [team, accepted.id, ACTOR, owner]
+    )
+  )[0].v;
+  const original = (
+    await db.root<{ url: string }>(
+      'select generated_url url from public.team_launch_revisions where id=$1',
+      [accepted.revisionId]
+    )
+  )[0].url;
+  const key = `launch:${accepted.id}:catalog`;
+  const childOwner = '72000000-0000-4000-8000-000000000029';
+  const payload = {
+    teamId: team,
+    videoMaterialId: material,
+    sourceLink: original,
+    productCount: 100,
+    replacesMaterialId: null,
+    restitchOperationId: null,
+    idempotencyKey: key,
+    randomLinkVariation: true
+  };
+  const intent = (
+    await db.root<{ v: { id: string; fence: string; variant: number } }>(
+      'select public.service_begin_catalog_intent($1,$2,$3,$4,$5,$6) v',
+      [team, material, ACTOR, key, JSON.stringify(payload), childOwner]
+    )
+  )[0].v;
+  const name = `creative_v${intent.variant}_catalog`;
+  const source = parseLaunchSources(JSON.parse(p.args[7] as string))!;
+  const resolved = launchPreview(p.config, source, name);
+  if (!resolved.ok) throw new Error('fixture');
+  const authority = [team, accepted.id, ACTOR, owner, claim.fence];
+  const bind = 'select public.service_bind_launch_catalog_subs($1,$2,$3,$4,$5,$6,$7,$8)';
+  await expect(
+    db.root(bind, [
+      ...authority,
+      name,
+      resolved.value.advertisingUrl,
+      JSON.stringify(resolved.value.subValues)
+    ])
+  ).rejects.toThrow('WRONG_STATE');
+  await db.root(
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'planned',$6,null,null)",
+    [
+      team,
+      intent.id,
+      ACTOR,
+      childOwner,
+      intent.fence,
+      JSON.stringify({ namePlan: { name, reservationKey: name } })
+    ]
+  );
+  await expect(
+    db.root(bind, [
+      team,
+      accepted.id,
+      ACTOR,
+      owner,
+      '0',
+      name,
+      resolved.value.advertisingUrl,
+      JSON.stringify(resolved.value.subValues)
+    ])
+  ).rejects.toThrow('LEASE_MISMATCH');
+  await db.root(bind, [
+    ...authority,
+    name,
+    resolved.value.advertisingUrl,
+    JSON.stringify(resolved.value.subValues)
+  ]);
+  expect(
+    (
+      await db.root<{ url: string }>(
+        'select generated_url url from public.team_launch_revisions where id=$1',
+        [accepted.revisionId]
+      )
+    )[0].url
+  ).toBe(original);
+  // Retry preserves the version and acquires a fresh child fence.
+  const replay = (
+    await db.root<{ v: { variant: number; fence: string } }>(
+      'select public.service_begin_catalog_intent($1,$2,$3,$4,$5,$6) v',
+      [team, material, ACTOR, key, JSON.stringify(payload), childOwner]
+    )
+  )[0].v;
+  expect(replay.variant).toBe(intent.variant);
+  intent.fence = replay.fence;
+  const cat = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) select team_id,connection_id,$2,$3,'file','other','application/vnd.google-apps.spreadsheet','1' from public.team_materials where id=$1 returning id",
+      [material, `versioned-catalog-${seq}`, name]
+    )
+  )[0].id;
+  const sheetUrl = 'https://docs.google.com/spreadsheets/d/versioned-synthetic';
+  await db.root(
+    'insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot,created_by,variant) values($1,$2,$3,$4,100,$5,$6,$7,$8,$9)',
+    [
+      cat,
+      team,
+      material,
+      resolved.value.advertisingUrl,
+      sheetUrl,
+      'https://drive.google.com/file/d/synthetic',
+      JSON.stringify({ title: 'Synthetic' }),
+      ACTOR,
+      intent.variant
+    ]
+  );
+  await db.root(
+    "select public.service_checkpoint_catalog_intent($1,$2,$3,$4,$5,'registered','{}',null,$6)",
+    [
+      team,
+      intent.id,
+      ACTOR,
+      childOwner,
+      intent.fence,
+      JSON.stringify({
+        outcome: 'created',
+        videoShared: false,
+        catalog: {
+          materialId: cat,
+          name,
+          sheetUrl,
+          sourceLink: resolved.value.advertisingUrl,
+          productCount: 100,
+          createdAt: null,
+          variant: intent.variant
+        }
+      })
+    ]
+  );
+  await db.root('select public.service_attach_launch_catalog($1,$2,$3,$4,$5)', authority);
+  const baseline = (
+    await db.root<{ url: string; sub: string }>(
+      "select generated_url url,sub_values->>'sub1' sub from public.team_launch_revisions where id=$1",
+      [accepted.revisionId]
+    )
+  )[0];
+  expect(baseline).toEqual({ url: resolved.value.advertisingUrl, sub: name });
+  expect(
+    (
+      await db.root<{ binding: unknown }>(
+        'select catalog_sub_binding binding from public.analytics_launch_generations where generation_id=$1',
+        [accepted.id]
+      )
+    )[0].binding
+  ).toEqual({ required: true, resolved: true, committed: false });
+  await db.root('select public.service_publish_launch_generation($1,$2,$3,$4)', [
+    team,
+    accepted.id,
+    ACTOR,
+    claim.fence
+  ]);
+  setQueryExecutor((sql, params) => db.root(sql, params));
+  try {
+    const evidence = await getLaunchEvidence(accepted.id);
+    expect(evidence.generations[0].catalog_sub_binding).toEqual({
+      required: true,
+      resolved: true,
+      committed: true
+    });
+    expect(JSON.stringify(evidence)).not.toContain(name);
+  } finally {
+    setQueryExecutor(null);
+  }
+  await expect(
+    db.root(
+      "update public.team_launch_revisions set generated_url='https://changed.invalid/' where id=$1",
+      [accepted.revisionId]
+    )
+  ).rejects.toThrow('WRONG_STATE');
+});
+
+it('persists Launch notes in drafts and immutable history while rejecting malformed payloads', async () => {
+  const notes = [
+    { id: '80000000-0000-4000-8000-000000000001', title: 'Audience', text: 'Line one\nLine two' },
+    { id: '80000000-0000-4000-8000-000000000002', title: '', text: 'Another' }
+  ];
+  const p = await prepare({ notes });
+  const draft = (
+    await db.asUser<{ v: { draft: { notes: unknown } } }>(
+      ACTOR,
+      'select public.get_launch($1,$2,null) v',
+      [team, p.id]
+    )
+  )[0].v;
+  expect(draft.draft.notes).toEqual(notes);
+  const accepted = await accept(p.args);
+  expect(
+    (
+      await db.root<{ notes: unknown }>(
+        "select config->'notes' notes from public.team_launch_revisions where id=$1",
+        [accepted.revisionId]
+      )
+    )[0].notes
+  ).toEqual(notes);
+  await db.root('select public.service_publish_launch_generation($1,$2,$3,$4)', [
+    team,
+    accepted.id,
+    ACTOR,
+    accepted.fence
+  ]);
+  // The historical revision keeps the text even when current notes change.
+  const version = (
+    await db.asUser<{ v: { version: string } }>(ACTOR, 'select public.get_launch($1,$2,null) v', [
+      team,
+      p.id
+    ])
+  )[0].v.version;
+  await db.asUser(ACTOR, 'select public.save_launch_draft($1,$2,$3,$4,$5,null)', [
+    team,
+    p.id,
+    version,
+    `notes-clear-${++seq}`,
+    JSON.stringify({ ...p.config, notes: [] })
+  ]);
+  expect(
+    (
+      await db.root<{ notes: unknown }>(
+        "select config->'notes' notes from public.team_launch_revisions where id=$1",
+        [accepted.revisionId]
+      )
+    )[0].notes
+  ).toEqual(notes);
+  for (const invalid of [
+    { notes: [{ ...notes[0], text: 12 }] },
+    { notes: [notes[0], notes[0]] },
+    { notes: null }
+  ]) {
+    await expect(
+      db.asUser(ACTOR, 'select public.save_launch_draft($1,null,null,$2,$3,null)', [
+        team,
+        `notes-invalid-${++seq}`,
+        JSON.stringify({ ...p.config, ...invalid })
+      ])
+    ).rejects.toThrow('INVALID_INPUT');
+  }
+});
+
+it('keeps copy receipts personal, value-sensitive and stable across manual saves without changing Launch versions', async () => {
+  const noteId = '82000000-0000-4000-8000-000000000001';
+  const p = await prepare({
+    notes: [{ id: noteId, title: 'Private title', text: 'SYNTHETIC_NOTE\nbody' }]
+  });
+  const accepted = await accept(p.args);
+  await db.root('select public.service_publish_launch_generation($1,$2,$3,$4)', [
+    team,
+    accepted.id,
+    ACTOR,
+    accepted.fence
+  ]);
+  const get = 'select public.get_launch_copy_marks($1,$2,$3,$4,$5) v';
+  const set = 'select public.set_launch_copy_marks($1,$2,$3,$4,$5,$6)';
+  const values = {
+    'campaign:1': 'SYNTHETIC_CAMPAIGN',
+    advertising_url: 'https://secret.example.invalid/?token=SYNTHETIC_COPY_SECRET',
+    [`note:${noteId}`]: 'SYNTHETIC_NOTE\nbody'
+  };
+  const args = [team, p.id, accepted.revisionId, ACTOR, JSON.stringify(values)];
+  expect((await db.asUser<{ v: string[] }>(ACTOR, get, args))[0].v).toEqual([]);
+  const version = (
+    await db.asUser<{ v: { version: string } }>(ACTOR, 'select public.get_launch($1,$2,null) v', [
+      team,
+      p.id
+    ])
+  )[0].v.version;
+  await db.asUser(ACTOR, set, [...args, true]);
+  expect((await db.asUser<{ v: string[] }>(ACTOR, get, args))[0].v).toEqual(
+    Object.keys(values).sort()
+  );
+  expect(
+    (
+      await db.asUser<{ v: { version: string } }>(ACTOR, 'select public.get_launch($1,$2,null) v', [
+        team,
+        p.id
+      ])
+    )[0].v.version
+  ).toBe(version);
+  const changed = { ...values, 'campaign:1': 'Changed campaign' };
+  expect(
+    (
+      await db.asUser<{ v: string[] }>(ACTOR, get, [...args.slice(0, 4), JSON.stringify(changed)])
+    )[0].v
+  ).not.toContain('campaign:1');
+  const viewer = '82000000-0000-4000-8000-000000000002';
+  await createUser(db, { id: viewer, email: 'copy-viewer@example.test' });
+  await db.root(
+    "insert into public.team_members(team_id,user_id,base_role) values($1,$2,'viewer')",
+    [team, viewer]
+  );
+  const viewerArgs = [team, p.id, accepted.revisionId, viewer, JSON.stringify(values)];
+  expect((await db.asUser<{ v: string[] }>(viewer, get, viewerArgs))[0].v).toEqual([]);
+  await db.asUser(viewer, set, [...viewerArgs, true]);
+  expect((await db.asUser<{ v: string[] }>(viewer, get, viewerArgs))[0].v).toHaveLength(3);
+  await expect(db.asUser(ACTOR, set, [...viewerArgs, true])).rejects.toThrow('PERMISSION_DENIED');
+  const fingerprints = await db.root<{ fingerprint: string }>(
+    "select encode(fingerprint,'hex') fingerprint from private.launch_copy_marks where launch_id=$1 and field='campaign:1' order by user_id",
+    [p.id]
+  );
+  expect(fingerprints[0].fingerprint).not.toBe(fingerprints[1].fingerprint);
+  expect(
+    JSON.stringify(
+      await db.root('select * from private.launch_copy_marks where launch_id=$1', [p.id])
+    )
+  ).not.toContain('SYNTHETIC_COPY_SECRET');
+  await db.asUser(ACTOR, 'select public.save_launch_overrides($1,$2,$3,$4,$5,$6)', [
+    team,
+    p.id,
+    accepted.revisionId,
+    version,
+    `copy-marks-manual-${++seq}`,
+    JSON.stringify({ campaigns: { '1': { name: 'SYNTHETIC_CAMPAIGN' } } })
+  ]);
+  const manual = (
+    await db.asUser<{ v: { version: string; activeRevision: { id: string } } }>(
+      ACTOR,
+      'select public.get_launch($1,$2,null) v',
+      [team, p.id]
+    )
+  )[0].v;
+  expect(
+    (
+      await db.asUser<{ v: string[] }>(ACTOR, get, [
+        team,
+        p.id,
+        manual.activeRevision.id,
+        ACTOR,
+        JSON.stringify(values)
+      ])
+    )[0].v
+  ).toHaveLength(3);
+  await db.asUser(ACTOR, set, [...args, false]);
+  expect((await db.asUser<{ v: string[] }>(ACTOR, get, args))[0].v).toEqual([]);
+  expect((await db.asUser<{ v: string[] }>(viewer, get, viewerArgs))[0].v).toHaveLength(3);
+  // A stale tab clearing old content cannot erase a newer value's receipt.
+  const edited = { 'campaign:1': 'SYNTHETIC_EDITED_VALUE' };
+  await db.asUser(ACTOR, set, [
+    team,
+    p.id,
+    accepted.revisionId,
+    ACTOR,
+    JSON.stringify(edited),
+    true
+  ]);
+  await db.asUser(ACTOR, set, [...args, false]);
+  expect(
+    (
+      await db.asUser<{ v: string[] }>(ACTOR, get, [
+        team,
+        p.id,
+        accepted.revisionId,
+        ACTOR,
+        JSON.stringify(edited)
+      ])
+    )[0].v
+  ).toEqual(['campaign:1']);
+  // Undo restores only this actor; a new generation resets ordinary fields, not unchanged note bodies.
+  await db.asUser(ACTOR, set, [...args, true]);
+  const nextArgs = [...p.args];
+  nextArgs[3] = manual.version;
+  nextArgs[4] = `copy-marks-generation-${++seq}`;
+  nextArgs[5] = `copy-marks-digest-${seq}`;
+  const next = await accept(nextArgs);
+  expect(
+    (
+      await db.asUser<{ v: string[] }>(ACTOR, get, [
+        team,
+        p.id,
+        next.revisionId,
+        ACTOR,
+        JSON.stringify(values)
+      ])
+    )[0].v
+  ).toEqual([`note:${noteId}`]);
+  await db.asUser(ACTOR, 'select public.cancel_launch_generation($1,$2,$3,$4)', [
+    team,
+    p.id,
+    next.id,
+    `copy-marks-cancel-${++seq}`
+  ]);
+  await db.root(
+    "update public.team_members set status='removed',removed_at=clock_timestamp() where team_id=$1 and user_id=$2",
+    [team, viewer]
+  );
+  await expect(db.asUser(viewer, get, viewerArgs)).rejects.toThrow();
+});

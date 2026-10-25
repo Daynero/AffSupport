@@ -68,6 +68,9 @@ export interface CapabilitySignal {
     | 'auth_profile_refresh'
     | 'auth_profile_update'
     | `launch_defaults_${'read' | 'save' | 'apply'}_${'offer' | 'workspace'}`
+    | `launch_copy_marks_${'read' | 'write'}`
+    | 'launch_notes_copy'
+    | 'launch_account_picker'
     | 'launch_settings_editor'
     | 'launch_detail_session'
     | 'members_list'
@@ -383,6 +386,88 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     note: 'Closed action/scope flow_step and opaque flow/attempt IDs only. Read completion proves the RPC returned, apply completion follows the matching draft commit, and save completion follows rendered feedback. Failure proves request failure, not absence of a database commit. Profile values, offer names, buyer IDs, URLs and creative content are excluded. Scope versions and idempotency receipts guard writes. Selection replacement cancels obsolete reads. The compact defaults actions preserve these seams: no profile or identical values offer no apply action; keeping manual values and opening profile help are intentionally unobserved, never inferred as an apply or save. Beta disables delivery; producer, SQL, UI, sanitizer and CLI regressions verify the path.'
   })),
+  ...(['read', 'write'] as const).map((action): Capability => ({
+    id: `launches.copy-marks.${action}`,
+    tool: 'team' as const,
+    title: `Personal Launch copy marks ${action}`,
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [
+      {
+        event: 'operation_started' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `launch_copy_marks_${action}` as const
+      }
+    ],
+    terminal: [
+      {
+        event: 'operation_completed' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `launch_copy_marks_${action}` as const
+      },
+      {
+        event: 'operation_failed' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `launch_copy_marks_${action}` as const
+      }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted' as const,
+    source: 'events' as const,
+    unobservable: [
+      'Clipboard delivery is separate. Missing diagnostics or a lost RPC reply does not prove receipt persistence.'
+    ],
+    note: 'Personal HMAC receipts are written only after clipboard success or explicit marker undo; reset clears only the current actor. No values, hashes, note IDs, keys or URLs enter telemetry/browser storage. Read failure is unknown, write failure retains tab-local proof and offers retry. Protected RPC ACL, baseline/value matching, actor swap fences, manual-save lineage, new generations, notes title/body changes, reset/undo and late-read regressions verify the journey.'
+  })),
+  {
+    id: 'launches.notes-copy',
+    tool: 'team',
+    title: 'Launch note clipboard copy',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [{ event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_notes_copy' }],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_notes_copy' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_notes_copy' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Browser termination or missing delivery leaves an unmatched attempt. Clipboard rejection does not identify OS policy.'
+    ],
+    note: 'Completion follows the clipboard promise; failure is explicit and the user can retry. Note IDs, titles and text are never telemetry. Editing, removal and unsaved cells are intentionally unobserved; the protected versioned draft save receipt and revision snapshot are fallback evidence. Notes do not enter reusable profiles or provider payloads. Delivery of a result and clipboard success remain distinct.'
+  },
+  {
+    id: 'launches.account-picker',
+    tool: 'team',
+    title: 'Launch account browser selection',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_account_picker' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_account_picker' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'launch_account_picker' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Unexpected browser termination or missing delivery leaves an unmatched attempt; no selection is inferred.'
+    ],
+    note: 'Completion follows the parent selection callback. Closing, Escape and permission loss cancel. No search text, names, IDs or run content is collected. Selection does not prove a launch was saved or generated.'
+  },
   {
     id: 'launches.editor',
     tool: 'team',
@@ -508,7 +593,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'authoritative_table',
-    note: 'Settings-editor loading uses generic 031 operation_started/completed/failed/cancelled with flow_step=launch_settings_editor, stable flow and distinct retry attempt IDs. Completion follows the committed editor subtree; pending close cancels. LAUNCH_EDITOR_LOAD_FAILED maps to team/library without collecting raw import messages or URLs. The launches.editor capability isolates these generic events by their closed flow_step discriminator in audit and inspect. inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry. Ad-account selection keeps stable row IDs and the existing source-refresh, save_draft and generation diagnostic path. Local search text, full advertising IDs and social names are never telemetry. Searching or abandoning a search is not a saved choice; missing/archived options remain explicit in the UI and source validation. Unsubmitted selection is an intentional blind spot; a protected draft/source snapshot plus its save receipt is the fallback evidence. Account-selector regressions cover colliding suffixes, exact full-ID selection, keyboard commit, abandoned search, revoked rows and disabled input.'
+    note: 'Settings-editor loading uses generic 031 operation_started/completed/failed/cancelled with flow_step=launch_settings_editor, stable flow and distinct retry attempt IDs. Completion follows the committed editor subtree; pending close cancels. LAUNCH_EDITOR_LOAD_FAILED maps to team/library without collecting raw import messages or URLs. The launches.editor capability isolates these generic events by their closed flow_step discriminator in audit and inspect. inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry. Versioned catalog SUBs stay pending in the editor; catalog_planning binds the durable name reservation, and catalog_registering commits the resolved URL only with a matching registered catalog. The intent checkpoint and revision baseline are fallback evidence; names and SUB contents are never telemetry. Missing registration cannot prove resolution reached the user. Ad-account selection keeps stable row IDs and the existing source-refresh, save_draft and generation diagnostic path. Local search text, full advertising IDs and social names are never telemetry. Searching or abandoning a search is not a saved choice; missing/archived options remain explicit in the UI and source validation. Unsubmitted selection is an intentional blind spot; a protected draft/source snapshot plus its save receipt is the fallback evidence. Account-selector regressions cover colliding suffixes, exact full-ID selection, keyboard commit, abandoned search, revoked rows and disabled input.'
   },
   /* --------------------------------------------------------------------- *
    * Local tools

@@ -1,3 +1,4 @@
+import { LaunchNotesEditor } from './LaunchNotes';
 import { CircleHelp } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -137,6 +138,10 @@ export function LaunchEditor({
       </span>
     </Tooltip>
   );
+  const budgetKeys = ['minBudget', 'maxBudget', 'budgets'];
+  const budgetError =
+    budgetKeys.some(key => Boolean(errors[key])) &&
+    (submitted || budgetKeys.some(key => touched.has(key)));
   const field = (
     key: string,
     label: TranslationKey,
@@ -146,6 +151,7 @@ export function LaunchEditor({
   ) => {
     const showError =
       validate &&
+      !budgetKeys.includes(key) &&
       Boolean(errors[key]) &&
       (submitted ||
         touched.has(key) ||
@@ -203,6 +209,10 @@ export function LaunchEditor({
         id={`${prefix}-${key}`}
         type="number"
         inputMode="numeric"
+        invalid={budgetKeys.includes(key) && budgetError}
+        aria-describedby={
+          budgetKeys.includes(key) && budgetError ? `${prefix}-budget-error` : undefined
+        }
         min={1}
         max={
           key === 'campaignCount'
@@ -482,6 +492,8 @@ export function LaunchEditor({
                           value={v === 0 ? '' : v}
                           disabled={disabled}
                           aria-label={`${t('launchesBudget')} ${i + 1}`}
+                          invalid={budgetError}
+                          aria-describedby={budgetError ? `${prefix}-budget-error` : undefined}
                           onChange={e => {
                             const manual = [...budgets];
                             manual[i] = Number(e.target.value);
@@ -498,6 +510,19 @@ export function LaunchEditor({
                   )
                 )}
               </div>
+              {budgetError && (
+                <p
+                  id={`${prefix}-budget-error`}
+                  className="ui-field-error launch-editor-budget-error"
+                  role="alert"
+                >
+                  {t(
+                    config.budgetMode === 'manual'
+                      ? 'launchesBudgetInvalid'
+                      : 'launchesBudgetRangeInvalid'
+                  )}
+                </p>
+              )}
             </div>
           </section>
 
@@ -680,6 +705,21 @@ export function LaunchEditor({
                         <div className="grid min-w-0 gap-6 lg:grid-cols-3">
                           {(['sub1', 'sub2', 'sub3'] as const).map(slot => (
                             <SubBuilder
+                              catalogEnabled={config.method === 'catalog'}
+                              catalogPending={
+                                config.subConfig![slot].filter(key => key !== 'catalogName')
+                                  .length === 0 ||
+                                launchSubPreview(
+                                  {
+                                    ...config.subConfig!,
+                                    [slot]: config.subConfig![slot].filter(
+                                      key => key !== 'catalogName'
+                                    )
+                                  },
+                                  config.creativeAlias,
+                                  localSources
+                                )[slot] !== null
+                              }
                               key={slot}
                               slot={slot}
                               selected={config.subConfig![slot]}
@@ -703,6 +743,11 @@ export function LaunchEditor({
               />
             )}
           </section>
+          <LaunchNotesEditor
+            notes={config.notes ?? []}
+            disabled={disabled}
+            onChange={notes => changed({ notes })}
+          />
         </fieldset>
       </Card>
       <LaunchPreview value={null} rows={previewRows} />

@@ -26,6 +26,7 @@ export interface LaunchEvidence {
   updated_at: string;
   result_is_active: boolean;
   catalog_registered: boolean;
+  catalog_sub_binding?: { required: boolean; resolved: boolean; committed: boolean } | null;
   reuse_evidence: {
     video_operation_id: string | null;
     video_generation_id: string | null;
@@ -61,7 +62,7 @@ export async function getLaunchEvidence(
     };
   if (!LAUNCH_ID_PATTERN.test(id)) return { supported: true, generations: [], blind_spots: [] };
   const rows = await query<Record<string, unknown>>(
-    `select generation_id::text,launch_id::text,revision_id::text,flow_id,attempt_no,state,stage,method,safe_error_code,created_at::text,updated_at::text,result_is_active,catalog_registered,steps,to_jsonb(e)->'reuse_evidence' reuse_evidence
+    `select generation_id::text,launch_id::text,revision_id::text,flow_id,attempt_no,state,stage,method,safe_error_code,created_at::text,updated_at::text,result_is_active,catalog_registered,steps,to_jsonb(e)->'reuse_evidence' reuse_evidence,to_jsonb(e)->'catalog_sub_binding' catalog_sub_binding
  from public.analytics_launch_generations e where (generation_id=$1::uuid or launch_id=$1::uuid or revision_id=$1::uuid or actor_id=$1::uuid or flow_id=$1::text) and created_at <= $2::timestamptz and updated_at <= $2::timestamptz and ($3::timestamptz is null or created_at >= $3::timestamptz) order by created_at desc limit 100`,
     [id, asOf ?? '9999-12-31T23:59:59Z', since ?? null]
   );
@@ -171,6 +172,17 @@ export async function getLaunchEvidence(
           }
         : null;
     if (reuse != null && reuseEvidence === null) unexpectedProjection = true;
+    const binding = row.catalog_sub_binding;
+    const catalogSubBinding =
+      isRecord(binding) &&
+      ['required', 'resolved', 'committed'].every(key => typeof binding[key] === 'boolean')
+        ? {
+            required: binding.required as boolean,
+            resolved: binding.resolved as boolean,
+            committed: binding.committed as boolean
+          }
+        : null;
+    if (binding != null && catalogSubBinding === null) unexpectedProjection = true;
     generations.push({
       generation_id: row.generation_id,
       launch_id: row.launch_id,
@@ -185,6 +197,7 @@ export async function getLaunchEvidence(
       updated_at: updatedAt,
       result_is_active: row.result_is_active,
       catalog_registered: row.catalog_registered,
+      catalog_sub_binding: catalogSubBinding,
       reuse_evidence: reuseEvidence,
       steps
     });
@@ -194,6 +207,9 @@ export async function getLaunchEvidence(
     generations,
     blind_spots: [
       'Database commit proves persistence; result visibility requires a browser signal.',
+      ...(generations.some(g => g.catalog_sub_binding === null)
+        ? ['Catalog SUB binding projection is unavailable; resolution cannot be inferred.']
+        : []),
       ...(generations.some(g => g.reuse_evidence === null)
         ? [
             'Reuse provenance is unavailable; missing processing steps do not prove video processing was skipped.'

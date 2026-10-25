@@ -22,7 +22,8 @@ export function LaunchDefaultsReview({
     buyer: t('launchesBuyer'),
     social: t('launchesSocial'),
     adAccountSuffix: t('launchesSuffix'),
-    creative: t('launchesCreative')
+    creative: t('launchesCreative'),
+    catalogName: t('launchesSubCatalogName')
   };
   const duration = config?.catalog?.finalDurationMode;
   const minutes =

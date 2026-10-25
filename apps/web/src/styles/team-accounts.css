@@ -2572,14 +2572,17 @@ button.team-task-agent-chip.is-selected {
   min-width: 0;
   max-width: 100%;
 }
+/* The table owns scrolling; the toolbar stays in normal flow above it. */
+.team-account-space.is-unified .team-accounts-sticky {
+  position: static;
+  margin-block: 0;
+}
 .team-account-space.is-unified .team-accounts-table {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
   overflow-anchor: none;
-  max-height: calc(
-    100dvh - var(--topbar-h) - var(--team-accounts-sticky-height) - calc(var(--space-4) * 2)
-  );
+  max-height: calc(100dvh - var(--team-accounts-table-offset, 0px) - var(--space-4));
   overscroll-behavior: contain;
 }
 .team-account-space.is-unified .team-accounts-columns,

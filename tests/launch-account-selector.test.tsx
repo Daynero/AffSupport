@@ -4,9 +4,13 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TeamAccountSummary } from '@video-compressor/shared';
+import { analytics } from '../apps/web/src/analytics/service';
 import { LaunchAccountSelector } from '../apps/web/src/team/launches/LaunchAccountSelector';
 import { launchFixtureAccounts } from './fixtures/launches';
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 const rows = () => {
   const accounts = launchFixtureAccounts();
   accounts[0].name = 'Main social';
@@ -103,5 +107,50 @@ it('does not silently replace a revoked selection or permit selection through a 
   expect(screen.getByRole('combobox', { name: 'Ad account' })).toHaveProperty('disabled', true);
   await userEvent.setup().click(screen.getByRole('button', { name: 'Ad account' }));
   expect(screen.queryByRole('option')).toBeNull();
+  expect(changed).not.toHaveBeenCalled();
+});
+it('browses socials with occupancy counts, filters running RK and selects the real row', async () => {
+  const track = vi.spyOn(analytics, 'track');
+  const accounts = rows();
+  accounts[0].agents[1].runs = [
+    {
+      id: 'run',
+      note: 'TR ProCaps',
+      marker: 'amber',
+      createdAt: '2026-10-25'
+    }
+  ];
+  const { user, changed } = setup(accounts);
+  await user.click(screen.getByRole('button', { name: 'Browse accounts' }));
+  const dialog = screen.getByRole('dialog');
+  const { within } = await import('@testing-library/react');
+  const ui = within(dialog);
+  expect(ui.getByRole('button', { name: /Free · 2/ })).toBeTruthy();
+  await user.click(ui.getByRole('button', { name: /^Running · 1$/ }));
+  expect(ui.queryByRole('button', { name: /g2/ })).toBeNull();
+  await user.click(ui.getByRole('button', { name: /Main social/ }));
+  expect(ui.getByText('TR ProCaps')).toBeTruthy();
+  await user.click(ui.getByRole('button', { name: /ID 9999999892/ }));
+  expect(changed).toHaveBeenCalledWith('second');
+  expect(track).toHaveBeenCalledWith(
+    'operation_completed',
+    expect.objectContaining({ flow_step: 'launch_account_picker', attempt_id: expect.any(String) })
+  );
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+it('searches inside the browser without changing selection and cancels safely', async () => {
+  const track = vi.spyOn(analytics, 'track');
+  const { user, changed } = setup();
+  await user.click(screen.getByRole('button', { name: 'Browse accounts' }));
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), 'main 9999');
+  expect(screen.getByRole('button', { name: /ID 9999999892/ })).toBeTruthy();
+  expect(changed).not.toHaveBeenCalled();
+  await user.keyboard('{Escape}');
+  expect(track).toHaveBeenCalledWith(
+    'operation_cancelled',
+    expect.objectContaining({ flow_step: 'launch_account_picker' })
+  );
+  expect(track).not.toHaveBeenCalledWith('operation_completed', expect.anything());
+  expect(screen.queryByRole('dialog')).toBeNull();
   expect(changed).not.toHaveBeenCalled();
 });

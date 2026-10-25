@@ -222,11 +222,28 @@ it('orders launch date shortcuts after the calendar and filters the server list 
   expect(screen.queryByRole('checkbox', { name: 'To do' })).toBeNull();
   const yesterday = screen.getByRole('button', { name: 'Yesterday' });
   const today = screen.getByRole('button', { name: 'Today' });
+  const tomorrow = screen.getByRole('button', { name: 'Tomorrow' });
+  expect(today.compareDocumentPosition(tomorrow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(
     calendar.compareDocumentPosition(yesterday) & Node.DOCUMENT_POSITION_FOLLOWING
   ).toBeTruthy();
   expect(yesterday.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
+  fireEvent.click(tomorrow);
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  const future = quickRangeValue('today', next);
+  if (future.kind !== 'range') throw new Error('Tomorrow must resolve to a date range');
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      search: '',
+      from: future.from,
+      to: future.to
+    })
+  );
+  expect(tomorrow.getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(tomorrow);
+  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
   fireEvent.click(today);
   const expected = quickRangeValue('today', new Date());
   if (expected.kind !== 'range') throw new Error('Today must resolve to a date range');
@@ -1614,4 +1631,39 @@ it('initializes a new launch from a legacy general budget without inventing a mi
   expect(
     (screen.getByRole('button', { name: 'Save for offer' }) as HTMLButtonElement).disabled
   ).toBe(true);
+});
+
+it('shows current saved notes on an existing result without requiring regeneration or changing its historical snapshot', async () => {
+  const config = launchConfig();
+  const preview = launchPreview(config, launchSources);
+  if (!preview.ok) throw new Error('fixture');
+  const note = {
+    id: '80000000-0000-4000-8000-000000000001',
+    title: 'Audience',
+    text: 'First line\nSecond line'
+  };
+  seams.detail.mockResolvedValue({
+    ...detail(config.originalUrl),
+    draft: { ...config, notes: [note] },
+    activeRevision: {
+      id: 'notes-existing-revision',
+      revisionNo: 1,
+      kind: 'generated',
+      config,
+      sources: launchSources,
+      baselineRevisionId: null,
+      baseline: preview.value,
+      overrides: {},
+      catalog: null,
+      createdAt: '2026-10-25T00:00:00Z'
+    }
+  });
+  const write = vi.fn().mockResolvedValue(undefined);
+  mockClipboard(write);
+  render(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
+  const copy = await screen.findByRole('button', { name: 'Audience' });
+  expect(screen.queryByText(/settings.*changed/i)).toBeNull();
+  fireEvent.click(copy);
+  await waitFor(() => expect(write).toHaveBeenCalledWith(note.text));
+  expect(seams.generate).not.toHaveBeenCalled();
 });

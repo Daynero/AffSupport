@@ -1,4 +1,4 @@
-import { LAUNCH_URL_MAX, type LaunchSubSlot } from '../launches.js';
+import { LAUNCH_SUB_VALUE_MAX, LAUNCH_URL_MAX, type LaunchSubSlot } from '../launches.js';
 export function isLaunchUrl(value: unknown): value is string {
   if (
     typeof value !== 'string' ||
@@ -53,11 +53,20 @@ export function missingLaunchSubSlots(original: string): LaunchSubSlot[] {
 /** Patch raw query values. Never round-trip untouched bytes through a serializer. */
 export function patchLaunchUrl(
   original: string,
-  values: Record<LaunchSubSlot, string | null>
+  values: Record<LaunchSubSlot, string | null>,
+  catalogSlots: ReadonlySet<LaunchSubSlot> = new Set()
 ): string {
   if (!isLaunchUrl(original)) throw new Error('LAUNCH_URL_INVALID');
-  for (const value of Object.values(values))
-    if (value !== null && !/^[A-Za-z0-9_-]+$/u.test(value)) throw new Error('LAUNCH_SUB_INVALID');
+  for (const [slot, value] of Object.entries(values))
+    if (
+      value !== null &&
+      (!value ||
+        (catalogSlots.has(slot as LaunchSubSlot) && value.length > LAUNCH_SUB_VALUE_MAX) ||
+        (catalogSlots.has(slot as LaunchSubSlot)
+          ? /[\p{Cc}\p{Cs}]/u.test(value)
+          : !/^[A-Za-z0-9_-]+$/u.test(value)))
+    )
+      throw new Error('LAUNCH_SUB_INVALID');
   const hash = original.indexOf('#');
   const body = hash < 0 ? original : original.slice(0, hash);
   const fragment = hash < 0 ? '' : original.slice(hash);

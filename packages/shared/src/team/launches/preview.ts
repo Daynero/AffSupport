@@ -1,3 +1,4 @@
+import { LAUNCH_SUB_VALUE_MAX } from '../launches.js';
 import type {
   LaunchConfig,
   LaunchSources,
@@ -13,7 +14,8 @@ import { launchCampaignName, isLaunchDate } from './naming.js';
 import { patchLaunchUrl } from './url.js';
 export function launchPreview(
   config: LaunchConfig,
-  sources: LaunchSources
+  sources: LaunchSources,
+  catalogName?: string
 ): LaunchParseResult<LaunchPreview> {
   const parsed = parseLaunchConfig(config);
   if (!parsed.ok) return parsed;
@@ -31,16 +33,28 @@ export function launchPreview(
     buyer,
     social: normalizeLaunchSub(sources.social),
     adAccountSuffix: sources.agentId.slice(-3),
+    catalogName: catalogName ?? null,
     creative: config.creativeAlias
   };
   const subValues: Record<LaunchSubSlot, string | null> = { sub1: null, sub2: null, sub3: null };
   for (const slot of ['sub1', 'sub2', 'sub3'] as const) {
     const selected = config.subConfig[slot];
     if (!selected.length) continue;
-    if (selected.some(key => !vars[key])) {
+    if (selected.some(key => key !== 'catalogName' && !vars[key])) {
       errors[slot] = 'LAUNCH_SUB_INVALID';
       continue;
     }
+    if (
+      selected.includes('catalogName') &&
+      catalogName !== undefined &&
+      (!catalogName ||
+        catalogName.length > LAUNCH_SUB_VALUE_MAX ||
+        /[\p{Cc}\p{Cs}]/u.test(catalogName))
+    ) {
+      errors[slot] = 'LAUNCH_SUB_INVALID';
+      continue;
+    }
+    if (selected.includes('catalogName') && catalogName === undefined) continue;
     subValues[slot] = selected.map(key => vars[key]).join('-');
   }
   if (Object.keys(errors).length) return { ok: false, errors };
@@ -56,7 +70,19 @@ export function launchPreview(
     });
     return {
       ok: true,
-      value: { advertisingUrl: patchLaunchUrl(config.originalUrl, subValues), subValues, campaigns }
+      value: {
+        advertisingUrl: patchLaunchUrl(
+          config.originalUrl,
+          subValues,
+          new Set(
+            (['sub1', 'sub2', 'sub3'] as const).filter(slot =>
+              config.subConfig[slot].includes('catalogName')
+            )
+          )
+        ),
+        subValues,
+        campaigns
+      }
     };
   } catch {
     return { ok: false, errors: { originalUrl: 'LAUNCH_URL_INVALID' } };
@@ -75,6 +101,7 @@ export function launchSubPreview(
     adAccountSuffix: /^[0-9]{3,64}$/u.test(sources.agentId ?? '')
       ? (sources.agentId ?? '').slice(-3)
       : null,
+    catalogName: null,
     creative: normalizeLaunchSub(alias)
   };
   const result: Record<LaunchSubSlot, string | null> = { sub1: null, sub2: null, sub3: null };

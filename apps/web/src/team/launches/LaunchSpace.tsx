@@ -301,6 +301,7 @@ function LaunchSpaceContent({
             onStatusChange={() => {}}
             showStatus={false}
             inlineDays
+            inlineTomorrow
           >
             <div ref={filtersRoot} className="task-filter-more">
               <button

@@ -1,5 +1,13 @@
+import { useState } from 'react';
+import { LaunchAccountBrowser } from './LaunchAccountBrowser';
+import { Button } from '../../components/ui';
 import { Check } from 'lucide-react';
-import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountSummary } from '@video-compressor/shared';
+import {
+  TEAM_ACCOUNT_NAME_COLORS,
+  isTeamAgentFree,
+  teamAgentRunsSummary,
+  type TeamAccountSummary
+} from '@video-compressor/shared';
 import { SelectMenu } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -19,6 +27,7 @@ export function LaunchAccountSelector({
   onChange: (value: string) => void;
 }) {
   const { t } = useI18n();
+  const [browsing, setBrowsing] = useState(false);
   const options = accounts
     .filter(account => !account.archivedAt)
     .flatMap(account =>
@@ -30,6 +39,8 @@ export function LaunchAccountSelector({
           description: `ID ${agent.agentId}`,
           searchText: `${account.name} ${agent.agentId}`,
           social: account.name,
+          free: isTeamAgentFree(agent),
+          runs: teamAgentRunsSummary(agent),
           nameColor: TEAM_ACCOUNT_NAME_COLORS[agent.nameColor ?? 0],
           suffix: agent.agentId.slice(-3)
         }))
@@ -38,6 +49,22 @@ export function LaunchAccountSelector({
   const selected = options.find(option => option.value === value);
   return (
     <div className="flex min-w-0 flex-col gap-1">
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={disabled}
+        onClick={() => setBrowsing(true)}
+      >
+        {t('launchesAccountBrowse')}
+      </Button>
+      {browsing && !disabled && (
+        <LaunchAccountBrowser
+          accounts={accounts}
+          value={value}
+          onChange={onChange}
+          onClose={() => setBrowsing(false)}
+        />
+      )}
       <SelectMenu
         id={id}
         label={t('launchesAccount')}
@@ -56,6 +83,14 @@ export function LaunchAccountSelector({
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="whitespace-normal break-words">{row.social}</span>
+                <span
+                  className={
+                    row.free ? 'text-caption text-success-text' : 'text-caption text-warning-text'
+                  }
+                >
+                  {t(row.free ? 'teamAgentFree' : 'teamAgentBusy')}
+                  {row.runs && ` · ${row.runs}`}
+                </span>
                 <span className="break-all font-mono text-caption text-muted">
                   {row.description}
                 </span>

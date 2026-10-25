@@ -1345,13 +1345,21 @@ export function LaunchSession({
       )}
       {tab === 'result' && displayedRevision ? (
         <LaunchResult
+          teamId={teamId}
           launchId={detail?.id}
           revision={displayedRevision}
+          notes={historical ? (displayedRevision.config.notes ?? []) : (draft.config.notes ?? [])}
           settingsChanged={
             !historical &&
             (() => {
               const parsed = parseLaunchConfig(draft.config);
-              return !parsed.ok || !launchValuesEqual(parsed.value, displayedRevision.config);
+              return (
+                !parsed.ok ||
+                !launchValuesEqual(
+                  { ...parsed.value, notes: undefined },
+                  { ...displayedRevision.config, notes: undefined }
+                )
+              );
             })()
           }
           onRegenerate={() => void generate()}

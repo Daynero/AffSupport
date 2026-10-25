@@ -100,6 +100,9 @@ export async function executeLaunchCatalog(
     const preview = sources ? launchPreview(config, sources) : null;
     if (
       previous?.catalog &&
+      !Object.values(config.subConfig).some(
+        value => Array.isArray(value) && value.includes('catalogName')
+      ) &&
       preview?.ok &&
       !launchRevisionImpact(
         previous.baseline,
@@ -231,7 +234,27 @@ export async function executeLaunchCatalog(
           }
         : deps.catalog;
     await createDurableProductCatalog(
-      catalog,
+      {
+        ...catalog,
+        ...(Object.values(config.subConfig).some(
+          value => Array.isArray(value) && value.includes('catalogName')
+        )
+          ? {
+              resolveSourceLink: async (name: string) => {
+                if (!sources) throw new TeamFunctionError('SOURCE_CHANGED');
+                const resolved = launchPreview(config, sources, name);
+                if (!resolved.ok) throw new TeamFunctionError('LAUNCH_SUB_INVALID');
+                await call(deps.service, 'service_bind_launch_catalog_subs', {
+                  ...authority,
+                  p_name: name,
+                  p_url: resolved.value.advertisingUrl,
+                  p_sub_values: resolved.value.subValues
+                });
+                return resolved.value.advertisingUrl;
+              }
+            }
+          : {})
+      },
       guarded,
       deps.driveFor,
       {

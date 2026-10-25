@@ -1,4 +1,5 @@
 /** Launches are a separate workspace aggregate; Tasks remain unchanged. */
+import type { LaunchNote } from './launches/notes.js';
 import type { LaunchAnalyticsStage } from './launches/lifecycle.js';
 export const LAUNCH_SCHEMA_VERSION = 1;
 export const LAUNCH_CAMPAIGN_MAX = 100;
@@ -6,7 +7,13 @@ export const LAUNCH_BUDGET_MAX = 999999;
 export const LAUNCH_ADS_MAX = 1000;
 export const LAUNCH_URL_MAX = 8192;
 export const LAUNCH_SUB_VALUE_MAX = 512;
-export const LAUNCH_SUB_VARIABLES = ['buyer', 'social', 'adAccountSuffix', 'creative'] as const;
+export const LAUNCH_SUB_VARIABLES = [
+  'buyer',
+  'social',
+  'adAccountSuffix',
+  'creative',
+  'catalogName'
+] as const;
 export type LaunchSubVariable = (typeof LAUNCH_SUB_VARIABLES)[number];
 export type LaunchSubSlot = 'sub1' | 'sub2' | 'sub3';
 export interface LaunchSubConfig {
@@ -47,6 +54,7 @@ export interface LaunchConfig {
   originalUrl: string;
   subConfig: LaunchSubConfig;
   catalog: LaunchCatalogConfig;
+  notes?: LaunchNote[];
 }
 export type LaunchDraft = Partial<LaunchConfig>;
 export interface LaunchSources {
@@ -202,3 +210,5 @@ export * from './launches/persistence.js';
 export * from './launches/lifecycle.js';
 
 export * from './launches/defaults.js';
+
+export * from './launches/notes.js';

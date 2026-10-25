@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLaunchCopyMark } from './LaunchCopyHistory';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ExternalLink, Pencil } from 'lucide-react';
 import { Button, Input, Textarea } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 export function CopyResultField({
+  copyKey,
   label,
   displayLabel,
   baseline,
@@ -20,6 +22,7 @@ export function CopyResultField({
   validate,
   onCopyOutcome
 }: {
+  copyKey?: string;
   label: string;
   displayLabel?: string;
   baseline: string;
@@ -36,9 +39,13 @@ export function CopyResultField({
   onCopyOutcome?: (outcome: 'success' | 'failure') => void;
 }) {
   const { t } = useI18n();
+  const copiedDescriptionId = useId();
   const toasts = useOptionalToasts();
   const [editing, setEditing] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [flashValue, setFlashValue] = useState<string | null>(null);
+  const copied = flashValue === value;
+  const remembered = useLaunchCopyMark(copyKey, value);
+  const alreadyCopied = remembered.seen && !copied;
   const [failed, setFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editor = useRef<HTMLInputElement>(null);
@@ -55,7 +62,7 @@ export function CopyResultField({
     (validate ? !validate(value) : false);
   const inlineEdit = compact && !campaignOrdinal;
   useEffect(() => {
-    setCopied(false);
+    setFlashValue(null);
     setFailed(false);
   }, [value]);
   useEffect(() => {
@@ -83,18 +90,20 @@ export function CopyResultField({
       return;
     setFailed(false);
     const copiedValue = value;
+    const remember = remembered.remember;
     try {
       await navigator.clipboard.writeText(copiedValue);
-      if (!mounted.current || valueRef.current !== copiedValue) return;
+      const sameScope = remember();
+      if (!sameScope || !mounted.current || valueRef.current !== copiedValue) return;
       try {
         onCopyOutcome?.('success');
       } catch {
         // Reporting failure cannot undo a successful clipboard write.
       }
       toasts?.push({ tone: 'success', text: t('launchesCopied') });
-      setCopied(true);
+      setFlashValue(copiedValue);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1500);
+      timer.current = setTimeout(() => setFlashValue(null), 1500);
     } catch {
       if (mounted.current && valueRef.current === copiedValue) {
         setFailed(true);
@@ -108,7 +117,7 @@ export function CopyResultField({
   };
   return (
     <div
-      className={`${compact ? `launch-result-row${campaignOrdinal ? ' launch-result-campaign-row' : ''}${hideLabel ? ' launch-result-hide-label' : ''}` : 'flex min-w-0 flex-col gap-1 rounded-control border p-2'} ${compact ? (copied ? 'launch-result-copied' : changed ? 'launch-result-changed' : '') : copied ? 'border-success-border bg-success-soft' : changed ? 'border-warning-border bg-warning-soft' : 'border-neutral-border bg-surface'}`}
+      className={`${alreadyCopied ? 'launch-result-already-copied ' : ''}${compact ? `launch-result-row${campaignOrdinal ? ' launch-result-campaign-row' : ''}${hideLabel ? ' launch-result-hide-label' : ''}` : 'flex min-w-0 flex-col gap-1 rounded-control border p-2'} ${compact ? (copied ? 'launch-result-copied' : changed ? 'launch-result-changed' : '') : copied ? 'border-success-border bg-success-soft' : changed ? 'border-warning-border bg-warning-soft' : 'border-neutral-border bg-surface'}`}
     >
       <div className="flex items-center justify-between gap-2">
         {!campaignOrdinal && <span className="min-w-0 font-medium">{displayLabel ?? label}</span>}
@@ -211,6 +220,7 @@ export function CopyResultField({
             color="neutral"
             className="launch-result-value w-full justify-start text-left"
             aria-label={t('launchesCopyField', { field: label })}
+            aria-describedby={alreadyCopied ? copiedDescriptionId : undefined}
             disabled={disabled || invalid}
             onClick={event => void copy(event.detail === 0)}
           >
@@ -221,6 +231,14 @@ export function CopyResultField({
               <span className="launch-result-campaign-budget">{campaignBudget}</span>
             )}
             <span className="launch-result-text text-left">{value}</span>
+            {alreadyCopied && (
+              <Check
+                className="launch-copy-mark"
+                size={ICON_SIZE}
+                strokeWidth={ICON_STROKE}
+                aria-hidden="true"
+              />
+            )}
           </Button>
           {inlineEdit && editable && (
             <Button
@@ -256,6 +274,11 @@ export function CopyResultField({
         <p role="alert" className="text-error-text">
           {t('launchesInvalid')}
         </p>
+      )}
+      {alreadyCopied && (
+        <span id={copiedDescriptionId} className="visually-hidden">
+          {t('launchesAlreadyCopied')}
+        </span>
       )}
       {copied && (
         <span role="status" className="visually-hidden">

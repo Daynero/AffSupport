@@ -36,15 +36,17 @@ const SUPABASE_STUBS = `
   as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 
   create schema extensions;
-  -- pgcrypto is not bundled with PGlite. Only digest() is reached from a
-  -- migration (an analytics workspace key), and only its shape matters here, so
-  -- md5 stands in. Nothing in these tests asserts on the digest value.
+  -- PGlite does not bundle pgcrypto. These shape/equality stubs exercise ACLs
+  -- and receipt behavior, not cryptographic strength. Native pgTAP checks HMAC
+  -- against an independently calculated SHA-256 vector.
   create function extensions.digest(text, text) returns bytea language sql immutable
   as $$ select decode(md5($1), 'hex') $$;
   create function extensions.digest(bytea, text) returns bytea language sql immutable
   as $$ select decode(md5($1), 'hex') $$;
   create function extensions.gen_random_bytes(integer) returns bytea language sql volatile
-  as $$ select decode(repeat(md5(random()::text), ($1 / 16) + 1), 'hex') $$;
+  as $$ select substring(decode(repeat(md5(random()::text), ($1 / 16) + 1), 'hex') from 1 for $1) $$;
+  create function extensions.hmac(bytea, bytea, text) returns bytea language sql immutable
+  as $$ select decode(md5(encode($1,'hex')||encode($2,'hex'))||md5(encode($2,'hex')||encode($1,'hex')),'hex') $$;
 
   create schema vault;
   create table vault.secrets (

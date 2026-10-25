@@ -15,8 +15,12 @@ const WIDTHS = [
 const { browser, page } = await openAccountsBrowser();
 const failures = [];
 try {
-  for (const width of WIDTHS) {
-    await page.setViewportSize({ width, height: 900 });
+  const viewports = WIDTHS.flatMap(width => [
+    { width, height: 900 },
+    { width, height: 650 }
+  ]);
+  for (const { width, height } of viewports) {
+    await page.setViewportSize({ width, height });
     await page.evaluate(
       () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     );
@@ -100,6 +104,9 @@ try {
             (line.parentElement?.getBoundingClientRect().right ?? Number.NEGATIVE_INFINITY)
         }))
         .filter(line => line.excess > 1 || line.cellExcess > 1);
+      const toolbar = document.querySelector('.team-accounts-sticky')?.getBoundingClientRect();
+      const toolbarOverlapsTable = !toolbar || toolbar.bottom > rect.top + 1;
+      const tableBelowViewport = rect.bottom > innerHeight + 1;
       const before = { x: table.scrollLeft, y: table.scrollTop };
       table.scrollLeft = table.scrollWidth;
       table.scrollTop = table.scrollHeight;
@@ -109,6 +116,8 @@ try {
       table.scrollLeft = before.x;
       table.scrollTop = before.y;
       return {
+        toolbarOverlapsTable,
+        tableBelowViewport,
         rowCount: rows.length,
         runCount: runLines.length,
         rowHeights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
@@ -126,6 +135,8 @@ try {
       };
     });
     const ok =
+      !seen.toolbarOverlapsTable &&
+      !seen.tableBelowViewport &&
       seen.rowCount > 0 &&
       seen.runCount > 0 &&
       !seen.spill.length &&
@@ -138,15 +149,15 @@ try {
       !seen.innerHorizontalOverflow &&
       seen.reachesRight &&
       seen.reachesBottom;
-    if (!ok) failures.push({ width, ...seen });
-    console.log(JSON.stringify({ width, ok, ...seen }));
+    if (!ok) failures.push({ width, height, ...seen });
+    console.log(JSON.stringify({ width, height, ok, ...seen }));
   }
 } finally {
   await browser.close();
 }
 if (failures.length) {
   console.error(
-    `Unified layout failed at widths: ${failures.map(failure => failure.width).join(', ')}`
+    `Unified layout failed at widths: ${failures.map(failure => `${failure.width}×${failure.height}`).join(', ')}`
   );
   process.exitCode = 1;
 } else {

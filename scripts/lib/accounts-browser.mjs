@@ -46,7 +46,9 @@ export async function openAccountsBrowser(args = process.argv.slice(2)) {
     });
     const page = await context.newPage();
     await page.goto(`${site}/login`, { waitUntil: 'domcontentloaded' });
-    const signIn = page.getByRole('button', { name: /beta-акаунт|beta account/i });
+    const signIn = page.getByRole('button', {
+      name: /beta-акаунт|beta account|Бета: власник простору|Beta: space owner/i
+    });
     if (await signIn.count()) {
       await signIn.first().click();
       await page.waitForURL(url => !url.pathname.includes('login'), { timeout: 15000 });

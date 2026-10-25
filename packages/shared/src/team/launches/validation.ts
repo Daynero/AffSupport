@@ -1,3 +1,4 @@
+import { parseLaunchNotes } from './notes.js';
 import { clampStitchEndDuration } from '../../stitcher.js';
 import { isRecord } from '../contract.js';
 import {
@@ -46,7 +47,7 @@ function positive(value: unknown, max = Number.MAX_SAFE_INTEGER): value is numbe
 function variables(value: unknown): value is LaunchSubVariable[] {
   return (
     Array.isArray(value) &&
-    value.length <= 4 &&
+    value.length <= LAUNCH_SUB_VARIABLES.length &&
     value.every((v: unknown) => typeof v === 'string' && LAUNCH_SUB_VARIABLES.some(k => k === v)) &&
     new Set(value).size === value.length
   );
@@ -114,6 +115,8 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
 export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfig> {
   if (!isRecord(value)) return { ok: false, errors: { config: 'INVALID_INPUT' } };
   const errors: Record<string, string> = {};
+  const notes = value.notes === undefined ? undefined : parseLaunchNotes(value.notes);
+  if (notes === null) errors.notes = 'INVALID_INPUT';
   for (const key of ['agentRowId', 'offerId', 'buyerId', 'materialId'])
     if (!isLaunchUuid(value[key])) errors[key] = 'INVALID_INPUT';
   const creativeAlias = normalizeLaunchSub(value.creativeAlias);
@@ -137,6 +140,10 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
   if (!isLaunchUrl(value.originalUrl)) errors.originalUrl = 'LAUNCH_URL_INVALID';
   const subConfig = parseLaunchSubConfig(value.subConfig);
   if (!subConfig) errors.subConfig = 'INVALID_INPUT';
+  if (subConfig && value.method !== 'catalog') {
+    for (const slot of ['sub1', 'sub2', 'sub3'] as const)
+      if (subConfig[slot].includes('catalogName')) errors[slot] = 'LAUNCH_SUB_INVALID';
+  }
   const catalog = catalogConfig(value.catalog, value.method === 'catalog');
   if (!catalog) errors.catalog = 'INVALID_INPUT';
   const gender = value.gender;
@@ -219,7 +226,8 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
       method,
       originalUrl: value.originalUrl,
       subConfig,
-      catalog
+      catalog,
+      ...(notes ? { notes } : {})
     }
   };
 }

@@ -359,3 +359,30 @@ it('updates automatic budgets from both bounds and changes the heading for one c
   expect(screen.getByRole('spinbutton', { name: 'Minimum' })).toHaveProperty('value', '');
   expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
 });
+
+it('shows one shared accessible budget error outside the control row', () => {
+  render(
+    <LaunchEditor
+      teamId="team"
+      config={launchConfig({ minBudget: 70, maxBudget: 15 })}
+      sources={null}
+      accounts={launchFixtureAccounts()}
+      offers={[]}
+      buyers={[]}
+      disabled={false}
+      submitted
+      onChange={vi.fn()}
+      onRefreshSources={vi.fn()}
+    />
+  );
+  const error = screen.getByText('Use positive budgets; the minimum cannot exceed the maximum.');
+  expect(error.closest('.launch-editor-budget-row')).toBeNull();
+  expect(
+    screen.getAllByText('Use positive budgets; the minimum cannot exceed the maximum.')
+  ).toHaveLength(1);
+  for (const name of ['Minimum', 'Maximum']) {
+    const input = screen.getByRole('spinbutton', { name });
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe(error.id);
+  }
+});

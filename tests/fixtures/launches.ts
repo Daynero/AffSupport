@@ -64,8 +64,25 @@ export function launchFixtureAccounts(): TeamAccountSummary[] {
     .map(account => ({
       id: account.id,
       name: account.social,
-      agents: [{ id: account.agentRowId, agentId: account.externalId }]
-    })) as TeamAccountSummary[];
+      teamId: account.teamId,
+      createdAt: '2026-10-25T00:00:00Z',
+      updatedAt: '2026-10-25T00:00:00Z',
+      agents: [
+        {
+          id: account.agentRowId,
+          accountId: account.id,
+          teamId: account.teamId,
+          agentId: account.externalId,
+          runs: [],
+          labels: [],
+          balance: null,
+          topup: null,
+          taskCount: 0,
+          createdAt: '2026-10-25T00:00:00Z',
+          updatedAt: '2026-10-25T00:00:00Z'
+        }
+      ]
+    }));
 }
 export const launchConfig = (overrides: Partial<LaunchConfig> = {}): LaunchConfig => ({
   schemaVersion: 1,

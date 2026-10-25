@@ -10,15 +10,18 @@ const labels: Record<LaunchSubVariable, TranslationKey> = {
   buyer: 'launchesBuyer',
   social: 'launchesSocial',
   adAccountSuffix: 'launchesSuffix',
-  creative: 'launchesCreative'
+  creative: 'launchesCreative',
+  catalogName: 'launchesSubCatalogName'
 };
-const order = ['①', '②', '③', '④'];
+const order = ['①', '②', '③', '④', '⑤'];
 export function SubBuilder({
   slot,
   selected,
   onChange,
   preview,
   submitted = false,
+  catalogEnabled = true,
+  catalogPending = true,
   disabled = false
 }: {
   slot: LaunchSubSlot;
@@ -27,12 +30,15 @@ export function SubBuilder({
   preview: string | null;
   submitted?: boolean;
   disabled?: boolean;
+  catalogEnabled?: boolean;
+  catalogPending?: boolean;
 }) {
   const { t } = useI18n();
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [touched, setTouched] = useState(false);
+  const pendingCatalog = catalogEnabled && catalogPending && selected.includes('catalogName');
   const changed = (variables: LaunchSubVariable[]) => {
     setTouched(true);
     onChange(variables);
@@ -50,7 +56,7 @@ export function SubBuilder({
       label={slot.toUpperCase()}
       htmlFor={id}
       error={
-        selected.length && preview === null && (submitted || touched)
+        selected.length && preview === null && !pendingCatalog && (submitted || touched)
           ? t('launchesSubInvalid')
           : undefined
       }
@@ -83,7 +89,7 @@ export function SubBuilder({
                 key={variable}
                 color={i >= 0 ? 'primary' : 'neutral'}
                 variant={i >= 0 ? 'soft' : 'ghost'}
-                disabled={disabled}
+                disabled={disabled || (variable === 'catalogName' && !catalogEnabled && i < 0)}
                 aria-pressed={i >= 0}
                 onClick={() =>
                   changed(i >= 0 ? selected.filter(x => x !== variable) : [...selected, variable])
@@ -125,10 +131,12 @@ export function SubBuilder({
         </div>
       </Popover>
       <output aria-live="polite" className="launch-sub-preview text-label">
-        {preview ??
-          (selected.length && (submitted || touched)
-            ? t('launchesRequired')
-            : t('launchesPreserve'))}
+        {pendingCatalog
+          ? t('launchesSubAfterGeneration')
+          : (preview ??
+            (selected.length && (submitted || touched)
+              ? t('launchesRequired')
+              : t('launchesPreserve')))}
       </output>
     </FormField>
   );

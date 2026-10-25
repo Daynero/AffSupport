@@ -1,3 +1,4 @@
+import { parseLaunchNotes } from './notes.js';
 import { isRecord } from '../contract.js';
 import {
   LAUNCH_GENERATION_STATES,
@@ -50,7 +51,11 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
           v.every((n: unknown): n is number => typeof n === 'number' && Number.isFinite(n))))
     )
       result.budgets = v;
-    else if (k === 'subConfig') {
+    else if (k === 'notes') {
+      const parsed = parseLaunchNotes(v);
+      if (!parsed) return null;
+      result.notes = parsed;
+    } else if (k === 'subConfig') {
       const parsed = parseLaunchSubConfig(v);
       if (!parsed) return null;
       result.subConfig = parsed;

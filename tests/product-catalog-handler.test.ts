@@ -640,3 +640,34 @@ describe('100-product catalog sharing', () => {
   });
 });
 // @ts-nocheck — handler fixtures cover legacy catalog payloads as well.
+
+it('resolves a Launch URL from the reserved collision-safe name before writing any catalog rows', async () => {
+  const { deps } = setup({ next: 27 });
+  deps.planName.mockResolvedValue({ name: 'clip_v27_catalog (2)', reservationKey: 'reserved-27' });
+  deps.resolveSourceLink = vi.fn(
+    async name => `https://offer.example.test/?sub1=${encodeURIComponent(name)}`
+  );
+  await createProductCatalog(deps, body(), ACTOR);
+  expect(deps.resolveSourceLink).toHaveBeenCalledWith('clip_v27_catalog (2)');
+  expect(deps.link).toHaveBeenCalledWith(
+    expect.objectContaining({
+      record: expect.objectContaining({
+        sourceLink: 'https://offer.example.test/?sub1=clip_v27_catalog%20(2)'
+      })
+    })
+  );
+  expect(deps.resolveSourceLink.mock.invocationCallOrder[0]).toBeLessThan(
+    deps.startOperation.mock.invocationCallOrder[0]
+  );
+});
+it('refuses a failed catalog SUB binding before catalog creation', async () => {
+  const { deps, drive } = setup();
+  deps.resolveSourceLink = vi.fn(async () => {
+    throw new TeamFunctionError('LEASE_MISMATCH');
+  });
+  await expect(createProductCatalog(deps, body(), ACTOR)).rejects.toMatchObject({
+    code: 'LEASE_MISMATCH'
+  });
+  expect(drive.createConvertedFile).not.toHaveBeenCalled();
+  expect(deps.startOperation).not.toHaveBeenCalled();
+});

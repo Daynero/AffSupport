@@ -88,6 +88,9 @@ export type CatalogLinkOutcome =
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
 export interface ProductCatalogDeps {
+  /** Resolve Launch SUBs only after the durable version and final collision-safe name exist. */
+  resolveSourceLink?: (name: string) => Promise<string>;
+
   /** Durable adapter owns reconciliation; an uncertain output must not be trashed blindly. */
   preserveUncertainOutput?: boolean;
   /** Reconciles an already-created sheet before repeating XLSX conversion. */
@@ -374,6 +377,11 @@ export async function createProductCatalog(
     idempotencyKey: request.idempotencyKey,
     replacingDriveFileId: live?.driveFileId ?? null
   });
+  if (deps.resolveSourceLink) {
+    const link = parseWebLink(await deps.resolveSourceLink(plan.name), SOURCE_LINK_MAX);
+    if (!link.ok) throw new TeamFunctionError('LAUNCH_SUB_INVALID');
+    request.sourceLink = link.value;
+  }
   const authority = await deps.startOperation({
     teamId,
     actorId,

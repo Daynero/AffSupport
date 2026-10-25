@@ -4301,3 +4301,111 @@
   margin-inline-start: auto;
   max-width: 100%;
 }
+
+/* Keep picker copy in the flexible track even without a leading file icon. */
+.launch-account-browser .team-task-picker-results button {
+  display: flex;
+}
+.launch-account-browser .team-task-picker-item-copy {
+  flex: 1;
+}
+.launch-account-browser .team-task-picker-item-copy small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.launch-editor-budget-error {
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.launch-account-browser .team-task-picker-item-copy small.text-success-text {
+  color: var(--color-success-text);
+}
+.launch-account-browser .team-task-picker-item-copy small.text-warning-text {
+  color: var(--color-warning-text);
+}
+@media (max-width: 560px) {
+  .launch-editor-budget-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, max-content));
+  }
+  .launch-editor-budget-row > .ui-segmented {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .launch-editor-budget-row > .field:has(.launch-editor-budget-values) {
+    grid-column: 1 / -1;
+  }
+}
+.launch-result-content > .launch-result-copy-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.launch-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--space-6) * 11)), 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+.launch-note-editor {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+}
+.launch-note-text {
+  min-height: calc(var(--space-6) * 3);
+  max-height: calc(var(--space-6) * 6);
+  overflow: auto;
+  resize: vertical;
+}
+.launch-note-add {
+  justify-self: start;
+}
+.launch-note-copy {
+  width: 100%;
+  justify-content: flex-start;
+}
+.launch-note-copy-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launch-result-notes {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+/* Persistent personal copy state: quiet content, readable and still interactive. */
+.launch-result-row.launch-result-already-copied:not(.launch-result-copied)
+  .ui-button.launch-result-value {
+  background: var(--color-neutral-surface-subtle);
+  border-color: var(--color-neutral-border);
+  color: var(--color-neutral-text-muted);
+}
+.launch-result-already-copied .launch-result-campaign-budget {
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+}
+.launch-copy-mark {
+  flex-shrink: 0;
+  margin-inline-start: var(--space-2);
+  color: var(--color-neutral-text-muted);
+}
+.ui-button.launch-note-copy.launch-note-already-copied {
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text-muted);
+  border-color: var(--color-neutral-border);
+}
+.launch-copy-progress {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

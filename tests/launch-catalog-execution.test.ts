@@ -127,3 +127,63 @@ it('retries parent publication after a lost reply without recreating an already 
     rpc.mock.calls.filter(([name]) => name === 'service_restore_registered_launch_catalog')
   ).toHaveLength(2);
 });
+
+it('passes the reserved final name through the coordinator binding before attaching the catalog', async () => {
+  const durable = await import('../supabase/functions/drive-ops/catalog-durable');
+  const create = vi
+    .spyOn(durable, 'createDurableProductCatalog')
+    .mockImplementationOnce(async deps => {
+      expect(await deps.resolveSourceLink?.('creative_v8_catalog')).toBe(
+        'https://example.invalid/?sub1=creative_v8_catalog'
+      );
+      return { outcome: 'created', catalog: {} as never, videoShared: false };
+    });
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data:
+      name === 'service_claim_launch_generation'
+        ? {
+            state: 'running',
+            fence: '2',
+            config: launchConfig({
+              method: 'catalog',
+              originalUrl: 'https://example.invalid/?sub1=old',
+              subConfig: { schemaVersion: 1, sub1: ['catalogName'], sub2: [], sub3: [] }
+            }),
+            sources: {
+              ...launchSources,
+              schemaVersion: 1,
+              agentRowId: launchConfig().agentRowId,
+              offerId: launchConfig().offerId,
+              buyerId: launchConfig().buyerId,
+              materialId: launchConfig().materialId,
+              catalogSettingsVersion: null
+            },
+            advertisingUrl: 'https://example.invalid/?sub1=old'
+          }
+        : name === 'service_restore_registered_launch_catalog'
+          ? false
+          : name === 'service_publish_launch_generation'
+            ? { state: 'succeeded' }
+            : null
+  }));
+  const deps: LaunchCatalogExecutionDeps = {
+    service: { rpc },
+    catalog: {} as LaunchCatalogExecutionDeps['catalog'],
+    driveFor: vi.fn(),
+    proveSource: vi.fn(),
+    proveCatalog: vi.fn()
+  };
+  try {
+    await expect(executeLaunchCatalog(deps, 'team', 'generation', 'actor')).resolves.toEqual({
+      state: 'succeeded'
+    });
+    const names = rpc.mock.calls.map(([name]) => name);
+    expect(names.indexOf('service_bind_launch_catalog_subs')).toBeLessThan(
+      names.indexOf('service_attach_launch_catalog')
+    );
+    expect(create).toHaveBeenCalledOnce();
+  } finally {
+    create.mockRestore();
+  }
+});
