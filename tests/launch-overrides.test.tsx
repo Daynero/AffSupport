@@ -110,6 +110,23 @@ it('keeps viewer outputs copyable while hiding edit and save actions', async () 
   });
   expect(write).toHaveBeenCalledWith(revision.baseline.advertisingUrl);
 });
+it('keeps the historical catalog name but hides its dead link after deletion', () => {
+  const revision = fixture();
+  const deletedRevision = { ...revision, catalog: { ...revision.catalog, available: false } };
+  render(
+    <LaunchResult
+      revision={deletedRevision}
+      overrides={{}}
+      onChange={vi.fn()}
+      onSave={vi.fn()}
+      editable={false}
+      disabled={false}
+    />
+  );
+  expect(screen.getByText('Catalog')).toBeTruthy();
+  expect(screen.getByText('Catalog file deleted')).toBeTruthy();
+  expect(screen.queryByText(revision.catalog.url)).toBeNull();
+});
 it('does not show a manual save button or autosave while result edits are locked', () => {
   const save = vi.fn();
   render(

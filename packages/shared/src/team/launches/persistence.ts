@@ -163,6 +163,7 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       typeof c.variant !== 'number' ||
       typeof c.name !== 'string' ||
       typeof c.url !== 'string' ||
+      (c.available !== undefined && typeof c.available !== 'boolean') ||
       (c.restitchMaterialId !== null && typeof c.restitchMaterialId !== 'string')
     )
       return null;
@@ -172,6 +173,7 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       variant: c.variant,
       name: c.name,
       url: c.url,
+      available: typeof c.available === 'boolean' ? c.available : true,
       restitchMaterialId: c.restitchMaterialId
     };
   }

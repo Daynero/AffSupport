@@ -69,7 +69,9 @@ export function LaunchResult({
     ...(revision.catalog
       ? {
           catalog_name: overrides.catalogName ?? revision.catalog.name,
-          catalog_url: overrides.catalogUrl ?? revision.catalog.url
+          ...(revision.catalog.available === false
+            ? {}
+            : { catalog_url: overrides.catalogUrl ?? revision.catalog.url })
         }
       : {})
   };
@@ -168,19 +170,24 @@ export function LaunchResult({
                   disabled={disabled}
                   onChange={value => update('catalogName', value, revision.catalog!.name)}
                 />
-                <CopyResultField
-                  compact
-                  openExternal
-                  copyKey="catalog_url"
-                  onCopyOutcome={copied('catalog_url')}
-                  label={t('launchesCatalogUrl')}
-                  validate={isLaunchUrl}
-                  baseline={revision.catalog.url}
-                  value={overrides.catalogUrl ?? revision.catalog.url}
-                  editable={editable}
-                  disabled={disabled}
-                  onChange={value => update('catalogUrl', value, revision.catalog!.url)}
-                />
+                {revision.catalog.available === false && (
+                  <span className="launch-result-hint">{t('launchesCatalogDeleted')}</span>
+                )}
+                {revision.catalog.available !== false && (
+                  <CopyResultField
+                    compact
+                    openExternal
+                    copyKey="catalog_url"
+                    onCopyOutcome={copied('catalog_url')}
+                    label={t('launchesCatalogUrl')}
+                    validate={isLaunchUrl}
+                    baseline={revision.catalog.url}
+                    value={overrides.catalogUrl ?? revision.catalog.url}
+                    editable={editable}
+                    disabled={disabled}
+                    onChange={value => update('catalogUrl', value, revision.catalog!.url)}
+                  />
+                )}
               </section>
             )}
             <section className="launch-result-campaigns" aria-label={t('launchesCampaignNames')}>

@@ -278,6 +278,7 @@ export const en = {
   launchesFieldMismatch: 'Changed for copying; dependent fields not recalculated',
   launchesCatalogName: 'Catalog name',
   launchesCatalogUrl: 'Catalog URL',
+  launchesCatalogDeleted: 'Catalog file deleted',
   launchesHistory: 'History',
   launchesHistoryEmpty: 'No versions yet',
   launchesRestore: 'Restore configuration',

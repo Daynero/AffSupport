@@ -220,6 +220,25 @@ function LaunchSpaceContent({
   useEffect(() => {
     void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
   }, [refresh, revision, t]);
+  const hasRunningLaunch = items.some(
+    item =>
+      item.generationState !== null &&
+      !['succeeded', 'canceled', 'failed', 'partial', 'interrupted'].includes(item.generationState)
+  );
+  useEffect(() => {
+    if (!hasRunningLaunch) return;
+    const reconcile = () => {
+      if (document.visibilityState === 'visible') void refresh().catch(() => undefined);
+    };
+    const timer = window.setInterval(reconcile, 10_000);
+    document.addEventListener('visibilitychange', reconcile);
+    window.addEventListener('focus', reconcile);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', reconcile);
+      window.removeEventListener('focus', reconcile);
+    };
+  }, [hasRunningLaunch, refresh]);
   useEffect(() => {
     const seq = ++sessionRequest.current;
     if (!open || open === 'new') {

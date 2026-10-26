@@ -279,6 +279,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesFieldMismatch: 'Змінено для копіювання; залежні поля не перераховано',
   launchesCatalogName: 'Назва каталогу',
   launchesCatalogUrl: 'Посилання на каталог',
+  launchesCatalogDeleted: 'Файл каталогу видалено',
   launchesHistory: 'Історія',
   launchesHistoryEmpty: 'Версій ще немає',
   launchesRestore: 'Відновити конфігурацію',

@@ -48,6 +48,9 @@ export function useLaunchGeneration(
   const savedHandler = useRef(onDraftSaved);
   const execution = useRef(0);
   const executionController = useRef<AbortController | null>(null);
+  // Once the server accepted a Launch, its browser-side restitch coordinator must
+  // finish even if the person closes the detail modal.
+  const acceptedWork = useRef(false);
   const activeReceipt = useRef<{ launchId: string; generationId: string } | null>(null);
   const lastObserved = useRef<LaunchDetail | null>(null);
   savedHandler.current = onDraftSaved;
@@ -55,8 +58,10 @@ export function useLaunchGeneration(
     mounted.current = true;
     return () => {
       mounted.current = false;
-      execution.current++;
-      executionController.current?.abort();
+      if (!acceptedWork.current) {
+        execution.current++;
+        executionController.current?.abort();
+      }
     };
   }, []);
   const notify = (detail: LaunchDetail) => {
@@ -78,7 +83,6 @@ export function useLaunchGeneration(
     const parsed = parseLaunchConfig(detail.draft);
     notify(detail);
     if (
-      !mounted.current ||
       !parsed.ok ||
       parsed.value.method !== 'catalog' ||
       !parsed.value.catalog.restitchEnabled ||
@@ -114,6 +118,7 @@ export function useLaunchGeneration(
   const releaseSubmission = () => {
     execution.current++;
     executionController.current?.abort();
+    acceptedWork.current = false;
     submitting.current = false;
     activeReceipt.current = null;
     if (mounted.current) {
@@ -258,6 +263,7 @@ export function useLaunchGeneration(
       );
       if (attempt !== execution.current) return;
       acceptanceConfirmed = true;
+      acceptedWork.current = true;
       if (mounted.current) setPendingStage('accepted');
       if (cancelRequested.current || request.current !== pending) {
         if (request.current === pending) await cancelPending();
@@ -369,6 +375,7 @@ export function useLaunchGeneration(
         );
       }
       if (attempt !== execution.current) return;
+      acceptedWork.current = true;
       if (mounted.current)
         launchAction({ launchId: detail.id, generationId: gen.id }, 'retry', 'success');
       await continueAccepted(

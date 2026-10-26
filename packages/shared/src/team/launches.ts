@@ -181,6 +181,7 @@ export interface LaunchRevision {
     variant: number;
     name: string;
     url: string;
+    available?: boolean;
     restitchMaterialId: string | null;
   } | null;
   createdAt: string;

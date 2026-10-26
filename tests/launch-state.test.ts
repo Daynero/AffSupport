@@ -1094,12 +1094,6 @@ it('updates a published catalog manually and on schedule, reuses it, and preserv
       )
     )[0].n
   ).toBe(1);
-  await expect(
-    db.root(
-      "select public.service_start_team_operation($1,$2,'trash','protected-trash-request','protected-nonce',$3,null,null,null,null)",
-      [team, ACTOR, cat]
-    )
-  ).rejects.toThrow('WRONG_STATE');
   const reusedHistory = await history();
   await db.root(
     "update public.team_catalog_updater_items set next_run_at=now()-interval '1 minute' where catalog_material_id=$1",
@@ -1192,12 +1186,29 @@ it('updates a published catalog manually and on schedule, reuses it, and preserv
     "update public.team_materials set parent_folder_id='launch-protected-folder' where id=$1",
     [cat]
   );
-  await expect(
-    db.root(
-      "select public.service_start_team_operation($1,$2,'trash','protected-folder-trash','protected-folder-nonce',$3,null,null,null,null)",
-      [team, ACTOR, folder]
+  await db.root(
+    "select public.service_start_team_operation($1,$2,'trash','manual-catalog-trash','manual-catalog-nonce',$3,null,null,null,null)",
+    [team, ACTOR, cat]
+  );
+  await db.root(
+    "select public.service_start_team_operation($1,$2,'trash','manual-folder-trash','manual-folder-nonce',$3,null,null,null,null)",
+    [team, ACTOR, folder]
+  );
+  await db.root(
+    "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id=$1",
+    [cat]
+  );
+  const afterTrash = (
+    await db.asUser<{ v: { activeRevision: { catalog: { name: string; available: boolean } } } }>(
+      ACTOR,
+      'select public.get_launch($1,$2,null) v',
+      [team, p.id]
     )
-  ).rejects.toThrow('WRONG_STATE');
+  )[0].v;
+  expect(afterTrash.activeRevision.catalog).toMatchObject({
+    name: 'Launch catalog',
+    available: false
+  });
 });
 
 it('normalizes dictionary spaces while rejecting controls and Cyrillic before storage', async () => {

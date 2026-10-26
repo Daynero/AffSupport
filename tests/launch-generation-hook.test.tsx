@@ -1,7 +1,7 @@
 import { launchConfig } from './fixtures/launches';
 import { TeamApiError } from '../apps/web/src/api/team';
 // @vitest-environment jsdom
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { LaunchDetail } from '../packages/shared/src/team/launches';
 import { useLaunchGeneration } from '../apps/web/src/team/launches/useLaunchGeneration';
@@ -242,6 +242,49 @@ it('does not start generation when draft saving finishes after the session was r
   expect(api.generate).not.toHaveBeenCalled();
   expect(local.run).not.toHaveBeenCalled();
   expect(onResult).not.toHaveBeenCalled();
+});
+it('finishes an accepted restitch after the detail modal closes', async () => {
+  const config = launchConfig({
+    method: 'catalog',
+    catalog: {
+      productCount: 100,
+      restitchEnabled: true,
+      finalDurationMode: 'custom',
+      customFinalDurationSeconds: 120
+    }
+  });
+  const accepted = {
+    id: 'launch',
+    draft: config,
+    generation: { id: 'generation', state: 'accepted' }
+  } as LaunchDetail;
+  let finish: () => void = () => undefined;
+  api.save.mockResolvedValue({ id: 'launch', version: '1' });
+  api.generate.mockResolvedValue({});
+  api.detail.mockResolvedValueOnce(accepted).mockResolvedValueOnce({
+    ...accepted,
+    generation: { ...accepted.generation!, state: 'succeeded' }
+  });
+  local.run.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        finish = () => resolve({ operationId: 'child' });
+      })
+  );
+  const onResult = vi.fn();
+  const hook = renderHook(() => useLaunchGeneration('team', onResult));
+  let running: Promise<void> = Promise.resolve();
+  act(() => {
+    running = hook.result.current.generate(null, config, null, null);
+  });
+  await waitFor(() => expect(local.run).toHaveBeenCalledOnce());
+  hook.unmount();
+  await act(async () => {
+    finish();
+    await running;
+  });
+  expect(api.detail).toHaveBeenCalledTimes(2);
+  expect(onResult).toHaveBeenCalledTimes(1);
 });
 it('retains the explicit restitch retry key after an uncertain reply', async () => {
   const config = launchConfig({
