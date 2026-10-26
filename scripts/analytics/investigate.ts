@@ -829,7 +829,14 @@ function linkOf(rows: EventRow[]): InvestigateLink {
       !recovered.some(
         rec =>
           rec.occurred_at >= loss.occurred_at &&
-          (loss.flow_id === null || rec.flow_id === null || rec.flow_id === loss.flow_id)
+          // Reconnection starts a new attempt, so its flow differs from the lost
+          // stream's flow. A later recovery in the same browser session and
+          // installation proves recovery even across a native process restart.
+          ((loss.flow_id !== null && rec.flow_id === loss.flow_id) ||
+            (loss.session_id !== null &&
+              rec.session_id === loss.session_id &&
+              loss.installation_id !== null &&
+              rec.installation_id === loss.installation_id))
       )
   );
   const reasons = new Map<string, number>();
@@ -1331,7 +1338,7 @@ function buildFindings(input: {
       key: `${loss.flow_id ?? 'none'}|${loss.at}`,
       kind: 'fact',
       severity: 'high',
-      title: `The link to the local app was lost at ${loss.at} (reason ${loss.reason ?? 'unknown'}) and did not come back in the period.`,
+      title: `The link to the local app was lost at ${loss.at} (reason ${loss.reason ?? 'unknown'}) and no correlated recovery was observed in the period.`,
       evidence: row ? [eventRef(row)] : [],
       fingerprint,
       next_step:
@@ -1390,6 +1397,22 @@ function buildFindings(input: {
     });
   }
 
+  if (blindSpots.some(spot => spot.kind === 'native_launcher_unobserved')) {
+    findings.add({
+      rule: 'native_launcher_unobserved',
+      key: 'windows',
+      kind: 'insufficient',
+      severity: 'medium',
+      title:
+        'Windows launcher readiness checks and failure-dialog shutdown decisions are not collected. A listening agent or browser recovery does not prove that the launcher accepted readiness.',
+      evidence: ['blind_spot:native_launcher_unobserved'],
+      fingerprint: 'launcher:windows:unobserved',
+      next_step:
+        'Inspect the native health client and failure-dialog lifecycle. Add bounded launcher evidence with durable delivery before claiming a startup cause or resolution; see platform analytics task T027.',
+      at: ''
+    });
+  }
+
   // A failure with no journal at all around anything: name the blind spot.
   if (failures.length > 0 && journal.length === 0) {
     const tableMissing = blindSpots.some(spot => spot.kind === 'journal_table_missing');
@@ -1431,6 +1454,18 @@ function blindSpotsOf(input: {
   const { rows, journal, schema } = input;
   const journalReadable = schema.tables.agent_journal_records;
   const spots: InvestigateBlindSpot[] = [];
+  if (
+    rows.some(row => row.agent_platform === 'windows' || row.platform === 'windows') ||
+    journal.some(record => record.category === 'boot' && record.props.platform === 'win32')
+  ) {
+    spots.push({
+      kind: 'native_launcher_unobserved',
+      detail:
+        'Windows launcher probe outcomes, timeout, dialog acknowledgement and child termination are not forwarded. Agent boot and browser connection records cannot establish launcher readiness or the cause of this startup dialog.',
+      values: []
+    });
+  }
+
   if (!journalReadable) {
     spots.push({
       kind: 'journal_table_missing',

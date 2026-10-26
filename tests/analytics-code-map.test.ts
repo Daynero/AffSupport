@@ -154,11 +154,13 @@ describe('code map · completeness', () => {
 });
 
 describe('code map · files', () => {
-  it('lists only files that exist under apps, packages or supabase', () => {
+  it('lists only files that exist under product source roots', () => {
     for (const [key, entry] of Object.entries(CODE_MAP)) {
       expect(entry.files.length, key).toBeGreaterThan(0);
       for (const file of entry.files) {
-        expect(file, key).toMatch(/^(apps|packages|supabase)\/[\w.@/-]+$/);
+        expect(file, key).toMatch(
+          /^(apps|packages|supabase|packaging\/windows\/SotyAgentHost)\/[\w.@/-]+$/
+        );
         expect(file, key).not.toContain('..');
         expect(existsSync(join(ROOT, file)), `${key} → ${file}`).toBe(true);
       }

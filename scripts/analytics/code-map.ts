@@ -27,7 +27,7 @@ import { ACCOUNT_ANALYTICS_CODES } from '../../packages/shared/src/team/analytic
  */
 
 export interface CodeLocation {
-  /** Repo-relative paths under `apps/`, `packages/` or `supabase/`; origin first, then surface. */
+  /** Repo-relative paths under product source roots, including the native Windows host; origin first, then surface. */
   files: string[];
   /** One sentence: what to verify first. */
   check: string;
@@ -1129,6 +1129,16 @@ function build(): Record<string, CodeLocation> {
 
 export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   ...build(),
+  'launcher:windows:unobserved': {
+    files: [
+      'packaging/windows/SotyAgentHost/AgentHealthClient.cs',
+      'packaging/windows/SotyAgentHost/TrayApplication.cs',
+      'packaging/windows/SotyAgentHost/AgentProcess.cs',
+      'apps/agent/src/server/diagnostics-log.ts'
+    ],
+    check:
+      'Distinguish native probe failure from a listening agent. The launcher currently hides probe exceptions and terminates its child after the error dialog closes; its decisions are not delivered in the agent journal.'
+  },
   'process:output:PROCESS_RESULT_UNCERTAIN': {
     files: [
       'supabase/migrations/20261206134000_process_upload_ownership.sql',

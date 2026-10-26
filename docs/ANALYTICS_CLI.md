@@ -579,3 +579,9 @@ explicit synthetic acceptance capture verifies the collector and read-only CLI.
 ### Web-only release diagnosis
 
 A web-only mini release keeps `local_app_version` unchanged and sets `web_build_id` to `web:<source SHA>:<configuration digest prefix>`. Compare web cohorts separately from agent cohorts. Operator stages have no central event producer: `update.web_release` explicitly reports this blind spot. Read `npm run release:web -- --report` for the correlated local run, stage durations and bounded failure; candidate runtime receipt and exact live-byte readback provide fallback evidence. An unresolved publication blocks further release writes until `npm run release:web -- --reconcile` confirms its archived bytes on the live binding. Reconciliation never uploads or rebuilds.
+
+### Windows startup diagnosis
+
+`investigate` reports `native_launcher_unobserved` even when the agent journal contains successful boot and listening records: those records do not prove that the native launcher accepted readiness, nor explain a readiness error followed by child termination. `audit` keeps `onboarding.windows_launcher` uncovered until the native producer and delivery chain are verified (platform analytics tasks T027–T030). Do not infer that a proxy caused a user's incident from the reproduced proxy failure alone.
+
+A reconnect has a new attempt ID. The reader accepts a later `link_recovered` in the same non-null browser session and installation even when its flow differs from `link_lost`; another session or installation does not resolve that loss. Browser recovery still does not prove that a native startup dialog disappeared or that the user's media operation completed.

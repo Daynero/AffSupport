@@ -35,7 +35,10 @@ internal sealed class AgentHealthClient
 {
   private const string ExpectedProduct = "local-video-compressor-agent";
 
-  private static readonly HttpClient Http = new()
+  // This client only probes the bundled agent on loopback. A system proxy can
+  // reject or delay that request while the browser still reaches the agent.
+  // Never route local readiness or build checks through an external proxy.
+  private static readonly HttpClient Http = new(new HttpClientHandler { UseProxy = false })
   {
     // Per-probe timeouts are enforced with a CancellationTokenSource; keep the
     // client-wide timeout out of the way.

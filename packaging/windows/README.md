@@ -91,6 +91,16 @@ dotnet publish packaging/windows/SotyAgentHost -c Release -r win-x64 \
   --self-contained true /p:PublishSingleFile=true
 ```
 
+The loopback health-client regression runs the actual C# client on any OS with
+.NET 8, using a local HTTP fixture and an unavailable default proxy:
+
+```sh
+dotnet run --project tests/windows-host-health/WindowsHostHealth.csproj
+```
+
+This proves the native client reaches loopback without inheriting a system proxy.
+It does not replace packaged Windows acceptance or exercise the WinForms error dialog.
+
 ## Behavioral differences vs. the macOS launcher
 
 - **Update handoff.** On macOS the launcher polls `release.json` inside its own bundle,
