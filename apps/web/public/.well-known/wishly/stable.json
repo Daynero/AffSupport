@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.2.7",
-  "buildNumber": "72",
-  "buildId": "1.2.7+72",
+  "version": "1.2.8",
+  "buildNumber": "73",
+  "buildId": "1.2.8+73",
   "apiVersion": 5,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-10-24T14:37:21.945Z",
+  "publishedAt": "2026-10-26T06:48:45.367Z",
   "summary": {
-    "uk": "Виправлено помилки та покращено роботу застосунку.",
-    "en": "Bug fixes and improvements."
+    "uk": "Покращено запуски, каталоги й збереження налаштувань. Додано дублювання завдань та виправлено роботу акаунтів.",
+    "en": "Improved launches, catalogs and saved settings. Added task duplication and fixed account workspace issues."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.7/Soty-v1.2.7-macOS-arm64.dmg",
-      "sha256": "a4f8bdc3e6c23a655f5b47da72e819b16b89ca76dc379b1dab907b3ce842138c"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.8/Soty-v1.2.8-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.7/Soty-v1.2.7-Windows-x64.exe",
-      "sha256": "91409246d964df83c5bd8d424f01647214c8ed925d5e31a3c4711a37e6b511c4"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.2.8/Soty-v1.2.8-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "bWQ7YPeECQI2cmCjn5J8eoto8oyJ7uk1NOD17SYNy2HckIWILF4tHHUDSisucWYPEqbCJNcOex6MqdY3FzuJ1w"
+  "signature": "rdXDwyhU8ofbTc9tj-YCjj4FAPJNErD_rlfPsJMY06t6RzPIqPuwp50mAiGLd3qIS7TdpcE8N35qXYvUXhGVzQ"
 }
