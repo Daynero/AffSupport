@@ -2098,3 +2098,8 @@ Preserve the reference-based cleanup fences and the catalog-SUB wrapper. Revert 
 ### 20261206145200 — Launch restitch with a versioned catalog SUB
 
 Restore `service_link_launch_restitch_catalog` from 20261206145100 only after active Launch catalog registrations settle. This restores the previous URL check and therefore reintroduces refusal of a restitched catalog whose SUB includes its reserved catalog name; no rows or published revision snapshots are rewritten. Keep the catalog-SUB publication wrapper and all provenance/lease guards.
+
+
+## 20261206145300_launch_complete_profiles
+
+Additive launch profile fields (date/timezone, original URL and notes) use the existing protected RPCs, scope versions and idempotency receipts. No profile is rewritten. Prefer rolling the UI forward. A UI rollback must retain all stored fields and prevent an older client from silently replacing a complete profile with its former reduced whitelist. Do not strip those fields or restore the old validator while complete profiles are still writable. For a database rollback, first stop profile writes, retain a protected backup, restore the prior definitions of `private.validate_launch_defaults_row` and `private.save_launch_defaults`, then drop `private.launch_profile_details_valid(jsonb)` only after removing its callers. Existing rows remain protected; this does not affect launch revisions or generated resources.

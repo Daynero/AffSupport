@@ -73,7 +73,7 @@ it('does not offer to apply a saved profile that already matches the draft', asy
   expect(result.current.defaults.proposal).toBeNull();
   expect(result.current.config.campaignCount).toBe(5);
 });
-it('automatically applies an offer and falls back to general settings without leaking A into B', async () => {
+it('asks before applying offer or general settings without leaking A into B', async () => {
   api.defaults.mockImplementation(async (_team, offer) =>
     offer === 'A' ? profile(5) : offer === 'B' ? null : profile(4)
   );
@@ -89,16 +89,19 @@ it('automatically applies an offer and falls back to general settings without le
       timezone: 'UTC'
     }))
   );
-  await waitFor(() => expect(result.current.config.campaignCount).toBe(5));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  expect(result.current.config.campaignCount).toBe(3);
+  act(() => result.current.defaults.apply());
+  expect(result.current.config.campaignCount).toBe(5);
   expect(result.current.config).toMatchObject({
     materialId: 'material',
-    originalUrl: 'PRIVATE',
-    launchDate: '2026-11-10',
-    timezone: 'UTC'
+    timezone: newLaunchDraft().timezone
   });
   expect(result.current.defaults.source).toBe('offer');
   act(() => result.current.setConfig(old => ({ ...old, offerId: 'B' })));
-  await waitFor(() => expect(result.current.config.campaignCount).toBe(4));
+  await waitFor(() => expect(result.current.defaults.proposal?.source).toBe('workspace'));
+  act(() => result.current.defaults.apply());
+  expect(result.current.config.campaignCount).toBe(4);
   expect(result.current.defaults.source).toBe('workspace');
 });
 it('protects manual changes before and during a slow read; explicit apply replaces the entire reusable profile', async () => {
@@ -146,6 +149,8 @@ it('ignores out-of-order reads and records obsolete work as cancelled', async ()
   act(() => result.current.setConfig(old => ({ ...old, offerId: 'B' })));
   await act(async () => b.resolve(profile(6)));
   await act(async () => a.resolve(profile(9)));
+  expect(result.current.defaults.proposal?.values.campaignCount).toBe(6);
+  act(() => result.current.defaults.apply());
   expect(result.current.config.campaignCount).toBe(6);
   expect(api.track.mock.calls.some(([event]) => event === 'operation_cancelled')).toBe(true);
 });
@@ -167,7 +172,9 @@ it('a new draft remains eligible for safe defaults after autosave creates its ID
   await waitFor(() => expect(result.current.defaults.loading).toBe(false));
   rerender({ persisted: true });
   act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
-  await waitFor(() => expect(result.current.config.campaignCount).toBe(8));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  act(() => result.current.defaults.apply());
+  expect(result.current.config.campaignCount).toBe(8);
 });
 it('does not turn read failure into a fallback; retries with a new attempt and the same flow', async () => {
   api.defaults
@@ -179,7 +186,9 @@ it('does not turn read failure into a fallback; retries with a new attempt and t
   await waitFor(() => expect(result.current.defaults.error).toBeTruthy());
   expect(result.current.config.campaignCount).toBe(3);
   act(() => result.current.defaults.retry());
-  await waitFor(() => expect(result.current.config.campaignCount).toBe(6));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  act(() => result.current.defaults.apply());
+  expect(result.current.config.campaignCount).toBe(6);
   const starts = api.track.mock.calls.filter(
     ([event, props]) =>
       event === 'operation_started' && props.flow_step === 'launch_defaults_read_offer'
@@ -203,7 +212,9 @@ it('drops an archived buyer with visible warning while preserving a manual budge
   const { result } = mount();
   await waitFor(() => expect(result.current.defaults.loading).toBe(false));
   act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
-  await waitFor(() => expect(result.current.defaults.buyerMissing).toBe(true));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  act(() => result.current.defaults.apply());
+  expect(result.current.defaults.buyerMissing).toBe(true);
   expect(result.current.config.buyerId).toBeUndefined();
   expect(result.current.config.budgets).toEqual([10, 21, 30]);
   expect(result.current.config.budgetMode).toBe('manual');
@@ -227,14 +238,16 @@ it('keeps the defaults payload free of one-off fields and retains complete budge
     originalUrl: 'PRIVATE',
     materialId: 'M'
   });
-  for (const key of ['offerId', 'originalUrl', 'materialId', 'launchDate', 'timezone'])
+  for (const key of ['offerId', 'agentRowId', 'materialId', 'creativeAlias'])
     expect(payload).not.toHaveProperty(key);
+  expect(payload.originalUrl).toBe('PRIVATE');
+  expect(payload.launchDate).toBe(newLaunchDraft().launchDate);
   expect(resolvedLaunchDefaults(profile(3)).minBudget).toBeUndefined();
 });
 
 it('saving an edited offer clears the old proposal while reviewing a version never claims it was applied', async () => {
   api.defaults.mockResolvedValue(profile(8));
-  const { result } = mount({ ...newLaunchDraft(), offerId: 'A', campaignCount: 7 }, true);
+  const { result } = mount({ ...newLaunchDraft(), offerId: 'A', campaignCount: 7 });
   await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
   act(() => result.current.setConfig(old => ({ ...old, campaignCount: 4 })));
   act(() =>
@@ -248,4 +261,63 @@ it('saving an edited offer clears the old proposal while reviewing a version nev
   act(() => result.current.defaults.reviewed(profile(9), 'offer'));
   expect(result.current.config.campaignCount).toBe(5);
   expect(result.current.defaults.source).toBe('current');
+});
+
+it('restores a saved minimum age and all form values after a new draft chooses the offer; No leaves edits intact', async () => {
+  const values: LaunchDraft = {
+    ...newLaunchDraft(),
+    age: 52,
+    campaignCount: 2,
+    minBudget: 15,
+    maxBudget: 35,
+    budgetMode: 'manual',
+    budgets: [15, 35],
+    adsCount: 8,
+    gender: 'W',
+    advantagePlus: false,
+    launchDate: '2026-11-10',
+    timezone: 'Europe/Kiev',
+    originalUrl: 'https://example.invalid/?token=SYNTHETIC',
+    notes: [{ id: '10000000-0000-4000-8000-000000000001', title: 'Saved', text: 'SYNTHETIC_NOTE' }],
+    catalog: {
+      productCount: 37,
+      restitchEnabled: true,
+      finalDurationMode: 'random-centered',
+      customFinalDurationSeconds: 1800,
+      finalDurationRangeSeconds: [1200, 2400]
+    }
+  };
+  api.defaults.mockResolvedValue({
+    config: launchDefaultValues(values),
+    subConfig: values.subConfig,
+    version: '2'
+  });
+  const { result } = mount({
+    ...newLaunchDraft(),
+    age: 21,
+    agentRowId: 'current-rk',
+    materialId: 'current-creative',
+    creativeAlias: 'current-alias'
+  });
+  await waitFor(() => expect(result.current.defaults.loading).toBe(false));
+  act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  act(() => result.current.defaults.keep());
+  expect(result.current.config.age).toBe(21);
+  expect(
+    api.track.mock.calls.some(([, props]) => props.flow_step === 'launch_defaults_apply_offer')
+  ).toBe(false);
+  act(() => result.current.setConfig(old => ({ ...old, offerId: 'B' })));
+  await waitFor(() => expect(result.current.defaults.proposal?.offerId).toBe('B'));
+  act(() => result.current.defaults.apply());
+  expect(launchDefaultValues(result.current.config)).toEqual(launchDefaultValues(values));
+  expect(result.current.config).toMatchObject({
+    offerId: 'B',
+    agentRowId: 'current-rk',
+    materialId: 'current-creative',
+    creativeAlias: 'current-alias',
+    age: 52
+  });
+  expect(result.current.defaults.proposal).toBeNull();
+  expect(JSON.stringify(api.track.mock.calls)).not.toContain('SYNTHETIC');
 });

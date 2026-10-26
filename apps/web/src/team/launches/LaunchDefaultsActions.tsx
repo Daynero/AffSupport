@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { Info, RotateCcw, Save, Settings2 } from 'lucide-react';
-import { Button, IconButton, Popover } from '../../components/ui/index';
+import { Info, Save, Settings2 } from 'lucide-react';
+import { Button, ConfirmDialog, IconButton, Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
@@ -79,38 +79,22 @@ export function LaunchDefaultsActions({
         </p>
       )}
       {proposal && (
-        <div className="launch-defaults-proposal">
-          <div className="min-w-0">
-            <p className="m-0 break-words text-label font-medium">
-              {proposalSource === 'offer'
-                ? t('launchesDefaultsAvailableOffer', { value: offerName ?? '' })
-                : t('launchesDefaultsAvailableGeneral')}
-            </p>
-            <p id={`${id}-replace`} className="m-0 text-caption text-muted">
-              {t('launchesDefaultsReplaceHint')}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              leading={<RotateCcw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-              aria-label={t(
-                proposalSource === 'offer'
-                  ? 'launchesDefaultsApplyOffer'
-                  : 'launchesDefaultsApplyGeneral'
-              )}
-              aria-describedby={`${id}-replace`}
-              disabled={disabled}
-              onClick={onApply}
-            >
-              {t('launchesDefaultsApplyShort')}
-            </Button>
-            <Button variant="outline" size="sm" disabled={disabled} onClick={onKeep}>
-              {t('launchesDefaultsKeep')}
-            </Button>
-          </div>
-        </div>
+        <ConfirmDialog
+          nested
+          tone="neutral"
+          title={t('launchesDefaultsApplyTitle')}
+          body={t(
+            proposalSource === 'offer'
+              ? 'launchesDefaultsApplyOfferPrompt'
+              : 'launchesDefaultsApplyGeneralPrompt',
+            { value: offerName ?? '' }
+          )}
+          confirmLabel={t('launchesDefaultsApplyYes')}
+          cancelLabel={t('launchesDefaultsApplyNo')}
+          busy={disabled}
+          onConfirm={onApply}
+          onCancel={onKeep}
+        />
       )}
       {manage && (
         <div className="flex items-center gap-2">

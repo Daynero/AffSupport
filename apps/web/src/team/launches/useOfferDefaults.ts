@@ -41,7 +41,6 @@ export function useOfferDefaults({
 }) {
   const openedExisting = useRef(existing);
   const readFlow = useRef<{ offerId?: string; id: string } | null>(null);
-  const kept = useRef(false);
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<{
     offerId?: string;
@@ -50,6 +49,7 @@ export function useOfferDefaults({
     profile: Profile;
   }>({ loading: Boolean(config.offerId), profile: null });
   const [proposal, setProposal] = useState<{
+    offerId?: string;
     values: LaunchDraft;
     source: 'offer' | 'workspace' | 'builtin';
   } | null>(null);
@@ -65,7 +65,6 @@ export function useOfferDefaults({
   const applied = useRef<ReturnType<typeof observeLaunchDefaults> | null>(null);
   const apply = (values: LaunchDraft, nextSource: 'offer' | 'workspace' | 'builtin') => {
     if (latest.current.disabled) return;
-    kept.current = false;
     const safe = { ...values };
     const missing = Boolean(
       safe.buyerId && !latest.current.buyers.some(row => row.id === safe.buyerId)
@@ -124,25 +123,15 @@ export function useOfferDefaults({
         const available: typeof proposal =
           nextSource !== 'builtin' &&
           !launchValuesEqual(launchDefaultValues(latest.current.config), values)
-            ? { values, source: nextSource }
+            ? { offerId, values, source: nextSource }
             : null;
         observation.finish('success');
-        // Opening an existing draft never changes it, even if a profile now differs.
-        if (initial && openedExisting.current) {
-          setProposal(available);
-          return;
-        }
+        // Reopening a saved launch is not an offer-selection action.
+        if (initial && openedExisting.current) return;
         if (initial && !offerId) return;
-        const unchanged = launchValuesEqual(
-          launchDefaultValues(latest.current.config),
-          baseline.current
-        );
-        if (!openedExisting.current && !kept.current && unchanged && !latest.current.disabled)
-          applyRef.current(values, nextSource);
-        else {
-          setSource('current');
-          setProposal(available);
-        }
+        // Every actual selection uses the same explicit decision, including
+        // fresh drafts that autosave has already assigned an ID.
+        setProposal(available);
       })
       .catch(error => {
         if (!active) return;
@@ -160,13 +149,13 @@ export function useOfferDefaults({
     source: !launchValuesEqual(launchDefaultValues(config), baseline.current)
       ? ('current' as const)
       : source,
-    proposal,
+    proposal: state.offerId === config.offerId ? proposal : null,
     buyerMissing,
     apply: () => {
-      if (proposal) applyRef.current(proposal.values, proposal.source);
+      if (proposal && proposal.offerId === latest.current.config.offerId)
+        applyRef.current(proposal.values, proposal.source);
     },
     keep: () => {
-      kept.current = true;
       setProposal(null);
       setSource('current');
     },
@@ -180,7 +169,6 @@ export function useOfferDefaults({
       setProposal(old => (scope === 'workspace' && old?.source === 'offer' ? old : null));
       baseline.current = launchDefaultValues(profile.config);
       setSource(scope);
-      kept.current = false;
     }
   };
 }

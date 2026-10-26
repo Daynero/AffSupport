@@ -60,11 +60,17 @@
  * box stays up once anything is selected, because a selection you cannot see
  * is one you will act on by accident.
  */
-.team-task-card-menu {
+.team-task-card-menu,
+.team-task-card-duplicate {
   margin-left: auto;
   opacity: 0;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
+.team-task-card-duplicate + .team-task-card-menu {
+  margin-left: 0;
+}
+.team-task-card:hover .team-task-card-duplicate,
+.team-task-card:focus-within .team-task-card-duplicate,
 .team-task-card:hover .team-task-card-menu,
 .team-task-card:focus-within .team-task-card-menu {
   opacity: 1;

@@ -139,9 +139,11 @@ function parseFinanceLifecycle(value: unknown): FinanceLifecycle | null {
     ) ||
     parsed.parents.some(
       row =>
-        !agentIds.has(row.agentRowId) ||
-        !accountIds.has(row.accountId) ||
-        (row.endsAt !== null && row.endsAt <= row.startsAt)
+        // Closed history deliberately outlives hard-deleted legacy identities.
+        // Only a live assignment requires both identities in the current snapshot.
+        (row.endsAt === null &&
+          (!agentIds.has(row.agentRowId) || !accountIds.has(row.accountId))) ||
+        (row.endsAt !== null && Date.parse(row.endsAt) <= Date.parse(row.startsAt))
     )
   )
     return null;

@@ -24,14 +24,14 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
-it('retains multiline note content across draft and generation parsing, without putting it in profiles', () => {
+it('retains multiline note content across parsing and profiles, and clears absent profile notes', () => {
   const config = launchConfig({ notes: [note] });
   expect(parseLaunchDraft(config)?.notes).toEqual([note]);
   const parsed = parseLaunchConfig(config);
   if (!parsed.ok) throw new Error('fixture');
   expect(parsed.value.notes).toEqual([note]);
-  expect(launchDefaultValues(config).notes).toBeUndefined();
-  expect(applyLaunchDefaultValues(config, {}).notes).toEqual([note]);
+  expect(launchDefaultValues(config).notes).toEqual([note]);
+  expect(applyLaunchDefaultValues(config, {}).notes).toBeUndefined();
   expect(parseLaunchConfig(launchConfig()).ok).toBe(true);
   const many = Array.from({ length: 100 }, (_, index) => ({
     ...note,

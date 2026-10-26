@@ -14,14 +14,18 @@ export const LAUNCH_DEFAULT_FIELDS = [
   'method',
   'advantagePlus',
   'catalog',
-  'subConfig'
+  'subConfig',
+  'launchDate',
+  'timezone',
+  'originalUrl',
+  'notes'
 ] as const;
 export function launchDefaultValues(config: LaunchDraft): LaunchDraft {
   return Object.fromEntries(
     LAUNCH_DEFAULT_FIELDS.filter(key => config[key] !== undefined).map(key => [key, config[key]])
   );
 }
-/** Replace the entire profile, including absent optional fields; keep one-off inputs. */
+/** Replace the entire profile, including absent optional fields; keep the selected offer, ad account and creative. */
 export function applyLaunchDefaultValues(current: LaunchDraft, profile: LaunchDraft): LaunchDraft {
   const next = { ...current };
   for (const key of LAUNCH_DEFAULT_FIELDS) delete next[key];

@@ -164,3 +164,25 @@ it('upgrades existing identities and ledger without rewriting history, seeds nat
     await f.close();
   }
 }, 120000);
+
+it('reads the actual v2 RPC after a closed parent history outlives its legacy social', async () => {
+  const f = await unifiedAccountsFixture({ socialCount: 1, agentsPerSocial: 1, runsPerAgent: 0 });
+  try {
+    // Mirrors retained pre-archive history, without deleting or fabricating current identities.
+    await f.db.root(
+      "insert into public.team_account_parent_history(team_id,agent_row_id,account_id,starts_at,ends_at,provenance) values($1,$2,$3,'2025-01-01','2025-02-01','observed')",
+      [f.team, f.agents[0]!.id, randomUUID()]
+    );
+    const [{ value }] = await f.db.asUser<{ value: unknown }>(
+      UNIFIED_ACCOUNTS_OWNER,
+      "select public.get_team_agent_finance_v2($1,'2026-01-02','2026-01-02','UTC') value",
+      [f.team]
+    );
+    const parsed = parseFinanceSnapshot(value);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.lifecycle!.parents).toHaveLength(2);
+    expect(parsed!.agents).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+}, 60000);

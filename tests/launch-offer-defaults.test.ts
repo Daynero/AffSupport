@@ -120,7 +120,10 @@ it('validates manual budgets and rejects one-off and nested content at the stora
     { ...config, budgets: [10, 10, 30] },
     { ...config, budgets: [10, 20, 29] },
     { ...config, budgetMode: 'auto' },
-    { ...config, originalUrl: 'SYNTHETIC_SECRET' },
+    { ...config, originalUrl: 3 },
+    { ...config, launchDate: '2026-02-30' },
+    { ...config, timezone: 'not/a-zone' },
+    { ...config, notes: [{ id: 'not-a-uuid', title: '', text: '' }] },
     { ...config, offerId: offer },
     { ...config, catalog: { ...launchConfig().catalog, secret: 'SYNTHETIC_SECRET' } }
   ])
@@ -156,4 +159,39 @@ it('refuses a missing offer without modifying the general profile', async () => 
     ])
   ).rejects.toThrow('INVALID_INPUT');
   expect(await read()).toEqual(before);
+});
+
+it('round-trips every form value in both profile scopes without leaking content into signals', async () => {
+  const notes = [{ id: crypto.randomUUID(), title: 'Template', text: 'SYNTHETIC_NOTE_VALUE' }];
+  const complete = {
+    ...config,
+    launchDate: '2026-11-10',
+    timezone: 'Europe/Kiev',
+    originalUrl: 'https://example.invalid/?token=SYNTHETIC_PROFILE_TOKEN&sub1=old',
+    notes,
+    gender: 'ALL',
+    advantagePlus: false,
+    adsCount: 7,
+    age: 42,
+    method: 'catalog',
+    catalog: {
+      productCount: 37,
+      restitchEnabled: true,
+      finalDurationMode: 'random-centered',
+      customFinalDurationSeconds: 1800,
+      finalDurationRangeSeconds: [1200, 2400]
+    }
+  };
+  for (const scope of [null, offer]) {
+    const current = await read(scope ?? undefined);
+    const key = crypto.randomUUID();
+    const saved = await save(scope, current?.version ?? null, key, complete);
+    expect((await read(scope ?? undefined))?.config).toEqual(complete);
+    expect(await save(scope, current?.version ?? null, key, complete)).toEqual(saved);
+  }
+  const signals = await db.root(
+    'select * from public.team_launch_workspace_signals where team_id=$1',
+    [team]
+  );
+  expect(JSON.stringify(signals)).not.toMatch(/SYNTHETIC_NOTE_VALUE|SYNTHETIC_PROFILE_TOKEN/);
 });

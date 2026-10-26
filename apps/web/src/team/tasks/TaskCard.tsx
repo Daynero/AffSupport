@@ -19,10 +19,10 @@ import {
   type KeyboardEvent,
   type MouseEvent
 } from 'react';
-import { ChevronDown, MoreHorizontal, Paperclip, UserRound } from 'lucide-react';
+import { ChevronDown, CopyPlus, MoreHorizontal, Paperclip, UserRound } from 'lucide-react';
 import { teamTaskDate } from '@video-compressor/shared';
 import type { TeamTaskPatch, TeamTaskStatus, TeamTaskSummary } from '@video-compressor/shared';
-import { ICON_STROKE } from '../../components/icons';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskProgressScale } from './TaskProgressScale';
 import { useCoalescedWrite } from './useCoalescedWrite';
@@ -52,6 +52,8 @@ export function TaskCard({
   expanded: expandedProp,
   onExpandedChange,
   onOpen,
+  onDuplicate,
+  duplicating = false,
   onUpdate,
   members = [],
   labels = [],
@@ -75,6 +77,8 @@ export function TaskCard({
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
   onOpen: () => void;
+  onDuplicate?: () => void;
+  duplicating?: boolean;
   onUpdate: (patch: TeamTaskPatch) => Promise<TeamTaskSummary>;
   /**
    * What the card can do without opening the task (024, FR-076).
@@ -236,9 +240,20 @@ export function TaskCard({
         {/* The team's own tags (018), in the same strip and the same shape as
             the agent tags — their colour is what tells the two apart. */}
         <TaskLabelChips labels={task.labels} limit={3} />
-        {/* One door to everything else the card can do. Not a row of icons:
-            past the status control, nothing here is used often enough to earn
-            a permanent place on fifty cards at once (024, FR-076). */}
+        {canEdit && onDuplicate && (
+          <IconButton
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            className="team-task-card-duplicate"
+            label={t('teamTaskDuplicate')}
+            disabled={duplicating}
+            onClick={onDuplicate}
+          >
+            <CopyPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        )}
+        {/* The duplicate shortcut sits beside the remaining actions. */}
         {actions && menuItems.length > 0 && (
           <>
             <IconButton

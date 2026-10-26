@@ -21,6 +21,9 @@ try {
   ]);
   for (const { width, height } of viewports) {
     await page.setViewportSize({ width, height });
+    // Wrapped controls can place the minimum-height table below the fold.
+    // Bring the real viewport into view before checking its reachable bounds.
+    await page.locator('.team-accounts-table').scrollIntoViewIfNeeded();
     await page.evaluate(
       () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     );

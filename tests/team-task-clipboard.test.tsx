@@ -181,3 +181,39 @@ it('recovers the same paste intent after remount and discards malformed clipboar
   }
   expect(client.copyTasks).toHaveBeenCalledTimes(2);
 });
+
+it('duplicates one card through the paste operation, sharing concurrency and retry protection', async () => {
+  let reject!: (cause: Error) => void;
+  const client = {
+    copyTasks: vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_ok, fail) => {
+            reject = fail;
+          })
+      )
+      .mockResolvedValue(['new-card'])
+  };
+  const onPasted = vi.fn();
+  const { result, rerender } = renderHook(
+    ({ canEdit }) => useTaskClipboard({ teamId: TEAM, selected: [], canEdit, client, onPasted }),
+    { initialProps: { canEdit: true }, wrapper }
+  );
+  act(() => {
+    result.current.duplicate([IDS[0]]);
+    result.current.duplicate([IDS[0]]);
+  });
+  expect(client.copyTasks).toHaveBeenCalledOnce();
+  expect(result.current.copying).toBe(true);
+  await act(async () => reject(new Error('reply lost')));
+  act(() => result.current.duplicate([IDS[0]]));
+  await waitFor(() => expect(onPasted).toHaveBeenCalledWith(['new-card']));
+  expect(client.copyTasks.mock.calls[1][0].idempotencyKey).toBe(
+    client.copyTasks.mock.calls[0][0].idempotencyKey
+  );
+  expect(result.current.copying).toBe(false);
+  rerender({ canEdit: false });
+  act(() => result.current.duplicate([IDS[0]]));
+  expect(client.copyTasks).toHaveBeenCalledTimes(2);
+});

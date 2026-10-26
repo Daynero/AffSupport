@@ -1,6 +1,7 @@
 import { ComboBox as HeroComboBox } from '@heroui/react/combo-box';
 import { Input as HeroInput } from '@heroui/react/input';
 import { ChevronDown, Search, X } from 'lucide-react';
+import { ComboBoxStateContext } from 'react-aria-components/ComboBox';
 import { ListBox } from '@heroui/react/list-box';
 import { ListBoxItem } from '@heroui/react/list-box-item';
 import { NumberField } from '@heroui/react/number-field';
@@ -9,6 +10,7 @@ import { Select as HeroSelect } from '@heroui/react/select';
 import {
   forwardRef,
   useId,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -461,6 +463,12 @@ export function InputTags({
   );
 }
 
+/** Open only on an intentional press or input, never on restored dialog focus. */
+function SelectMenuInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  const state = useContext(ComboBoxStateContext);
+  return <HeroInput {...props} onClick={() => state?.open(null, 'manual')} />;
+}
+
 /** The searchable closed-choice control in the inventory contract (024). */
 export interface SelectMenuOption {
   value: string;
@@ -543,6 +551,8 @@ export function SelectMenu({
       <HeroComboBox
         aria-label={label}
         selectedKey={value || null}
+        // A dialog restoring focus must not reopen the completed selection.
+        menuTrigger="input"
         inputValue={query}
         // Filtering already includes metadata; React Aria must not re-filter by label alone.
         defaultFilter={() => true}
@@ -595,7 +605,7 @@ export function SelectMenu({
               className="shrink-0 text-muted"
             />
           )}
-          <HeroInput
+          <SelectMenuInput
             id={id}
             className="ui-select-value"
             placeholder={placeholder}

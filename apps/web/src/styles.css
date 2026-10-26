@@ -14547,8 +14547,9 @@ button.team-landing-tile:hover {
   background: color-mix(in srgb, var(--color-error) 12%, transparent);
 }
 .team-explorer-dropzone.is-over {
+  /* Keep the entire frame inside the scroll viewport instead of clipping its top edge. */
   outline: 2px dashed var(--color-accent);
-  outline-offset: 4px;
+  outline-offset: calc(-1 * var(--space-1));
 }
 
 /* Still going up: the same border the drop showed, held while the transfer

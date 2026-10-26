@@ -39,23 +39,23 @@ it('keeps the two save scopes explicit and never shows a builtin reset decision'
 it('opens profile help by keyboard and restores focus after Escape', async () => {
   const { user } = setup();
   const trigger = screen.getByRole('button', { name: 'What is saved?' });
-  expect(screen.queryByText(/Remembers buyer/)).toBeNull();
+  expect(screen.queryByText(/Saves all launch/)).toBeNull();
   await user.tab();
   expect(document.activeElement).toBe(trigger);
   await user.keyboard('{Enter}');
-  expect(screen.getByText(/Remembers buyer/)).toBeTruthy();
+  expect(screen.getByText(/Saves all launch/)).toBeTruthy();
   await user.keyboard('{Escape}');
-  expect(screen.queryByText(/Remembers buyer/)).toBeNull();
+  expect(screen.queryByText(/Saves all launch/)).toBeNull();
   expect(document.activeElement).toBe(trigger);
 });
 it('separates applying a saved profile from saving current values', async () => {
   const { user, props } = setup({ proposalSource: 'offer' });
-  expect(screen.getByText('Applying replaces the reusable settings on this form.')).toBeTruthy();
-  await user.click(screen.getByRole('button', { name: 'Keep current settings' }));
+  expect(screen.getByRole('dialog', { name: 'Apply saved settings?' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'No' }));
   expect(props.onKeep).toHaveBeenCalledOnce();
   expect(props.onApply).not.toHaveBeenCalled();
   expect(props.onSave).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: 'Apply offer settings' }));
+  await user.click(screen.getByRole('button', { name: 'Yes, apply' }));
   expect(props.onApply).toHaveBeenCalledOnce();
 });
 it('explains missing offer and exposes a failed load retry without a stale apply action', async () => {
@@ -84,5 +84,5 @@ it('blocks both scopes during a pending save and hides save actions from non-man
   );
   rerender(<LaunchDefaultsActions {...props} manage={false} proposalSource="workspace" />);
   expect(screen.queryByRole('button', { name: 'Save for offer' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Apply general settings' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Yes, apply' })).toBeTruthy();
 });

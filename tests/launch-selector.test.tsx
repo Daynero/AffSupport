@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
+import { ConfirmDialog } from '../apps/web/src/components/ui/index';
 import { LaunchSelector } from '../apps/web/src/team/launches/LaunchSelectors';
 afterEach(cleanup);
 it('opens a searchable choice once and commits only an actual option', async () => {
@@ -119,4 +120,46 @@ it('prevents searching or creating through a locked control', async () => {
   await userEvent.setup().click(screen.getByRole('button', { name: 'Buyer' }));
   expect(screen.queryByRole('listbox')).toBeNull();
   expect(created).not.toHaveBeenCalled();
+});
+
+it('keeps the offer list closed when an apply dialog returns focus to the selector', async () => {
+  const user = userEvent.setup();
+  function Harness() {
+    const [value, setValue] = useState('');
+    const [prompt, setPrompt] = useState(false);
+    return (
+      <>
+        <LaunchSelector
+          id="offer-focus-test"
+          label="Offer"
+          value={value}
+          options={[{ value: 'offer', label: 'ProCaps TR' }]}
+          onChange={next => {
+            setValue(next);
+            setPrompt(true);
+          }}
+        />
+        {prompt && (
+          <ConfirmDialog
+            title="Apply saved settings?"
+            body="Restore this offer"
+            confirmLabel="Yes, apply"
+            cancelLabel="No"
+            tone="neutral"
+            onConfirm={() => setPrompt(false)}
+            onCancel={() => setPrompt(false)}
+          />
+        )}
+      </>
+    );
+  }
+  render(<Harness />);
+  await user.click(screen.getByRole('combobox', { name: 'Offer' }));
+  await user.click(screen.getByRole('option', { name: 'ProCaps TR' }));
+  await user.click(await screen.findByRole('button', { name: 'Yes, apply' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Offer' })).toHaveProperty('value', 'ProCaps TR');
+  await user.click(screen.getByRole('combobox', { name: 'Offer' }));
+  expect(await screen.findByRole('option', { name: 'ProCaps TR' })).toBeTruthy();
 });

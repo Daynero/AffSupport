@@ -4,7 +4,7 @@ import {
   applyLaunchDefaultValues
 } from '../packages/shared/src/team/launches/defaults';
 
-it('saves reusable launch settings while excluding the selected creative and launch date', () => {
+it('saves reusable launch settings while excluding the selected ad account and creative', () => {
   const draft = {
     buyerId: 'buyer',
     adsCount: 3,
@@ -13,10 +13,15 @@ it('saves reusable launch settings while excluding the selected creative and lau
     launchDate: '2026-10-24',
     catalog: undefined
   };
-  expect(launchDefaultValues(draft)).toEqual({ buyerId: 'buyer', adsCount: 3, age: 25 });
+  expect(launchDefaultValues(draft)).toEqual({
+    buyerId: 'buyer',
+    adsCount: 3,
+    age: 25,
+    launchDate: '2026-10-24'
+  });
   expect(draft.materialId).toBe('private-creative');
 });
-it('replaces optional defaults completely while retaining the current creative and launch date', () => {
+it('replaces optional defaults completely while retaining the current creative', () => {
   const catalog = {
     productCount: 3,
     restitchEnabled: true,
@@ -41,7 +46,7 @@ it('replaces optional defaults completely while retaining the current creative a
     buyerId: 'new-buyer',
     adsCount: 2,
     materialId: 'current-creative',
-    launchDate: '2026-10-24'
+    launchDate: '2026-01-01'
   });
   expect(current.catalog).toBe(catalog);
   expect(profile.materialId).toBe('stored-creative');

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -59,36 +59,73 @@ export function useTaskClipboard({
     if (document.visibilityState === 'visible') delivered?.visible();
   }, [delivered]);
   const pasting = useRef(false);
+  const [copying, setCopying] = useState(false);
   const pending = useRef<{ signature: string; key: string } | null>(null);
-  const attemptFor = (signature: string) => {
-    const storageKey = `soty.task-copy.${teamId}`;
-    if (!pending.current) {
-      try {
-        const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
-        if (
-          stored &&
-          typeof stored === 'object' &&
-          'signature' in stored &&
-          'key' in stored &&
-          typeof stored.signature === 'string' &&
-          typeof stored.key === 'string' &&
-          UUID.test(stored.key)
-        ) {
-          pending.current = { signature: stored.signature, key: stored.key };
+  const attemptFor = useCallback(
+    (signature: string) => {
+      const storageKey = `soty.task-copy.${teamId}`;
+      if (!pending.current) {
+        try {
+          const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
+          if (
+            stored &&
+            typeof stored === 'object' &&
+            'signature' in stored &&
+            'key' in stored &&
+            typeof stored.signature === 'string' &&
+            typeof stored.key === 'string' &&
+            UUID.test(stored.key)
+          ) {
+            pending.current = { signature: stored.signature, key: stored.key };
+          }
+        } catch {
+          /* An unavailable intent store never becomes evidence of server success. */
         }
-      } catch {
-        /* An unavailable intent store never becomes evidence of server success. */
       }
-    }
-    if (pending.current?.signature !== signature)
-      pending.current = { signature, key: crypto.randomUUID() };
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(pending.current));
-    } catch {
-      /* Keep the in-memory key. */
-    }
-    return pending.current.key;
-  };
+      if (pending.current?.signature !== signature)
+        pending.current = { signature, key: crypto.randomUUID() };
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify(pending.current));
+      } catch {
+        /* Keep the in-memory key. */
+      }
+      return pending.current.key;
+    },
+    [teamId]
+  );
+  // Card shortcut and native paste share one idempotent, diagnosed operation.
+  const duplicate = useCallback(
+    (taskIds: string[]) => {
+      if (!canEdit || !client.copyTasks || pasting.current || taskIds.length === 0) return;
+      pasting.current = true;
+      setCopying(true);
+      const idempotencyKey = attemptFor(JSON.stringify(taskIds));
+      const flow = beginWorkspaceOperation('task_copy', idempotencyKey, taskIds.length);
+      void client.copyTasks!({ teamId, taskIds: taskIds, idempotencyKey })
+        .then(async ids => {
+          flow.stage('confirmed');
+          await onPasted(ids);
+          pending.current = null;
+          try {
+            sessionStorage.removeItem(`soty.task-copy.${teamId}`);
+          } catch {
+            /* Retrying a completed receipt remains safe. */
+          }
+          push({ tone: 'success', text: t('teamTasksPasted', { count: ids.length }) });
+          setDelivered(flow);
+        })
+        .catch(cause => {
+          flow.fail(cause);
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        })
+        .finally(() => {
+          pasting.current = false;
+          setCopying(false);
+          onSettled?.();
+        });
+    },
+    [attemptFor, canEdit, client, onPasted, onSettled, push, t, teamId]
+  );
   useEffect(() => {
     if (!canEdit || !client.copyTasks) return;
     const blocked = (event: ClipboardEvent) =>
@@ -134,31 +171,7 @@ export function useTaskClipboard({
         push({ tone: 'error', text: t('teamTasksPasteSameSpace') });
         return;
       }
-      if (pasting.current) return;
-      pasting.current = true;
-      const idempotencyKey = attemptFor(JSON.stringify(payload.taskIds));
-      const flow = beginWorkspaceOperation('task_copy', idempotencyKey, payload.taskIds.length);
-      void client.copyTasks!({ teamId, taskIds: payload.taskIds, idempotencyKey })
-        .then(async ids => {
-          flow.stage('confirmed');
-          await onPasted(ids);
-          pending.current = null;
-          try {
-            sessionStorage.removeItem(`soty.task-copy.${teamId}`);
-          } catch {
-            /* Retrying a completed receipt remains safe. */
-          }
-          push({ tone: 'success', text: t('teamTasksPasted', { count: ids.length }) });
-          setDelivered(flow);
-        })
-        .catch(cause => {
-          flow.fail(cause);
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        })
-        .finally(() => {
-          pasting.current = false;
-          onSettled?.();
-        });
+      duplicate(payload.taskIds);
     };
     document.addEventListener('copy', copy);
     document.addEventListener('paste', paste);
@@ -166,5 +179,6 @@ export function useTaskClipboard({
       document.removeEventListener('copy', copy);
       document.removeEventListener('paste', paste);
     };
-  }, [canEdit, client, onPasted, onSettled, push, selected, t, teamId]);
+  }, [anchor, canEdit, client, duplicate, push, selected, t, teamId]);
+  return { duplicate, copying };
 }

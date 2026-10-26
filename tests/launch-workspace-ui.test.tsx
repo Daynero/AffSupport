@@ -1565,8 +1565,7 @@ it('saves an offer with its own version, clears the old proposal, and preserves 
     .mockRejectedValueOnce(new TeamApiError('INVALID_RESPONSE', true))
     .mockResolvedValueOnce({ version: '18' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
-  await screen.findByRole('button', { name: 'Apply offer settings' });
-  const save = screen.getByRole('button', { name: 'Save for offer' });
+  const save = await screen.findByRole('button', { name: 'Save for offer' });
   await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(save);
   await waitFor(() => expect(seams.setDefaults).toHaveBeenCalledOnce());
@@ -1580,7 +1579,7 @@ it('saves an offer with its own version, clears the old proposal, and preserves 
   expect(seams.setDefaults.mock.calls[1]).toEqual(seams.setDefaults.mock.calls[0]);
   expect(seams.setDefaults.mock.calls[0][1]).toBe('17');
   expect(seams.setDefaults.mock.calls[0][4]).toBe(current.draft.offerId);
-  expect(screen.queryByRole('button', { name: 'Apply offer settings' })).toBeNull();
+  expect(screen.queryByRole('dialog', { name: 'Apply saved settings?' })).toBeNull();
 });
 
 it('reviews a conflict in the selected offer rather than the workspace profile', async () => {
@@ -1603,8 +1602,7 @@ it('reviews a conflict in the selected offer rather than the workspace profile',
     .mockRejectedValueOnce(new TeamApiError('LAUNCH_VERSION_CONFLICT', false))
     .mockResolvedValueOnce({ version: '18' });
   render(<LaunchSpace teamId={TEAM} query={query} />);
-  await screen.findByRole('button', { name: 'Apply offer settings' });
-  const save = screen.getByRole('button', { name: 'Save for offer' });
+  const save = await screen.findByRole('button', { name: 'Save for offer' });
   await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(save);
   fireEvent.click(await screen.findByRole('button', { name: 'Review current defaults' }));

@@ -316,7 +316,14 @@ export const uk: Record<keyof typeof en, string> = {
   launchesDefaultsGeneralHelp:
     'Для нових запусків у цьому просторі, коли офер не має власних налаштувань. Профілі інших оферів не змінюються.',
   launchesDefaultsProfileHelp:
-    'Запам’ятовує баєра, кампанії, бюджети, аудиторію, каталог і порядок SUB. Дата, РК, креативи та посилання не зберігаються.',
+    'Зберігає всі параметри запуску, зокрема точну дату, URL, примітки, бюджети й порядок SUB. РК та креатив обираються окремо.',
+  launchesDefaultsApplyTitle: 'Застосувати збережені налаштування?',
+  launchesDefaultsApplyOfferPrompt:
+    'Відновити збережені значення для «{value}»? РК та креатив залишаться без змін.',
+  launchesDefaultsApplyGeneralPrompt:
+    'Відновити збережені загальні значення? РК та креатив залишаться без змін.',
+  launchesDefaultsApplyYes: 'Так, застосувати',
+  launchesDefaultsApplyNo: 'Ні',
   launchesDefaultsChooseOffer: 'Спочатку оберіть офер',
   launchesDefaultsLoading: 'Завантаження типових налаштувань…',
   launchesDefaultsLoadFailed:
@@ -3182,6 +3189,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskSelectedCount: 'Обрано: {count}',
   teamTaskClearSelection: 'Зняти виділення ({count})',
   teamTaskSelectCard: 'Обрати «{name}»',
+  teamTaskDuplicate: 'Дублювати завдання',
   teamTaskCopyLink: 'Скопіювати посилання на завдання',
   teamTaskLinkCopied: 'Посилання скопійовано. Хто відкриє — потрапить одразу на це завдання.',
   teamTaskDelete: 'Видалити завдання',

@@ -2582,6 +2582,8 @@ button.team-task-agent-chip.is-selected {
   overflow-y: auto;
   scrollbar-gutter: stable;
   overflow-anchor: none;
+  /* Keep several rows reachable when the toolbar wraps or a read error is visible. */
+  min-height: calc(var(--space-6) * 10);
   max-height: calc(100dvh - var(--team-accounts-table-offset, 0px) - var(--space-4));
   overscroll-behavior: contain;
 }
@@ -2879,7 +2881,7 @@ button.team-task-agent-chip.is-selected {
     display: none;
   }
   .is-unified .team-accounts-table {
-    min-height: calc(var(--space-6) * 2);
+    min-height: calc(var(--space-6) * 10);
   }
 }
 

@@ -105,3 +105,23 @@ it('a parent archive hides its empty child without modifying child own state', (
   expect(financeAgentVisible(data, 'agent', '2026-10-17')).toBe(true);
   expect(financeAgentVisible(data, 'agent', '2026-10-18')).toBe(false);
 });
+
+it('retains closed history for deleted legacy identities without blocking all finance; live or malformed references still fail', () => {
+  const data = snapshot();
+  const old: NonNullable<FinanceSnapshot['lifecycle']>['parents'][number] = {
+    agentRowId: 'deleted-agent',
+    accountId: 'deleted-social',
+    startsAt: '2025-01-01T00:00:00Z',
+    endsAt: '2025-02-01T00:00:00Z',
+    provenance: 'observed'
+  };
+  data.lifecycle!.parents.unshift(old);
+  const parsed = parseFinanceSnapshot(data);
+  expect(parsed).not.toBeNull();
+  expect(parsed!.lifecycle!.parents[0]).toEqual(old);
+  expect(financeAgentVisible(parsed!, 'agent', '2026-10-17', 'UTC')).toBe(true);
+  old.endsAt = null;
+  expect(parseFinanceSnapshot(data)).toBeNull();
+  old.endsAt = '2024-12-31T00:00:00Z';
+  expect(parseFinanceSnapshot(data)).toBeNull();
+});

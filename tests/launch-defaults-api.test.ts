@@ -39,17 +39,10 @@ it('routes scopes to distinct RPCs and sends only reusable values, including man
     p_config: { budgetMode: 'manual', budgets: [10, 25, 30], minBudget: 10 },
     p_sub_config: config.subConfig
   });
-  expect(JSON.stringify(args)).not.toContain('SYNTHETIC_PRIVATE_URL');
-  for (const key of [
-    'offerId',
-    'agentRowId',
-    'materialId',
-    'creativeAlias',
-    'launchDate',
-    'timezone',
-    'originalUrl',
-    'subConfig'
-  ])
+  expect(args.p_config.originalUrl).toBe('SYNTHETIC_PRIVATE_URL');
+  expect(args.p_config.launchDate).toBe(config.launchDate);
+  expect(args.p_config.timezone).toBe(config.timezone);
+  for (const key of ['offerId', 'agentRowId', 'materialId', 'creativeAlias', 'subConfig'])
     expect(args.p_config).not.toHaveProperty(key);
   await launchApi.setDefaults('team', '1', 'general-key', config);
   expect(rpc.mock.calls[1][0]).toBe('set_launch_defaults');

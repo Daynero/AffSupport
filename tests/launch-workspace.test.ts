@@ -158,12 +158,12 @@ it('persists ordered SUB defaults, replays the original version and rejects stal
   expect(saved.config).toEqual({ campaignCount: 5 });
 });
 
-it('refuses sensitive and per-launch values in defaults at the database boundary', async () => {
+it('refuses per-launch identities and malformed profile values at the database boundary', async () => {
   const sub = JSON.stringify(launchConfig().subConfig);
   for (const config of [
-    { originalUrl: 'https://example.invalid?token=SYNTHETIC' },
+    { originalUrl: 42 },
     { materialId: OWNER },
-    { launchDate: '2026-10-13' },
+    { launchDate: '2026-02-30' },
     { budgets: [10, 20, 30] }
   ]) {
     await expect(

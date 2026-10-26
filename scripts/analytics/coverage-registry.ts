@@ -273,7 +273,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
       'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.'
     ],
-    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
+    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
   })),
   ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
@@ -384,7 +384,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [
       'A lost save response may have committed. Missing browser delivery or an unfinished attempt remains unknown; retry the frozen request key or read the protected profile.'
     ],
-    note: 'Closed action/scope flow_step and opaque flow/attempt IDs only. Read completion proves the RPC returned, apply completion follows the matching draft commit, and save completion follows rendered feedback. Failure proves request failure, not absence of a database commit. Profile values, offer names, buyer IDs, URLs and creative content are excluded. Scope versions and idempotency receipts guard writes. Selection replacement cancels obsolete reads. The compact defaults actions preserve these seams: no profile or identical values offer no apply action; keeping manual values and opening profile help are intentionally unobserved, never inferred as an apply or save. Beta disables delivery; producer, SQL, UI, sanitizer and CLI regressions verify the path.'
+    note: 'Closed action/scope flow_step and opaque flow/attempt IDs only. Read completion proves the RPC returned, apply completion follows the matching draft commit, and save completion follows rendered feedback. Failure proves request failure, not absence of a database commit. Profile values, offer names, buyer IDs, URLs and creative content are excluded. Scope versions and idempotency receipts guard writes. Selection replacement cancels obsolete reads. The explicit apply dialog preserves these seams, including complete age/date/URL/notes restoration and focus return without reopening the offer list: no profile or identical values offer no apply action; keeping manual values and opening profile help are intentionally unobserved, never inferred as an apply or save. Beta disables delivery; producer, SQL, UI, sanitizer and CLI regressions verify the path.'
   })),
   ...(['read', 'write'] as const).map((action): Capability => ({
     id: `launches.copy-marks.${action}`,
@@ -442,7 +442,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [
       'Browser termination or missing delivery leaves an unmatched attempt. Clipboard rejection does not identify OS policy.'
     ],
-    note: 'Completion follows the clipboard promise; failure is explicit and the user can retry. Note IDs, titles and text are never telemetry. Editing, removal and unsaved cells are intentionally unobserved; the protected versioned draft save receipt and revision snapshot are fallback evidence. Notes do not enter reusable profiles or provider payloads. Delivery of a result and clipboard success remain distinct.'
+    note: 'Completion follows the clipboard promise; failure is explicit and the user can retry. Note IDs, titles and text are never telemetry. Editing, removal and unsaved cells are intentionally unobserved; the protected versioned draft save receipt and revision snapshot are fallback evidence. Notes may persist in protected launch profiles and revision snapshots, never in telemetry or provider payloads. Delivery of a result and clipboard success remain distinct.'
   },
   {
     id: 'launches.account-picker',
@@ -1131,7 +1131,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     terminal: [],
     platforms: BOTH,
     unobservable: [
-      'Full aggregate proof requires all accounts sub-capabilities and separate visible evidence; old builds and missing browser evidence stay unknown.'
+      'Full aggregate proof requires all accounts sub-capabilities and separate visible evidence; old builds and missing browser evidence stay unknown. Closed parent history can outlive deleted legacy identities; v2 RPC/parser regressions retain that evidence without inventing current entities. Unknown live references still reject the snapshot. Short-viewport geometry remains UI evidence, not remote telemetry.'
     ],
     producerStatus: 'pending_producer',
     source: 'events'

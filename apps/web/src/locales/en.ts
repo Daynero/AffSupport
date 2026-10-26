@@ -315,7 +315,14 @@ export const en = {
   launchesDefaultsGeneralHelp:
     'For new launches in this workspace when the offer has no saved settings. Other offer profiles stay unchanged.',
   launchesDefaultsProfileHelp:
-    'Remembers buyer, campaigns, budgets, audience, catalog and SUB order. Date, ad account, creatives and links are not saved.',
+    'Saves all launch settings, including the exact date, URL, notes, budgets and SUB order. The ad account and creative are selected separately.',
+  launchesDefaultsApplyTitle: 'Apply saved settings?',
+  launchesDefaultsApplyOfferPrompt:
+    'Restore the saved values for “{value}”? The ad account and creative stay unchanged.',
+  launchesDefaultsApplyGeneralPrompt:
+    'Restore the saved general values? The ad account and creative stay unchanged.',
+  launchesDefaultsApplyYes: 'Yes, apply',
+  launchesDefaultsApplyNo: 'No',
   launchesDefaultsChooseOffer: 'Select an offer first',
   launchesDefaultsLoading: 'Loading default settings…',
   launchesDefaultsLoadFailed: 'Could not load default settings. Your current values are preserved.',
@@ -3197,6 +3204,7 @@ export const en = {
   teamTaskSelectedCount: 'Selected: {count}',
   teamTaskClearSelection: 'Clear the selection ({count})',
   teamTaskSelectCard: 'Select “{name}”',
+  teamTaskDuplicate: 'Duplicate task',
   teamTaskCopyLink: 'Copy a link to the task',
   teamTaskLinkCopied: 'Link copied. Whoever opens it lands on this task.',
   teamTaskDelete: 'Delete task',

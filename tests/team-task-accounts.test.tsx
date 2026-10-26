@@ -206,6 +206,34 @@ async function openMoreFilters(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('a card', () => {
+  it('duplicates from the compact shortcut without opening the task and hides it for viewers', async () => {
+    const onOpen = vi.fn();
+    const onDuplicate = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = wrap(
+      <TaskCard
+        task={task()}
+        canEdit
+        onOpen={onOpen}
+        onUpdate={vi.fn()}
+        onDuplicate={onDuplicate}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'Duplicate task' }));
+    expect(onDuplicate).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+    rerender(
+      <TaskCard
+        task={task()}
+        canEdit={false}
+        onOpen={onOpen}
+        onUpdate={vi.fn()}
+        onDuplicate={onDuplicate}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Duplicate task' })).toBeNull();
+  });
+
   it('folds a long brief behind "More" and unfolds it in place without opening the task', async () => {
     // jsdom has no layout: stand in for a clamped paragraph by hand.
     const scroll = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(400);

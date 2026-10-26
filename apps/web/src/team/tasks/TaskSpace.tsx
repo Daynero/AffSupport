@@ -351,7 +351,7 @@ export function TaskSpace({
     [selectedIds, tasks.tasks]
   );
 
-  useTaskClipboard({
+  const taskClipboard = useTaskClipboard({
     anchor: quickAddInput,
     teamId,
     selected,
@@ -642,6 +642,10 @@ export function TaskSpace({
                 return ids;
               })
             }
+            onDuplicate={
+              can('edit') && client.copyTasks ? () => taskClipboard.duplicate([task.id]) : undefined
+            }
+            duplicating={taskClipboard.copying}
             onOpen={() => setOpenTask(task)}
             onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
             members={members}

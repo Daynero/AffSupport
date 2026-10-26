@@ -105,3 +105,9 @@ reload, and no task is deleted with it.
 | Tasks      | `team/tasks/TaskLabelsEditor.tsx`, `TaskLabelFilter.tsx`, `TaskSortControl.tsx`, `TaskAssigneeFilter.tsx`, and `labelIds` / `sort` / `assignee` in `useTasks` |
 | Styles     | the tag palette in `styles.css`, the chips, popover and dictionary list in `styles/team-tasks.css`                                                            |
 | Tests      | `tests/team-task-tags-sql.test.ts` (12), `tests/team-task-tags.test.tsx` (13)                                                                                 |
+
+### Task card duplicate shortcut (2026-10-25)
+
+A compact inventory IconButton beside the card menu duplicates that task through the same operation as native Cmd/Ctrl+C → V. It does not open/select the task or change the system clipboard. Only editors with copyTasks support see it. While a request is pending, shortcuts cannot create a concurrent copy. Lost replies reuse the idempotency key; successful copies refresh the board and show existing feedback. Server task-copy rules for fields, attachments and references stay authoritative.
+
+Diagnostics reuse workspace_task_copy flow/attempt IDs, confirmed stage and visible completion after board refresh. Errors retain safe closed codes; no task title/content/clipboard values enter telemetry. Existing investigate projection and task-copy receipt remain the recovery evidence; missing visible completion stays unknown. Acceptance covers card event isolation, read-only permissions, concurrency, retry and native-paste parity.
