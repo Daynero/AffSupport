@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { getDatabaseHealth, getDatabaseRetention, getDatabaseTables } from './database-health.js';
-import { getCatalogUpdateDiagnosis } from './catalog-updates.js';
+import { getCatalogUpdateDiagnosis, getTeamCatalogUpdateDiagnosis } from './catalog-updates.js';
 import { getCatalogScheduleTrends } from './catalog-schedule-trends.js';
 import { renderCatalogScheduleReport } from './catalog-schedule-report.js';
 import {
@@ -121,6 +121,7 @@ Commands:
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
+  catalog team <team-id>  Recent catalog attempts and video preparation in one space
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
   database-health     Database sizes, churn and grant expiry (read-only)
@@ -435,6 +436,11 @@ export async function executeCommand(
     }
     case 'catalog': {
       const id = requireArg(args, 0, 'catalog <catalog-id | attempt-id>');
+      if (id === 'team') {
+        const teamId = requireArg(args, 1, 'catalog team <team-id>');
+        const data = await getTeamCatalogUpdateDiagnosis(teamId, args.limit ?? 10);
+        return done(data, JSON.stringify(data, null, 2));
+      }
       const data = await getCatalogUpdateDiagnosis(id, args.limit ?? 10);
       if (!data.subject) throw new CommandError(`No catalog update attempts found for "${id}".`);
       return done(data, JSON.stringify(data, null, 2));

@@ -19702,60 +19702,36 @@ a.history-subject {
   scrollbar-gutter: stable;
 }
 
-/* A background layer never changes a catalog row's measured dimensions. */
+/* Paint the table row itself: WebKit does not consistently use a positioned
+   table row as the containing block of an absolutely positioned cell pseudo. */
 .catalog-compact-table .catalog-progress-row {
-  position: relative;
-  isolation: isolate;
+  background-image: linear-gradient(
+    to right,
+    var(--color-success-soft) calc(var(--catalog-row-progress, 0) * 100%),
+    transparent calc(var(--catalog-row-progress, 0) * 100%)
+  );
 }
-.catalog-progress-row > td:first-child::before,
-.catalog-progress-row > td:first-child::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  transform-origin: left center;
-}
-.catalog-progress-row > td:first-child::before {
-  background: var(--color-success-soft);
-  transform: scaleX(var(--catalog-row-progress, 0));
-  opacity: var(--catalog-row-progress-visible, 0);
-  transition:
-    transform var(--motion-progress) var(--ease-standard),
-    opacity var(--motion-base) var(--ease-standard);
-}
-.catalog-progress-row > td:first-child::after {
-  background: color-mix(in srgb, var(--color-success) 22%, transparent);
-  opacity: 0;
-}
-.catalog-progress-row.is-update-complete > td:first-child::after {
+.catalog-progress-row.is-update-complete {
   animation: catalog-row-complete var(--motion-catalog-success) var(--ease-in-out-curve);
 }
 @keyframes catalog-row-complete {
   0%,
   100% {
-    opacity: 0;
+    background-color: transparent;
   }
   35%,
   65% {
-    opacity: 1;
+    background-color: var(--color-success-soft);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .catalog-progress-row > td:first-child::before {
-    transition: none;
-  }
-  .catalog-progress-row.is-update-complete > td:first-child::after {
+  .catalog-progress-row.is-update-complete {
     animation-duration: var(--motion-fast);
   }
 }
 .catalog-row-feedback.sr-only {
   position: absolute;
   margin: 0;
-}
-
-.catalog-progress-row > td:first-child {
-  position: static;
 }
 
 .catalog-schedule-zone {

@@ -283,6 +283,72 @@ describe('who prepares', () => {
 });
 
 describe('spares', () => {
+  it.each(['expired', 'returned'] as const)(
+    'reclaims a %s browser handoff without replaying a reserved native execution',
+    async mode => {
+      const { sheet } = await catalog('expired-browser-handoff');
+      await save([sheet], true);
+      const lease = token();
+      expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+      const op = (
+        await harness.root<{ id: string }>(
+          `insert into public.team_operations(team_id,actor_id,kind,state,stage,idempotency_key,request_nonce)
+       values($1,$2,'process','running','awaiting_agent',gen_random_uuid()::text,gen_random_uuid()::text) returning id`,
+          [teamId, OWNER]
+        )
+      )[0]!.id;
+      expect(await bind(sheet, lease, op)).toBe(true);
+      expect(await claimJob(enroll(), token())).toBeNull();
+      await harness.root(
+        `update private.catalog_restitch_jobs set lease_expires_at=now()-interval '1 minute' where catalog_material_id=$1`,
+        [sheet]
+      );
+      if (mode === 'returned') {
+        await harness.root(
+          `select public.service_complete_restitch_job($1,$2,$3,'failed','PROCESS_CANCELED')`,
+          [OWNER, sheet, lease]
+        );
+        await harness.root(
+          `update private.catalog_restitch_jobs set next_attempt_at=now()-interval '1 minute' where catalog_material_id=$1`,
+          [sheet]
+        );
+      }
+      await harness.root(
+        `insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)`,
+        [op, teamId, OWNER, sheet]
+      );
+      expect(await claimJob(enroll(), token())).toBeNull();
+      await harness.root(
+        'delete from private.team_recovery_execution_fences where operation_id=$1',
+        [op]
+      );
+      await harness.root(
+        `insert into private.process_upload_ownership(
+      operation_id,team_id,actor_id,connection_id,credential_id,root_id,parent_id,file_id,source_file_id,
+      expected_name,mime_type,size_bytes,checksum,handoff_expires_at)
+      select $1,$2,$3,id,credential_id,'root','parent','reserved-stale-upload','source',
+      'copy.mp4','video/mp4',10,repeat('a',32),clock_timestamp()+interval '1 hour'
+      from public.team_drive_connections where id=$4`,
+        [op, teamId, OWNER, connectionId]
+      );
+      expect(await claimJob(enroll(), token())).toBeNull();
+      await harness.root('delete from private.process_upload_ownership where operation_id=$1', [
+        op
+      ]);
+      expect((await claimJob(enroll(), token()))?.jobId).toBe(sheet);
+      expect(
+        (
+          await harness.root<{ state: string; error_code: string }>(
+            'select state,error_code from public.team_operations where id=$1',
+            [op]
+          )
+        )[0]
+      ).toMatchObject({ state: 'failed', error_code: 'LEASE_EXPIRED' });
+      await stop();
+    },
+    60_000
+  );
+
   it('refuses binding when the source changes after claim but before native handoff', async () => {
     const { sheet, video } = await catalog('preflight-source-change');
     await save([sheet], true);

@@ -4,6 +4,24 @@ import { lookupCodeLocations } from './code-map.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
+/** Discover recent attempts without requiring a catalog UUID from the product UI. */
+export async function getTeamCatalogUpdateDiagnosis(teamId: string, limit = 10) {
+  if (!UUID.test(teamId)) throw new Error('Expected a team UUID.');
+  const catalogs = await query<{ catalog_material_id: string }>(
+    `select catalog_material_id from public.analytics_catalog_updates
+     where team_id = $1::uuid
+     group by catalog_material_id
+     order by max(started_at) desc
+     limit $2`,
+    [teamId, Math.min(Math.max(limit, 1), 50)]
+  );
+  const diagnoses = [];
+  for (const catalog of catalogs) {
+    diagnoses.push(await getCatalogUpdateDiagnosis(catalog.catalog_material_id, 3));
+  }
+  return { team_id: teamId, catalogs: diagnoses };
+}
+
 interface CatalogAttemptRow {
   attempt_id: string;
   catalog_material_id: string;

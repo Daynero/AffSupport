@@ -489,6 +489,12 @@ opaque IDs contain no configuration, media content, URLs, or file names.
 
 # Product catalog update diagnosis (039)
 
+`npm run analytics -- catalog team <team-id> --limit 10 --json` discovers recent
+catalog attempts within one space when the catalog UUID is unavailable. It returns
+at most 50 catalogs with three attempts each, including current video queue state,
+operation stage, lease expiry and explicit blind spots. No catalog names or URLs
+are queried. The evidence is current, as with the per-catalog command.
+
 `npm run analytics -- catalog <catalog-id|attempt-id> --json` reads the bounded,
 content-free `analytics_catalog_updates` projection. It reports the current
 schedule, last verified success, later failure, and recent attempts with source,

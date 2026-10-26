@@ -209,8 +209,11 @@ export function useRestitchPreparer(input: {
     }
     let live = true;
     let revision = 0;
+    let retry: number | null = null;
     setNativeOwner(null);
     const refresh = () => {
+      if (retry !== null) window.clearTimeout(retry);
+      retry = null;
       const requestedRevision = ++revision;
       setNativeOwner(null);
       void backgroundRecoveryStatus(teamId)
@@ -218,7 +221,12 @@ export function useRestitchPreparer(input: {
           if (live && requestedRevision === revision) setNativeOwner(value.enabled);
         })
         .catch(() => {
-          if (live && requestedRevision === revision) setNativeOwner(null);
+          if (live && requestedRevision === revision) {
+            setNativeOwner(null);
+            // A transient loopback failure must not disable preparation until
+            // the next focus/reconnect. Keep ownership unknown until a fresh read.
+            retry = window.setTimeout(refresh, POLL_MS);
+          }
         });
     };
     refresh();
@@ -230,6 +238,7 @@ export function useRestitchPreparer(input: {
     window.addEventListener('focus', refresh);
     return () => {
       live = false;
+      if (retry !== null) window.clearTimeout(retry);
       window.removeEventListener(RECOVERY_CHANGED, refresh);
       window.removeEventListener('storage', changedInAnotherTab);
       window.removeEventListener('focus', refresh);
@@ -266,7 +275,21 @@ export function useRestitchPreparer(input: {
         schedule(Math.min(MAX_BACKOFF_MS, POLL_MS * 2 ** Math.min(failures - 1, 4)));
         return;
       }
-      if (stopped) return;
+      if (stopped) {
+        // A focus/ownership change can stop this executor while its cloud claim
+        // is in flight. It has never reached the app, so return the lease.
+        if (claim) {
+          await clientRef.current
+            .completeRestitchJob({
+              jobId: claim.jobId,
+              leaseToken: claim.leaseToken,
+              outcome: 'failed',
+              errorCode: 'PROCESS_CANCELED'
+            })
+            .catch(() => false);
+        }
+        return;
+      }
       if (!claim) {
         schedule(POLL_MS);
         return;

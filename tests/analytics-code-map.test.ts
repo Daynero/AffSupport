@@ -28,6 +28,13 @@ import { LAUNCH_ANALYTICS_CODES } from '../packages/shared/src/team/launches/lif
  */
 
 const ROOT = join(__dirname, '..');
+it('maps an abandoned catalog video handoff to its lease recovery and browser owner', () => {
+  const fingerprint = 'team:process:LEASE_EXPIRED';
+  expect(lookupCodeLocations(fingerprint)?.matched).toBe(fingerprint);
+  expect(lookupCodeLocations(fingerprint)?.files).toContain(
+    'supabase/migrations/20261206146000_catalog_expired_browser_handoff.sql'
+  );
+});
 it('maps every closed profile synchronization failure', () => {
   for (const code of PROFILE_SYNC_CODES)
     expect(lookupCodeLocations(`auth:library:${code}`)?.files).toContain(

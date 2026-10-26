@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { setQueryExecutor } from '../scripts/analytics/db.js';
-import { getCatalogUpdateDiagnosis } from '../scripts/analytics/catalog-updates.js';
+import {
+  getCatalogUpdateDiagnosis,
+  getTeamCatalogUpdateDiagnosis
+} from '../scripts/analytics/catalog-updates.js';
 
 const CATALOG = '23000000-0000-4000-8000-000000000001';
 const ATTEMPT = '23000000-0000-4000-8000-000000000002';
@@ -8,6 +11,27 @@ const ATTEMPT = '23000000-0000-4000-8000-000000000002';
 afterEach(() => setQueryExecutor(null));
 
 describe('catalog update diagnosis', () => {
+  it('discovers a bounded set of catalogs in exactly one team without names or content', async () => {
+    const calls: unknown[][] = [];
+    setQueryExecutor(async (sql, params) => {
+      calls.push(params);
+      if (sql.includes('group by catalog_material_id')) {
+        expect(sql).toContain('where team_id = $1::uuid');
+        return [{ catalog_material_id: CATALOG }];
+      }
+      return [];
+    });
+    expect(await getTeamCatalogUpdateDiagnosis(ATTEMPT, 1000)).toMatchObject({
+      team_id: ATTEMPT,
+      catalogs: [{ subject: null }]
+    });
+    expect(calls).toEqual([
+      [ATTEMPT, 50],
+      [CATALOG, 3]
+    ]);
+    await expect(getTeamCatalogUpdateDiagnosis('invalid')).rejects.toThrow('Expected a team UUID');
+    expect(calls).toHaveLength(2);
+  });
   it('uses a bounded read-only query and separates proven delivery from unknown results', async () => {
     let sql = '';
     setQueryExecutor(async (statement, params) => {

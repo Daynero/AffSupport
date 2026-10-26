@@ -34,7 +34,7 @@ function controller() {
   const client = {
     claimRestitchJob: claim,
     heartbeatRestitchJob: vi.fn(),
-    completeRestitchJob: vi.fn(),
+    completeRestitchJob: vi.fn(async () => true),
     startProcess: vi.fn(),
     cancelProcess: vi.fn()
   };
@@ -45,12 +45,60 @@ function controller() {
       client
     })
   );
-  return { claim, rerender: hook.rerender };
+  return { claim, client, rerender: hook.rerender, unmount: hook.unmount };
 }
 function fixture() {
   return controller().claim;
 }
 describe('one restitch executor owner', () => {
+  it('returns a handoff received after the browser executor stopped instead of stranding its lease', async () => {
+    vi.useFakeTimers();
+    state.native = false;
+    const view = controller();
+    let resolveClaim!: (value: never) => void;
+    view.claim.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveClaim = resolve;
+        })
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    view.unmount();
+    await act(async () => {
+      resolveClaim({ jobId: 'job', operationId: 'operation', leaseToken: 'lease' } as never);
+    });
+    expect(view.client.startProcess).not.toHaveBeenCalled();
+    expect(view.client.completeRestitchJob).toHaveBeenCalledWith({
+      jobId: 'job',
+      leaseToken: 'lease',
+      outcome: 'failed',
+      errorCode: 'PROCESS_CANCELED'
+    });
+  });
+  it('retries a transient ownership read failure before resuming browser claims', async () => {
+    vi.useFakeTimers();
+    state.status
+      .mockRejectedValueOnce(new Error('temporarily unavailable'))
+      .mockResolvedValue({ enabled: false });
+    let claim!: ReturnType<typeof fixture>;
+    await act(async () => {
+      claim = fixture();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(claim).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(state.status).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(claim).toHaveBeenCalledOnce();
+  });
   it('rechecks ownership before browser claims after reconnect with unchanged capabilities', async () => {
     vi.useFakeTimers();
     state.status.mockResolvedValueOnce({ enabled: false }).mockResolvedValue({ enabled: true });

@@ -743,6 +743,14 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['team:process:LEASE_EXPIRED'] = {
+    files: [
+      'supabase/migrations/20261206146000_catalog_expired_browser_handoff.sql',
+      'apps/web/src/team/catalog-updater/useRestitchPreparer.ts'
+    ],
+    check:
+      'Inspect the expired or returned browser handoff and its replacement claim. Native execution reservations and provider upload receipts prohibit automatic replay; LEASE_EXPIRED alone does not prove delivery.'
+  };
   fromCodes('compressor', COMPRESSOR_CODES, COMPRESSOR_WEB, map);
   fromCodes('compressor', ESTIMATE_CODES, COMPRESSOR_WEB, map);
   fromCodes('transcription', TRANSCRIPTION_CODES, TRANSCRIPTION_WEB, map);
