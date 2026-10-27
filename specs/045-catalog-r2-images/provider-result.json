@@ -1,0 +1,273 @@
+{
+  "scope": "actual_beta_r2_adapter_http_and_cdn_only",
+  "generated_at": "2026-10-27T17:51:59.541Z",
+  "runtime": {
+    "deno": "2.5.6",
+    "v8": "14.0.365.5-rusty",
+    "typescript": "5.9.2"
+  },
+  "ok": true,
+  "private_recovery_retained": false,
+  "steps": [
+    {
+      "stage": "image/png:cors_allowed_and_denied",
+      "ok": true,
+      "elapsed_ms": 397,
+      "detail": {
+        "denied_status": 403,
+        "scope": "HTTP preflight; browser enforcement is a separate check"
+      }
+    },
+    {
+      "stage": "image/png:staging_presign_and_readback",
+      "ok": true,
+      "elapsed_ms": 820,
+      "detail": {
+        "bytes": 147
+      }
+    },
+    {
+      "stage": "image/png:signed_mime_cannot_change",
+      "ok": true,
+      "elapsed_ms": 57,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/png:staging_grant_cannot_write_public",
+      "ok": true,
+      "elapsed_ms": 55,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/png:missing_candidate_is_not_cached",
+      "ok": true,
+      "elapsed_ms": 406,
+      "detail": {
+        "cache_statuses": ["BYPASS", "BYPASS"]
+      }
+    },
+    {
+      "stage": "image/png:create_only_and_anonymous_verified",
+      "ok": true,
+      "elapsed_ms": 1571,
+      "detail": {
+        "mime": "image/png",
+        "nosniff": true,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "stage": "image/png:staging_replay_does_not_change_final",
+      "ok": true,
+      "elapsed_ms": 627,
+      "detail": {
+        "unexpired_replay_observed": true,
+        "origin_and_public_unchanged": true
+      }
+    },
+    {
+      "stage": "image/png:positive_cdn_cache",
+      "ok": true,
+      "elapsed_ms": 103,
+      "detail": {
+        "cache_statuses": ["HIT", "HIT"]
+      }
+    },
+    {
+      "stage": "image/jpeg:cors_allowed_and_denied",
+      "ok": true,
+      "elapsed_ms": 106,
+      "detail": {
+        "denied_status": 403,
+        "scope": "HTTP preflight; browser enforcement is a separate check"
+      }
+    },
+    {
+      "stage": "image/jpeg:staging_presign_and_readback",
+      "ok": true,
+      "elapsed_ms": 506,
+      "detail": {
+        "bytes": 246
+      }
+    },
+    {
+      "stage": "image/jpeg:signed_mime_cannot_change",
+      "ok": true,
+      "elapsed_ms": 65,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/jpeg:staging_grant_cannot_write_public",
+      "ok": true,
+      "elapsed_ms": 94,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/jpeg:missing_candidate_is_not_cached",
+      "ok": true,
+      "elapsed_ms": 360,
+      "detail": {
+        "cache_statuses": ["BYPASS", "BYPASS"]
+      }
+    },
+    {
+      "stage": "image/jpeg:create_only_and_anonymous_verified",
+      "ok": true,
+      "elapsed_ms": 1345,
+      "detail": {
+        "mime": "image/jpeg",
+        "nosniff": true,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "stage": "image/jpeg:staging_replay_does_not_change_final",
+      "ok": true,
+      "elapsed_ms": 479,
+      "detail": {
+        "unexpired_replay_observed": true,
+        "origin_and_public_unchanged": true
+      }
+    },
+    {
+      "stage": "image/jpeg:positive_cdn_cache",
+      "ok": true,
+      "elapsed_ms": 102,
+      "detail": {
+        "cache_statuses": ["HIT", "HIT"]
+      }
+    },
+    {
+      "stage": "image/webp:cors_allowed_and_denied",
+      "ok": true,
+      "elapsed_ms": 77,
+      "detail": {
+        "denied_status": 403,
+        "scope": "HTTP preflight; browser enforcement is a separate check"
+      }
+    },
+    {
+      "stage": "image/webp:staging_presign_and_readback",
+      "ok": true,
+      "elapsed_ms": 452,
+      "detail": {
+        "bytes": 46
+      }
+    },
+    {
+      "stage": "image/webp:signed_mime_cannot_change",
+      "ok": true,
+      "elapsed_ms": 41,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/webp:staging_grant_cannot_write_public",
+      "ok": true,
+      "elapsed_ms": 56,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "stage": "image/webp:missing_candidate_is_not_cached",
+      "ok": true,
+      "elapsed_ms": 242,
+      "detail": {
+        "cache_statuses": ["BYPASS", "BYPASS"]
+      }
+    },
+    {
+      "stage": "image/webp:create_only_and_anonymous_verified",
+      "ok": true,
+      "elapsed_ms": 1284,
+      "detail": {
+        "mime": "image/webp",
+        "nosniff": true,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "stage": "image/webp:staging_replay_does_not_change_final",
+      "ok": true,
+      "elapsed_ms": 601,
+      "detail": {
+        "unexpired_replay_observed": true,
+        "origin_and_public_unchanged": true
+      }
+    },
+    {
+      "stage": "image/webp:positive_cdn_cache",
+      "ok": true,
+      "elapsed_ms": 96,
+      "detail": {
+        "cache_statuses": ["HIT", "HIT"]
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_staging",
+      "ok": true,
+      "elapsed_ms": 315,
+      "detail": {
+        "origin_absent": true
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_public_and_cdn",
+      "ok": true,
+      "elapsed_ms": 812,
+      "detail": {
+        "anonymous_status": 404
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_staging",
+      "ok": true,
+      "elapsed_ms": 311,
+      "detail": {
+        "origin_absent": true
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_public_and_cdn",
+      "ok": true,
+      "elapsed_ms": 557,
+      "detail": {
+        "anonymous_status": 404
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_staging",
+      "ok": true,
+      "elapsed_ms": 373,
+      "detail": {
+        "origin_absent": true
+      }
+    },
+    {
+      "stage": "cleanup_owned_synthetic_public_and_cdn",
+      "ok": true,
+      "elapsed_ms": 614,
+      "detail": {
+        "anonymous_status": 404
+      }
+    }
+  ],
+  "not_proven": [
+    "real browser CORS enforcement",
+    "presigned URL denial after expiry",
+    "hosted Supabase gateway/cron and aggregate isolate limits",
+    "application DB publication/adoption/revocation races against live provider",
+    "Meta importer acceptance",
+    "production readiness"
+  ]
+}

@@ -1,8 +1,9 @@
 // Real provider checks, restricted to the isolated beta target. Never use customer files.
 // From the repository root, with an owner-approved temporary .env.catalog-images.beta:
 // nice -n 15 npx --yes deno@2.5.6 run --no-lock --node-modules-dir=none
-//   --allow-env --allow-read=.env.catalog-images.beta,tests/fixtures/restitch-images
-//   --allow-net --allow-write=specs/045-catalog-r2-images/provider-result.json,.env.catalog-images.beta-provider-recovery
+//   --allow-read=.env.catalog-images.beta,tests/fixtures/restitch-images,.env.catalog-images.beta-provider-recovery
+//   --allow-net=d7c5658154bdbb4fb78abc8f624d0dc1.r2.cloudflarestorage.com,catalog-images-beta.soty.pp.ua,api.cloudflare.com
+//   --allow-write=specs/045-catalog-r2-images/provider-result.json,.env.catalog-images.beta-provider-recovery
 //   specs/045-catalog-r2-images/provider-acceptance.ts
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
 import {

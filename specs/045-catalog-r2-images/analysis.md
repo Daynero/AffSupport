@@ -1,26 +1,26 @@
 # Current implementation assessment — feature045
 
-Date:2026-10-27. Implementation is in isolated branch `045-catalog-r2-images`. Full local verification passed14/14gates;7989passed and45explicitly skipped tests after the owner-approved bundle allocation and Launch fixes; hosted/provider/beta/importer acceptance is unverified and imports remain disabled.
+Date:2026-10-27. Implementation is in isolated branch `045-catalog-r2-images`. Full local verification passed14/14gates;7989passed and45explicitly skipped tests after the owner-approved bundle allocation and Launch fixes. Actual isolated beta R2 HTTP/CDN checks passed30/30 and Chrome staging CORS/expiry passed9/9. Authenticated Soty, hosted runtime, beta and importer acceptance remain unverified; imports stay disabled.
 
 Two independent scoped implementation reviews reached98/100 after recursive fixes: [storage reviewer](reviews/implementation-storage.md) and [integration reviewer](reviews/implementation-integration.md). Each explicitly excludes its own implementation and identifies remaining external evidence; these are code review scores, not product certification. [validation.md](validation.md) records executed commands/results and the measured memory defect/fix.
 
 Implemented refinement:active upload slots and separate grant exposure with bounded backpressure, scoped frozen selections, server-backed accepted-v1 compatibility, transactional use reconciliation, visible enumeration failure/recovery, safe Realtime stage invalidation, source/uploader retention and real PostgreSQL adoption/cleanup exclusion.
 
-The owner approved a measured bundle-budget allocation:20,000B gzip for feature045 shared/existing growth and a45,000B complete Launch graph ceiling (clean base44,680B, feature44,649B). Existing entry/largest/Accounts ratchets and performance-baseline.json stay unchanged; both the feature increment and adjusted overall ceiling are enforced. [Comparison and decision](bundle-budget-comparison.json). This performance-contract decision does not establish provider acceptance or make the pending full verifier green.
+The owner approved a measured bundle-budget allocation:20,000B gzip for feature045 shared/existing growth and a45,000B complete Launch graph ceiling. Existing entry/largest/Accounts ratchets and performance-baseline.json stay unchanged; both the feature increment and adjusted overall ceiling are enforced. [Comparison and decision](bundle-budget-comparison.json). Allocation and provider proof are separate from the final full verifier, whose14/14pass is recorded in validation.md.
 
 ## Current cross-artifact audit
 
 All30 functional requirements,9 diagnostic requirements and14 acceptance criteria retain their task mappings. The code/contract/docs agree on named garment/color pairs, ordinary random images, explicit publication, private staging and immutable public identities, old accepted requests, retained catalog rows, source/uploader deletion and bounded unknown-outcome recovery. First-v2 admission is an atomic verified ready commit under the shared mode lock, completing the explicit import action. All16 new tables have RLS enabled; private tables additionally have no direct client/service grants. No constitution exception is needed.
 
-| Area | Implemented and locally checked | Remaining evidence |
-| --- | --- | --- |
-| Local/Drive import and human help | Routes, manifests, source identity, resume, prompt/copy, classification, UI | Actual hosted gateway/CORS/presign and platform/beta matrix |
-| Publication and retention | Verified bytes, signing, durable identities, use/revocation guards, native lock races | Real R2 conditional PUT, public domain/nosniff, own-CDN purge, late writes |
-| Resource limits | Isolate permit, bounded buffers/streams, local50MB memory regression | Hosted aggregate concurrent memory/CPU and25k/1000-file scale |
-| Catalog and diagnostics | Create/growth/refresh/accepted legacy, safe metadata and CLI diagnosis | Real importer and verified remote consumer result |
-| Build/verification | Targeted unit/PGlite/native checks and scoped builds | Full verifier14/14passed; full release/beta remains unverified |
+| Area                              | Implemented and locally checked                                                                                                                              | Remaining evidence                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Local/Drive import and human help | Routes, manifests, source identity, resume, prompt/copy, classification, UI; actual Chrome CORS/presign/expiry probes                                        | Authenticated Soty journey, hosted gateway and platform/beta matrix        |
+| Publication and retention         | Verified bytes, signing, durable identities, use/revocation guards, native lock races; actual R2 conditional streaming PUT, domain/nosniff and own-CDN purge | Real lost-response/late-write and live DB/provider adoption/deletion races |
+| Resource limits                   | Isolate permit, bounded buffers/streams, local50MB memory regression                                                                                         | Hosted aggregate concurrent memory/CPU and25k/1000-file scale              |
+| Catalog and diagnostics           | Create/growth/refresh/accepted legacy, safe metadata and CLI diagnosis                                                                                       | Real importer and verified remote consumer result                          |
+| Build/verification                | Targeted unit/PGlite/native checks and scoped builds                                                                                                         | Full verifier14/14passed; full release/beta remains unverified             |
 
-Readiness verdict: **local implementation available; product activation blocked by missing external acceptance evidence**. Checked tasks represent code plus the stated local evidence only. The final verification checkpoint in validation.md is authoritative; neither the historical planning scores nor scoped implementation reviews attest provider behavior or production readiness.
+Readiness verdict: **local implementation and scoped provider/browser proof available; product activation still requires remaining application/runtime/release/importer evidence**. Checked tasks represent code plus their stated evidence only. The final checkpoint in validation.md and its two sanitized provider reports are authoritative; historical planning scores and scoped reviews do not attest production readiness.
 
 ## Historical verifier blocker (allocation now resolved)
 
@@ -30,7 +30,7 @@ The full verifier failed the existing Launch-exclusive40,000-byte budget at44,64
 
 Earlier scoped reviews had not proved the complete Launch resource-freeze path. New review found a legacy-only UI readiness check and two SQL planners still selecting Drive images. The current implementation fixes these with R2-aware readiness and migration1550:server-owned generation contract, one reserved future child UUID used for selection/use/intent, both planners using R2 for new work, byte-stable memoized resources and exact accepted-v1 compatibility after team cutover. The final memoized branch checks current actor/edit/archive/parent state under Launch→generation locks. Independent review of this follow-up is98/100; its final regression and full verifier passed.
 
-Provider discovery concretely returned Cloudflare API10042 (R2 not enabled). Activation and actual hosted acceptance therefore remain external prerequisites; no production setup or release was performed.
+The earlier API10042 activation blocker is resolved: the owner paid/activated R2 and confirmed temporary beta domain/key setup. Actual R2 HTTP/CDN30/30 and Chrome staging9/9 probes passed with cleanup complete. Two independent proof audits reached98/100 while preserving all remaining mixed acceptance tasks. Canonical beta preparation is unavailable in this checkout (`.env.beta` missing); a separate read-only inventory found the existing acceptance036 stack on canonical54321/54322/54324. It was not reused/reset/stopped. No production app/database release or product activation was performed.
 
 ## Historical planning report
 
@@ -44,28 +44,28 @@ Scope: spec, plan, tasks, data model, contract, quickstart, human guide/prompt, 
 
 ## Independent rounds
 
-| Round | Storage/security reviewer | Integration/coverage reviewer | Outcome |
-| --- | ---: | ---: | --- |
-| 1 | [93/100](./reviews/round-1-storage.md) | [94/100](./reviews/round-1-integration.md) | Concrete security/runtime/integration/recovery fixes required |
-| 2 | [98/100](./reviews/round-2-storage.md) | [97/100](./reviews/round-2-integration.md) | Pairing policy and expiry terminal clarified |
-| 3 | [99/100](./reviews/round-3-storage.md) | [99/100](./reviews/round-3-integration.md) | Both independent thresholds achieved; no material blockers |
+| Round |              Storage/security reviewer |              Integration/coverage reviewer | Outcome                                                       |
+| ----- | -------------------------------------: | -----------------------------------------: | ------------------------------------------------------------- |
+| 1     | [93/100](./reviews/round-1-storage.md) | [94/100](./reviews/round-1-integration.md) | Concrete security/runtime/integration/recovery fixes required |
+| 2     | [98/100](./reviews/round-2-storage.md) | [97/100](./reviews/round-2-integration.md) | Pairing policy and expiry terminal clarified                  |
+| 3     | [99/100](./reviews/round-3-storage.md) | [99/100](./reviews/round-3-integration.md) | Both independent thresholds achieved; no material blockers    |
 
 Rubric: requirements fidelity20, correctness/security25, feasibility20, coverage/dependencies/validation20, clarity/consistency15. Reviewers were instructed not to read each other's results or inflate scores; neither edited documents. Primary agent applied fixes between frozen snapshots. Scores assess authored documents, not working software or objective proof of product correctness.
 
 ## Findings and resolutions
 
-| ID | Category | Original severity | Finding | Resolution / task coverage |
-| --- | --- | --- | --- | --- |
-| S-H1 | Runtime | HIGH | One invocation/file did not bound concurrent isolate memory | One heavy-operation/isolate admission before claim, bounded busy requeue; T008/T052, Q19 |
-| S-H2 | Concurrency | HIGH | Orphan cleanup could race adoption/ready commit | Shared publication row lock/CAS fence and purging exclusion; T016/T033/T037/T053, Q09/13 |
-| S-M1 | Delivery configuration | MEDIUM | nosniff header mechanism undefined | Media-domain response-header transform + scoped config/purge permission + real header check; T003/T053 |
-| S-M2 | UX consistency | MEDIUM | Unconditional matching statement contradicted random mode | Help explicitly restricts guarantee to properly named images; T047–049 |
-| I-H1 | Deployment/auth | HIGH | New worker gateway configuration absent | config.toml verify_jwt=false + separate per-route JWT/secret enforcement + real cron/denial tests; T003/T010/T012/T053 |
-| I-H2 | Integration | HIGH | Server Launch producer missing v2 negotiation | All standalone/API/server builders and persisted retry versions explicit; T032/T035, Q14 |
-| I-M1 | Typed contracts | MEDIUM | Wrong/incomplete closed error registry path | team/transport.ts TeamErrorCode separated from analytics types.ts; exhaustive mappings/guards; T005/T022/T040 |
-| I-M2 | Recovery/quota | MEDIUM | No job discovery or abandoned-source expiry | Paginated import discovery, 24h source deadline, exactly-once reservation release, preserve staged/ready/unknown; T010/T013/T021 |
-| I-M3 | Behavioral ambiguity | MEDIUM | refreshTexts=false arbitrary text correction underdefined | Token-only unique rewrite; explicit text conflict preserves old catalog; canonical fallback only permitted branches; T024/T026/T029, Q06 |
-| I-L1 | State consistency | LOW | Expired entry terminal omitted from enum | Explicit expired stage/reason/counts, distinct from provider failure; T005/T007/T021 |
+| ID   | Category               | Original severity | Finding                                                     | Resolution / task coverage                                                                                                               |
+| ---- | ---------------------- | ----------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| S-H1 | Runtime                | HIGH              | One invocation/file did not bound concurrent isolate memory | One heavy-operation/isolate admission before claim, bounded busy requeue; T008/T052, Q19                                                 |
+| S-H2 | Concurrency            | HIGH              | Orphan cleanup could race adoption/ready commit             | Shared publication row lock/CAS fence and purging exclusion; T016/T033/T037/T053, Q09/13                                                 |
+| S-M1 | Delivery configuration | MEDIUM            | nosniff header mechanism undefined                          | Media-domain response-header transform + scoped config/purge permission + real header check; T003/T053                                   |
+| S-M2 | UX consistency         | MEDIUM            | Unconditional matching statement contradicted random mode   | Help explicitly restricts guarantee to properly named images; T047–049                                                                   |
+| I-H1 | Deployment/auth        | HIGH              | New worker gateway configuration absent                     | config.toml verify_jwt=false + separate per-route JWT/secret enforcement + real cron/denial tests; T003/T010/T012/T053                   |
+| I-H2 | Integration            | HIGH              | Server Launch producer missing v2 negotiation               | All standalone/API/server builders and persisted retry versions explicit; T032/T035, Q14                                                 |
+| I-M1 | Typed contracts        | MEDIUM            | Wrong/incomplete closed error registry path                 | team/transport.ts TeamErrorCode separated from analytics types.ts; exhaustive mappings/guards; T005/T022/T040                            |
+| I-M2 | Recovery/quota         | MEDIUM            | No job discovery or abandoned-source expiry                 | Paginated import discovery, 24h source deadline, exactly-once reservation release, preserve staged/ready/unknown; T010/T013/T021         |
+| I-M3 | Behavioral ambiguity   | MEDIUM            | refreshTexts=false arbitrary text correction underdefined   | Token-only unique rewrite; explicit text conflict preserves old catalog; canonical fallback only permitted branches; T024/T026/T029, Q06 |
+| I-L1 | State consistency      | LOW               | Expired entry terminal omitted from enum                    | Explicit expired stage/reason/counts, distinct from provider failure; T005/T007/T021                                                     |
 
 All listed findings resolved in final reviewed snapshot. Remaining nonblocking notes: dense summaries may drift (canonical full pairing matrix is in the contract); real verifier/SDK resource characteristics still require measured acceptance. These are not silently marked completed implementation work.
 
@@ -73,16 +73,16 @@ All listed findings resolved in final reviewed snapshot. Remaining nonblocking n
 
 Full ID→task map is in [tasks.md](./tasks.md), supported by [quickstart.md](./quickstart.md) Q01–Q22. Representative mapping:
 
-| Requirement group | Has tasks? | Tasks / acceptance |
-| --- | --- | --- |
-| R2/publication/auth/identity/bytes | Yes | T001–017/T052–053; Q07–10/16/18–19 |
-| Local and Drive import, generic/random/matched | Yes | T010–022/T047–049; Q01–04/11/15 |
-| Reuse, actual pairs, create/refresh/grow | Yes | T023–031; Q05–06 |
-| Legacy migration/versioned Launch/checkpoints | Yes | T028/T032/T034–035/T039; Q14/22 |
-| Retention, deletion, cleanup/recovery | Yes | T006–008/T033/T036–038; Q09/12–13 |
-| Agent-readable diagnosis/privacy/cost | Yes | T040–046/T050–056; Q17/21 |
-| Human explanation/copy prompt/vocabulary | Yes | T004–005/T047–050; Q04/15 |
-| Resource, scale, cross-platform, importer | Yes | T051–056; Q19–22 |
+| Requirement group                              | Has tasks? | Tasks / acceptance                 |
+| ---------------------------------------------- | ---------- | ---------------------------------- |
+| R2/publication/auth/identity/bytes             | Yes        | T001–017/T052–053; Q07–10/16/18–19 |
+| Local and Drive import, generic/random/matched | Yes        | T010–022/T047–049; Q01–04/11/15    |
+| Reuse, actual pairs, create/refresh/grow       | Yes        | T023–031; Q05–06                   |
+| Legacy migration/versioned Launch/checkpoints  | Yes        | T028/T032/T034–035/T039; Q14/22    |
+| Retention, deletion, cleanup/recovery          | Yes        | T006–008/T033/T036–038; Q09/12–13  |
+| Agent-readable diagnosis/privacy/cost          | Yes        | T040–046/T050–056; Q17/21          |
+| Human explanation/copy prompt/vocabulary       | Yes        | T004–005/T047–050; Q04/15          |
+| Resource, scale, cross-platform, importer      | Yes        | T051–056; Q19–22                   |
 
 ## Metrics
 
@@ -106,16 +106,16 @@ Full ID→task map is in [tasks.md](./tasks.md), supported by [quickstart.md](./
 
 SHA-256 prefixes reviewed by both agents in round3:
 
-| Artifact | SHA-256 prefix |
-| --- | --- |
-| spec.md | `8d157f1f8fb6` |
-| plan.md | `e218e3f99831` |
-| tasks.md | `2b696c718f2d` |
-| data-model.md | `4246260b80eb` |
+| Artifact                    | SHA-256 prefix |
+| --------------------------- | -------------- |
+| spec.md                     | `8d157f1f8fb6` |
+| plan.md                     | `e218e3f99831` |
+| tasks.md                    | `2b696c718f2d` |
+| data-model.md               | `4246260b80eb` |
 | contracts/catalog-images.md | `610a2c785714` |
-| quickstart.md | `5e0943e624ee` |
-| image-guide.md | `af3b569140bd` |
-| research.md | `2fd50b4ab535` |
+| quickstart.md               | `5e0943e624ee` |
+| image-guide.md              | `af3b569140bd` |
+| research.md                 | `2fd50b4ab535` |
 
 Core files were frozen during each final review. This analysis and archived reviews record results; they do not modify the reviewed requirements/design/backlog afterward.
 

@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), [data-model.md](./data-model.md), [contract](./contracts/catalog-images.md), [guide](./image-guide.md), [quickstart](./quickstart.md).
 
-**Status**: feature implementation and local verification completed in isolated worktree; final full verifier passed14/14 gates. R2 activation is complete and isolated beta provider setup is in progress. External provider/runtime/beta/importer gates remain open. Checkbox evidence is recorded in validation.md. Тести обов'язкові за acceptance/031, особливо для publication, isolation, recovery і діагностики. [P] — лише незалежні файли після вказаних prerequisites; heavy checks завжди послідовні, nice 15, один worker.
+**Status**: feature implementation and local verification completed in isolated worktree; final full verifier passed14/14 gates. Isolated beta R2 setup is active; actual provider HTTP/CDN30/30 and Chrome staging CORS/expiry9/9 checks passed. Hosted runtime/full application/beta/importer gates remain open. Checkbox evidence is recorded in validation.md. Тести обов'язкові за acceptance/031, особливо для publication, isolation, recovery і діагностики. [P] — лише незалежні файли після вказаних prerequisites; heavy checks завжди послідовні, nice 15, один worker.
 
 ## Phase 1: Setup
 
@@ -146,7 +146,7 @@
 ## Implementation evidence notes
 
 - Checked T001–050 items have code plus local unit/SQL/native/browser evidence; new files may implement a task under a more focused name (catalog-image-rows.ts, drive-sources.ts, catalog-image-adoption-postgres.test.ts). T007 uses the canonical generated database-types/compat seam. T036 uses database membership/account FK and pre-cascade triggers rather than duplicating account-deletion orchestration in the handler; native retention proof covers the real deletion path.
-- T003 remains unchecked only for actual hosted secret-only dispatch and real SDK/R2 conditional PUT acceptance; pinned SDK, config, lock, docs and Deno checks are implemented.
+- T003 remains unchecked for actual hosted secret-only dispatch; pinned SDK, config, lock, docs, Deno checks and real R2 streaming conditional PUT are now verified.
 - T010 remains unchecked for the explicitly required hosted gateway/cron proof. Local route/auth and actual Drive orchestration/SQL recovery tests pass; mocks do not attest gateway configuration.
 - T011 local adversarial coverage includes actual worker with real adapter plus independently generated format fixtures; live provider cases remain T053.
 - T023/T024/T028/T029/T032 now additionally validate retained outgoing row identities when image refresh is disabled, atomic complete/reconcile guards, malformed revision, inactive historical membership and text-only revoked-image refusal.
@@ -157,4 +157,4 @@
 
 - The urgent follow-up completed T035 with actual SQL Launch resource-freeze/planners, the reserved canonical child identity, R2-aware preflight and preexisting accepted-v1/no-child compatibility. Its six SQL cases and final focused56tests pass. T056 records the final verdict:local implementation verified, actual R2/hosted/beta/importer acceptance remains blocked/unverified.
 
-- Final status:50/56tasks have implementation/local evidence. Six explicitly external/mixed acceptance items remain unchecked:T003,T010,T052,T053,T054,T055. The owner activated R2 on2026-10-27; isolated beta buckets/CORS/lifecycle/header/cache rules are prepared, with domain/token activation awaiting browser action-time confirmation. Actual provider acceptance has not yet run. No production release is authorized by these checkboxes.
+- Final status:50/56tasks have implementation/local evidence. Six mixed acceptance items remain unchecked:T003,T010,T052,T053,T054,T055. On2026-10-27 the owner activated R2 and confirmed domain/token setup. Actual adapter/CDN30/30 and Chrome9/9 staging CORS/expiry probes passed with all synthetic objects cleaned. T053 still needs hosted cron/gateway, late-write and live DB race evidence; T055 still needs an actual external importer. The isolated checkout lacks its canonical beta profile, and an existing acceptance036 stack occupies canonical DB ports; no foreign stack was stopped/reset/reused. No production release is authorized by these checkboxes.

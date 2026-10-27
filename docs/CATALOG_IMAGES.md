@@ -58,7 +58,7 @@ capabilities and before/after source identity checks.
   and uses the same vaulted secret. Its periodic job is `soty-catalog-images`; explicit mutation
   and completed work also kick bounded dispatch, so imports need not wait for every cron tick.
 
-SDK imports are pinned to `aws4fetch@1.0.20` and `@supabase/supabase-js@2.110.7`. The function-local lock was generated and the entry point checked with Deno 2.5.6. Shared emitted JavaScript advertises its adjacent declaration files using Deno-supported `@ts-self-types`. Hosted browser CORS/conditional PUT acceptance remains required before release; Node mocks and the Deno check do not prove provider compatibility.
+SDK imports are pinned to `aws4fetch@1.0.20` and `@supabase/supabase-js@2.110.7`. The function-local lock was generated and the entry point checked with Deno 2.5.6. Shared emitted JavaScript advertises its adjacent declaration files using Deno-supported `@ts-self-types`. Actual isolated beta adapter/CDN checks passed30/30 and Chrome staging CORS/expiry checks passed9/9 on2026-10-27; see `specs/045-catalog-r2-images/validation.md` and its sanitized reports. This proves those provider behaviors, including streaming conditional PUT, but does not replace authenticated Soty UI, hosted gateway/cron/isolate or packaged-release acceptance. Node mocks and a Deno type check alone are not provider evidence.
 
 ## Bounds and evidence
 
