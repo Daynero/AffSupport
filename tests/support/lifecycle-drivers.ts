@@ -141,8 +141,6 @@ const { LandingPreviewCatalog } = await import('../../apps/agent/src/landing-pre
 // binaries above are installed, and that module captures the paths once.
 const { StitchQueue } = await import('../../apps/agent/src/stitcher/queue.js');
 const { PreparedBodyCache } = await import('../../apps/agent/src/stitcher/body-cache.js');
-const { TranscriptionDocumentStore } =
-  await import('../../apps/agent/src/transcription/document-store.js');
 
 /** Removes everything the drivers wrote. Call from the suite's teardown. */
 export async function cleanUpDrivers(): Promise<void> {
@@ -418,170 +416,6 @@ const COMPRESSION_DRIVERS: DriverMap = {
   }
 };
 
-/**
- * A translator whose every call is resolved by hand.
- *
- * The three translation outcomes — finished, failed, preempted — differ only in what happens
- * to a call already in flight, so a driver needs to hold one open and then decide.
- */
-class GatedTranslator {
-  readonly calls: {
-    request: { onSegment?: (segment: unknown, index: number) => void };
-    resolve: (out: unknown[]) => void;
-    reject: (error: Error) => void;
-  }[] = [];
-
-  available(): boolean {
-    return true;
-  }
-
-  modelVersion(): string {
-    return 'driver-1';
-  }
-
-  translate(
-    request: { onSegment?: (segment: unknown, index: number) => void },
-    signal: AbortSignal
-  ): Promise<unknown[]> {
-    return new Promise((resolve, reject) => {
-      this.calls.push({ request, resolve: resolve as never, reject });
-      signal.addEventListener('abort', () => reject(new Error('aborted')));
-    });
-  }
-
-  /**
-   * Finishes a call the way the real translator does — segment first, then the whole output.
-   *
-   * The pipelined alignment and progress both hang off `onSegment`, so resolving without it
-   * produces a translation that never reports itself finished.
-   */
-  finish(index: number, jobId: string, text: string): void {
-    const segment = { sourceSegmentId: `${jobId}-s0`, translatedText: text, alignments: [] };
-    this.calls[index]?.request.onSegment?.(segment, 0);
-    this.calls[index]?.resolve([segment]);
-  }
-}
-
-interface TranscriptionHarness {
-  queue: InstanceType<typeof TranscriptionQueue>;
-  jobId: string;
-  media: string;
-  translator: GatedTranslator;
-}
-
-/** A transcription queue holding one analysed file, with a transcript already on disk. */
-async function transcriptionHarness(): Promise<TranscriptionHarness> {
-  await behave({ hang: false, exitCode: 0, durationMs: 10 });
-  const directory = await mkdtemp(path.join(workspace, 'transcription-'));
-  const media = path.join(directory, 'interview.mp3');
-  await writeFile(media, 'audio');
-
-  // Per harness, not per file. These paths are read when they are used rather than at import,
-  // and a shared translation cache makes the second driver a cache hit: the translator is
-  // never called, the edge never happens, and the driver times out describing a state the
-  // code was right not to enter.
-  const documents = path.join(directory, 'documents');
-  process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH = documents;
-  process.env.AGENT_TRANSLATION_CACHE_PATH = path.join(directory, 'translation-cache');
-  process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH = path.join(directory, 'previews');
-
-  const queue = new TranscriptionQueue({ ffmpeg: true, whisper: true }, () => {});
-  await queue.add([media]);
-  const jobId = queue.state().jobs[0].id;
-
-  // A transcript has to exist before anything can be translated from it.
-  await new TranscriptionDocumentStore(documents).save({
-    jobId,
-    sourceLanguage: 'en',
-    modelVersion: 'large-v3',
-    segments: [
-      { id: `${jobId}-s0`, startMs: 0, endMs: 1_000, sourceText: 'Hello world.', words: [] }
-    ],
-    translations: {}
-  });
-
-  const translator = new GatedTranslator();
-  queue.setTranslator(translator as never);
-  return { queue, jobId, media, translator };
-}
-
-/** Requests a translation and waits until the translator has actually been called. */
-async function translationInFlight(harnessed: TranscriptionHarness): Promise<void> {
-  await harnessed.queue.requestTranslation(harnessed.jobId, 'uk');
-  await waitFor(() => harnessed.translator.calls.length > 0, {
-    describe: 'the translator to be called'
-  });
-}
-
-const translationEdge = driverFor('translation');
-
-const TRANSLATION_DRIVERS: DriverMap = {
-  'queued->processing': async () => {
-    const harnessed = await transcriptionHarness();
-    const result = await translationEdge('processing', () => translationInFlight(harnessed));
-    await harnessed.queue.shutdown();
-    return result;
-  },
-
-  'processing->completed': async () => {
-    const harnessed = await transcriptionHarness();
-    await translationInFlight(harnessed);
-    const result = await translationEdge('completed', async () => {
-      harnessed.translator.finish(0, harnessed.jobId, 'Привіт, світе.');
-    });
-    await harnessed.queue.shutdown();
-    return result;
-  },
-
-  'processing->failed': async () => {
-    const harnessed = await transcriptionHarness();
-    await translationInFlight(harnessed);
-    const result = await translationEdge('failed', async () => {
-      harnessed.translator.calls[0]?.reject(new Error('the translator gave up'));
-    });
-    await harnessed.queue.shutdown();
-    return result;
-  },
-
-  'queued->failed': async () => {
-    // A cancel before the translation started: a second language asked for while the first
-    // is still running waits its turn, and stopping it there has to stick.
-    const harnessed = await transcriptionHarness();
-    await translationInFlight(harnessed);
-    await harnessed.queue.requestTranslation(harnessed.jobId, 'de');
-    const result = await translationEdge('failed', () =>
-      harnessed.queue.cancelTranslation(harnessed.jobId)
-    );
-    await harnessed.queue.shutdown();
-    return result;
-  },
-
-  'failed->queued': async () => {
-    const harnessed = await transcriptionHarness();
-    await translationInFlight(harnessed);
-    harnessed.translator.calls[0]?.reject(new Error('the translator gave up'));
-    await waitFor(() => harnessed.queue.state().jobs[0]?.translation?.status === 'failed', {
-      describe: 'the first translation to fail'
-    });
-    const result = await translationEdge('queued', () =>
-      harnessed.queue.requestTranslation(harnessed.jobId, 'uk', 'retry')
-    );
-    await harnessed.queue.shutdown();
-    return result;
-  },
-
-  'processing->queued': async () => {
-    // Preemption, not failure. A translation yields the machine to the transcription it
-    // belongs to and resumes from the segments it had already produced — recording that as a
-    // failure would show the user an error for something the application did deliberately.
-    const harnessed = await transcriptionHarness();
-    await translationInFlight(harnessed);
-    const result = await translationEdge('queued', () => harnessed.queue.start([harnessed.jobId]));
-    await harnessed.queue.shutdown();
-    return result;
-  }
-};
-
 const transcriptionEdge = driverFor('transcription');
 
 /** A transcription queue holding jobs seeded into known states. */
@@ -611,7 +445,6 @@ async function seededTranscription(jobs: Partial<TranscriptionJob>[]) {
     detectedLanguage: null,
     text: null,
     characters: null,
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,
@@ -758,7 +591,7 @@ const TRANSCRIPTION_DRIVERS: DriverMap = {
     await writeFile(
       stateFile,
       JSON.stringify({
-        settings: { language: 'auto', translationLanguage: 'uk' },
+        settings: { language: 'auto' },
         jobs: [
           {
             id: 'mid-run',
@@ -1428,7 +1261,6 @@ const STITCH_DRIVERS: DriverMap = {
 export const DRIVERS: Readonly<Record<string, DriverMap>> = {
   compression: COMPRESSION_DRIVERS,
   transcription: TRANSCRIPTION_DRIVERS,
-  translation: TRANSLATION_DRIVERS,
   'landing-job': LANDING_JOB_DRIVERS,
   'landing-asset': LANDING_ASSET_DRIVERS,
   'landing-preview-item': LANDING_PREVIEW_ITEM_DRIVERS,

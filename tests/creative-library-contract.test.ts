@@ -80,7 +80,7 @@ describe('Creative Library shared contract', () => {
   });
 
   it('parses operation-scoped claims and heartbeats with a bounded lease', () => {
-    expect(LIBRARY_JOB_KINDS).toEqual(['transcription', 'translation', 'landing_optimization']);
+    expect(LIBRARY_JOB_KINDS).toEqual(['transcription', 'landing_optimization']);
     expect(LIBRARY_JOB_LEASE_SECONDS).toBeLessThanOrEqual(120);
     expect(
       parseLibraryJobClaim({

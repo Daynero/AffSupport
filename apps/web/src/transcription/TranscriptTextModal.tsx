@@ -1,43 +1,33 @@
+import { analytics } from '../analytics/service';
+import { analyticsRunId } from '../analytics/tools';
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type {
-  CSSProperties,
-  KeyboardEvent as ReactKeyboardEvent,
-  MouseEvent as ReactMouseEvent
-} from 'react';
-import { ChevronDown, FolderDown, Play, X } from 'lucide-react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import { ChevronDown, Play, X } from 'lucide-react';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
-  TranscriptionModelInfo,
   TranscriptSegment,
-  TranscriptWord,
-  TranslatedSegment
+  TranscriptWord
 } from '@video-compressor/shared';
-import { TRANSLATEGEMMA_LANGUAGE_CODES } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Tooltip, type Translate } from '../components/ui';
-import { transcriptionMediaPath, transcriptionSaveWithTranslation } from '../api/client';
+import { type Translate } from '../components/ui';
+import { transcriptionMediaPath } from '../api/client';
 import { isRtlLanguage, languageDisplayName } from './language';
-import { useTranslationFollow } from './useTranslationFollow';
 import type { Language } from '../i18n';
+import { type CharRange } from './text-ranges';
 import {
-  confidenceColor,
-  confidenceGrade,
-  resolveMirroredSelection,
-  type CharRange
-} from './alignment';
-import { selectedPart, useSemanticSelection, type SemanticSelection } from './useSemanticSelection';
+  selectedPart,
+  useTranscriptSelection,
+  type TranscriptSelection
+} from './useTranscriptSelection';
 import { joinRanges, splitTextByRanges } from './selection-dom';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
-import { loadTranscriptDocument } from './document-cache';
+import { loadTranscriptDocument, transcriptDocumentKey } from './document-cache';
 import { useMediaPreview } from './useMediaPreview';
 import { TranscriptPlayer } from './TranscriptPlayer';
-import { TranslationElapsed } from './TranslationElapsed';
-import { LanguageCombobox } from './LanguageCombobox';
-import { TranslationCaveat, TranslatorNotice } from './TranslatorNotice';
 import { ExportMenu } from './ExportMenu';
 import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
-import { useScrollSync } from './useScrollSync';
+import { useTranscriptScroll } from './useTranscriptScroll';
 import { useKaraoke } from './useKaraoke';
 import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
 import {
@@ -48,8 +38,6 @@ import {
   IconButton,
   Progress
 } from '../components/ui/index';
-
-const TARGET_LANGUAGES = [...TRANSLATEGEMMA_LANGUAGE_CODES];
 
 const AUDIO_EXTENSIONS = new Set([
   'mp3',
@@ -86,8 +74,7 @@ function emptyDocument(job: TranscriptionJob): TranscriptionDocument {
     jobId: job.id,
     sourceLanguage: job.detectedLanguage ?? job.requestedLanguage ?? 'auto',
     modelVersion: '',
-    segments: [],
-    translations: {}
+    segments: []
   };
 }
 
@@ -211,59 +198,10 @@ const SourceSegment = memo(function SourceSegment({
   );
 });
 
-/**
- * A translated segment that follows the karaoke word on its own.
- *
- * Subscribes to the store for its own segment only, so the playhead moving through the
- * rest of the document never reaches it.
- */
-const TargetSegment = memo(function TargetSegment({
-  segmentId,
-  translated,
-  selectedRanges,
-  store,
-  focusable,
-  tabStop
-}: {
-  segmentId: string;
-  translated: TranslatedSegment;
-  selectedRanges: CharRange[];
-  store: KaraokeStore;
-  focusable: boolean;
-  tabStop: boolean;
-}) {
-  const active = useActiveWordInSegment(store, segmentId);
-  const activeRanges = useMemo(
-    () =>
-      active
-        ? resolveMirroredSelection(
-            active.range,
-            translated.alignments,
-            'source',
-            translated.translatedText.length
-          ).ranges
-        : NO_RANGES,
-    [active, translated]
-  );
-  return (
-    <SegmentText
-      text={translated.translatedText}
-      segmentId={segmentId}
-      selectedRanges={selectedRanges}
-      activeRanges={activeRanges}
-      focusable={focusable}
-      tabStop={tabStop}
-    />
-  );
-});
-
 export const TranscriptTextModal = memo(function TranscriptTextModal({
   job,
   language,
   returnFocus,
-  translatorModel,
-  onInstallTranslator,
-  onCancelTranslator,
   onExport,
   onToast,
   onClose,
@@ -272,9 +210,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   job: TranscriptionJob;
   language: Language;
   returnFocus: HTMLElement | null;
-  translatorModel: TranscriptionModelInfo;
-  onInstallTranslator: () => void;
-  onCancelTranslator: () => void;
   onExport?: (format: TranscriptExportFormat, content: TranscriptExportContent) => void;
   /** The page's toasts; the viewer has no second notification system of its own. */
   onToast?: (text: string, tone?: 'neutral' | 'success' | 'warning' | 'error') => void;
@@ -291,8 +226,10 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   const mediaRef = useRef<HTMLVideoElement>(null);
 
   const [document_, setDocument] = useState<TranscriptionDocument | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const documentKey = transcriptDocumentKey(job);
   const [copied, setCopied] = useState<{
-    side: 'source' | 'target';
+    side: 'source';
     scope: 'selection' | 'all';
   } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -305,10 +242,8 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     cancel: cancelMedia,
     fail: failPreview
   } = useMediaPreview(job.id);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectionRef = useRef<SemanticSelection | null>(null);
+  const selectionRef = useRef<TranscriptSelection | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -322,10 +257,15 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   useEffect(() => {
     let active = true;
     setDocument(null);
+    setLoadedFor(null);
     setLoadFailed(false);
+    if (job.status !== 'completed') return;
     loadTranscriptDocument(job)
       .then(doc => {
-        if (active) setDocument(doc);
+        if (active) {
+          setDocument(doc);
+          setLoadedFor(documentKey);
+        }
       })
       .catch(() => {
         if (!active) return;
@@ -335,36 +275,35 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     return () => {
       active = false;
     };
-  }, [job.id, job.finishedAt, loadAttempt]);
+  }, [documentKey, job.status, loadAttempt]);
 
-  const {
-    target,
-    chooseTarget,
-    translation,
-    summary,
-    translating,
-    requesting,
-    error: translationError,
-    retry: retryTranslation,
-    cancel: cancelTranslation
-  } = useTranslationFollow({
-    job,
-    document: document_,
-    language,
-    translatorPresent: translatorModel.present
-  });
+  const visibleDocument = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !document_ ||
+      loadFailed ||
+      job.status !== 'completed' ||
+      loadedFor !== documentKey ||
+      visibleDocument.current === documentKey
+    )
+      return;
+    visibleDocument.current = documentKey;
+    const runId = analyticsRunId(job.id);
+    if (runId)
+      analytics.track('result_opened', {
+        tool_identifier: 'transcription',
+        flow_step: 'transcription_result_visible',
+        run_id: runId,
+        flow_id: runId,
+        ...(analyticsRunId(job.attemptId) ? { attempt_id: job.attemptId } : {})
+      });
+  }, [document_, loadFailed, loadedFor, documentKey, job.id, job.attemptId, job.status]);
 
   useEffect(() => {
     const media = mediaRef.current;
     if (!media || !previewOpen || mediaPreview?.state !== 'ready') return;
     void media.play().catch(() => {});
   }, [previewOpen, mediaPreview?.state]);
-
-  const translatedBySegment = useMemo(() => {
-    const map = new Map<string, TranslatedSegment>();
-    for (const segment of translation?.segments ?? []) map.set(segment.sourceSegmentId, segment);
-    return map;
-  }, [translation]);
   const segments = document_?.segments ?? NO_SEGMENTS;
   // Once per document, not once per render: an O(n) scan of every word on every frame.
   const timed = useMemo(() => hasTimings(segments), [segments]);
@@ -374,7 +313,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   );
 
   const { selection, clearSelection, pointerSelecting, onSelectionEnd, onColumnPointerDown } =
-    useSemanticSelection({ dialog, segmentById, translatedBySegment, translation });
+    useTranscriptSelection({ dialog, segmentById });
   selectionRef.current = selection;
 
   // Escape/backdrop clear a semantic selection first, then close the modal.
@@ -389,7 +328,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   useEffect(
     () => () => {
       if (copyTimer.current) clearTimeout(copyTimer.current);
-      if (savedTimer.current) clearTimeout(savedTimer.current);
     },
     []
   );
@@ -399,17 +337,9 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     () => segments.some(segment => segment.words.some(word => word.endMs > word.startMs)),
     [segments]
   );
-  const firstTranslatedSegmentId = useMemo(
-    () => segments.find(segment => translatedBySegment.get(segment.id)?.translatedText)?.id ?? null,
-    [segments, translatedBySegment]
-  );
-  const hasTargetText = useMemo(
-    () => segments.some(segment => translatedBySegment.get(segment.id)?.translatedText),
-    [segments, translatedBySegment]
-  );
 
-  const { sourceScrollRef, targetScrollRef, synchronizeScroll, centerActiveWord } = useScrollSync({
-    layoutKey: `${job.id}@${job.finishedAt ?? 0}|${translation?.targetLanguage ?? ''}:${translation?.segments.length ?? 0}|${hasTargetText}`,
+  const { sourceScrollRef, centerActiveWord } = useTranscriptScroll({
+    layoutKey: `${job.id}@${job.finishedAt ?? 0}`,
     reducedMotion
   });
 
@@ -440,47 +370,19 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     const word = (event.target as Element).closest<HTMLElement>('[data-word-start-ms]');
     seekTo(Number(word?.dataset.wordStartMs));
   };
-  // The keyboard's way to the same place: a segment takes focus, Enter seeks to its start.
-  // Thousands of focusable words would be a Tab key nobody could get through; one stop per
-  // segment is a list a person can move along.
-  const saveWithTranslation = async () => {
-    if (saveState === 'saving') return;
-    setSaveState('saving');
-    try {
-      await transcriptionSaveWithTranslation(job.id, {
-        languageLabel: languageDisplayName(sourceLanguage, language),
-        fileName: `${t('transcriptionExportFileName')}.txt`
-      });
-      setSaveState('saved');
-      onToast?.(t('transcriptionSavedWithTranslation'), 'success');
-    } catch {
-      setSaveState('failed');
-      onToast?.(t('transcriptionSaveWithTranslationFailed'), 'error');
-    }
-    if (savedTimer.current) clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setSaveState('idle'), 2500);
-  };
 
-  const columnText = (which: 'source' | 'target'): string =>
-    which === 'source'
-      ? segments.map(segment => segment.sourceText).join('\n')
-      : segments
-          .map(segment => translatedBySegment.get(segment.id)?.translatedText ?? '')
-          .filter(Boolean)
-          .join('\n');
+  const columnText = (_which: 'source'): string =>
+    segments.map(segment => segment.sourceText).join('\n');
 
-  const copyColumn = async (which: 'source' | 'target') => {
+  const copyColumn = async (which: 'source') => {
     let text: string;
     let full = true;
     if (selection) {
       const fragments = segments.flatMap(segment => {
         const part = selectedPart(selection, segment.id);
         if (!part) return [];
-        const ranges = which === 'source' ? part.sourceRanges : part.targetRanges;
-        const base =
-          which === 'source'
-            ? segment.sourceText
-            : (translatedBySegment.get(segment.id)?.translatedText ?? '');
+        const ranges = part.sourceRanges;
+        const base = segment.sourceText;
         const fragment = ranges.length && base ? joinRanges(base, ranges) : '';
         return fragment ? [fragment] : [];
       });
@@ -503,14 +405,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
       onToast?.(t('transcriptionFailedTitle'), 'error');
     }
   };
-
-  const targetName = languageDisplayName(target, language);
-  const displayedLanguage = translation?.targetLanguage ?? target;
-  const sourceBaseLanguage = sourceLanguage.split('-')[0].toLowerCase();
-  const targetLanguageOptions = useMemo(
-    () => TARGET_LANGUAGES.filter(code => code.split('-')[0].toLowerCase() !== sourceBaseLanguage),
-    [sourceBaseLanguage]
-  );
 
   const preparePreview = async () => {
     setPreviewActivated(true);
@@ -572,7 +466,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
       return;
     }
     if (event.key !== 'Enter') return;
-    // The translation column shares the source's segment ids, so its Enter seeks to the
     // words of the source segment it mirrors.
     const id = segment.dataset.segmentId ?? '';
     const first = sourceScrollRef.current?.querySelector<HTMLElement>(
@@ -592,26 +485,10 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
   const audioOnly =
     mediaPreview?.hasVideo === false ||
     AUDIO_EXTENSIONS.has(job.fileName.split('.').at(-1)?.toLowerCase() ?? '');
-  const showMatch =
-    !!selection && hasTargetText && selection.parts.some(part => part.targetRanges.length > 0);
   const hasSourceSelection = selection?.parts.some(part => part.sourceRanges.length > 0) === true;
-  const hasTargetSelection = selection?.parts.some(part => part.targetRanges.length > 0) === true;
-  const grade = showMatch && selection ? confidenceGrade(selection.confidence) : null;
-  const gradeLabel =
-    grade === 'exact'
-      ? t('transcriptionMatchExact')
-      : grade === 'high'
-        ? t('transcriptionMatchHigh')
-        : grade === 'approx'
-          ? t('transcriptionMatchApprox')
-          : '';
-
-  const translationPercent = translating ? (summary?.progress ?? null) : null;
-  const translationQueued = summary?.status === 'queued' && !requesting;
-  const translationCompleted = translation?.status === 'completed';
   const loading = document_ === null;
 
-  const copyLabel = (side: 'source' | 'target', hasSelection: boolean) =>
+  const copyLabel = (side: 'source', hasSelection: boolean) =>
     copied?.side === side
       ? copied.scope === 'selection'
         ? t('transcriptionCopiedSelection')
@@ -630,14 +507,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
       initialFocus=".transcript-modal-close"
       returnFocus={returnFocus}
       dialogRef={dialog}
-      style={
-        {
-          '--ts-selection-color':
-            selection && hasTargetText
-              ? confidenceColor(selection.confidence)
-              : 'var(--color-accent)'
-        } as CSSProperties
-      }
     >
       <header className="transcript-modal-header">
         <div className="transcript-modal-heading">
@@ -662,33 +531,8 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             )}
           </p>
         </div>
-        {/* Nothing to match against until a translation exists: a row of inert dots above
-            the text was the second thing in the dialog, and said nothing. */}
-        {hasTargetText && (
-          <div
-            className={`transcript-match${showMatch ? '' : ' is-empty'}`}
-            role="group"
-            aria-label={t('transcriptionMatchLabel')}
-          >
-            <span className="transcript-match-label">{t('transcriptionMatchLabel')}</span>
-            <div className="transcript-match-bar" aria-hidden="true">
-              {showMatch && (
-                <span
-                  className="transcript-match-pointer"
-                  style={{ left: `${Math.round((1 - selection!.confidence) * 100)}%` }}
-                />
-              )}
-            </div>
-            <span className="transcript-match-value">
-              {showMatch
-                ? `${gradeLabel} · ${Math.round(selection!.confidence * 100)}%`
-                : selection
-                  ? t('transcriptionMatchNoTranslation')
-                  : t('transcriptionMatchEmpty')}
-            </span>
-            <Tooltip label={t('transcriptionMatchHint')}>{t('transcriptionMatchHint')}</Tooltip>
-          </div>
-        )}
+        {}
+
         <IconButton
           className="transcript-modal-close"
           label={t('transcriptionModalClose')}
@@ -725,10 +569,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             onClick={onSourceClick}
             onKeyDown={onSegmentKeyDown}
             onPointerDown={onColumnPointerDown}
-            onScroll={event => {
-              const other = targetScrollRef.current;
-              if (other) synchronizeScroll(event.currentTarget, other);
-            }}
           >
             {document_?.reliability?.warnings.some(
               warning =>
@@ -736,9 +576,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                 warning.code === 'COVERAGE_UNVERIFIED' ||
                 warning.code === 'DECODE_UNCERTAIN'
             ) && <Alert color="warning">{t('transcriptionReviewNeeded')}</Alert>}
-            {document_?.reliability?.warnings.some(
-              warning => warning.code === 'PIVOT_UNAVAILABLE'
-            ) && <Alert color="warning">{t('transcriptionPivotUnavailable')}</Alert>}
+
             {document_?.reliability &&
               document_.reliability.timedWords < document_.reliability.totalWords * 0.9 && (
                 <Alert color="warning">{t('transcriptionTimingsPartial')}</Alert>
@@ -785,164 +623,6 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             )}
           </div>
         </section>
-
-        <section
-          className="transcript-column"
-          data-side="target"
-          aria-describedby={hintId}
-          aria-label={t('transcriptionTranslationColumn')}
-          aria-busy={translating}
-        >
-          <div className="transcript-column-head">
-            {/* The picker names the language; a title saying it again above was noise. */}
-            <span className="transcript-column-title visually-hidden">
-              {languageDisplayName(displayedLanguage, language)}
-            </span>
-            <div className="transcript-column-actions">
-              <LanguageCombobox
-                value={target}
-                codes={targetLanguageOptions}
-                language={language}
-                label={t('transcriptionLanguageSearch')}
-                onChange={chooseTarget}
-              />
-              <Button
-                color="neutral"
-                variant="ghost"
-                disabled={!hasTargetText}
-                onClick={() => void copyColumn('target')}
-              >
-                {copyLabel('target', hasTargetSelection)}
-              </Button>
-            </div>
-          </div>
-
-          <TranslationCaveat t={t} />
-
-          {(translating || translationError) && (
-            <div
-              className={`transcript-translation-status${translationError === 'failed' ? ' is-error' : ''}`}
-              role={translationError === 'failed' ? 'alert' : 'status'}
-            >
-              {translating && (
-                <div className="transcript-translation-progress">
-                  <span>
-                    {displayedLanguage !== target
-                      ? `${languageDisplayName(displayedLanguage, language)} → `
-                      : ''}
-                    {translationQueued
-                      ? t('statusQueued')
-                      : t('transcriptionTranslating', { language: targetName })}
-                  </span>
-                  <div className="transcript-translation-progress-row">
-                    <Progress
-                      value={translationPercent ?? undefined}
-                      label={t('transcriptionTranslating', { language: targetName })}
-                    />
-                    <TranslationElapsed
-                      startedAt={summary?.startedAt ?? null}
-                      percent={translationPercent}
-                    />
-                    <Button
-                      color="neutral"
-                      variant="ghost"
-                      onClick={() => void cancelTranslation()}
-                    >
-                      {t('transcriptionCancel')}
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {translationError === 'unavailable' && (
-                <span>
-                  {displayedLanguage !== target
-                    ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
-                    : ''}
-                  {t('transcriptionTranslationUnavailable')}
-                </span>
-              )}
-              {translationError === 'failed' && (
-                <span>
-                  {displayedLanguage !== target
-                    ? `${languageDisplayName(displayedLanguage, language)} → ${targetName}: `
-                    : ''}
-                  {t('transcriptionTranslationFailed')}
-                </span>
-              )}
-            </div>
-          )}
-
-          <div
-            ref={targetScrollRef}
-            className="transcript-column-scroll"
-            onKeyDown={onSegmentKeyDown}
-            onPointerDown={onColumnPointerDown}
-            onScroll={event => {
-              const other = sourceScrollRef.current;
-              if (other) synchronizeScroll(event.currentTarget, other);
-            }}
-          >
-            {translationError === 'unavailable' && (
-              <TranslatorNotice
-                translatorModel={translatorModel}
-                language={language}
-                onInstall={onInstallTranslator}
-                onCancel={onCancelTranslator}
-                t={t}
-              />
-            )}
-            {translationError === 'failed' && (
-              <div className="transcript-translation-notice" role="alert">
-                <Button color="neutral" variant="outline" onClick={retryTranslation}>
-                  {t('transcriptionTranslationRetry')}
-                </Button>
-              </div>
-            )}
-            {hasTargetText ? (
-              <div
-                className="transcript-translation-content"
-                dir={isRtlLanguage(displayedLanguage) ? 'rtl' : 'ltr'}
-              >
-                {segments.map(segment => {
-                  const translated = translatedBySegment.get(segment.id);
-                  if (!translated) return null;
-                  return (
-                    <TargetSegment
-                      key={segment.id}
-                      segmentId={segment.id}
-                      translated={translated}
-                      selectedRanges={
-                        selectedPart(selection, segment.id)?.targetRanges ?? NO_RANGES
-                      }
-                      store={karaoke}
-                      focusable
-                      // The first segment that has a translation, not the first segment:
-                      // during a streaming translation the two can differ.
-                      tabStop={segment.id === firstTranslatedSegmentId}
-                    />
-                  );
-                })}
-              </div>
-            ) : !translationError && !translating && !loading ? (
-              <EmptyState
-                className="transcript-modal-empty"
-                size="sm"
-                title={t('transcriptionTranslationEmpty')}
-              />
-            ) : null}
-          </div>
-
-          <p id={hintId} className="visually-hidden">
-            {t('transcriptionSeekHint')}
-          </p>
-          <p className="visually-hidden" role="status" aria-live="polite">
-            {translating
-              ? t('transcriptionTranslating', { language: targetName })
-              : translationCompleted
-                ? t('transcriptionTranslationReady', { language: targetName })
-                : ''}
-          </p>
-        </section>
       </div>
 
       <div id={previewId} className={`transcript-preview${previewOpen ? ' open' : ''}`}>
@@ -967,7 +647,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
               <div className="transcript-preview-status" role="alert">
                 <span>{t('transcriptionPreviewUnavailable')}</span>
                 <Button color="neutral" variant="outline" onClick={() => void preparePreview()}>
-                  {t('transcriptionTranslationRetry')}
+                  {t('transcriptionRetry')}
                 </Button>
               </div>
             ) : (
@@ -1017,31 +697,12 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
         {onExport && (
           <ExportMenu
             hasTimings={timed}
-            hasTranslation={translationCompleted}
             disabled={loading || segments.length === 0}
             onExport={onExport}
             t={t}
           />
         )}
-        {job.sourceKind === 'local' && (
-          <Button
-            color="neutral"
-            variant="outline"
-            loading={saveState === 'saving'}
-            disabled={job.translation?.status !== 'completed' || saveState === 'saving'}
-            title={
-              job.translation?.status !== 'completed'
-                ? t('transcriptionErrorTranslationNotReady')
-                : undefined
-            }
-            onClick={() => void saveWithTranslation()}
-          >
-            <FolderDown size={16} strokeWidth={1.75} aria-hidden="true" />
-            {saveState === 'saved'
-              ? t('transcriptionSavedWithTranslation')
-              : t('transcriptionSaveWithTranslation')}
-          </Button>
-        )}
+
         <Button
           color="neutral"
           variant="ghost"

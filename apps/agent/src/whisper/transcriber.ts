@@ -17,7 +17,7 @@ import {
   whisperVadModelPathOrNull
 } from './tools.js';
 import { ProgressSmoother } from './progress-smoother.js';
-import { lexicalUnitSpans } from '../translation/segmentation.js';
+import { lexicalUnitSpans } from '../transcription/segmentation.js';
 import { isDigitalSilence, measureSpeechExtent } from './silence-tail.js';
 import { recoveryContextSeconds, stitchChunkResult, transcriptionChunks } from './chunks.js';
 import {
@@ -53,11 +53,6 @@ export interface TranscribeOptions {
   language: string;
   /** Which model to load and how hard to decode; see the shared type for the trade-off. */
   quality?: TranscriptionQualityMode;
-  /**
-   * Also run Whisper's speech→English task for language families where that is
-   * a more reliable translation pivot than the noisy source transcript.
-   */
-  createEnglishPivot?: boolean;
   onProgress: (value: number | null) => void;
   onPhase?: (phase: NonNullable<TranscriptionJob['phase']>) => void;
   /**
@@ -85,10 +80,6 @@ export interface TranscribeResult {
    * unaffected either way.
    */
   words: WhisperWord[];
-  /** Speech-derived English pivot, empty when it was not requested/available. */
-  englishText: string;
-  /** Word timestamps for mapping the English pivot back onto source segments. */
-  englishWords: WhisperWord[];
   /** The model label the run used, recorded on the document it produced. */
   modelLabel: string;
   /** Seconds of the source that were listened to (its length minus a skipped silent tail). */
@@ -125,10 +116,8 @@ const DECODE_SHARE = 5;
 /** How often the estimate advances between real reports. Four times a second reads as smooth. */
 const PROGRESS_TICK_MS = 250;
 // The source transcription pass covers almost the whole bar. The optional
-// hi/ur English pivot is a rare, additive second pass that advances only the
 // final sliver, so the bar never moves backward for the common single-pass run.
 const SOURCE_END = 97;
-const PIVOT_END = 99;
 
 /**
  * Extracts a normalized 16 kHz mono WAV, then transcribes it in
@@ -147,7 +136,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
   let releaseHold: (() => void) | null = null;
   let reliability: TranscriptionReliability | undefined;
   let rawAudioPath = '';
-  let decodingPhase: NonNullable<TranscriptionJob['phase']> = 'transcribe';
+  const decodingPhase: NonNullable<TranscriptionJob['phase']> = 'transcribe';
 
   /*
    * The governor is the only thing allowed to suspend a managed child, so a
@@ -331,14 +320,9 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       // Recognition runs slower than real time on every machine this ships to; twice the
       // audio's length is a deliberately pessimistic first guess, replaced by the run's own
       // rate as soon as it reports one.
-
-      // Both source and pivot must cover the same bounded audio windows.
       const sourceBase = path.join(tmpDir, 'transcript');
       options.onPhase?.('transcribe');
-      const hasPivot =
-        options.createEnglishPivot === true &&
-        (language === 'auto' || shouldCreateEnglishPivot(language, true));
-      const sourceEnd = hasPivot ? 55 : SOURCE_END;
+      const sourceEnd = SOURCE_END;
       smoother.startPhase(EXTRACT_SHARE, sourceEnd, extent.audibleSeconds * 2);
       const source = await runPass(
         {
@@ -386,50 +370,7 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       const detectedLanguage = requestedOrDetectedLanguage(language, source.detectedLanguage);
       const text = source.text;
       const words = source.words;
-      let diagnostics = source.stderr;
-
-      // Optional speech→English pivot for language families whose direct text
-      // translation is measurably weaker (hi/ur). Purely additive: a failed or
-      // unavailable pivot pass leaves the complete source transcript intact.
-      let englishText = '';
-      let englishWords: WhisperWord[] = [];
-      if (shouldCreateEnglishPivot(detectedLanguage, options.createEnglishPivot === true)) {
-        decodingPhase = 'pivot';
-        options.onPhase?.('pivot');
-        smoother.startPhase(sourceEnd, PIVOT_END, extent.audibleSeconds * 2);
-        const englishBase = path.join(tmpDir, 'english');
-        const pivot = await runPass(
-          {
-            wavPath,
-            outputBase: englishBase,
-            language: detectedLanguage ?? language,
-            quality,
-            translateToEnglish: true,
-            // The same stopping point: the pivot has no more use for the tail than the
-            // source pass did, and the two must cover the same audio to line up.
-            audibleSeconds: extent.audibleSeconds
-          },
-          adopt,
-          value => {
-            if (value !== null) {
-              smoother.report(sourceEnd + (value * (PIVOT_END - sourceEnd)) / 100);
-            }
-          },
-          () => paused
-        );
-        diagnostics = appendDiagnostics(diagnostics, pivot.stderr);
-        if (cancelled) return result(null, true, '', detectedLanguage, diagnostics, null, null);
-        if (pivot.code === 0 && !pivot.spawnErrorCode) {
-          englishText = pivot.text;
-          englishWords = pivot.words;
-        } else {
-          reliability?.warnings.push({
-            code: 'PIVOT_UNAVAILABLE',
-            startMs: 0,
-            endMs: extent.audibleSeconds * 1000
-          });
-        }
-      }
+      const diagnostics = source.stderr;
 
       smoother.finish(100);
       return result(
@@ -441,8 +382,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
         null,
         null,
         words,
-        englishText,
-        englishWords,
         extent.audibleSeconds
       );
     } finally {
@@ -838,8 +777,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
     failedStage: 'extract' | 'transcribe' | null,
     spawnErrorCode: string | null,
     words: WhisperWord[] = [],
-    englishText = '',
-    englishWords: WhisperWord[] = [],
     audibleSeconds: number | null = null
   ): TranscribeResult {
     return {
@@ -851,8 +788,6 @@ export function transcribe(options: TranscribeOptions): TranscribeHandle {
       failedStage,
       spawnErrorCode,
       words,
-      englishText,
-      englishWords,
       modelLabel,
       audibleSeconds,
       reliability
@@ -1018,7 +953,6 @@ function runWhisper(
     outputBase: string;
     language: string;
     quality?: TranscriptionQualityMode;
-    translateToEnglish?: boolean;
     audibleSeconds?: number | null;
     disableVad?: boolean;
     vadThreshold?: number;
@@ -1095,7 +1029,6 @@ export function buildWhisperArgs(
     language: string;
     /** Which model to load and how hard to decode; defaults to the full model. */
     quality?: TranscriptionQualityMode;
-    translateToEnglish?: boolean;
     /** Stop here instead of at the end of the file; see `silence-tail.ts`. */
     audibleSeconds?: number | null;
     disableVad?: boolean;
@@ -1119,8 +1052,6 @@ export function buildWhisperArgs(
     params.wavPath,
     '-l',
     params.language || 'auto',
-    // Whisper's speech→English task, used only for the hi/ur pivot pass.
-    ...(params.translateToEnglish ? ['-tr'] : []),
     '-otxt',
     // Full JSON (per-token millisecond offsets + probabilities) so the
     // structured document can carry word timestamps for karaoke playback.
@@ -1178,19 +1109,6 @@ export function buildWhisperArgs(
 }
 
 /**
- * Hindi/Urdu ad speech is frequently colloquial, profane, and code-switched.
- * On measured samples, Whisper's native speech→English task retained that
- * meaning while TranslateGemma could not reliably recover it from the noisy
- * Devanagari transcript. Keep the extra pass targeted so languages with strong
- * direct text translation do not pay a blanket 2× Whisper cost.
- */
-export function shouldCreateEnglishPivot(language: string | null, requested: boolean): boolean {
-  if (!requested || !language) return false;
-  const base = language.trim().replaceAll('_', '-').split('-')[0].toLowerCase();
-  return base === 'hi' || base === 'ur';
-}
-
-/**
  * Reads whisper's plain-text output, sanitizes each line, collapses decoder
  * artifacts, then drops trailing subtitle-credit hallucinations.
  */
@@ -1228,17 +1146,7 @@ export function stripNonSpeechArtifacts(text: string): string {
     .replace(/[^\S\r\n]{2,}/gu, ' ');
 }
 
-/**
- * Well-known Whisper "subtitle credit" hallucinations — translator credits,
- * channel subscribe/thanks-for-watching calls, and caption-site tags it learned
- * from subtitle training data. Whisper emits these on trailing music or the
- * speech→silence boundary in whatever language it decoded. Each pattern matches
- * a WHOLE trimmed line (anchored and short), so real speech that merely contains
- * a word like "thanks" is never touched. `\b` is avoided after Arabic because JS
- * word boundaries are ASCII-only.
- */
 const CREDIT_LINE_PATTERNS: readonly RegExp[] = [
-  // Arabic translator credits, e.g. "ترجمة نانسي قنقر", "الترجمة بواسطة ...".
   /^(?:ال)?ترجمة(?:\s.{0,40})?$/u,
   /^ترجمة\s+و?تعديل(?:\s.{0,40})?$/u,
   // Arabic channel calls-to-action on trailing music/silence.

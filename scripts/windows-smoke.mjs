@@ -444,21 +444,6 @@ try {
     return `rendered ${landing.previewWidth}x${landing.previewHeight} with the bundled browser`;
   });
 
-  await check('translation-runtime-installs', async () => {
-    const state = await api('/api/transcription/state');
-    // The runtime downloads on first use; what must not happen is a refusal
-    // because the Windows checksum was never pinned. `translatorRuntime` is the
-    // agent's own diagnostic view of that pin, so ask it directly rather than
-    // grepping the whole payload for a phrase that could be reworded.
-    const runtime = state.translatorRuntime;
-    if (!runtime) throw new Error('the agent reports no translation runtime state at all');
-    if (runtime.error) throw new Error(`translation runtime unavailable: ${runtime.error}`);
-    if (typeof runtime.sizeBytes !== 'number' || runtime.sizeBytes <= 0) {
-      throw new Error('the translation runtime has no pinned download size on Windows');
-    }
-    return `translation runtime is installable (${runtime.sizeBytes} bytes pinned)`;
-  });
-
   await check('reveal-in-explorer', async () => {
     const state = await api('/api/queue');
     const completed = state.jobs.find(job => job.status === 'completed');
@@ -515,17 +500,6 @@ try {
       if (!banner.includes(flag)) throw new Error(`FFmpeg was not configured with ${flag}`);
     }
     return `FFmpeg ${version}, same configuration as macOS`;
-  });
-
-  await check('llama-archive-layout', () => {
-    const descriptor = readFileSync(
-      path.join(repositoryRoot, 'apps', 'agent', 'src', 'translation', 'tools.ts'),
-      'utf8'
-    );
-    if (!descriptor.includes('extractedDirectory: null')) {
-      throw new Error('the Windows llama.cpp descriptor no longer declares a flat archive');
-    }
-    return 'flat archive assumption intact';
   });
 
   await check('non-latin-output-name', async () => {

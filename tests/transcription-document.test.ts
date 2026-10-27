@@ -2,11 +2,10 @@ import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { translationCacheKey, type TranscriptionJob } from '@video-compressor/shared';
+import { type TranscriptionJob } from '@video-compressor/shared';
 import { mediaMimeType, resolveByteRange } from '../apps/agent/src/transcription/media.js';
 import { browserCompatible } from '../apps/agent/src/transcription/media-preview.js';
 import {
-  buildTranslationSourceSegments,
   buildTranscriptionDocument,
   buildTextTranscriptionDocument,
   segmentsFromText,
@@ -16,11 +15,10 @@ import {
   validDocument
 } from '../apps/agent/src/transcription/document-store.js';
 import {
-  MAX_TRANSLATION_SEGMENT_UNITS,
-  splitTextForTranslation
-} from '../apps/agent/src/translation/segmentation.js';
+  MAX_TRANSCRIPT_SEGMENT_UNITS,
+  splitTranscriptText
+} from '../apps/agent/src/transcription/segmentation.js';
 import type { WhisperWord } from '../apps/agent/src/whisper/words.js';
-import { isValidTargetLanguage } from '../apps/agent/src/queue/transcription-queue.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 it('round-trips decoder uncertainty without treating the saved transcript as corrupted', () => {
@@ -145,13 +143,20 @@ describe('structured document building', () => {
         }
       }
     };
-    expect(validDocument(JSON.parse(JSON.stringify(document)))).toEqual(document);
+    const original = {
+      jobId: document.jobId,
+      sourceLanguage: document.sourceLanguage,
+      modelVersion: document.modelVersion,
+      segments: document.segments,
+      reliability: document.reliability
+    };
+    expect(validDocument(JSON.parse(JSON.stringify(document)))).toEqual(original);
     const corrupt = structuredClone(document);
     corrupt.reliability.ranges[0].endMs = 50;
     expect(validDocument(corrupt)).toBeNull();
     const corruptTranslation = structuredClone(document);
     corruptTranslation.translations.en.segments[0].alignments[0].targetEnd = 99;
-    expect(validDocument(corruptTranslation)).toBeNull();
+    expect(validDocument(corruptTranslation)?.segments).toEqual(document.segments);
   });
   it('uses a clearly approximate window interval for untimed speech navigation', () => {
     const document = buildTranscriptionDocument(
@@ -161,8 +166,6 @@ describe('structured document building', () => {
         requestedLanguage: 'en'
       } as TranscriptionJob,
       'model',
-      [],
-      '',
       [],
       {
         windows: 1,
@@ -216,7 +219,7 @@ describe('structured document building', () => {
       segments.every(
         segment =>
           (segment.sourceText.match(/[\p{L}\p{M}\p{N}]+/gu) ?? []).length <=
-          MAX_TRANSLATION_SEGMENT_UNITS
+          MAX_TRANSCRIPT_SEGMENT_UNITS
       )
     ).toBe(true);
     expect(segments.map(segment => segment.sourceText).join(' ')).toBe(text);
@@ -224,64 +227,11 @@ describe('structured document building', () => {
 
   it('bounds scripts without spaces by visible units', () => {
     const text = '這是一段沒有空格而且非常長的逐字稿內容'.repeat(4);
-    const parts = splitTextForTranslation(text, { maxUnits: 12 });
+    const parts = splitTranscriptText(text, { maxUnits: 12 });
 
     expect(parts.length).toBeGreaterThan(1);
     expect(parts.join('')).toBe(text);
     expect(parts.every(part => Array.from(part).length <= 12)).toBe(true);
-  });
-
-  it('maps a speech-derived English pivot onto every visible source segment', () => {
-    const source = segmentsFromText('pivot', 'один два\nтри чотири');
-    const mapped = buildTranslationSourceSegments(
-      source,
-      'One two three four. Five six seven eight.'
-    );
-
-    expect(mapped).toEqual([
-      { sourceSegmentId: 'pivot-s0', text: 'One two three four.' },
-      { sourceSegmentId: 'pivot-s1', text: 'Five six seven eight.' }
-    ]);
-    expect(mapped?.map(segment => segment.text).join(' ')).toBe(
-      'One two three four. Five six seven eight.'
-    );
-  });
-
-  it('uses word timing to preserve adjacent short source sentences in the pivot', () => {
-    const source = segmentsFromText(
-      'timed-pivot',
-      'Перше речення.\nКороткий слоган.\nДругий слоган.\nЗавершення.'
-    );
-    source.forEach((segment, index) => {
-      segment.startMs = index * 1_000 + (index ? 100 : 0);
-      segment.endMs = (index + 1) * 1_000;
-    });
-    const english = 'First sentence. Tiny slogan one Tiny slogan two Next sentence.';
-    const pivotWords = [
-      ['First', 100, 400],
-      ['sentence.', 500, 900],
-      ['Tiny', 1_100, 1_300],
-      ['slogan', 1_350, 1_550],
-      ['one', 1_600, 1_900],
-      ['Tiny', 2_100, 2_300],
-      ['slogan', 2_350, 2_550],
-      ['two', 2_600, 2_900],
-      ['Next', 3_100, 3_400],
-      ['sentence.', 3_500, 3_900]
-    ].map(([text, startMs, endMs], index): WhisperWord => ({
-      text: String(text),
-      leadingSpace: index > 0,
-      startMs: Number(startMs),
-      endMs: Number(endMs),
-      confidence: 0.9
-    }));
-
-    expect(buildTranslationSourceSegments(source, english, pivotWords)).toEqual([
-      { sourceSegmentId: 'timed-pivot-s0', text: 'First sentence.' },
-      { sourceSegmentId: 'timed-pivot-s1', text: 'Tiny slogan one' },
-      { sourceSegmentId: 'timed-pivot-s2', text: 'Tiny slogan two' },
-      { sourceSegmentId: 'timed-pivot-s3', text: 'Next sentence.' }
-    ]);
   });
 
   it('hashes source content stably and changes when the text changes', () => {
@@ -302,7 +252,7 @@ describe('structured document building', () => {
     const document = buildTextTranscriptionDocument(job, 'large-v3');
     expect(document.sourceLanguage).toBe('uk');
     expect(document.modelVersion).toBe('large-v3');
-    expect(document.translations).toEqual({});
+    expect(document).not.toHaveProperty('translations');
     expect(document.segments).toHaveLength(1);
   });
 
@@ -388,30 +338,6 @@ describe('structured document building', () => {
     expect(segments[0].endMs).toBe(580);
   });
 
-  it('stores a complete speech-derived translation source when supplied', () => {
-    const job = {
-      id: 'speech-pivot',
-      detectedLanguage: 'hi',
-      requestedLanguage: 'auto',
-      text: 'पहला भाग\nदूसरा भाग'
-    } as TranscriptionJob;
-    const document = buildTranscriptionDocument(
-      job,
-      'large-v3',
-      [],
-      'The first part. The second part.'
-    );
-
-    expect(document.translationSource).toMatchObject({
-      language: 'en',
-      modelVersion: 'large-v3:speech-to-en'
-    });
-    expect(document.translationSource?.segments).toHaveLength(2);
-    expect(document.translationSource?.segments.map(segment => segment.text).join(' ')).toBe(
-      'The first part. The second part.'
-    );
-  });
-
   it('splits punctuation compounds into monotonic timing units', () => {
     const candidates: WhisperWord[] = [
       {
@@ -440,34 +366,6 @@ describe('structured document building', () => {
       [1_400, 1_700],
       [1_700, 2_000]
     ]);
-  });
-});
-
-describe('translation cache key + language validation', () => {
-  it('is stable and varies with every component', () => {
-    const base = {
-      sourceContentHash: 'abc',
-      sourceLanguage: 'en',
-      targetLanguage: 'uk',
-      translatorModelVersion: 'tg-4b-q4'
-    };
-    expect(translationCacheKey(base)).toBe(translationCacheKey({ ...base }));
-    expect(translationCacheKey(base)).not.toBe(
-      translationCacheKey({ ...base, targetLanguage: 'de' })
-    );
-    expect(translationCacheKey(base)).not.toBe(
-      translationCacheKey({ ...base, translatorModelVersion: 'tg-12b-q4' })
-    );
-  });
-
-  it('accepts ISO / BCP-47 codes and rejects junk', () => {
-    expect(isValidTargetLanguage('uk')).toBe(true);
-    expect(isValidTargetLanguage('en')).toBe(true);
-    expect(isValidTargetLanguage('zh-Hant')).toBe(true);
-    expect(isValidTargetLanguage('pt-BR')).toBe(true);
-    expect(isValidTargetLanguage('')).toBe(false);
-    expect(isValidTargetLanguage('../etc/passwd')).toBe(false);
-    expect(isValidTargetLanguage(42)).toBe(false);
   });
 });
 

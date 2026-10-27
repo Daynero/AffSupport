@@ -463,7 +463,6 @@ export type CreativeLibraryContributionCategory =
 
 export const CREATIVE_LIBRARY_CONTRIBUTION_ACTIONS = [
   'transcription',
-  'translation',
   'landing_optimization',
   'find_selected',
   'task_created',
@@ -516,7 +515,6 @@ export interface CreativeLibraryContribution {
 
 const LOCAL_ACTIONS = new Set<CreativeLibraryContributionAction>([
   'transcription',
-  'translation',
   'landing_optimization'
 ]);
 const HUMAN_ACTIONS = new Set<CreativeLibraryContributionAction>([

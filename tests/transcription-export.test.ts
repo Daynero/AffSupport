@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { TranscriptSegment, TranslationDocument } from '@video-compressor/shared';
+import type { TranscriptSegment } from '@video-compressor/shared';
 import {
   baseFileName,
   buildTranscriptExport,
@@ -17,17 +17,6 @@ const segments = [
   segment('s2', 'and a third.', 3000, 3000)
 ];
 
-const translation: TranslationDocument = {
-  targetLanguage: 'uk',
-  modelVersion: 'test',
-  status: 'completed',
-  segments: [
-    { sourceSegmentId: 's0', translatedText: 'Привіт.', alignments: [] },
-    { sourceSegmentId: 's2', translatedText: 'і третій.', alignments: [] }
-  ],
-  error: null
-};
-
 describe('transcript export', () => {
   it('formats timestamps for SRT and WebVTT', () => {
     expect(formatTimestamp(0, ',')).toBe('00:00:00,000');
@@ -41,34 +30,18 @@ describe('transcript export', () => {
     const file = buildTranscriptExport({
       fileName: 'clip.mov',
       segments,
-      translation,
-      content: 'translation',
+      content: 'transcript',
       format: 'txt'
     });
-    expect(file.name).toBe('clip.uk.txt');
-    expect(file.text).toBe('Привіт.\nі третій.');
-  });
-
-  it('pairs both languages line by line in plain text', () => {
-    const file = buildTranscriptExport({
-      fileName: 'clip.mov',
-      segments,
-      translation,
-      content: 'both',
-      format: 'txt'
-    });
-    expect(file.name).toBe('clip.bilingual.txt');
-    expect(file.text).toBe(
-      'Hello there.\nПривіт.\n\nSecond line,\n\nand a third.\ni третій.'.replace('i ', 'і ')
-    );
+    expect(file.name).toBe('clip.txt');
+    expect(file.text).toBe('Hello there.\nSecond line,\nand a third.');
   });
 
   it('builds monotonic, gap-free SRT cues and skips empty ones', () => {
     const file = buildTranscriptExport({
       fileName: 'clip.mov',
       segments,
-      translation,
-      content: 'translation',
+      content: 'transcript',
       format: 'srt'
     });
     // The second segment has no translation, so its cue is dropped and the numbering closes up.
@@ -76,13 +49,17 @@ describe('transcript export', () => {
       [
         '1',
         '00:00:00,020 --> 00:00:01,500',
-        'Привіт.',
+        'Hello there.',
         '',
         '2',
         // A segment that started before its predecessor ended, and one with no length, are
         // pushed forward so every cue starts after the last and lasts at least a moment.
+        '00:00:01,500 --> 00:00:03,000',
+        'Second line,',
+        '',
+        '3',
         '00:00:03,000 --> 00:00:03,001',
-        'і третій.'
+        'and a third.'
       ].join('\n')
     );
   });
@@ -112,17 +89,5 @@ describe('transcript export', () => {
         format: 'srt'
       })
     ).toThrow('TIMINGS_REQUIRED');
-  });
-
-  it('pairs both languages inside one subtitle cue', () => {
-    const file = buildTranscriptExport({
-      fileName: 'clip.mov',
-      segments: segments.slice(0, 1),
-      translation,
-      content: 'both',
-      format: 'vtt'
-    });
-    expect(file.name).toBe('clip.bilingual.vtt');
-    expect(file.text).toBe('WEBVTT\n\n00:00:00.020 --> 00:00:01.500\nHello there.\nПривіт.');
   });
 });

@@ -2,7 +2,7 @@ import { LANGUAGE_CODES, isRecord, type TranscriptIngestState } from './contract
 
 /** Shared processing requirement, attempt, result, lease and sidecar contracts. */
 
-export const LIBRARY_JOB_KINDS = ['transcription', 'translation', 'landing_optimization'] as const;
+export const LIBRARY_JOB_KINDS = ['transcription', 'landing_optimization'] as const;
 export type LibraryJobKind = (typeof LIBRARY_JOB_KINDS)[number];
 
 export const LIBRARY_REQUIREMENT_STATES = [
@@ -248,9 +248,11 @@ export type LibraryJobFinalizeResult =
   | { state: 'accepted'; resultId: string; materialId: string }
   | { state: 'skipped'; reason: 'already_completed'; materialId: string | null };
 
-export type LibraryVideoTextKind = 'original' | 'translation';
+export type LibraryVideoTextKind = 'original';
 
 export interface LibraryVideoTextVariant {
+  /** Accepted library attempt; absent for historical companion-only files. */
+  attemptId?: string | null;
   materialId: string;
   kind: LibraryVideoTextKind;
   language: string;
@@ -285,10 +287,12 @@ function parseVideoTextVariant(value: unknown): LibraryVideoTextVariant | null {
       'ingestState',
       'truncated',
       'text',
-      'updatedAt'
+      'updatedAt',
+      'attemptId'
     ]) ||
     !isUuid(value.materialId) ||
-    (value.kind !== 'original' && value.kind !== 'translation') ||
+    (value.attemptId !== undefined && value.attemptId !== null && !isUuid(value.attemptId)) ||
+    value.kind !== 'original' ||
     typeof value.language !== 'string' ||
     (value.language !== 'unknown' && !LANGUAGE_SET.has(value.language)) ||
     typeof value.ingestState !== 'string' ||
@@ -302,6 +306,7 @@ function parseVideoTextVariant(value: unknown): LibraryVideoTextVariant | null {
   }
   return {
     materialId: value.materialId,
+    ...(value.attemptId !== undefined ? { attemptId: value.attemptId as string | null } : {}),
     kind: value.kind,
     language: value.language,
     ingestState: value.ingestState as TranscriptIngestState,
@@ -327,6 +332,7 @@ export function parseLibraryVideoTextVariants(value: unknown): LibraryVideoTextV
   const variants: LibraryVideoTextVariant[] = [];
   const identities = new Set<string>();
   for (const raw of value.variants) {
+    if (isRecord(raw) && raw.kind === 'translation') continue;
     const variant = parseVideoTextVariant(raw);
     if (!variant) return null;
     const identity = `${variant.kind}:${variant.language}`;
@@ -349,14 +355,4 @@ export function transcriptSidecarName(sourceName: string, sourceVersion: string)
     .slice(0, 180);
   const versionSuffix = sourceVersion.replace(/[^a-z0-9]/giu, '').slice(0, 12) || 'current';
   return `${safeBase}.transcript.${versionSuffix}.txt`;
-}
-
-export function translationSidecarName(
-  sourceName: string,
-  sourceVersion: string,
-  language: string
-): string {
-  const transcript = transcriptSidecarName(sourceName, sourceVersion);
-  const safeLanguage = language.replace(/[^A-Za-z0-9-]/gu, '').slice(0, 35) || 'unknown';
-  return transcript.replace(/\.txt$/u, `.${safeLanguage}.txt`);
 }

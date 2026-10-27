@@ -18,7 +18,6 @@ describeRequiring(sample, 'Hindi speech coverage regression', () => {
       inputPath,
       language: 'hi',
       quality: 'accurate',
-      createEnglishPivot: true,
       onProgress: () => {}
     }).done;
     if (process.env.TRANSCRIPTION_COVERAGE_OUTPUT) {
@@ -40,9 +39,6 @@ describeRequiring(sample, 'Hindi speech coverage regression', () => {
       segment => segment.words
     );
     expect(timed.length).toBeGreaterThan(180);
-    expect(result.englishText).toMatch(/pharmac|pills/iu);
-    expect(result.englishText).toMatch(/confidence/iu);
-    expect(result.englishText).toMatch(/boxes/iu);
     expect(
       result.words.every(
         (word, index) =>

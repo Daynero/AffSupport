@@ -31,6 +31,7 @@ export interface AnalyticsSchema {
     analytics_recovery_execution?: boolean;
     analytics_recovery_retirement?: boolean;
     analytics_membership_access_signals?: boolean;
+    analytics_translation_retirement?: boolean;
   };
 }
 
@@ -129,6 +130,7 @@ export const NO_AGENT_CONTEXT_NOTE =
 export type AuditStatus = 'covered' | 'partial' | 'uncovered' | 'declared_but_never_emitted';
 
 export interface AuditCapability {
+  current_lifecycle?: { retired_since_api_version: 6; historical_coverage: 'unknown' };
   id: string;
   tool: string;
   status: AuditStatus;
@@ -184,6 +186,7 @@ export interface AuditFinding {
 }
 
 export interface AuditData {
+  translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   registry_size: number;
   capabilities: AuditCapability[];
   unknown_codes: AuditUnknownCode[];
@@ -238,6 +241,8 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
+  translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
@@ -262,6 +267,8 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
+  translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   found: false;
   id: string;
   schema?: InspectSchemaNote;
@@ -897,6 +904,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   membership_access?: import('./membership-access.js').MembershipAccessEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;

@@ -8,14 +8,11 @@ import {
   defaultTranscriptionSettings,
   knownErrorCode,
   isTranscriptionQualityMode,
-  isValidTargetLanguage,
-  normalizeTargetLanguage,
   type TranscriptionErrorCode,
   type TranscriptionJob,
   type TranscriptionLanguageCandidate,
   type TranscriptionQualityMode,
-  type TranscriptionSettings,
-  type TranscriptionTranslationSummary
+  type TranscriptionSettings
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { decideTransition } from './transitions.js';
@@ -51,13 +48,6 @@ async function tightenDirectory(directory: string): Promise<void> {
   }
 }
 
-/**
- * The transcription queue list persisted across agent restarts, mirroring the
- * compressor's `PersistedState` (queue/store.ts). Only what is needed to
- * rebuild the visible list is stored: the full transcripts and translations
- * already live in the on-disk document sidecars keyed by job id, so `text` is
- * deliberately never written here.
- */
 export interface PersistedTranscriptionState {
   jobs: TranscriptionJob[];
   settings: TranscriptionSettings;
@@ -169,11 +159,7 @@ function migrateSettings(
   const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   return {
     language: typeof raw.language === 'string' && raw.language ? raw.language : defaults.language,
-    translationLanguage: isValidTargetLanguage(raw.translationLanguage)
-      ? normalizeTargetLanguage(raw.translationLanguage)
-      : defaults.translationLanguage,
-    quality: isTranscriptionQualityMode(raw.quality) ? raw.quality : fallbackQuality,
-    ...(raw.translationDeclined === true ? { translationDeclined: true } : {})
+    quality: isTranscriptionQualityMode(raw.quality) ? raw.quality : fallbackQuality
   };
 }
 
@@ -190,10 +176,8 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
   const legacyStatus = typeof raw.status === 'string' ? raw.status : 'ready';
   // 'processing' was cut short by the restart: surface it as a failed job with
   // a dedicated code so the web's existing failed+retry UI handles it.
-  // 'queued' and 'analyzing' deliberately come back as 'ready': the pump also
-  // runs on model-download completion and after translations drain, so a
-  // restored 'queued' job would silently auto-start (and, until it ran, block
-  // pumpTranslations via transcriptionWorkPending). 'ready' keeps the file in
+  // 'queued' and 'analyzing' deliberately come back as 'ready': a restored
+  // queued job must not silently auto-start. 'ready' keeps the file in
   // the list and hands the start decision back to the user, matching how the
   // compressor store migrates 'queued' to 'ready'.
   const interrupted = legacyStatus === 'processing';
@@ -217,6 +201,10 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
   };
   const restored: TranscriptionJob = {
     id: raw.id,
+    ...(typeof raw.attemptId === 'string' &&
+    /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(raw.attemptId)
+      ? { attemptId: raw.attemptId }
+      : {}),
     inputPath: raw.inputPath,
     fileName: raw.fileName,
     sourceKind: raw.sourceKind === 'uploaded' ? 'uploaded' : 'local',
@@ -247,7 +235,6 @@ function migrateJob(value: unknown, settings: TranscriptionSettings): Transcript
     // id on demand; the persisted state never duplicates it.
     text: null,
     characters: numberOrNull(raw.characters),
-    translation: status === 'completed' ? migrateTranslationSummary(raw.translation) : null,
     error: interrupted
       ? TRANSCRIPTION_INTERRUPTED_MESSAGE
       : typeof raw.error === 'string'
@@ -317,57 +304,4 @@ function restoredLanguageKnowledge(raw: Record<string, unknown>): Partial<Transc
     ...(candidates.length ? { languageCandidates: candidates } : {}),
     ...(Number.isFinite(samples) && samples > 0 ? { languageSamples: samples } : {})
   };
-}
-
-/**
- * What a restart keeps of a translation.
- *
- * A finished one comes back as it was. One that was queued or running when the process
- * stopped comes back as `queued`, with no progress claimed: the work itself died with the
- * process, but the segments it had already produced are on disk in the sidecar, and the
- * queue re-requests the language on boot and resumes from them. It used to be dropped
- * altogether, which left a half-translated file showing no translation at all until the
- * user happened to pick the language again.
- */
-function migrateTranslationSummary(value: unknown): TranscriptionTranslationSummary | null {
-  if (!value || typeof value !== 'object') return null;
-  const raw = value as Record<string, unknown>;
-  if (typeof raw.targetLanguage !== 'string' || !isValidTargetLanguage(raw.targetLanguage)) {
-    return null;
-  }
-  const targetLanguage = normalizeTargetLanguage(raw.targetLanguage);
-  const total = Math.max(0, Number(raw.totalSegments) || 0);
-  if (raw.status === 'completed') {
-    return {
-      targetLanguage,
-      status: 'completed',
-      progress: 100,
-      completedSegments: total,
-      totalSegments: total,
-      error: null
-    };
-  }
-  if (raw.status === 'queued' || raw.status === 'processing') {
-    return {
-      targetLanguage,
-      status: 'queued',
-      progress: null,
-      completedSegments: 0,
-      totalSegments: total,
-      error: null
-    };
-  }
-  // A file waiting for a translator that is not installed keeps saying so — and keeps the
-  // way to install it — across a restart; it is re-requested the moment the models land.
-  if (raw.status === 'unavailable') {
-    return {
-      targetLanguage,
-      status: 'unavailable',
-      progress: null,
-      completedSegments: 0,
-      totalSegments: 0,
-      error: 'TRANSLATOR_UNAVAILABLE'
-    };
-  }
-  return null;
 }

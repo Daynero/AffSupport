@@ -1,14 +1,10 @@
+import { analytics } from '../apps/web/src/analytics/service';
 // @vitest-environment jsdom
 
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  TranscriptionDocument,
-  TranscriptionJob,
-  TranscriptionModelInfo,
-  TranslationDocument
-} from '@video-compressor/shared';
+import type { TranscriptionDocument, TranscriptionJob } from '@video-compressor/shared';
 import type { Translate } from '../apps/web/src/components/ui.js';
 
 const api = vi.hoisted(() => ({
@@ -53,45 +49,6 @@ const job: TranscriptionJob = {
   finishedAt: 3
 };
 
-const installedModel: TranscriptionModelInfo = {
-  present: true,
-  downloading: false,
-  progress: 100,
-  sizeBytes: 0,
-  downloadedBytes: 0,
-  label: 'local translation',
-  error: null
-};
-
-function translated(
-  targetLanguage: string,
-  translatedText: string,
-  targetEnd = translatedText.length
-): TranslationDocument {
-  return {
-    targetLanguage,
-    modelVersion: 'fake-current',
-    alignmentStatus: 'completed',
-    status: 'completed',
-    segments: [
-      {
-        sourceSegmentId: 'segment-1',
-        translatedText,
-        alignments: [
-          {
-            sourceStart: 0,
-            sourceEnd: 5,
-            targetStart: 0,
-            targetEnd,
-            confidence: 0.96
-          }
-        ]
-      }
-    ],
-    error: null
-  };
-}
-
 const documentFixture: TranscriptionDocument = {
   jobId: job.id,
   sourceLanguage: 'en',
@@ -123,9 +80,7 @@ const documentFixture: TranscriptionDocument = {
         }
       ]
     }
-  ],
-  // This deliberately stale sidecar value must be revalidated via POST.
-  translations: { uk: translated('uk', 'ЗАСТАРІЛЕ') }
+  ]
 };
 
 const labels: Record<string, string> = {
@@ -190,7 +145,7 @@ beforeEach(() => {
   );
 });
 
-describe('bilingual transcript modal integration', () => {
+describe('original transcript modal integration', () => {
   let reduced = false;
   const motionListeners = new Set<() => void>();
 
@@ -200,8 +155,6 @@ describe('bilingual transcript modal integration', () => {
     // The document cache is module-wide; one test's document must not be the next one's.
     forgetTranscriptDocuments();
     api.transcriptionDocument.mockReset().mockResolvedValue(documentFixture);
-    api.transcriptionTranslate.mockReset();
-    api.transcriptionTranslation.mockReset();
     api.transcriptionMediaPrepare.mockReset().mockResolvedValue({
       state: 'ready',
       variant: 'original',
@@ -248,7 +201,7 @@ describe('bilingual transcript modal integration', () => {
     });
   });
 
-  it('shows uncertainty, partial timing and pivot fallback without hiding source text', async () => {
+  it('shows uncertainty and partial timing without hiding source text', async () => {
     api.transcriptionDocument.mockResolvedValue({
       ...documentFixture,
       reliability: {
@@ -259,28 +212,15 @@ describe('bilingual transcript modal integration', () => {
         totalWords: 5,
         warnings: [
           { code: 'SEAM_UNCERTAIN', startMs: 0, endMs: 2000 },
-          { code: 'DECODE_UNCERTAIN', startMs: 0, endMs: 2000 },
-          { code: 'PIVOT_UNAVAILABLE', startMs: 0, endMs: 2000 }
+          { code: 'DECODE_UNCERTAIN', startMs: 0, endMs: 2000 }
         ]
       }
     });
-    api.transcriptionTranslate.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
-    api.transcriptionTranslation.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
     const view = render(
-      <TranscriptTextModal
-        job={job}
-        language="uk"
-        returnFocus={null}
-        translatorModel={installedModel}
-        onInstallTranslator={vi.fn()}
-        onCancelTranslator={vi.fn()}
-        onClose={vi.fn()}
-        t={t}
-      />
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={vi.fn()} t={t} />
     );
     expect(await screen.findByText('transcriptionReviewNeeded')).not.toBeNull();
     expect(screen.getByText('transcriptionTimingsPartial')).not.toBeNull();
-    expect(screen.getByText('transcriptionPivotUnavailable')).not.toBeNull();
     expect(screen.getByRole('dialog').querySelector('[data-side="source"]')?.textContent).toContain(
       'Hello world.'
     );
@@ -288,8 +228,6 @@ describe('bilingual transcript modal integration', () => {
   });
 
   it('is read by keyboard before playback: one stop per column, arrows between segments, Enter opens the player there', async () => {
-    api.transcriptionTranslation.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
-    api.transcriptionTranslate.mockResolvedValue(translated('uk', 'Привіт, світе.', 6));
     // Two segments, so there is somewhere for the arrows to go.
     api.transcriptionDocument.mockResolvedValue({
       ...documentFixture,
@@ -335,9 +273,6 @@ describe('bilingual transcript modal integration', () => {
           job={job}
           language="uk"
           returnFocus={null}
-          translatorModel={installedModel}
-          onInstallTranslator={() => {}}
-          onCancelTranslator={() => {}}
           onToast={() => {}}
           onClose={() => {}}
           t={t}
@@ -383,137 +318,105 @@ describe('bilingual transcript modal integration', () => {
       else delete (HTMLMediaElement.prototype as { readyState?: number }).readyState;
     }
   });
-
-  it('revalidates cache, mirrors selection/copy, switches RTL race-safely, and preserves it through preview', async () => {
-    const uk = translated('uk', 'Привіт, світе.', 6);
-    let resolveArabic!: (value: TranslationDocument) => void;
-    const arabicPromise = new Promise<TranslationDocument>(resolve => {
-      resolveArabic = resolve;
-    });
-    api.transcriptionTranslate.mockImplementation(async (_jobId: string, language: string) =>
-      language === 'ar' ? arabicPromise : uk
+  it('copies the original selection and retains it while opening media preview', async () => {
+    const view = render(
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={vi.fn()} t={t} />
     );
-    api.transcriptionTranslation.mockResolvedValue(uk);
-
-    const onClose = vi.fn();
-    const returnFocus = document.createElement('button');
-    document.body.append(returnFocus);
+    try {
+      const dialog = screen.getByRole('dialog');
+      await waitFor(() => expect(dialog.querySelector('[data-word-id="word-1"]')).not.toBeNull());
+      const word = dialog.querySelector<HTMLElement>('[data-word-id="word-1"]')!;
+      fireEvent.pointerDown(word);
+      const range = document.createRange();
+      range.selectNodeContents(word);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      fireEvent.pointerUp(word);
+      await waitFor(() => expect(dialog.querySelector('.ts-selected')?.textContent).toBe('Hello'));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy selection' }));
+      await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Hello'));
+      fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+      await waitFor(() => expect(api.transcriptionMediaPrepare).toHaveBeenCalled());
+      expect(dialog.querySelector('.ts-selected')?.textContent).toBe('Hello');
+      expect(dialog.querySelector('[data-side="target"]')).toBeNull();
+    } finally {
+      view.unmount();
+      window.getSelection()?.removeAllRanges();
+    }
+  });
+  it('reports visibility only after the completed attempt document commits, including equal finish times', async () => {
+    const id = '81000000-0000-4000-8000-000000000001';
+    const attempt = '81000000-0000-4000-8000-000000000002';
+    let resolveFirst!: (doc: TranscriptionDocument) => void;
+    api.transcriptionDocument.mockReturnValue(
+      new Promise<TranscriptionDocument>(resolve => {
+        resolveFirst = resolve;
+      })
+    );
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    const visible = () => track.mock.calls.filter(([name]) => name === 'result_opened');
+    const current = {
+      ...job,
+      id,
+      attemptId: attempt,
+      status: 'processing' as const,
+      finishedAt: null
+    };
     const view = render(
       <TranscriptTextModal
-        job={job}
+        job={current}
         language="uk"
-        returnFocus={returnFocus}
-        translatorModel={installedModel}
-        onInstallTranslator={vi.fn()}
-        onCancelTranslator={vi.fn()}
-        onClose={onClose}
+        returnFocus={null}
+        onClose={() => {}}
         t={t}
       />
     );
-
-    expect(await screen.findByText('Привіт, світе.')).not.toBeNull();
-    expect(screen.queryByText('ЗАСТАРІЛЕ')).toBeNull();
-    expect(api.transcriptionTranslate).toHaveBeenCalledWith(job.id, 'uk', expect.any(String));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.querySelector('textarea,[contenteditable="true"]')).toBeNull();
-    expect(dialog.querySelectorAll('.transcript-column')).toHaveLength(2);
-
-    const source = dialog.querySelector<HTMLElement>('[data-side="source"]')!;
-    const target = dialog.querySelector<HTMLElement>('[data-side="target"]')!;
-    // The direction sits on the transcript text, not on the column whose loading and
-    // failure sentences are in the interface language.
-    const textDirection = (column: HTMLElement) =>
-      column.querySelector<HTMLElement>('.transcript-column-text, .transcript-translation-content')
-        ?.dir;
-    expect(source.dir).toBe('');
-    expect(textDirection(source)).toBe('ltr');
-    expect(textDirection(target)).toBe('ltr');
-
-    fireEvent.click(within(source).getByRole('button', { name: 'Copy all' }));
-    await waitFor(() =>
-      expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('Hello world.')
-    );
-    fireEvent.click(within(target).getByRole('button', { name: 'Copy all' }));
-    await waitFor(() =>
-      expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('Привіт, світе.')
-    );
-
-    const firstWord = source.querySelector<HTMLElement>('[data-word-id="word-1"]')!;
-    const range = document.createRange();
-    range.selectNodeContents(firstWord);
-    const native = window.getSelection()!;
-    native.removeAllRanges();
-    native.addRange(range);
-    fireEvent.pointerUp(dialog.querySelector('.transcript-split-body')!);
-    await waitFor(() => {
-      expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-      expect(target.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-    });
-    expect(screen.getByText(/Exact · 96%/u)).not.toBeNull();
-
-    fireEvent.click(within(source).getByRole('button', { name: 'Copy selection' }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('Hello'));
-    fireEvent.click(within(target).getByRole('button', { name: 'Copy selection' }));
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('Привіт'));
-    expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-
-    reduced = true;
-    act(() => {
-      for (const listener of motionListeners) listener();
-    });
-    const combobox = within(target).getByRole('combobox');
-    fireEvent.focus(combobox);
-    fireEvent.change(combobox, { target: { value: 'араб' } });
-    // The list opens on the body (021, T062): the column that would clip it is
-    // no longer its parent.
-    fireEvent.click(await screen.findByRole('option', { name: /Арабська/u }));
-    await waitFor(() => expect(target.getAttribute('aria-busy')).toBe('true'));
-    // The previous translation stays fully readable while the new target is
-    // translating — segments stream in progressively, no blur overlay.
-    expect(
-      target
-        .querySelector('.transcript-translation-content')
-        ?.classList.contains('is-translating-static')
-    ).toBe(false);
-    expect(target.textContent).toContain('Привіт, світе.');
-
-    await act(async () => {
-      resolveArabic(translated('ar', 'مرحبا بالعالم.', 5));
-      await arabicPromise;
-    });
-    await waitFor(() => expect(target.textContent).toContain('مرحبا بالعالم.'));
-    expect(target.dir).toBe('');
-    expect(textDirection(target)).toBe('rtl');
-    expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-    expect(target.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('button', { name: /^(Preview|Play sound)$/u }));
-    const media = await waitFor(() => {
-      const element = dialog.querySelector('video');
-      expect(element).not.toBeNull();
-      return element!;
-    });
-    // The player's source is a ticketed subresource URL now, not the session
-    // token in a query string: what matters is that it points at this job's
-    // media and carries a ticket rather than a credential.
-    await waitFor(() => expect(media.src).toContain('/media'));
-    expect(media.src).toContain('ticket=');
-    expect(media.src).not.toContain('token=');
-    await waitFor(() => expect(HTMLMediaElement.prototype.play).toHaveBeenCalled());
-    expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide preview' }));
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
-    expect(source.querySelectorAll('.ts-selected').length).toBeGreaterThan(0);
-
-    fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(source.querySelectorAll('.ts-selected')).toHaveLength(0));
-    expect(onClose).not.toHaveBeenCalled();
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalledOnce();
-
-    view.unmount();
-    expect(document.activeElement).toBe(returnFocus);
-    returnFocus.remove();
+    try {
+      expect(api.transcriptionDocument).not.toHaveBeenCalled();
+      view.rerender(
+        <TranscriptTextModal
+          job={{ ...current, status: 'completed', finishedAt: 10 }}
+          language="uk"
+          returnFocus={null}
+          onClose={() => {}}
+          t={t}
+        />
+      );
+      expect(visible()).toHaveLength(0);
+      await act(async () => {
+        resolveFirst({ ...documentFixture, jobId: id });
+      });
+      await waitFor(() => expect(visible()).toHaveLength(1));
+      expect(visible()[0][1]).toMatchObject({
+        attempt_id: attempt,
+        flow_step: 'transcription_result_visible'
+      });
+      const retry = '81000000-0000-4000-8000-000000000003';
+      let resolveRetry!: (doc: TranscriptionDocument) => void;
+      api.transcriptionDocument.mockReturnValue(
+        new Promise<TranscriptionDocument>(resolve => {
+          resolveRetry = resolve;
+        })
+      );
+      view.rerender(
+        <TranscriptTextModal
+          job={{ ...current, attemptId: retry, status: 'completed', finishedAt: 10 }}
+          language="uk"
+          returnFocus={null}
+          onClose={() => {}}
+          t={t}
+        />
+      );
+      expect(visible()).toHaveLength(1);
+      await waitFor(() => expect(api.transcriptionDocument).toHaveBeenCalledTimes(2));
+      await act(async () => {
+        resolveRetry({ ...documentFixture, jobId: id });
+      });
+      await waitFor(() => expect(visible()).toHaveLength(2));
+      expect(visible()[1][1]).toMatchObject({ attempt_id: retry });
+    } finally {
+      view.unmount();
+      track.mockRestore();
+    }
   });
 });

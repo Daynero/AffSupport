@@ -4,17 +4,8 @@ import { Button, type Translate } from '../components/ui';
 import { Popover } from '../components/ui/index';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
 
-/**
- * "Download" with a choice of shape.
- *
- * The button itself saves the plain transcript — the thing most people want — and the
- * menu beside it offers subtitles and the translation. Subtitle formats are disabled, not
- * hidden, when the document has no timings, so the person learns why rather than wondering
- * where SRT went.
- */
 export function ExportMenu({
   hasTimings,
-  hasTranslation,
   busy = false,
   disabled = false,
   compact = false,
@@ -23,7 +14,6 @@ export function ExportMenu({
   t
 }: {
   hasTimings: boolean;
-  hasTranslation: boolean;
   busy?: boolean;
   disabled?: boolean;
   /** Icon-only trigger, for a row where every word is fought over. */
@@ -94,13 +84,7 @@ export function ExportMenu({
     { format: 'vtt', label: t('transcriptionExportVtt'), enabled: hasTimings }
   ];
   const contents: Array<{ content: TranscriptExportContent; label: string; enabled: boolean }> = [
-    { content: 'transcript', label: t('transcriptionCopyContentTranscript'), enabled: true },
-    {
-      content: 'translation',
-      label: t('transcriptionCopyContentTranslation'),
-      enabled: hasTranslation
-    },
-    { content: 'both', label: t('transcriptionCopyContentBoth'), enabled: hasTranslation }
+    { content: 'transcript', label: t('transcriptionCopyContentTranscript'), enabled: true }
   ];
 
   /*
@@ -138,10 +122,9 @@ export function ExportMenu({
       ))}
       {/* Why something is greyed out, said once where everyone can read it — a title on a
       disabled button reaches neither the keyboard nor a finger. */}
-      {(!hasTimings || !hasTranslation) && (
+      {!hasTimings && (
         <p className="transcription-export-note">
           {!hasTimings && <span>{t('transcriptionExportNoTimings')}</span>}
-          {!hasTranslation && <span>{t('transcriptionExportNoTranslation')}</span>}
         </p>
       )}
     </div>

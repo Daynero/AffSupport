@@ -67,8 +67,6 @@ import { TeamScreenCache } from './team-bridge/screen-cache.js';
 import { TeamPosterBridge } from './team-bridge/poster.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
-import { createAligner } from './translation/aligner.js';
-import { createTranslator } from './translation/translator.js';
 import { defaultQualityForInstalledModels, whisperAvailable } from './whisper/tools.js';
 import { sweepAbandonedTempDirectories } from './whisper/transcriber.js';
 import { pathGrants } from './files/path-grants.js';
@@ -219,10 +217,7 @@ const transcriptionQueue = new TranscriptionQueue(
 );
 transcriptionEvents.publishOn(channelHub, 'transcription');
 transcriptionQueue.setInstanceId(instanceId);
-transcriptionQueue.setTranslator(createTranslator());
-transcriptionQueue.setAligner(createAligner());
-// Translation cache, preview proxies and upload copies: dropped when their model or their
-// job is gone.
+// Remove orphaned preview proxies and uploaded copies.
 void transcriptionQueue.sweepCaches().catch(() => {});
 void transcriptionQueue
   .sweepImports(
@@ -722,7 +717,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   });
 }
 // A rejection nobody caught used to end the process. The queues fire and forget a great
-// deal of work by design — a sidecar write during a translation, a preview transcode — and
+// deal of work by design — a document write, a preview transcode — and
 // a full disk in one of them is a reason to log, not to take the running transcription
 // and every open connection down with it.
 process.on('unhandledRejection', reason => {

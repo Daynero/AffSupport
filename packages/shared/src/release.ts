@@ -18,9 +18,9 @@ export const RELEASE_CHANNEL = 'stable';
  * The API version is raised to force a clean upgrade path: the hosted page
  * tells an old agent to download Soty instead of half-working.
  */
-export const AGENT_API_VERSION = 5;
-export const MIN_SUPPORTED_AGENT_API_VERSION = 5;
-export const MAX_SUPPORTED_AGENT_API_VERSION = 5;
+export const AGENT_API_VERSION = 6;
+export const MIN_SUPPORTED_AGENT_API_VERSION = 6;
+export const MAX_SUPPORTED_AGENT_API_VERSION = 6;
 
 /** User-facing product names. Technical identifiers (bundle id, npm scope,
  * the `product` handshake value, lock/support paths handled by the agent)
@@ -82,7 +82,7 @@ export const AGENT_TOOL_CONTRACTS = {
   imageSelection: 1,
   landingOptimizer: 2,
   landingPreview: 2,
-  transcription: 5,
+  transcription: 6,
   teamWorkspace: 2,
   // Background landing renders for team spaces (011). Absent from
   // WEB_TOOL_REQUIREMENTS for the same reason as `power`: it is a capability
@@ -123,7 +123,7 @@ export const WEB_TOOL_REQUIREMENTS = {
   compressor: { compressor: 3, imageEmbedding: 2 },
   landingOptimizer: { landingOptimizer: 2 },
   landingPreview: { landingPreview: 2 },
-  transcription: { transcription: 5 },
+  transcription: { transcription: 6 },
   // `imageEmbedding` as well as its own contract: the screens come from the compressor's
   // image library, so an agent without that library cannot serve this page either.
   //

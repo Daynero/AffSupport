@@ -1,8 +1,7 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, memo, useEffect, useRef, useState } from 'react';
 import {
   Ban,
   Copy,
-  Download,
   Eye,
   FolderOpen,
   Globe,
@@ -15,7 +14,6 @@ import {
 import {
   TRANSCRIPTION_LANGUAGE_CODES,
   TRANSCRIPTION_LIFECYCLE,
-  TRANSLATEGEMMA_LANGUAGE_CODES,
   confusableLanguages,
   isSettled,
   type TranscriptionJob,
@@ -48,13 +46,10 @@ export interface TranscriptionRowActions {
   retry: (id: string) => void;
   remove: (id: string) => void;
   reveal: (id: string) => void;
-  /** Opens the translator install flow; shown where a row says the translator is missing. */
-  installTranslator: () => void;
   /** Names the spoken language by hand; `auto` hands the question back to the machine. */
   setLanguage: (id: string, language: string) => void;
   view: (id: string, trigger: HTMLElement | null) => void;
   copy: (id: string) => Promise<boolean>;
-  translate: (id: string, targetLanguage: string) => Promise<void>;
   export: (id: string, format: TranscriptExportFormat, content: TranscriptExportContent) => void;
 }
 
@@ -83,37 +78,13 @@ export const TranscriptionRow = memo(function TranscriptionRow({
   t: Translate;
 }) {
   const [copied, setCopied] = useState(false);
-  const [requestedTarget, setRequestedTarget] = useState<string | null>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const translationRequest = useRef(0);
   useEffect(() => () => void (copyTimer.current && clearTimeout(copyTimer.current)), []);
-
-  const translation = job.translation ?? null;
-  useEffect(() => {
-    if (requestedTarget && translation?.targetLanguage === requestedTarget)
-      setRequestedTarget(null);
-  }, [translation?.progress, translation?.status, translation?.targetLanguage, requestedTarget]);
 
   const done = job.status === 'completed';
   const running = job.status === 'processing';
   const active = running || job.status === 'queued';
   const settledNotDone = isSettled(TRANSCRIPTION_LIFECYCLE, job.status) && !done;
-  const sourceBase = (job.detectedLanguage ?? job.requestedLanguage)
-    .replaceAll('_', '-')
-    .split('-')[0]
-    .toLowerCase();
-  const displayedTarget = requestedTarget ?? translation?.targetLanguage ?? null;
-  const targetCodes = useMemo(
-    () =>
-      TRANSLATEGEMMA_LANGUAGE_CODES.filter(
-        code => code === displayedTarget || code.split('-')[0].toLowerCase() !== sourceBase
-      ),
-    [sourceBase, displayedTarget]
-  );
-  const awaitingRequested =
-    requestedTarget !== null && requestedTarget !== translation?.targetLanguage;
-  const translating =
-    awaitingRequested || translation?.status === 'queued' || translation?.status === 'processing';
 
   const copy = async () => {
     if (await actions.copy(job.id)) {
@@ -122,25 +93,6 @@ export const TranscriptionRow = memo(function TranscriptionRow({
       copyTimer.current = setTimeout(() => setCopied(false), 1800);
     }
   };
-  const changeTarget = (code: string) => {
-    const request = ++translationRequest.current;
-    setRequestedTarget(code);
-    void actions.translate(job.id, code).catch(() => {
-      if (translationRequest.current === request) setRequestedTarget(null);
-    });
-  };
-
-  const translationLabel = awaitingRequested
-    ? t('transcriptionRowTranslating')
-    : translation?.status === 'completed'
-      ? t('transcriptionRowTranslated')
-      : translation?.status === 'failed'
-        ? translation.error === 'TRANSLATION_CANCELLED'
-          ? t('transcriptionRowTranslationCancelled')
-          : t('transcriptionRowTranslationFailed')
-        : translation?.status === 'unavailable'
-          ? t('transcriptionRowTranslationUnavailable')
-          : t('transcriptionRowTranslating');
 
   // A fast run that produced far less text than its recording could hold has probably
   // missed speech under music; the full model is the answer, and it is one click away.
@@ -215,7 +167,6 @@ export const TranscriptionRow = memo(function TranscriptionRow({
               <ExportMenu
                 portal
                 hasTimings={job.timed !== false}
-                hasTranslation={translation?.status === 'completed'}
                 disabled={silent}
                 onExport={(format, content) => actions.export(job.id, format, content)}
                 t={t}
@@ -389,7 +340,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
           <button
             type="button"
             className="transcription-row-snippet"
-            dir={isRtlLanguage(sourceBase) ? 'rtl' : 'ltr'}
+            dir={isRtlLanguage(job.detectedLanguage ?? job.requestedLanguage) ? 'rtl' : 'ltr'}
             title={t('transcriptionView')}
             aria-label={t('transcriptionOpenTranscript', { file: job.fileName })}
             onClick={event => actions.view(job.id, event.currentTarget)}
@@ -411,7 +362,7 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 : job.paused
                   ? t('jobPaused')
                   : job.progress !== null
-                    ? `${job.phase === 'extract' ? t('transcriptionPhaseExtract') : job.phase === 'recover' ? t('transcriptionPhaseRecover') : job.phase === 'pivot' ? t('transcriptionPhasePivot') : job.phase === 'save' ? t('transcriptionPhaseSave') : ''}${job.phase && job.phase !== 'transcribe' ? ' · ' : ''}${Math.round(job.progress)}%`
+                    ? `${job.phase === 'extract' ? t('transcriptionPhaseExtract') : job.phase === 'recover' ? t('transcriptionPhaseRecover') : job.phase === 'save' ? t('transcriptionPhaseSave') : ''}${job.phase && job.phase !== 'transcribe' ? ' · ' : ''}${Math.round(job.progress)}%`
                     : t('transcriptionProcessing')}
             </span>
           </div>
@@ -446,55 +397,6 @@ export const TranscriptionRow = memo(function TranscriptionRow({
               <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />
               {t('transcriptionRetryAccurate')}
             </Button>
-          </div>
-        )}
-
-        {done && translation && (
-          <div
-            className={`transcription-row-translation is-${translation.status}`}
-            data-testid="row-translation"
-          >
-            <div className="transcription-row-translation-line">
-              <span className="transcription-row-translation-label">{translationLabel}</span>
-              <LanguageCombobox
-                portal
-                compact
-                value={displayedTarget ?? translation.targetLanguage}
-                codes={targetCodes}
-                language={language}
-                label={t('transcriptionTranslateTo')}
-                disabled={!connected}
-                onChange={changeTarget}
-              />
-              {translation.status === 'unavailable' && (
-                <Button variant="ghost" disabled={!connected} onClick={actions.installTranslator}>
-                  <Download size={14} strokeWidth={1.75} aria-hidden="true" />
-                  {t('transcriptionInstallTranslator')}
-                </Button>
-              )}
-              {translation.status === 'processing' && translation.progress !== null && (
-                <span className="transcription-row-translation-percent">
-                  {Math.round(translation.progress)}%
-                </span>
-              )}
-              {translation.status === 'failed' && !awaitingRequested && (
-                <Button
-                  color="neutral"
-                  variant="ghost"
-                  disabled={!connected}
-                  onClick={() => changeTarget(translation.targetLanguage)}
-                >
-                  <RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" />
-                  {t('transcriptionTranslationRetry')}
-                </Button>
-              )}
-            </div>
-            {translating && (
-              <Progress
-                value={translation.progress ?? undefined}
-                label={t('transcriptionRowTranslationProgress', { file: job.fileName })}
-              />
-            )}
           </div>
         )}
 

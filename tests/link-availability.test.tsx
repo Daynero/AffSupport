@@ -55,7 +55,11 @@ describe('the process-material dialog', () => {
   const material = { id: 'm1', name: 'creative.mp4', category: 'video' as const };
   const browseClient = { listMaterials: vi.fn().mockResolvedValue([]) };
 
-  function renderDialog(agentAvailability: Availability) {
+  function renderDialog(
+    agentAvailability: Availability,
+    transcriptionContract = 6,
+    initialTool?: React.ComponentProps<typeof ProcessMaterialDialog>['initialTool']
+  ) {
     return renderWithAgent(
       <ToastProvider>
         <ProcessMaterialDialog
@@ -64,7 +68,8 @@ describe('the process-material dialog', () => {
           destinationFolderId="folder-1"
           browseClient={browseClient}
           agentAvailability={agentAvailability}
-          toolContracts={{ compressor: 3, transcription: 5, imageEmbedding: 2 }}
+          toolContracts={{ compressor: 3, transcription: transcriptionContract, imageEmbedding: 2 }}
+          initialTool={initialTool}
           client={{ start: vi.fn() }}
           onStarted={vi.fn()}
           onClose={vi.fn()}
@@ -73,6 +78,15 @@ describe('the process-material dialog', () => {
       { connection: 'disconnected', toolAvailability: () => agentAvailability }
     );
   }
+
+  it('refuses the retired transcription contract before starting any process', () => {
+    renderDialog('ready', 5, 'transcription');
+    expect(screen.getByText(t('teamProcessToolUpdate'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: t('teamProcessStart') })).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
 
   it('asks for the link back when the agent is not there', () => {
     renderDialog('disconnected');
@@ -103,15 +117,15 @@ describe('the process-library dialog', () => {
       outcome: null,
       scope: { kind: 'space' },
       scan: {
-        created: { transcription: 0, translation: 0, landingOptimization: 0 },
-        missing: { transcription: 2, translation: 0, landingOptimization: 0 },
+        created: { transcription: 0, landingOptimization: 0 },
+        missing: { transcription: 2, landingOptimization: 0 },
         ready: 0,
         started: false
       },
       // The contracts outlive a lost link, so what this computer does is still known.
-      supportedKinds: ['transcription', 'translation'],
+      supportedKinds: ['transcription'],
       agentAvailability,
-      chosenKinds: ['transcription', 'translation'],
+      chosenKinds: ['transcription'],
       setChosenKinds: vi.fn(),
       previewCount: 0,
       previewError: null,

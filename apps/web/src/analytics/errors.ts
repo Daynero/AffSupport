@@ -137,37 +137,6 @@ export function transcriptionFailureError(
   });
 }
 
-/**
- * `error_occurred` for each translation that just failed or found no engine. A translation's
- * status already carries a closed code; a cancellation is not a failure.
- */
-export function transcriptionTranslationErrors(
-  previous: readonly Pick<TranscriptionJob, 'id' | 'translation'>[] | null,
-  current: readonly Pick<TranscriptionJob, 'id' | 'translation'>[],
-  runIdOf: (id: string) => string | undefined = () => undefined
-): AnalyticsProperties[] {
-  if (previous === null) return [];
-  const before = new Map(previous.map(job => [job.id, job.translation?.status]));
-  const errors: AnalyticsProperties[] = [];
-  for (const job of current) {
-    const translation = job.translation;
-    if (!translation || (translation.status !== 'failed' && translation.status !== 'unavailable'))
-      continue;
-    if (!before.has(job.id) || before.get(job.id) === translation.status) continue;
-    if (translation.error === 'TRANSLATION_CANCELLED') continue;
-    const runId = runIdOf(job.id);
-    errors.push(
-      toolErrorProperties({
-        tool: 'transcription',
-        stage: 'translate',
-        code: translation.error,
-        ...(runId ? { runId } : {})
-      })
-    );
-  }
-  return errors;
-}
-
 const STITCH_CODE_STAGES: Readonly<Record<string, ToolErrorStage<'stitcher'>>> = {
   STITCH_PATH_INVALID: 'input_probe',
   STITCH_PLAN_VIDEO_CODEC: 'input_probe',

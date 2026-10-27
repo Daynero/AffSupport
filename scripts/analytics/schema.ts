@@ -30,7 +30,8 @@ const TABLES = [
   'analytics_workspace_recovery',
   'analytics_recovery_execution',
   'analytics_recovery_retirement',
-  'analytics_membership_access_signals'
+  'analytics_membership_access_signals',
+  'analytics_translation_retirement'
 ] as const;
 
 let cached: { generation: number; schema: Promise<AnalyticsSchema> } | null = null;
@@ -56,6 +57,9 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_translation_retirement')
+        ? { analytics_translation_retirement: true }
+        : {}),
       ...(has('table', 'analytics_recovery_retirement')
         ? { analytics_recovery_retirement: true }
         : {}),
@@ -111,6 +115,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_recovery_execution' &&
         table !== 'analytics_recovery_retirement' &&
         table !== 'analytics_membership_access_signals' &&
+        table !== 'analytics_translation_retirement' &&
         table !== 'analytics_process_output_cleanup' &&
         !schema.tables[table]
     )

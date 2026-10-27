@@ -25,8 +25,7 @@ describe('transcription must not silently discard speech', () => {
       jobId: 'prior',
       sourceLanguage: 'en',
       modelVersion: 'test',
-      segments: [],
-      translations: {}
+      segments: []
     };
     try {
       await store.save(original);
@@ -123,10 +122,10 @@ describe('transcription must not silently discard speech', () => {
         .join(' ')
     ).toBe(text);
   });
-  it('rejects malformed translation metadata rather than silently discarding it', () => {
+  it('discards malformed legacy metadata and retains valid original', () => {
     expect(
       validDocument({ jobId: 'a', sourceLanguage: 'en', segments: [], translations: 'corrupt' })
-    ).toBeNull();
+    ).toEqual({ jobId: 'a', sourceLanguage: 'en', modelVersion: '', segments: [] });
   });
 
   it('rejects corrupted words in a persisted document', () => {

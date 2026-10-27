@@ -35,11 +35,6 @@ for binary in "$app/Contents/MacOS/SotyDevAgent" "$finder_binary"; do
   vtool -show-build "$binary" | grep -q 'minos 13.0'
 done
 [[ -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
-[[ ! -e "$app/Contents/Resources/runtime/llama" ]]
-[[ -f "$app/Contents/Resources/licenses/llama.cpp-LICENSE" ]]
-for notice in GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt multilingual-e5-small-MIT.txt; do
-  [[ -s "$app/Contents/Resources/licenses/$notice" ]]
-done
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
 node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do

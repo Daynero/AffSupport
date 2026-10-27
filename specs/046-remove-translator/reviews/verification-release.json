@@ -1,0 +1,115 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-10-27T15:50:05.309Z",
+  "form": "release",
+  "error": "suite",
+  "data": {
+    "duration_ms": 999232,
+    "totals": {
+      "gates": 14,
+      "passed": 13,
+      "failed": 1,
+      "tests": 5879,
+      "skipped_tests": 26,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 6,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 6,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1648
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 57711
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 52243
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 54678
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 65604
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 11449
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 351
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 6642
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 435
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 456
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 475
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 246
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 3766
+      },
+      {
+        "id": "suite",
+        "ok": false,
+        "duration_ms": 931954
+      }
+    ],
+    "failure": {
+      "gate": "suite",
+      "subject": "tests/performance-budgets.test.ts > download budget [needs: apps/web/dist/assets,/Users/daynero/RiderProjects/AffSupport/apps/web/dist/.vite/manifest.json,/Users/daynero/RiderProjects/AffSupport/specs/038-unified-accounts/reviews/bundle-budget-baseline.json] > preserves the existing ratchet while bounding complete exclusive route graphs — AssertionError: expected 46112 to be less than or equal to 40000",
+      "excerpt": [
+        "tests/performance-budgets.test.ts > download budget [needs: apps/web/dist/assets,/Users/daynero/RiderProjects/AffSupport/apps/web/dist/.vite/manifest.json,/Users/daynero/RiderProjects/AffSupport/specs/038-unified-accounts/reviews/bundle-budget-baseline.json] > preserves the existing ratchet while bounding complete exclusive route graphs — AssertionError: expected 46112 to be less than or equal to 40000",
+        "tests/analytics-inspect-command.test.ts > inspect · not found > returns found:false for an unknown id and for an id with unsafe characters — AssertionError: expected { found: false, …(3) } to deeply equal { found: false, …(1) }",
+        "tests/suite-hygiene.test.ts > the suite has one way to wait > keeps the allowlist honest about what is still in the tree — AssertionError: these files no longer sleep — drop them from the allowlist: expected [ 'transcription-translation.test.ts' ] to deeply equal []",
+        "tests/run-state-coverage.test.ts > the critical-module set is derived, not typed > lists every module reachable from a run-state entry point — AssertionError: expected [ Array(1) ] to deeply equal []",
+        "tests/lifecycle-wellformed.test.ts > the registry > makes a run-level lifecycle re-runnable and a sub-run lifecycle final — TypeError: Cannot read properties of undefined (reading 'transitions')"
+      ]
+    }
+  }
+}

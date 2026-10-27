@@ -164,32 +164,9 @@
 .transcription-row-language > svg {
   flex: none;
 }
-.transcription-row-language .transcript-language-combobox.is-compact {
-  /* Sized to the name it shows rather than to a control's default twenty characters,
-     which left a hand's width of empty field before the rest of the line. */
-  width: auto;
-  min-width: 0;
-  max-width: 100%;
-}
-.transcription-row-language .transcript-language-combobox.is-compact input {
-  width: auto;
-  /* …and never wider than the box it sits in. `width: auto` on an input is its
-     intrinsic size, which does not shrink with its flex parent: "Українська"
-     ran 30px past the field and put the chevron on its own last letter, and
-     "Центральнокурдська" ran 85px past it and under the confidence beside it. */
-  max-width: min(190px, 100%);
-  padding: 3px 20px 3px 9px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-caption);
-}
 /* The field is sized from its text in the font it is drawn in, so the shared compact rule's
    lighter hover weight made it visibly shrink under the pointer. One weight in every state:
    the hover says its piece with the outline and the colour. */
-.transcription-row-language .transcript-language-combobox.is-compact input,
-.transcription-row-language .transcript-language-combobox.is-compact input:hover:not(:disabled),
-.transcription-row-language .transcript-language-combobox.is-compact input:focus {
-  font-weight: 650;
-}
 /* How sure the detector was, next to the name it was unsure of — and the second way into
    the panel behind it, because the figure is what draws the eye, not the question mark. */
 .transcription-row-language-share {
@@ -225,9 +202,6 @@
    takes the warning colour. The shape is what carries it — colour alone would not survive
    a monochrome reading. */
 .transcription-row-language.is-uncertain {
-  color: var(--color-warning);
-}
-.transcription-row-language.is-uncertain .transcript-language-combobox.is-compact input {
   color: var(--color-warning);
 }
 
@@ -474,53 +448,7 @@
   text-align: right;
   white-space: nowrap;
 }
-.transcription-row .transcription-row-translation {
-  width: min(520px, 100%);
-  /* A grid item's minimum is its content unless told otherwise; without this the line kept
-     its full width past the card's edge, and the install button read "Вста". */
-  min-width: 0;
-  margin: 0;
-  font-size: var(--text-caption);
-}
-.transcription-row-translation-line {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-}
-.transcription-row-translation-label {
-  white-space: nowrap;
-}
-.transcription-row-translation-line .soty-button,
-.transcription-row-translation-line .ui-button {
-  padding: 2px 8px;
-  font-size: var(--text-caption);
-}
 /* The inline language picker: a quiet control sized to its word. */
-.transcript-language-combobox.is-compact {
-  width: auto;
-  min-width: 120px;
-  max-width: 200px;
-}
-.transcript-language-combobox.is-compact input {
-  padding: 2px 8px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--color-accent);
-  font-weight: 650;
-}
-.transcript-language-combobox.is-compact input:hover:not(:disabled),
-.transcript-language-combobox.is-compact input:focus {
-  border-color: var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-weight: 500;
-}
-.transcript-language-combobox input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 /* Actions: two deliberate rows rather than one that happened to wrap.
    What is done with the transcript sits on top and keeps the compressor's button scale;
    what is done with the file sits under it, named and quieter. Both are flush right, so
@@ -744,9 +672,6 @@
   padding: 0;
   justify-content: center;
 }
-
-/* Viewer header: the file name gets one line and an ellipsis; the match meter keeps its
-   width beside it instead of being pushed to a third row. */
 .transcript-modal-heading {
   min-width: 0;
   flex: 1 1 220px;
@@ -765,10 +690,6 @@
 .transcript-modal-header p {
   flex-wrap: wrap;
   gap: 4px var(--space-2);
-}
-.transcript-match .tooltip-trigger,
-.transcript-match .soty-tooltip {
-  font-size: var(--text-caption);
 }
 .transcript-player-volume svg {
   color: var(--color-text-muted);
@@ -843,79 +764,12 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
-/* The translator notice in the viewer: a compact card, consent beside the button rather
-   than a column of prose above it. */
-/* The install card: one column, one rhythm. Every child sits on the same left edge and the
-   spacing between them comes from the grid, not from each element's own margins — which is
-   what had the consent line, the button and its hint each at a different indent. */
-.transcript-translation-notice {
-  display: grid;
-  gap: var(--space-3);
-  justify-items: start;
-  margin: 0 0 var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  font-size: var(--text-label);
-  line-height: 1.55;
-}
-.transcript-translation-notice > * {
-  margin: 0;
-  max-width: 62ch;
-}
-.transcript-translation-notice.is-downloading {
-  justify-items: stretch;
-}
-.transcript-translation-notice-lead {
-  color: var(--color-text);
-}
-.transcript-translation-notice .transcription-gemma-consent {
-  margin-top: 0;
-}
 /* The picker is the column's title; the copy control keeps its baseline beside it however
    tall the field grows. */
-.transcript-column[data-side='target'] .transcript-column-actions {
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-}
-.transcript-column[data-side='target'] .transcript-language-combobox {
-  width: min(260px, 100%);
-}
-/* What the local translator is for, said once, directly under the picker that produced it
-   and above the text it applies to. */
-.transcript-translation-caveat {
-  flex: none;
-  margin: 0;
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  line-height: 1.45;
-}
-/* Row translation line: the install link sits with the language, not on its own line. */
-.transcription-row-translation-line .soty-button svg,
-.transcription-row-translation-line .ui-button svg {
-  flex: none;
-}
 
 /* The spoken-language picker is a field, not an inline control: as wide as the column. */
-.transcription-language-field .transcript-language-combobox {
-  width: 100%;
-  max-width: 420px;
-}
 /* The same height as the picto group beside it — 4px of padding, a 38px mark and the
    group's own border — so the two controls sit on one line rather than nearly one. */
-.transcription-language-field .transcript-language-combobox input {
-  height: 48px;
-  padding: 10px 32px 10px 14px;
-  border-radius: var(--radius-md);
-}
-.transcription-language-field .transcript-language-combobox::after {
-  right: 14px;
-}
 
 /* ==========================================================================
    Transcription tool — viewer layout floors, toolbar scale, pickers, banner
@@ -982,60 +836,6 @@
 }
 
 /* The picker looks like one: a chevron, and a mark on the current choice. */
-.transcript-language-combobox::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  width: 7px;
-  height: 7px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-70%) rotate(45deg);
-  color: var(--color-text-muted);
-  pointer-events: none;
-}
-.transcript-language-combobox input {
-  padding-right: 26px;
-}
-.transcript-language-combobox.is-compact::after {
-  right: 6px;
-  width: 5px;
-  height: 5px;
-}
-.transcript-language-combobox.is-compact input {
-  padding-right: 20px;
-}
-.transcript-language-combobox li[aria-selected='true'] {
-  font-weight: 600;
-}
-.transcript-language-combobox li[aria-selected='true']::after {
-  content: '✓';
-  margin-left: var(--space-2);
-  color: var(--color-accent);
-}
-
-/* One notice about the missing translator, above the list, instead of one per row. */
-.transcription-translator-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-.transcription-translator-banner .soty-button,
-.transcription-translator-banner .ui-button {
-  margin-left: auto;
-}
-
-/* ==========================================================================
-   Transcription tool — viewer rows, narrow toolbar, row actions, consent hints
-   ========================================================================== */
 
 /* The viewer's rows: header, player and footer keep their size; only the columns give.
    At a 1366×768 window with the player open the footer used to be pushed out of the
@@ -1075,11 +875,6 @@
 }
 
 /* Why the install button is greyed out, said under it. */
-.transcription-consent-hint {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
 
 /* Short viewports: the header keeps to one row so the columns keep their lines. The meter
    drops its caption; the bar and the reading stay. */
@@ -1133,38 +928,7 @@
   opacity: 0.45;
   transform: translate(-50%, -50%);
 }
-
-/* The match meter's resting state is visible: a dashed track, and a caption that shrinks
-   rather than vanishing on a short viewport. A selection with nothing to compare against
-   is tinted neutrally, not as a poor match. */
-.transcript-match.is-empty .transcript-match-bar {
-  background: repeating-linear-gradient(90deg, var(--color-border) 0 6px, transparent 6px 10px);
-}
 @media (max-height: 640px) {
-  .transcript-modal.transcript-split .transcript-match-label {
-    display: inline;
-    font-size: var(--text-micro);
-  }
-}
-
-/* The consent checkbox is the app's own mark, sized as a target. */
-.transcription-gemma-consent.soty-checkbox {
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  line-height: 1.45;
-}
-.transcription-gemma-consent.soty-checkbox .checkbox-mark {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  border-color: color-mix(in oklab, var(--color-accent) 70%, transparent);
-}
-.transcription-gemma-consent.soty-checkbox a {
-  color: var(--color-accent);
 }
 
 /* ==========================================================================
@@ -1201,21 +965,6 @@
   color: var(--color-text-muted);
   cursor: default;
 }
-/* The consent's button is pinned to the bottom of the column: the notice can be taller
-   than the column on a laptop, and a button cut in half by the fold read as a bug. */
-.transcript-translation-notice .transcription-consent-actions {
-  position: sticky;
-  bottom: 0;
-  display: grid;
-  gap: var(--space-2);
-  justify-items: start;
-  width: 100%;
-  /* Bleeds to the card's edges so the sticky band covers what scrolls under it, and pads
-     itself back to the card's own inset so the button keeps the column's left edge. */
-  margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
-  padding: var(--space-3) var(--space-4) var(--space-4);
-  background: var(--color-surface);
-}
 
 /* A short window: the viewer keeps its text and gives up its slack. */
 @media (max-height: 700px) {
@@ -1225,10 +974,6 @@
   .transcript-modal.transcript-split .transcript-column-head {
     padding-top: 4px;
     padding-bottom: 4px;
-  }
-  .transcript-modal.transcript-split .transcript-match {
-    padding-top: 2px;
-    padding-bottom: 2px;
   }
 }
 

@@ -1,3 +1,4 @@
+import { getTranslationRetirementEvidence } from './library-retirement.js';
 import { getRecoveryRetirementEvidence } from './recovery-retirement.js';
 import { getMembershipAccessEvidence } from './membership-access.js';
 import { getRecoveryEvidence } from './tariff-recovery.js';
@@ -1129,6 +1130,57 @@ function buildFindings(input: {
     if (journal.length === 0) return findings.ranked();
   }
 
+  const originalAttempts = new Map<string, JournalRecordRow[]>();
+  for (const record of journal) {
+    if (record.category !== 'transcription' || record.props.api_version !== 6) continue;
+    if (record.code === 'feature_retired') {
+      findings.add({
+        rule: 'feature_retired',
+        key: journalRef(record),
+        kind: 'fact',
+        severity: 'info',
+        title: 'An obsolete native command was refused before execution.',
+        evidence: [journalRef(record)],
+        fingerprint: 'journal:transcription:feature_retired',
+        next_step: 'No execution attempt was created. Use a current client.',
+        at: record.recorded_at
+      });
+      continue;
+    }
+    const attempt = record.props.attempt_id;
+    if (typeof attempt !== 'string' || !UUID.test(attempt)) continue;
+    const records = originalAttempts.get(attempt) ?? [];
+    records.push(record);
+    originalAttempts.set(attempt, records);
+  }
+  for (const [attempt, records] of originalAttempts) {
+    records.sort(compareJournal);
+    const terminal = [...records].reverse().find(record => record.code === 'terminal');
+    const saved =
+      records.some(record => record.code === 'stage' && record.props.stage === 'saved') ||
+      terminal?.props.last_stage === 'saved';
+    const outcome =
+      terminal &&
+      ['success', 'failure', 'cancelled', 'interrupted'].includes(String(terminal.props.outcome))
+        ? String(terminal.props.outcome)
+        : 'unknown';
+    const proven = outcome !== 'unknown' && (outcome !== 'success' || saved);
+    findings.add({
+      rule: 'transcription_native_attempt',
+      key: attempt,
+      kind: proven ? 'fact' : 'insufficient',
+      severity: outcome === 'failure' ? 'medium' : proven ? 'info' : 'low',
+      title: proven
+        ? 'Native original transcription outcome: ' + outcome + '.'
+        : 'Original transcription attempt has no proven native terminal.',
+      evidence: records.slice(-2).map(journalRef),
+      fingerprint: 'journal:transcription:*',
+      next_step:
+        'Native execution and saved text do not prove browser visibility. Compare the same attempt with result_opened; missing or delayed delivery remains unknown.',
+      at: records.at(-1)!.recorded_at
+    });
+  }
+
   // These are observations on one native instance, not a live status check. Sequence
   // orders a boot's records even when an older record reaches the server later.
   const retirement = new Map<string, JournalRecordRow>();
@@ -1657,6 +1709,32 @@ export async function getInvestigation(
     });
   }
 
+  const translation_retirement = await getTranslationRetirementEvidence(
+    scope.userId ?? scope.focus,
+    period.start,
+    period.end,
+    scope.userId ? 'actor' : 'identity'
+  );
+  for (const detail of translation_retirement.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const row of translation_retirement.rows.filter(
+    row => row.error_code === 'FEATURE_RETIRED'
+  )) {
+    const fingerprint = 'transcription:transcribe:FEATURE_RETIRED';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['feature_retired', row.entity_kind, row.entity_id]),
+      kind: 'fact',
+      severity: 'info',
+      rule: 'feature_retired',
+      title: 'The server retired an obsolete processing request.',
+      evidence: ['retirement:' + row.entity_kind + ':' + row.entity_id],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Use an API6 client for original transcription; this snapshot does not prove browser delivery or local file cleanup.'
+    });
+  }
   const membership_access = await getMembershipAccessEvidence(
     scope.userId,
     period.start,
@@ -1800,6 +1878,7 @@ export async function getInvestigation(
   return {
     subject,
     recovery_retirement,
+    translation_retirement,
     membership_access,
     recovery,
     workspace,

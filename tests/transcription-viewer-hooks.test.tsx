@@ -4,6 +4,7 @@ import React, { useRef } from 'react';
 import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptSegment } from '@video-compressor/shared';
+import { useTranscriptScroll } from '../apps/web/src/transcription/useTranscriptScroll.js';
 import { useKaraoke } from '../apps/web/src/transcription/useKaraoke.js';
 
 const segments: TranscriptSegment[] = [
@@ -153,4 +154,48 @@ describe('karaoke follow', () => {
     expect(stored.current?.get()).toBeNull();
     view.unmount();
   });
+});
+
+it('follows only the original word, respects manual scrolling, and uses reduced motion', () => {
+  let clock = 10000;
+  vi.spyOn(Date, 'now').mockImplementation(() => clock);
+  vi.stubGlobal('CSS', { escape: (value: string) => value });
+  let center: (segment: string, word: string) => void = () => {};
+  function Follow() {
+    const follow = useTranscriptScroll({ layoutKey: 'original', reducedMotion: true });
+    center = follow.centerActiveWord;
+    return (
+      <div ref={follow.sourceScrollRef} data-testid="scroll">
+        <p data-segment-id="s0">
+          <span data-word-id="w0">Hello</span>
+        </p>
+      </div>
+    );
+  }
+  const view = render(<Follow />);
+  try {
+    const scroller = view.getByTestId('scroll');
+    Object.defineProperties(scroller, {
+      scrollHeight: { value: 1000 },
+      clientHeight: { value: 200 },
+      scrollTop: { value: 20, writable: true }
+    });
+    scroller.getBoundingClientRect = () => ({ top: 50 }) as DOMRect;
+    scroller.querySelector<HTMLElement>('[data-word-id="w0"]')!.getBoundingClientRect = () =>
+      ({ top: 400, height: 20 }) as DOMRect;
+    scroller.scrollTo = vi.fn();
+    act(() => center('s0', 'w0'));
+    expect(scroller.scrollTo).toHaveBeenLastCalledWith({ top: 280, behavior: 'instant' });
+    clock += 1000;
+    act(() => scroller.dispatchEvent(new Event('scroll')));
+    act(() => center('s0', 'w0'));
+    expect(scroller.scrollTo).toHaveBeenCalledTimes(1);
+    clock += 2600;
+    act(() => center('s0', 'w0'));
+    expect(scroller.scrollTo).toHaveBeenCalledTimes(2);
+  } finally {
+    view.unmount();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
 });

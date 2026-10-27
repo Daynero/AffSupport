@@ -23,11 +23,9 @@ function actions(): TranscriptionRowActions {
     retry: vi.fn(),
     remove: vi.fn(),
     reveal: vi.fn(),
-    installTranslator: vi.fn(),
     setLanguage: vi.fn(),
     view: vi.fn(),
     copy: vi.fn(async () => true),
-    translate: vi.fn(async () => {}),
     export: vi.fn()
   };
 }
@@ -50,7 +48,6 @@ function job(patch: Partial<TranscriptionJob> = {}): TranscriptionJob {
     text: null,
     characters: 300,
     preview: 'Əgər bu sadır bulmasa…',
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,

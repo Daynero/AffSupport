@@ -5,12 +5,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PowerGovernor } from '../apps/agent/src/power/governor.js';
 import { spawnManaged } from '../apps/agent/src/power/spawn.js';
-import { waitFor } from './support/wait.js';
-import type {
-  TranslateRequest,
-  Translator,
-  TranslationOutputSegment
-} from '../apps/agent/src/translation/translator.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
 
@@ -118,99 +112,6 @@ describe('cancelling a transcription', () => {
     expect(result.cancelled).toBe(true);
     expect(result.failedStage).toBeNull();
     expect(existsSync(marker)).toBe(false);
-  }, 15_000);
-});
-
-class BlockingTranslator implements Translator {
-  aborted = 0;
-  started = 0;
-
-  available(): boolean {
-    return true;
-  }
-
-  modelVersion(): string {
-    return 'stop-test-1';
-  }
-
-  translate(request: TranslateRequest, signal: AbortSignal): Promise<TranslationOutputSegment[]> {
-    this.started += 1;
-    return new Promise((_resolve, reject) => {
-      const abort = () => {
-        this.aborted += 1;
-        reject(new Error('aborted'));
-      };
-      if (signal.aborted) abort();
-      else signal.addEventListener('abort', abort, { once: true });
-    });
-  }
-}
-
-describe('stopping everything in the transcription tool', () => {
-  let dir = '';
-
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(os.tmpdir(), 'soty-stop-all-'));
-    const modelPath = path.join(dir, 'whisper.bin');
-    await writeFile(modelPath, 'model');
-    process.env.WHISPER_MODEL_PATH = modelPath;
-    process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH = path.join(dir, 'docs');
-    process.env.AGENT_TRANSLATION_CACHE_PATH = path.join(dir, 'cache');
-    process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH = path.join(dir, 'previews');
-  });
-
-  afterEach(async () => {
-    vi.resetModules();
-    delete process.env.WHISPER_MODEL_PATH;
-    delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
-    delete process.env.AGENT_TRANSLATION_CACHE_PATH;
-    delete process.env.AGENT_TRANSCRIBE_PREVIEWS_PATH;
-    await removeTemporaryDirectory(dir);
-  });
-
-  it('stops the local translation, not just the transcription queue', async () => {
-    // Translation is the other half of what this tool runs, and it belongs to a
-    // job that has already finished transcribing — so it is never in the list
-    // of jobs "stop all" walks. Leaving it running is what kept a stopped queue
-    // pinning the machine.
-    vi.doMock('../apps/agent/src/whisper/transcriber.js', () => ({
-      transcribe: ({ onProgress }: { onProgress: (value: number | null) => void }) => {
-        onProgress(100);
-        return {
-          cancel: () => {},
-          done: Promise.resolve({
-            code: 0,
-            cancelled: false,
-            text: 'Hello there.',
-            detectedLanguage: 'en',
-            stderr: '',
-            failedStage: null,
-            spawnErrorCode: null,
-            words: [],
-            englishText: '',
-            englishWords: []
-          })
-        };
-      }
-    }));
-    const { TranscriptionQueue } = await import('../apps/agent/src/queue/transcription-queue.js');
-    const queue = new TranscriptionQueue({ ffmpeg: true, whisper: true }, () => {});
-    const translator = new BlockingTranslator();
-    queue.setTranslator(translator);
-    queue.updateSettings({ translationLanguage: 'uk' });
-
-    const mediaPath = path.join(dir, 'clip.mp3');
-    await writeFile(mediaPath, 'media');
-    await queue.add([mediaPath]);
-    const id = queue.state().jobs[0].id;
-    expect(await queue.start([id])).toBe(true);
-    await waitFor(() => translator.started === 1);
-
-    expect(queue.cancelAll()).toBeGreaterThan(0);
-
-    await waitFor(() => translator.aborted === 1);
-    await waitFor(() => queue.state().jobs[0].translation?.status !== 'processing');
-    await queue.shutdown();
   }, 15_000);
 });
 

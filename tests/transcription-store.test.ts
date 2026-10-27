@@ -49,7 +49,6 @@ function makeJob(
     detectedLanguage: null,
     text: null,
     characters: null,
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,
@@ -65,8 +64,7 @@ async function writeDocument(jobId: string, text = 'Hello world.'): Promise<Tran
     jobId,
     sourceLanguage: 'en',
     modelVersion: 'large-v3',
-    segments: [{ id: `${jobId}-s0`, startMs: 0, endMs: 1000, sourceText: text, words: [] }],
-    translations: {}
+    segments: [{ id: `${jobId}-s0`, startMs: 0, endMs: 1000, sourceText: text, words: [] }]
   };
   await mkdir(docsDir, { recursive: true });
   await writeFile(path.join(docsDir, `${jobId}.json`), JSON.stringify(document));
@@ -80,7 +78,7 @@ describe('persistent transcription state', () => {
     await writeDocument('done-1');
     await saveTranscriptionState(
       {
-        settings: { language: 'uk', translationLanguage: 'en', quality: 'fast' },
+        settings: { language: 'uk', quality: 'fast' },
         jobs: [
           makeJob({ id: 'ready-1', inputPath: source }),
           makeJob({
@@ -91,14 +89,6 @@ describe('persistent transcription state', () => {
             detectedLanguage: 'en',
             text: 'Hello world.',
             characters: 12,
-            translation: {
-              targetLanguage: 'uk',
-              status: 'completed',
-              progress: 100,
-              completedSegments: 1,
-              totalSegments: 1,
-              error: null
-            },
             startedAt: Date.now() - 2000,
             finishedAt: Date.now() - 1000
           })
@@ -111,7 +101,6 @@ describe('persistent transcription state', () => {
     // A file written before the quality setting existed gets the caller's fallback.
     expect(restored.settings).toEqual({
       language: 'uk',
-      translationLanguage: 'en',
       quality: 'fast'
     });
     expect(restored.jobs.map(job => job.status)).toEqual(['ready', 'completed']);
@@ -120,7 +109,7 @@ describe('persistent transcription state', () => {
     expect(completed.characters).toBe(12);
     // The transcript itself lives in the document sidecar, never in the list.
     expect(completed.text).toBeNull();
-    expect(completed.translation).toMatchObject({ targetLanguage: 'uk', status: 'completed' });
+    expect(completed).not.toHaveProperty('translation');
   });
 
   it("keeps what was learned about a language, and a person's correction above all", async () => {
@@ -128,7 +117,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'probed',
@@ -179,7 +168,6 @@ describe('persistent transcription state', () => {
     expect(missing.jobs).toEqual([]);
     expect(missing.settings).toEqual({
       language: 'auto',
-      translationLanguage: 'uk',
       quality: 'fast'
     });
 
@@ -188,7 +176,6 @@ describe('persistent transcription state', () => {
     expect(corrupt.jobs).toEqual([]);
     expect(corrupt.settings).toEqual({
       language: 'auto',
-      translationLanguage: 'uk',
       quality: 'accurate'
     });
   });
@@ -198,7 +185,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'mid-run',
@@ -238,7 +225,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'really-failed',
@@ -264,7 +251,7 @@ describe('persistent transcription state', () => {
     await writeFile(source, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({ id: 'queued-1', inputPath: source, status: 'queued' }),
           makeJob({ id: 'analyzing-1', inputPath: source, status: 'analyzing' })
@@ -286,7 +273,7 @@ describe('persistent transcription state', () => {
     await writeDocument('kept-completed');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           // Waiting job whose source vanished between restarts (e.g. tmp file).
           makeJob({ id: 'gone-ready', inputPath: path.join(directory, 'gone.mp3') }),
@@ -320,7 +307,7 @@ describe('persistent transcription state', () => {
     const document = await writeDocument('cached-1', 'Cached transcript line.');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({
             id: 'cached-1',
@@ -346,7 +333,7 @@ describe('persistent transcription state', () => {
     await writeFile(imported, 'media');
     await saveTranscriptionState(
       {
-        settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+        settings: { language: 'auto', quality: 'fast' },
         jobs: [
           makeJob({ id: 'upload-1', inputPath: imported, sourceKind: 'uploaded', sourceKey: 'sig' })
         ]
@@ -385,13 +372,6 @@ describe('persistent transcription state', () => {
 
     const restored = await loadTranscriptionState(stateFile);
     expect(restored.jobs).toHaveLength(1);
-    expect(restored.jobs[0].translation).toEqual({
-      targetLanguage: 'uk',
-      status: 'unavailable',
-      progress: null,
-      completedSegments: 0,
-      totalSegments: 0,
-      error: 'TRANSLATOR_UNAVAILABLE'
-    });
+    expect(restored.jobs[0]).not.toHaveProperty('translation');
   });
 });

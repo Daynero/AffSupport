@@ -10,35 +10,22 @@ import {
 const entries: TranscriptionCopyEntry[] = [
   {
     fileName: 'promo.mp4',
-    transcript: '  Перший текст.  ',
-    translation: { languageName: 'English', text: 'First text.' }
+    transcript: '  Перший текст.  '
   },
   {
     fileName: 'raw.mov',
-    transcript: 'Другий текст.\nНаступний рядок.',
-    translation: null
+    transcript: 'Другий текст.\nНаступний рядок.'
   }
 ];
 
 function formatted(language: Language, content: TranscriptionCopyContent) {
   return formatTranscriptionBatch(entries, content, {
     heading: number => translate(language, 'transcriptionBatchHeading', { number }),
-    transcript: translate(language, 'transcriptionCopyTranscriptLabel'),
-    translation: translate(language, 'transcriptionCopyTranslationLabel')
+    transcript: translate(language, 'transcriptionCopyTranscriptLabel')
   });
 }
 
 describe('copying a batch of transcripts', () => {
-  it('names the file and labels both halves when translations are included', () => {
-    expect(formatted('uk', 'both')).toBe(
-      'Транскрипція 1: promo.mp4\n' +
-        'Транскрипція:\nПерший текст.\n\n' +
-        'Переклад (English):\nFirst text.\n\n' +
-        'Транскрипція 2: raw.mov\n' +
-        'Транскрипція:\nДругий текст.\nНаступний рядок.'
-    );
-  });
-
   it('copies bare transcripts without labels when only the transcript is wanted', () => {
     expect(formatted('en', 'transcript')).toBe(
       'Transcript 1: promo.mp4\nПерший текст.\n\n' +
@@ -46,17 +33,8 @@ describe('copying a batch of transcripts', () => {
     );
   });
 
-  it('skips untranslated files and renumbers the rest without gaps', () => {
-    expect(formatted('en', 'translation')).toBe(
-      'Transcript 1: promo.mp4 · Translation (English)\nFirst text.'
-    );
-  });
-
   it('reports which files contribute to the chosen mode', () => {
-    expect(entries.map(entry => hasCopyContent(entry, 'both'))).toEqual([true, true]);
-    expect(entries.map(entry => hasCopyContent(entry, 'translation'))).toEqual([true, false]);
-    expect(
-      hasCopyContent({ fileName: 'x', transcript: '   ', translation: null }, 'transcript')
-    ).toBe(false);
+    expect(entries.map(entry => hasCopyContent(entry, 'transcript'))).toEqual([true, true]);
+    expect(hasCopyContent({ fileName: 'x', transcript: '   ' }, 'transcript')).toBe(false);
   });
 });

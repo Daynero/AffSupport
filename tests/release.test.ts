@@ -166,7 +166,8 @@ describe('release identity', () => {
     expect(toolContractCompatible('transcription', { transcription: 2 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 3 })).toBe(false);
     expect(toolContractCompatible('transcription', { transcription: 4 })).toBe(false);
-    expect(toolContractCompatible('transcription', { transcription: 5 })).toBe(true);
+    expect(toolContractCompatible('transcription', { transcription: 5 })).toBe(false);
+    expect(toolContractCompatible('transcription', { transcription: 6 })).toBe(true);
     expect(toolContractCompatible('teamWorkspace', {})).toBe(false);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 2 })).toBe(true);

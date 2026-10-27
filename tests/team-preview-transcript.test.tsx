@@ -127,7 +127,7 @@ describe('PreviewPane transcript block (012, T016/T017)', () => {
     );
   });
 
-  it('surfaces view/copy for the transcript and its translation, plus re-transcribe', async () => {
+  it('uses only original text even when a legacy response includes translation', async () => {
     renderPane({
       sourceVersion: '1',
       canProcess: true,
@@ -143,7 +143,7 @@ describe('PreviewPane transcript block (012, T016/T017)', () => {
         },
         {
           materialId: 'c-uk',
-          kind: 'translation',
+          kind: 'translation' as never,
           language: 'uk',
           ingestState: 'full',
           truncated: false,
@@ -156,12 +156,9 @@ describe('PreviewPane transcript block (012, T016/T017)', () => {
     expect(screen.getByRole('button', { name: 'Copy text' })).toBeTruthy();
     // Short on screen in the narrow pane, named in full for a screen reader (024).
     expect(screen.getByRole('button', { name: 'Redo the transcript' })).toBeTruthy();
-    // A menu lets you pick the original or the translation, and ticks the one
-    // in use (021, T133: it was an unlabelled `<select>`).
-    await userEvent.click(screen.getByRole('button', { name: 'uk translation' }));
-    expect(screen.getByRole('menuitemradio', { name: 'Original transcript' })).toBeTruthy();
-    expect(
-      screen.getByRole('menuitemradio', { name: 'uk translation', checked: true })
-    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'uk translation' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'View text' }));
+    expect(screen.getByRole('dialog').textContent).toContain('hello');
+    expect(screen.getByRole('dialog').textContent).not.toContain('привіт');
   });
 });

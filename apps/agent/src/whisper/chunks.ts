@@ -1,4 +1,4 @@
-import { lexicalUnitSpans } from '../translation/segmentation.js';
+import { lexicalUnitSpans } from '../transcription/segmentation.js';
 import type { WhisperWord } from './words.js';
 
 export interface AudioChunk {

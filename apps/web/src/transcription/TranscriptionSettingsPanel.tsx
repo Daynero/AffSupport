@@ -116,8 +116,7 @@ export const TranscriptionSettingsPanel = memo(function TranscriptionSettingsPan
                 {t('transcriptionLanguageHint')}
               </Tooltip>
             </div>
-            {/* The same searchable picker the translation target uses, so there is one way
-              to choose a language in this tool. */}
+            {/* Searchable speech language picker. */}
             <LanguageCombobox
               value={settings.language}
               codes={TRANSCRIPTION_LANGUAGE_CODES}

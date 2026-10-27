@@ -40,7 +40,6 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'pairing-token-boot.test.ts': 'a zero-delay macrotask yield for a BroadcastChannel delivery',
   'journal-forwarder.test.ts': 'a zero-delay macrotask yield for the lazily imported agent client',
   'session-handoff-screens.test.tsx': 'a zero-delay yield before asserting no navigation happened',
-  'transcription-translation.test.ts': 'a zero-delay yield named `tick`',
   'team-ux-feedback.test.tsx': 'a delay before asserting a toast did not re-fire',
   'team-restitch-prepare.test.ts':
     'a stub probe whose overlap, and its cut-off mid-way, are the assertions',

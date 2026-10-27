@@ -130,18 +130,7 @@ for (const input of inputs) {
 const repositoryInputs = [
   { source: 'apps/agent/dist', target: 'agent/dist', via: 'stageAgentRuntime' },
   { source: 'apps/web/dist', target: 'web/dist' },
-  { source: 'THIRD_PARTY_NOTICES.md', target: 'THIRD_PARTY_NOTICES.md' },
-  { source: 'packaging/licenses/llama.cpp-LICENSE', target: 'licenses/llama.cpp-LICENSE' },
-  { source: 'packaging/licenses/GEMMA_TERMS.md', target: 'licenses/GEMMA_TERMS.md' },
-  {
-    source: 'packaging/licenses/GEMMA_PROHIBITED_USE_POLICY.md',
-    target: 'licenses/GEMMA_PROHIBITED_USE_POLICY.md'
-  },
-  { source: 'packaging/licenses/NOTICE-Gemma.txt', target: 'licenses/NOTICE-Gemma.txt' },
-  {
-    source: 'packaging/licenses/multilingual-e5-small-MIT.txt',
-    target: 'licenses/multilingual-e5-small-MIT.txt'
-  }
+  { source: 'THIRD_PARTY_NOTICES.md', target: 'THIRD_PARTY_NOTICES.md' }
 ];
 
 if (dryRun) {

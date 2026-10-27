@@ -5166,6 +5166,24 @@ export type GeneratedDatabase = {
         ComputedFields: never;
         Relationships: [];
       };
+      analytics_translation_retirement: {
+        Row: {
+          actor_id: string | null;
+          attempt_id: string | null;
+          created_at: string | null;
+          entity_id: string | null;
+          entity_kind: string | null;
+          error_code: string | null;
+          operation_id: string | null;
+          requirement_id: string | null;
+          retirement_api_version: number | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
       analytics_users: {
         Row: {
           account_status: string | null;

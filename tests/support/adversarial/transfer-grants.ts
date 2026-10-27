@@ -89,6 +89,7 @@ async function createDatabase(): Promise<PGlite> {
     create table public.teams (id uuid primary key);
     create table public.team_materials (id uuid primary key, team_id uuid not null);
     create table public.team_operations (id uuid primary key, team_id uuid, actor_id uuid);
+    create table private.team_operation_intents (operation_id uuid primary key, tool_id text);
     create table private.stub_permissions (
       team_id uuid not null, actor_id uuid not null, permission text not null
     );
@@ -159,7 +160,8 @@ async function startGrantTarget(): Promise<GrantTarget & { stop(): Promise<void>
   database ??= createDatabase();
   const db = await database;
   await db.exec(`
-    truncate private.team_transfer_grants, private.stub_permissions, public.team_materials, public.teams;
+    truncate private.team_transfer_grants, private.team_operation_intents,
+      private.stub_permissions, public.team_materials, public.teams;
     insert into public.teams values ('${TEAM_A}'), ('${TEAM_B}');
     insert into public.team_materials values ('${MATERIAL_A}', '${TEAM_A}'), ('${MATERIAL_B}', '${TEAM_B}');
     insert into private.stub_permissions

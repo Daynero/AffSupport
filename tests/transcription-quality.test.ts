@@ -96,7 +96,7 @@ describe('transcript preview', () => {
 });
 
 describe('restart-safe translation requests', () => {
-  it('keeps a translation that was running as queued, so it resumes on boot', async () => {
+  it('discards running legacy translation on boot while retaining the original', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'soty-transcription-store-'));
     const documents = path.join(dir, 'docs');
     process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH = documents;
@@ -140,14 +140,7 @@ describe('restart-safe translation requests', () => {
       expect(restored.jobs).toHaveLength(1);
       expect(restored.jobs[0].quality).toBe('fast');
       expect(restored.jobs[0].preview).toBe('The opening words.');
-      expect(restored.jobs[0].translation).toEqual({
-        targetLanguage: 'de',
-        status: 'queued',
-        progress: null,
-        completedSegments: 0,
-        totalSegments: 10,
-        error: null
-      });
+      expect(restored.jobs[0]).not.toHaveProperty('translation');
     } finally {
       delete process.env.AGENT_TRANSCRIBE_DOCUMENTS_PATH;
       await removeTemporaryDirectory(dir);

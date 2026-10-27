@@ -26,11 +26,6 @@ for name in ffmpeg ffprobe; do binary="$app/Contents/Resources/runtime/bin/$name
 whisper_cli="$app/Contents/Resources/runtime/bin/whisper-cli"
 [[ -x "$whisper_cli" && -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
 file "$whisper_cli" | grep -q arm64
-[[ ! -e "$app/Contents/Resources/runtime/llama" ]]
-[[ -f "$app/Contents/Resources/licenses/llama.cpp-LICENSE" ]]
-for notice in GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt multilingual-e5-small-MIT.txt; do
-  [[ -s "$app/Contents/Resources/licenses/$notice" ]]
-done
 [[ -f apps/web/dist/index.html && -f "$app/Contents/Resources/agent/dist/index.js" ]]
 diff -qr apps/agent/dist "$app/Contents/Resources/agent/dist" >/dev/null
 diff -qr apps/web/dist "$app/Contents/Resources/web/dist" >/dev/null

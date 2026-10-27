@@ -29,8 +29,7 @@ import type {
   LandingJobStatus,
   LandingPreviewItemStatus,
   MediaActionStatus,
-  TranscriptionJobStatus,
-  TranslationStatus
+  TranscriptionJobStatus
 } from './types.js';
 import type { StitchStatus } from './stitcher.js';
 
@@ -214,7 +213,7 @@ export const TRANSCRIPTION_LIFECYCLE: Lifecycle<TranscriptionJobStatus> = define
     // back into the list the way abandoning a compression batch does. `failed` is for a run
     // that cannot start at all — its model deleted or its download cancelled after it was
     // queued — because a job that can neither run nor fail sits in the queue for the life
-    // of the process and holds every translation behind it.
+    // of the process and blocks the remaining work.
     queued: ['processing', 'cancelled', 'failed'],
     processing: ['completed', 'failed', 'cancelled', 'interrupted'],
     completed: ['queued'],
@@ -223,39 +222,6 @@ export const TRANSCRIPTION_LIFECYCLE: Lifecycle<TranscriptionJobStatus> = define
     interrupted: ['queued']
   },
   settled: ['completed', 'failed', 'cancelled', 'interrupted']
-});
-
-/**
- * A sub-run of a transcription. Its outcomes really are final.
- *
- * `processing → queued` is preemption, not failure: a translation yields its turn when the
- * transcription it belongs to needs the machine, and resumes from the segments it had
- * already produced. Recording that as a failure would have shown the user an error for
- * something the application did on purpose.
- *
- * `failed → queued` is a retry. It looks like an edit but is a replacement: a re-request
- * builds a fresh document and drops it in, so the move is decided against the one it
- * replaces. Completion has no such edge — re-asking for a language that already has a
- * finished translation returns that translation instead of running it again, which the
- * driver for the edge discovered by never being able to reach it.
- */
-export const TRANSLATION_LIFECYCLE: Lifecycle<TranslationStatus> = defineLifecycle({
-  id: 'translation',
-  initial: 'queued',
-  transitions: {
-    // `failed` from `queued` is a cancel: the person stopped a translation that had not
-    // started. Without the edge the cancel was refused, the document stayed queued, and
-    // the next restart or model install quietly ran it after all.
-    queued: ['processing', 'failed'],
-    processing: ['completed', 'failed', 'queued'],
-    // A translation that finished is done: asking for the same language again returns the
-    // one that exists rather than re-running it, so `completed` really has nowhere to go.
-    // A translation that broke can be asked for again, and that re-request replaces the
-    // document rather than editing it — which is why it is a transition at all.
-    completed: [],
-    failed: ['queued']
-  },
-  settled: ['completed', 'failed']
 });
 
 /**
@@ -382,7 +348,6 @@ export const STITCH_LIFECYCLE: Lifecycle<StitchStatus> = defineLifecycle({
 export const LIFECYCLES = [
   COMPRESSION_LIFECYCLE,
   TRANSCRIPTION_LIFECYCLE,
-  TRANSLATION_LIFECYCLE,
   LANDING_JOB_LIFECYCLE,
   LANDING_ASSET_LIFECYCLE,
   LANDING_PREVIEW_ITEM_LIFECYCLE,

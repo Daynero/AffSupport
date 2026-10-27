@@ -253,7 +253,7 @@ function guardTermination(governor: ManagedSpawnGovernor | null, child: ChildPro
 /**
  * The governor this process is running under.
  *
- * Spawn sites buried several call frames deep (whisper, the translators, the
+ * Spawn sites buried several call frames deep (whisper and the
  * static-edge detector) would otherwise have to thread a governor through every
  * intermediate signature, touching dozens of call sites and tests for no
  * behavioural gain. There is exactly one machine, so exactly one budget: a

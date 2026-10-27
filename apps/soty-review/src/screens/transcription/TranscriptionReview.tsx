@@ -9,7 +9,6 @@ export function TranscriptionReview(props: ScreenProps) {
       <section className="soty-panel">
         <h2>Текст</h2>
         <blockquote>{transcriptPreview}</blockquote>
-        <p>Переклад: локальний демонстраційний результат.</p>
       </section>
       <Disclosure
         open={Boolean(props.model.advanced)}

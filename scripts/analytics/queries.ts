@@ -1,3 +1,8 @@
+import { getOriginalJournalEvidence, inspectOriginalJournal } from './transcription-journal.js';
+import {
+  getTranslationRetirementEvidence,
+  inspectTranslationRetirement
+} from './library-retirement.js';
 import { getRecoveryRetirementEvidence, inspectRecoveryRetirement } from './recovery-retirement.js';
 import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
 import {
@@ -1769,9 +1774,22 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     uncovered: 0,
     declared_but_never_emitted: 0
   };
-  for (const capability of capabilities) summary[capability.status] += 1;
+  for (const capability of capabilities) {
+    if (capability.id === 'transcription.translate')
+      capability.current_lifecycle = {
+        retired_since_api_version: 6,
+        historical_coverage: 'unknown'
+      };
+    summary[capability.status] += 1;
+  }
 
   return {
+    translation_retirement: await getTranslationRetirementEvidence(
+      null,
+      period.start,
+      period.end,
+      'all'
+    ),
     registry_size: COVERAGE_REGISTRY.length,
     capabilities,
     unknown_codes: unknownCodes,
@@ -2144,10 +2162,37 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
-  const [core, retirement] = await Promise.all([
+  const [core, retirement, translation, initialOriginal] = await Promise.all([
     getInspectCore(id, asOf, limit),
-    getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z')
+    getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z'),
+    getTranslationRetirementEvidence(id, null, asOf ?? new Date().toISOString(), 'identity', limit),
+    getOriginalJournalEvidence(id, asOf ?? new Date().toISOString())
   ]);
+  let original = initialOriginal;
+  if (core.found && original.attempts.length === 0 && original.supported) {
+    const bindings = [
+      ...new Set(
+        core.events
+          .map(event => event.run_id)
+          .filter(
+            (run): run is string =>
+              typeof run === 'string' &&
+              run !== id &&
+              /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(run)
+          )
+      )
+    ];
+    if (bindings.length === 1)
+      original = await getOriginalJournalEvidence(
+        bindings[0]!,
+        asOf ?? new Date().toISOString(),
+        id
+      );
+    else if (bindings.length > 1)
+      original.blind_spots.push(
+        'Multiple operation bindings; inspect an operation ID for native transcription stages.'
+      );
+  }
   const receiptInspection = inspectRecoveryRetirement(id, retirement);
   // A browser acknowledgement is not the terminal of native protected-key cleanup.
   // Preserve an unrelated operation/launch if the opaque identifier also matches it.
@@ -2160,10 +2205,22 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
         !core.accounts &&
         core.events.every(event => event.properties.flow_step === 'recovery_retirement_ack')))
   )
-    return receiptInspection;
-  if (core.found)
-    return retirement.receipts.length ? { ...core, recovery_retirement: retirement } : core;
-  return core;
+    return { ...receiptInspection, translation_retirement: translation };
+  if (!core.found)
+    return (
+      inspectOriginalJournal(id, original) ??
+      inspectTranslationRetirement(id, translation) ?? {
+        ...core,
+        translation_retirement: translation,
+        transcription_original: original
+      }
+    );
+  return {
+    ...core,
+    transcription_original: original,
+    translation_retirement: translation,
+    ...(core.found && retirement.receipts.length ? { recovery_retirement: retirement } : {})
+  };
 }
 
 async function getInspectCore(id: string, asOf?: string, limit = 500): Promise<InspectData> {

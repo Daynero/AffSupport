@@ -93,5 +93,7 @@ describe('a health answer without a protocol version (032 FR-014)', () => {
     const result = await connect();
     expect(result.heartbeatMs).toBe(15000);
     expect(result.apiVersion).toBe(5);
+    expect(result.state).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1); // Health only; API5 cannot reach a tool queue.
   });
 });

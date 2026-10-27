@@ -5,7 +5,7 @@ import {
   stitchChunkText,
   transcriptionChunks
 } from '../apps/agent/src/whisper/chunks.js';
-import { lexicalUnitSpans } from '../apps/agent/src/translation/segmentation.js';
+import { lexicalUnitSpans } from '../apps/agent/src/transcription/segmentation.js';
 
 describe('bounded speech decoding', () => {
   it('does not reintroduce Indic token exhaustion through wide recovery context', () => {

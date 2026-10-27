@@ -33,7 +33,6 @@ function job(id: string, inputPath: string, status: TranscriptionJob['status']):
     detectedLanguage: 'en',
     text: status === 'completed' ? 'A transcript' : null,
     characters: 12,
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,
@@ -55,11 +54,10 @@ async function makeQueue(jobs: TranscriptionJob[]) {
 describe('transcription queue snapshots and cleanup', () => {
   it('updates local settings and tooling without starting absent models', async () => {
     const subject = await makeQueue([]);
-    subject.updateSettings({ language: 'en', quality: 'accurate', translationDeclined: true });
+    subject.updateSettings({ language: 'en', quality: 'accurate' });
     expect(subject.state().settings).toMatchObject({
       language: 'en',
-      quality: 'accurate',
-      translationDeclined: true
+      quality: 'accurate'
     });
     subject.setToolAvailability({ ffmpeg: true, whisper: false });
     expect(subject.state().tools.ffmpeg).toBe(true);
@@ -67,7 +65,6 @@ describe('transcription queue snapshots and cleanup', () => {
     expect(subject.teamJob('missing')).toBeNull();
     expect(subject.workActive()).toBe(false);
     expect(await subject.sweepCaches()).toMatchObject({
-      translations: expect.any(Number),
       previews: expect.any(Number)
     });
   });
@@ -86,14 +83,16 @@ describe('transcription queue snapshots and cleanup', () => {
   it('keeps private paths and transcript text out of state, but retains restart metadata', async () => {
     const inputPath = path.join(os.tmpdir(), 'snapshot.mp3');
     const restored = job('snapshot', inputPath, 'completed');
-    restored.translation = {
-      targetLanguage: 'uk',
-      status: 'unavailable',
-      progress: null,
-      completedSegments: 0,
-      totalSegments: 0,
-      error: 'TRANSLATOR_UNAVAILABLE'
-    };
+    Object.assign(restored, {
+      translation: {
+        targetLanguage: 'uk',
+        status: 'unavailable',
+        progress: null,
+        completedSegments: 0,
+        totalSegments: 0,
+        error: 'TRANSLATOR_UNAVAILABLE'
+      }
+    });
     const subject = await makeQueue([restored]);
     subject.setInstanceId('agent-1');
     expect(subject.state()).toMatchObject({
@@ -102,14 +101,14 @@ describe('transcription queue snapshots and cleanup', () => {
     });
     expect(subject.persisted().jobs[0]).toMatchObject({
       inputPath,
-      text: null,
-      translation: { status: 'unavailable' }
+      text: null
     });
     expect(await subject.mediaSource('missing')).toBeNull();
     expect(await subject.mediaSource('snapshot')).toBeNull();
     expect(subject.cancelMediaPreview('missing')).toBe(false);
     expect(subject.cancelMediaPreview('snapshot')).toBe(true);
-    expect(await subject.translation('snapshot', 'uk')).toBeNull();
+    expect(subject.state().jobs[0]).not.toHaveProperty('translation');
+    expect(subject.persisted().jobs[0]).not.toHaveProperty('translation');
   });
 
   it('removes selected jobs and clears finished jobs without touching ready work', async () => {

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { CharRange } from './alignment';
+import type { CharRange } from './text-ranges';
 
 /** The karaoke word under the playhead, as a source-segment character range. */
 export interface ActiveWord {
@@ -10,15 +10,6 @@ export interface ActiveWord {
 
 type Listener = () => void;
 
-/**
- * Where the active word lives, outside React's render tree.
- *
- * The playhead moves sixty times a second and the word under it changes a few times a
- * second. Holding that in the viewer's state re-rendered the whole viewer — both columns,
- * thousands of segments' props — on every word. Here the source column marks the word
- * straight in the DOM, and only the one translated segment that mirrors it subscribes and
- * re-renders; every other segment never hears about it.
- */
 export class KaraokeStore {
   private active: ActiveWord | null = null;
   private readonly listeners = new Set<Listener>();

@@ -27,8 +27,8 @@ export type TransitionMode = 'permissive' | 'strict';
  * It shipped permissive, recording every edge the running code actually took and blocking
  * nothing, and that run found four tables describing a machine the code does not implement —
  * a compression re-run goes back to `ready` rather than straight to `queued`, an interrupted
- * run whose encode had finished completes rather than re-encoding, a preempted translation
- * returns to `queued` rather than failing, and a landing job is not re-runnable at all. Those
+ * run whose encode had finished completes rather than re-encoding, and a landing job is not
+ * re-runnable at all. Those
  * were table bugs, fixed in `packages/shared/src/lifecycle.ts`. Enforcing the first draft
  * would have turned each of them into a refusal a user could not get past.
  *

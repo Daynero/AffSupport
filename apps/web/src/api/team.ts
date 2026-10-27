@@ -916,12 +916,10 @@ export interface FolderSubtree {
 export interface LibraryRequirementScanResult {
   created: {
     transcription: number;
-    translation: number;
     landingOptimization: number;
   };
   missing: {
     transcription: number;
-    translation: number;
     landingOptimization: number;
   };
   ready: number;
@@ -1622,10 +1620,8 @@ function libraryScanResult(value: unknown): LibraryRequirementScanResult | null 
   if (!row || !created || !missing || row.started !== false) return null;
   const counts = [
     created.transcription,
-    created.translation,
     created.landingOptimization,
     missing.transcription,
-    missing.translation,
     missing.landingOptimization,
     row.ready
   ];
@@ -1637,12 +1633,10 @@ function libraryScanResult(value: unknown): LibraryRequirementScanResult | null 
   return {
     created: {
       transcription: created.transcription as number,
-      translation: created.translation as number,
       landingOptimization: created.landingOptimization as number
     },
     missing: {
       transcription: missing.transcription as number,
-      translation: missing.translation as number,
       landingOptimization: missing.landingOptimization as number
     },
     ready: row.ready as number,
@@ -1665,7 +1659,7 @@ function libraryJobClaimEnvelope(value: unknown): LibraryJobClaimEnvelope | null
       'leaseToken',
       'leaseExpiresAt'
     ].every(key => typeof row[key] === 'string') ||
-    !['transcription', 'translation', 'landing_optimization'].includes(String(row.kind)) ||
+    !['transcription', 'landing_optimization'].includes(String(row.kind)) ||
     !Number.isFinite(Date.parse(row.leaseExpiresAt as string))
   ) {
     return null;

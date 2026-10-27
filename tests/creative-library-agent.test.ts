@@ -18,15 +18,15 @@ function request() {
     requirementId: '45000000-0000-4000-8000-000000000002',
     attemptId: '45000000-0000-4000-8000-000000000003',
     agentInstanceId: '45000000-0000-4000-8000-000000000004',
-    kind: 'translation' as const,
-    variant: 'uk',
+    kind: 'transcription' as const,
+    variant: 'original',
     sourceVersion: 'v1',
     leaseToken: 'lease-token-with-enough-entropy-123',
     transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
     cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops',
     sourceGrant: grant('process_input'),
     finalizeGrant: grant('finalize'),
-    options: { language: 'auto', targetLanguage: 'uk' }
+    options: { language: 'auto' }
   };
 }
 
@@ -57,8 +57,8 @@ describe('Creative Library local-agent facade', () => {
     expect(process).toHaveBeenCalledWith(
       expect.objectContaining({
         operationId: request().operationId,
-        toolId: 'translation',
-        options: { language: 'auto', targetLanguage: 'uk' }
+        toolId: 'transcription',
+        options: { language: 'auto' }
       })
     );
     finish({
@@ -77,4 +77,16 @@ describe('Creative Library local-agent facade', () => {
     expect(resolveVideoThumbnailTimeMs(600)).toBe(600);
     expect(resolveVideoThumbnailTimeMs(Number.NaN)).toBe(0);
   });
+});
+
+it('refuses a retired library kind before invoking the process delegate', async () => {
+  const process = vi.fn();
+  const bridge = new CreativeLibraryProcessBridge({ process: { process, cancel: vi.fn() } });
+  await expect(
+    bridge.process({ ...request(), kind: 'translation' } as unknown as Parameters<
+      typeof bridge.process
+    >[0])
+  ).rejects.toThrow('FEATURE_RETIRED');
+  expect(process).not.toHaveBeenCalled();
+  expect(bridge.busy()).toBe(false);
 });

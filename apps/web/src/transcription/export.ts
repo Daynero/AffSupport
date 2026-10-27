@@ -1,16 +1,14 @@
-import type { TranscriptSegment, TranslationDocument } from '@video-compressor/shared';
+import type { TranscriptSegment } from '@video-compressor/shared';
 
 /** The file shapes a transcript can leave the tool in. */
 export type TranscriptExportFormat = 'txt' | 'srt' | 'vtt';
 
 /** Which text goes into the file. */
-export type TranscriptExportContent = 'transcript' | 'translation' | 'both';
+export type TranscriptExportContent = 'transcript';
 
 export interface TranscriptExportInput {
   fileName: string;
   segments: readonly TranscriptSegment[];
-  /** The translation to include, when the content asks for one. */
-  translation?: TranslationDocument | null;
   content: TranscriptExportContent;
   format: TranscriptExportFormat;
 }
@@ -74,49 +72,19 @@ function cueSpans(segments: readonly TranscriptSegment[]): Array<{ start: number
   return spans;
 }
 
-function lines(
-  segments: readonly TranscriptSegment[],
-  translatedById: ReadonlyMap<string, string>,
-  content: TranscriptExportContent
-): string[][] {
-  return segments.map(segment => {
-    const source = segment.sourceText.trim();
-    const translated = translatedById.get(segment.id)?.trim() ?? '';
-    if (content === 'transcript') return source ? [source] : [];
-    if (content === 'translation') return translated ? [translated] : [];
-    return [source, translated].filter(Boolean);
-  });
-}
-
-/**
- * Builds one downloadable file from a transcript.
- *
- * Plain text keeps one segment per line — with both languages, the translation follows each
- * line so a reader never has to scroll between two blocks to compare a sentence. Subtitles
- * carry the same pairing inside one cue. Cues with nothing to say are skipped, and the SRT
- * numbering is renumbered after the skip so it stays gap-free.
- */
 export function buildTranscriptExport(input: TranscriptExportInput): TranscriptExportFile {
   if (input.format !== 'txt' && !hasTimings(input.segments)) throw new Error('TIMINGS_REQUIRED');
-  const translatedById = new Map(
-    (input.translation?.status === 'completed' ? input.translation.segments : []).map(
-      segment => [segment.sourceSegmentId, segment.translatedText] as const
-    )
+  const body = input.segments.map(segment =>
+    segment.sourceText.trim() ? [segment.sourceText.trim()] : []
   );
-  const body = lines(input.segments, translatedById, input.content);
   const base = baseFileName(input.fileName);
-  const suffix =
-    input.content === 'translation' && input.translation
-      ? `.${input.translation.targetLanguage}`
-      : input.content === 'both' && input.translation
-        ? `.bilingual`
-        : '';
+  const suffix = '';
 
   if (input.format === 'txt') {
     const text = body
       .filter(entry => entry.length > 0)
       .map(entry => entry.join('\n'))
-      .join(input.content === 'both' ? '\n\n' : '\n');
+      .join('\n');
     return { name: `${base}${suffix}.txt`, mimeType: 'text/plain;charset=utf-8', text };
   }
 

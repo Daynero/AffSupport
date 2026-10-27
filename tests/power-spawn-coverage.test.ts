@@ -99,8 +99,6 @@ describe('managed spawn coverage', () => {
       'media-actions/image-converter.ts',
       'landing/workspace.ts',
       'landing/images.ts',
-      'translation/translator.ts',
-      'translation/aligner.ts',
       'estimate/worker.ts',
       'images/static-edges.ts'
     ];

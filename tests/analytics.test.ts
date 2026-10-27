@@ -241,16 +241,25 @@ describe('privacy-minimized analytics', () => {
     expect(events).toEqual([
       {
         name: 'input_add_completed',
-        properties: { tool_identifier: 'transcription', file_count: 1 }
+        properties: {
+          tool_identifier: 'transcription',
+          flow_step: 'transcription_original',
+          file_count: 1
+        }
       },
       {
         name: 'operation_started',
-        properties: { tool_identifier: 'transcription', file_count: 1 }
+        properties: {
+          tool_identifier: 'transcription',
+          flow_step: 'transcription_original',
+          file_count: 1
+        }
       },
       {
         name: 'operation_completed',
         properties: {
           tool_identifier: 'transcription',
+          flow_step: 'transcription_original',
           file_count: 1,
           success: true,
           outcome: 'success'

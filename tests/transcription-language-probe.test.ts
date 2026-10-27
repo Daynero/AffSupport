@@ -27,7 +27,6 @@ function job(patch: Partial<TranscriptionJob>): TranscriptionJob {
     detectedLanguage: null,
     text: null,
     characters: null,
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,

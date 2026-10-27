@@ -1,11 +1,10 @@
 import type { PathLike } from 'node:fs';
-import { access, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { replaceFile } from '../apps/agent/src/files/replace-file.js';
 import { TranscriptionQueue } from '../apps/agent/src/queue/transcription-queue.js';
-import { saveWithTranslation } from '../apps/agent/src/transcription/export.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const directories: string[] = [];
@@ -65,40 +64,6 @@ describe('replacing a file', () => {
       })
     ).rejects.toMatchObject({ code: 'ENOENT' });
     expect(missing).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('saving beside the source', () => {
-  it('leaves nothing behind when the media cannot be moved', async () => {
-    const directory = await scratch('soty-export-');
-    const source = path.join(directory, 'gone.mp4');
-    await expect(
-      saveWithTranslation({
-        sourcePath: source,
-        languageLabel: 'English',
-        transcriptText: 'Hello.',
-        translationText: 'Привіт.',
-        transcriptFileName: 'Transcript.txt'
-      })
-    ).rejects.toMatchObject({ code: 'ENOENT' });
-    // The folder was claimed and the transcript written before the move failed; both go.
-    expect(await readdir(directory)).toEqual([]);
-  });
-
-  it('moves the media only after the transcript is on disk', async () => {
-    const directory = await scratch('soty-export-');
-    const source = path.join(directory, 'clip.mp4');
-    await writeFile(source, Buffer.alloc(16));
-    const result = await saveWithTranslation({
-      sourcePath: source,
-      languageLabel: 'English',
-      transcriptText: 'Hello.',
-      translationText: 'Привіт.',
-      transcriptFileName: 'Transcript.txt'
-    });
-    await access(result.movedMediaPath);
-    await access(path.join(result.folderPath, 'Transcript.txt'));
-    await expect(access(source)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

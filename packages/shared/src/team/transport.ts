@@ -30,9 +30,13 @@ export const TEAM_ACCOUNT_ERROR_CODES = [
 /** Additive process-recovery catalog; never regenerate the applied baseline seed. */
 export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
 
+/** 046 additive retirement catalog, installed by the cutover migration. */
+export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
+
 export const TEAM_ERROR_CODES = [
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
+  ...TEAM_RETIREMENT_ERROR_CODES,
   'LAUNCH_VERSION_CONFLICT',
   'LAUNCH_BUSY',
   'LAUNCH_URL_INVALID',

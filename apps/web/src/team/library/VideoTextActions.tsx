@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { recordOriginalResultDelivery } from './original-result-analytics';
 import type { LibraryVideoTextVariant, LibraryVideoTextVariants } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button, DropdownMenu } from '../../components/ui/index';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { MediaActionIcon } from './mediaActionIcons';
 
@@ -47,8 +48,7 @@ export function VideoTextActions({
   const [viewing, setViewing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [variantsOpen, setVariantsOpen] = useState(false);
-  const variantTrigger = useRef<HTMLButtonElement>(null);
+  const visibleAttempts = useRef(new Set<string>());
 
   useEffect(() => {
     let active = true;
@@ -57,9 +57,11 @@ export function VideoTextActions({
       .listVideoTextVariants(teamId, videoId)
       .then(value => {
         if (!active) return;
-        setPayload(value);
-        const preferred =
-          value.variants.find(variant => variant.kind === 'translation') ?? value.variants[0];
+        setPayload({
+          ...value,
+          variants: value.variants.filter(variant => variant.kind === 'original')
+        });
+        const preferred = value.variants.find(variant => variant.kind === 'original');
         setSelectedMaterialId(preferred?.materialId ?? null);
       })
       .catch(() => {
@@ -80,10 +82,23 @@ export function VideoTextActions({
   const text = currentText(selected);
   const readyVariants = payload?.variants.filter(variant => currentText(variant) !== null) ?? [];
 
+  useEffect(() => {
+    if (
+      !viewing ||
+      !text ||
+      !selected?.attemptId ||
+      visibleAttempts.current.has(selected.attemptId)
+    )
+      return;
+    visibleAttempts.current.add(selected.attemptId);
+    recordOriginalResultDelivery(selected, 'visible');
+  }, [viewing, text, selected]);
+
   const copy = async () => {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
+      if (selected) recordOriginalResultDelivery(selected, 'copied');
       setCopied(true);
       onCopied?.();
       window.setTimeout(() => setCopied(false), 1_500);
@@ -107,43 +122,8 @@ export function VideoTextActions({
     ) : null;
   }
 
-  const variantLabel = (variant: LibraryVideoTextVariant) =>
-    variant.kind === 'original'
-      ? t('creativeLibraryTextOriginal')
-      : t('creativeLibraryTextTranslation', { language: variant.language });
-
   return (
     <div className="creative-library-text-actions">
-      {readyVariants.length > 1 && (
-        <>
-          {/* One question with one answer, so the menu ticks the current one
-              and closes on the choice. */}
-          <Button
-            ref={variantTrigger}
-            color="neutral"
-            variant="outline"
-            size="sm"
-            aria-haspopup="menu"
-            aria-expanded={variantsOpen}
-            onClick={() => setVariantsOpen(current => !current)}
-          >
-            {selected ? variantLabel(selected) : t('creativeLibraryTextVariant')}
-          </Button>
-          <DropdownMenu
-            open={variantsOpen}
-            onClose={() => setVariantsOpen(false)}
-            anchor={variantTrigger}
-            label={t('creativeLibraryTextVariant')}
-            selection="single"
-            items={readyVariants.map(variant => ({
-              id: variant.materialId,
-              label: variantLabel(variant),
-              checked: variant.materialId === selectedMaterialId,
-              onSelect: () => setSelectedMaterialId(variant.materialId)
-            }))}
-          />
-        </>
-      )}
       <Button
         color="neutral"
         variant="outline"

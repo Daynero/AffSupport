@@ -270,10 +270,7 @@ describe('transcription', () => {
       running: job.status === 'processing',
       tools: { ffmpeg: true, whisper: true, model: true },
       model: MODEL,
-      translatorModel: MODEL,
-      translatorRuntime: MODEL,
-      alignmentModel: MODEL,
-      settings: { language: 'uk', translationLanguage: 'uk', quality: 'fast' }
+      settings: { language: 'uk', quality: 'fast' }
     } as TranscriptionState;
   }
 

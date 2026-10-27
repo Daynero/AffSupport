@@ -3,6 +3,7 @@ import type { AnalyticsEventName, AnalyticsProperties, AnalyticsTool } from './e
 export interface ToolJobSnapshot {
   id: string;
   status: string;
+  attemptId?: string;
 }
 
 export interface ToolJobLifecycle {
@@ -53,7 +54,16 @@ export function toolJobActivityEvents<Job extends ToolJobSnapshot>(
   const events: ToolActivityEvent[] = [];
   const runOf = (job: Job) => {
     const runId = analyticsRunId(job.id);
-    return runId ? { run_id: runId } : {};
+    return {
+      ...(runId ? { run_id: runId } : {}),
+      ...(tool === 'transcription'
+        ? {
+            flow_step: 'transcription_original',
+            ...(runId ? { flow_id: runId } : {}),
+            ...(analyticsRunId(job.attemptId) ? { attempt_id: job.attemptId } : {})
+          }
+        : {})
+    };
   };
 
   if (added.length) {

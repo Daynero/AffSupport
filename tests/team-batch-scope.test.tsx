@@ -32,8 +32,8 @@ afterEach(() => {
 function stubClient(): ProcessLibraryClient {
   return {
     scanLibraryRequirements: vi.fn().mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
-      missing: { transcription: 2, translation: 0, landingOptimization: 0 },
+      created: { transcription: 0, landingOptimization: 0 },
+      missing: { transcription: 2, landingOptimization: 0 },
       ready: 0,
       started: false
     }),
@@ -58,7 +58,11 @@ const agent: ProcessLibraryAgent = {
 function mount(
   client: ProcessLibraryClient,
   sources: string[],
-  scope: React.ComponentProps<typeof ProcessLibraryDialog>['scope']
+  scope: React.ComponentProps<typeof ProcessLibraryDialog>['scope'],
+  contracts: React.ComponentProps<typeof LibraryProcessingProvider>['toolContracts'] = {
+    teamWorkspace: 1,
+    transcription: 6
+  }
 ) {
   return render(
     <ToastProvider>
@@ -67,7 +71,7 @@ function mount(
         sourceMaterialIds={sources}
         scope={scope}
         agentAvailability="ready"
-        toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+        toolContracts={contracts}
         client={client}
         agent={agent}
         agentInstanceId={THIRD}
@@ -82,8 +86,8 @@ describe('the batch window and its scope', () => {
   it('refreshes every landing preview in a folder only when that choice is started', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
-      missing: { transcription: 0, translation: 0, landingOptimization: 0 },
+      created: { transcription: 0, landingOptimization: 0 },
+      missing: { transcription: 0, landingOptimization: 0 },
       ready: 0,
       started: false
     });
@@ -108,8 +112,8 @@ describe('the batch window and its scope', () => {
   it('collects landing previews across every space search page', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
-      missing: { transcription: 0, translation: 0, landingOptimization: 0 },
+      created: { transcription: 0, landingOptimization: 0 },
+      missing: { transcription: 0, landingOptimization: 0 },
       ready: 0,
       started: false
     });
@@ -179,8 +183,8 @@ describe('the batch window and its scope', () => {
   it('shows only the work this computer will claim, and names the rest', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
-      missing: { transcription: 2, translation: 0, landingOptimization: 4 },
+      created: { transcription: 0, landingOptimization: 0 },
+      missing: { transcription: 2, landingOptimization: 4 },
       ready: 0,
       started: false
     });
@@ -193,7 +197,7 @@ describe('the batch window and its scope', () => {
           agentAvailability="ready"
           // No landing tool on this device, so its four landing jobs are not
           // this batch's to promise.
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -240,7 +244,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[]}
           scope={{ kind: 'space' }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -261,7 +265,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'selection', count: 2 }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -284,10 +288,10 @@ describe('the batch window and its scope', () => {
   it('reads the running batch when telling which counts to show', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
+      created: { transcription: 0, landingOptimization: 0 },
       // A space batch shows all three tiles, zeroes included: there the zero is
       // the answer to a question that was asked.
-      missing: { transcription: 3, translation: 0, landingOptimization: 0 },
+      missing: { transcription: 3, landingOptimization: 0 },
       ready: 0,
       started: false
     });
@@ -299,7 +303,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[]}
           scope={{ kind: 'space' }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5, landingOptimizer: 2 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6, landingOptimizer: 2 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -312,7 +316,7 @@ describe('the batch window and its scope', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
     await screen.findByText('Stop processing');
     expect(screen.getAllByRole('group', { name: 'What to run' })).toHaveLength(1);
-    expect(screen.getByText('Translations')).toBeTruthy();
+    expect(screen.queryByText('Translations')).toBeNull();
 
     // Asking for a narrower scope mid-run must not quietly drop the running
     // batch's own zero-count tiles.
@@ -323,7 +327,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'selection', count: 1 }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5, landingOptimizer: 2 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6, landingOptimizer: 2 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -332,7 +336,7 @@ describe('the batch window and its scope', () => {
         </LibraryProcessingProvider>
       </ToastProvider>
     );
-    expect(screen.getByText('Translations')).toBeTruthy();
+    expect(screen.queryByText('Translations')).toBeNull();
   });
 
   it('renames itself when the same files are asked for under a different name', async () => {
@@ -344,7 +348,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'folder', name: 'spy joints' }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -364,7 +368,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[FIRST, SECOND]}
           scope={{ kind: 'selection', count: 2 }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -381,8 +385,8 @@ describe('the batch window and its scope', () => {
   it('never calls work it cannot do "already processed"', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
-      missing: { transcription: 20, translation: 0, landingOptimization: 4 },
+      created: { transcription: 0, landingOptimization: 0 },
+      missing: { transcription: 20, landingOptimization: 4 },
       ready: 0,
       started: false
     });
@@ -394,7 +398,7 @@ describe('the batch window and its scope', () => {
           scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 20 }}
           agentAvailability="ready"
           // No landing tool: the four landing jobs are not this device's to run.
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -421,10 +425,10 @@ describe('the batch window and its scope', () => {
   it('counts the videos that already have a transcript, in videos', async () => {
     const client = stubClient();
     (client.scanLibraryRequirements as ReturnType<typeof vi.fn>).mockResolvedValue({
-      created: { transcription: 0, translation: 0, landingOptimization: 0 },
+      created: { transcription: 0, landingOptimization: 0 },
       // Two of the twenty-four videos are transcribed, and one of those has a
       // translation waiting: jobs and files stop being the same number here.
-      missing: { transcription: 22, translation: 1, landingOptimization: 0 },
+      missing: { transcription: 22, landingOptimization: 0 },
       ready: 0,
       started: false
     });
@@ -435,7 +439,7 @@ describe('the batch window and its scope', () => {
           sourceMaterialIds={[FIRST]}
           scope={{ kind: 'folder', name: 'spy joints', folders: 5, files: 24, videos: 24 }}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={THIRD}
@@ -476,12 +480,17 @@ describe('the batch window and its scope', () => {
 
   it('runs only the work that is ticked (024)', async () => {
     const client = stubClient();
-    mount(client, [FIRST], { kind: 'selection', count: 1 });
+    mount(
+      client,
+      [FIRST],
+      { kind: 'selection', count: 1 },
+      { teamWorkspace: 1, transcription: 6, landingOptimizer: 2 }
+    );
     // A kind with nothing to do cannot be ticked.
-    const translations = (await screen.findByRole('checkbox', {
-      name: /Translations/u
+    const unavailable = (await screen.findByRole('checkbox', {
+      name: /Landing optimizations/u
     })) as HTMLInputElement;
-    expect(translations.disabled).toBe(true);
+    expect(unavailable.disabled).toBe(true);
     // Unticking the only work there is leaves nothing to start.
     fireEvent.click(screen.getByRole('checkbox', { name: /Transcriptions/u }));
     const start = (await screen.findByRole('button', { name: 'Start · 0' })) as HTMLButtonElement;

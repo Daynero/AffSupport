@@ -21,8 +21,7 @@ import {
   toolErrorProperties,
   trackToolError,
   transcriptionErrorStage,
-  transcriptionFailureError,
-  transcriptionTranslationErrors
+  transcriptionFailureError
 } from '../apps/web/src/analytics/errors';
 import {
   compressionErrorCode,
@@ -322,30 +321,6 @@ describe('agent codes for every tool (033 T006)', () => {
     expect(transcriptionFailureError({ status: 'interrupted' }, RUN)).toMatchObject({
       error_fingerprint: 'transcription:transcribe:INTERRUPTED'
     });
-  });
-
-  it('reports a failed translation once, and never a cancelled one', () => {
-    const translation = (status: 'processing' | 'failed', error: string | null) => ({
-      targetLanguage: 'uk',
-      status,
-      progress: null,
-      completedSegments: 0,
-      totalSegments: 0,
-      error: error as 'TRANSLATION_FAILED' | null
-    });
-    const before = [{ id: RUN, translation: translation('processing', null) }];
-    const failed = [{ id: RUN, translation: translation('failed', 'TRANSLATION_FAILED') }];
-    expect(transcriptionTranslationErrors(before, failed, () => RUN)).toEqual([
-      expect.objectContaining({
-        run_id: RUN,
-        error_stage: 'translate',
-        error_fingerprint: 'transcription:translate:TRANSLATION_FAILED'
-      })
-    ]);
-    expect(transcriptionTranslationErrors(failed, failed)).toEqual([]);
-    expect(transcriptionTranslationErrors(null, failed)).toEqual([]);
-    const cancelled = [{ id: RUN, translation: translation('failed', 'TRANSLATION_CANCELLED') }];
-    expect(transcriptionTranslationErrors(before, cancelled)).toEqual([]);
   });
 
   it('carries the stitcher code to error_occurred with its stage', () => {

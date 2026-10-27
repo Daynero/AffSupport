@@ -54,3 +54,60 @@ it('passes the space screens and their grants through the download HTTP route', 
     await app.close();
   }
 });
+
+it('authenticates retired process commands and returns the closed refusal before any worker', async () => {
+  const app = Fastify();
+  const process = vi.fn().mockRejectedValue(new Error('FEATURE_RETIRED'));
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.headers.authorization !== 'Bearer synthetic')
+      return reply.code(401).send({ error: 'UNAUTHORIZED' });
+  });
+  registerTeamBridgeRoutes(app, {
+    process: { process, resume: vi.fn() },
+    library: { process },
+    events: { handler: vi.fn() },
+    acceptingNewTasks: () => true
+  } as unknown as TeamBridgeRoutesDeps);
+  try {
+    for (const [url, payload] of [
+      ['/api/team/process', { toolId: 'translation' }],
+      ['/api/team/library/process', { kind: 'translation' }]
+    ] as const) {
+      expect((await app.inject({ method: 'POST', url, payload })).statusCode).toBe(401);
+      const refused = await app.inject({
+        method: 'POST',
+        url,
+        payload,
+        headers: { authorization: 'Bearer synthetic' }
+      });
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json()).toEqual({ error: 'FEATURE_RETIRED' });
+    }
+    expect(process).not.toHaveBeenCalled();
+    const grant = (purpose: string) => ({
+      ticket: 'opaque-ticket-with-enough-entropy',
+      purpose,
+      expiresAt: '2099-01-01T00:00:00Z',
+      maxRangeBytes: 1024,
+      maxUses: 10
+    });
+    const upstream = await app.inject({
+      method: 'POST',
+      url: '/api/team/process',
+      headers: { authorization: 'Bearer synthetic' },
+      payload: {
+        operationId: 'operation',
+        toolId: 'transcription',
+        transferUrl: 'https://transfer.test',
+        cloudBaseUrl: 'https://cloud.test',
+        sourceGrant: grant('process_input'),
+        finalizeGrant: grant('finalize')
+      }
+    });
+    expect(upstream.statusCode).toBe(409);
+    expect(upstream.json()).toEqual({ error: 'FEATURE_RETIRED' });
+    expect(process).toHaveBeenCalledOnce();
+  } finally {
+    await app.close();
+  }
+});

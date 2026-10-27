@@ -90,8 +90,6 @@ describe('managed-work deadlines are wired to the budget', () => {
     // duty-cycled while it happens. These two deadlines were left raw when the
     // rest were wired up: at a 20% limit the load blows a fixed 120 s budget and
     // translation stops working, blaming the model rather than the lever.
-    { file: 'translation/translator.ts', constants: ['START_TIMEOUT_MS'] },
-    { file: 'translation/aligner.ts', constants: ['ALIGNER_START_TIMEOUT_MS'] },
     // Whisper's inactivity watchdog measures the gap between progress lines,
     // and a throttled decoder legitimately produces them further apart. Left
     // fixed, it ends a healthy transcription and reports a stalled engine. The
@@ -113,8 +111,6 @@ describe('managed-work deadlines are wired to the budget', () => {
     // long-lived tool and then enforces a wall-clock deadline on it belongs in
     // it; this is the check that notices the next one.
     const suspects = [
-      'translation/translator.ts',
-      'translation/aligner.ts',
       'landing-preview/renderer.ts',
       'whisper/transcriber.ts',
       'whisper/language-probe.ts',

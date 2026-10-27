@@ -1,3 +1,4 @@
+import { AGENT_API_VERSION } from '@video-compressor/shared';
 // @vitest-environment jsdom
 import React from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
@@ -128,7 +129,7 @@ function healthy(overrides: Record<string, unknown> = {}) {
     instanceId: 'run-1',
     platform: 'macos',
     channel: 'stable',
-    apiVersion: 5,
+    apiVersion: AGENT_API_VERSION,
     capabilities: ['event-stream'],
     toolContracts: { compressor: 1 },
     entitlement: { enforced: true, entitled: true, reason: 'active' },

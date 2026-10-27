@@ -522,8 +522,8 @@ select is(
 select is(
   (select count(*) from public.team_library_requirements
    where team_id = '20000000-0000-4000-8000-000000000001'),
-  2::bigint,
-  'scan creates one original and one interface-language requirement'
+  1::bigint,
+  'scan creates only the missing original requirement'
 );
 select public.scan_library_requirements(
   '20000000-0000-4000-8000-000000000001', 'uk'
@@ -531,7 +531,7 @@ select public.scan_library_requirements(
 select is(
   (select count(*) from public.team_library_requirements
    where team_id = '20000000-0000-4000-8000-000000000001'),
-  2::bigint,
+  1::bigint,
   'repeated unchanged scans are idempotent'
 );
 select is(
@@ -603,28 +603,16 @@ select is(
   'the matching operation lease renews with bounded progress'
 );
 
-create temporary table creative_translation_claim as
-select public.claim_library_job(
-  '20000000-0000-4000-8000-000000000001',
-  '60000000-0000-4000-8000-000000000002',
-  array['translation']::text[],
-  'uk',
-  -- `p_sources` is uuid[]; a bare uuid here raised "malformed array literal",
-  -- which aborted the transaction and took the file's last twelve assertions
-  -- with it.
-  array['50000000-0000-4000-8000-000000000001']::uuid[]
-) as payload;
-select is(
-  (select payload ->> 'kind' from creative_translation_claim),
-  'translation',
-  'a source-scoped compatible agent claims only that source requirement'
+select throws_ok(
+ $$select public.claim_library_job('20000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000002',array['translation']::text[],'uk',array['50000000-0000-4000-8000-000000000001']::uuid[])$$,
+ 'P0001','FEATURE_RETIRED','retired kind cannot be claimed by an older client'
 );
 select is(
   public.fail_library_job(
     '20000000-0000-4000-8000-000000000001',
-    (select (payload ->> 'attemptId')::uuid from creative_translation_claim),
-    '60000000-0000-4000-8000-000000000002',
-    (select payload ->> 'leaseToken' from creative_translation_claim),
+    (select (payload ->> 'attemptId')::uuid from creative_claim),
+    '60000000-0000-4000-8000-000000000001',
+    (select payload ->> 'leaseToken' from creative_claim),
     'PROCESS_FAILED'
   ),
   true,
@@ -633,7 +621,7 @@ select is(
 select is(
   (select count(*) from public.team_contribution_records
    where team_id = '20000000-0000-4000-8000-000000000001'
-     and category = 'local_processing' and action_kind = 'translation'
+     and category = 'local_processing' and action_kind = 'transcription'
      and outcome = 'failure'),
   1::bigint,
   'failed local processing records the allowlisted failure outcome'
@@ -642,7 +630,7 @@ select is(
   public.retry_failed_library_jobs(
     '20000000-0000-4000-8000-000000000001',
     -- `p_sources` is uuid[] here too.
-    array['50000000-0000-4000-8000-000000000001']::uuid[]
+    array[(select (payload ->> 'sourceMaterialId')::uuid from creative_claim)]
   ),
   1,
   'retry returns a failed source-scoped job to the shared queue'

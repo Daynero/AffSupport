@@ -83,6 +83,7 @@ export interface CapabilitySignal {
 }
 
 export interface Capability {
+  currentLifecycle?: { retiredSinceApiVersion: 6; historicalCoverage: 'unknown' };
   /** `tool.operation`, e.g. `compressor.run`. */
   id: string;
   tool: CapabilityTool;
@@ -717,13 +718,14 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     tool: 'transcription',
     toolColumn: 'transcription',
     title: 'Transcription · transcribe files',
-    stages: ['open', 'ready', 'input_add', 'start', 'terminal'],
+    stages: ['open', 'ready', 'input_add', 'start', 'terminal', 'visible'],
     stageEvents: {
       open: ['tool_opened'],
       ready: ['tool_ready'],
       input_add: ['input_add_completed'],
       start: ['operation_started'],
-      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled'],
+      visible: ['result_opened']
     },
     start: [{ event: 'operation_started', correlate: 'run_id' }],
     terminal: [
@@ -737,10 +739,11 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['transcript text (never collected)'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'operation_* is one event per job with the job id as run_id (031 T008).'
+    note: 'operation_* keeps the existing job run_id and adds distinct API6 attempt_id with transcription_original. The API6 native journal records accepted/stages/saved/terminal, bounded at12 per attempt with omission count; inspect and investigate read this evidence when browser events are missing. result_opened/transcription_result_visible follows document commit and is separate from saved or completed. Library stage receipts use library_original_processing and never count local compute as registration. Original text variants carry an optional opaque accepted attempt; result_opened/visible follows rendered text and copied follows clipboard success. Companion-only historical files have no processing provenance and do not fabricate it. Old producers and absent/delayed terminal or visibility remain unknown; beta does not prove analytics delivery.'
   },
   {
     id: 'transcription.translate',
+    currentLifecycle: { retiredSinceApiVersion: 6, historicalCoverage: 'unknown' },
     tool: 'transcription',
     toolColumn: 'transcription',
     title: 'Transcription · translate a transcript',
@@ -752,7 +755,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['translation request and result'],
     producerStatus: 'unsupported_by_producer',
     source: 'events',
-    note: 'Translation shares the transcription queue and emits no event of its own.'
+    note: 'Retired for API6; earlier or unknown producers have unknown historical coverage. No cutover date is inferred.'
   },
   {
     id: 'landing_optimizer.run',

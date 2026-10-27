@@ -13,8 +13,7 @@ export interface DownloadableModelDescriptor {
   url: string;
   /**
    * null = the artifact exists upstream but its checksum has not been pinned
-   * on real bytes yet (e.g. the Windows llama.cpp build before the first
-   * Windows release pass). Downloads are refused until it is pinned.
+   * on real bytes yet. Downloads are refused until it is pinned.
    */
   sha256: string | null;
   sizeBytes: number;
@@ -38,8 +37,7 @@ const PROGRESS_RESETS_BUDGET_BYTES = 1024 * 1024;
  * Downloads a large model on demand into a writable location, so the installer
  * stays small. Streams to a `.part` file, verifies SHA-256, then atomically
  * renames into place. Progress is pushed through `notify`. Generic over the
- * model so the same logic serves the Whisper speech model and the TranslateGemma
- * translation model.
+ * speech model descriptor.
  */
 export class ModelDownloader {
   private downloading = false;
@@ -65,7 +63,7 @@ export class ModelDownloader {
     private notify: () => void,
     private onComplete: () => void | Promise<void>,
     /**
-     * Optional post-verification installer (for the llama.cpp tarball). It runs
+     * Optional post-verification installer. It runs
      * only after the archive itself has been atomically renamed into place.
      */
     private finalize?: (verifiedPath: string) => Promise<void>
@@ -112,7 +110,7 @@ export class ModelDownloader {
     if (this.downloading || this.isPresent()) return;
     this.downloadBatchId = downloadBatchId ?? null;
     if (!this.descriptor.url) {
-      // No pinned source yet (e.g. the translator model artifact is not
+      // No pinned source yet (e.g. a speech model artifact is not
       // configured). Surface a clear, actionable error instead of failing an
       // HTTP request to an empty URL.
       this.error = 'MODEL_SOURCE_NOT_CONFIGURED';

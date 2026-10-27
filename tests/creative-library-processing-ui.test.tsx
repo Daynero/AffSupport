@@ -62,8 +62,8 @@ describe('Process Library confirmation UI', () => {
       .mockRejectedValueOnce(new Error('NO_WORK'));
     const client: ProcessLibraryClient = {
       scanLibraryRequirements: vi.fn().mockResolvedValue({
-        created: { transcription: 1, translation: 0, landingOptimization: 0 },
-        missing: { transcription: 1, translation: 0, landingOptimization: 0 },
+        created: { transcription: 1, landingOptimization: 0 },
+        missing: { transcription: 1, landingOptimization: 0 },
         ready: 0,
         started: false
       }),
@@ -111,7 +111,7 @@ describe('Process Library confirmation UI', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[SOURCE_ID]}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={AGENT_ID}
@@ -167,8 +167,8 @@ describe('Process Library confirmation UI', () => {
     const findMaterialByName = vi.fn().mockResolvedValue(RESULT_ID);
     const client: ProcessLibraryClient = {
       scanLibraryRequirements: vi.fn().mockResolvedValue({
-        created: { transcription: 1, translation: 0, landingOptimization: 0 },
-        missing: { transcription: 1, translation: 0, landingOptimization: 0 },
+        created: { transcription: 1, landingOptimization: 0 },
+        missing: { transcription: 1, landingOptimization: 0 },
         ready: 0,
         started: false
       }),
@@ -203,7 +203,7 @@ describe('Process Library confirmation UI', () => {
           teamId={TEAM_ID}
           sourceMaterialIds={[SOURCE_ID]}
           agentAvailability="ready"
-          toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
           client={client}
           agent={agent}
           agentInstanceId={AGENT_ID}

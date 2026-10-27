@@ -12,6 +12,7 @@ import type { UnavailableReason } from './materials/actions';
  * it a sentence is a type error rather than a silent fallback in production.
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
+  FEATURE_RETIRED: 'teamErrorWrongState',
   ACCOUNT_ORDER_CONFLICT: 'accountsOrderConflict',
   ACCOUNT_LIFECYCLE_CONFLICT: 'accountsLifecycleConflict',
   ACCOUNT_SCOPE_CHANGED: 'accountsOrderConflict',

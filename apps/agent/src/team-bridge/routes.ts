@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs';
+import { recordRetiredCommand } from '../transcription/diagnostics.js';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
@@ -139,6 +140,7 @@ export function registerTeamBridgeRoutes(
 
   app.post<{ Body?: unknown }>('/api/team/process', async (request, reply) => {
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    if (record(request.body) && request.body.toolId === 'translation') return retiredCommand(reply);
     const input = processRequest(request.body);
     if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
     /*
@@ -169,6 +171,7 @@ export function registerTeamBridgeRoutes(
 
   app.post<{ Body?: unknown }>('/api/team/library/process', async (request, reply) => {
     if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    if (record(request.body) && request.body.kind === 'translation') return retiredCommand(reply);
     const input = libraryProcessRequest(request.body);
     if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
     try {
@@ -573,7 +576,8 @@ function routeFailure(
       ? 403
       : code === 'TOO_LARGE'
         ? 413
-        : code === 'WRONG_STATE' ||
+        : code === 'FEATURE_RETIRED' ||
+            code === 'WRONG_STATE' ||
             code === 'UPDATE_PENDING' ||
             code === 'AGENT_UPDATE_REQUIRED' ||
             code === 'RENDER_FAILED' ||
@@ -605,6 +609,7 @@ function safeErrorCode(
   const value = error instanceof Error ? error.message : '';
   return (STITCH_ERROR_CODES as readonly string[]).includes(value) ||
     [
+      'FEATURE_RETIRED',
       'INVALID_INPUT',
       'PERMISSION_DENIED',
       'TOO_LARGE',
@@ -628,4 +633,9 @@ function safeErrorCode(
     ].includes(value)
     ? value
     : fallback;
+}
+
+function retiredCommand(reply: FastifyReply) {
+  recordRetiredCommand();
+  return reply.code(409).send({ error: 'FEATURE_RETIRED' });
 }

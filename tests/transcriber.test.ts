@@ -4,7 +4,6 @@ import {
   collapseTranscriptArtifacts,
   dropTrailingCredits,
   isCreditHallucination,
-  shouldCreateEnglishPivot,
   stripCreditSuffix,
   stripNonSpeechArtifacts
 } from '../apps/agent/src/whisper/transcriber.js';
@@ -57,26 +56,19 @@ describe('Whisper long-form transcription', () => {
     expect(args).toEqual(expect.arrayContaining(['-l', 'auto']));
   });
 
-  it('adds the speech→English task only for the pivot pass', () => {
+  it('keeps Hindi decoding in its original language', () => {
     const source = buildWhisperArgs(
       { wavPath: '/tmp/a.wav', outputBase: '/tmp/a', language: 'hi' },
       { threads: 4, vadModelPath: '/tmp/silero.bin' }
     );
     const pivot = buildWhisperArgs(
-      { wavPath: '/tmp/a.wav', outputBase: '/tmp/a-en', language: 'hi', translateToEnglish: true },
+      { wavPath: '/tmp/a.wav', outputBase: '/tmp/a-en', language: 'hi' },
       { threads: 4, vadModelPath: '/tmp/silero.bin' }
     );
 
     expect(source).not.toContain('-tr');
-    expect(pivot).toEqual(expect.arrayContaining(['-l', 'hi', '-tr']));
-  });
-
-  it('limits the extra speech-to-English pass to measured weak source languages', () => {
-    expect(shouldCreateEnglishPivot('hi', true)).toBe(true);
-    expect(shouldCreateEnglishPivot('ur-PK', true)).toBe(true);
-    expect(shouldCreateEnglishPivot('tr', true)).toBe(false);
-    expect(shouldCreateEnglishPivot('hi', false)).toBe(false);
-    expect(shouldCreateEnglishPivot(null, true)).toBe(false);
+    expect(pivot).toEqual(expect.arrayContaining(['-l', 'hi']));
+    expect(pivot).not.toContain('-tr');
   });
 
   it('preserves a credit-shaped line without audio evidence', () => {

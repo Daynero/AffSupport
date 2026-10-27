@@ -3,7 +3,6 @@ import {
   parseLibraryRequirementIdentity,
   parseLibraryVideoTextVariants,
   transcriptSidecarName,
-  translationSidecarName,
   type LibraryJobFinalizeRequest
 } from '@video-compressor/shared';
 import { assertCurrentSourceVersion } from '../supabase/functions/_shared/library.js';
@@ -20,9 +19,7 @@ describe('Creative Library processing identities and current results', () => {
     expect(transcriptSidecarName('Launch: video.mp4', 'version-1/alpha')).toBe(
       'Launch_ video.transcript.version1alph.txt'
     );
-    expect(translationSidecarName('Launch: video.mp4', 'version-1/alpha', 'uk')).toBe(
-      'Launch_ video.transcript.version1alph.uk.txt'
-    );
+
     expect(transcriptSidecarName('Launch: video.mp4', 'version-1/alpha')).toBe(
       transcriptSidecarName('Launch: video.mp4', 'version-1/alpha')
     );
@@ -55,7 +52,7 @@ describe('Creative Library processing identities and current results', () => {
         kind: 'translation',
         variant: 'uk'
       })
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it('accepts only unique current text variants with a full closed payload', () => {

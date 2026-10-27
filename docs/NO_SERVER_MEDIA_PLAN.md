@@ -42,8 +42,7 @@ Existing objects are not deleted as part of investigation.
 
 Verified absent: no bytea or base64 media columns, no Deno KV or `caches.open`,
 no service worker, no CDN in front of `/functions/v1`, no media sent to Sentry,
-email or AI APIs (transcription and translation run locally with whisper.cpp and
-llama.cpp). Only two Storage buckets exist in migrations.
+email or AI APIs (transcription runs locally with whisper.cpp). Only two Storage buckets exist in migrations.
 
 ## Re-stitching replacement
 

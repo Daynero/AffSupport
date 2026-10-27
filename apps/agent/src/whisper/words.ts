@@ -1,5 +1,5 @@
 import type { TranscriptSegment, TranscriptWord } from '@video-compressor/shared';
-import { lexicalUnitSpans } from '../translation/segmentation.js';
+import { lexicalUnitSpans } from '../transcription/segmentation.js';
 
 /**
  * Word-level timestamps derived from whisper.cpp `--output-json-full`.

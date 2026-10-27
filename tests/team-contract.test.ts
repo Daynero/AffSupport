@@ -16,6 +16,7 @@ import {
   TEAM_PERMISSION_FLAGS,
   TEAM_ACCOUNT_ERROR_CODES,
   TEAM_PROCESS_ERROR_CODES,
+  TEAM_RETIREMENT_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -215,6 +216,10 @@ describe('team contract', () => {
     const delta = readFileSync(deltaPath, 'utf8');
     const processPath = 'supabase/migrations/20261206139000_process_error_codes.sql';
     const processDelta = readFileSync(processPath, 'utf8');
+    const retirementDelta = readFileSync(
+      'supabase/migrations/20261207090000_retire_translation.sql',
+      'utf8'
+    );
     const codes = (sql: string) => {
       const block =
         /insert into public\.team_error_codes \(code\) values\n([\s\S]*?)(?:;\n|\non conflict)/u.exec(
@@ -227,9 +232,10 @@ describe('team contract', () => {
       codes(base).filter(code => (TEAM_ACCOUNT_ERROR_CODES as readonly string[]).includes(code))
     ).toEqual([]);
     expect(codes(processDelta)).toEqual([...TEAM_PROCESS_ERROR_CODES]);
-    expect([...codes(base), ...codes(delta), ...codes(processDelta)].sort()).toEqual(
-      [...TEAM_ERROR_CODES].sort()
-    );
+    expect(codes(retirementDelta)).toEqual([...TEAM_RETIREMENT_ERROR_CODES]);
+    expect(
+      [...codes(base), ...codes(delta), ...codes(processDelta), ...codes(retirementDelta)].sort()
+    ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
     temporaryPaths.push(directory);
     const temporaryBase = join(directory, 'base.sql');

@@ -3922,11 +3922,6 @@ body:has(.public-home) {
   font-size: var(--text-9xl);
 }
 
-.onboarding-modal p,
-.onboarding-consent small {
-  color: var(--color-text-muted);
-}
-
 .onboarding-modal fieldset {
   display: grid;
   gap: var(--space-2);
@@ -3964,19 +3959,6 @@ body:has(.public-home) {
   color: var(--color-text);
   background: var(--color-surface);
   box-shadow: var(--shadow-raise);
-}
-
-.onboarding-consent {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-}
-
-.onboarding-consent small {
-  padding-left: 28px;
 }
 
 @keyframes modal-rise {
@@ -5150,14 +5132,6 @@ body:has(.public-home) {
   .theme-toggle__cutter,
   .theme-toggle__rays,
   .theme-toggle__stars circle {
-    transition: none !important;
-  }
-
-  .transcript-translation-content,
-  .transcript-preview,
-  .transcript-preview-panel,
-  .transcript-match-pointer,
-  .transcript-copy-toast {
     transition: none !important;
   }
 
@@ -6877,11 +6851,6 @@ body:has(.public-home) {
   font-size: var(--text-label);
   cursor: pointer;
 }
-
-.transcription-row-translation.is-failed,
-.transcription-row-translation.is-unavailable {
-  color: var(--color-warning);
-}
 .transcription-row-error {
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-3);
@@ -6942,22 +6911,6 @@ body:has(.public-home) {
 .transcription-confirm-modal .inline-actions {
   margin-top: var(--space-4);
   justify-content: flex-end;
-}
-.transcription-gemma-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  line-height: 1.45;
-}
-.transcription-gemma-consent input {
-  margin-top: 3px;
-  accent-color: var(--color-accent);
-}
-.transcription-gemma-consent a {
-  color: var(--color-accent);
 }
 
 /* Large transcript preview modal */
@@ -7042,7 +6995,6 @@ body:has(.public-home) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Split-screen bilingual transcript viewer                                   */
 /* -------------------------------------------------------------------------- */
 .transcript-modal.transcript-split {
   width: min(96vw, var(--dialog-full));
@@ -7052,7 +7004,7 @@ body:has(.public-home) {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-4);
   overflow: hidden;
@@ -7090,9 +7042,6 @@ body:has(.public-home) {
 }
 /* Translated segments stream in progressively and stay readable while the
    remainder translates — no blur/pulse overlay. */
-.transcript-translation-content {
-  min-height: 100%;
-}
 .ts-segment {
   margin: 0 0 0.7em;
   border-radius: var(--radius-sm);
@@ -7118,72 +7067,8 @@ body:has(.public-home) {
   align-items: center;
   gap: var(--space-2);
 }
-.transcript-language-combobox {
-  position: relative;
-  width: min(220px, 24vw);
-  direction: ltr;
-}
-.transcript-language-combobox input {
-  width: 100%;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: 6px 10px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-}
-.transcript-language-combobox input:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
 /* The list lives on the body now (021, T062) — one home, so its rules are in
    one place: `.transcript-language-listbox` in styles/transcription.css. */
-.transcript-language-combobox ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.transcript-translation-status {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 8px var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-accent-softer);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-.transcript-translation-status.is-error {
-  background: var(--color-warning-soft);
-}
-.transcript-translation-progress {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-}
-.transcript-translation-progress-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.transcript-translation-progress-row .ui-progress {
-  flex: 1;
-  min-width: 0;
-}
-.transcript-translation-elapsed {
-  flex: 0 0 auto;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-}
-.transcript-translation-notice {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  color: var(--color-text-muted);
-}
 .transcript-preview {
   display: grid;
   grid-template-rows: 0fr;
@@ -7352,11 +7237,8 @@ body:has(.public-home) {
 }
 @media (max-width: 900px) {
   .transcript-split-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: minmax(0, 1fr);
-  }
-  .transcript-language-combobox {
-    width: min(180px, 42vw);
   }
   .transcript-player-controls {
     grid-template-columns: auto auto minmax(70px, 1fr) auto auto auto;
@@ -7388,10 +7270,6 @@ body:has(.public-home) {
   }
   .transcript-column-actions {
     width: 100%;
-  }
-  .transcript-language-combobox {
-    flex: 1 1 auto;
-    width: auto;
   }
 }
 
@@ -8430,15 +8308,6 @@ button,
   min-height: 44.2px;
   padding-inline: var(--space-4);
 }
-
-.theme-toggle,
-.icon-button,
-.modal-close,
-.transcript-match-help {
-  width: 44.2px;
-  height: 44.2px;
-  min-width: 44.2px;
-}
 .team-invitation-inbox li > div:first-child {
   display: grid;
 }
@@ -9421,51 +9290,6 @@ button,
   }
 }
 /* Confidence meter + selection / karaoke highlights */
-.transcript-match {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: min(340px, 40vw);
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-  font-size: var(--text-caption);
-}
-.transcript-match.is-empty {
-  opacity: 0.6;
-}
-.transcript-match-label {
-  font-weight: 600;
-  white-space: nowrap;
-}
-.transcript-match-bar {
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(90deg, var(--color-success), var(--color-warning));
-  position: relative;
-}
-.transcript-match.is-empty .transcript-match-bar {
-  background: var(--color-surface-muted);
-}
-.transcript-match-pointer {
-  position: absolute;
-  top: 50%;
-  display: block;
-  width: 4px;
-  height: 15px;
-  border: 2px solid var(--color-surface);
-  border-radius: var(--radius-full);
-  background: var(--color-text);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-black) 25%, transparent);
-  transform: translate(-50%, -50%);
-}
-.transcript-match-value {
-  white-space: nowrap;
-  color: var(--color-text-muted);
-}
 .ts-selected {
   background: color-mix(in oklab, var(--ts-selection-color, var(--color-success)) 30%, transparent);
   border-radius: var(--radius-sm);
@@ -9494,26 +9318,10 @@ button,
   font-size: var(--text-caption);
 }
 @media (max-width: 900px) {
-  .transcript-match {
-    min-width: 0;
-    grid-column: 1 / -1;
-  }
 }
 @media (max-width: 1120px) {
-  .transcript-match {
-    order: 3;
-    width: 100%;
-    min-width: 0;
-  }
 }
 @media (max-width: 620px) {
-  .transcript-match {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
-  .transcript-match-bar {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
 }
 
 /* ============================================================

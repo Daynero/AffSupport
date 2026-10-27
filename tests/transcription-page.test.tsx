@@ -104,7 +104,7 @@ function job(id: string, createdAt: number, status: TranscriptionJob['status']):
 function transcript(
   jobId: string,
   text: string,
-  translated: string | null = null
+  _translated: string | null = null
 ): TranscriptionDocument {
   const segmentId = `${jobId}-segment`;
   return {
@@ -119,18 +119,7 @@ function transcript(
         sourceText: text,
         words: []
       }
-    ],
-    translations: translated
-      ? {
-          en: {
-            targetLanguage: 'en',
-            modelVersion: 'test',
-            status: 'completed',
-            segments: [{ sourceSegmentId: segmentId, translatedText: translated, alignments: [] }],
-            error: null
-          }
-        }
-      : {}
+    ]
   };
 }
 
@@ -144,10 +133,7 @@ const state: TranscriptionState = {
   running: false,
   tools: { ffmpeg: true, whisper: true, model: true },
   model: installedModel,
-  translatorModel: installedModel,
-  translatorRuntime: installedModel,
-  alignmentModel: installedModel,
-  settings: { language: 'uk', translationLanguage: 'uk', quality: 'fast' }
+  settings: { language: 'uk', quality: 'fast' }
 };
 
 class EventSourceStub {
@@ -207,7 +193,7 @@ afterEach(() => {
 });
 
 describe('transcription page batch copy', () => {
-  it('copies finished transcripts with their translations from the toolbar', async () => {
+  it('copies only finished original transcripts from the toolbar', async () => {
     render(<TranscriptionPage />);
 
     const button = await screen.findByRole('button', { name: 'Копіювати завершені (2)' });
@@ -221,10 +207,9 @@ describe('transcription page batch copy', () => {
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
         'Транскрипція 1: newer.mp4\n' +
-          'Транскрипція:\nНовіший текст.\n\n' +
-          'Переклад (Англійська):\nNewer text.\n\n' +
+          'Новіший текст.\n\n' +
           'Транскрипція 2: older.mp4\n' +
-          'Транскрипція:\nСтаріший текст.'
+          'Старіший текст.'
       )
     );
     expect(api.transcriptionDocument).toHaveBeenCalledTimes(2);
@@ -238,69 +223,26 @@ describe('transcription page batch copy', () => {
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Вибрати newer.mp4' }));
     fireEvent.click(screen.getByRole('button', { name: 'Параметри копіювання' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Вибрані (1)' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Лише переклад' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Копіювати вибрані (1)' }));
 
     await waitFor(() =>
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'Транскрипція 1: newer.mp4 · Переклад (Англійська)\nNewer text.'
+        'Транскрипція 1: newer.mp4\nНовіший текст.'
       )
     );
     expect(api.transcriptionDocument).toHaveBeenCalledTimes(1);
   });
 
-  it('warns instead of copying when the chosen content is missing everywhere', async () => {
-    api.request.mockResolvedValue({ ...state, jobs: [job('older', 1, 'completed')] });
+  it('disables copying an empty original transcript', async () => {
+    api.request.mockResolvedValue({
+      ...state,
+      jobs: [{ ...job('silent', 1, 'completed'), characters: 0 }]
+    });
     render(<TranscriptionPage />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Параметри копіювання' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Лише переклад' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Копіювати завершені (1)' }));
-
-    expect(await screen.findByText('З цими параметрами копіювати нічого')).toBeTruthy();
+    const button = await screen.findByRole('button', { name: 'Копіювати завершені (0)' });
+    expect(button).toHaveProperty('disabled', true);
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-  });
-
-  it('shows subtle translation progress and restarts it when the row language changes', async () => {
-    const translatingJob: TranscriptionJob = {
-      ...job('translated', 5, 'completed'),
-      requestedLanguage: 'auto',
-      detectedLanguage: 'en',
-      translation: {
-        targetLanguage: 'uk',
-        status: 'processing',
-        progress: 25,
-        completedSegments: 1,
-        totalSegments: 4,
-        error: null
-      }
-    };
-    api.request.mockResolvedValue({ ...state, jobs: [translatingJob] });
-
-    render(<TranscriptionPage />);
-
-    expect(await screen.findByText('Перекладаємо')).toBeTruthy();
-    const combobox = screen.getByRole('combobox', { name: 'Перекласти на' }) as HTMLInputElement;
-    // The row's picker shows the language by name; the code stays behind it.
-    expect(combobox.value).toBe('Українська');
-    expect(
-      screen
-        .getByRole('progressbar', { name: 'Переклад файлу translated.mp4' })
-        .getAttribute('aria-valuenow')
-    ).toBe('25');
-
-    fireEvent.focus(combobox);
-    fireEvent.change(combobox, { target: { value: 'нім' } });
-    // Scoped to the picker's own list: the spoken-language select lists the same names.
-    fireEvent.click(
-      await within(await screen.findByRole('listbox')).findByRole('option', { name: 'Німецька' })
-    );
-
-    expect(combobox.value).toBe('Німецька');
-    await waitFor(() =>
-      expect(api.transcriptionTranslate).toHaveBeenCalledWith('translated', 'de')
-    );
   });
 });
 

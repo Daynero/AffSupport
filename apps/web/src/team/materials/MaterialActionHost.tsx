@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { recordOriginalResultDelivery } from '../library/original-result-analytics';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button, FormField, Input, Modal } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
@@ -146,18 +147,16 @@ export function useMaterialActionHost({
   const copyText = async () => {
     try {
       const variants = await teamApi.listVideoTextVariants(teamId, material.id);
-      // The translation when there is one, as the text block it replaces did:
-      // a person who had a video translated wants the translation, and the
-      // original is one press away in the text editor.
       const usable = variants.variants.filter(
         variant => variant.ingestState === 'full' && !variant.truncated && variant.text
       );
-      const ready = usable.find(variant => variant.kind === 'translation') ?? usable[0];
+      const ready = usable.find(variant => variant.kind === 'original');
       if (!ready?.text) {
         push({ tone: 'error', text: t('materialReasonNotReady') });
         return;
       }
       await navigator.clipboard.writeText(ready.text);
+      recordOriginalResultDelivery(ready, 'copied');
       push({ tone: 'success', text: t('creativeLibraryTextCopied') });
     } catch (cause) {
       push({ tone: 'error', text: teamErrorMessageFor(cause, t) });

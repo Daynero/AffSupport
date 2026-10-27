@@ -1,4 +1,4 @@
-import { mergeRanges, type CharRange } from './alignment';
+import { mergeRanges, type CharRange } from './text-ranges';
 
 /** A contiguous run of segment text with its highlight flags. */
 export interface TextPiece {

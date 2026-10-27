@@ -19,7 +19,6 @@ import {
   type TranscriptionQualityMode,
   type TranscriptionSettings,
   type TranscriptionState,
-  type TranslationDocument,
   type TeamAgentProcessRequest,
   type TeamAgentPreviewResult,
   type TeamFileOperationResult,
@@ -870,6 +869,8 @@ export async function agentCanRestitch(automaticEndFrame = false): Promise<Resti
 export async function startTeamAgentProcess(
   input: TeamAgentProcessRequest
 ): Promise<TeamFileOperationResult> {
+  if (input.toolId === 'translation') throw new Error('FEATURE_RETIRED');
+
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   if (!toolContractCompatible('teamWorkspace', health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
@@ -879,11 +880,9 @@ export async function startTeamAgentProcess(
       ? 'landingOptimizer'
       : input.toolId === 'transcription'
         ? 'transcription'
-        : input.toolId === 'translation'
-          ? 'transcription'
-          : input.toolId === 'restitch'
-            ? 'stitcher'
-            : 'compressor';
+        : input.toolId === 'restitch'
+          ? 'stitcher'
+          : 'compressor';
   if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
@@ -1186,12 +1185,6 @@ export function transcriptionPause(id: string, paused: boolean): Promise<Transcr
 export function transcriptionModelCancel(): Promise<TranscriptionState> {
   return request<TranscriptionState>('/api/transcription/model/cancel', 'POST');
 }
-export function transcriptionTranslatorDownload(): Promise<TranscriptionState> {
-  return request<TranscriptionState>('/api/transcription/translator/download', 'POST');
-}
-export function transcriptionTranslatorCancel(): Promise<TranscriptionState> {
-  return request<TranscriptionState>('/api/transcription/translator/cancel', 'POST');
-}
 export function transcriptionCancel(id: string): Promise<TranscriptionState> {
   return request<TranscriptionState>(
     `/api/transcription/jobs/${encodeURIComponent(id)}/cancel`,
@@ -1238,42 +1231,6 @@ export function transcriptionDocument(
 ): Promise<TranscriptionDocument> {
   return request<TranscriptionDocument>(
     `/api/transcription/jobs/${encodeURIComponent(id)}/document`,
-    'GET',
-    signal
-  );
-}
-export function transcriptionTranslate(
-  id: string,
-  targetLanguage: string,
-  requestId?: string
-): Promise<TranslationDocument> {
-  return requestBody<TranslationDocument>(
-    `/api/transcription/jobs/${encodeURIComponent(id)}/translations`,
-    { targetLanguage, requestId }
-  );
-}
-export function transcriptionSaveWithTranslation(
-  id: string,
-  options: { languageLabel: string; fileName: string }
-): Promise<TranscriptionState> {
-  return requestBody<TranscriptionState>(
-    `/api/transcription/jobs/${encodeURIComponent(id)}/save-with-translation`,
-    options
-  );
-}
-export function transcriptionTranslationCancel(id: string): Promise<TranscriptionState> {
-  return request<TranscriptionState>(
-    `/api/transcription/jobs/${encodeURIComponent(id)}/translations`,
-    'DELETE'
-  );
-}
-export function transcriptionTranslation(
-  id: string,
-  language: string,
-  signal?: AbortSignal
-): Promise<TranslationDocument> {
-  return request<TranslationDocument>(
-    `/api/transcription/jobs/${encodeURIComponent(id)}/translations/${encodeURIComponent(language)}`,
     'GET',
     signal
   );

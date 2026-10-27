@@ -1,3 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { DiagnosticsLog } from '../apps/agent/src/server/diagnostics-log';
+import { TranscriptionAttemptJournal } from '../apps/agent/src/transcription/diagnostics';
+import { setQueryExecutor } from '../scripts/analytics/db';
+import { getInspect } from '../scripts/analytics/queries';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DIAGNOSTIC_CATEGORIES } from '../packages/shared/src/types.js';
@@ -10,7 +15,7 @@ import { createTeamTestDb, type TeamTestDb } from './support/team-db.js';
  * not trusted, so everything the agent would refuse must be refused here too.
  */
 
-const MIGRATION = 'supabase/migrations/20261202122000_stitcher_journal_category.sql';
+const MIGRATION = 'supabase/migrations/20261207091000_translation_retirement_diagnostics.sql';
 const USER = '33000000-0000-4000-8000-000000000001';
 const OTHER = '33000000-0000-4000-8000-000000000002';
 const INSTALLATION = '33000000-0000-4000-8000-0000000000a1';
@@ -272,4 +277,65 @@ describe('agent journal ingestion (PGlite, real migration)', () => {
     );
     expect(left[0]!.count).toBe(0);
   });
+});
+
+it('round-trips actual original attempts through the journal sanitizer, ingestion and read-only inspect', async () => {
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  const flow = randomUUID();
+  const attempts: string[] = [];
+  const outcomes = ['success', 'failure', 'cancelled', 'interrupted'] as const;
+  for (const outcome of outcomes) {
+    const attempt = randomUUID();
+    attempts.push(attempt);
+    const producer = new TranscriptionAttemptJournal(flow, attempt, (code, props) => {
+      log.record('transcription', code, props);
+    });
+    producer.stage('extract');
+    producer.stage('transcribe');
+    if (outcome === 'success') {
+      for (let i = 0; i < 20; i++) {
+        producer.stage('recover');
+        producer.stage('transcribe');
+      }
+      producer.stage('saved');
+    }
+    producer.terminal(
+      outcome,
+      outcome === 'failure' ? 'TRANSCRIBE_FAILED' : outcome === 'interrupted' ? 'INTERRUPTED' : null
+    );
+  }
+  const unfinished = randomUUID();
+  attempts.push(unfinished);
+  new TranscriptionAttemptJournal(flow, unfinished, (code, props) => {
+    log.record('transcription', code, props);
+  }).stage('extract');
+  const records = log.since(0);
+  const instance = randomUUID();
+  expect(await ingest(records, { instance })).toEqual({
+    accepted: records.length,
+    duplicates: 0,
+    rejected: []
+  });
+  expect(await ingest(records, { instance })).toEqual({
+    accepted: 0,
+    duplicates: records.length,
+    rejected: []
+  });
+  setQueryExecutor((sql, params) => harness.root(sql, params));
+  try {
+    for (const [index, attempt] of attempts.entries()) {
+      const inspected = await getInspect(attempt, new Date().toISOString());
+      expect(inspected.found).toBe(true);
+      if (!inspected.found) throw new Error('MISSING_NATIVE_ATTEMPT');
+      expect(inspected.transcription_original?.attempts[0]?.outcome).toBe(
+        outcomes[index] ?? 'unknown'
+      );
+      expect(inspected.stages.missing).toContain('result_visible');
+      expect(inspected.terminal).toBeNull();
+    }
+    const flowInspection = await getInspect(flow, new Date().toISOString());
+    expect(flowInspection.found && flowInspection.transcription_original?.attempts).toHaveLength(5);
+  } finally {
+    setQueryExecutor(null);
+  }
 });

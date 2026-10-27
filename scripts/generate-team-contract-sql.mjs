@@ -14,6 +14,7 @@ import {
   TEAM_ERROR_CODES,
   TEAM_ACCOUNT_ERROR_CODES,
   TEAM_PROCESS_ERROR_CODES,
+  TEAM_RETIREMENT_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_MATERIAL_LIFECYCLES,
@@ -36,13 +37,20 @@ const defaultProcessExtensionOutput = resolve(
   'supabase/migrations/20261206139000_process_error_codes.sql'
 );
 /** @type {Set<string>} */
-const extensionCodes = new Set([...TEAM_ACCOUNT_ERROR_CODES, ...TEAM_PROCESS_ERROR_CODES]);
+const extensionCodes = new Set([
+  ...TEAM_ACCOUNT_ERROR_CODES,
+  ...TEAM_PROCESS_ERROR_CODES,
+  ...TEAM_RETIREMENT_ERROR_CODES
+]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
 if (
   new Set(TEAM_ERROR_CODES).size !== TEAM_ERROR_CODES.length ||
   new Set(TEAM_ACCOUNT_ERROR_CODES).size !== TEAM_ACCOUNT_ERROR_CODES.length ||
   new Set(TEAM_PROCESS_ERROR_CODES).size !== TEAM_PROCESS_ERROR_CODES.length ||
-  extensionCodes.size !== TEAM_ACCOUNT_ERROR_CODES.length + TEAM_PROCESS_ERROR_CODES.length
+  extensionCodes.size !==
+    TEAM_ACCOUNT_ERROR_CODES.length +
+      TEAM_PROCESS_ERROR_CODES.length +
+      TEAM_RETIREMENT_ERROR_CODES.length
 )
   fail('Duplicate team error code');
 
@@ -220,6 +228,18 @@ function checkCurrent(path, expected) {
   if (current.replaceAll('\r\n', '\n') !== expected)
     fail(`Generated team contract is out of date: ${path}`);
 }
+
+// This code is installed atomically with its feature fences. Check the narrow
+// catalog insert without regenerating the cutover body or any applied seed.
+const retirementPath = resolve(root, 'supabase/migrations/20261207090000_retire_translation.sql');
+const retirementSql = readFileSync(retirementPath, 'utf8');
+const retirementInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    retirementSql
+  )?.[1] ?? '';
+const retirementCodes = [...retirementInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(retirementCodes) !== JSON.stringify([...TEAM_RETIREMENT_ERROR_CODES]))
+  fail('Retirement error catalog is out of date: ' + retirementPath);
 
 const next = generatedSql();
 const extension = generatedExtensionSql();

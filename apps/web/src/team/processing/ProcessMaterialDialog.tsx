@@ -1,3 +1,4 @@
+import { AGENT_TOOL_CONTRACTS } from '@video-compressor/shared';
 import { useMemo, useState } from 'react';
 import type {
   CatalogMaterialItem,
@@ -21,7 +22,7 @@ type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'land
 const CONTRACTS: Record<TeamProcessTool, number> = {
   compressor: 3,
   imageEmbedding: 2,
-  transcription: 5,
+  transcription: AGENT_TOOL_CONTRACTS.transcription,
   landingOptimizer: 2
 };
 

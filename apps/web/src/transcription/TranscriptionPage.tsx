@@ -1,16 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  AlertTriangle,
-  Ban,
-  Broom,
-  Check,
-  Download,
-  Files,
-  Loader,
-  Pause,
-  Play,
-  Trash2
-} from 'lucide-react';
+import { AlertTriangle, Ban, Broom, Check, Files, Loader, Pause, Play, Trash2 } from 'lucide-react';
 import type {
   TranscriptionDocument,
   TranscriptionJob,
@@ -35,8 +24,6 @@ import {
   transcriptionModelCancel,
   transcriptionModelDownload,
   transcriptionPause,
-  transcriptionTranslatorCancel,
-  transcriptionTranslatorDownload,
   transcriptionRemove,
   transcriptionRemoveMany,
   transcriptionRetry,
@@ -45,7 +32,6 @@ import {
   transcriptionSettings,
   transcriptionStart,
   transcriptionJobLanguage,
-  transcriptionTranslate,
   transcriptionUpload,
   type TranscriptionSelectionResponse
 } from '../api/client';
@@ -64,10 +50,8 @@ import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
 import {
   trackToolError,
   transcriptionFailureError,
-  transcriptionTranslationErrors,
   type ToolErrorStage
 } from '../analytics/errors';
-import { languageDisplayName } from './language';
 import { TranscriptTextModal } from './TranscriptTextModal';
 import {
   formatTranscriptionBatch,
@@ -79,7 +63,7 @@ import {
 import { TranscriptionCopyMenu } from './TranscriptionCopyMenu';
 import { TranscriptionRow, type TranscriptionRowActions } from './TranscriptionRow';
 import { TranscriptionSettingsPanel } from './TranscriptionSettingsPanel';
-import { ConfirmDownloadModal, ModelGate, combineModelInfo } from './ModelGate';
+import { ConfirmDownloadModal, ModelGate } from './ModelGate';
 import {
   forgetTranscriptDocuments,
   loadTranscriptDocument,
@@ -105,48 +89,10 @@ const EMPTY_MODEL: TranscriptionModelInfo = {
   label: '',
   error: null
 };
-
-/**
- * Which translation belongs on the clipboard when a file has more than one.
- *
- * The job carries the language the reader currently has selected, so that is the one to
- * copy. Taking whichever key happened to come first in the sidecar would hand over a
- * language nobody is looking at — and a different one from run to run.
- */
-export function selectedTranslation(document: TranscriptionDocument, job: TranscriptionJob) {
-  const completed = Object.values(document.translations).filter(
-    translation => translation.status === 'completed'
-  );
-  const selected = job.translation?.targetLanguage;
-  return (
-    completed.find(translation => translation.targetLanguage === selected) ??
-    [...completed].sort((left, right) =>
-      left.targetLanguage.localeCompare(right.targetLanguage)
-    )[0] ??
-    null
-  );
-}
-
-function copyEntry(
-  document: TranscriptionDocument,
-  job: TranscriptionJob,
-  languageName: (code: string) => string
-): TranscriptionCopyEntry {
-  const completed = selectedTranslation(document, job);
-  const translatedById = new Map(
-    completed?.segments.map(segment => [segment.sourceSegmentId, segment.translatedText]) ?? []
-  );
-  const translated = document.segments
-    .map(segment => translatedById.get(segment.id) ?? '')
-    .filter(Boolean)
-    .join('\n');
+function copyEntry(document: TranscriptionDocument, job: TranscriptionJob): TranscriptionCopyEntry {
   return {
     fileName: job.fileName,
-    transcript: document.segments.map(segment => segment.sourceText).join('\n'),
-    translation:
-      completed && translated
-        ? { languageName: languageName(completed.targetLanguage), text: translated }
-        : null
+    transcript: document.segments.map(segment => segment.sourceText).join('\n')
   };
 }
 
@@ -195,11 +141,11 @@ export default function TranscriptionPage() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const lastSelectedIndex = useRef<number | null>(null);
-  /** What the confirmation is for: a run that needs models, or the translator on its own. */
-  const [confirmingDownload, setConfirmingDownload] = useState<false | 'run' | 'translator'>(false);
+
+  const [confirmingDownload, setConfirmingDownload] = useState<false | 'run'>(false);
   const [copyingAll, setCopyingAll] = useState(false);
   const [copyScope, setCopyScope] = useState<TranscriptionCopyScope>('finished');
-  const [copyContent, setCopyContent] = useState<TranscriptionCopyContent>('both');
+  const [copyContent, setCopyContent] = useState<TranscriptionCopyContent>('transcript');
   const toastId = useRef(0);
   const toastTimers = useRef(new Set<number>());
   const { ref: toolbarRow, compactActions, compactChips } = useCompactToolbar();
@@ -302,28 +248,14 @@ export default function TranscriptionPage() {
     )) {
       analytics.track(event.name, event.properties);
     }
-    for (const error of transcriptionTranslationErrors(
-      previousAnalyticsJobs.current,
-      jobs,
-      analyticsRunId
-    )) {
-      analytics.track('error_occurred', error);
-    }
     previousAnalyticsJobs.current = jobs;
   }, [jobs]);
   const visibleJobs = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
   const settings = state?.settings ?? {
-    ...defaultTranscriptionSettings(),
-    translationLanguage: language
+    ...defaultTranscriptionSettings()
   };
   const tools = state?.tools ?? { ffmpeg: false, whisper: false, model: false };
   const model: TranscriptionModelInfo = state?.model ?? EMPTY_MODEL;
-  const translatorModel: TranscriptionModelInfo = state?.translatorModel ?? EMPTY_MODEL;
-  const alignmentModel: TranscriptionModelInfo = state?.alignmentModel ?? EMPTY_MODEL;
-  const translationBundle = useMemo(
-    () => combineModelInfo(t('transcriptionTranslationModels'), [translatorModel, alignmentModel]),
-    [translatorModel, alignmentModel, t]
-  );
   const binaryReady = tools.ffmpeg && tools.whisper;
   const modelReady = tools.model;
 
@@ -414,21 +346,6 @@ export default function TranscriptionPage() {
     [updateSettings]
   );
 
-  // The interface language is the default translation target. Keep that small preference in
-  // the local agent so translation starts even before the viewer is opened.
-  useEffect(() => {
-    if (!connected || !stateReady || settings.translationLanguage === language) return;
-    let active = true;
-    transcriptionSettings({ translationLanguage: language })
-      .then(next => {
-        if (active) applyState(next);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [connected, language, settings.translationLanguage, stateReady]);
-
   const chooseFiles = async () => {
     if (importing || !connected) return;
     setImporting(true);
@@ -485,22 +402,10 @@ export default function TranscriptionPage() {
     if (pending) void startNow(pending.ids, pending.quality);
   };
 
-  /**
-   * Starts, or asks first.
-   *
-   * The speech model is a hard requirement; the translation bundle is not. Someone who has
-   * chosen to go without translation is not asked again — the agent remembers the choice —
-   * and someone whose speech model is present but whose translation is downloading in the
-   * background simply starts. A quality named here is for these files only; when its model
-   * is missing the setting is switched to it so the gate above the queue fetches the right
-   * one, and the files start on it the moment it lands.
-   */
   const requestStart = (ids: string[], quality?: TranscriptionQualityMode) => {
     if (!ids.length) return;
     const speechModel = quality ? (state?.models?.[quality] ?? model) : model;
-    const askAboutTranslation =
-      !translationBundle.present && !translationBundle.downloading && !settings.translationDeclined;
-    if (!speechModel.present || askAboutTranslation) {
+    if (!speechModel.present) {
       if (quality && quality !== settings.quality && !speechModel.present) {
         void updateSettings({ quality });
       }
@@ -511,25 +416,12 @@ export default function TranscriptionPage() {
     void startNow(ids, quality);
   };
 
-  /** From a row that says the translator is missing: the consent, then the download. */
-  const installTranslator = useCallback(() => {
-    pendingStart.current = null;
-    setConfirmingDownload('translator');
-  }, []);
-
-  const confirmDownload = async (includeTranslation: boolean) => {
-    const purpose = confirmingDownload;
+  const confirmDownload = async () => {
     setConfirmingDownload(false);
-    if (purpose === 'translator') {
-      await updateSettings({ translationDeclined: false });
-      await run(transcriptionTranslatorDownload);
-      return;
-    }
     try {
       applyState(
         await transcriptionModelDownload({
-          quality: pendingStart.current?.quality,
-          speechOnly: !includeTranslation
+          quality: pendingStart.current?.quality
         })
       );
       const pendingQuality = pendingStart.current?.quality;
@@ -538,18 +430,6 @@ export default function TranscriptionPage() {
     } catch (error) {
       handleError(error, 'model');
     }
-  };
-  const continueWithoutTranslation = async () => {
-    setConfirmingDownload(false);
-    await updateSettings({ translationDeclined: true });
-    const pendingQuality = pendingStart.current?.quality;
-    const speechModel = pendingQuality ? (state?.models?.[pendingQuality] ?? model) : model;
-    if (!speechModel.present) {
-      // The speech model is still needed; fetch only that and start when it lands.
-      await run(() => transcriptionModelDownload({ quality: pendingQuality, speechOnly: true }));
-      return;
-    }
-    startPending();
   };
   const cancelDownloadConfirmation = () => {
     pendingStart.current = null;
@@ -594,20 +474,14 @@ export default function TranscriptionPage() {
       if (!job) return;
       try {
         const document = await loadTranscriptDocument(job);
-        const translation = selectedTranslation(document, job);
         if (format !== 'txt' && !hasTimings(document.segments)) {
           addToast(t('transcriptionExportNoTimings'), 'warning');
-          return;
-        }
-        if (content !== 'transcript' && !translation) {
-          addToast(t('transcriptionExportNoTranslation'), 'warning');
           return;
         }
         downloadTranscriptExport(
           buildTranscriptExport({
             fileName: job.fileName,
             segments: document.segments,
-            translation,
             content,
             format
           })
@@ -617,18 +491,6 @@ export default function TranscriptionPage() {
       }
     },
     [jobById, addToast, t]
-  );
-
-  const translateJob = useCallback(
-    async (jobId: string, targetLanguage: string) => {
-      try {
-        await transcriptionTranslate(jobId, targetLanguage);
-      } catch (error) {
-        handleError(error, 'translate', jobId);
-        throw error;
-      }
-    },
-    [handleError]
   );
 
   const selectedRef = useRef(selected);
@@ -661,13 +523,11 @@ export default function TranscriptionPage() {
       remove: id => void run(() => transcriptionRemove(id)),
       reveal: id => void run(() => transcriptionReveal(id)),
       setLanguage: (id, code) => void run(() => transcriptionJobLanguage(id, code)),
-      installTranslator,
       view: (id, trigger) => setPreview({ jobId: id, trigger }),
       copy: copyTranscript,
-      translate: translateJob,
       export: (id, format, content) => void exportTranscript(id, format, content)
     }),
-    [run, copyTranscript, translateJob, exportTranscript, installTranslator]
+    [run, copyTranscript, exportTranscript]
   );
 
   const stopAll = async () => {
@@ -696,9 +556,7 @@ export default function TranscriptionPage() {
     setCopyingAll(true);
     try {
       const documents = await loadTranscriptDocuments(copyJobs);
-      const entries = documents.map((document, index) =>
-        copyEntry(document, copyJobs[index], code => languageDisplayName(code, language))
-      );
+      const entries = documents.map((document, index) => copyEntry(document, copyJobs[index]));
       const included = entries.filter(entry => hasCopyContent(entry, copyContent));
       if (!included.length) {
         addToast(t('transcriptionCopyEmpty'), 'warning');
@@ -707,8 +565,7 @@ export default function TranscriptionPage() {
       await navigator.clipboard.writeText(
         formatTranscriptionBatch(entries, copyContent, {
           heading: number => t('transcriptionBatchHeading', { number }),
-          transcript: t('transcriptionCopyTranscriptLabel'),
-          translation: t('transcriptionCopyTranslationLabel')
+          transcript: t('transcriptionCopyTranscriptLabel')
         })
       );
       addToast(
@@ -721,17 +578,6 @@ export default function TranscriptionPage() {
       setCopyingAll(false);
     }
   };
-
-  // The viewer is memoised on its props; handlers that were fresh arrows re-rendered it —
-  // and its thousand segments — on every progress frame of some other file.
-  const installTranslatorFromViewer = useCallback(() => {
-    void updateSettings({ translationDeclined: false });
-    void run(transcriptionTranslatorDownload);
-  }, [updateSettings, run]);
-  const cancelTranslatorFromViewer = useCallback(
-    () => void run(transcriptionTranslatorCancel),
-    [run]
-  );
   const previewJobId = preview?.jobId ?? null;
   const exportFromViewer = useCallback(
     (format: TranscriptExportFormat, content: TranscriptExportContent) => {
@@ -760,11 +606,6 @@ export default function TranscriptionPage() {
       </>
     );
   }
-
-  const translatorMissing =
-    !translationBundle.present &&
-    !translationBundle.downloading &&
-    jobs.some(job => job.translation?.status === 'unavailable');
 
   return (
     <>
@@ -827,7 +668,7 @@ export default function TranscriptionPage() {
         {connected && binaryReady && !modelReady && (
           <ModelGate
             model={model}
-            parts={[model, translatorModel, alignmentModel]}
+            parts={[model]}
             language={language}
             onDownload={() => setConfirmingDownload('run')}
             onCancel={() => void run(transcriptionModelCancel)}
@@ -1028,25 +869,6 @@ export default function TranscriptionPage() {
           </section>
         )}
 
-        {translatorMissing && (
-          <div className="transcription-translator-banner">
-            <span>
-              {t('transcriptionTranslatorBanner', {
-                language: languageDisplayName(settings.translationLanguage, language)
-              })}
-            </span>
-            <Button
-              color="neutral"
-              variant="outline"
-              disabled={!connected}
-              onClick={installTranslator}
-            >
-              <Download size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t('transcriptionInstallTranslator')}
-            </Button>
-          </div>
-        )}
-
         {/* Not a live region — see the compressor queue. A list that announces itself on
             every progress tick is a screen reader that cannot be interrupted. */}
         <section className="video-list transcription-list">
@@ -1087,9 +909,6 @@ export default function TranscriptionPage() {
           job={previewJob}
           language={language}
           returnFocus={preview?.trigger ?? null}
-          translatorModel={translationBundle}
-          onInstallTranslator={installTranslatorFromViewer}
-          onCancelTranslator={cancelTranslatorFromViewer}
           onExport={exportFromViewer}
           onToast={addToast}
           onClose={closeViewer}
@@ -1098,13 +917,10 @@ export default function TranscriptionPage() {
       )}
       {confirmingDownload && (
         <ConfirmDownloadModal
-          speechModel={confirmingDownload === 'translator' ? PRESENT_MODEL : model}
-          translationBundle={translationBundle}
+          speechModel={model}
           language={language}
           willStart={pendingStart.current !== null}
-          translatorOnly={confirmingDownload === 'translator'}
-          onConfirm={includeTranslation => void confirmDownload(includeTranslation)}
-          onContinueWithoutTranslation={() => void continueWithoutTranslation()}
+          onConfirm={() => void confirmDownload()}
           onClose={cancelDownloadConfirmation}
           t={t}
         />
@@ -1116,27 +932,10 @@ export default function TranscriptionPage() {
 const EMPTY_JOBS: TranscriptionJob[] = [];
 
 const readTranscriptionState = () => request<TranscriptionState>('/api/transcription/state', 'GET');
-
-/** Fields of a job that change; `translation` is compared one level deeper. */
 function sameJob(previous: TranscriptionJob, next: TranscriptionJob): boolean {
   const keys = Object.keys(next) as (keyof TranscriptionJob)[];
-  if (keys.length !== Object.keys(previous).length) return false;
-  for (const key of keys) {
-    if (key === 'translation') continue;
-    if (previous[key] !== next[key]) return false;
-  }
-  const a = previous.translation;
-  const b = next.translation;
-  if (a === b) return true;
-  if (!a || !b) return false;
   return (
-    a.targetLanguage === b.targetLanguage &&
-    a.status === b.status &&
-    a.progress === b.progress &&
-    a.completedSegments === b.completedSegments &&
-    a.totalSegments === b.totalSegments &&
-    a.startedAt === b.startedAt &&
-    a.error === b.error
+    keys.length === Object.keys(previous).length && keys.every(key => previous[key] === next[key])
   );
 }
 
@@ -1157,8 +956,6 @@ function reuseUnchangedJobs(
   });
   return changed ? merged : (previous as TranscriptionJob[]);
 }
-/** Stands in for the speech model when the confirmation is about the translator alone. */
-const PRESENT_MODEL: TranscriptionModelInfo = { ...EMPTY_MODEL, present: true, progress: 100 };
 
 function Chip({
   count,

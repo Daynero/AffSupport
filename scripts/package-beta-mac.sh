@@ -172,9 +172,6 @@ node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent"
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp "$source_app/Contents/Resources/licenses/sources/"* "$app/Contents/Resources/licenses/sources/"
-for notice in llama.cpp-LICENSE GEMMA_TERMS.md GEMMA_PROHIBITED_USE_POLICY.md NOTICE-Gemma.txt multilingual-e5-small-MIT.txt; do
-  cp "packaging/licenses/$notice" "$app/Contents/Resources/licenses/"
-done
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"

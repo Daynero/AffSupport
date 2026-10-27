@@ -44,7 +44,6 @@ function transcriptionJob(
     detectedLanguage: null,
     text: null,
     characters: null,
-    translation: null,
     error: null,
     errorDetails: null,
     batchId: null,
@@ -254,7 +253,7 @@ describe('transcribing a finished file again', () => {
     // different answer.
     expect(job.detectedLanguage).toBeNull();
     expect(job.languageSource).toBeUndefined();
-    expect(job.translation).toBeNull();
+    expect(job).not.toHaveProperty('translation');
     expect(job.finishedAt).toBeNull();
 
     await queue.shutdown();

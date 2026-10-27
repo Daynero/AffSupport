@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { recordRetiredCommand } from './diagnostics.js';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
@@ -8,7 +9,6 @@ import { MAX_MEDIA_UPLOAD_BYTES } from '../server/upload-limits.js';
 import {
   isTranscribableFileName,
   isTranscriptionQualityMode,
-  isValidTargetLanguage,
   TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionEvent,
   type TranscriptionSettings
@@ -28,8 +28,6 @@ interface TranscriptionDeps {
   events: EventChannel<TranscriptionEvent>;
   acceptingNewTasks: () => boolean;
 }
-
-const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/iu;
 
 export function registerTranscriptionRoutes(app: FastifyInstance, deps: TranscriptionDeps) {
   const { queue, events, acceptingNewTasks } = deps;
@@ -51,17 +49,12 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       if (body.language !== undefined && typeof body.language !== 'string') {
         return reply.code(400).send({ error: 'Invalid language.' });
       }
-      if (
-        body.translationLanguage !== undefined &&
-        !isValidTargetLanguage(body.translationLanguage)
-      ) {
-        return reply.code(400).send({ error: 'Invalid translation language.' });
+      if ('translationLanguage' in body || 'translationDeclined' in body) {
+        recordRetiredCommand();
+        return reply.code(409).send({ error: 'FEATURE_RETIRED' });
       }
       if (body.quality !== undefined && !isTranscriptionQualityMode(body.quality)) {
         return reply.code(400).send({ error: 'Invalid quality mode.' });
-      }
-      if (body.translationDeclined !== undefined && typeof body.translationDeclined !== 'boolean') {
-        return reply.code(400).send({ error: 'Invalid translation preference.' });
       }
       queue.updateSettings(body);
       return queue.state();
@@ -148,8 +141,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
   });
 
   // Installs the speech model of the selected quality (or the one named in the body) and,
-  // unless the caller asked for the speech model alone, the translation bundle with it.
-  app.post<{ Body?: { quality?: unknown; speechOnly?: unknown } }>(
+  app.post<{ Body?: { quality?: unknown } }>(
     '/api/transcription/model/download',
     async (request, reply) => {
       const quality = request.body?.quality;
@@ -157,8 +149,7 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
         return reply.code(400).send({ error: 'Invalid quality mode.' });
       }
       queue.startModelDownload({
-        quality,
-        speechOnly: request.body?.speechOnly === true
+        quality
       });
       return queue.state();
     }
@@ -168,16 +159,14 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
     queue.cancelModelDownload();
     return queue.state();
   });
-
-  // One-time install of the local translation model (TranslateGemma).
-  app.post('/api/transcription/translator/download', async () => {
-    queue.startTranslatorModelDownload();
-    return queue.state();
+  app.post('/api/transcription/translator/download', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
   });
 
-  app.post('/api/transcription/translator/cancel', async () => {
-    queue.cancelTranslatorModelDownload();
-    return queue.state();
+  app.post('/api/transcription/translator/cancel', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
   });
 
   app.post<{ Body?: { ids?: unknown; quality?: unknown } }>(
@@ -300,8 +289,6 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       return queue.state();
     }
   );
-
-  // The structured document (segments, words, cached translations) is large and
   // fetched on demand — deliberately never carried in `transcription:progress`.
   app.get<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/document',
@@ -311,92 +298,25 @@ export function registerTranscriptionRoutes(app: FastifyInstance, deps: Transcri
       return reply.header('Cache-Control', 'private, no-store').send(document);
     }
   );
-
-  // Packages the creative + transcript + translation into a folder next to the
-  // source file, then reveals it. The web client passes localized names.
-  app.post<{
-    Params: { id: string };
-    Body: { languageLabel?: unknown; fileName?: unknown };
-  }>('/api/transcription/jobs/:id/save-with-translation', async (request, reply) => {
-    const languageLabel =
-      typeof request.body?.languageLabel === 'string'
-        ? request.body.languageLabel.slice(0, 64)
-        : '';
-    const fileName =
-      typeof request.body?.fileName === 'string' ? request.body.fileName.slice(0, 128) : '';
-    const result = await queue.saveWithTranslation(request.params.id, languageLabel, fileName);
-    switch (result.outcome) {
-      case 'saved':
-        showInFileManager(result.folderPath, { reveal: true });
-        return queue.state();
-      case 'not-local':
-        return reply.code(409).send({ error: 'SOURCE_NOT_LOCAL' });
-      case 'no-translation':
-        return reply.code(409).send({ error: 'TRANSLATION_NOT_READY' });
-      case 'failed':
-        return reply.code(500).send({ error: 'SAVE_FAILED' });
-      case 'not-found':
-      default:
-        return reply.code(404).send({ error: 'No source file is available.' });
-    }
+  app.post('/api/transcription/jobs/:id/save-with-translation', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
   });
 
-  // Kick off (or return a cached) translation into a target language.
-  app.post<{
-    Params: { id: string };
-    Body: { targetLanguage?: unknown; requestId?: unknown };
-  }>('/api/transcription/jobs/:id/translations', async (request, reply) => {
-    const targetLanguage = request.body?.targetLanguage;
-    if (typeof targetLanguage !== 'string' || !targetLanguage.trim()) {
-      return reply.code(400).send({ error: 'A target language is required.' });
-    }
-    const requestId =
-      typeof request.body?.requestId === 'string' && request.body.requestId.length <= 128
-        ? request.body.requestId
-        : undefined;
-    const result = await queue.requestTranslation(
-      request.params.id,
-      targetLanguage.trim(),
-      requestId
-    );
-    switch (result.outcome) {
-      case 'completed':
-      case 'queued':
-        return reply.header('Cache-Control', 'private, no-store').send(result.translation);
-      case 'invalid-language':
-        return reply.code(400).send({ error: 'That target language is not supported.' });
-      case 'unavailable':
-        return reply.code(503).send({ error: 'TRANSLATOR_UNAVAILABLE' });
-      case 'no-document':
-      default:
-        return reply.code(404).send({ error: 'No transcript document is available.' });
-    }
+  app.post('/api/transcription/jobs/:id/translations', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
   });
 
-  app.get<{ Params: { id: string; language: string } }>(
-    '/api/transcription/jobs/:id/translations/:language',
-    async (request, reply) => {
-      // A language is a BCP 47 tag; anything else (`__proto__`, say) is a lookup that must
-      // answer 404 rather than reach an object by its key.
-      if (!LANGUAGE_TAG.test(request.params.language)) {
-        return reply.code(404).send({ error: 'No translation is available.' });
-      }
-      const translation = await queue.translation(request.params.id, request.params.language);
-      if (!translation) return reply.code(404).send({ error: 'No translation is available.' });
-      return reply.header('Cache-Control', 'private, no-store').send(translation);
-    }
-  );
+  app.get('/api/transcription/jobs/:id/translations/:language', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
+  });
 
-  // User-initiated cancel of the job's running/queued translation. Persisted
-  // partial segments are kept so a retry resumes where it stopped.
-  app.delete<{ Params: { id: string } }>(
-    '/api/transcription/jobs/:id/translations',
-    async (request, reply) => {
-      const cancelled = await queue.cancelTranslation(request.params.id);
-      if (!cancelled) return reply.code(404).send({ error: 'No running translation.' });
-      return queue.state();
-    }
-  );
+  app.delete('/api/transcription/jobs/:id/translations', async (_request, reply) => {
+    recordRetiredCommand();
+    return reply.code(409).send({ error: 'FEATURE_RETIRED' });
+  });
 
   app.get<{ Params: { id: string } }>(
     '/api/transcription/jobs/:id/media/status',

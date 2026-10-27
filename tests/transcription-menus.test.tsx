@@ -21,7 +21,7 @@ describe('export menu', () => {
   it('opens on the body when portalled, names why formats are unavailable, and walks by arrow', () => {
     const onExport = vi.fn();
     const { container } = render(
-      <ExportMenu hasTimings={false} hasTranslation={false} onExport={onExport} portal t={t} />
+      <ExportMenu hasTimings={false} onExport={onExport} portal t={t} />
     );
     fireEvent.click(screen.getByRole('button', { name: 'transcriptionExportOptions' }));
     const menu = screen.getByRole('menu');
@@ -36,7 +36,7 @@ describe('export menu', () => {
     // txt for the transcript only; the timed formats and the translation groups are off.
     expect(items.filter(item => !(item as HTMLButtonElement).disabled)).toHaveLength(1);
     expect(menu.textContent).toContain('transcriptionExportNoTimings');
-    expect(menu.textContent).toContain('transcriptionExportNoTranslation');
+    expect(menu.textContent).not.toContain('transcriptionExportNoTranslation');
 
     // Focus lands on the first enabled item; arrows wrap around the enabled ones.
     expect(document.activeElement).toBe(items[0]);
@@ -52,7 +52,7 @@ describe('export menu', () => {
     const outer = vi.fn();
     render(
       <div onKeyDown={outer}>
-        <ExportMenu hasTimings hasTranslation onExport={() => {}} t={t} />
+        <ExportMenu hasTimings onExport={() => {}} t={t} />
       </div>
     );
     const toggle = screen.getByRole('button', { name: 'transcriptionExportOptions' });
@@ -188,7 +188,7 @@ describe('batch copy menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'transcriptionCopyOptions' }));
     const dialog = screen.getByRole('dialog');
     const radios = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
-    expect(radios.length).toBeGreaterThanOrEqual(4);
+    expect(radios.length).toBe(3);
     // The scope group's other choice: the one not checked. The group is the
     // first fieldset — the radios' `name` is the shared component's generated
     // id now, which is an implementation detail rather than a handle.

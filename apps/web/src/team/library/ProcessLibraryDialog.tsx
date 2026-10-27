@@ -76,8 +76,8 @@ export function ProcessLibraryDialog({
   /*
    * How many of the folder's videos already carry a transcript: the videos the
    * walk found, less the transcription jobs the scan still wants. Counted in
-   * videos and jobs that are one to one, because they are — a translation is a
-   * second job for the same video, and taking it from a file count made the
+   * videos and original transcription jobs that are one to one. Taking all work
+   * from a file count made the
    * window claim four landings were "already processed" on the same screen
    * where it said this computer cannot process landings at all.
    */
@@ -341,7 +341,6 @@ export function ProcessLibraryDialog({
 /** What one job of each kind is called, for the line naming the one running. */
 const KIND_NOUN: Record<string, TranslationKey> = {
   transcription: 'teamBatchKindTranscription',
-  translation: 'teamBatchKindTranslation',
   landing_optimization: 'teamBatchKindLanding',
   previews: 'teamBatchKindPreview'
 };
@@ -349,7 +348,6 @@ const KIND_NOUN: Record<string, TranslationKey> = {
 /** The three kinds, paired with the count and the word the window uses. */
 const KIND_TILES = [
   { key: 'transcription', label: 'teamBatchTranscriptions' },
-  { key: 'translation', label: 'teamBatchTranslations' },
   { key: 'landing_optimization', label: 'teamBatchLandings' }
 ] as const;
 
@@ -358,8 +356,7 @@ type KindTile = { key: string; label: TranslationKey; count: number };
 function tilesOf(scan: LibraryRequirementScanResult): KindTile[] {
   return [
     { ...KIND_TILES[0], count: scan.missing.transcription },
-    { ...KIND_TILES[1], count: scan.missing.translation },
-    { ...KIND_TILES[2], count: scan.missing.landingOptimization }
+    { ...KIND_TILES[1], count: scan.missing.landingOptimization }
   ];
 }
 

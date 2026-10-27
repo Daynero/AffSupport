@@ -62,8 +62,8 @@ const AGENT_IMAGES = 'apps/agent/src/images/store.ts';
 const AGENT_ESTIMATE = 'apps/agent/src/estimate/worker.ts';
 const AGENT_TRANSCRIPTION_QUEUE = 'apps/agent/src/queue/transcription-queue.ts';
 const AGENT_TRANSCRIPTION_STORE = 'apps/agent/src/queue/transcription-store.ts';
-const AGENT_TRANSLATION = 'apps/agent/src/queue/translation-coordinator.ts';
-const AGENT_TRANSLATOR = 'apps/agent/src/translation/translator.ts';
+const AGENT_TRANSLATION = SHARED_TYPES;
+const AGENT_TRANSLATOR = SHARED_TYPES;
 const AGENT_WHISPER_DOWNLOADER = 'apps/agent/src/whisper/downloader.ts';
 const AGENT_WHISPER_TRANSCRIBER = 'apps/agent/src/whisper/transcriber.ts';
 const AGENT_STITCH_QUEUE = 'apps/agent/src/stitcher/queue.ts';
@@ -221,6 +221,16 @@ export const ESTIMATE_CODES: Readonly<Record<string, CodeSpec>> = {
 const TRANSCRIPTION_WEB = [WEB_ERRORS, WEB_TRANSCRIPTION];
 
 export const TRANSCRIPTION_CODES: Readonly<Record<string, CodeSpec>> = {
+  FEATURE_RETIRED: {
+    stage: 'transcribe',
+    agent: [
+      'apps/agent/src/transcription/routes.ts',
+      'apps/agent/src/team-bridge/routes.ts',
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/library.ts'
+    ],
+    check: 'An obsolete command was refused; no new execution was accepted.'
+  },
   MODEL_MISSING: {
     stage: 'model',
     agent: [AGENT_TRANSCRIPTION_QUEUE, AGENT_WHISPER_DOWNLOADER],
@@ -265,12 +275,12 @@ export const TRANSCRIPTION_CODES: Readonly<Record<string, CodeSpec>> = {
   TRANSLATION_FAILED: {
     stage: 'translate',
     agent: [AGENT_TRANSLATION],
-    check: 'Which step of the translation coordinator failed for this language pair.'
+    check: 'Historical error from an older producer; current API6 cannot execute this command.'
   },
   TRANSLATOR_UNAVAILABLE: {
     stage: 'translate',
     agent: [AGENT_TRANSLATOR, AGENT_TRANSLATION],
-    check: 'Whether the translation engine is installed and detected on this machine.'
+    check: 'Historical unavailable error; retained installations are inert on API6.'
   }
 };
 
@@ -501,6 +511,13 @@ const WEB_FORWARDER = 'apps/web/src/analytics/journal-forwarder.ts';
 
 /** Keyed `<category>:<code>`; the test scans `apps/agent/src` for every literal pair. */
 export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
+  'transcription:feature_retired': {
+    files: [
+      'apps/agent/src/transcription/routes.ts',
+      'apps/agent/src/transcription/diagnostics.ts'
+    ],
+    check: 'An obsolete command was refused before execution; no run was started.'
+  },
   'boot:started': {
     files: [AGENT_INDEX],
     check: 'A boot record: compare with the failure time to see whether the local app restarted.'
@@ -656,6 +673,11 @@ const JOURNAL_CATEGORY_FILES: Readonly<Record<string, JournalSpec>> = {
   power: {
     files: ['apps/agent/src/power/governor.ts'],
     check: 'The local resource budget governor.'
+  },
+  transcription: {
+    files: ['apps/agent/src/transcription/diagnostics.ts', AGENT_TRANSCRIPTION_QUEUE],
+    check:
+      'Read accepted, saved and terminal separately; missing terminal or visibility remains unknown.'
   },
   stitcher: { files: [AGENT_STITCH_BODY], check: 'Prepared body recovery and verification.' },
   team: {

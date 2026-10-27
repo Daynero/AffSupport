@@ -33,7 +33,7 @@ afterEach(() => {
 
 function scan(count: number) {
   return {
-    missing: { transcription: count, translation: 0, landingOptimization: 0 },
+    missing: { transcription: count, landingOptimization: 0 },
     scannedAt: '2026-08-20T10:00:00.000Z'
   };
 }
@@ -109,7 +109,7 @@ function Harness({
         teamId={TEAM_ID}
         sourceMaterialIds={[SOURCE_ID]}
         agentAvailability="ready"
-        toolContracts={{ teamWorkspace: 1, transcription: 5 }}
+        toolContracts={{ teamWorkspace: 1, transcription: 6 }}
         client={client}
         agent={agent}
         agentInstanceId={AGENT_ID}

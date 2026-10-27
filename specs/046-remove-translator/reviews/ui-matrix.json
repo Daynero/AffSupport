@@ -1,0 +1,693 @@
+{
+  "scope": "Actual TranscriptionPage and CSS with local context/API fixtures; not packaged beta/authentication proof.",
+  "results": [
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/normal-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/empty-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/error-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/first-run-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "uk",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/model-loading-uk-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/normal-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/empty-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/error-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/first-run-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "language": "en",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/model-loading-en-light-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/normal-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/empty-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/error-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/first-run-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "uk",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Перетягніть аудіо чи відео сюди або виберіть файли"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/model-loading-uk-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/normal-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/empty-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/error-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/first-run-en-dark-1280.png"
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "language": "en",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": {
+        "tag": "DIV",
+        "name": "Drag audio or video here or choose files"
+      },
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/model-loading-en-dark-1280.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/normal-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/empty-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/error-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/first-run-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "uk",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/model-loading-uk-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/normal-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/empty-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/error-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/first-run-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "language": "en",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/model-loading-en-light-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/normal-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/empty-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/error-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/first-run-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "uk",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/model-loading-uk-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "normal",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/normal-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "empty",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/empty-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/loading-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "error",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/error-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "disconnected",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": false,
+      "screenshot": "scratchpad/046/page-screens/disconnected-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "first-run",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/first-run-en-dark-390.png"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "language": "en",
+      "state": "model-loading",
+      "errors": [],
+      "retired": [],
+      "keyboardFocus": null,
+      "touchHelp": true,
+      "screenshot": "scratchpad/046/page-screens/model-loading-en-dark-390.png"
+    }
+  ]
+}

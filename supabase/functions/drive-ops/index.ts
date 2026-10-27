@@ -180,8 +180,7 @@ const TOOL_RULES: Readonly<
   >
 > = {
   compressor: { categories: ['video'], contractVersion: 3, outputMimeType: 'video/mp4' },
-  transcription: { categories: ['video'], contractVersion: 5, outputMimeType: 'text/plain' },
-  translation: { categories: ['video'], contractVersion: 5, outputMimeType: 'text/plain' },
+  transcription: { categories: ['video'], contractVersion: 6, outputMimeType: 'text/plain' },
   landingOptimizer: {
     categories: ['archive', 'landing'],
     contractVersion: 2,
@@ -1020,6 +1019,8 @@ async function handleUploadFinalize(
       reused: true
     };
   }
+  if (operation.toolId === 'translation')
+    throw new TeamFunctionError('FEATURE_RETIRED', { retryable: false });
   // A null destination is the space root, which has no material to name.
   if (!operation.expectedName) {
     throw new TeamFunctionError('WRONG_STATE', { retryable: false });
@@ -1067,11 +1068,7 @@ async function handleUploadFinalize(
       throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
     }
     const resultMaterialId = stringValue(committed, 'materialId');
-    if (
-      resultMaterialId &&
-      operation.kind === 'process' &&
-      (operation.toolId === 'transcription' || operation.toolId === 'translation')
-    ) {
+    if (resultMaterialId && operation.kind === 'process' && operation.toolId === 'transcription') {
       await cacheGeneratedTextResult({
         service,
         client,
@@ -1874,6 +1871,8 @@ async function handleProcessStart(
   const rawDestination = optionalDestination(body.destinationFolderId);
   const idempotencyKey = requireIdempotency(body.idempotencyKey);
   const toolId = typeof body.toolId === 'string' ? body.toolId : '';
+  if (toolId === 'translation')
+    throw new TeamFunctionError('FEATURE_RETIRED', { retryable: false });
   const tool = TOOL_RULES[toolId];
   const outputName = displayDriveName(body.outputName);
   // 013 (B4): overwrite-the-original. The compressed result is uploaded as a
@@ -2079,6 +2078,8 @@ async function handleProcessOutputStart(
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
   }
   const operation = await getOperation(service, operationId, grant.actorId);
+  if (operation.toolId === 'translation')
+    throw new TeamFunctionError('FEATURE_RETIRED', { retryable: false });
   if (
     operation.kind !== 'process' ||
     operation.state !== 'running' ||

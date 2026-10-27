@@ -542,6 +542,7 @@ describe('investigate · (e) a user with no events', () => {
       'tariff_recovery_gap',
       'workspace_evidence_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
     ]);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
@@ -553,10 +554,15 @@ describe('investigate · (e) a user with no events', () => {
       data.coverage.blind_spots.filter(spot => spot.kind === 'workspace_evidence_gap')
     ).toEqual([
       expect.objectContaining({
+        detail: expect.stringContaining(
+          'Translation retirement projection unavailable; absence is unknown.'
+        )
+      }),
+      expect.objectContaining({
         detail: expect.stringContaining('Membership access signal projection is unavailable')
       }),
       expect.objectContaining({
-        detail: expect.not.stringContaining('Membership access signal projection')
+        detail: expect.stringContaining('Workspace diagnostic projection is unavailable')
       })
     ]);
     expect(data.findings[0].evidence).toEqual([

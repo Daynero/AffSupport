@@ -45,7 +45,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UNDRIVEN: Readonly<Record<string, readonly string[]>> = {
   compression: [],
   transcription: [],
-  translation: [],
   // `ready → failed` is a refusal by the worker's own `start()`, which the optimizer only
   // calls for a job it has already queued. The worker is not exported, so the edge cannot
   // be reached from anything a test can hold — it stays declared because the table describes

@@ -50,13 +50,12 @@ any mismatch — an unverifiable byte never reaches an installer.
 
 Currently pinned:
 
-| Input                                                    | Version                      | Why this version                                                                |
-| -------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
-| Node.js                                                  | 24.13.0 win-x64              | the version the shipped macOS package bundles                                   |
-| whisper.cpp                                              | v1.9.1 `whisper-bin-x64.zip` | same upstream version as macOS                                                  |
-| Silero VAD model                                         | v5.1.2                       | hashed from the shipped macOS package, so both platforms bundle identical bytes |
-| llama.cpp (translation runtime, downloaded on first use) | b10092 win-cpu-x64           | same tag/revision as macOS                                                      |
-| FFmpeg + FFprobe (built in CI)                           | 7.1.1 + x264 `0480cb05`      | identical version and x264 revision to the macOS build                          |
+| Input                          | Version                      | Why this version                                                                |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------------- |
+| Node.js                        | 24.13.0 win-x64              | the version the shipped macOS package bundles                                   |
+| whisper.cpp                    | v1.9.1 `whisper-bin-x64.zip` | same upstream version as macOS                                                  |
+| Silero VAD model               | v5.1.2                       | hashed from the shipped macOS package, so both platforms bundle identical bytes |
+| FFmpeg + FFprobe (built in CI) | 7.1.1 + x264 `0480cb05`      | identical version and x264 revision to the macOS build                          |
 
 **FFmpeg is compiled, not downloaded.** No static win64 GPL build of the 7.1.x
 line the macOS package uses is still published — BtbN dropped the 7.1 line and

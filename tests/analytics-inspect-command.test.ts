@@ -175,12 +175,14 @@ describe('inspect · by flow_id, attempt_id, workflow_id', () => {
 
 describe('inspect · not found', () => {
   it('returns found:false for an unknown id and for an id with unsafe characters', async () => {
-    expect(await getInspect('40000000-0000-4000-8000-000000000009')).toEqual({
-      found: false,
-      id: '40000000-0000-4000-8000-000000000009'
-    });
-    expect(await getInspect('nothing-here')).toEqual({ found: false, id: 'nothing-here' });
-    expect(await getInspect("x' or 1=1")).toEqual({ found: false, id: "x' or 1=1" });
+    for (const id of ['40000000-0000-4000-8000-000000000009', 'nothing-here', "x' or 1=1"]) {
+      expect(await getInspect(id)).toMatchObject({
+        found: false,
+        id,
+        translation_retirement: { rows: [], policy: { historical_producer_coverage: 'unknown' } },
+        transcription_original: { attempts: [] }
+      });
+    }
   });
 
   it('runs as a command with the standard envelope data and a human table', async () => {

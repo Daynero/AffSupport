@@ -128,7 +128,7 @@ describe('the registry', () => {
       statesOf(lifecycle).filter(state => isTerminal(lifecycle, state));
 
     // The distinction is the whole reason the terminal rule is not universal. A compression
-    // that finished can be run again; a translation that finished is done, and offering to
+    // that finished can be run again; a landing asset that finished is done, and offering to
     // resume one would be the interface lying.
     //
     // `landing-job` sits on the finished side, which reconciling the tables against a real
@@ -138,7 +138,7 @@ describe('the registry', () => {
       const lifecycle = LIFECYCLES.find(candidate => candidate.id === id) as AnyLifecycle;
       expect(terminals(lifecycle), `${id} should have no terminal state`).toEqual([]);
     }
-    for (const id of ['translation', 'landing-asset', 'media-action', 'landing-job']) {
+    for (const id of ['landing-asset', 'media-action', 'landing-job']) {
       const lifecycle = LIFECYCLES.find(candidate => candidate.id === id) as AnyLifecycle;
       expect(terminals(lifecycle).length, `${id} should have a terminal state`).toBeGreaterThan(0);
     }

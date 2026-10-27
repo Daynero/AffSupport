@@ -220,21 +220,19 @@ describeRequiring(ffmpegBinaries, 'bounded transcription pipeline', () => {
         .join(' ')
     ).toBe(result.text);
   }, 20_000);
-  it('covers every window in both source and English pivot and preserves the document text', async () => {
+  it('covers every source window without an English pass', async () => {
     const { source, counter, transcribe } = await fixture();
     const progress: number[] = [];
     const result = await transcribe({
       inputPath: source,
       language: 'auto',
-      createEnglishPivot: true,
       onProgress: value => {
         if (value !== null) progress.push(value);
       }
     }).done;
     expect(result.code).toBe(0);
     expect(result.text).toBe('पहला वाक्य एक दो तीन मध्य भाग चार पाँच छह अंतिम वाक्य सात आठ नौ');
-    expect(result.englishText).toBe(result.text);
-    expect(await readFile(counter, 'utf8')).toBe('6');
+    expect(await readFile(counter, 'utf8')).toBe('3');
     expect(progress.at(-1)).toBe(100);
     expect(progress.every((value, index) => index === 0 || value >= progress[index - 1])).toBe(
       true
@@ -256,18 +254,16 @@ describeRequiring(ffmpegBinaries, 'bounded transcription pipeline', () => {
     expect(await readFile(counter, 'utf8')).toBe('2');
   }, 20_000);
 
-  it('keeps the full source when the optional pivot fails', async () => {
+  it('retains the full Hindi source with no fourth decoder pass', async () => {
     const { source, counter, transcribe } = await fixture({ failAt: 4 });
     const result = await transcribe({
       inputPath: source,
       language: 'hi',
-      createEnglishPivot: true,
       onProgress: () => {}
     }).done;
     expect(result.code).toBe(0);
     expect(result.text).toContain('अंतिम वाक्य सात आठ नौ');
-    expect(result.englishText).toBe('');
-    expect(await readFile(counter, 'utf8')).toBe('5');
+    expect(await readFile(counter, 'utf8')).toBe('3');
   }, 20_000);
 
   it('rejects an exit-zero decoder that did not write its transcript', async () => {

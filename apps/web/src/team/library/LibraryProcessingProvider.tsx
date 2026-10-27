@@ -1,3 +1,5 @@
+import { analytics } from '../../analytics/service';
+import { analyticsRunId } from '../../analytics/tools';
 import {
   createContext,
   useCallback,
@@ -9,9 +11,10 @@ import {
   type ReactNode
 } from 'react';
 import {
+  TEAM_ERROR_CODES,
+  AGENT_TOOL_CONTRACTS,
   normalizeCatalogSearchRequest,
   transcriptSidecarName,
-  translationSidecarName,
   type LibraryJobKind,
   type ToolContracts
 } from '@video-compressor/shared';
@@ -134,16 +137,13 @@ function outputName(job: LibraryJobClaimEnvelope, context: LibraryProcessingCont
   if (job.kind === 'transcription') {
     return transcriptSidecarName(context.sourceName, job.sourceVersion);
   }
-  if (job.kind === 'translation') {
-    return translationSidecarName(context.sourceName, job.sourceVersion, job.variant);
-  }
+
   const stem = context.sourceName.replace(/\.[^.]+$/u, '').slice(0, 180) || 'landing';
   const suffix = job.sourceVersion.replace(/[^a-z0-9]/giu, '').slice(0, 12) || 'current';
   return `${stem}.optimized.${suffix}.zip`;
 }
 
 function optionsForJob(job: LibraryJobClaimEnvelope): Record<string, unknown> {
-  if (job.kind === 'translation') return { language: 'auto', targetLanguage: job.variant };
   if (job.kind === 'transcription') return { language: 'auto' };
   return {};
 }
@@ -272,7 +272,8 @@ export function LibraryProcessingProvider({
     // and is too old for the workspace has nothing to offer.
     if (agentAvailability === 'too_old' || (toolContracts.teamWorkspace ?? 0) < 1) return [];
     const kinds: LibraryJobKind[] = [];
-    if ((toolContracts.transcription ?? 0) >= 5) kinds.push('transcription', 'translation');
+    if ((toolContracts.transcription ?? 0) >= AGENT_TOOL_CONTRACTS.transcription)
+      kinds.push('transcription');
     /*
      * Landings too, whatever the scope. This used to be space-only, on the
      * reasoning that one chosen video does not ask for landing work — true, and
@@ -287,7 +288,6 @@ export function LibraryProcessingProvider({
 
   const [chosenKinds, setChosenKinds] = useState<LibraryJobKind[]>([
     'transcription',
-    'translation',
     'landing_optimization'
   ]);
   /** What a run claims and enqueues: what this device can do, of what was chosen. */
@@ -300,7 +300,6 @@ export function LibraryProcessingProvider({
       runKinds.filter(kind => {
         if (!scan) return false;
         if (kind === 'transcription') return scan.missing.transcription > 0;
-        if (kind === 'translation') return scan.missing.translation > 0;
         return scan.missing.landingOptimization > 0;
       }),
     [runKinds, scan]
@@ -397,7 +396,6 @@ export function LibraryProcessingProvider({
     (previewsChosen ? previewIds.length : 0) +
     (scan
       ? (runKinds.includes('transcription') ? scan.missing.transcription : 0) +
-        (runKinds.includes('translation') ? scan.missing.translation : 0) +
         (runKinds.includes('landing_optimization') ? scan.missing.landingOptimization : 0)
       : 0);
 
@@ -440,6 +438,7 @@ export function LibraryProcessingProvider({
       summarize(counts);
       return;
     }
+    const batchFlowId = crypto.randomUUID();
     control.current.stopped = false;
     setPhase('running');
     /* The queue is written here, at the press that agreed to it. Until now the
@@ -533,6 +532,29 @@ export function LibraryProcessingProvider({
         return;
       }
 
+      const stage = (
+        action: 'accepted' | 'uploaded' | 'registered' | 'failed',
+        run?: string,
+        code?: string
+      ) => {
+        if (job.kind !== 'transcription' || !analyticsRunId(job.attemptId)) return;
+        analytics.track('operation_stage_completed', {
+          flow_step: 'library_original_processing',
+          action_identifier: action,
+          flow_id: batchFlowId,
+          attempt_id: job.attemptId,
+          ...(analyticsRunId(run) ? { run_id: run } : {}),
+          outcome: action === 'failed' ? 'failure' : 'success',
+          ...(code
+            ? {
+                error_code: TEAM_ERROR_CODES.includes(code as (typeof TEAM_ERROR_CODES)[number])
+                  ? code
+                  : 'unknown'
+              }
+            : {})
+        });
+      };
+      stage('accepted');
       control.current.attempt = job;
       setActiveKind(job.kind);
       let operationId: string | null = null;
@@ -596,6 +618,7 @@ export function LibraryProcessingProvider({
             sourceVersion: job.sourceVersion,
             idempotencyKey: `library.result.${job.attemptId}`
           });
+          stage('registered');
           if (adopted.state === 'accepted') {
             counts.done += 1;
             setDone(value => value + 1);
@@ -649,6 +672,7 @@ export function LibraryProcessingProvider({
         if (processed.state !== 'succeeded' || !processed.materialId) {
           throw new Error('PROCESS_FAILED');
         }
+        stage('uploaded', operationId);
         const finalized = await client.finalizeLibraryJob({
           teamId,
           attemptId: job.attemptId,
@@ -658,6 +682,7 @@ export function LibraryProcessingProvider({
           sourceVersion: job.sourceVersion,
           idempotencyKey: `library.result.${job.attemptId}`
         });
+        stage('registered', operationId);
         if (finalized.state === 'accepted') {
           counts.done += 1;
           setDone(value => value + 1);
@@ -668,6 +693,7 @@ export function LibraryProcessingProvider({
       } catch (error) {
         if (control.current.stopped) return;
         const code = safeErrorCode(error);
+        stage('failed', operationId ?? undefined, code);
         await Promise.allSettled([
           client.failLibraryJob({
             teamId,

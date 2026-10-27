@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/clean-agent-dist.mjs && tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
   "dependencies": {

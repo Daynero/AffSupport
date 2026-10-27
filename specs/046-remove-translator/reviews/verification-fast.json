@@ -1,0 +1,106 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-10-27T15:32:17.650Z",
+  "form": "fast",
+  "error": "suite",
+  "data": {
+    "duration_ms": 635083,
+    "totals": {
+      "gates": 14,
+      "passed": 13,
+      "failed": 1,
+      "tests": 3803,
+      "skipped_tests": 18,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 6,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 6,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1575
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 51825
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 46055
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 47254
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 58313
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 8181
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 370
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 5105
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 316
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 305
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 297
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 233
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 3832
+      },
+      {
+        "id": "suite",
+        "ok": false,
+        "duration_ms": 575176
+      }
+    ],
+    "failure": {
+      "gate": "suite",
+      "subject": "tests/release.test.ts > release identity > gates each tool by its own contract — AssertionError: expected false to be true // Object.is equality",
+      "excerpt": [
+        "tests/release.test.ts > release identity > gates each tool by its own contract — AssertionError: expected false to be true // Object.is equality"
+      ]
+    }
+  }
+}

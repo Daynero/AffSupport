@@ -107,8 +107,7 @@ export function PaneActions({
     trash: onDelete,
     transcribe: onTranscribe,
     // Deliberately not `copyText`: the pane carries the text surface itself,
-    // which can choose between the original and a translation. One press that
-    // guesses which one you meant belongs where there is no room to ask.
+    // which displays and copies the original transcript.
     // The catalog dialog opens over the explorer and knows how to offer the
     // one that exists as well as how to make a new one, so both readings of
     // "Product catalog" land in the same place.

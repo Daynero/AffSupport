@@ -43,34 +43,7 @@ const stateOf = (overrides: Partial<TranscriptionState> = {}): TranscriptionStat
       error: null
     }
   },
-  translatorModel: {
-    present: false,
-    downloading: false,
-    progress: null,
-    sizeBytes: 2,
-    downloadedBytes: 0,
-    label: 't',
-    error: null
-  },
-  translatorRuntime: {
-    present: false,
-    downloading: false,
-    progress: null,
-    sizeBytes: 0,
-    downloadedBytes: 0,
-    label: 'r',
-    error: null
-  },
-  alignmentModel: {
-    present: false,
-    downloading: false,
-    progress: null,
-    sizeBytes: 0,
-    downloadedBytes: 0,
-    label: 'a',
-    error: null
-  },
-  settings: { language: 'auto', translationLanguage: 'uk', quality: 'fast' },
+  settings: { language: 'auto', quality: 'fast' },
   ...overrides
 });
 
@@ -256,7 +229,7 @@ describe('transcription routes: quality, pause and downloads', () => {
         })
       ).statusCode
     ).toBe(400);
-    expect(requests).toEqual([{ quality: 'accurate', speechOnly: true }]);
+    expect(requests).toEqual([{ quality: 'accurate' }]);
     await app.close();
   });
 });

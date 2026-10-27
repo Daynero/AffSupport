@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { replaceFile } from '../files/replace-file.js';
 import path from 'node:path';
 import type {
@@ -7,11 +7,10 @@ import type {
   TranscriptionJob,
   TranscriptSegment,
   TranscriptWord,
-  TranslationDocument,
   TranscriptionReliability
 } from '@video-compressor/shared';
 import { applicationSupportRoot } from '../files/support-dir.js';
-import { lexicalUnitSpans, splitTextForTranslation } from '../translation/segmentation.js';
+import { lexicalUnitSpans, splitTranscriptText } from '../transcription/segmentation.js';
 import { buildSegmentsFromWords, type WhisperWord } from '../whisper/words.js';
 
 /** Canonical sidecar directory, shared by the queue and the persisted-state loader. */
@@ -91,16 +90,8 @@ function timedLexicalUnits(words: WhisperWord[]): TimedLexicalUnit[] {
     });
 }
 
-/**
- * Splits a merged plain-text transcript into bounded translation-sized
- * segments. Whisper usually emits sentence-ish lines, but rapid speech can
- * contain almost no sentence punctuation and previously produced 50–60 second
- * segments. Those overwhelmed the small local translator and triggered
- * hallucinated repetition. Long lines are now split at natural punctuation or
- * lexical boundaries before word timings are attached.
- */
 export function segmentsFromText(jobId: string, text: string): TranscriptSegment[] {
-  return splitTextForTranslation(text).map((sourceText, index) => ({
+  return splitTranscriptText(text).map((sourceText, index) => ({
     id: `${jobId}-s${index}`,
     startMs: 0,
     endMs: 0,
@@ -263,11 +254,6 @@ export function segmentsFromTextWithWords(
   return segments;
 }
 
-/**
- * Stable hash of the source transcript, used as the invariant part of the
- * translation cache key so a re-transcription that yields identical text
- * reuses cached translations, while any text change invalidates them.
- */
 export function sourceContentHash(segments: TranscriptSegment[]): string {
   const hash = createHash('sha256');
   for (const segment of segments) hash.update(segment.sourceText).update('\n');
@@ -283,8 +269,6 @@ export function buildTranscriptionDocument(
   job: TranscriptionJob,
   modelVersion: string,
   words: WhisperWord[] = [],
-  englishText = '',
-  englishWords: WhisperWord[] = [],
   reliability?: TranscriptionReliability
 ): TranscriptionDocument {
   const text = job.text ?? '';
@@ -315,11 +299,6 @@ export function buildTranscriptionDocument(
       }
     }
   }
-  const translationSourceSegments = buildTranslationSourceSegments(
-    segments,
-    englishText,
-    englishWords
-  );
   return {
     jobId: job.id,
     sourceLanguage: job.detectedLanguage ?? job.requestedLanguage ?? 'auto',
@@ -335,164 +314,8 @@ export function buildTranscriptionDocument(
             timedWords: segments.flatMap(segment => segment.words).length
           }
         }
-      : {}),
-    ...(translationSourceSegments
-      ? {
-          translationSource: {
-            language: 'en',
-            modelVersion: `${modelVersion}:speech-to-en`,
-            segments: translationSourceSegments
-          }
-        }
-      : {}),
-    translations: {}
+      : {})
   };
-}
-
-/**
- * Re-buckets Whisper's sequential English speech translation onto the visible
- * source segments. Both streams follow the same audio but may choose different
- * sentence boundaries, so cumulative source word weight is more stable than
- * trying to match misspelled cross-language words or fragile exact timestamps.
- */
-export function buildTranslationSourceSegments(
-  sourceSegments: TranscriptSegment[],
-  englishText: string,
-  englishWords: WhisperWord[] = []
-): Array<{ sourceSegmentId: string; text: string }> | null {
-  const normalized = englishText.replace(/[^\S\r\n]+/gu, ' ').trim();
-  if (!sourceSegments.length || !normalized) return null;
-  const pivotUnits = lexicalUnits(normalized);
-  if (pivotUnits.length < sourceSegments.length) return null;
-
-  const weights = sourceSegments.map(segment =>
-    Math.max(1, lexicalUnits(segment.sourceText).length)
-  );
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  const averagePivotUnits = pivotUnits.length / sourceSegments.length;
-  const temporalEnds = translationSourceTemporalEnds(
-    sourceSegments,
-    normalized,
-    englishWords,
-    pivotUnits
-  );
-  const mapped: Array<{ sourceSegmentId: string; text: string }> = [];
-  let cumulativeWeight = 0;
-  let unitCursor = 0;
-  let charCursor = 0;
-
-  for (let index = 0; index < sourceSegments.length; index += 1) {
-    cumulativeWeight += weights[index];
-    const remainingSegments = sourceSegments.length - index - 1;
-    const proportionalEnd =
-      index === sourceSegments.length - 1
-        ? pivotUnits.length
-        : Math.round((cumulativeWeight / totalWeight) * pivotUnits.length);
-    const latestEnd = pivotUnits.length - remainingSegments;
-    const temporalEnd = temporalEnds.get(index);
-    const unitEnd =
-      index === sourceSegments.length - 1
-        ? pivotUnits.length
-        : temporalEnd !== undefined && temporalEnd > unitCursor && temporalEnd <= latestEnd
-          ? temporalEnd
-          : preferredTranslationSourceBoundary(
-              normalized,
-              pivotUnits,
-              unitCursor,
-              proportionalEnd,
-              latestEnd,
-              averagePivotUnits
-            );
-    const charEnd = pivotUnits[unitEnd]?.start ?? normalized.length;
-    const part = normalized.slice(charCursor, charEnd).replace(/\s+/gu, ' ').trim();
-    if (!part) return null;
-    mapped.push({ sourceSegmentId: sourceSegments[index].id, text: part });
-    unitCursor = unitEnd;
-    charCursor = charEnd;
-  }
-  return mapped;
-}
-
-function translationSourceTemporalEnds(
-  sourceSegments: TranscriptSegment[],
-  text: string,
-  words: WhisperWord[],
-  units: LexicalUnit[]
-): Map<number, number> {
-  const ends = new Map<number, number>();
-  if (!words.length || !sourceSegments.some(segment => segment.endMs > segment.startMs))
-    return ends;
-
-  const pivotSegments = segmentsFromTextWithWords('__translation-pivot__', text, words);
-  const anchors: Array<{ unitIndex: number; startMs: number; endMs: number }> = [];
-  let segmentSearchStart = 0;
-  let unitSearchStart = 0;
-  for (const segment of pivotSegments) {
-    const segmentStart = text.indexOf(segment.sourceText, segmentSearchStart);
-    if (segmentStart < 0) continue;
-    segmentSearchStart = segmentStart + segment.sourceText.length;
-    for (const word of segment.words) {
-      const globalStart = segmentStart + word.sourceStart;
-      while (unitSearchStart < units.length && units[unitSearchStart].start < globalStart) {
-        unitSearchStart += 1;
-      }
-      if (unitSearchStart >= units.length) break;
-      anchors.push({
-        unitIndex: unitSearchStart,
-        startMs: word.startMs,
-        endMs: word.endMs
-      });
-    }
-  }
-  if (anchors.length < sourceSegments.length) return ends;
-
-  for (let index = 0; index < sourceSegments.length - 1; index += 1) {
-    const segment = sourceSegments[index];
-    // Artificial 32-word cuts are better snapped to English punctuation by the
-    // proportional mapper. Exact audio timing is most valuable at a genuine
-    // source sentence boundary, especially for adjacent short slogans.
-    if (!/[.!?…।॥؟。！？]$/u.test(segment.sourceText.trim()) || segment.endMs <= 0) continue;
-    const nextStart = sourceSegments[index + 1].startMs;
-    const boundaryMs =
-      nextStart > 0 && nextStart >= segment.endMs ? (segment.endMs + nextStart) / 2 : segment.endMs;
-    const nextAnchor = anchors.find(anchor => (anchor.startMs + anchor.endMs) / 2 >= boundaryMs);
-    if (nextAnchor) ends.set(index, nextAnchor.unitIndex);
-  }
-  return ends;
-}
-
-function preferredTranslationSourceBoundary(
-  text: string,
-  units: LexicalUnit[],
-  unitCursor: number,
-  targetEnd: number,
-  latestEnd: number,
-  averageUnits: number
-): number {
-  const radius = Math.max(4, Math.min(16, Math.round(averageUnits / 2)));
-  const minEnd = Math.min(latestEnd, Math.max(unitCursor + 1, targetEnd - radius));
-  const maxEnd = Math.max(minEnd, Math.min(latestEnd, targetEnd + radius));
-  let bestEnd = Math.min(maxEnd, Math.max(minEnd, targetEnd));
-  let bestScore = Number.NEGATIVE_INFINITY;
-  for (let end = minEnd; end <= maxEnd; end += 1) {
-    const nextStart = units[end]?.start ?? text.length;
-    const between = text.slice(units[end - 1].end, nextStart);
-    const rank = /[.!?…।॥؟。！？]["'»”’)\]}]*\s*$/u.test(between)
-      ? 4
-      : /\r?\n/u.test(between)
-        ? 3
-        : /[,;:،؛]["'»”’)\]}]*\s*$/u.test(between)
-          ? 2
-          : /\s/u.test(between)
-            ? 1
-            : 0;
-    const score = rank * 100 - Math.abs(end - targetEnd);
-    if (score > bestScore) {
-      bestScore = score;
-      bestEnd = end;
-    }
-  }
-  return bestEnd;
 }
 
 /** Text-only document (no word timestamps). Kept for the fallback path. */
@@ -503,11 +326,6 @@ export function buildTextTranscriptionDocument(
   return buildTranscriptionDocument(job, modelVersion, []);
 }
 
-/**
- * Persists structured transcription documents as local JSON sidecars under
- * Application Support, never beside the source media. Documents are large
- * (words + translations) so they are fetched on demand, never streamed in SSE.
- */
 export class TranscriptionDocumentStore {
   constructor(private readonly dir: string) {}
 
@@ -595,14 +413,12 @@ export function validDocument(value: unknown): TranscriptionDocument | null {
     for (const warning of reliability.warnings as unknown[]) {
       if (!warning || typeof warning !== 'object') return null;
       const w = warning as Record<string, unknown>;
+      // Retired metadata cannot invalidate an otherwise valid original.
+      if (w.code === 'PIVOT_UNAVAILABLE') continue;
       if (
-        ![
-          'SEAM_UNCERTAIN',
-          'DECODE_UNCERTAIN',
-          'COVERAGE_UNVERIFIED',
-          'TIMINGS_PARTIAL',
-          'PIVOT_UNAVAILABLE'
-        ].includes(String(w.code)) ||
+        !['SEAM_UNCERTAIN', 'DECODE_UNCERTAIN', 'COVERAGE_UNVERIFIED', 'TIMINGS_PARTIAL'].includes(
+          String(w.code)
+        ) ||
         typeof w.startMs !== 'number' ||
         typeof w.endMs !== 'number' ||
         !Number.isFinite(w.startMs) ||
@@ -612,23 +428,6 @@ export function validDocument(value: unknown): TranscriptionDocument | null {
       )
         return null;
     }
-  }
-  if (raw.translationSource !== undefined) {
-    if (!raw.translationSource || typeof raw.translationSource !== 'object') return null;
-    const source = raw.translationSource as Record<string, unknown>;
-    if (
-      typeof source.language !== 'string' ||
-      typeof source.modelVersion !== 'string' ||
-      !Array.isArray(source.segments) ||
-      !source.segments.every(
-        segment =>
-          segment &&
-          typeof segment === 'object' &&
-          typeof segment.sourceSegmentId === 'string' &&
-          typeof segment.text === 'string'
-      )
-    )
-      return null;
   }
   for (const segment of raw.segments as unknown[]) {
     if (!segment || typeof segment !== 'object') return null;
@@ -670,133 +469,51 @@ export function validDocument(value: unknown): TranscriptionDocument | null {
         return null;
     }
   }
-  if (raw.translations !== undefined && (!raw.translations || typeof raw.translations !== 'object'))
-    return null;
-  const translations =
-    raw.translations && typeof raw.translations === 'object' ? raw.translations : {};
-  if (Array.isArray(translations)) return null;
-  for (const translation of Object.values(translations)) {
-    if (!translation || typeof translation !== 'object') return null;
-    const t = translation as Record<string, unknown>;
-    if (
-      typeof t.targetLanguage !== 'string' ||
-      typeof t.modelVersion !== 'string' ||
-      !['queued', 'processing', 'completed', 'failed'].includes(String(t.status)) ||
-      !Array.isArray(t.segments)
-    )
-      return null;
-    for (const segment of t.segments as unknown[]) {
-      if (!segment || typeof segment !== 'object') return null;
-      const s = segment as Record<string, unknown>;
-      if (
-        typeof s.sourceSegmentId !== 'string' ||
-        typeof s.translatedText !== 'string' ||
-        !Array.isArray(s.alignments)
-      )
-        return null;
-      for (const link of s.alignments as unknown[]) {
-        if (!link || typeof link !== 'object') return null;
-        const a = link as Record<string, unknown>;
-        if (
-          !['sourceStart', 'sourceEnd', 'targetStart', 'targetEnd'].every(
-            key => typeof a[key] === 'number' && Number.isInteger(a[key]) && (a[key] as number) >= 0
-          ) ||
-          (a.targetEnd as number) > s.translatedText.length ||
-          (a.targetEnd as number) < (a.targetStart as number) ||
-          (a.sourceEnd as number) < (a.sourceStart as number) ||
-          typeof a.confidence !== 'number' ||
-          !Number.isFinite(a.confidence) ||
-          a.confidence < 0 ||
-          a.confidence > 1
-        )
-          return null;
-      }
-    }
-  }
   return {
-    ...(raw as unknown as TranscriptionDocument),
+    jobId: raw.jobId,
+    sourceLanguage: raw.sourceLanguage,
     modelVersion: typeof raw.modelVersion === 'string' ? raw.modelVersion : '',
-    translations: translations as TranscriptionDocument['translations']
+    segments: (raw.segments as TranscriptSegment[]).map(segment => ({
+      id: segment.id,
+      sourceText: segment.sourceText,
+      startMs: segment.startMs,
+      endMs: segment.endMs,
+      ...(segment.timingSource ? { timingSource: segment.timingSource } : {}),
+      words: segment.words.map(word => ({
+        id: word.id,
+        text: word.text,
+        startMs: word.startMs,
+        endMs: word.endMs,
+        confidence: word.confidence,
+        sourceStart: word.sourceStart,
+        sourceEnd: word.sourceEnd
+      }))
+    })),
+    ...(raw.reliability
+      ? { reliability: normalizeReliability(raw.reliability as TranscriptionReliability) }
+      : {})
   };
 }
 
-/**
- * Cross-document translation cache keyed by the exact
- * sourceHash+sourceLanguage+targetLanguage+modelVersion tuple. The filename is
- * a SHA-256 of the key so embedded separators never become path characters.
- */
-export class TranslationCacheStore {
-  constructor(private readonly dir: string) {}
-
-  private file(cacheKey: string): string {
-    const digest = createHash('sha256').update(cacheKey).digest('hex');
-    return path.join(this.dir, `${digest}.json`);
-  }
-
-  async load(cacheKey: string): Promise<TranslationDocument | null> {
-    try {
-      const raw = await readFile(this.file(cacheKey), 'utf8');
-      const value = JSON.parse(raw) as TranslationDocument;
-      return value.cacheKey === cacheKey && value.status === 'completed' ? value : null;
-    } catch {
-      return null;
-    }
-  }
-
-  async save(translation: TranslationDocument): Promise<void> {
-    if (!translation.cacheKey || translation.status !== 'completed') return;
-    await mkdir(this.dir, { recursive: true });
-    const target = this.file(translation.cacheKey);
-    const partial = `${target}.${randomBytes(6).toString('hex')}.part`;
-    await writeFile(partial, JSON.stringify(translation), { encoding: 'utf8', mode: 0o600 });
-    await replaceFile(partial, target).catch(async error => {
-      await rm(partial, { force: true }).catch(() => {});
-      throw error;
-    });
-  }
-
-  /**
-   * Removes entries nothing will read again.
-   *
-   * The cache grew for as long as the application was installed: one file per transcript
-   * and language, and a translator update orphaned every one of them, since the model
-   * version is part of the key. An entry from another model version, or one untouched for
-   * the given age, goes; a torn `.part` from a crash goes with it.
-   */
-  async sweep(options: { currentModelVersion?: string; maxAgeMs: number }): Promise<number> {
-    let entries: string[];
-    try {
-      entries = await readdir(this.dir);
-    } catch {
-      return 0;
-    }
-    const cutoff = Date.now() - options.maxAgeMs;
-    let removed = 0;
-    for (const entry of entries) {
-      const file = path.join(this.dir, entry);
-      try {
-        if (entry.endsWith('.part')) {
-          await rm(file, { force: true });
-          removed += 1;
-          continue;
+function normalizeReliability(value: TranscriptionReliability): TranscriptionReliability {
+  return {
+    windows: value.windows,
+    retries: value.retries,
+    recoveredWindows: value.recoveredWindows,
+    timedWords: value.timedWords,
+    totalWords: value.totalWords,
+    warnings: value.warnings
+      .filter(w => String(w.code) !== 'PIVOT_UNAVAILABLE')
+      .map(w => ({ code: w.code, startMs: w.startMs, endMs: w.endMs })),
+    ...(value.ranges
+      ? {
+          ranges: value.ranges.map(r => ({
+            canonicalStart: r.canonicalStart,
+            canonicalEnd: r.canonicalEnd,
+            startMs: r.startMs,
+            endMs: r.endMs
+          }))
         }
-        if (!entry.endsWith('.json')) continue;
-        const info = await stat(file);
-        let stale = info.mtimeMs < cutoff;
-        if (!stale && options.currentModelVersion) {
-          const value = JSON.parse(await readFile(file, 'utf8')) as Partial<TranslationDocument>;
-          stale = value.modelVersion !== options.currentModelVersion;
-        }
-        if (stale) {
-          await rm(file, { force: true });
-          removed += 1;
-        }
-      } catch {
-        // Unreadable is as good as stale: a cache entry that cannot be parsed is never served.
-        await rm(file, { force: true }).catch(() => {});
-        removed += 1;
-      }
-    }
-    return removed;
-  }
+      : {})
+  };
 }

@@ -267,8 +267,7 @@ export function PreviewPane({
             }
             onDelete={onDelete ? () => onDelete(row) : undefined}
             /* Not `transcribe` here (024, FR-093): the text section below
-               offers it, with the original and the translation to choose
-               from, and a second "make text" icon above it was the same
+               offers the original text, and a second "make text" icon above it was the same
                press twice. */
           />
         }
@@ -280,12 +279,8 @@ export function PreviewPane({
        * second vocabulary for something the registry names.
        *
        * The text block stays, and deliberately. It is the one surface that
-       * can do something the menu cannot: choose *which* text — the original
-       * or a translation — and read it. A menu item that copies "the text"
-       * is right on a task tile and in a search result, where there is one
-       * press and no room for a question; here there is room for the
-       * question, so the pane asks it and does not also offer the shortcut.
-       * `copyText` is left unwired in `PaneActions` for exactly that reason.
+       * displays the original transcript directly, with its view, copy and retry actions.
+       * `copyText` stays unwired in `PaneActions` to avoid a duplicate shortcut.
        */}
       {row.category === 'video' && onTranscribe && (
         <div className="team-explorer-pane-transcript">

@@ -527,10 +527,7 @@ export const TRANSCRIPTION_ERROR_CODES = [
   'INTERRUPTED',
   /** The disk filled up during the run. */
   'DISK_FULL',
-  /** A translation of the transcript failed. */
-  'TRANSLATION_FAILED',
-  /** The translation engine is not available on this machine. */
-  'TRANSLATOR_UNAVAILABLE'
+  'FEATURE_RETIRED'
 ] as const;
 export type TranscriptionErrorCode = (typeof TRANSCRIPTION_ERROR_CODES)[number];
 
@@ -855,6 +852,7 @@ export const DIAGNOSTIC_CATEGORIES = [
   'update',
   'power',
   'stitcher',
+  'transcription',
   'team'
 ] as const;
 export type DiagnosticCategory = (typeof DIAGNOSTIC_CATEGORIES)[number];
@@ -1596,118 +1594,6 @@ export function confusableLanguages(code: string | null | undefined): readonly s
 }
 
 /**
- * Target languages covered by TranslateGemma's published WMT24++ evaluation.
- * Base BCP-47 tags are used in the UI; the model's embedded chat template also
- * accepts regional variants. English is included because it is the pivot/source
- * language for the published benchmark and a required fallback target.
- */
-export const TRANSLATEGEMMA_LANGUAGE_CODES = [
-  'en',
-  'ar',
-  'bg',
-  'bn',
-  'ca',
-  'cs',
-  'da',
-  'de',
-  'el',
-  'es',
-  'et',
-  'fa',
-  'fi',
-  'fil',
-  'fr',
-  'gu',
-  'he',
-  'hi',
-  'hr',
-  'hu',
-  'id',
-  'is',
-  'it',
-  'ja',
-  'kn',
-  'ko',
-  'lt',
-  'lv',
-  'ml',
-  'mr',
-  'nl',
-  'no',
-  'pa',
-  'pl',
-  'pt',
-  'ro',
-  'ru',
-  'sk',
-  'sl',
-  'sr',
-  'sv',
-  'sw',
-  'ta',
-  'te',
-  'th',
-  'tr',
-  'uk',
-  'ur',
-  'vi',
-  'zh',
-  'zh-TW',
-  'zu'
-] as const;
-
-/** Permissive BCP-47-ish validation against TranslateGemma's target languages. */
-export function isValidTargetLanguage(code: unknown): code is string {
-  if (typeof code !== 'string' || !/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/u.test(code.trim())) {
-    return false;
-  }
-  const normalized = code.trim().replaceAll('_', '-');
-  const base = normalized.split('-')[0].toLowerCase();
-  return TRANSLATEGEMMA_LANGUAGE_CODES.some(
-    supported => supported.toLowerCase() === normalized.toLowerCase() || supported === base
-  );
-}
-
-export function normalizeTargetLanguage(code: string): string {
-  const normalized = code.trim().replaceAll('_', '-');
-  try {
-    return Intl.getCanonicalLocales(normalized)[0] ?? normalized;
-  } catch {
-    return normalized;
-  }
-}
-
-/**
- * Single source of truth for picking a translation target from a source
- * language and the preferred (UI) language. Both the agent's automatic
- * translation and the web viewer's default MUST resolve through this function
- * — if they disagree, opening the detail view supersedes and restarts the
- * translation the list already started.
- *
- * Returns null when the source is unknown (`auto`) or the preferred language
- * is not a valid TranslateGemma target. Translating into the source language
- * is avoided via `lastDistinctTarget` (an earlier explicit pick), then the
- * opposite built-in Soty language.
- */
-export function resolveTranslationTarget(
-  sourceLanguage: string,
-  preferredLanguage: string,
-  lastDistinctTarget: string | null = null
-): string | null {
-  const source = sourceLanguage.trim().replaceAll('_', '-').split('-')[0]?.toLowerCase();
-  if (!source || source === 'auto' || !isValidTargetLanguage(preferredLanguage)) return null;
-  const preferred = normalizeTargetLanguage(preferredLanguage);
-  if (preferred.split('-')[0]?.toLowerCase() !== source) return preferred;
-  const previous = lastDistinctTarget?.trim();
-  if (previous && isValidTargetLanguage(previous)) {
-    const normalizedPrevious = normalizeTargetLanguage(previous);
-    if (normalizedPrevious.split('-')[0]?.toLowerCase() !== source) return normalizedPrevious;
-  }
-  const fallback = source === 'en' ? 'uk' : 'en';
-  return isValidTargetLanguage(fallback) ? normalizeTargetLanguage(fallback) : null;
-}
-
-/**
  * Which speech model a transcription runs on.
  *
  * `fast` is large-v3-turbo (a 574 MB 5-bit build, greedy decoding): the same encoder as
@@ -1729,37 +1615,8 @@ export function isTranscriptionQualityMode(value: unknown): value is Transcripti
 export interface TranscriptionSettings {
   /** `auto` detects the spoken language; otherwise an ISO 639-1 code. */
   language: string;
-  /** Preferred automatic translation target (normally the Soty UI language). */
-  translationLanguage: string;
   /** Speed/accuracy trade-off; decides which model a new run loads. */
   quality: TranscriptionQualityMode;
-  /**
-   * The user chose to transcribe without the local translation models. Remembered so the
-   * download prompt is shown once, not on every start.
-   */
-  translationDeclined?: boolean;
-}
-
-/**
- * Lightweight translation state carried in the live queue. The translated
- * text stays in the private sidecar and is fetched only on demand.
- */
-export interface TranscriptionTranslationSummary {
-  /** Currently selected target language for this job. */
-  targetLanguage: string;
-  status: TranslationStatus | 'unavailable';
-  /** 0–100 for determinate work, null while a queued task has not started. */
-  progress: number | null;
-  completedSegments: number;
-  totalSegments: number;
-  /**
-   * Wall-clock ms when inference first started, or null before that. Lets any
-   * surface (list or detail) compute the same continuous elapsed/ETA instead of
-   * restarting a local timer when it mounts.
-   */
-  startedAt?: number | null;
-  /** Stable UI-safe error code; never raw transcript or runtime diagnostics. */
-  error: 'TRANSLATION_FAILED' | 'TRANSLATION_CANCELLED' | 'TRANSLATOR_UNAVAILABLE' | null;
 }
 
 /** How a job's language was arrived at; see `TranscriptionJob.languageSource`. */
@@ -1781,6 +1638,8 @@ export interface TranscriptionLanguageCandidate {
 
 export interface TranscriptionJob {
   id: string;
+  /** Fresh opaque identity for each accepted execution, including retries. */
+  attemptId?: string;
   inputPath: string;
   fileName: string;
   sourceKind: SourceKind;
@@ -1789,7 +1648,7 @@ export interface TranscriptionJob {
   status: TranscriptionJobStatus;
   /** 0–100 while transcribing, null when indeterminate. */
   progress: number | null;
-  phase?: 'extract' | 'transcribe' | 'recover' | 'pivot' | 'save';
+  phase?: 'extract' | 'transcribe' | 'recover' | 'save';
   /** Language requested when the job started (`auto` or an ISO code). */
   requestedLanguage: string;
   /** Language Whisper actually used, once known. */
@@ -1843,11 +1702,6 @@ export interface TranscriptionJob {
    * says without a round trip for the whole document. Absent on runs recorded before it.
    */
   preview?: string;
-  /**
-   * Small status for the selected/automatic translation. Optional keeps the
-   * web client compatible with queue snapshots produced before this field.
-   */
-  translation?: TranscriptionTranslationSummary | null;
   error: string | null;
   /**
    * The stable machine code behind `error` (033 FR-007), one of `TRANSCRIPTION_ERROR_CODES`.
@@ -1928,12 +1782,6 @@ export interface TranscriptionState {
    * Optional because an older agent reports only the one it runs.
    */
   models?: Record<TranscriptionQualityMode, TranscriptionModelInfo>;
-  /** First-run download state for the local translation model (TranslateGemma). */
-  translatorModel: TranscriptionModelInfo;
-  /** Raw pinned llama.cpp runtime state, exposed for install diagnostics. */
-  translatorRuntime: TranscriptionModelInfo;
-  /** Multilingual E5 model used for local semantic phrase alignment. */
-  alignmentModel: TranscriptionModelInfo;
   settings: TranscriptionSettings;
 }
 
@@ -1992,16 +1840,16 @@ export interface TranscriptionEvent {
 }
 
 export function defaultTranscriptionSettings(): TranscriptionSettings {
-  return { language: 'auto', translationLanguage: 'uk', quality: 'fast' };
+  return { language: 'auto', quality: 'fast' };
 }
 
 /* -------------------------------------------------------------------------- */
 /* Structured transcription document                                          */
 /*                                                                            */
 /* The flat `TranscriptionJob.text` stays as an in-process fallback.           */
-/* Everything below is the richer private document used by the split-screen   */
-/* viewer: per-word timestamps for karaoke playback and per-segment            */
-/* translations with source↔target character alignments. No transcript file   */
+/* The private viewer document retains original segments and word timings.    */
+/* It supports karaoke playback without a second text column.                 */
+/* No transcript file                                                         */
 /* is written beside the source media.                                         */
 /* It is fetched on demand through dedicated endpoints, never streamed inside  */
 /* `transcription:progress` SSE events, so the live queue state stays small.    */
@@ -2036,75 +1884,6 @@ export interface TranscriptSegment {
   timingSource?: 'words' | 'window';
 }
 
-/** A source↔target character-span link inside one translated segment. */
-export interface AlignmentLink {
-  /** Char offsets into the source segment's `sourceText`. */
-  sourceStart: number;
-  sourceEnd: number;
-  /** Char offsets into this segment's `translatedText`. */
-  targetStart: number;
-  targetEnd: number;
-  /** Alignment confidence 0–1 (never a fabricated value — see the aligner). */
-  confidence: number;
-}
-
-export interface TranslatedSegment {
-  /** Ties back to `TranscriptSegment.id`. */
-  sourceSegmentId: string;
-  translatedText: string;
-  alignments: AlignmentLink[];
-}
-
-export type TranslationStatus = 'queued' | 'processing' | 'completed' | 'failed';
-
-/** All translations of a document into one target language. */
-export interface TranslationDocument {
-  /** Client generation id for correlating an in-flight language switch. */
-  requestId?: string;
-  /** BCP-47 / ISO code of the target language. */
-  targetLanguage: string;
-  /** Translator model version this was produced with (part of the cache key). */
-  modelVersion: string;
-  /** Exact source/language/model cache key; optional only for legacy sidecars. */
-  cacheKey?: string;
-  /** Alignment engine revision and whether phrase-level links were produced. */
-  alignmentModelVersion?: string;
-  alignmentStatus?: 'completed' | 'fallback';
-  status: TranslationStatus;
-  /** Total segments to translate; set while a translation is in flight. */
-  totalSegments?: number;
-  /** Segments translated so far; drives the determinate progress bar + ETA. */
-  completedSegments?: number;
-  /**
-   * Source characters total/translated-so-far. Segments vary wildly in length,
-   * so the progress bar and ETA are weighted by characters when available and
-   * only fall back to the segment count for legacy sidecars.
-   */
-  totalCharacters?: number;
-  completedCharacters?: number;
-  /** Wall-clock ms when inference first started; survives preemption/resume so the ETA is continuous. */
-  startedAt?: number | null;
-  segments: TranslatedSegment[];
-  /** Set when `status === 'failed'`; the last good translation is kept in the UI. */
-  error: string | null;
-}
-
-/**
- * Optional, speech-derived pivot used only as the input to the text translator.
- * Whisper's direct speech→English task can preserve meaning better than asking
- * a small text model to interpret a noisy transcript in a distant language.
- * Entries stay keyed to the visible source segments so playback and alignment
- * continue to use the original-language transcript.
- */
-export interface TranscriptionTranslationSource {
-  language: string;
-  modelVersion: string;
-  segments: Array<{
-    sourceSegmentId: string;
-    text: string;
-  }>;
-}
-
 /** The full structured sidecar for one transcription job. */
 export interface TranscriptionDocument {
   jobId: string;
@@ -2113,10 +1892,6 @@ export interface TranscriptionDocument {
   /** Transcriber (whisper) model version that produced the segments. */
   modelVersion: string;
   segments: TranscriptSegment[];
-  /** Hidden speech-derived input for higher-quality translation when available. */
-  translationSource?: TranscriptionTranslationSource;
-  /** Keyed by target-language code. */
-  translations: Record<string, TranslationDocument>;
   /** Local diagnostics; uncertainty is separate from text and timing availability. */
   reliability?: TranscriptionReliability;
 }
@@ -2126,12 +1901,7 @@ export interface TranscriptionReliability {
   retries: number;
   recoveredWindows: number;
   warnings: Array<{
-    code:
-      | 'SEAM_UNCERTAIN'
-      | 'DECODE_UNCERTAIN'
-      | 'COVERAGE_UNVERIFIED'
-      | 'TIMINGS_PARTIAL'
-      | 'PIVOT_UNAVAILABLE';
+    code: 'SEAM_UNCERTAIN' | 'DECODE_UNCERTAIN' | 'COVERAGE_UNVERIFIED' | 'TIMINGS_PARTIAL';
     startMs: number;
     endMs: number;
   }>;
@@ -2151,27 +1921,6 @@ export interface TranscriptionMediaPreview {
   hasVideo: boolean | null;
   mimeType: string | null;
   error: string | null;
-}
-
-/**
- * Deterministic cache key for a translation. Two requests with the same source
- * content, source language, target language, and translator model version must
- * resolve to the same cached result — re-selecting an already-translated
- * language then resolves instantly. Order and separator are fixed so the key is
- * stable across processes.
- */
-export function translationCacheKey(parts: {
-  sourceContentHash: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  translatorModelVersion: string;
-}): string {
-  return [
-    parts.sourceContentHash,
-    parts.sourceLanguage,
-    parts.targetLanguage,
-    parts.translatorModelVersion
-  ].join('\0');
 }
 
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
@@ -2370,3 +2119,9 @@ export const PROFILE_SYNC_CODES = [
   'PROFILE_UPDATE_FAILED'
 ] as const;
 export type ProfileSyncCode = (typeof PROFILE_SYNC_CODES)[number];
+
+/** Historical diagnostics only; never produced by the original-only runtime. */
+export const HISTORICAL_TRANSCRIPTION_ERROR_CODES = [
+  'TRANSLATION_FAILED',
+  'TRANSLATOR_UNAVAILABLE'
+] as const;

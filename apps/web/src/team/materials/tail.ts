@@ -12,8 +12,7 @@ import type { TeamFileOperationResult } from '@video-compressor/shared';
  * orphan .txt behind.
  *
  * So every one of those goes through this module instead. Adding an operation
- * means adding it here, which is the point: the next kind of tail (a poster, a
- * translation) is then one change rather than six.
+ * means adding it here: a new companion such as a poster is one change rather than six.
  *
  * The landing's tail is not here because it is not a second file: the copy's
  * render is cloned server-side by `service_clone_material_extras`, inside the

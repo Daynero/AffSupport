@@ -31,7 +31,6 @@ export interface CreativeLibraryProcessBridgeOptions {
 
 const DEFAULT_TOOL_FOR_KIND: Readonly<Partial<Record<LibraryJobKind, string>>> = {
   transcription: 'transcription',
-  translation: 'translation',
   landing_optimization: 'landingOptimizer'
 };
 
@@ -56,6 +55,8 @@ export class CreativeLibraryProcessBridge {
   }
 
   process(request: CreativeLibraryProcessRequest): Promise<TeamFileOperationResult> {
+    if ((request.kind as string) === 'translation')
+      return Promise.reject(new Error('FEATURE_RETIRED'));
     if (this.#active.has(request.attemptId)) return Promise.reject(new Error('WRONG_STATE'));
     const toolId = this.#toolForKind[request.kind];
     if (!toolId) return Promise.reject(new Error('AGENT_UPDATE_REQUIRED'));

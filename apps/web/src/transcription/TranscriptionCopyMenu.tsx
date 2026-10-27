@@ -40,9 +40,7 @@ export function TranscriptionCopyMenu({
     { value: 'selected', label: t('transcriptionCopyScopeSelected', { count: selectedCount }) }
   ];
   const contents: { value: TranscriptionCopyContent; label: string }[] = [
-    { value: 'both', label: t('transcriptionCopyContentBoth') },
-    { value: 'transcript', label: t('transcriptionCopyContentTranscript') },
-    { value: 'translation', label: t('transcriptionCopyContentTranslation') }
+    { value: 'transcript', label: t('transcriptionCopyContentTranscript') }
   ];
   const label =
     scope === 'selected'

@@ -15,18 +15,10 @@ const documents = new Map<string, Promise<TranscriptionDocument>>();
 const CAPACITY = 24;
 const DOCUMENT_TIMEOUT_MS = 60_000;
 
-type CacheJob = Pick<TranscriptionJob, 'id' | 'finishedAt' | 'translation'>;
+type CacheJob = Pick<TranscriptionJob, 'id' | 'finishedAt' | 'attemptId'>;
 
-/**
- * A document changes when the run that produced it changes, and again each time a
- * translation into some language finishes — the translation lives inside it. Both are in
- * the key, so a copy or export made after a translation lands sees that translation.
- */
-function cacheKey(job: CacheJob): string {
-  const translation = job.translation
-    ? `${job.translation.targetLanguage}:${job.translation.status}`
-    : 'none';
-  return `${job.id}@${job.finishedAt ?? 0}@${translation}`;
+export function transcriptDocumentKey(job: CacheJob): string {
+  return `${job.id}@${job.attemptId ?? 'legacy'}@${job.finishedAt ?? 0}`;
 }
 
 /**
@@ -36,7 +28,7 @@ function cacheKey(job: CacheJob): string {
  * caller that goes away simply ignores the result.
  */
 export function loadTranscriptDocument(job: CacheJob): Promise<TranscriptionDocument> {
-  const key = cacheKey(job);
+  const key = transcriptDocumentKey(job);
   const cached = documents.get(key);
   if (cached) {
     // Re-inserted so it counts as recently used.
