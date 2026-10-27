@@ -1,3 +1,4 @@
+import './deno-type-dependencies.ts';
 // @deno-types="../../../packages/shared/dist/team/transport.d.ts"
 import type {
   TeamErrorCode,

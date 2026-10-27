@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "kind": "authenticated-source-beta-acceptance",
+  "generatedAt": "2026-10-27T20:00:44.184Z",
+  "source": {
+    "baseCommit": "c4a862de4c3c1f110fd1d7a477142cb1912ba480",
+    "branch": "045-catalog-r2-images",
+    "containsUncommittedReviewedDelta": true,
+    "sourceSha256": {
+      "apps/web/src/team/product-catalog/CatalogImageImport.tsx": "4b7584afb5d1d12d4b50ed26a1e9c8ee0dca48f4b6d07e361b42bb57e33a8892",
+      "scripts/beta-reset.mjs": "4652e37fd6716e9700b3f4fa74f640093fef60be7d927bd9870a37fd377878a2",
+      "scripts/lib/beta-loopback-network.mjs": "92bfa5f2bd34411c9a4260b12f02edadf424fd3494a0dd155f37eb860689072c",
+      "scripts/lib/beta-reset-stack.mjs": "9dbcfce5538b94cfcd6a9536660f8ea8ca44508e0319d4b7205c66d958535ab6",
+      "supabase/functions/_shared/auth.ts": "bfad8a06158f1ee449471018a67cba2389e7475c9082a6863144d85081ca1dff",
+      "supabase/functions/_shared/errors.ts": "48c7f2036208a26bf329ebb4f5b93936337290c1d2eb7fcafcf8a42b09f85595",
+      "supabase/functions/_shared/deno-type-dependencies.ts": "5591883fbbef03296417fafdd9168576675cb3419bdf1d0cc8aabae4679c9129",
+      "supabase/migrations/20261206156000_catalog_r2_revoke_purge.sql": "61e8a5582f034b2c09587575f80e0bfaea926f67964446444135181d1fde4b1c",
+      "supabase/tests/database/catalog-r2-images.test.sql": "8685a21c6d0443a57950bb2925e4d1860d0499f459f312ba2a9eca3316b808c9",
+      "tests/beta-reset-guard.test.ts": "5a4b33aab1097beb96c63b8acd3e90205b3ce53ba24af34ea4d24d85dbf9780c",
+      "tests/catalog-image-import-ui.test.tsx": "f6fd78dc6e36cab1db7dd2c49634315c915aa9bedfb352830749b86821717af5",
+      "tests/catalog-image-revoke.test.ts": "a7d31ddb91c5a73645676271549d5c4e07cfd59ef3fb98d8191d90a0340e755f"
+    },
+    "exactShaPackagedPromotion": false
+  },
+  "isolation": {
+    "project": "r2beta045",
+    "containers": 9,
+    "publishedBindings": 3,
+    "loopbackOnlyVerified": true,
+    "realLocalAuth": true,
+    "ownBetaEntitlementKey": true,
+    "devAuth": false,
+    "outboundDelivery": false,
+    "productionAnalytics": false,
+    "previousBetaVolumesAndProfilePreserved": true,
+    "unrelatedStackUnchanged": true,
+    "localProjectOverlayRetainedForCanonicalShutdown": true
+  },
+  "runtime": {
+    "canonicalFunctionBootProbes": 16,
+    "gatewayCases": [
+      {
+        "case": "worker-no-secret",
+        "status": 401
+      },
+      {
+        "case": "worker-wrong-secret",
+        "status": 401
+      },
+      {
+        "case": "worker-user-jwt-only",
+        "status": 401
+      },
+      {
+        "case": "worker-secret-only",
+        "status": 200
+      },
+      {
+        "case": "owner-capabilities",
+        "status": 200
+      },
+      {
+        "case": "viewer-capabilities",
+        "status": 200
+      },
+      {
+        "case": "viewer-import-denied",
+        "status": 403
+      }
+    ],
+    "canonicalFreshResetMigrations": 376,
+    "incrementalAfterMigrations": 377,
+    "lastMigration": "20261206156000",
+    "connectedProfileIdentityPreserved": true,
+    "beforeCleanupIdentityCounts": {
+      "users": 2,
+      "members": 2,
+      "credentials": 1,
+      "connections": 1,
+      "publications": 4
+    },
+    "productionDeployment": false
+  },
+  "images": {
+    "sourceFixtures": "synthetic static PNG/JPEG/WebP; no visual clothing recognition claim",
+    "beforeExplicitCtaNoImport": true,
+    "initial": {
+      "ready": 3,
+      "matched": 2,
+      "normalRandom": 1,
+      "retainedBytes": 439
+    },
+    "repeatedLocal": {
+      "reused": 3,
+      "newPublications": 0
+    },
+    "driveFolder": {
+      "reused": 3,
+      "newPublications": 0,
+      "existingScopesOnly": true,
+      "privateOwnedQaRootOnly": true
+    },
+    "reloadWithoutPersistedJobId": true,
+    "finalPool": {
+      "total": 3,
+      "matched": 2,
+      "normalRandom": 1,
+      "retainedBytes": 439,
+      "sameOriginalUrls": true,
+      "anonymousExactBytesMimeNosniff": true
+    },
+    "negativeCases": {
+      "files": 2,
+      "codes": ["IMAGE_CONTENT_INVALID", "IMAGE_CLASSIFICATION_CONFLICT"],
+      "localizedRowErrorsObservedInChrome": true
+    },
+    "prompt": {
+      "actualSystemClipboardCharacters": 3895,
+      "squareFormatPresent": true,
+      "namingExamplePresent": true,
+      "brandExclusionsPresent": true,
+      "clothingRequirementsPresent": true,
+      "unsavedPasteProbeCleared": true
+    },
+    "scheduledLocalDispatch": {
+      "actualPgCronAndPgNet": true,
+      "purgeOutcomeObserved": true
+    }
+  },
+  "catalogs": [
+    {
+      "label": "standalone-created",
+      "anonymousStatus": 200,
+      "sha256": "c64544a113d7925e7922fac1cbd4f8f2aca9c1f72bd5281f3ffc19f04f1c4b67",
+      "headerRows": 2,
+      "products": 100,
+      "uniqueProductIds": 100,
+      "distinctImages": 3,
+      "allImageUrlsKnownR2": true,
+      "matchedRows": 67,
+      "randomRows": 33,
+      "matchedFactsVerified": true,
+      "imageCounts": [33, 33, 34]
+    },
+    {
+      "label": "standalone-updated",
+      "anonymousStatus": 200,
+      "sha256": "3c2e4f4eecbd0c95c11d33f0fa8625f6fa131a360af2a93d6c95980b97ed1947",
+      "headerRows": 2,
+      "products": 100,
+      "uniqueProductIds": 100,
+      "distinctImages": 3,
+      "allImageUrlsKnownR2": true,
+      "matchedRows": 66,
+      "randomRows": 34,
+      "matchedFactsVerified": true,
+      "imageCounts": [32, 34, 34]
+    },
+    {
+      "label": "launch-created",
+      "anonymousStatus": 200,
+      "sha256": "ece0468c1ea55dc7c2dac0b3acf7366e89245535fff3af391722f09da7400cbd",
+      "headerRows": 2,
+      "products": 100,
+      "uniqueProductIds": 100,
+      "distinctImages": 3,
+      "allImageUrlsKnownR2": true,
+      "matchedRows": 67,
+      "randomRows": 33,
+      "matchedFactsVerified": true,
+      "imageCounts": [33, 33, 34]
+    }
+  ],
+  "manualUpdate": {
+    "backgroundWorkerSuccess": true,
+    "registryUpdateCount": 1,
+    "registryError": null,
+    "deliveryVerified": true,
+    "checksumChanged": true,
+    "savedScheduleHours": 12,
+    "elapsedTwelveHourExecutionObserved": false
+  },
+  "launch": {
+    "state": "succeeded",
+    "stage": "result_committed",
+    "registeredCatalog": true,
+    "activeResult": true,
+    "chromeResultVisible": true,
+    "products": 100,
+    "restitch": false,
+    "advertisingPlatformPublication": false
+  },
+  "revocation": {
+    "generatedAt": "2026-10-27T19:57:58.687Z",
+    "migration": "20261206156000",
+    "priorFailedTransactionProvenAborted": true,
+    "reusedExistingRevokeIntent": true,
+    "readyBeforeRevocation": true,
+    "anonymousExactBytes": true,
+    "removedFromSelectionImmediately": true,
+    "exactMemoizedReplay": true,
+    "anonymousAfterRevocation": 404,
+    "originalPoolPreserved": true,
+    "remainingPublications": 3,
+    "diagnosticStagesObserved": ["publication_revoked", "purge_complete", "purge_deleting"],
+    "cliObservedReadyBytes": 439
+  },
+  "verification": {
+    "full": {
+      "generatedAt": "2026-10-27T19:35:48.822Z",
+      "durationMs": 2440088,
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 8057,
+      "skipped_tests": 45,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 15,
+        "disposable PostgreSQL container": 4,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 6,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:RUN_REAL_TRANSLATION_SMOKE": 2,
+        "env:SOTY_POWER_LOAD": 2,
+        "disposable PostgreSQL": 3
+      },
+      "coverage_lines": null
+    },
+    "laterRevokeRegressions": {
+      "passed": 8,
+      "total": 8
+    },
+    "laterTypecheckTestsPassed": true,
+    "canonicalDisposableDatabase": {
+      "exitCode": 0,
+      "sqlFiles": 41,
+      "sqlAssertions": 995,
+      "realAuthTests": 2,
+      "nativeConcurrencyTests": 31,
+      "logSha256": "488075ef1016516b45b4764941b4c18febad7d6af23cb4ed9b937b7e26377b9a"
+    },
+    "independentDeltaReviews": [
+      {
+        "report": "reviews/beta-correctness.md",
+        "score": 98,
+        "scope": "source review against base commit; separate from live evidence"
+      },
+      {
+        "report": "reviews/beta-safety.md",
+        "score": 98,
+        "scope": "independent source review against base commit; separate from live evidence"
+      }
+    ],
+    "affectedStaticChecks": {
+      "typecheckTests": true,
+      "eslint": true,
+      "prettier": true,
+      "gitDiffCheck": true
+    }
+  },
+  "remainingAcceptance": [
+    "hosted secret-only gateway/cron and aggregate isolate resource limits",
+    "1000-file and 25000-entry scale",
+    "lost-response, late-write and provider/database race acceptance",
+    "exact-SHA packaged beta and formal release checks",
+    "old clients and macOS/Windows compatibility acceptance",
+    "actual elapsed twelve-hour scheduled update",
+    "external feed importer / Meta acceptance",
+    "external image generation, visual truth and provider billing visibility"
+  ]
+}

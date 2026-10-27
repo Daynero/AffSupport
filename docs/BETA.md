@@ -208,6 +208,18 @@ The safety check runs **before** the first destructive step: a non-local databas
 `BETA_RESET_TARGET_UNSAFE` and nothing is touched. An unparseable target is treated as remote, not
 assumed local.
 
+Reset also requires the running beta ownership record to match the configured project and its
+owned loopback bridge. It captures the local Docker endpoint once and pins every verification and
+CLI child to that endpoint, runs `db reset --local --network-id` on that bridge, then checks actual
+bindings before opening the fixture connection at `127.0.0.1`. An unsafe postcondition stops only
+the captured project with `stop --project-id`; it preserves volumes and the ownership journal.
+
+Treat reset as a single-writer operation: do not edit `supabase/config.toml` or run another beta
+start, stop or reset while it runs. Reset rechecks the source config immediately before launching
+the CLI and after it returns. These checks cannot atomically prevent an unrelated process from
+rewriting config during the CLI's own read; such concurrent edits are unsupported. Docker context
+changes cannot redirect this operation, and emergency stop uses the captured project ID.
+
 The baseline after a reset:
 
 | Fixture       | Value                                                                                  |

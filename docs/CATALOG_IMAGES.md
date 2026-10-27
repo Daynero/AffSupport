@@ -58,7 +58,7 @@ capabilities and before/after source identity checks.
   and uses the same vaulted secret. Its periodic job is `soty-catalog-images`; explicit mutation
   and completed work also kick bounded dispatch, so imports need not wait for every cron tick.
 
-SDK imports are pinned to `aws4fetch@1.0.20` and `@supabase/supabase-js@2.110.7`. The function-local lock was generated and the entry point checked with Deno 2.5.6. Shared emitted JavaScript advertises its adjacent declaration files using Deno-supported `@ts-self-types`. Actual isolated beta adapter/CDN checks passed30/30 and Chrome staging CORS/expiry checks passed9/9 on2026-10-27; see `specs/045-catalog-r2-images/validation.md` and its sanitized reports. This proves those provider behaviors, including streaming conditional PUT, but does not replace authenticated Soty UI, hosted gateway/cron/isolate or packaged-release acceptance. Node mocks and a Deno type check alone are not provider evidence.
+SDK imports are pinned to `aws4fetch@1.0.20` and `@supabase/supabase-js@2.110.7`. The function-local lock was generated and the entry point checked with Deno2.5.6. Shared emitted JavaScript advertises its adjacent declaration files using `@ts-self-types`; the shared declaration dependency anchor also makes them reachable to the local Edge CLI's mounted runtime graph. Actual isolated beta adapter/CDN checks passed30/30 and Chrome staging CORS/expiry checks passed9/9 on2026-10-27. Authenticated source-beta application evidence is recorded below. Neither these probes nor source-beta journeys replace hosted gateway/cron/isolate or exact-SHA packaged-release acceptance. Node mocks and a Deno type check alone are not provider evidence. See `specs/045-catalog-r2-images/validation.md` and its sanitized reports.
 
 ## Bounds and evidence
 
@@ -88,6 +88,10 @@ Browser grants cannot mutate final keys. A lost PUT response cannot be declared 
 HEAD/GET; same identity remains under bounded positive reconciliation. Orphan cleanup and
 adoption/ready/use commits share publication locking/fencing. Explicit revocation/team deletion has
 separate durable tombstones surviving cascades; uncertain writes remain an explicit cleanup unknown.
+Migration1560 promotes existing future/completed orphan tombstones for those explicit deletion
+decisions, resets their bounded attempt budget and fences old receipts, without clearing unknown
+writes or shortening existing explicit/team holds. Team deletion retains at least its two-minute
+late-write hold. A successful metadata request alone does not prove origin/CDN deletion.
 
 Ready pool removal retains published bytes and historical uses. Uploader/source deletion does not
 delete shared team copies. Revocation may remove origin and purge the managed CDN; downloaded or
@@ -111,10 +115,38 @@ a hosted aggregate-isolate or actual R2 compatibility proof; those acceptance ga
 
 ## Launch resource compatibility
 
-Apply the complete045 migration chain through1550 before deploying the matching functions and
+Apply the complete045 migration chain through1560 before deploying the matching functions and
 web. Disabled imports do not make the new functions compatible with a schema lacking their RPCs.
 Launch reserves the future catalog child UUID before video restitch, freezes its image selection
 under that same identity, then reuses the exact bytes and issued-use receipts across child retries.
 Existing accepted generations retain contract1; new generations carry server-owned contract2.
 The claim response supplies this version to the server executor. Memoized resources still require
 current edit permission, the correct actor, an unarchived Launch and an active parent state.
+
+## Authenticated source-beta evidence and remaining gates
+
+On2026-10-27, an owned loopback-only source beta passed real Auth,16Function boot probes and a
+7/7owner/viewer/named-worker gateway matrix. Local scheduled dispatch ran through pg_cron/pg_net.
+Actual application PNG/JPEG/WebP import produced3ready copies (2matched,1random); repeat local
+and indexed Drive-folder imports reused the same3URLs. Anonymous readback verified exact bytes,
+MIME and nosniff. The prompt reached the actual OS clipboard (3895characters), including format,
+filename, clothing and brand-exclusion instructions; temporary paste-check content was cleared.
+
+Standalone creation, an explicitly requested background update with a saved12-hour schedule and
+Launch generation each produced a real100-product Google Sheet. Independent anonymous CSV
+readback verified unique IDs, matched garment/color facts and only the known R2 image URLs.
+The update proves the real worker and schedule persistence; a full elapsed12-hour interval was
+not observed. The creative video remains in Drive; R2 replaces image hosting only.
+
+The latest full verifier passed14/14gates (8057tests including45explicit skips). The later1560
+repair passed8targeted regressions; canonical disposable DB verification passed41SQLfiles and
+995assertions plus2realAuth and31native concurrency tests. Its exact migration was applied only
+to the owned local beta. Its canonical restart preserved profile/connection identity. The same revoke
+intent then passed exact replay, actual scheduled purge and anonymous404; the original three
+publications retained their exact bytes and URLs. See the [sanitized beta application result](../specs/045-catalog-r2-images/beta-application-result.json) for scope.
+
+Source beta uses a local project overlay and is not a clean exact-SHA packaged promotion proof.
+Hosted secret-only gateway/cron parity, aggregate resource/scale limits, real lost-response/late-write
+provider races, packaged macOS/Windows and old clients, elapsed scheduling and an actual external
+feed importer remain explicit gates. No Meta ingestion, ad publication or production activation is
+claimed. Full evidence and task status are in `specs/045-catalog-r2-images/validation.md`.

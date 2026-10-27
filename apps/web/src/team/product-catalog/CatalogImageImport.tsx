@@ -404,6 +404,11 @@ export function CatalogImageImport({
                       ? `${entry.classification.garment} / ${entry.classification.color}`
                       : t('catalogImagesRandomMode')}
                   </small>
+                  {entry.errorCode && (
+                    <p role="alert" className="team-inline-error">
+                      {teamErrorMessageFor({ code: entry.errorCode }, t)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

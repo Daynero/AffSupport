@@ -234,6 +234,85 @@ describe('bounded upload-capacity backpressure', () => {
 });
 
 describe('catalog image import', () => {
+  it.each(['failed', 'partial'] as const)(
+    'explains each rejected file in a %s local import without a job-level error',
+    async state => {
+      const client = fixture();
+      const entries: CatalogImageImportJob['entries'] = [
+        {
+          ...job().entries[0]!,
+          id: 'invalid-content',
+          displayName: 'broken.png',
+          state: 'failed',
+          errorCode: 'IMAGE_CONTENT_INVALID'
+        },
+        {
+          ...job().entries[0]!,
+          id: 'conflicting-classification',
+          displayName: 'hoodie_white_001.png',
+          state: 'failed',
+          errorCode: 'IMAGE_CLASSIFICATION_CONFLICT'
+        }
+      ];
+      if (state === 'partial')
+        entries.push({ ...job().entries[0]!, id: 'ready-random', state: 'ready' });
+      const failed: CatalogImageImportJob = {
+        ...job(state),
+        entries,
+        errorCode: null,
+        counts: {
+          total: entries.length,
+          ready: state === 'partial' ? 1 : 0,
+          reused: 0,
+          unclassified: state === 'partial' ? 1 : 0,
+          failed: 2,
+          expired: 0
+        }
+      };
+      vi.mocked(client.listImports).mockResolvedValue({
+        items: [failed],
+        hasMore: false,
+        nextCursor: null
+      });
+      vi.mocked(client.getImport).mockResolvedValue(failed);
+      mount(client);
+      const brokenRow = (await screen.findByText('broken.png')).closest('li')!;
+      const conflictRow = screen.getByText('hoodie_white_001.png').closest('li')!;
+      expect(within(brokenRow).getByRole('alert').textContent).toBe(
+        'Use a valid static PNG, JPEG or WebP picture with the correct orientation.'
+      );
+      expect(within(conflictRow).getByRole('alert').textContent).toBe(
+        'These bytes already have a different classification, or the request changed. Refresh status and check the mapping.'
+      );
+      expect(screen.getAllByRole('alert')).toHaveLength(2);
+      expect(brokenRow.textContent).not.toContain('IMAGE_CONTENT_INVALID');
+      expect(conflictRow.textContent).not.toContain('IMAGE_CLASSIFICATION_CONFLICT');
+      expect(screen.getByRole('button', { name: 'Retry unfinished pictures' })).toBeTruthy();
+      if (state === 'partial') {
+        const readyRow = screen.getByText('IMG_2031.png').closest('li')!;
+        expect(within(readyRow).queryByRole('alert')).toBeNull();
+        expect(within(readyRow).getByText(/Ready.*Random selection/u)).toBeTruthy();
+      }
+    }
+  );
+  it('shows a ready unclassified picture as random selection without an error alert', async () => {
+    const client = fixture();
+    const ready: CatalogImageImportJob = {
+      ...job('completed'),
+      counts: { ...job().counts, ready: 1, unclassified: 1 },
+      entries: [{ ...job().entries[0]!, state: 'ready' }]
+    };
+    vi.mocked(client.listImports).mockResolvedValue({
+      items: [ready],
+      hasMore: false,
+      nextCursor: null
+    });
+    vi.mocked(client.getImport).mockResolvedValue(ready);
+    mount(client);
+    const row = (await screen.findByText('IMG_2031.png')).closest('li')!;
+    expect(within(row).getByText(/Ready.*Random selection/u)).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
   it('resumes a selected local source on a later page instead of admitting another job', async () => {
     const client = fixture();
     const counts = { ...job().counts, total: 101, ready: 100 };

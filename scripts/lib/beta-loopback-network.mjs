@@ -3,10 +3,11 @@ import { spawnSync } from 'node:child_process';
 const BINDING = 'com.docker.network.bridge.host_binding_ipv4';
 const LABEL = 'com.soty.beta.loopback';
 const PROJECT = 'com.soty.beta.project';
-/** @typedef {(args: string[]) => {status: number | null, stdout: unknown, error?: unknown}} DockerRunner */
+/** @typedef {(args: string[], options?: {env: NodeJS.ProcessEnv}) => {status: number | null, stdout: unknown, error?: unknown}} DockerRunner */
 /** @type {DockerRunner} */
-const dockerDefault = args =>
+const dockerDefault = (args, options) =>
   spawnSync('docker', args, {
+    env: options?.env ?? process.env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 30000,
@@ -47,18 +48,32 @@ export function localDockerEndpoint(endpoint) {
     return false;
   }
 }
-function assertLocalDaemon(docker, env) {
-  if (env.DOCKER_HOST && !localDockerEndpoint(env.DOCKER_HOST)) reject();
-  const context = invoke(docker, ['context', 'show']);
-  if (!/^[a-zA-Z0-9._-]{1,128}$/u.test(context)) reject();
-  const endpoint = json(docker, [
-    'context',
-    'inspect',
-    context,
-    '--format',
-    '{{json .Endpoints.docker.Host}}'
-  ]);
+/** Resolve the effective context once, then pin all subsequent children to its local endpoint. */
+export function captureBetaDockerEnvironment(docker = dockerDefault, env = process.env) {
+  const initialEnv = Object.freeze({ ...env });
+  const initialDocker = args => docker(args, { env: initialEnv });
+  // Docker's explicit context takes precedence over DOCKER_HOST.
+  let endpoint = initialEnv.DOCKER_CONTEXT ? undefined : initialEnv.DOCKER_HOST;
+  if (!endpoint) {
+    const context = initialEnv.DOCKER_CONTEXT || invoke(initialDocker, ['context', 'show']);
+    if (!/^[a-zA-Z0-9._-]{1,128}$/u.test(context)) reject();
+    endpoint = json(initialDocker, [
+      'context',
+      'inspect',
+      context,
+      '--format',
+      '{{json .Endpoints.docker.Host}}'
+    ]);
+  }
   if (!localDockerEndpoint(endpoint)) reject();
+  /** @type {NodeJS.ProcessEnv} */
+  const bound = { ...initialEnv, DOCKER_HOST: endpoint };
+  delete bound.DOCKER_CONTEXT;
+  const boundEnv = Object.freeze(bound);
+  return { env: boundEnv, docker: args => docker(args, { env: boundEnv }) };
+}
+function assertLocalDaemon(docker, env) {
+  captureBetaDockerEnvironment(docker, env);
 }
 function containerIds(project, docker) {
   const output = invoke(docker, [
@@ -78,7 +93,7 @@ function containerIds(project, docker) {
     reject();
   return ids;
 }
-function validNetwork(value, project, name) {
+function validNetwork(value, project, name, empty = true) {
   return (
     value?.Name === name &&
     value.Driver === 'bridge' &&
@@ -91,7 +106,7 @@ function validNetwork(value, project, name) {
     value.Labels?.[PROJECT] === project &&
     value.Containers &&
     typeof value.Containers === 'object' &&
-    Object.keys(value.Containers).length === 0
+    (!empty || Object.keys(value.Containers).length === 0)
   );
 }
 /**
@@ -169,4 +184,49 @@ export function verifyBetaLoopbackBindings(project, name, docker = dockerDefault
   }
   if (!published) reject();
   return { containers: ids.length, publishedBindings: published, loopbackOnly: true };
+}
+
+/** Read-only reset pre/postcondition: the bridge and every member still belong to this project. */
+export function verifyOwnedBetaLoopbackStack(
+  project,
+  name,
+  databasePort,
+  docker = dockerDefault,
+  env = process.env
+) {
+  if (name !== projectName(project)) reject();
+  assertLocalDaemon(docker, env);
+  const rows = json(docker, ['network', 'inspect', name]);
+  if (!Array.isArray(rows) || rows.length !== 1 || !validNetwork(rows[0], project, name, false))
+    reject();
+  const ids = containerIds(project, docker);
+  if (
+    !ids.length ||
+    Object.keys(rows[0].Containers).some(member => !ids.some(id => member.startsWith(id)))
+  )
+    reject();
+  const summary = verifyBetaLoopbackBindings(project, name, docker);
+  const database = json(docker, [
+    'inspect',
+    '--format',
+    '{{json .NetworkSettings}}',
+    `supabase_db_${project}`
+  ]);
+  const bindings = database?.Ports?.['5432/tcp'];
+  if (
+    !Number.isInteger(databasePort) ||
+    databasePort < 1 ||
+    databasePort > 65535 ||
+    !Array.isArray(bindings) ||
+    !bindings.length ||
+    !bindings.some(binding => binding.HostIp === '127.0.0.1') ||
+    Object.keys(database.Networks ?? {}).length !== 1 ||
+    !Object.hasOwn(database.Networks, name) ||
+    bindings.some(
+      binding =>
+        !['127.0.0.1', '::1'].includes(binding.HostIp) || binding.HostPort !== String(databasePort)
+    )
+  )
+    reject();
+  return summary;
 }
