@@ -1,3 +1,4 @@
+import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { requireDriveOAuthGate, requireNamedWorkerSecret } from '../_shared/auth.ts';
@@ -166,31 +167,31 @@ Deno.serve(async request => {
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
-          drawImages: async (teamId, count) => {
-            const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
+          drawImages: async (teamId, count, options) =>
+            drawCatalogImagePool(
+              (name, params) => rpcValue(service, name, params),
+              teamId,
+              count,
+              options
+            ),
+          finalizeImageUses: async (teamId, attemptId, delivered) => {
+            await rpcValue(service, 'service_catalog_image_finalize_uses_v2', {
               p_team: teamId,
-              p_count: count
+              p_attempt: attemptId,
+              p_delivered: delivered
             });
-            return (Array.isArray(rows) ? rows : []).flatMap(row =>
-              row &&
-              typeof row === 'object' &&
-              typeof (row as Record<string, unknown>).drive_file_id === 'string'
-                ? [
-                    {
-                      driveFileId: (row as Record<string, unknown>).drive_file_id as string,
-                      resourceKey:
-                        typeof (row as Record<string, unknown>).resource_key === 'string'
-                          ? ((row as Record<string, unknown>).resource_key as string)
-                          : null,
-                      // What the picture shows, as the owner named the file (024, US27).
-                      name:
-                        typeof (row as Record<string, unknown>).name === 'string'
-                          ? ((row as Record<string, unknown>).name as string)
-                          : null
-                    }
-                  ]
-                : []
-            );
+          },
+          validateImageUses: async (teamId, attemptId) => {
+            await rpcValue(service, 'service_catalog_image_validate_uses_v2', {
+              p_team: teamId,
+              p_attempt: attemptId
+            });
+          },
+          validateImageRows: async (teamId, images) => {
+            await rpcValue(service, 'service_catalog_image_validate_rows_v2', {
+              p_team: teamId,
+              p_images: images
+            });
           },
           drawTexts: async (teamId, count) => {
             const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {
@@ -215,7 +216,32 @@ Deno.serve(async request => {
               p_limit: limit,
               p_lease_seconds: leaseSeconds
             });
-            return Array.isArray(rows) ? rows : [];
+            if (!Array.isArray(rows)) return [];
+            return Promise.all(
+              rows.map(async row => {
+                if (
+                  !row ||
+                  typeof row !== 'object' ||
+                  !('team_id' in row) ||
+                  typeof row.team_id !== 'string' ||
+                  !('catalog_material_id' in row) ||
+                  typeof row.catalog_material_id !== 'string'
+                )
+                  return row;
+                const mode = await rpcValue(service, 'service_catalog_image_mode_v2', {
+                  p_team: row.team_id
+                });
+                if (mode !== 'v2') return row;
+                const imageAttempt = await rpcValue(
+                  service,
+                  'service_catalog_image_update_attempt_v2',
+                  { p_catalog: row.catalog_material_id, p_worker: workerId }
+                );
+                if (typeof imageAttempt !== 'string')
+                  throw new TeamFunctionError('INVALID_RESPONSE');
+                return { ...row, image_attempt_id: imageAttempt };
+              })
+            );
           },
           driveFor,
           progress: async (catalogId, stage) =>

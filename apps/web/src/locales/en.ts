@@ -1,4 +1,105 @@
 export const en = {
+  catalogImagesOpenPicture: 'Open picture',
+  catalogImagesRemovePicture: 'Remove from pool',
+  catalogImagesRevokePicture: 'Revoke publication',
+  catalogImagesNextPictures: 'Next pictures',
+  catalogImagesRevocationQueued:
+    'Revocation requested. Storage and managed cache cleanup can take time; external copies may remain.',
+  catalogImagesRevokeImpact:
+    'The link will stop working in existing catalogs. This revokes the publication, rather than only removing it from future selections. External caches and downloaded copies may remain.',
+  catalogImagesContinueImport: 'Continue folder import',
+  catalogImagesCopyFailed: 'Could not copy the prompt. Open it and copy it manually.',
+  catalogImagesTitle: 'Pictures in R2',
+  catalogImagesPublicNotice:
+    'Uploaded images will be publicly accessible through catalog links. Only add images you have the right to publish.',
+  catalogImagesDescription: 'Upload pictures once and reuse their ready links in catalogs.',
+  catalogImagesLoading: 'Loading picture status…',
+  catalogImagesSetupRequired:
+    'R2 uploads are not enabled for this space yet. Existing pictures and catalogs remain available.',
+  catalogImagesImportsPaused: 'New uploads are paused. Ready pictures remain available.',
+  catalogImagesInventory: 'Matched by name: {matched}. Random: {random}.',
+  catalogImagesDrop: 'Drop pictures here',
+  catalogImagesChooseFiles: 'Choose files',
+  catalogImagesChooseDrive: 'Choose a Google Drive folder',
+  catalogImagesAnalyzeUpload: 'Analyze and upload',
+  catalogImagesSelectedFolder: 'Selected folder: {name}',
+  catalogImagesQueued: 'Queued: {count}',
+  catalogImagesShowMore: 'Show more',
+  catalogImagesTransferBytes:
+    'Transferred {loaded} of {total} bytes. Pictures still need verification after transfer.',
+  catalogImagesHelpClothing:
+    'Use clothing on a white background: Soty’s product names, descriptions and categories are prepared for clothing. Correctly named pictures are matched to products by garment and color.',
+  catalogImagesHelpRandom:
+    'You can also add ordinary pictures without special names. They will simply be selected at random, without matching the product name, garment or color.',
+  catalogImagesHelpMix:
+    'Product variations mix names and descriptions, fabric, fit, style, pattern, size and price. The garment and color of correctly named pictures stay linked to the product. Other properties are not detected from photos.',
+  catalogImagesHelpNames:
+    'Name files garment_color_number: hoodie_black_001.jpg. We recommend square 1:1 pictures, one item on white, without people, brands or text.',
+  catalogImagesCopyPrompt: 'Copy prompt',
+  catalogImagesPromptCopied: 'Prompt copied',
+  catalogImagesPromptCopyFailed: 'Could not copy. Open the prompt and copy it manually.',
+  catalogImagesOpenPrompt: 'Open prompt',
+  catalogImagesRefresh: 'Refresh status',
+  catalogImagesRecentImports: 'Recent uploads',
+  catalogImagesImportStatus: 'Picture upload status',
+  catalogImagesJobCounts:
+    'Ready: {ready}. Reused: {reused}. Random: {random}. Failed: {failed}. Expired: {expired}.',
+  catalogImagesReselect:
+    'Some local files have not been transferred. Select them again to continue. Ready pictures will not be uploaded twice.',
+  catalogImagesRandomMode: 'Random selection',
+  catalogImagesEntriesLimited: 'Showing the first page of files; totals cover the entire upload.',
+  catalogImagesCancel: 'Cancel upload',
+  catalogImagesRetry: 'Retry unfinished pictures',
+  catalogImagesMigrateExisting: 'Import current image sources to R2',
+  catalogImagesWaitingCapacity:
+    'Waiting for image verification to free upload capacity. The queue will continue automatically.',
+  catalogImagesUploadCapacityBusy:
+    'Upload capacity is temporarily full. Keep the selected files and retry when verification has finished.',
+  catalogImagesMigrateHint:
+    'Copies the current Drive files and folders through the same image analysis. Existing catalogs keep working. Unsupported files are shown as failures; source files and their sharing permissions stay as they are. Up to 100 source files or folders per import.',
+  catalogImagesClose: 'Close',
+  catalogImagesStageCollecting: 'Preparing file list',
+  catalogImagesStageEnumerating: 'Reading folder',
+  catalogImagesStageSealed: 'File list ready',
+  catalogImagesStageRunning: 'Processing pictures',
+  catalogImagesStageCompleted: 'Completed',
+  catalogImagesStagePartial: 'Partly completed',
+  catalogImagesStageFailed: 'Could not complete',
+  catalogImagesStageCancelled: 'Cancelled',
+  catalogImagesStageExpired: 'Source deadline expired',
+  catalogImagesStageUncertain: 'Reconciling result',
+  catalogImagesStageWaiting: 'Waiting for file',
+  catalogImagesStageStaged: 'File transferred',
+  catalogImagesStageValidating: 'Checking file',
+  catalogImagesStageDeduplicating: 'Checking duplicates',
+  catalogImagesStagePublishing: 'Publishing',
+  catalogImagesStageVerifying: 'Verifying stored bytes',
+  catalogImagesStageVerifyingPublic: 'Verifying public link',
+  catalogImagesStageCommitting: 'Saving classification',
+  catalogImagesStageReady: 'Ready',
+  catalogImagesStageReused: 'Reused ready copy',
+  catalogImagesErrorPairingConflict:
+    'The name and description cannot safely match the new picture. Enable text refresh or edit the text and retry. The previous catalog is preserved.',
+  catalogImagesErrorUnavailable: 'Picture storage is unavailable. Refresh status before retrying.',
+  catalogImagesErrorSource:
+    'The picture source is unavailable or changed. Check access and select it again.',
+  catalogImagesErrorFormat:
+    'Use a valid static PNG, JPEG or WebP picture with the correct orientation.',
+  catalogImagesErrorTooLarge: 'Each picture must be at most 50 MB and 16 megapixels.',
+  catalogImagesErrorQuota:
+    'An upload or storage limit was reached. Reduce the batch or contact the owner.',
+  catalogImagesErrorConflict:
+    'These bytes already have a different classification, or the request changed. Refresh status and check the mapping.',
+  catalogImagesErrorUncertain:
+    'The reply was lost. Refresh status to reconcile the result before retrying.',
+  catalogImagesErrorDisabled: 'New picture uploads are disabled for this space.',
+  catalogImagesErrorUpgrade: 'Refresh the page: this space uses the new picture mechanism.',
+  catalogImagesErrorVerification:
+    'The public picture link has not been verified. Refresh status before retrying.',
+  catalogImagesErrorLocalSource: 'Select the required local files again to continue.',
+  catalogImagesErrorRevoked: 'This picture publication was revoked. Choose another ready picture.',
+  catalogImagesErrorManifest:
+    'The file list is not complete. Check the selected pictures and retry.',
   accountsMoveDropped: 'Position selected. Saving the order.',
   accountsUnmatchedLaunches: 'Launches without a linked ad account',
   accountsMoveInstructions:

@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-27",
+  "scope": "local_reference_only_not_edge_acceptance",
+  "runtime": {
+    "deno": "2.5.6",
+    "v8": "14.0.365.5-rusty",
+    "typescript": "5.9.2"
+  },
+  "input_bytes": 50000000,
+  "before_fix": {
+    "peak_rss_bytes": 315408384,
+    "cpu_ms": 564.992,
+    "elapsed_ms": 644.09425
+  },
+  "after_fix": {
+    "baseline_rss_bytes": 53035008,
+    "peak_rss_bytes": 167182336,
+    "cpu_ms": 462.889,
+    "elapsed_ms": 606.265375
+  },
+  "provider": "offline synthetic transport; actual pinned aws4fetch signer",
+  "limitations": [
+    "One local process; not hosted Edge aggregate-isolate proof.",
+    "No real R2, CORS, CDN or importer request.",
+    "RSS sampled at stage boundaries and timer ticks; process CPU measured locally."
+  ],
+  "after_final_signal_fix": {
+    "scope": "local_reference_only_not_edge_acceptance",
+    "runtime": {
+      "deno": "2.5.6",
+      "v8": "14.0.365.5-rusty",
+      "typescript": "5.9.2"
+    },
+    "input_bytes": 50000000,
+    "baseline_rss_bytes": 55083008,
+    "peak_rss_bytes": 168706048,
+    "cpu_ms": 436.863,
+    "elapsed_ms": 525.971959,
+    "steps": [
+      {
+        "stage": "validated",
+        "rss_bytes": 165380096,
+        "elapsed_ms": 294.95291699999996
+      },
+      {
+        "stage": "provider_consumed_put",
+        "rss_bytes": 166658048,
+        "elapsed_ms": 328.489875
+      },
+      {
+        "stage": "put_returned",
+        "rss_bytes": 166658048,
+        "elapsed_ms": 328.716959
+      },
+      {
+        "stage": "origin_verified",
+        "rss_bytes": 168673280,
+        "elapsed_ms": 391.759375
+      },
+      {
+        "stage": "public_verified",
+        "rss_bytes": 168706048,
+        "elapsed_ms": 525.8930839999999
+      }
+    ]
+  }
+}

@@ -1,5 +1,28 @@
 # Rollback notes
 
+## 045 — R2 catalog images
+
+This is a forward-only metadata feature; rollback must retain issued public image URLs and their
+publication/use/purge evidence. Disable new import/selection admission through the validated release
+workflow, retain the compatible v2 checkpoint/dictionary readers, and preserve R2 read access.
+Do not delete buckets, publication mappings, historical uses, pending unknown-write evidence or purge
+tombstones as a rollback shortcut. Stopping new imports is not proof that external catalogs no longer
+use their URLs.
+
+For an isolated local/beta rollback, pause `soty-catalog-images` dispatch only after recording pending
+leases, staging grants and unknown writes. Existing staging lifecycle remains a private-only safety
+net; explicitly requested public revocations and team deletion still require a live cleanup worker.
+Do not replay uncertain PUT/DELETE operations blindly. Reconcile positive provider receipts and keep
+an unknown status when completion cannot be proved. Neither origin deletion nor CDN purge proves
+that external cached/downloaded copies disappeared.
+
+The diagnostic migration `20261206151000_catalog_r2_diagnostics.sql` may be disabled by removing its
+safe read projections/state-capture triggers only after diagnostic consumers and feature readiness
+are disabled compatibly. Keep the underlying sanitized journal and publication/purge identity
+records. Recreate safe views/grants through a forward migration rather than dropping business data.
+No production rollback, credential change or destructive provider operation is authorized merely by
+this document.
+
 ## 20261202111000_agent_tenant_index_dedup.sql
 
 If the unreferenced duplicate was removed, restore it with
@@ -2036,21 +2059,17 @@ described above, then remove the signal table/view using the06130000 procedure; 
 the table removes the flag too. Do not leave a non-forced team table behind as a standalone
 rollback. No membership, invitation or protected content rows are changed by this migration.
 
-
 ### 20261206139000_process_error_codes
 
 Retain the additive PROCESS_RESULT_UNCERTAIN catalog row when rolling back agent or Edge code. Historical operations and diagnosis may continue to contain this code. No schema, permissions, user rows or provider objects need removal; deleting the catalog row is not a required rollback step. The applied base seed and account-code extension remain immutable.
-
 
 ### 20261206139500_recovery_execution_fence
 
 Keep the one-time operation fences and public checkpoint wrapper during an agent or Edge rollback. Older Edge code must still receive a failure on a reserved checkpoint rather than permission to execute again. Do not grant service_role direct execution of private.service_team_recovery_core, rename that core back over the wrapper, or delete a fence to retry an uncertain operation. Resolve the existing operation and its output first; a new explicit operation has its own identity. Fences follow normal operation retention through the foreign key. The read-only reservation projection contains no credential or provider payload and can remain for diagnosis.
 
-
 ### 20261206139700_recovery_execution_reference_fence
 
 Retain this trigger while team_recovery_execution_fences exists. It registers the execution metadata as a conservative material consumer and blocks late references to an already claimed task-file cleanup. Dropping it disables verified orphan cleanup through the existing unknown-consumer check; bypassing that check or exempting the table is not an acceptable rollback. Removing the complete execution feature requires reconciling its operation fences first, as described above.
-
 
 ### 20261206139900_recovery_diagnostics_readonly
 
@@ -2064,7 +2083,6 @@ Keep the bounded sweep when rolling application code back: its signature and lif
 
 Not applied locally or deployed at this checkpoint. Preserve the one-time checkpoint wrapper and private-core ACL when changing this function. Desktop redeem's actorId is additive; retirement is authenticated only by its own current/previous refresh hash and cannot select a different actor or operation. It cancels only unfinished process operations bound by that delegation's credentials/receipts, revokes their transfer grants and uses canonical cancellation audit; published results and unrelated operations are not selected. Once a native retirement queue is in use, do not roll the server back to an endpoint that cannot acknowledge those handles, and do not delete the pending handle merely because an old endpoint refuses the action. Older producer/agent compatibility still requires validation before cutover. This does not authorize production deployment.
 
-
 ## 20261206139980 — browser retirement attempt receipts (T167 isolated draft)
 
 Not applied to Beta or production at this checkpoint. Revert the matching observed-RPC web/CLI code before removing this contract. Preserve any diagnostic evidence required by the operator; dropping the new receipt tables destroys that evidence. The original `public.retire_team_recovery_installation(uuid)` and its actor/installation locking must remain intact.
@@ -2075,11 +2093,9 @@ In one guarded schema transaction: drop `public.analytics_recovery_retirement`; 
 
 Source migration only; no production application is implied. Roll back the web feature first and retain the new table, RPCs, validation and content-free invalidation trigger: older clients continue using the unchanged workspace RPC signature and replay digests. Keeping dormant offer profiles preserves saved settings. Do not drop the table or narrow the budget validator while saved manual-budget profiles exist. A destructive schema downgrade requires an explicit data-preservation plan; ordinary application rollback requires no database writes.
 
-
 ## 20261206140500 — Launch offer defaults reference fence
 
 Retain `task_cleanup_reference_fence` while `team_launch_offer_defaults` exists. It registers this consumer with the existing conservative reference scan and rejects late material references after cleanup has been claimed. An application rollback requires no schema action. Removing or disabling this trigger makes cleanup coverage unknown and retains files as `cleanup_unverified`; do not bypass that check or exempt this table. A complete offer-defaults feature removal must preserve saved profiles as described above. This source fix does not authorize a production migration.
-
 
 ## 20261206141000 — Tariff domain clock
 
@@ -2098,7 +2114,6 @@ Preserve the reference-based cleanup fences and the catalog-SUB wrapper. Revert 
 ### 20261206145200 — Launch restitch with a versioned catalog SUB
 
 Restore `service_link_launch_restitch_catalog` from 20261206145100 only after active Launch catalog registrations settle. This restores the previous URL check and therefore reintroduces refusal of a restitched catalog whose SUB includes its reserved catalog name; no rows or published revision snapshots are rewritten. Keep the catalog-SUB publication wrapper and all provenance/lease guards.
-
 
 ## 20261206145300_launch_complete_profiles
 

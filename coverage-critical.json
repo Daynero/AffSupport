@@ -94,6 +94,7 @@
     "packages/shared/src/team/catalog-updater.ts": 90,
     "packages/shared/src/team/recovery.ts": 90,
     "packages/shared/src/team/task-cleanup.ts": 90,
-    "packages/shared/src/team/launches/notes.ts": 90
+    "packages/shared/src/team/launches/notes.ts": 90,
+    "packages/shared/src/team/catalog-images.ts": 90
   }
 }

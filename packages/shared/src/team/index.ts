@@ -26,3 +26,5 @@ export * from './account-overview.js';
 export * from './recovery.js';
 export * from './bulk-trash.js';
 export * from './task-cleanup.js';
+
+export * from './catalog-images.js';

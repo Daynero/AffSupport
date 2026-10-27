@@ -1,4 +1,5 @@
 import { PRODUCTION_SITE_ORIGIN } from '../../../packages/shared/dist/release.js';
+// @deno-types="../../../packages/shared/dist/team/contract.d.ts"
 import {
   parseDriveOAuthMode,
   type DriveOAuthMode

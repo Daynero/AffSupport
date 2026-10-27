@@ -59,6 +59,7 @@ export interface CreateProductCatalogClient {
   cancelOperation?: typeof teamApi.cancelOperation;
   getOperation?: typeof teamApi.getOperation;
   createProductCatalog: (input: {
+    catalogImageContractVersion?: 2;
     teamId: string;
     videoMaterialId: string;
     sourceLink: string;
@@ -330,6 +331,7 @@ export function CreateProductCatalogDialog({
         setPhase({ kind: 'busy', step: 'catalog' });
       }
       const result = await client.createProductCatalog({
+        catalogImageContractVersion: 2,
         teamId,
         videoMaterialId: video.id,
         sourceLink: linkCheck.value,

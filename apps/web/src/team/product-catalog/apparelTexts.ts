@@ -295,6 +295,8 @@ function description(
 export interface PicturedClothes {
   garments: string[];
   colors: string[];
+  /** Actual inventory pairs, never a Cartesian product of independent sets. */
+  pairs?: ReadonlyArray<{ garment: string; color: string }>;
 }
 
 export function clothesInPictures(fileNames: readonly string[]): PicturedClothes {
@@ -339,17 +341,24 @@ export function generateApparelTexts(
     pictured && pictured.colors.length > 0
       ? COLORS.filter(color => pictured.colors.includes(color))
       : COLORS;
+  const actualPairs = pictured?.pairs?.flatMap(pair => {
+    const garment = GARMENTS.find(item => item.name === pair.garment);
+    const color = COLORS.find(item => item.toLowerCase() === pair.color.toLowerCase());
+    return garment && color ? [{ garment: garment.name, color }] : [];
+  });
+  if (pictured?.pairs?.length && !actualPairs?.length) return [];
   const seen = new Set<string>();
   const texts: ApparelText[] = [];
   let attempts = 0;
   while (texts.length < wanted && attempts < wanted * 20) {
     attempts += 1;
+    const pair = actualPairs?.length ? pick(actualPairs, random) : null;
     const parts = {
       model: modelName(random),
-      color: pick(colorPool.length > 0 ? colorPool : COLORS, random),
+      color: pair?.color ?? pick(colorPool.length > 0 ? colorPool : COLORS, random),
       fabric: pick(FABRICS, random),
       fit: pick(FITS, random),
-      garment: pick(garmentPool.length > 0 ? garmentPool : GARMENTS, random).name
+      garment: pair?.garment ?? pick(garmentPool.length > 0 ? garmentPool : GARMENTS, random).name
     };
     const name = title(parts, random);
     if (seen.has(name.toLowerCase())) continue;

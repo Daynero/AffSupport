@@ -63,6 +63,8 @@ export interface CapabilitySignal {
   flowStep?:
     | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash'}`
     | 'theme'
+    | 'catalog_image_prompt'
+    | 'catalog_image_pool'
     | 'recovery_retirement_ack'
     | 'auth_session_sdk_logout'
     | 'auth_profile_refresh'
@@ -312,6 +314,77 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     source: 'events' as const,
     note: 'Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
   })),
+  {
+    id: 'team.catalog_images',
+    tool: 'team',
+    title: 'Team · R2 catalog image publication',
+    stages: [
+      'waiting_source',
+      'staged',
+      'validating',
+      'deduplicating',
+      'publishing',
+      'verifying_origin',
+      'verifying_public',
+      'committing',
+      'ready'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    unobservable: [
+      'External generation, visual truth, browser visibility, advertising-platform ingestion and provider billing/cache remain unknown without independent evidence.'
+    ],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'Content-free immutable journal and capture-health projection separate publication, dictionary and issued-use receipts. Pool additions and removals have publication-correlated immutable evidence; removal stops future selection while ready bytes may remain for existing catalogs. classify=unclassified is an allowed random mode, not a failure. Audit requires the complete observed stage chain and healthy triggers; event emission alone is not coverage. Historical mutable totals are not reconstructed from current state.'
+  },
+  {
+    id: 'team.catalog_image_pool',
+    tool: 'team',
+    title: 'Team · remove or revoke catalog image',
+    stages: ['requested', 'accepted', 'result_visible'],
+    stageEvents: {
+      requested: ['operation_started'],
+      accepted: ['operation_stage_completed'],
+      result_visible: ['operation_completed']
+    },
+    start: [{ event: 'operation_started', correlate: 'flow_id', flowStep: 'catalog_image_pool' }],
+    terminal: [
+      { event: 'operation_completed', correlate: 'flow_id', flowStep: 'catalog_image_pool' },
+      { event: 'operation_failed', correlate: 'flow_id', flowStep: 'catalog_image_pool' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Missing React completion means browser-visible delivery is unknown. A visible revocation request does not prove object deletion or external cache erasure.'
+    ],
+    note: 'Publication UUID correlates browser intent, server acceptance, failure and React-committed pool result. No image names, URLs or content are collected. Authoritative pool_removed and publication or purge stages explain retained bytes and actual revocation separately.'
+  },
+  {
+    id: 'team.catalog_image_prompt',
+    tool: 'team',
+    title: 'Team · copy image generation prompt',
+    stages: ['requested', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed']
+    },
+    start: [{ event: 'operation_started', correlate: 'flow_id', flowStep: 'catalog_image_prompt' }],
+    terminal: [
+      { event: 'operation_completed', correlate: 'flow_id', flowStep: 'catalog_image_prompt' },
+      { event: 'operation_failed', correlate: 'flow_id', flowStep: 'catalog_image_prompt' }
+    ],
+    platforms: BOTH,
+    unobservable: [
+      'Copied prompt does not prove external generation or later import. Clipboard contents are never collected.'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'Only a fixed prompt version and outcome are emitted. Denied clipboard offers actual manual text and does not claim copy success.'
+  },
   {
     id: 'team.catalog_settings',
     tool: 'team',

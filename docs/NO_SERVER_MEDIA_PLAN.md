@@ -1,4 +1,4 @@
-# No persistent media on Soty servers
+# No persistent private media on Soty servers
 
 Operator requirement (2026-10-01): keep media on the user's computer or in the
 connected Google Drive. Soty stores references, configuration and processing
@@ -13,6 +13,10 @@ is a release gate for this plan, not a documentation task. The same page also
 says re-stitched copies are made "while nobody has Soty open", which is false
 today (a member's open tab plus a running agent does the work) and must be
 corrected when the background path is decided (see R6).
+
+## Public catalog image exception (045)
+
+Owner-selected exception: explicitly published catalog pictures from local files or selected Drive sources may be copied to Cloudflare R2 Standard. The copy is public by opaque URL; publication is deliberate and permission-checked. This exception covers only catalog pictures, not video, private previews, thumbnails or re-stitch screens. Private staging exists only for bounded verification and is cleaned after grants/leases expire. Ready team-owned copies survive source removal and uploader departure; explicit revocation/team deletion uses durable cleanup and own-CDN purge, with external caches unobservable. Until 045 is configured and enabled, the existing Drive path remains in use. This supersedes the blanket no-server-image wording for this narrow journey; privacy/terms and agent-readable diagnostics must agree before enable.
 
 ## Audit findings
 

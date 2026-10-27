@@ -16,6 +16,7 @@ import {
   TEAM_PERMISSION_FLAGS,
   TEAM_ACCOUNT_ERROR_CODES,
   TEAM_PROCESS_ERROR_CODES,
+  CATALOG_IMAGE_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -215,6 +216,8 @@ describe('team contract', () => {
     const delta = readFileSync(deltaPath, 'utf8');
     const processPath = 'supabase/migrations/20261206139000_process_error_codes.sql';
     const processDelta = readFileSync(processPath, 'utf8');
+    const imagePath = 'supabase/migrations/20261206153000_catalog_image_error_codes.sql';
+    const imageDelta = readFileSync(imagePath, 'utf8');
     const codes = (sql: string) => {
       const block =
         /insert into public\.team_error_codes \(code\) values\n([\s\S]*?)(?:;\n|\non conflict)/u.exec(
@@ -227,14 +230,16 @@ describe('team contract', () => {
       codes(base).filter(code => (TEAM_ACCOUNT_ERROR_CODES as readonly string[]).includes(code))
     ).toEqual([]);
     expect(codes(processDelta)).toEqual([...TEAM_PROCESS_ERROR_CODES]);
-    expect([...codes(base), ...codes(delta), ...codes(processDelta)].sort()).toEqual(
-      [...TEAM_ERROR_CODES].sort()
-    );
+    expect(codes(imageDelta)).toEqual([...CATALOG_IMAGE_ERROR_CODES]);
+    expect(
+      [...codes(base), ...codes(delta), ...codes(processDelta), ...codes(imageDelta)].sort()
+    ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
     temporaryPaths.push(directory);
     const temporaryBase = join(directory, 'base.sql');
     const temporaryDelta = join(directory, 'delta.sql');
     const temporaryProcess = join(directory, 'process.sql');
+    const temporaryImage = join(directory, 'images.sql');
     const rendered = spawnSync(
       process.execPath,
       [
@@ -244,7 +249,9 @@ describe('team contract', () => {
         '--extension-output',
         temporaryDelta,
         '--process-extension-output',
-        temporaryProcess
+        temporaryProcess,
+        '--image-extension-output',
+        temporaryImage
       ],
       { encoding: 'utf8' }
     );
@@ -252,6 +259,8 @@ describe('team contract', () => {
     expect(readFileSync(temporaryBase, 'utf8')).toBe(base);
     expect(readFileSync(temporaryDelta, 'utf8')).toBe(delta);
     expect(readFileSync(temporaryProcess, 'utf8')).toBe(processDelta);
+    expect(readFileSync(temporaryImage, 'utf8')).toBe(imageDelta);
+    expect(readFileSync(imagePath, 'utf8')).toBe(imageDelta);
     expect(readFileSync(basePath, 'utf8')).toBe(base);
     expect(readFileSync(processPath, 'utf8')).toBe(processDelta);
     writeFileSync(temporaryDelta, delta.replaceAll('\n', '\r\n'));
@@ -286,6 +295,19 @@ describe('team contract', () => {
     );
     expect(staleProcess.status).not.toBe(0);
     expect(staleProcess.stderr).toContain('out of date');
+    writeFileSync(temporaryImage, imageDelta.replace('IMAGE_TOO_LARGE', 'STALE_IMAGE_TOO_LARGE'));
+    const staleImage = spawnSync(
+      process.execPath,
+      [
+        'scripts/generate-team-contract-sql.mjs',
+        '--check',
+        '--image-extension-output',
+        temporaryImage
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(staleImage.status).not.toBe(0);
+    expect(staleImage.stderr).toContain('out of date');
     const db = await createTeamTestDb();
     try {
       const catalog = await db.root<{ code: string }>(

@@ -116,6 +116,7 @@ describe('team Realtime invalidation', () => {
     expect([...events.keys()].sort()).toEqual([
       'team_account_workspace_signals',
       'team_catalog_events',
+      'team_catalog_image_imports',
       'team_launch_signals',
       'team_launch_workspace_signals',
       'team_membership_access_signals',

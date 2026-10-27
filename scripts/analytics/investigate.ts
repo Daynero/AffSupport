@@ -1,3 +1,4 @@
+import { getCatalogImageDiagnosis } from './catalog-images.js';
 import { getRecoveryRetirementEvidence } from './recovery-retirement.js';
 import { getMembershipAccessEvidence } from './membership-access.js';
 import { getRecoveryEvidence } from './tariff-recovery.js';
@@ -1657,6 +1658,26 @@ export async function getInvestigation(
     });
   }
 
+  const catalog_images = await getCatalogImageDiagnosis(null, period, {
+    userId: scope.userId,
+    limit: 100
+  });
+  for (const detail of catalog_images.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const item of catalog_images.findings) {
+    findings.push({
+      id: hashId(['catalog_image', item.evidence, item.code]),
+      kind: item.kind,
+      severity: item.code === 'UNKNOWN' ? 'low' : 'medium',
+      rule: 'catalog_image_publication',
+      title: `Catalog image evidence: ${item.code}; last proven stage: ${catalog_images.last_proven_stage ?? 'unknown'}.`,
+      evidence: [item.evidence],
+      fingerprint: `catalog:image:${item.code}`,
+      code_locations: item.code_locations ? [item.code_locations] : [],
+      next_step:
+        'Inspect the image attempt and confirm publication and dictionary receipts before retrying. Normal random-mode pictures require no matching fix.'
+    });
+  }
   const membership_access = await getMembershipAccessEvidence(
     scope.userId,
     period.start,
@@ -1799,6 +1820,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    catalog_images,
     recovery_retirement,
     membership_access,
     recovery,

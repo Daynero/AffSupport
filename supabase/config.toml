@@ -62,3 +62,7 @@ verify_jwt = false
 # Per-action user JWT or scoped desktop credential is verified by the handler.
 [functions.team-recovery]
 verify_jwt = false
+
+# 045: handler authenticates user routes; the scheduled worker requires its named secret.
+[functions.catalog-images]
+verify_jwt = false

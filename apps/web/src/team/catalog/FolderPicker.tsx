@@ -24,7 +24,8 @@ export function FolderPicker({
   onSelect,
   onClose,
   nested = false,
-  selectionId = 'provider'
+  selectionId = 'provider',
+  allowRoot = true
 }: {
   teamId: string;
   client: FolderPickerClient;
@@ -36,6 +37,8 @@ export function FolderPicker({
   nested?: boolean;
   /** Most destinations need the Drive id; material-backed settings need Soty's row id. */
   selectionId?: 'material' | 'provider';
+  /** Some sources require an actual material row; the space root has none. */
+  allowRoot?: boolean;
 }) {
   const { t } = useI18n();
   const titleId = useId();
@@ -126,9 +129,11 @@ export function FolderPicker({
         <Button
           type="button"
           variant="primary"
+          disabled={!allowRoot && !currentFolder}
           // The root itself is a legitimate destination, and it is the one place
           // the tree cannot offer as a row.
-          onClick={() =>
+          onClick={() => {
+            if (!allowRoot && !currentFolder) return;
             onSelect(
               currentFolder
                 ? {
@@ -139,8 +144,8 @@ export function FolderPicker({
                     name: currentFolder.name
                   }
                 : { id: 'root', name: t('teamFolderPickerRoot') }
-            )
-          }
+            );
+          }}
         >
           {currentFolder
             ? t('teamFolderPickerSelectNamed', { name: currentFolder.name })

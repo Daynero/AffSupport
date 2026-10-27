@@ -1,3 +1,4 @@
+// @ts-self-types="./contract.d.ts"
 export const TEAM_CONTRACT_VERSION = 1;
 
 export const TEAM_ROLES = ['owner', 'admin', 'editor', 'viewer'] as const;

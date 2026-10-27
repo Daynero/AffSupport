@@ -200,6 +200,7 @@ try {
         'run',
         'tests/tariff-catalog-recovery-postgres.test.ts',
         'tests/process-output-adoption-postgres.test.ts',
+        'tests/catalog-image-adoption-postgres.test.ts',
         'tests/recovery-retention-postgres.test.ts',
         'tests/recovery-retirement-postgres.test.ts',
         'tests/acceptance-clock-postgres.test.ts',

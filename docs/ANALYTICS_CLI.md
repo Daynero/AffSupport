@@ -579,3 +579,48 @@ explicit synthetic acceptance capture verifies the collector and read-only CLI.
 ### Web-only release diagnosis
 
 A web-only mini release keeps `local_app_version` unchanged and sets `web_build_id` to `web:<source SHA>:<configuration digest prefix>`. Compare web cohorts separately from agent cohorts. Operator stages have no central event producer: `update.web_release` explicitly reports this blind spot. Read `npm run release:web -- --report` for the correlated local run, stage durations and bounded failure; candidate runtime receipt and exact live-byte readback provide fallback evidence. An unresolved publication blocks further release writes until `npm run release:web -- --reconcile` confirms its archived bytes on the live binding. Reconciliation never uploads or rebuilds.
+
+### Публічні картинки каталогу — R2 (045)
+
+```bash
+npm run analytics -- catalog-images <team-id|import-id|entry-id|publication-id|catalog-attempt-id> --period 30d --json
+npm run analytics -- catalog-images <id> --as-of <iso> --limit 100 --cursor <next_cursor> --json
+npm run analytics -- investigate <user-email> --as-of <iso> --json
+npm run analytics -- inspect <import-id|entry-id> --as-of <iso> --json
+```
+
+`catalog-images` читає immutable journal через обмежені SELECT-only projections;
+інтернет-запитів до R2 і змін production немає. `next_cursor` продовжує сторінку
+того самого періоду й `--as-of`. `last_proven_stage`, terminal, findings,
+code_locations та capture health відокремлюють публікацію, готовність словника й
+використання в каталозі. Звичайні картинки без класифікації — дозволений
+випадковий режим, не помилка.
+
+`pool_added` і `pool_removed` зберігають історію доступності для майбутнього
+вибору. Finding `POOL_REMOVED` пояснює вилучення з пулу, навіть якщо сама
+publication досі ready для старих каталогів. Це не підтвердження видалення
+об'єкта: для revoke читайте окремі publication/purge receipts. Browser lifecycle
+remove/revoke містить flow і publication UUID, requested/accepted/failure та
+result_visible після React commit; останній підтверджує видиму зміну списку,
+а не завершене очищення сховища чи зовнішніх кешів.
+
+`journey`, `investigate`, `inspect`, `catalog` та `audit` доповнені цими доказами.
+Недоступна projection, вимкнений trigger, пропущений stage, пізній запис,
+обрізана сторінка та невідомий код не стають зеленим статусом. Audit вимагає
+корельований повний ланцюжок і справні capture triggers, не лише наявність події.
+Результати копіювання промпту містять лише fixed version/action/cause — без
+тексту промпту або clipboard.
+
+Деталізовані очищені записи утримуються 30 днів, глобальні агрегати без user/team
+ідентичностей — 90. Bounded retention cron видаляє до 1000 detail records за
+прохід; при відставанні очищення реальний backlog перевіряється окремо.
+Publication/use/purge receipts мають власне операційне утримання й не видаляються
+цим cron. Встановлення projection не відновлює пропущену історію.
+
+Готовий публічний GET не доводить зовнішню генерацію, візуальну правдивість назви,
+видимість результату в браузері або прийняття Meta. Provider billing, cache hit
+ratio й object requests лишаються `unsupported_by_producer`, доки немає окремих
+перевірених метрик. Поточний retained-ready storage показується тільки для
+просторів із bounded evidence та не реконструюється як історичний `--as-of`.
+Для сценарного бюджету використовуйте калькулятор у
+`specs/045-catalog-r2-images/cost-model.py`; це оцінка, не фактичний рахунок.

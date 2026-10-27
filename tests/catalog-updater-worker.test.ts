@@ -467,7 +467,11 @@ describe('refreshing pictures (024)', () => {
       { driveFileId: 'img-3', resourceKey: null }
     ]);
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
-    expect(deps.drawImages).toHaveBeenCalledWith('team', 3);
+    expect(deps.drawImages).toHaveBeenCalledWith(
+      'team',
+      3,
+      expect.objectContaining({ contractVersion: 2, scope: 'refresh' })
+    );
     const sheet = await zipEntryAny(written[0]!.bytes);
     expect(sheet).toContain('id=img-2');
     expect(sheet).not.toContain('img.example.test');
@@ -736,3 +740,193 @@ describe('catalog refresh preparation', () => {
   });
 });
 // @ts-nocheck — fixture mocks intentionally model only the drive surface used by each case.
+
+describe('R2 ready dictionary integration', () => {
+  it('validates retained images during a text-only round and refuses revoked URLs before writing', async () => {
+    const retained = {
+      kind: 'r2',
+      publicationId: 'retained-publication',
+      poolEntryId: 'retained-pool',
+      publicUrl: 'https://media.example/retained.jpg',
+      classification: {
+        mode: 'unclassified',
+        garment: null,
+        color: null,
+        reason: 'unknown',
+        vocabularyVersion: 'catalog-clothing-v1'
+      },
+      revision: 1
+    };
+    const recipe = {
+      title: 'Clothing item',
+      description: 'Generic clothing.',
+      price: 10,
+      imageLink: retained.publicUrl,
+      pictureImage: retained
+    };
+    const { deps, drive } = setup({
+      batches: [
+        [
+          claimedRow('a', {
+            refresh_images: false,
+            refresh_texts: true,
+            settings_snapshot: { ...recipe, rows: [recipe, recipe, recipe] }
+          })
+        ]
+      ]
+    });
+    deps.drawImages = vi.fn(async () => []);
+    deps.validateImageRows = vi.fn(async () => {
+      throw new TeamFunctionError('IMAGE_PUBLICATION_REVOKED');
+    });
+    const result = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(result.updated).toBe(0);
+    expect(drive.updateConvertedFile).not.toHaveBeenCalled();
+    expect(deps.drawImages).not.toHaveBeenCalled();
+    expect(deps.validateImageRows).toHaveBeenCalledWith('team', [retained, retained, retained]);
+    expect(deps.retry).toHaveBeenCalledWith('a', 'IMAGE_PUBLICATION_REVOKED', expect.any(Date));
+  });
+  it('parks malformed image snapshots without starving another claimed catalog', async () => {
+    const invalid = {
+      title: 'Hoodie',
+      description: 'Clothing',
+      price: 10,
+      imageLink: 'https://media.example/old.jpg',
+      pictureImage: { kind: 'r2', publicUrl: 'javascript:bad' }
+    };
+    const { deps, drive } = setup({
+      batches: [
+        [
+          claimedRow('bad', {
+            settings_snapshot: { ...invalid, rows: [invalid, invalid, invalid] }
+          }),
+          claimedRow('good')
+        ]
+      ]
+    });
+    const result = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(result.failed).toBe(1);
+    expect(result.updated).toBe(1);
+    expect(deps.retry).toHaveBeenCalledWith('bad', 'INVALID_RESPONSE', expect.any(Date));
+    expect(drive.updateConvertedFile).toHaveBeenCalledTimes(1);
+    expect(drive.updateConvertedFile.mock.calls[0][0].fileId).toBe('drive-good');
+  });
+  const picture = (mode = 'matched') => ({
+    kind: 'r2',
+    publicationId: 'publication',
+    poolEntryId: 'pool',
+    publicUrl: 'https://media.example/image.jpg',
+    revision: 1,
+    classification:
+      mode === 'matched'
+        ? {
+            mode: 'matched',
+            garment: 'Hoodie',
+            color: 'black',
+            vocabularyVersion: 'catalog-clothing-v1'
+          }
+        : {
+            mode: 'unclassified',
+            garment: null,
+            color: null,
+            reason: 'unknown',
+            vocabularyVersion: 'catalog-clothing-v1'
+          }
+  });
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true]
+  ])(
+    'keeps facts consistent with refresh images=%s and refresh texts=%s',
+    async (refreshImages, refreshTexts) => {
+      const old = picture();
+      const fresh = {
+        ...picture(),
+        publicUrl: 'https://media.example/polo.jpg',
+        classification: {
+          mode: 'matched',
+          garment: 'Polo Shirt',
+          color: 'white',
+          vocabularyVersion: 'catalog-clothing-v1'
+        }
+      };
+      const recipe = {
+        title: 'Black Hoodie Model',
+        description: 'A black hoodie for daily wear.',
+        imageLink: old.publicUrl,
+        pictureImage: old,
+        price: 10
+      };
+      const { deps } = setup({
+        batches: [
+          [
+            claimedRow('a', {
+              refresh_images: refreshImages,
+              refresh_texts: refreshTexts,
+              settings_snapshot: { ...recipe, rows: [recipe, recipe, recipe] }
+            })
+          ]
+        ]
+      });
+      deps.drawImages = vi.fn(async () => [fresh, fresh, fresh]);
+      deps.drawTexts = vi.fn(async () =>
+        Array.from({ length: 3 }, () => ({
+          title: 'Ivory Blazer Model',
+          description: 'An ivory blazer for daily wear.'
+        }))
+      );
+      const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+      expect(summary.updated).toBe(1);
+      const rows = deps.complete.mock.calls[0][3].snapshot.rows;
+      expect(
+        rows.every(r => r.imageLink === (refreshImages ? fresh.publicUrl : old.publicUrl))
+      ).toBe(true);
+      expect(rows.every(r => r.title.includes(refreshImages ? 'Polo Shirt' : 'Hoodie'))).toBe(true);
+      expect(
+        rows.every(r => r.description.toLowerCase().includes(refreshImages ? 'white' : 'black'))
+      ).toBe(true);
+      expect(deps.drawImages).toHaveBeenCalledTimes(refreshImages ? 1 : 0);
+      expect(deps.drawTexts).toHaveBeenCalledTimes(refreshTexts ? 1 : 0);
+    }
+  );
+  it('rejects revoked frozen uses before changing the existing sheet', async () => {
+    const { deps, drive } = setup({
+      batches: [[claimedRow('a', { image_attempt_id: 'attempt' })]]
+    });
+    deps.validateImageUses = vi.fn(async () => {
+      throw new TeamFunctionError('IMAGE_PUBLICATION_REVOKED');
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.updated).toBe(0);
+    expect(drive.updateConvertedFile).not.toHaveBeenCalled();
+    expect(deps.retry).toHaveBeenCalledWith('a', 'IMAGE_PUBLICATION_REVOKED', expect.any(Date));
+  });
+  it('uses verified public images without changing Drive image sharing', async () => {
+    const { deps, drive } = setup({ batches: [[claimedRow('a')]] });
+    drive.listAnyonePermissions = vi.fn(async () => []);
+    drive.createAnyoneReaderPermission = vi.fn(async () => undefined);
+    deps.drawImages = vi.fn(async () => [picture('unclassified')]);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.updated).toBe(1);
+    expect(drive.listAnyonePermissions).not.toHaveBeenCalled();
+    expect(drive.createAnyoneReaderPermission).not.toHaveBeenCalled();
+    const rows = deps.complete.mock.calls[0][3].snapshot.rows;
+    expect(
+      rows.every(
+        r =>
+          r.imageLink === 'https://media.example/image.jpg' &&
+          r.pictureImage.classification.mode === 'unclassified'
+      )
+    ).toBe(true);
+  });
+  it('does not replace the catalog when image-only matching would guess custom text', async () => {
+    const { deps, written } = setup({ batches: [[claimedRow('a', { refresh_texts: false })]] });
+    deps.drawImages = vi.fn(async () => [picture()]);
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary.updated).toBe(0);
+    expect(written).toHaveLength(0);
+    expect(deps.retry).toHaveBeenCalledWith('a', 'IMAGE_TEXT_PAIRING_CONFLICT', expect.any(Date));
+  });
+});

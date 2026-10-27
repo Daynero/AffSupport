@@ -493,16 +493,30 @@ it('confirms clear and Undo only after canonical returned field versions reach t
   expect(
     clearedInput.closest('[data-finance-field-version]')?.getAttribute('data-finance-field-version')
   ).toBe('2');
-  const cleared = vi
-    .mocked(emitAccountSignal)
-    .mock.calls.filter(call => call[2].operation === 'financeClear');
-  expect(cleared.map(call => call[1])).toEqual(['requested', 'accepted', 'terminal', 'applied']);
+  const signals = (operation: 'financeClear' | 'financeUndo') =>
+    vi.mocked(emitAccountSignal).mock.calls.filter(call => call[2].operation === operation);
+  // Visible receipt proof runs in a post-commit microtask. A visible value can
+  // precede its diagnostic signal; await both without relaxing the exact chain.
+  await waitFor(() =>
+    expect(signals('financeClear').map(call => call[1])).toEqual([
+      'requested',
+      'accepted',
+      'terminal',
+      'applied'
+    ])
+  );
+  const cleared = signals('financeClear');
   fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
   await waitFor(() => expect((clearedInput as HTMLInputElement).value).toBe('125'));
-  const undone = vi
-    .mocked(emitAccountSignal)
-    .mock.calls.filter(call => call[2].operation === 'financeUndo');
-  expect(undone.map(call => call[1])).toEqual(['requested', 'accepted', 'terminal', 'applied']);
+  await waitFor(() =>
+    expect(signals('financeUndo').map(call => call[1])).toEqual([
+      'requested',
+      'accepted',
+      'terminal',
+      'applied'
+    ])
+  );
+  const undone = signals('financeUndo');
   expect(new Set(undone.map(call => call[2].flowId)).size).toBe(1);
   expect(undone[0]![2].flowId).not.toBe(cleared[0]![2].flowId);
   expect(JSON.stringify([...cleared, ...undone])).not.toMatch(/p-a|owner|g1-926/);

@@ -43,7 +43,7 @@ export const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Local media processing',
       paragraphs: [
-        'Videos and selected images are processed on your computer by Soty Agent. Media files, thumbnails and image contents are not uploaded to the server.',
+        'Videos and selected images are processed on your computer by Soty Agent. Private media files and thumbnails are not stored on Soty servers. When you explicitly publish catalog pictures, selected local or Google Drive images are copied to Cloudflare R2 and become publicly readable by link. The copies are retained until publication is revoked or the space is deleted; removing a source or leaving a space does not revoke issued catalog links. Previously downloaded copies and external caches cannot be recalled.',
         'Soty product analytics do not include filenames, local paths, FFmpeg commands with paths, transcription text or media contents.'
       ]
     },
@@ -102,7 +102,7 @@ export const privacy: Record<Language, LegalSection[]> = {
     {
       heading: 'Локальна обробка медіа',
       paragraphs: [
-        'Відео й вибрані зображення обробляються на вашому комп’ютері через Soty Agent. Медіафайли, thumbnails і вміст зображень не завантажуються на сервер.',
+        'Відео й вибрані зображення обробляються на вашому комп’ютері через Soty Agent. Приватні медіафайли й thumbnails не зберігаються на серверах Soty. Коли ви явно публікуєте картинки каталогу, вибрані локальні або Google Drive зображення копіюються в Cloudflare R2 і стають публічно доступними за посиланням. Копії зберігаються до відкликання публікації або видалення простору; прибирання джерела чи вихід із простору не відкликають видані посилання каталогів. Уже завантажені копії та зовнішні кеші неможливо відкликати.',
         'Продуктова аналітика Soty не містить назв файлів, локальних шляхів, FFmpeg-команд зі шляхами, тексту транскрипцій або вмісту медіа.'
       ]
     },
@@ -152,7 +152,7 @@ export const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Local processing and results',
       paragraphs: [
-        'Soty Agent processes videos and images locally on your computer. Soty does not upload those media files to the server.',
+        'Soty Agent processes videos and images locally on your computer. Soty does not persist private media on its servers. Explicitly published catalog pictures are an exception: copies are stored in Cloudflare R2 and publicly accessible by link until revoked or the space is deleted. Users must be authorized to publish selected images; removing an original does not remove issued copies.',
         'Compression output depends on the source files, codecs, system environment and settings you select. Estimates are not guarantees. Review completed output before relying on it and keep your originals until you are satisfied.'
       ]
     },
@@ -190,7 +190,7 @@ export const terms: Record<Language, LegalSection[]> = {
     {
       heading: 'Локальна обробка та результати',
       paragraphs: [
-        'Soty Agent обробляє відео й зображення локально на вашому комп’ютері. Soty не завантажує ці медіафайли на сервер.',
+        'Soty Agent обробляє відео й зображення локально на вашому комп’ютері. Soty не зберігає приватні медіафайли на сервері. Виняток — явно опубліковані картинки каталогу: їхні копії зберігаються в Cloudflare R2 і публічно доступні за посиланням до відкликання або видалення простору. Користувач повинен мати право публікувати вибрані зображення; видалення оригіналу не видаляє видані копії.',
         'Результат стиснення залежить від вихідних файлів, кодеків, системного середовища й вибраних налаштувань. Оцінки не є гарантією. Перевіряйте готовий результат і зберігайте оригінали, доки не переконаєтеся в його якості.'
       ]
     },

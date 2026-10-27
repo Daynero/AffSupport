@@ -51,3 +51,20 @@ describe('generated clothing names and descriptions', () => {
     }
   });
 });
+
+it('never invents crossed pairs from a sparse R2 inventory', () => {
+  const pairs = [
+    { garment: 'Hoodie', color: 'black' },
+    { garment: 'T-Shirt', color: 'white' }
+  ];
+  const texts = generateApparelTexts(100, Math.random, {
+    garments: ['Hoodie', 'T-Shirt'],
+    colors: ['Black', 'White'],
+    pairs
+  });
+  expect(texts).toHaveLength(100);
+  for (const text of texts) {
+    if (text.title.includes('Hoodie')) expect(text.description).toContain('black');
+    if (text.title.includes('T-Shirt')) expect(text.description).toContain('white');
+  }
+});

@@ -28,6 +28,10 @@ const ACCOUNTS_BEFORE = path.join(
   root,
   'specs/038-unified-accounts/reviews/bundle-budget-baseline.json'
 );
+const FEATURE_045_COMPARISON = path.join(
+  root,
+  'specs/045-catalog-r2-images/bundle-budget-comparison.json'
+);
 const ACCOUNT_ROUTE = 'src/team/accounts/AccountSpace.tsx';
 const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 // Explicit feature 038 allowance: unified finance/runs, archive and library drag
@@ -36,7 +40,11 @@ const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 const ACCOUNTS_INCREMENTAL_ALLOWANCE = 55_000;
 const ACCOUNTS_EXCLUSIVE_CEILING = 80_000;
 const LAUNCH_ROOT_CEILING = 20_000;
-const LAUNCH_EXCLUSIVE_CEILING = 40_000;
+// Owner-approved 045 allocation: the clean b0c0077b base already measures
+// 44,680 B for Launch; this feature measures 44,649 B. The R2 feature's
+// shared/existing increase is separately capped against that measured base.
+const LAUNCH_EXCLUSIVE_CEILING = 45_000;
+const FEATURE_045_INCREMENTAL_ALLOWANCE = 20_000;
 
 /**
  * How far the total may drift before this fails.
@@ -61,6 +69,17 @@ interface AccountsBefore {
     source: string;
     exclusive_gzip_bytes: number;
     files: Array<{ file: string; gzip_bytes: number; sha256: string }>;
+  };
+}
+interface Feature045Comparison {
+  source_sha: string;
+  authorization: {
+    shared_existing_incremental_allowance: number;
+    launch_exclusive_ceiling: number;
+  };
+  base_oxc: {
+    launch_exclusive_gzip: number;
+    shared_existing_gzip: number;
   };
 }
 
@@ -91,7 +110,7 @@ function measure() {
 }
 
 describeRequiring(
-  requirePath('apps/web/dist/assets', MANIFEST, ACCOUNTS_BEFORE),
+  requirePath('apps/web/dist/assets', MANIFEST, ACCOUNTS_BEFORE, FEATURE_045_COMPARISON),
   'download budget',
   () => {
     const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline;
@@ -104,7 +123,7 @@ describeRequiring(
       expect(measured.total).toBeGreaterThan(50_000);
     });
 
-    it('preserves the existing ratchet while bounding complete exclusive route graphs', () => {
+    it('preserves ratchets with the explicit bounded 045 allocation and complete route graphs', () => {
       const measured = measure();
       const ceiling = Math.round(baseline.total_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
       const manifest: unknown = JSON.parse(readFileSync(MANIFEST, 'utf8'));
@@ -114,6 +133,16 @@ describeRequiring(
       const accountBytes = sumAssetBytes(accounts.files, sizeOf);
       const launchBytes = sumAssetBytes(launches.files, sizeOf);
       const before = JSON.parse(readFileSync(ACCOUNTS_BEFORE, 'utf8')) as AccountsBefore;
+      const feature045 = JSON.parse(
+        readFileSync(FEATURE_045_COMPARISON, 'utf8')
+      ) as Feature045Comparison;
+      expect(feature045.source_sha).toBe('b0c0077b6b95f43f54daa32912052e2e7a7e953a');
+      expect(feature045.authorization.shared_existing_incremental_allowance).toBe(
+        FEATURE_045_INCREMENTAL_ALLOWANCE
+      );
+      expect(feature045.authorization.launch_exclusive_ceiling).toBe(LAUNCH_EXCLUSIVE_CEILING);
+      expect(feature045.base_oxc.launch_exclusive_gzip).toBe(44_680);
+      expect(feature045.base_oxc.shared_existing_gzip).toBe(998_034);
       const beforeGraph = exclusiveLazyRouteAssets(before.manifest, ACCOUNT_ROUTE);
       expect(before.source_sha).toBe('4c392f6316a0a6ad1f02e4acc0b30bb1df91e10b');
       expect(before.accounts.source).toBe(ACCOUNT_ROUTE);
@@ -133,7 +162,8 @@ describeRequiring(
       // Only the growth of the COMPLETE exclusive Accounts graph is exempted.
       // Its complete pre038 cost remains charged globally, including old private
       // dependencies. Shared dependencies, orphan assets and all other routes
-      // remain charged in full; the baseline itself and its 5% tolerance stay fixed.
+      // remain charged in full. 045 adds only the explicit owner-approved
+      // allowance below; the old baseline and its 5% tolerance remain fixed.
       const accountsIncrement = Math.max(0, accountBytes - before.accounts.exclusive_gzip_bytes);
       const existingBytes = measured.total - launchBytes - accountsIncrement;
       expect(accounts.files.filter(file => launches.files.includes(file))).toEqual([]);
@@ -143,10 +173,18 @@ describeRequiring(
       expect(launchBytes).toBeLessThanOrEqual(LAUNCH_EXCLUSIVE_CEILING);
       expect(accountBytes).toBeLessThanOrEqual(ACCOUNTS_EXCLUSIVE_CEILING);
       expect(accountsIncrement).toBeLessThanOrEqual(ACCOUNTS_INCREMENTAL_ALLOWANCE);
+      const feature045Increment = Math.max(
+        0,
+        existingBytes - feature045.base_oxc.shared_existing_gzip
+      );
+      expect(
+        feature045Increment,
+        `shared/existing growth from clean 045 base: ${feature045Increment}B; owner-approved allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
+      ).toBeLessThanOrEqual(FEATURE_045_INCREMENTAL_ALLOWANCE);
       expect(
         existingBytes,
-        `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged`
-      ).toBeLessThanOrEqual(ceiling);
+        `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
+      ).toBeLessThanOrEqual(ceiling + FEATURE_045_INCREMENTAL_ALLOWANCE);
     });
 
     it('has not grown the entry chunk beyond tolerance', () => {

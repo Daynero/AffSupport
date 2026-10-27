@@ -26,6 +26,8 @@ import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
+import type { CatalogImageClient } from '../../api/team-catalog-images';
+import { CatalogImageImport } from './CatalogImageImport';
 import {
   TaskAttachmentPicker,
   type TaskAttachmentPickerClient
@@ -45,6 +47,7 @@ import {
 } from './limits';
 
 export interface ProductCatalogSettingsClient {
+  catalogImages?: CatalogImageClient;
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
   setProductCatalogSettings: (
     teamId: string,
@@ -106,7 +109,7 @@ export function ProductCatalogSettingsSection({
         texts={texts}
         fallback={fallback}
         range={range}
-        hasImageSources={Boolean(client.listProductCatalogImageSources)}
+        hasImageSources={Boolean(client.listProductCatalogImageSources || client.catalogImages)}
         hasTextPool={Boolean(client.listProductCatalogTexts)}
       />
       <CatalogTextsSection teamId={teamId} client={client} onCount={setTexts} />
@@ -231,6 +234,36 @@ function updaterHref(): string {
 // ---------------------------------------------------------------------------------------------
 
 function CatalogImagesSection({
+  teamId,
+  client,
+  onPool
+}: {
+  teamId: string;
+  client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+  onPool: (count: number) => void;
+}) {
+  if (!client.catalogImages)
+    return <LegacyCatalogImagesSection teamId={teamId} client={client} onPool={onPool} />;
+  return (
+    <CatalogImageImport
+      teamId={teamId}
+      client={client.catalogImages}
+      onPool={onPool}
+      folderClient={client.listMaterials ? { listMaterials: client.listMaterials } : undefined}
+      legacySources={
+        client.listProductCatalogImageSources
+          ? async () =>
+              (await client.listProductCatalogImageSources!(teamId)).sources.map(
+                source => source.materialId
+              )
+          : undefined
+      }
+      legacy={<LegacyCatalogImagesSection teamId={teamId} client={client} onPool={onPool} />}
+    />
+  );
+}
+
+function LegacyCatalogImagesSection({
   teamId,
   client,
   onPool
@@ -443,12 +476,23 @@ function CatalogTextsSection({
       const room = Math.max(0, APPAREL_POOL_MAX - kept.length);
       /* Written around the pictures the space has (US27): the names say hoodie where the
          pictures are hoodies, in the colours those pictures are. */
-      const pictures = await client.listProductCatalogPoolNames?.(teamId).catch(() => []);
-      const made = generateApparelTexts(
-        Math.min(wanted, room),
-        undefined,
-        pictures && pictures.length > 0 ? clothesInPictures(pictures) : undefined
-      );
+      const capabilities = await client.catalogImages?.capabilities(teamId);
+      const inventory =
+        capabilities?.mode === 'v2' ? await client.catalogImages?.inventory(teamId) : undefined;
+      const pictures = inventory
+        ? undefined
+        : await client.listProductCatalogPoolNames?.(teamId).catch(() => []);
+      const pictured =
+        inventory && inventory.pairs.length > 0
+          ? {
+              garments: [...new Set(inventory.pairs.map(pair => pair.garment))],
+              colors: [...new Set(inventory.pairs.map(pair => pair.color))],
+              pairs: inventory.pairs
+            }
+          : pictures && pictures.length > 0
+            ? clothesInPictures(pictures)
+            : undefined;
+      const made = generateApparelTexts(Math.min(wanted, room), undefined, pictured);
       await client.replaceProductCatalogTexts(teamId, [
         ...kept.map(text => ({ title: text.title, description: text.description })),
         ...made

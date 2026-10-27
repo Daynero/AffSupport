@@ -5,6 +5,56 @@ import {
 } from '../supabase/functions/drive-ops/launch-catalog';
 import { launchConfig, launchSources } from './fixtures/launches';
 
+it.each([1, 2])(
+  'keeps the server-accepted image contract %i when creating the child',
+  async version => {
+    const durable = await import('../supabase/functions/drive-ops/catalog-durable');
+    const create = vi.spyOn(durable, 'createDurableProductCatalog').mockResolvedValueOnce({
+      outcome: 'created',
+      catalog: {} as never,
+      videoShared: false
+    });
+    const rpc = vi.fn(async (name: string) => ({
+      error: null,
+      data:
+        name === 'service_claim_launch_generation'
+          ? {
+              state: 'running',
+              catalogImageContractVersion: version,
+              fence: '2',
+              config: launchConfig({ method: 'catalog' }),
+              sources: launchSources,
+              advertisingUrl: 'https://example.invalid/'
+            }
+          : name === 'service_restore_registered_launch_catalog'
+            ? false
+            : name === 'service_publish_launch_generation'
+              ? { state: 'succeeded' }
+              : null
+    }));
+    try {
+      await executeLaunchCatalog(
+        {
+          service: { rpc },
+          catalog: {} as LaunchCatalogExecutionDeps['catalog'],
+          driveFor: vi.fn(),
+          proveSource: vi.fn(),
+          proveCatalog: vi.fn()
+        },
+        'team',
+        'generation',
+        'actor'
+      );
+      const payload = create.mock.calls[0]?.[3];
+      expect(payload).toMatchObject({ idempotencyKey: 'launch:generation:catalog' });
+      if (version === 2) expect(payload).toHaveProperty('catalogImageContractVersion', 2);
+      else expect(payload).not.toHaveProperty('catalogImageContractVersion');
+    } finally {
+      create.mockRestore();
+    }
+  }
+);
+
 it('settles the exact registered child before mutable-source proof or provider work', async () => {
   const rpc = vi.fn(async (name: string) => ({
     error: null,
@@ -12,6 +62,7 @@ it('settles the exact registered child before mutable-source proof or provider w
       name === 'service_claim_launch_generation'
         ? {
             state: 'running',
+            catalogImageContractVersion: 2,
             fence: '2',
             config: launchConfig({ method: 'catalog' }),
             sources: launchSources,
@@ -50,6 +101,7 @@ it('refuses an uncertified restitch receipt before planning catalog resources or
       name === 'service_claim_launch_generation'
         ? {
             state: 'running',
+            catalogImageContractVersion: 2,
             fence: '2',
             config: launchConfig({
               method: 'catalog',
@@ -97,6 +149,7 @@ it('retries parent publication after a lost reply without recreating an already 
         name === 'service_claim_launch_generation'
           ? {
               state: 'running',
+              catalogImageContractVersion: 2,
               fence: '2',
               config: launchConfig({ method: 'catalog' }),
               sources: launchSources,
@@ -144,6 +197,7 @@ it('passes the reserved final name through the coordinator binding before attach
       name === 'service_claim_launch_generation'
         ? {
             state: 'running',
+            catalogImageContractVersion: 2,
             fence: '2',
             config: launchConfig({
               method: 'catalog',

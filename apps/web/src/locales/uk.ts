@@ -1,6 +1,110 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  catalogImagesOpenPicture: 'Відкрити картинку',
+  catalogImagesRemovePicture: 'Прибрати з пулу',
+  catalogImagesRevokePicture: 'Відкликати публікацію',
+  catalogImagesNextPictures: 'Наступні картинки',
+  catalogImagesRevocationQueued:
+    'Відкликання прийнято. Очищення сховища й керованого кешу може тривати; зовнішні копії можуть залишитися.',
+  catalogImagesRevokeImpact:
+    'Посилання перестане працювати для старих каталогів. Це відкликає публікацію, а не просто прибирає картинку з нових виборів. Зовнішні кеші та скачані копії можуть залишитися.',
+  catalogImagesContinueImport: 'Продовжити імпорт папки',
+  catalogImagesCopyFailed: 'Не вдалося скопіювати промпт. Відкрийте його й скопіюйте вручну.',
+  catalogImagesTitle: 'Картинки в R2',
+  catalogImagesPublicNotice:
+    'Завантажені картинки будуть публічно доступні за посиланнями для каталогів. Додавайте лише те, що можете публікувати.',
+  catalogImagesDescription:
+    'Один раз завантажте картинки й використовуйте готові посилання в каталогах.',
+  catalogImagesLoading: 'Завантажуємо стан картинок…',
+  catalogImagesSetupRequired:
+    'Завантаження в R2 ще не підключене для цього простору. Чинні картинки й каталоги залишаються доступними.',
+  catalogImagesImportsPaused:
+    'Нові завантаження призупинено. Готові картинки залишаються доступними.',
+  catalogImagesInventory: 'З підбором за назвою: {matched}. Випадкові: {random}.',
+  catalogImagesDrop: 'Перетягніть сюди картинки',
+  catalogImagesChooseFiles: 'Обрати файли',
+  catalogImagesChooseDrive: 'Обрати папку Google Drive',
+  catalogImagesAnalyzeUpload: 'Проаналізувати й завантажити',
+  catalogImagesSelectedFolder: 'Обрана папка: {name}',
+  catalogImagesQueued: 'У черзі: {count}',
+  catalogImagesShowMore: 'Показати ще',
+  catalogImagesTransferBytes:
+    'Передано {loaded} з {total} байтів. Після передачі картинки ще перевіряються.',
+  catalogImagesHelpClothing:
+    'Використовуйте одяг на білому тлі: назви, описи й категорії товарів у Soty підготовлені саме для одягу. Правильно названі картинки поєднуються з товарами за типом і кольором.',
+  catalogImagesHelpRandom:
+    'Можна додати й звичайні картинки без спеціальних назв. Вони просто вибиратимуться випадково — без зіставлення з назвою, типом одягу та кольором товару.',
+  catalogImagesHelpMix:
+    'Для варіантів товарів міксуються назви й описи, матеріал, крій, стиль, візерунок, розмір і ціна. Тип і колір правильно названої картинки прив’язуються до товару. Інші параметри не визначаються з фото.',
+  catalogImagesHelpNames:
+    'Називайте файли за схемою тип_колір_номер: hoodie_black_001.jpg. Рекомендуємо квадрат 1:1, один предмет на білому тлі, без людей, брендів і написів.',
+  catalogImagesCopyPrompt: 'Скопіювати промпт',
+  catalogImagesPromptCopied: 'Промпт скопійовано',
+  catalogImagesPromptCopyFailed: 'Не вдалося скопіювати. Відкрийте промпт і скопіюйте вручну.',
+  catalogImagesOpenPrompt: 'Відкрити промпт',
+  catalogImagesRefresh: 'Оновити стан',
+  catalogImagesRecentImports: 'Останні завантаження',
+  catalogImagesImportStatus: 'Стан завантаження картинок',
+  catalogImagesJobCounts:
+    'Готові: {ready}. Повторно використані: {reused}. Випадкові: {random}. Помилки: {failed}. Строк очікування минув: {expired}.',
+  catalogImagesReselect:
+    'Частину локальних файлів ще не передано. Оберіть їх повторно, щоб продовжити. Уже готові картинки не завантажуються вдруге.',
+  catalogImagesRandomMode: 'Випадковий вибір',
+  catalogImagesEntriesLimited:
+    'Показано першу сторінку файлів; підсумки охоплюють усе завантаження.',
+  catalogImagesCancel: 'Скасувати завантаження',
+  catalogImagesRetry: 'Повторити незавершені зображення',
+  catalogImagesMigrateExisting: 'Імпортувати поточні джерела зображень до R2',
+  catalogImagesWaitingCapacity:
+    'Очікуємо перевірки зображень, щоб звільнилося місце для завантаження. Черга продовжиться автоматично.',
+  catalogImagesUploadCapacityBusy:
+    'Тимчасово немає вільних місць для завантаження. Збережіть вибрані файли й повторіть після завершення перевірки.',
+  catalogImagesMigrateHint:
+    'Копіює поточні файли й папки Drive через той самий аналіз зображень. Наявні каталоги працюють далі. Непідтримувані файли показуються як невдалі; оригінали та їхні дозволи на поширення зберігаються. До 100 файлів або папок джерел за імпорт.',
+  catalogImagesClose: 'Закрити',
+  catalogImagesStageCollecting: 'Готуємо список файлів',
+  catalogImagesStageEnumerating: 'Переглядаємо папку',
+  catalogImagesStageSealed: 'Список готовий',
+  catalogImagesStageRunning: 'Обробляємо картинки',
+  catalogImagesStageCompleted: 'Завершено',
+  catalogImagesStagePartial: 'Завершено частково',
+  catalogImagesStageFailed: 'Не вдалося завершити',
+  catalogImagesStageCancelled: 'Скасовано',
+  catalogImagesStageExpired: 'Строк очікування минув',
+  catalogImagesStageUncertain: 'Звіряємо результат',
+  catalogImagesStageWaiting: 'Очікуємо файл',
+  catalogImagesStageStaged: 'Файл передано',
+  catalogImagesStageValidating: 'Перевіряємо файл',
+  catalogImagesStageDeduplicating: 'Перевіряємо повтори',
+  catalogImagesStagePublishing: 'Публікуємо',
+  catalogImagesStageVerifying: 'Перевіряємо збережені байти',
+  catalogImagesStageVerifyingPublic: 'Перевіряємо публічне посилання',
+  catalogImagesStageCommitting: 'Зберігаємо відповідність',
+  catalogImagesStageReady: 'Готово',
+  catalogImagesStageReused: 'Використано готову копію',
+  catalogImagesErrorPairingConflict:
+    'Не вдалося однозначно узгодити назву й опис із новою картинкою. Увімкніть оновлення текстів або виправте їх і повторіть. Попередній каталог збережено.',
+  catalogImagesErrorUnavailable: 'Сховище картинок зараз недоступне. Оновіть стан перед повтором.',
+  catalogImagesErrorSource:
+    'Джерело картинки недоступне або змінилося. Перевірте доступ і оберіть його повторно.',
+  catalogImagesErrorFormat:
+    'Потрібна придатна статична картинка PNG, JPEG або WebP із правильною орієнтацією.',
+  catalogImagesErrorTooLarge: 'Кожна картинка має бути до 50 MB і 16 мегапікселів.',
+  catalogImagesErrorQuota:
+    'Перевищено ліміт завантаження або сховища. Зменште набір файлів або зверніться до власника.',
+  catalogImagesErrorConflict:
+    'Ці байти вже пов’язані з іншою назвою або запит змінився. Оновіть стан і перевірте відповідності.',
+  catalogImagesErrorUncertain:
+    'Відповідь загубилась. Оновіть стан, щоб звірити результат перед повтором.',
+  catalogImagesErrorDisabled: 'Нові завантаження картинок поки вимкнені для цього простору.',
+  catalogImagesErrorUpgrade: 'Оновіть сторінку: цей простір використовує новий механізм картинок.',
+  catalogImagesErrorVerification:
+    'Картинку ще не підтверджено за публічним посиланням. Оновіть стан перед повтором.',
+  catalogImagesErrorLocalSource: 'Оберіть знову потрібні локальні файли, щоб продовжити.',
+  catalogImagesErrorRevoked: 'Публікацію картинки відкликано. Оберіть іншу готову картинку.',
+  catalogImagesErrorManifest:
+    'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
   accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',
   accountsUnmatchedLaunches: 'Запуски без пов’язаного РК',
   accountsMoveInstructions:

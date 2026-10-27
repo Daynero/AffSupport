@@ -731,3 +731,20 @@ bundle, тож відкат повертає і канал оновлень де
 Потім запустіть `npm run release:check`.
 
 Web-only публікація з невідомим результатом зберігає спільний для Git worktree запис `release/automation/web-publication-pending.json`. Усі web writers блокуються до read-only `--reconcile`: він перевіряє завершення попередньої групи процесів та точні live-байти замороженого архіву. Невідповідність або відсутня ідентичність процесу потребує ручного розбору; повторний upload та автоматичне видалення запису заборонені. Якщо завершення дочірніх процесів не підтверджене, команда також залишає writer lock для розбору.
+
+## Catalog image R2 rollout (045)
+
+Use the full release workflow above for this shared/DB/functions change; web mini release is
+not eligible. [CATALOG_IMAGES.md](CATALOG_IMAGES.md) defines isolated runtime credentials,
+public-media consent, staging lifecycle and CDN setup. Apply the additive migrations and
+functions with imports disabled, ship clients carrying contract version 2, and only then
+authorize rollout after exact-SHA packaged-beta and provider acceptance evidence. Implementation
+does not authorize provisioning, billing, production migrations or activation.
+
+`CATALOG_IMAGES_ENABLED` and per-team `import_enabled` pause new import work; they retain reads
+and existing issued URLs. The first verified ready pool commit admits v2 under the same mode
+lock used by legacy settings and durable intent admission. Accepted legacy work keeps its
+persisted version. Do not switch an admitted team back to a Drive-only client or delete ready
+objects to roll back. Any temporary selection-off procedure must use compatible readers and
+be validated against historical snapshots first. Explicit revocation/team deletion uses durable
+purge evidence; an acknowledged managed-CDN purge does not erase third-party downloaded copies.

@@ -1,3 +1,11 @@
+import {
+  catalogImageUrl,
+  catalogImageName,
+  legacyImage,
+  r2Image,
+  type CatalogDrawnImage,
+  type CatalogImageDrawOptions
+} from '../_shared/catalog-image-rows.ts';
 import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError, mapUnknownError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
@@ -10,7 +18,6 @@ import {
   buildProductCatalogRows,
   parseProductCount,
   parseWebLink,
-  driveImageLink,
   planCatalogRows,
   productCatalogName,
   videoShareLink,
@@ -43,7 +50,8 @@ const BODY_KEYS = new Set([
   'randomLinkVariation',
   'replacesMaterialId',
   'restitchOperationId',
-  'idempotencyKey'
+  'idempotencyKey',
+  'catalogImageContractVersion'
 ]);
 
 export type CatalogDrive = Pick<
@@ -88,6 +96,8 @@ export type CatalogLinkOutcome =
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
 export interface ProductCatalogDeps {
+  beforeImageWrite?(): Promise<void>;
+  validateImageUses?(teamId: string, attemptId: string): Promise<void>;
   /** Resolve Launch SUBs only after the durable version and final collision-safe name exist. */
   resolveSourceLink?: (name: string) => Promise<string>;
 
@@ -103,6 +113,8 @@ export interface ProductCatalogDeps {
     actorId: string;
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
+  assertImageContract?(teamId: string, version: 2 | undefined): Promise<void>;
+  finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
   /** A completed re-stitch of this video by this member, verified before the sheet is made. */
   resolveRestitchedVideo(input: {
@@ -116,8 +128,9 @@ export interface ProductCatalogDeps {
   /** Pictures from the space's pool, likewise. */
   drawImages(
     teamId: string,
-    count: number
-  ): Promise<Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>>;
+    count: number,
+    options?: CatalogImageDrawOptions
+  ): Promise<CatalogDrawnImage[]>;
   /** Every live catalog of the video — its variations — oldest number first. */
   readLiveCatalogs(teamId: string, videoId: string): Promise<ExistingCatalog[]>;
   /** The number a new variation of this video takes: one past the highest it ever had. */
@@ -175,6 +188,7 @@ export interface ProductCatalogDeps {
 }
 
 export interface CreateProductCatalogRequest {
+  catalogImageContractVersion?: 2;
   teamId: string;
   videoMaterialId: string;
   sourceLink: string;
@@ -229,7 +243,10 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   if (!count.ok) invalid('count');
   if (body.randomLinkVariation !== undefined && typeof body.randomLinkVariation !== 'boolean')
     invalid();
+  if (body.catalogImageContractVersion !== undefined && body.catalogImageContractVersion !== 2)
+    throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   return {
+    ...(body.catalogImageContractVersion === 2 ? { catalogImageContractVersion: 2 } : {}),
     teamId,
     videoMaterialId,
     sourceLink: link.value,
@@ -272,6 +289,7 @@ export async function createProductCatalog(
   const request = parseCreateProductCatalogRequest(body);
   const { teamId, videoMaterialId: videoId } = request;
 
+  await deps.assertImageContract?.(teamId, request.catalogImageContractVersion);
   // Refusals first: nothing below this block may leave anything behind.
   const video = await deps.loadVideo({ teamId, videoId, actorId, permission: 'view' });
   if (video.category !== 'video') wrongState('not_a_video');
@@ -343,16 +361,19 @@ export async function createProductCatalog(
    */
   const [texts, images] = await Promise.all([
     deps.drawTexts(teamId, request.productCount),
-    deps.drawImages(teamId, request.productCount)
+    deps.drawImages(teamId, request.productCount, {
+      contractVersion: request.catalogImageContractVersion
+    })
   ]);
-  await createCatalogImageSharer(drive)(images);
+  await createCatalogImageSharer(drive)(images.filter(legacyImage));
   let planned = planCatalogRows({
     count: request.productCount,
     settings,
     texts,
     images: images.map(image => ({
-      link: driveImageLink(image.driveFileId, image.resourceKey),
-      name: image.name ?? null
+      link: catalogImageUrl(image),
+      name: catalogImageName(image),
+      ...(r2Image(image) ? { image } : {})
     }))
   });
   if (!planned) wrongState('settings_missing');
@@ -414,6 +435,7 @@ export async function createProductCatalog(
       rows: planned
     });
     if (deps.rememberSheetRows) sheetRows = await deps.rememberSheetRows(sheetRows);
+    await deps.beforeImageWrite?.();
     const recoveredFile = await deps.readCreatedFile?.(destination.live.id, video.credentialId);
     const file =
       recoveredFile ??

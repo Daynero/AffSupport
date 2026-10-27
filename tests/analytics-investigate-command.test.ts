@@ -542,6 +542,11 @@ describe('investigate · (e) a user with no events', () => {
       'tariff_recovery_gap',
       'workspace_evidence_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
+      'workspace_evidence_gap',
+      'workspace_evidence_gap',
+      'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
     ]);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
@@ -549,14 +554,30 @@ describe('investigate · (e) a user with no events', () => {
       data.coverage.blind_spots.find(spot => spot.kind === 'recovery_retirement_gap')?.detail
     ).toContain('unavailable');
     expect(data.membership_access).toMatchObject({ supported: false, signals: [] });
+    expect(data.catalog_images).toMatchObject({ supported: false, evidence: [] });
     expect(
       data.coverage.blind_spots.filter(spot => spot.kind === 'workspace_evidence_gap')
     ).toEqual([
       expect.objectContaining({
+        detail: expect.stringContaining('Catalog-image diagnostic projection is unavailable')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('external generation')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('historical as-of state')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('normal random selection')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Missing or expired stage evidence')
+      }),
+      expect.objectContaining({
         detail: expect.stringContaining('Membership access signal projection is unavailable')
       }),
       expect.objectContaining({
-        detail: expect.not.stringContaining('Membership access signal projection')
+        detail: expect.stringContaining('Workspace diagnostic projection is unavailable')
       })
     ]);
     expect(data.findings[0].evidence).toEqual([

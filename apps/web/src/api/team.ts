@@ -1,3 +1,4 @@
+import { catalogImageClient } from './team-catalog-images';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
   isTaskCleanupReceipt,
@@ -617,10 +618,14 @@ async function envelopeFromInvokeError(error: unknown): Promise<unknown> {
 export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
-  guard: UnknownGuard<T>
+  guard: UnknownGuard<T>,
+  options: { method?: 'GET' | 'POST' } = {}
 ): Promise<T> {
   const supabase = requireSupabaseClient();
-  const { data, error } = await supabase.functions.invoke(functionName, { body });
+  const { data, error } = await supabase.functions.invoke(
+    functionName,
+    options.method === 'GET' ? { method: 'GET' } : { body }
+  );
   let payload = data;
   if (error && data === null) {
     payload = await envelopeFromInvokeError(error);
@@ -1792,6 +1797,7 @@ export type RestitchDefaultsInput = Pick<
   >;
 
 export const teamApi = {
+  catalogImages: catalogImageClient,
   async listTeams(): Promise<TeamContextSnapshot[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_my_teams')
@@ -2771,6 +2777,7 @@ export const teamApi = {
   },
 
   async createProductCatalog(input: {
+    catalogImageContractVersion?: 2;
     teamId: string;
     videoMaterialId: string;
     sourceLink: string;
@@ -2782,7 +2789,7 @@ export const teamApi = {
   }): Promise<ProductCatalogCreateResult> {
     return invokeTeamFunction(
       'drive-ops/product-catalog/create',
-      { ...input },
+      { ...input, catalogImageContractVersion: 2 },
       productCatalogCreateGuard
     );
   },

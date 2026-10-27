@@ -1,3 +1,4 @@
+import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
 import {
   requireProcessUploadProducer,
   startOwnedProcessUpload,
@@ -2671,7 +2672,23 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
     drives.set(credentialId, client);
     return client;
   };
+  const imageRpc = (name: string, params: Record<string, unknown>) =>
+    rpcValue(service, name, params);
   const deps: ProductCatalogDeps = {
+    validateImageUses: async (team, attempt) => {
+      await imageRpc('service_catalog_image_validate_uses_v2', {
+        p_team: team,
+        p_attempt: attempt
+      });
+    },
+    assertImageContract: (team, version) => assertCatalogImageContract(imageRpc, team, version),
+    finalizeImageUses: async (team, attempt, delivered) => {
+      await imageRpc('service_catalog_image_finalize_uses_v2', {
+        p_team: team,
+        p_attempt: attempt,
+        p_delivered: delivered
+      });
+    },
     async loadVideo({ teamId, videoId, actorId, permission }) {
       const context = await loadContext({
         service,
@@ -2741,25 +2758,8 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         return title && description ? [{ title, description }] : [];
       });
     },
-    async drawImages(teamId, count) {
-      const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
-        p_team: teamId,
-        p_count: count
-      });
-      return (Array.isArray(rows) ? rows : []).flatMap(row => {
-        const record = isRecord(row) ? row : null;
-        const driveFileId = record ? stringValue(record, 'drive_file_id') : null;
-        return record && driveFileId
-          ? [
-              {
-                driveFileId,
-                resourceKey: stringValue(record, 'resource_key'),
-                // What the picture shows, as the owner named the file (024, US27).
-                name: stringValue(record, 'name')
-              }
-            ]
-          : [];
-      });
+    async drawImages(teamId, count, options) {
+      return drawCatalogImagePool(imageRpc, teamId, count, options);
     },
     async readLiveCatalogs(teamId, videoId) {
       const rows = await rpcValue(caller, 'list_material_product_catalogs', {

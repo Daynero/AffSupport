@@ -1,3 +1,4 @@
+import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
 /**
  * Soty analytics CLI — argument parsing and command dispatch, kept apart from
  * the process entry (`index.ts`) so tests can run a command end to end against
@@ -85,6 +86,7 @@ export interface ParsedArgs {
   asOf?: string;
   by?: string;
   limit?: number;
+  cursor?: string;
   cohortBy?: string;
   json: boolean;
   write: boolean;
@@ -120,6 +122,7 @@ Commands:
   retention           Return activity after registration
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
+  catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
   catalog team <team-id>  Recent catalog attempts and video preparation in one space
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
@@ -200,6 +203,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
       case '--by':
         parsed.by = rest.shift();
         break;
+      case '--cursor':
+        parsed.cursor = rest.shift();
+        if (!parsed.cursor) throw new Error('--cursor needs an evidence cursor');
+        break;
       case '--limit':
         parsed.limit = Number(rest.shift());
         break;
@@ -261,6 +268,8 @@ export async function executeCommand(
   options: ExecuteOptions = {}
 ): Promise<CommandResult> {
   const command = args.command;
+  if (args.cursor && command !== 'catalog-images')
+    throw new CommandError('--cursor is supported only by catalog-images.');
   if (args.html && command !== 'catalog-trends')
     throw new CommandError('--html is supported only by catalog-trends.');
   const period = resolvePeriod(args.period, args.days, args.asOf);
@@ -365,11 +374,12 @@ export async function executeCommand(
       const email = requireArg(args, 0, 'journey <email>');
       // FR-055: a bounded read by default; `--period all` restores the old behaviour.
       const journeyPeriod = resolvePeriod(args.period ?? '30d', args.days, args.asOf);
-      const [events, delivery_lag_ms] = await Promise.all([
+      const [events, delivery_lag_ms, catalog_images] = await Promise.all([
         getJourney(email, args.limit ?? 200, journeyPeriod),
-        getDeliveryLag(journeyPeriod)
+        getDeliveryLag(journeyPeriod),
+        getCatalogImageUserDiagnosis(email, journeyPeriod, args.limit ?? 100)
       ]);
-      const full = { events, delivery_lag_ms };
+      const full = { events, delivery_lag_ms, catalog_images };
       return {
         period: journeyPeriod,
         data: full,
@@ -434,16 +444,34 @@ export async function executeCommand(
         written
       );
     }
+    case 'catalog-images': {
+      const id = requireArg(args, 0, 'catalog-images <team-id|import-id|entry-id>');
+      const data = await getCatalogImageDiagnosis(id, period, {
+        limit: args.limit,
+        cursor: args.cursor
+      });
+      return done(data, JSON.stringify(data, null, 2));
+    }
     case 'catalog': {
       const id = requireArg(args, 0, 'catalog <catalog-id | attempt-id>');
       if (id === 'team') {
         const teamId = requireArg(args, 1, 'catalog team <team-id>');
         const data = await getTeamCatalogUpdateDiagnosis(teamId, args.limit ?? 10);
-        return done(data, JSON.stringify(data, null, 2));
+        const catalog_images = await getCatalogImageDiagnosis(teamId, period, {
+          limit: args.limit
+        });
+        const full = { ...data, catalog_images };
+        return done(full, JSON.stringify(full, null, 2));
       }
       const data = await getCatalogUpdateDiagnosis(id, args.limit ?? 10);
       if (!data.subject) throw new CommandError(`No catalog update attempts found for "${id}".`);
-      return done(data, JSON.stringify(data, null, 2));
+      const catalog_images = await getCatalogImageDiagnosis(
+        data.attempts[0]?.attempt_id ?? id,
+        period,
+        { limit: args.limit }
+      );
+      const full = { ...data, catalog_images };
+      return done(full, JSON.stringify(full, null, 2));
     }
     case 'connection': {
       const [data, delivery_lag_ms] = await Promise.all([getConnection(period), lag()]);

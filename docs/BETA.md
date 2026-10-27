@@ -459,3 +459,17 @@ Private bounded CLI reports and plan/session evidence explain release outcomes;
 central analytics does not observe commit/rehearsal directly. Missing DB/browser
 prerequisites remain blocked, and implementation/test fixtures do not attest a
 real beta pass or authorize production.
+
+## Catalog image R2 acceptance (045)
+
+This feature requires the full packaged-beta route because it changes shared contracts, Edge
+functions and the database. Use separate beta R2 buckets and media origin configured by
+[CATALOG_IMAGES.md](CATALOG_IMAGES.md). Keep imports disabled until the real CORS, conditional
+write, origin and anonymous CDN readback, nosniff, purge and resource-budget checks in
+[045 validation](../specs/045-catalog-r2-images/validation.md) pass. A passing Node fixture or
+Deno check is separate evidence; neither attests live provider or external importer acceptance.
+
+Beta must keep real authentication, entitlement checks and production telemetry isolation.
+No test uses production credentials, buckets or customer media. Missing provider setup remains
+an explicit release blocker. Old-client refusal, accepted legacy retry, local-only input,
+keyboard/touch and light/dark modes belong to the packaged acceptance matrix.
