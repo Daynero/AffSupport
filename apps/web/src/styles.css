@@ -1678,8 +1678,8 @@ input.is-invalid {
   max-width: min(460px, calc(100vw - 24px));
   padding: 9px 11px;
   border-radius: var(--radius-sm);
-  color: var(--color-on-accent);
-  background: var(--purple-900);
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface-raised);
   box-shadow: var(--shadow-menu);
   font-size: var(--text-xl);
   line-height: 1.4;
@@ -1691,7 +1691,7 @@ input.is-invalid {
   left: var(--tooltip-arrow-x, 50%);
   width: 8px;
   height: 8px;
-  background: var(--purple-900);
+  background: var(--color-neutral-surface-raised);
   content: '';
   transform: translateX(-50%) rotate(45deg);
 }
