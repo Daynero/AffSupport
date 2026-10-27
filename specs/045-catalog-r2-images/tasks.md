@@ -2,7 +2,7 @@
 
 **Input**: [spec.md](./spec.md), [plan.md](./plan.md), [data-model.md](./data-model.md), [contract](./contracts/catalog-images.md), [guide](./image-guide.md), [quickstart](./quickstart.md).
 
-**Status**: feature implementation and targeted acceptance completed in isolated worktree; final full verifier is running. External provider/runtime/beta/importer gates remain open. Checkbox evidence is recorded in validation.md. Тести обов'язкові за acceptance/031, особливо для publication, isolation, recovery і діагностики. [P] — лише незалежні файли після вказаних prerequisites; heavy checks завжди послідовні, nice 15, один worker.
+**Status**: feature implementation and local verification completed in isolated worktree; final full verifier passed14/14 gates. R2 activation is complete and isolated beta provider setup is in progress. External provider/runtime/beta/importer gates remain open. Checkbox evidence is recorded in validation.md. Тести обов'язкові за acceptance/031, особливо для publication, isolation, recovery і діагностики. [P] — лише незалежні файли після вказаних prerequisites; heavy checks завжди послідовні, nice 15, один worker.
 
 ## Phase 1: Setup
 
@@ -106,43 +106,42 @@
 
 ## Parallel examples per story
 
-| Story | Незалежна робота після prerequisites | Послідовна інтеграція |
-| --- | --- | --- |
-| US1 | T010 routes tests + T011 publication tests + T018 UI tests | T012–017 і T019–022 |
-| US2 | T023 SQL selection + T024 handler/worker tests | T025–031, common files serial |
-| US3 | T032 compatibility tests + T033 retention tests | T034–039 |
-| US4 | T040 diagnostic fixtures поруч із US1 UI work | T041–046 і shared registry edits |
-| US5 | T047 prompt tests поруч із US1 worker work | T048–050 після UI seam |
+| Story | Незалежна робота після prerequisites                       | Послідовна інтеграція            |
+| ----- | ---------------------------------------------------------- | -------------------------------- |
+| US1   | T010 routes tests + T011 publication tests + T018 UI tests | T012–017 і T019–022              |
+| US2   | T023 SQL selection + T024 handler/worker tests             | T025–031, common files serial    |
+| US3   | T032 compatibility tests + T033 retention tests            | T034–039                         |
+| US4   | T040 diagnostic fixtures поруч із US1 UI work              | T041–046 і shared registry edits |
+| US5   | T047 prompt tests поруч із US1 worker work                 | T048–050 після UI seam           |
 
 Це можливості паралельної розробки, не дозвіл запускати кілька heavy check processes.
 
 ## Requirement coverage
 
-| Requirements | Tasks |
-| --- | --- |
-| FR-001/018 | T001–003/T039 |
-| FR-002/023 | T010/T012–014/T018–022 |
-| FR-003/016 | T005–009/T010–012/T036/T041/T053 |
-| FR-004/008/026 | T006–009/T011/T016/T023/T028 |
-| FR-005 | T008/T010–022 |
-| FR-006/017 | T009/T011/T015–016/T053/T055 |
-| FR-007/009/025 | T023–031 |
-| FR-010/011 | T013–014/T017/T028/T032/T034–035 |
-| FR-012/013/022 | T006–008/T033/T036–038 |
-| FR-014/015 | T008–009/T011/T017/T028/T032/T035/T037/T039 |
-| FR-019/020 | T040–046 |
-| FR-021 | T003/T008/T013–015/T021/T031/T052 |
-| FR-024/030 | T004–005/T010/T016/T047–049 |
-| FR-027/028/029 | T047–050 |
-| AD-001–009 | T008/T040–046/T050–056 |
-| SC-001–005 | T006/T011/T016/T023–029/T032–038/T051/T053 |
-| SC-006–009 | T040–046/T051/T054–055 |
-| SC-010–014 | T004/T018/T023–024/T030/T047–050/T051/T054 |
+| Requirements   | Tasks                                       |
+| -------------- | ------------------------------------------- |
+| FR-001/018     | T001–003/T039                               |
+| FR-002/023     | T010/T012–014/T018–022                      |
+| FR-003/016     | T005–009/T010–012/T036/T041/T053            |
+| FR-004/008/026 | T006–009/T011/T016/T023/T028                |
+| FR-005         | T008/T010–022                               |
+| FR-006/017     | T009/T011/T015–016/T053/T055                |
+| FR-007/009/025 | T023–031                                    |
+| FR-010/011     | T013–014/T017/T028/T032/T034–035            |
+| FR-012/013/022 | T006–008/T033/T036–038                      |
+| FR-014/015     | T008–009/T011/T017/T028/T032/T035/T037/T039 |
+| FR-019/020     | T040–046                                    |
+| FR-021         | T003/T008/T013–015/T021/T031/T052           |
+| FR-024/030     | T004–005/T010/T016/T047–049                 |
+| FR-027/028/029 | T047–050                                    |
+| AD-001–009     | T008/T040–046/T050–056                      |
+| SC-001–005     | T006/T011/T016/T023–029/T032–038/T051/T053  |
+| SC-006–009     | T040–046/T051/T054–055                      |
+| SC-010–014     | T004/T018/T023–024/T030/T047–050/T051/T054  |
 
 ## Implementation strategy
 
 56 tasks; setup 3, foundation 6, US1 13, US2 9, US3 8, US4 7, US5 4, final 6. Функціональний preview — US1+US5 після foundation. Production MVP включає всі п'ять P1 stories, особливо retention/compatibility/diagnostics; upload-only demo не є готовим релізом. Власник явно авторизував реалізацію після документів і незалежного review. Checkboxes позначаються лише за фактичними доказами; production activation не входить до цієї авторизації.
-
 
 ## Implementation evidence notes
 
@@ -158,4 +157,4 @@
 
 - The urgent follow-up completed T035 with actual SQL Launch resource-freeze/planners, the reserved canonical child identity, R2-aware preflight and preexisting accepted-v1/no-child compatibility. Its six SQL cases and final focused56tests pass. T056 records the final verdict:local implementation verified, actual R2/hosted/beta/importer acceptance remains blocked/unverified.
 
-- Final status:50/56tasks have implementation/local evidence. Six explicitly external/mixed acceptance items remain unchecked:T003,T010,T052,T053,T054,T055. R2 API10042 confirms account activation is required before actual provider acceptance. No production release is authorized by these checkboxes.
+- Final status:50/56tasks have implementation/local evidence. Six explicitly external/mixed acceptance items remain unchecked:T003,T010,T052,T053,T054,T055. The owner activated R2 on2026-10-27; isolated beta buckets/CORS/lifecycle/header/cache rules are prepared, with domain/token activation awaiting browser action-time confirmation. Actual provider acceptance has not yet run. No production release is authorized by these checkboxes.

@@ -13,17 +13,17 @@ Status: functional implementation complete; final full `npm run verify` passed14
 
 ## Executed checks
 
-| Check | Actual result |
-| --- | --- |
-| Final targeted SQL, Launch readiness/execution/durable, budget and finance timing |56/56 passed across6suites; includes6actual PGlite SQL cases |
-| Canonical disposable PostgreSQL chain + pgTAP |41files,976assertions passed |
-| Native Auth/concurrency/retention |2Auth +31native tests passed, including4R2publication/adoption/deletion races |
-| Final public database types | Generated from the owned schema-only clone using Supabase CLI2.122.0; formatted, no hand-edited generated types |
-| Fresh web build after Launch fix | Passed |
-| Earlier scoped release build / end-to-end gates |5/5build gates;8/8build+DB+a11y+CSP gates passed |
-| Deno2.5.6 function entry and pinned lock | Passed; aws4fetch1.0.20, supabase-js2.110.7 |
-| Full `nice -n 15 env SOTY_VERIFY_SERIAL=1 npm run verify` | Passed14/14gates;7989passed,45explicit skips (8034total);2283seconds |
-| Production environment gate | Not passed: deployment environment values are absent in this isolated worktree |
+| Check                                                                             | Actual result                                                                                                   |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Final targeted SQL, Launch readiness/execution/durable, budget and finance timing | 56/56 passed across6suites; includes6actual PGlite SQL cases                                                    |
+| Canonical disposable PostgreSQL chain + pgTAP                                     | 41files,976assertions passed                                                                                    |
+| Native Auth/concurrency/retention                                                 | 2Auth +31native tests passed, including4R2publication/adoption/deletion races                                   |
+| Final public database types                                                       | Generated from the owned schema-only clone using Supabase CLI2.122.0; formatted, no hand-edited generated types |
+| Fresh web build after Launch fix                                                  | Passed                                                                                                          |
+| Earlier scoped release build / end-to-end gates                                   | 5/5build gates;8/8build+DB+a11y+CSP gates passed                                                                |
+| Deno2.5.6 function entry and pinned lock                                          | Passed; aws4fetch1.0.20, supabase-js2.110.7                                                                     |
+| Full `nice -n 15 env SOTY_VERIFY_SERIAL=1 npm run verify`                         | Passed14/14gates;7989passed,45explicit skips (8034total);2283seconds                                            |
+| Production environment gate                                                       | Not passed: deployment environment values are absent in this isolated worktree                                  |
 
 The native run preceded the final memoized-authority guard. That guard and its edit-loss/archive/cancellation cases were subsequently verified in the6-case actual PGlite SQL suite. The temporary type-generation runner and its disposable clone were removed. No source application rows, source passwords or scheduled job execution were copied.
 
@@ -47,11 +47,22 @@ The owner instructed us to prioritize the catalog feature over16KB savings. The 
 
 The offline50MB Deno reference found and repaired an SDK body-copy defect:peak RSS fell from315MB to about169MB; final local CPU437ms. The signer receives metadata/verified digest and length only; bounded views of the same buffer carry publication bytes and abort signals are restored at fetch boundaries. [Benchmark](benchmark-local.ts), [result](benchmark-local-result.json). This is synthetic transport, not hosted aggregate-isolate acceptance.
 
-## Concrete external prerequisite
+## Actual provider setup — 2026-10-27
 
-Read-only `wrangler@4.112.0 whoami` confirmed an authenticated account. Read-only `r2 bucket list` returned Cloudflare API10042: **enable R2 through the Dashboard**. The owner was given the Dashboard link while local verification continued. No bucket, token, DNS rule, subscription or production deployment was created.
+The owner completed R2 payment/activation in Chrome. The earlier API10042 activation blocker is resolved. Created and verified two empty Standard buckets in automatic EEUR: `soty-catalog-images-beta-staging` and `soty-catalog-images-beta-public`. Both currently remain private and have r2.dev disabled. Staging has an enabled one-day object expiry backstop and exact PUT/Content-Type CORS for `http://127.0.0.1:5175` and `http://127.0.0.1:43140` (300-second preflight max age). No expiry was added to the public bucket.
 
-After activation, actual isolated R2 CORS/presign/replay/conditional streaming PUT, custom media domain/nosniff, own-CDN purge, secret-only hosted gateway/cron, late writes, hosted aggregate resources and25k/1000-file scale still require acceptance. Packaged beta/old clients/macOS+Windows and actual external feed importer remain unverified. Keep global/team import flags off until these pass; this feature requires a full release.
+The following active rules match only `catalog-images-beta.soty.pp.ua`:
+
+- Response Header Transform `a63bf20715c14e0c83c51c3a253c2cb9`: set `X-Content-Type-Options: nosniff`.
+- Cache Rule `66d7112008f9483faac519273db98f65`: eligible for caching, respect an existing origin Cache-Control header, otherwise bypass; status codes >=400 use No store. Positive object metadata supplies the immutable one-year TTL. This matches [Cloudflare's documented settings](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/); actual HTTP/CDN behavior still needs verification.
+
+Prepared, but not submitted: custom domain attachment with TLS >=1.2; a 24-hour Object Read & Write account token restricted to these two beta buckets; and a separate Cache Purge token for only the `soty.pp.ua` zone, expiring 2026-10-28 17:35 UTC. Cloudflare's purge permission covers the zone, not just the beta hostname. Browser action-time confirmation for credentials/public exposure is pending; no token was created and no custom-domain DNS record was submitted. An ignored local mode0600 beta configuration contains non-secret targets and empty credential slots; import activation remains false.
+
+`provider-acceptance.ts` is prepared and passes Deno2.5.6 type checking. It refuses other targets, uses only synthetic existing PNG/JPEG/WebP fixtures and fresh UUIDs, redacts provider/fetch errors, tests HTTP preflight/presign/signed MIME/public-path denial/conditional PUT/replay/anonymous byte+MIME+nosniff reads/CDN caching, and cleans only its own synthetic objects with origin and CDN readback. It has **not run against R2** and explicitly excludes browser enforcement, hosted gateway/isolate, DB races and importer acceptance.
+
+Two independent static harness reviews reached98/100 after fixing incomplete CORS assertions, CDN-only replay verification, unchecked cache HIT payloads, and coupled cleanup. Staging/public cleanup now run independently; a private ignored0700 directory and atomic0600 ledger retain only allocated synthetic UUID identities before provider writes and prevent a new run from ignoring an earlier unknown outcome. Cleanup continues after a ledger-update failure. Every ordinary positive/HIT response is checked for exact fixture bytes/MIME/nosniff; replay is verified at origin and CDN and described only as an unexpired observation. URL denial after expiry is explicitly unproven. Final Deno2.5.6 check, Prettier and git diff checks pass. These review scores attest only script quality, not a live provider/product result.
+
+Actual isolated R2 behavior, secret-only hosted gateway/cron, late writes, hosted aggregate resources and25k/1000-file scale still require acceptance. Packaged beta/old clients/macOS+Windows and actual external feed importer remain unverified. Keep global/team import flags off until these pass; this feature requires a full release. No production app/database deployment or production catalog mutation was performed.
 
 ## Isolation and diagnosis
 
