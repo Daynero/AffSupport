@@ -157,6 +157,10 @@ export function LaunchResult({
           description={`${revision.config.gender}${revision.config.age}+ · ${revision.config.method === 'catalog' ? t('launchesCatalog') : t('launchesOther')} · ${revision.config.campaignCount} ${campaignCountLabel(language, revision.config.campaignCount)}`}
         >
           <div className="launch-result-content">
+            <span className="launch-result-hint">
+              <Info size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('launchesCopyHint')}
+            </span>
             {revision.catalog && (
               <section className="launch-result-copy-section" aria-label={t('launchesCatalog')}>
                 <CopyResultField
@@ -193,10 +197,6 @@ export function LaunchResult({
             <section className="launch-result-campaigns" aria-label={t('launchesCampaignNames')}>
               <div className="launch-result-section-heading">
                 <h3>{t('launchesCampaignNames')}</h3>
-                <span className="launch-result-hint">
-                  <Info size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  {t('launchesCopyHint')}
-                </span>
               </div>
               <div
                 className="launch-result-campaign-list"
