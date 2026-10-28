@@ -36,7 +36,9 @@ const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 const ACCOUNTS_INCREMENTAL_ALLOWANCE = 55_000;
 const ACCOUNTS_EXCLUSIVE_CEILING = 80_000;
 const LAUNCH_ROOT_CEILING = 20_000;
-const LAUNCH_EXCLUSIVE_CEILING = 40_000;
+// Owner-approved 1.2.10 allowance for current launch assignments and expanded
+// launch workflows. The root chunk and global download ratchets stay fixed.
+const LAUNCH_EXCLUSIVE_CEILING = 48_000;
 
 /**
  * How far the total may drift before this fails.
