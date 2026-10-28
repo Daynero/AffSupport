@@ -1014,7 +1014,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: ['search query text (never collected)'],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Cache subtrees (Soty Cache and legacy .soty) are excluded server-side before totals, facets and pagination in every scope. tests/material-search-sql.test.ts verifies nested and direct cached files with real SQL. Existing find attempt correlation remains unchanged; individual excluded names, paths and query text are never collected. Missing indexed ancestry or renamed cache roots cannot be diagnosed from find events; protected current index evidence is required, and a terminal event alone does not prove browser delivery.'
   },
   {
     id: 'team.preview',

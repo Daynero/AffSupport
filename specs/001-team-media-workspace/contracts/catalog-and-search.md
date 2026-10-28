@@ -141,3 +141,20 @@ actions still authorize independently, so Realtime caching cannot grant an opera
 - No catalog row, cached parent or Realtime event authorizes a Drive side effect.
 - Sync and every finalize path produce identical category/transcript state for identical
   inputs; stale ingestion or landing-package validation can never commit over a new version.
+
+### Cache exclusion from search
+
+Search excludes indexed folders named `Soty Cache` (case-insensitive, trimmed) and
+legacy `.soty`, plus all indexed descendants, scoped by team and connection.
+Apply this rule before totals, facets and pagination, including empty queries,
+folder-scoped and recursive searches. Preserve records for direct folder access
+and dependent operations. Acceptance: original files remain searchable; direct
+and deeply nested cache files never contribute rows, totals or category facets.
+
+Diagnosis reuses `team_find_started` / `team_find_completed` with the existing
+attempt identifier. Cancellation, interruption and missing completion remain
+unknown under the existing lifecycle; no cache-specific operation is introduced.
+Do not emit queries, file names or paths. SQL regression verifies filtering;
+find completion alone cannot establish browser delivery or explain a missing
+indexed ancestor. Renamed cache roots are unobservable by this name-based rule;
+protected current index evidence is the fallback, not an inferred user failure.

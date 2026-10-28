@@ -314,6 +314,27 @@ describe('smarter material search (pg_trgm loaded)', () => {
     expect(category.facets.category).toEqual([{ value: 'video', count: category.total }]);
   }, 60_000);
 
+  it('excludes cache subtrees from results, totals and facets in every search scope', async () => {
+    await add({ name: 'cacheprobe-original.mp4', category: 'video' });
+    for (const [index, name] of ['Soty Cache', '.soty'].entries()) {
+      const root = `cacheprobe-root-${index}`;
+      const nested = `cacheprobe-nested-${index}`;
+      await add({ name, kind: 'folder', driveId: root });
+      await add({ name: 'cacheprobe-generated', kind: 'folder', driveId: nested, parent: root });
+      await add({ name: 'cacheprobe-hidden.png', category: 'image', parent: nested });
+      await add({ name: 'cacheprobe-direct.png', category: 'image', parent: root });
+      expect((await search('cacheprobe', { parent: root, recursive: true })).total).toBe(0);
+      expect((await search(null, { parent: nested })).total).toBe(0);
+    }
+    const result = await search('cacheprobe', { pageSize: 1 });
+    expect(names(result)).toEqual(['cacheprobe-original.mp4']);
+    expect(result.total).toBe(1);
+    expect(result.facets.category).toEqual([{ value: 'video', count: 1 }]);
+    expect((await search('cacheprobe', { parent: 'root', recursive: true })).total).toBe(1);
+    expect(names(await search(null))).not.toContain('cacheprobe-hidden.png');
+    expect((await search('Soty Cache')).total).toBe(0);
+  });
+
   it('leaves housekeeping files out of rows and total', async () => {
     const all = await search(null);
     expect(names(all)).not.toContain('.DS_Store');
