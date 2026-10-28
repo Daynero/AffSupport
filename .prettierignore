@@ -9,3 +9,5 @@ apps/soty-review/src/generated/soty-tokens.css
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+tests/windows-host-health/bin
+tests/windows-host-health/obj

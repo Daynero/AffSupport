@@ -882,6 +882,7 @@ export interface InvestigateBlindSpot {
     | 'web_build_without_link_events'
     | 'agent_version_without_journal'
     | 'agent_journal_missing'
+    | 'native_launcher_unobserved'
     | 'analytics_disabled'
     | 'analytics_delivery_losses'
     | 'sync_unavailable'
@@ -968,7 +969,11 @@ export function investigateOutputIsPrivate(value: unknown, key = ''): boolean {
     );
   }
   if (typeof value !== 'string') return true;
-  if (key === 'files') return REPO_FILE.test(value) && !value.includes('..');
+  if (key === 'files')
+    return (
+      (REPO_FILE.test(value) || /^packaging\/windows\/SotyAgentHost\/[A-Za-z]+\.cs$/.test(value)) &&
+      !value.includes('..')
+    );
   return (
     !value.includes('@') &&
     !value.includes('://') &&

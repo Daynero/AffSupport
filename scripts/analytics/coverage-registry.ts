@@ -120,6 +120,31 @@ const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
   {
+    id: 'onboarding.windows_launcher',
+    tool: 'onboarding',
+    title: 'Windows · native launcher readiness and shutdown',
+    stages: [
+      'spawn_requested',
+      'spawned',
+      'probe',
+      'ready',
+      'timeout',
+      'dialog_closed',
+      'child_stopped'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: ['windows'],
+    source: 'events',
+    producerStatus: 'pending_producer',
+    unobservable: [
+      'Native launcher probes and dialog-driven termination are not collected. Agent boot records and browser connection success do not prove launcher readiness.',
+      'A failure before the agent starts needs bounded durable launcher evidence and delivery on a later authenticated connection; missing delivery remains unknown.'
+    ],
+    note: 'Incident 2026-10-26, build 1.2.8+73: the Windows readiness dialog can coexist with a working browser connection. Track T027 in platform analytics tasks; do not infer a proxy, timeout cause or resolution from agent listening alone.'
+  },
+  {
     id: 'team.process_output_cleanup',
     tool: 'team',
     title: 'Team · canceled process output reconciliation',

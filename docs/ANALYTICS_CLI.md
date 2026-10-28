@@ -634,3 +634,9 @@ current settings are deliberately omitted. `--limit` is bounded at 500 and trunc
 is explicit. A committed replacement changes the saved text list; it does not prove
 that existing catalogs or an open browser received new content. Missing source
 projections, inactive capture and pre-installation history remain explicit.
+
+### Windows startup diagnosis
+
+`investigate` reports `native_launcher_unobserved` even when the agent journal contains successful boot and listening records: those records do not prove that the native launcher accepted readiness, nor explain a readiness error followed by child termination. `audit` keeps `onboarding.windows_launcher` uncovered until the native producer and delivery chain are verified (platform analytics tasks T027–T030). Do not infer that a proxy caused a user's incident from the reproduced proxy failure alone.
+
+A reconnect has a new attempt ID. The reader accepts a later `link_recovered` in the same non-null browser session and installation even when its flow differs from `link_lost`; another session or installation does not resolve that loss. Browser recovery still does not prove that a native startup dialog disappeared or that the user's media operation completed.

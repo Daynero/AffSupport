@@ -822,3 +822,103 @@ it('audits retirement from its journal groups and keeps unobserved browser-only 
     ])
   );
 });
+
+describe('Windows launcher incident diagnostics', () => {
+  it.each(['same', 'other_installation', 'other_session', 'missing_identity'] as const)(
+    'bounds recovery evidence to the observed browser link: %s',
+    async variant => {
+      const suffix = {
+        same: '101',
+        other_installation: '102',
+        other_session: '103',
+        missing_identity: '104'
+      }[variant];
+      const user = `0a000000-0000-4000-8000-000000000${suffix}`;
+      const email = `launcher-${variant}@example.test`;
+      await db.exec(
+        `insert into public.analytics_users (id, email, email_normalized) values ('${user}', '${email}', '${email}')`
+      );
+      const agent = `2c000000-0000-4000-8000-000000000${suffix}`;
+      const base = { user, installation: INST_L, session: SESSION_T, agent, version: '1.2.8' };
+      await db.exec(
+        insertEvents([
+          {
+            ...base,
+            name: 'link_lost',
+            flow: FLOW_L1,
+            at: '2026-10-08T12:17:00Z',
+            props: { link_reason: 'not_running' }
+          },
+          {
+            ...base,
+            name: 'link_recovered',
+            flow: FLOW_L2,
+            at: '2026-10-08T12:18:32Z',
+            installation:
+              variant === 'other_installation'
+                ? INST_S
+                : variant === 'missing_identity'
+                  ? undefined
+                  : INST_L,
+            session:
+              variant === 'other_session' ? '5f000000-0000-4000-8000-000000000002' : SESSION_T,
+            props: { recovery_mode: 'auto', duration_ms: 92000 }
+          }
+        ])
+      );
+      await db.exec(
+        `update public.analytics_events set platform = 'windows', agent_platform = 'windows' where user_id = '${user}'`
+      );
+      await db.exec(
+        insertJournal([
+          {
+            user,
+            installation: INST_L,
+            agent,
+            seq: 1,
+            at: '2026-10-08T12:16:00Z',
+            category: 'boot',
+            code: 'started',
+            props: { platform: 'win32' }
+          },
+          {
+            user,
+            installation: INST_L,
+            agent,
+            seq: 2,
+            at: '2026-10-08T12:16:05Z',
+            category: 'boot',
+            code: 'listening'
+          }
+        ])
+      );
+      const data = await investigate(email);
+      expect(data.link.unrecovered).toHaveLength(variant === 'same' ? 0 : 1);
+      expect(data.findings.some(f => f.rule === 'link_lost_unrecovered')).toBe(variant !== 'same');
+      expect(data.coverage.blind_spots).toContainEqual(
+        expect.objectContaining({ kind: 'native_launcher_unobserved' })
+      );
+      const gap = finding(data, 'native_launcher_unobserved');
+      expect(gap.kind).toBe('insufficient');
+      expect(gap.code_locations[0].files).toContain(
+        'packaging/windows/SotyAgentHost/AgentHealthClient.cs'
+      );
+    }
+  );
+});
+
+it('allows native launcher source locations without admitting arbitrary packaging paths', () => {
+  expect(
+    investigateOutputIsPrivate({ files: ['packaging/windows/SotyAgentHost/AgentHealthClient.cs'] })
+  ).toBe(true);
+  for (const file of [
+    'packaging/private.key',
+    'packaging/windows/SotyAgentHost/../secret.cs',
+    '/Users/private/AgentHealthClient.cs'
+  ]) {
+    expect(investigateOutputIsPrivate({ files: [file] })).toBe(false);
+  }
+  expect(
+    investigateOutputIsPrivate({ detail: 'packaging/windows/SotyAgentHost/AgentHealthClient.cs' })
+  ).toBe(false);
+});
