@@ -220,7 +220,10 @@ export function financeAgentVisible(
       .lifecycle!.events.filter(
         e => e.entityKind === kind && e.entityId === entity.id && day(e.occurredAt) <= date
       )
-      .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+      // PostgreSQL omits a zero fractional part; locale string order can put
+      // 07:00:00 after 07:00:00.001. Equal-millisecond events retain the RPC's
+      // timestamp/version order through the stable sort.
+      .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
     if (events.length) return !events[events.length - 1]!.archived;
     return !entity.archivedAt || day(entity.archivedAt) > date;
   };

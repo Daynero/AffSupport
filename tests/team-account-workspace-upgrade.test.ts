@@ -135,7 +135,10 @@ it('upgrades existing identities and ledger without rewriting history, seeds nat
     snapshot = parseFinanceSnapshot(
       await call('get_team_agent_finance_v2', [f.team, today, today, 'UTC'])
     )!;
-    expect(financeAgentVisible(snapshot, agent.id, today, 'UTC')).toBe(true);
+    expect(
+      financeAgentVisible(snapshot, agent.id, today, 'UTC'),
+      `Restoring an agent must restore its visibility: ${JSON.stringify(snapshot.lifecycle?.events)}`
+    ).toBe(true);
     const parentPre = await call('get_team_account_archive_preflight', [
       f.team,
       'social',

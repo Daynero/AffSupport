@@ -26,6 +26,17 @@ const PNG = Uint8Array.from(
   ])
 );
 const WEBP = Uint8Array.from(readFileSync('tests/fixtures/catalog-images/garment.webp'));
+/** Native exact comparison avoids Vitest recursively walking half a million numeric keys. */
+function sameBytes(actual: Uint8Array | null, expected: Uint8Array | null): boolean {
+  return (
+    actual !== null &&
+    expected !== null &&
+    actual.byteLength === expected.byteLength &&
+    Buffer.from(actual.buffer, actual.byteOffset, actual.byteLength).equals(
+      Buffer.from(expected.buffer, expected.byteOffset, expected.byteLength)
+    )
+  );
+}
 afterEach(() => vi.restoreAllMocks());
 const config = {
   accountId: 'a'.repeat(32),
@@ -124,7 +135,9 @@ async function fixture(
       expect(store.publicationState).toBe('put_unknown');
       expect(request.headers.get('if-none-match')).toBe('*');
       const uploaded = new Uint8Array(await request.arrayBuffer());
-      expect(uploaded).toEqual(canonical.bytes);
+      expect(sameBytes(uploaded, canonical.bytes), 'PUT must contain every canonical byte').toBe(
+        true
+      );
       expect(request.headers.get('content-type')).toBe(image.mime);
       if (options.put === 'lost') throw new TypeError('Response lost');
       if (options.put === 'exists') return new Response(null, { status: 412 });
@@ -166,8 +179,8 @@ describe('catalog image worker publication receipts and recovery', () => {
   it('persists candidate before PUT and publishes the verified buffer despite a later staging overwrite', async () => {
     const f = await fixture({ overwriteStagingAfterReservation: true });
     expect(await runCatalogImageWorker(f.deps)).toMatchObject({ outcome: 'ready' });
-    expect(f.store.stage).not.toEqual(PNG);
-    expect(f.store.origin).toEqual(f.canonical.bytes);
+    expect(sameBytes(f.store.stage, PNG)).toBe(false);
+    expect(sameBytes(f.store.origin, f.canonical.bytes)).toBe(true);
     expect(f.trace.indexOf('fetch:PUT:origin')).toBeGreaterThan(
       f.trace.indexOf('rpc:service_catalog_image_reserve_v2:')
     );
@@ -214,7 +227,7 @@ describe('catalog image worker publication receipts and recovery', () => {
       const drive = await fixture({ webp, drive: true });
       expect(await runCatalogImageWorker(local.deps)).toMatchObject({ outcome: 'ready' });
       expect(await runCatalogImageWorker(drive.deps)).toMatchObject({ outcome: 'ready' });
-      expect(drive.store.origin).toEqual(local.store.origin);
+      expect(sameBytes(drive.store.origin, local.store.origin)).toBe(true);
       expect(calls(drive, 'service_catalog_image_reserve_v2')[0]?.[1].p_image).toEqual(
         calls(local, 'service_catalog_image_reserve_v2')[0]?.[1].p_image
       );
@@ -239,7 +252,7 @@ describe('catalog image worker publication receipts and recovery', () => {
     expect(calls(f, 'service_catalog_image_reserve_v2')).toHaveLength(1);
     expect(calls(f, 'service_catalog_image_candidate_v2')).toHaveLength(1);
     expect(f.trace.filter(stage => stage === 'fetch:PUT:origin')).toHaveLength(1);
-    expect(f.store.origin).toEqual(f.canonical.bytes);
+    expect(sameBytes(f.store.origin, f.canonical.bytes)).toBe(true);
     expect(f.store.committed).toBe(true);
   });
 

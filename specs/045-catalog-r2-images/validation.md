@@ -123,3 +123,41 @@ A follow-up isolated real-R2 comparison reproduced HTTP403 `SignatureDoesNotMatc
 - No production deployment or packaged promotion is asserted by these checks.
 - Real Chrome beta acceptance: schedule enabled and saved with200; server readback shows next update2026-11-04 17:39 Europe/Kiev. Existing200 texts remained intact. Visual spacing inspected; screenshot /tmp/soty-weekly-schedule.jpg. Canonical beta:down/up completed, browser kept open.
 - Final sequential follow-up: repository lint and test TypeScript check passed; all previously flagged formatting files passed. Final image/schedule/API/diagnostic regression batch:90 passed. Earlier project/scripts typechecks and design/i18n/static gates passed. Full parallel `npm run verify` was interrupted when host system disk headroom fell below600MiB; no complete full-suite green result is claimed. The affected checks above were rerun sequentially.
+
+## 2026-10-28 live storage lifecycle
+
+On the isolated beta/R2, an independently identified synthetic JPEG (183,749 bytes, inactive,
+`inUse=false`) was revoked through the normal API. Before confirmed cleanup the usage remained
+1,792,695 bytes / 9 objects and its CDN URL still returned 200. After the `purge_complete` and
+`publication_revoked` journal stages, both the authenticated R2 origin and anonymous CDN returned
+404; usage became 1,608,946 bytes / 8 objects, exactly 183,749 bytes less. Reimporting the same
+fixture produced a new URL returning the exact bytes and increased usage to 1,792,695 bytes / 9
+objects; the old URL remained 404. Six other ready publications and the previous 713,613 reserved
+unknown bytes stayed unchanged. The sanitized local proof is
+`release/automation/045-live-storage-acceptance.json` (private, no signed URLs or secrets).
+
+The earlier test random publication was already explicitly revoked and purged at 14:48 UTC, before
+this lifecycle test. Its previous URL returned 404; two other original publications were intact.
+The diagnostic journal does not establish who initiated that earlier action.
+
+## 2026-10-28 local Edge resource checks
+
+Five local Edge Runtime v1.77.8 scenarios exercised the real image worker, current R2 adapter,
+synthetic provider, 50 MB sources, a 7.68 MB canonical body and a concurrent invocation. All
+completed ready and the second invocation returned busy; the worker used a 192 MB or 256 MB
+supervisor cap. The complete container-wide peak was 181,108,736 bytes for the cold PNG and
+233,746,432–261,812,224 bytes in mixed warm cases. That includes the main runtime, synthetic
+provider and cache; it is not an isolate-only peak and must not be subtracted into a claimed pass.
+Container CPU was up to 1,349 ms for the 192 MB cases and 1,818 ms in one 256 MB repeat, so a
+stable 1.5-second isolate CPU result remains unproven. This network-isolated local harness is not
+hosted acceptance. Raw results and large fixtures were kept on the external LaCie drive; see the
+private sanitized `release/automation/045-resource-report-sanitized.md`.
+
+A follow-up isolated sidecar run put the synthetic provider in a separate cgroup sharing only the
+case container's network-none loopback. Five scenarios reached ready with concurrent busy and cleaned
+all owned containers/volumes. Case cgroup peaks were 159,080,448; 192,000,000; 207,720,448;
+239,017,984; and 210,903,040 bytes; the cgroup still includes the main process, runtime and cache.
+Container CPU deltas were 1,262; 797; 1,401; 674; and 1,539 ms respectively. Worker memory
+snapshots had 24–51 ms gaps and are not a continuous peak; one lifetime shutdown event was observed,
+not sufficient to establish per-invocation CPU. Therefore hosted isolate peak ≤192 MB and stable
+CPU ≤1.5 s remain unproven. Evidence is on the external LaCie resource staging volume.

@@ -263,7 +263,7 @@ describe('reading the list', () => {
     ).toContain('1000098765434');
     // The state is a word of its own, not only a colour.
     expect(within(agentRows[0]!).getByText('Free')).toBeTruthy();
-    expect(within(agentRows[1]!).getByText('Running')).toBeTruthy();
+    expect(within(agentRows[1]!).getByText('Busy')).toBeTruthy();
   });
 
   it('counts agents on the filter chips', async () => {
@@ -271,7 +271,7 @@ describe('reading the list', () => {
     await waitForGroups();
     expect(chip('Show ad accounts', /^All/).textContent).toBe('All3');
     expect(chip('Show ad accounts', /^Free/).textContent).toBe('Free1');
-    expect(chip('Show ad accounts', /^Running/).textContent).toBe('Running2');
+    expect(chip('Show ad accounts', /^Busy/).textContent).toBe('Busy2');
   });
 
   it('says so when there are no accounts, and offers to add one', async () => {
@@ -336,12 +336,13 @@ describe('filtering', () => {
     expect(rows()[0]?.getAttribute('data-free')).toBe('true');
   });
 
-  it('keeps only running agents the other way round', async () => {
+  it('keeps only busy agents the other way round', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    await user.click(chip('Show ad accounts', /^Running/));
+    await user.click(chip('Show ad accounts', /^Busy/));
     expect(groupNames()).toEqual(['v3', 'v31']);
+    expect(rows()).toHaveLength(2);
     expect(rows().every(row => row.getAttribute('data-free') === 'false')).toBe(true);
   });
 
@@ -354,7 +355,7 @@ describe('filtering', () => {
     expect(groupNames()).toEqual(['v3']);
     // The chips count what the search left, not the whole space.
     expect(chip('Show ad accounts', /^All/).textContent).toBe('All1');
-    expect(chip('Show ad accounts', /^Running/).textContent).toBe('Running1');
+    expect(chip('Show ad accounts', /^Busy/).textContent).toBe('Busy1');
     await user.clear(search);
     await user.type(search, '765401');
     expect(rows()).toHaveLength(1);
@@ -509,7 +510,7 @@ describe('writing a run', () => {
     await waitFor(() => expect(within(busyRow).getByText('Keto | PL 06/09')).toBeTruthy());
   });
 
-  it('frees a running agent with one press', async () => {
+  it('frees a busy agent with one press', async () => {
     const api = client();
     const user = userEvent.setup();
     render(api);
@@ -649,7 +650,7 @@ describe('accounts and agents', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    await user.click(screen.getByRole('button', { name: /^Running/ }));
+    await user.click(chip('Show ad accounts', /^Busy/));
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}{Enter}');
     // No ad accounts yet, so the filter alone would drop it — but its editor is open.
@@ -969,12 +970,12 @@ describe('the head of an account', () => {
     await waitForGroups();
     const v31 = screen.getByRole('region', { name: 'v31' });
     expect(within(v31).getByText('1 free')).toBeTruthy();
-    expect(within(v31).getByText('1 running')).toBeTruthy();
+    expect(within(v31).getByText('1 busy')).toBeTruthy();
 
     // Folded, the summary is the only thing left — and it is still there.
     await user.click(within(v31).getByRole('button', { name: 'Collapse v31' }));
     expect(within(v31).getByText('1 free')).toBeTruthy();
-    expect(within(v31).getByText('1 running')).toBeTruthy();
+    expect(within(v31).getByText('1 busy')).toBeTruthy();
   });
 
   it('says its counts once, in the chips and the heads, with no totals line under the title', async () => {
