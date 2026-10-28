@@ -251,6 +251,29 @@ export interface CatalogImageDictionaryPage {
   hasMore: boolean;
   nextCursor: string | null;
 }
+/** Charged bytes include reservations and retained copies across the current owner's spaces. */
+export interface CatalogImageStorage {
+  limitBytes: number;
+  limitImages: number;
+  usedBytes: number;
+  reservedBytes: number;
+  pendingDeletionBytes: number;
+  retainedBytes: number;
+  libraryBytes: number;
+  totalImages: number;
+  availableBytes: number;
+  teamBytes: number;
+  otherTeamBytes: number;
+}
+export interface CatalogImageLibraryEntry extends CatalogImageDictionaryEntry {
+  sizeBytes: number;
+  active: boolean;
+  inUse: boolean;
+  publicationState: 'ready' | 'revoking' | 'purge_unknown' | 'purging';
+}
+export interface CatalogImageLibraryPage extends Omit<CatalogImageDictionaryPage, 'items'> {
+  items: CatalogImageLibraryEntry[];
+}
 export interface CatalogImageInventory {
   revision: number;
   pairs: Array<{ garment: CatalogImageGarment; color: string; count: number }>;
@@ -421,6 +444,39 @@ export function isCatalogImageDictionaryPage(v: unknown): v is CatalogImageDicti
     typeof v.hasMore === 'boolean' &&
     cursor(v.nextCursor)
   );
+}
+export function isCatalogImageStorage(v: unknown): v is CatalogImageStorage {
+  return (
+    isRecord(v) &&
+    [
+      'limitBytes',
+      'limitImages',
+      'usedBytes',
+      'reservedBytes',
+      'pendingDeletionBytes',
+      'retainedBytes',
+      'libraryBytes',
+      'totalImages',
+      'availableBytes',
+      'teamBytes',
+      'otherTeamBytes'
+    ].every(key => boundedInteger(v[key]))
+  );
+}
+export function isCatalogImageLibraryEntry(v: unknown): v is CatalogImageLibraryEntry {
+  return (
+    isCatalogImageDictionaryEntry(v) &&
+    isRecord(v) &&
+    boundedInteger(v.sizeBytes, CATALOG_IMAGE_LIMITS.maxBytes) &&
+    v.sizeBytes > 0 &&
+    typeof v.active === 'boolean' &&
+    typeof v.inUse === 'boolean' &&
+    typeof v.publicationState === 'string' &&
+    ['ready', 'revoking', 'purge_unknown', 'purging'].includes(v.publicationState)
+  );
+}
+export function isCatalogImageLibraryPage(v: unknown): v is CatalogImageLibraryPage {
+  return isCatalogImageDictionaryPage(v) && v.items.every(isCatalogImageLibraryEntry);
 }
 export function isCatalogImageInventory(v: unknown): v is CatalogImageInventory {
   return (

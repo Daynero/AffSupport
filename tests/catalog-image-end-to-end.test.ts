@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
 import {
   isCatalogImageCapabilities,
@@ -6,34 +7,49 @@ import {
   isCatalogImageGrant,
   isCatalogImageImportJob,
   isCatalogImageInventory,
+  isCatalogImageStorage,
+  isCatalogImageLibraryPage,
+  classifyCatalogImageName,
   type CatalogImageImportJob
 } from '../packages/shared/src/team/catalog-images';
 import {
   handleCatalogImages,
   type CatalogImageHandlerDeps
 } from '../supabase/functions/catalog-images/handler';
-import { runCatalogImageWorker } from '../supabase/functions/catalog-images/worker';
+import {
+  runCatalogImageWorker,
+  type CatalogImageWorkerDeps
+} from '../supabase/functions/catalog-images/worker';
 import { CatalogImageR2 } from '../supabase/functions/_shared/r2-catalog-images';
 import type { ServiceRpcClient } from '../supabase/functions/_shared/credentials';
 import { drawCatalogImagePool } from '../supabase/functions/_shared/catalog-image-draw';
 import { planCatalogRows } from '../supabase/functions/_shared/product-catalog';
 import { isR2CatalogImage } from '../packages/shared/src/team/catalog-images';
+import { optimizeCatalogImage } from '../supabase/functions/_shared/catalog-image-optimization';
+import { validateCatalogImage } from '../supabase/functions/_shared/catalog-image-validation';
+import { testPngChunk } from './support/catalog-image-fixtures';
 
 const OWNER = '45000000-0000-4000-8000-000000000711';
 const ATTEMPT = '45000000-0000-4000-8000-000000000712';
+const originalPng = readFileSync('tests/fixtures/catalog-images/garment.png');
 const PNG = Uint8Array.from(
-  Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=',
-    'base64'
-  )
+  Buffer.concat([
+    originalPng.subarray(0, 33),
+    testPngChunk('tEXt', Buffer.from('Comment\0Removable wire metadata')),
+    originalPng.subarray(33)
+  ])
 );
+let canonical: Awaited<ReturnType<typeof optimizeCatalogImage>>;
 let db: TeamTestDb;
 let team: string;
 let deps: CatalogImageHandlerDeps;
 let transport: typeof fetch;
 const objects = new Map<string, { bytes: ArrayBuffer; mime: string }>();
-const driveRead = vi.fn(async (): Promise<Uint8Array> => {
+const driveRead = vi.fn<CatalogImageWorkerDeps['readDrive']>(async (): Promise<Uint8Array> => {
   throw new Error('Local source must never read Drive');
+});
+const enumerateDrive = vi.fn<CatalogImageWorkerDeps['enumerateDrive']>(async () => {
+  throw new Error('Local import must never enumerate Drive');
 });
 
 // Behave like PostgREST named-argument RPC against the real complete migration chain.
@@ -84,9 +100,19 @@ function snapshot(value: unknown): CatalogImageImportJob {
   if (!isCatalogImageImportJob(value)) throw new Error('Invalid real job response');
   return value;
 }
+const providerPuts = () =>
+  vi
+    .mocked(transport)
+    .mock.calls.filter(
+      ([input, init]) =>
+        (init?.method ?? (input instanceof Request ? input.method : 'GET')) === 'PUT'
+    );
 
 beforeAll(async () => {
-  db = await createTeamTestDb({ throughMigration: '20261206152000_catalog_r2_integration.sql' });
+  db = await createTeamTestDb({
+    throughMigration: '20261206159000_catalog_image_storage_quota.sql'
+  });
+  canonical = await optimizeCatalogImage(PNG, 'image/png');
   await createUser(db, { id: OWNER, email: 'image-wire-owner@example.test' });
   await db.root('insert into public.admin_users(user_id) values($1)', [OWNER]);
   team = (
@@ -148,9 +174,7 @@ beforeAll(async () => {
         r2,
         enabled: true,
         readDrive: driveRead,
-        enumerateDrive: async () => {
-          throw new Error('Local import must never enumerate Drive');
-        }
+        enumerateDrive
       })
   };
 }, 60_000);
@@ -216,6 +240,43 @@ describe('real image route → SQL → worker → public readback → dictionary
     if (!isCatalogImageDictionaryPage(dictionary)) throw new Error('Invalid dictionary');
     expect(dictionary.items).toHaveLength(1);
     expect(dictionary.items[0]!.classification.mode).toBe('unclassified');
+    const source = await validateCatalogImage(PNG, 'image/png');
+    expect(canonical.image.sha256).not.toBe(source.sha256);
+    expect(canonical.bytes.length).toBeLessThan(PNG.length);
+    const persisted = await db.root(
+      `select e.declared_size,e.source_size,e.source_sha256,e.optimization_version,
+       e.canonical_size,e.canonical_sha256,e.canonical_mime,
+       p.size_bytes,p.sha256,p.mime
+       from private.catalog_image_import_entries e
+       join private.catalog_image_publications p on p.id=e.publication_id where e.id=$1`,
+      [entry.id]
+    );
+    expect(persisted[0]).toMatchObject({
+      declared_size: PNG.length,
+      source_size: PNG.length,
+      source_sha256: source.sha256,
+      optimization_version: 'lossless-v1',
+      canonical_size: canonical.bytes.length,
+      canonical_sha256: canonical.image.sha256,
+      canonical_mime: 'image/png',
+      size_bytes: canonical.bytes.length,
+      sha256: canonical.image.sha256,
+      mime: 'image/png'
+    });
+    const published = await transport(dictionary.items[0]!.publicUrl);
+    expect(published.headers.get('content-type')).toBe('image/png');
+    expect(new Uint8Array(await published.arrayBuffer())).toEqual(canonical.bytes);
+    const storage = await route(`/storage?teamId=${team}`);
+    expect(isCatalogImageStorage(storage)).toBe(true);
+    expect(storage).toMatchObject({
+      usedBytes: canonical.bytes.length,
+      libraryBytes: canonical.bytes.length,
+      reservedBytes: 0,
+      pendingDeletionBytes: 0,
+      totalImages: 1,
+      limitBytes: 100_000_000,
+      limitImages: 500
+    });
     const inventory = await route(`/inventory?teamId=${team}`);
     expect(isCatalogImageInventory(inventory)).toBe(true);
     expect(inventory).toMatchObject({ total: 1, unclassified: 1, pairs: [] });
@@ -248,6 +309,17 @@ describe('real image route → SQL → worker → public readback → dictionary
       title: 'Clothing item',
       imageLink: dictionary.items[0]!.publicUrl
     });
+    const library = await route(`/library?teamId=${team}`);
+    expect(isCatalogImageLibraryPage(library)).toBe(true);
+    if (!isCatalogImageLibraryPage(library)) throw new Error('Invalid real library');
+    expect(library.items).toHaveLength(1);
+    expect(library.items[0]).toMatchObject({
+      id: dictionary.items[0]!.id,
+      sizeBytes: canonical.bytes.length,
+      active: true,
+      inUse: true,
+      publicationState: 'ready'
+    });
     expect(driveRead).not.toHaveBeenCalled();
     const evidence = await db.root<{ stage: string }>(
       'select stage from public.analytics_catalog_image_journal where entry_id=$1 order by evidence_id::bigint',
@@ -257,6 +329,8 @@ describe('real image route → SQL → worker → public readback → dictionary
       expect.arrayContaining([
         'staged',
         'validating',
+        'optimizing',
+        'optimized',
         'deduplicating',
         'publishing',
         'verifying_origin',
@@ -265,6 +339,9 @@ describe('real image route → SQL → worker → public readback → dictionary
         'ready'
       ])
     );
+    const stages = evidence.map(item => item.stage);
+    expect(stages.indexOf('optimizing')).toBeLessThan(stages.indexOf('optimized'));
+    expect(stages.indexOf('optimized')).toBeLessThan(stages.indexOf('deduplicating'));
   });
 
   it('does not expose a signed input grant or private name in diagnostic projection', async () => {
@@ -273,5 +350,51 @@ describe('real image route → SQL → worker → public readback → dictionary
       /IMG_2031|r2\.cloudflarestorage|publicUrl|stagingKey|sha256/u
     );
     expect(objects.size).toBe(2);
+  });
+
+  it('uses the same canonical identity for a Drive source and reuses the stored publication without another PUT', async () => {
+    const previous = await route(`/dictionary?teamId=${team}`);
+    if (!isCatalogImageDictionaryPage(previous)) throw new Error('Invalid previous dictionary');
+    const accepted = snapshot(
+      await route('/imports', {
+        teamId: team,
+        contractVersion: 2,
+        sourceKind: 'drive',
+        sourceMaterialIds: [ATTEMPT],
+        idempotencyKey: 'wire-drive-import-request-01'
+      })
+    );
+    enumerateDrive.mockResolvedValueOnce({
+      entries: [
+        {
+          fileId: 'synthetic-drive-image',
+          name: 'IMG_2031.png',
+          size: PNG.length,
+          mime: 'image/png',
+          classification: classifyCatalogImageName('IMG_2031.png'),
+          source: { fileId: 'synthetic-drive-image', rootMaterialId: ATTEMPT }
+        }
+      ],
+      cursor: [],
+      complete: true,
+      more: false
+    });
+    driveRead.mockResolvedValueOnce(PNG.slice());
+    expect(await route('/worker', {})).toMatchObject({ enumerated: 1, complete: true });
+    const putsBefore = providerPuts().length;
+    expect(await route('/worker', {})).toMatchObject({ outcome: 'reused' });
+    const complete = snapshot(await route(`/imports/${accepted.id}`));
+    expect(complete.counts).toMatchObject({ total: 1, ready: 0, reused: 1 });
+    const after = await route(`/dictionary?teamId=${team}`);
+    if (!isCatalogImageDictionaryPage(after)) throw new Error('Invalid final dictionary');
+    expect(after.items.map(item => item.publicUrl)).toEqual(
+      previous.items.map(item => item.publicUrl)
+    );
+    expect(providerPuts()).toHaveLength(putsBefore);
+    expect(driveRead).toHaveBeenCalledOnce();
+    expect(await route(`/storage?teamId=${team}`)).toMatchObject({
+      usedBytes: canonical.bytes.length,
+      totalImages: 1
+    });
   });
 });

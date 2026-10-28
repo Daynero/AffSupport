@@ -1,3 +1,4 @@
+import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -62,6 +63,10 @@ Deno.serve(async request => {
     await requireNamedWorkerSecret(request);
     const service = serviceClient();
     const workerId = `catalog-updater:${crypto.randomUUID()}`;
+    // Text schedules must run even when no catalog is due or Drive OAuth is unavailable.
+    await runCatalogTextScheduleTickSafely((name, parameters) =>
+      rpcValue(service, name, parameters)
+    );
     // Recover already completed Launch children and provider-free cancellations even
     // when there are no updater rounds and no browser is connected. Unknown provider
     // outcomes remain unsettled for the ownership-aware recovery path.

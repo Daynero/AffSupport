@@ -5,12 +5,16 @@ import {
   isCatalogImageGrant,
   isCatalogImageDictionaryPage,
   isCatalogImageInventory,
+  isCatalogImageStorage,
+  isCatalogImageLibraryPage,
   type CatalogImageCapabilities,
   type CatalogImageImportJob,
   type CatalogImageImportList,
   type CatalogImageGrant,
   type CatalogImageDictionaryPage,
-  type CatalogImageInventory
+  type CatalogImageInventory,
+  type CatalogImageStorage,
+  type CatalogImageLibraryPage
 } from '@video-compressor/shared';
 import { invokeTeamFunction, TeamApiError } from './team';
 
@@ -22,6 +26,8 @@ export interface CatalogImageManifestFile {
 }
 
 export interface CatalogImageClient {
+  readStorage(teamId: string): Promise<CatalogImageStorage>;
+  readLibrary(teamId: string, cursor?: string | null): Promise<CatalogImageLibraryPage>;
   continueImport(id: string, input: { idempotencyKey: string }): Promise<CatalogImageImportJob>;
   capabilities(teamId: string): Promise<CatalogImageCapabilities>;
   listImports(teamId: string, cursor?: string | null): Promise<CatalogImageImportList>;
@@ -80,6 +86,12 @@ const pathId = (id: string) => encodeURIComponent(id);
 
 /** The existing team function boundary owns auth and error-envelope decoding. */
 export const catalogImageClient: CatalogImageClient = {
+  readStorage: teamId =>
+    invokeTeamFunction(query('storage', { teamId }), {}, isCatalogImageStorage, { method: 'GET' }),
+  readLibrary: (teamId, cursor) =>
+    invokeTeamFunction(query('library', { teamId, cursor }), {}, isCatalogImageLibraryPage, {
+      method: 'GET'
+    }),
   continueImport: (id, input) =>
     invokeTeamFunction(
       `catalog-images/imports/${pathId(id)}/continue`,

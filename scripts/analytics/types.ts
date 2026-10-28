@@ -32,6 +32,11 @@ export interface AnalyticsSchema {
     analytics_recovery_retirement?: boolean;
     analytics_membership_access_signals?: boolean;
     analytics_catalog_image_journal?: boolean;
+    analytics_catalog_text_schedule?: boolean;
+    analytics_catalog_text_schedule_journal?: boolean;
+    analytics_catalog_text_schedule_coverage?: boolean;
+    analytics_catalog_image_storage?: boolean;
+    analytics_catalog_image_optimization?: boolean;
   };
 }
 

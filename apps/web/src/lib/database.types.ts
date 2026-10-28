@@ -6867,6 +6867,14 @@ export type GeneratedDatabase = {
           name: string;
         }[];
       };
+      get_team_product_catalog_text_schedule: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      set_team_product_catalog_text_schedule: {
+        Args: { p_team: string; p_enabled: boolean; p_count?: number };
+        Returns: Json;
+      };
       list_team_product_catalog_texts: {
         Args: { p_team: string };
         Returns: {

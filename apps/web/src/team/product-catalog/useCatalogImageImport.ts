@@ -8,7 +8,9 @@ import {
   type CatalogImageImportList,
   type CatalogImageInventory,
   type CatalogImageDictionaryPage,
-  type CatalogImageDictionaryEntry
+  type CatalogImageDictionaryEntry,
+  type CatalogImageStorage,
+  type CatalogImageLibraryPage
 } from '@video-compressor/shared';
 import { TeamApiError } from '../../api/team';
 import { uploadCatalogImage, type CatalogImageClient } from '../../api/team-catalog-images';
@@ -140,15 +142,50 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
   const [capabilities, setCapabilities] = useState<CatalogImageCapabilities | null>(null);
   const [inventory, setInventory] = useState<CatalogImageInventory | null>(null);
   const [dictionary, setDictionary] = useState<CatalogImageDictionaryPage | null>(null);
-  const [pendingPoolResult, setPendingPoolResult] = useState<{
-    teamId: string;
-    flowId: string;
-    publicationId: string;
-    entryId: string;
-    revision: number;
-    action: ImagePoolAction;
+  const [storage, setStorage] = useState<CatalogImageStorage | null>(null);
+  const [storageError, setStorageError] = useState<unknown>(null);
+  const [library, setLibrary] = useState<CatalogImageLibraryPage | null>(null);
+  const [libraryError, setLibraryError] = useState<unknown>(null);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const libraryRead = useRef(false);
+  const mutationActive = useRef(false);
+  const batchFlow = useRef<{ id: string; kind: ImagePoolAction } | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{
+    requested: number;
+    accepted: number;
+    failed: number;
+    unattempted: number;
   } | null>(null);
-  const visiblePoolFlow = useRef<string | null>(null);
+  useEffect(() => {
+    if (!bulkResult || !batchFlow.current) return;
+    const flow = batchFlow.current;
+    batchFlow.current = null;
+    try {
+      analytics.track('operation_completed', {
+        flow_id: flow.id,
+        feature_identifier: 'catalog_images',
+        flow_step: 'catalog_image_pool',
+        action_identifier: `batch_${flow.kind}_result_visible`,
+        file_count: bulkResult.accepted,
+        outcome: bulkResult.failed ? 'failure' : 'success'
+      });
+    } catch {
+      /* Diagnostics must not change management. */
+    }
+  }, [bulkResult]);
+  const [pendingRevocations, setPendingRevocations] = useState<ReadonlySet<string>>(new Set());
+  const [pendingPoolResults, setPendingPoolResults] = useState<
+    Array<{
+      teamId: string;
+      flowId: string;
+      publicationId: string;
+      entryId: string;
+      revision: number;
+      action: ImagePoolAction;
+    }>
+  >([]);
+
   const [revocationRequested, setRevocationRequested] = useState(false);
   const [imports, setImports] = useState<CatalogImageImportList | null>(null);
   const [job, setJob] = useState<CatalogImageImportJob | null>(null);
@@ -156,6 +193,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
   const [folder, setFolder] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [readError, setReadError] = useState<unknown>(null);
   const [uploadedBytes, setUploadedBytes] = useState(0);
@@ -193,6 +231,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     const generation = active.current;
     const stamp = beginRead();
     read.current.pending = true;
+    setRefreshing(true);
     try {
       const caps = await client.capabilities(teamId);
       if (generation !== active.current) return;
@@ -212,6 +251,20 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
       setInventory(previous =>
         previous && previous.revision > summary.revision ? previous : summary
       );
+      // These reads must not hide a usable pool when storage management is unavailable.
+      const [usage, archived] = await Promise.allSettled([
+        client.readStorage(teamId),
+        caps.canManage ? client.readLibrary(teamId) : Promise.resolve(null)
+      ]);
+      if (generation !== active.current) return;
+      if (usage.status === 'fulfilled') {
+        setStorage(usage.value);
+        setStorageError(null);
+      } else setStorageError(usage.reason);
+      if (archived.status === 'fulfilled') {
+        setLibrary(archived.value);
+        setLibraryError(null);
+      } else setLibraryError(archived.reason);
       const id =
         selected.current ?? found.items.find(item => !terminal(item))?.id ?? found.items[0]?.id;
       if (id) {
@@ -220,15 +273,20 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
         acceptJob(detail);
       }
       setReadError(null);
-      stamp.succeed();
+      if (usage.status === 'rejected' || archived.status === 'rejected') stamp.fail();
+      else stamp.succeed();
+      return true;
     } catch (cause) {
       if (generation === active.current) {
         setReadError(cause);
+        setStorageError(cause);
+        setLibraryError(cause);
         stamp.fail();
       }
     } finally {
       if (generation === active.current) {
         setLoading(false);
+        setRefreshing(false);
         read.current.pending = false;
         if (read.current.dirty) {
           read.current.dirty = false;
@@ -248,8 +306,18 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     setCapabilities(null);
     setInventory(null);
     setDictionary(null);
-    setPendingPoolResult(null);
-    visiblePoolFlow.current = null;
+    setStorage(null);
+    setStorageError(null);
+    setLibrary(null);
+    setLibraryError(null);
+    setLibraryLoading(false);
+    libraryRead.current = false;
+    mutationActive.current = false;
+    setBulkProgress(null);
+    setBulkResult(null);
+    batchFlow.current = null;
+    setPendingRevocations(new Set());
+    setPendingPoolResults([]);
     setImports(null);
     setJob(null);
     setRevocationRequested(false);
@@ -268,25 +336,20 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
   }, [teamId, client, refresh]);
   const previousRevision = useRef(revision);
   useEffect(() => {
-    if (
-      !pendingPoolResult ||
-      pendingPoolResult.teamId !== teamId ||
-      !dictionary ||
-      dictionary.revision < pendingPoolResult.revision ||
-      dictionary.items.some(entry => entry.id === pendingPoolResult.entryId)
-    )
-      return;
-    if (visiblePoolFlow.current !== pendingPoolResult.flowId) {
-      visiblePoolFlow.current = pendingPoolResult.flowId;
-      imagePoolSignal(
-        'result_visible',
-        pendingPoolResult.flowId,
-        pendingPoolResult.publicationId,
-        pendingPoolResult.action
+    if (!dictionary || pendingPoolResults.length === 0) return;
+    const visible = pendingPoolResults.filter(
+      result =>
+        result.teamId === teamId &&
+        dictionary.revision >= result.revision &&
+        !dictionary.items.some(entry => entry.id === result.entryId)
+    );
+    for (const result of visible)
+      imagePoolSignal('result_visible', result.flowId, result.publicationId, result.action);
+    if (visible.length)
+      setPendingPoolResults(previous =>
+        previous.filter(result => !visible.some(done => done.flowId === result.flowId))
       );
-    }
-    setPendingPoolResult(null);
-  }, [dictionary, pendingPoolResult, teamId]);
+  }, [dictionary, pendingPoolResults, teamId]);
   useEffect(() => {
     if (previousRevision.current !== revision) {
       previousRevision.current = revision;
@@ -630,9 +693,82 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     const generation = active.current;
     try {
       const page = await client.dictionary(teamId, dictionary.nextCursor);
-      if (generation === active.current) setDictionary(page);
+      if (generation === active.current)
+        setDictionary(previous =>
+          previous
+            ? {
+                ...page,
+                items: [
+                  ...previous.items,
+                  ...page.items.filter(item => !previous.items.some(old => old.id === item.id))
+                ]
+              }
+            : page
+        );
     } catch (cause) {
       if (generation === active.current) setError(cause);
+    }
+  };
+  const moreLibrary = async () => {
+    if (!library?.nextCursor || !capabilities?.canManage) return;
+    const generation = active.current;
+    try {
+      const page = await client.readLibrary(teamId, library.nextCursor);
+      if (generation === active.current) {
+        setLibrary(previous =>
+          previous
+            ? {
+                ...page,
+                items: [
+                  ...previous.items,
+                  ...page.items.filter(item => !previous.items.some(old => old.id === item.id))
+                ]
+              }
+            : page
+        );
+        setLibraryError(null);
+      }
+    } catch (cause) {
+      if (generation === active.current) setLibraryError(cause);
+    }
+  };
+  // A complete bounded snapshot makes search and selection apply to the whole space.
+  // No writes occur here; a partial/failed scan remains explicitly incomplete.
+  const loadAllLibrary = async () => {
+    if (libraryRead.current || !capabilities?.canManage) return;
+    const generation = active.current;
+    const stamp = beginRead();
+    libraryRead.current = true;
+    setLibraryLoading(true);
+    setLibraryError(null);
+    try {
+      let page = await client.readLibrary(teamId);
+      const items = new Map(page.items.map(item => [item.id, item]));
+      const cursors = new Set<string>();
+      for (;;) {
+        if (generation !== active.current) return;
+        setLibrary({ ...page, items: [...items.values()] });
+        if (!page.hasMore) {
+          if (items.size !== page.total) throw new TeamApiError('INVALID_RESPONSE', false);
+          stamp.succeed();
+          break;
+        }
+        if (!page.nextCursor || cursors.has(page.nextCursor) || cursors.size >= 100)
+          throw new TeamApiError('INVALID_RESPONSE', false);
+        cursors.add(page.nextCursor);
+        page = await client.readLibrary(teamId, page.nextCursor);
+        for (const item of page.items) items.set(item.id, item);
+      }
+    } catch (cause) {
+      if (generation === active.current) {
+        setLibraryError(cause);
+        stamp.fail();
+      }
+    } finally {
+      if (generation === active.current) {
+        libraryRead.current = false;
+        setLibraryLoading(false);
+      }
     }
   };
   const continueImport = async () => {
@@ -653,52 +789,136 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
       if (generation === active.current) setBusy(false);
     }
   };
-  const changePicture = async (entry: CatalogImageDictionaryEntry, kind: 'remove' | 'revoke') => {
-    if (busy || !capabilities?.canManage) return;
+  const batchChangePictures = async (
+    entries: readonly CatalogImageDictionaryEntry[],
+    kind: ImagePoolAction
+  ) => {
+    if (busy || mutationActive.current || !capabilities?.canManage || !entries.length) return;
+    const targets = [...new Map(entries.map(entry => [entry.publicationId, entry])).values()];
     const generation = active.current;
-    const flowId = crypto.randomUUID();
-    imagePoolSignal('requested', flowId, entry.publicationId, kind);
+    mutationActive.current = true;
     setBusy(true);
     setError(null);
-    try {
-      const input = {
-        revision: entry.revision,
-        idempotencyKey: actionKey(`${kind}:${entry.id}:${entry.revision}`)
-      };
-      const page =
-        kind === 'remove'
-          ? await client.remove(entry.id, input)
-          : await client.revoke(entry.publicationId, input);
-      imagePoolSignal('accepted', flowId, entry.publicationId, kind);
-      if (generation !== active.current) return;
-      setDictionary(page);
-      setPendingPoolResult({
-        teamId,
-        flowId,
-        publicationId: entry.publicationId,
-        entryId: entry.id,
-        revision: page.revision,
-        action: kind
-      });
-      if (kind === 'revoke') setRevocationRequested(true);
-      await refresh();
-    } catch (cause) {
-      imagePoolSignal(
-        'failed',
-        flowId,
-        entry.publicationId,
-        kind,
-        cause instanceof TeamApiError ? cause.code : 'UNKNOWN'
-      );
-      if (generation === active.current) setError(cause);
-    } finally {
-      if (generation === active.current) setBusy(false);
+    setBulkResult(null);
+    if (targets.length > 1) {
+      batchFlow.current = { id: crypto.randomUUID(), kind };
+      try {
+        analytics.track('operation_started', {
+          flow_id: batchFlow.current.id,
+          feature_identifier: 'catalog_images',
+          flow_step: 'catalog_image_pool',
+          action_identifier: `batch_${kind}_requested`,
+          file_count: targets.length
+        });
+      } catch {
+        /* Diagnostics must not change management. */
+      }
     }
+    let accepted = 0;
+    let failed = 0;
+    setBulkProgress({ done: 0, total: targets.length });
+    try {
+      for (const entry of targets) {
+        if (generation !== active.current) break;
+        const flowId = crypto.randomUUID();
+        imagePoolSignal('requested', flowId, entry.publicationId, kind);
+        try {
+          const input = {
+            revision: entry.revision,
+            idempotencyKey: actionKey(`${kind}:${entry.id}:${entry.revision}`)
+          };
+          const page =
+            kind === 'remove'
+              ? await client.remove(entry.id, input)
+              : await client.revoke(entry.publicationId, input);
+          imagePoolSignal('accepted', flowId, entry.publicationId, kind);
+          if (generation !== active.current) break;
+          accepted += 1;
+          setDictionary(page);
+          setPendingPoolResults(previous => [
+            ...previous,
+            {
+              teamId,
+              flowId,
+              publicationId: entry.publicationId,
+              entryId: entry.id,
+              revision: page.revision,
+              action: kind
+            }
+          ]);
+          if (kind === 'revoke') {
+            setRevocationRequested(true);
+            setPendingRevocations(previous => new Set([...previous, entry.publicationId]));
+          }
+          setBulkProgress({ done: accepted, total: targets.length });
+        } catch (cause) {
+          failed = 1;
+          imagePoolSignal(
+            'failed',
+            flowId,
+            entry.publicationId,
+            kind,
+            cause instanceof TeamApiError ? cause.code : 'UNKNOWN'
+          );
+          if (generation === active.current) setError(cause);
+          // Stop on an uncertain reply. Never replay it or silently proceed with the rest.
+          break;
+        }
+      }
+    } finally {
+      if (generation === active.current) {
+        const result = {
+          requested: targets.length,
+          accepted,
+          failed,
+          unattempted: targets.length - accepted - failed
+        };
+        if (batchFlow.current) {
+          try {
+            analytics.track('operation_stage_completed', {
+              flow_id: batchFlow.current.id,
+              feature_identifier: 'catalog_images',
+              flow_step: 'catalog_image_pool',
+              action_identifier: `batch_${kind}_accepted`,
+              file_count: accepted
+            });
+          } catch {
+            /* Diagnostics must not change management. */
+          }
+        }
+        setBulkResult(result);
+        await refresh();
+        // Restore the full searchable library after readback, rather than jumping to page one.
+        await loadAllLibrary();
+        mutationActive.current = false;
+        setBusy(false);
+        setBulkProgress(null);
+      }
+    }
+    return {
+      requested: targets.length,
+      accepted,
+      failed,
+      unattempted: targets.length - accepted - failed
+    };
   };
+  const changePicture = (entry: CatalogImageDictionaryEntry, kind: ImagePoolAction) =>
+    batchChangePictures([entry], kind);
   return {
     capabilities,
     inventory,
     dictionary,
+    storage,
+    storageError,
+    library,
+    libraryError,
+    libraryLoading,
+    loadAllLibrary,
+    batchChangePictures,
+    bulkProgress,
+    bulkResult,
+    clearBulkResult: () => setBulkResult(null),
+    pendingRevocations,
     revocationRequested,
     imports,
     job,
@@ -706,6 +926,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     folder,
     busy,
     loading,
+    refreshing,
     error: error ?? readError,
     uploadedBytes,
     waitingUploads,
@@ -719,6 +940,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     moreJobs,
     moreEntries,
     morePictures,
+    moreLibrary,
     continueImport,
     removePicture: (entry: CatalogImageDictionaryEntry) => changePicture(entry, 'remove'),
     revokePicture: (entry: CatalogImageDictionaryEntry) => changePicture(entry, 'revoke'),

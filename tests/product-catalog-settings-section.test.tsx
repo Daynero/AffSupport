@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -60,7 +60,17 @@ function renderSection(client: Client, team: TeamContextSnapshot = owned) {
   return render(
     <TeamProvider initialTeams={[team]} realtime={false}>
       <ToastProvider>
-        <ProductCatalogSettingsSection teamId={TEAM_ID} client={client} />
+        <ProductCatalogSettingsSection
+          teamId={TEAM_ID}
+          client={client}
+          openEditor={
+            client.listProductCatalogTexts
+              ? 'product-catalog-texts-title'
+              : client.listProductCatalogImageSources
+                ? 'product-catalog-images-title'
+                : 'product-catalog-settings-title'
+          }
+        />
       </ToastProvider>
     </TeamProvider>
   );
@@ -130,7 +140,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
     await user.clear(from);
     await user.type(from, '5');
     expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', false);
-    expect(screen.getByText('Not saved yet')).toBeTruthy();
+    expect(screen.getAllByText('Not saved yet').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByText('Not saved yet')).toBeNull());
   });
@@ -156,18 +166,22 @@ describe('the name and description pool (024)', () => {
       replaceProductCatalogTexts: replace,
       updateProductCatalogText: vi.fn()
     });
-    expect(await screen.findByText(/for clothing only/)).toBeTruthy();
     const user = userEvent.setup();
-    const count = screen.getByLabelText('How many');
+    await user.click(
+      await screen.findByRole('button', { name: 'Generate names and descriptions' })
+    );
+    expect(await screen.findByText(/for clothing only/)).toBeTruthy();
+    const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
     await user.type(count, '3');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await waitFor(() => expect(replace).toHaveBeenCalled());
     expect(replace.mock.calls[0]![1]).toHaveLength(3);
-    expect(await screen.findByText('3 in the pool')).toBeTruthy();
+    expect(await screen.findByText('Saved: 3')).toBeTruthy();
     // A pool that exists is replaced only after saying so.
-    await user.click(screen.getByRole('button', { name: 'Generate again' }));
-    expect(await screen.findByText('Replace the pool?')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Generate names and descriptions' }));
+    await user.click(screen.getByRole('button', { name: 'Replace all names and descriptions' }));
+    expect(await screen.findByText('Replace all names and descriptions?')).toBeTruthy();
   });
 });
 
@@ -181,20 +195,8 @@ describe('whether a catalog can be made (024, US23)', () => {
       listProductCatalogImageSources: vi.fn(async () => ({ sources: [], poolSize: 0 })),
       setProductCatalogImageSources: vi.fn()
     });
-    expect(
-      await screen.findByText(
-        'Names and descriptions — nothing to write: the pool is empty and there is no fallback'
-      )
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        'Pictures — nothing to show: the pool is empty and there is no fallback link'
-      )
-    ).toBeTruthy();
-    expect(screen.getByText('Price — 9 to 30 USD, a whole number per row')).toBeTruthy();
-    expect(
-      screen.getByText('A catalog cannot be made yet — fill what is marked above.')
-    ).toBeTruthy();
+    expect(await screen.findByText('Add missing content and save the price.')).toBeTruthy();
+    expect(screen.queryByText('Ready to create a catalog')).toBeNull();
   });
 
   it('says a catalog can be made once both pools have something', async () => {
@@ -211,16 +213,16 @@ describe('whether a catalog can be made (024, US23)', () => {
       })),
       setProductCatalogImageSources: vi.fn()
     });
-    expect(await screen.findByText('A catalog can be made from this.')).toBeTruthy();
-    expect(screen.getByText('Names and descriptions — 1 in the pool')).toBeTruthy();
-    expect(screen.getByText('Pictures — 4 in the pool')).toBeTruthy();
+    expect(await screen.findByText('Ready to create a catalog')).toBeTruthy();
+    expect(screen.getByText('Saved: 1')).toBeTruthy();
+    expect(screen.getByText('Images: 4')).toBeTruthy();
     // Nothing typed into the single values, so they are empty rather than in use.
     expect(screen.getByText('Empty')).toBeTruthy();
   });
 });
 
 describe('the pool, browsed and added to (024, US23)', () => {
-  it('shows three, opens the rest with a search, and adds without replacing', async () => {
+  it('keeps long samples out of settings, searches all names, and adds without replacing', async () => {
     const texts = Array.from({ length: 6 }, (_, index) => ({
       id: `t${index}`,
       title: index === 5 ? 'Ludia Navy Twill Wide Leg Jeans' : `Nova Sage Jersey Hoodie ${index}`,
@@ -235,16 +237,18 @@ describe('the pool, browsed and added to (024, US23)', () => {
       updateProductCatalogText: vi.fn()
     });
     const user = userEvent.setup();
-    expect(await screen.findByText('Nova Sage Jersey Hoodie 0')).toBeTruthy();
+    await screen.findByRole('button', { name: 'Browse and edit (6)' });
+    expect(screen.queryByText('Nova Sage Jersey Hoodie 0')).toBeNull();
     // Three of six in the tab; the rest behind one button.
     expect(screen.queryByText('Nova Sage Jersey Hoodie 4')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'View all (6)' }));
-    await user.type(screen.getByLabelText('Search the pool'), 'ludia');
+    await user.click(screen.getByRole('button', { name: 'Browse and edit (6)' }));
+    await user.type(screen.getByLabelText('Search names or descriptions'), 'ludia');
     expect(await screen.findByText('Found: 1')).toBeTruthy();
     expect(screen.getByText('Ludia Navy Twill Wide Leg Jeans')).toBeTruthy();
     await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Generate names and descriptions' }));
 
-    const count = screen.getByLabelText('How many');
+    const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
     await user.type(count, '2');
     await user.click(screen.getByRole('button', { name: 'Add' }));
@@ -270,7 +274,7 @@ describe('the picture pool (024)', () => {
       })),
       setProductCatalogImageSources: setSources
     });
-    expect(await screen.findByText('13 pictures')).toBeTruthy();
+    expect(await screen.findByText('Images: 13')).toBeTruthy();
     expect(screen.getByText('12 images')).toBeTruthy();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Remove plain.png from the pictures' }));
@@ -280,3 +284,23 @@ describe('the picture pool (024)', () => {
   });
 });
 // @ts-nocheck — section mocks intentionally use narrower callbacks for focused cases.
+
+it('shows generation failure inside the dialog and retries reading without regenerating', async () => {
+  const user = userEvent.setup();
+  const replace = vi.fn().mockRejectedValue(new Error('offline'));
+  const list = vi.fn(async () => []);
+  renderSection({
+    getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+    setProductCatalogSettings: vi.fn(),
+    listProductCatalogTexts: list,
+    replaceProductCatalogTexts: replace
+  });
+  await user.click(await screen.findByRole('button', { name: 'Generate names and descriptions' }));
+  await user.click(screen.getByRole('button', { name: 'Generate', exact: true }));
+  const dialog = within(screen.getByRole('dialog', { name: 'Generate names and descriptions' }));
+  await dialog.findByRole('alert');
+  await user.click(dialog.getByRole('button', { name: 'Retry' }));
+  await dialog.findByRole('button', { name: 'Generate', exact: true });
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(list).toHaveBeenCalledTimes(2);
+});

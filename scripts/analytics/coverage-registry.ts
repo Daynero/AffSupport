@@ -315,6 +315,23 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
   })),
   {
+    id: 'team.catalog_text_schedule',
+    tool: 'team',
+    title: 'Team · weekly catalog text replacement',
+    stages: ['configured', 'claimed', 'committed'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    unobservable: [
+      'Database commit does not prove browser visibility or updating existing catalogs.',
+      'An active cron entry does not prove worker transport or deployment; before a claim receipt, dispatch failure remains unobserved.'
+    ],
+    note: 'Content-free schedule and immutable run journal explain enabled state, next due time, claims, lease recovery, fenced atomic commit, failure and cancellation. catalog-texts reads this evidence with bounded period/as-of queries; missing capture is explicit.'
+  },
+  {
     id: 'team.catalog_images',
     tool: 'team',
     title: 'Team · R2 catalog image publication',
@@ -322,6 +339,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'waiting_source',
       'staged',
       'validating',
+      'optimizing',
+      'optimized',
       'deduplicating',
       'publishing',
       'verifying_origin',
@@ -338,7 +357,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'authoritative_table',
-    note: 'Content-free immutable journal and capture-health projection separate publication, dictionary and issued-use receipts. Pool additions and removals have publication-correlated immutable evidence; removal stops future selection while ready bytes may remain for existing catalogs. classify=unclassified is an allowed random mode, not a failure. Audit requires the complete observed stage chain and healthy triggers; event emission alone is not coverage. Historical mutable totals are not reconstructed from current state.'
+    note: 'Content-free immutable journal and capture-health projection separate normalization, publication, dictionary and issued-use receipts. The optimization projection distinguishes source and canonical sizes/version without hashes or content. Current account storage includes retained, reserved and uncertain objects; pending cleanup is not credited, and shared owners are counted once across workspaces. Pool removal preserves bytes; inactive library images remain manageable. Missing projections/stages are explicit, never zero. classify=unclassified is an allowed random mode. Audit requires the correlated stage chain and healthy triggers; historical quota and provider bills are not reconstructed.'
   },
   {
     id: 'team.catalog_image_pool',
@@ -361,7 +380,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [
       'Missing React completion means browser-visible delivery is unknown. A visible revocation request does not prove object deletion or external cache erasure.'
     ],
-    note: 'Publication UUID correlates browser intent, server acceptance, failure and React-committed pool result. No image names, URLs or content are collected. Authoritative pool_removed and publication or purge stages explain retained bytes and actual revocation separately.'
+    note: 'Publication UUID correlates browser intent, server acceptance, failure and React-committed pool result. Batch actions retain a separate flow: requested file_count is selection size, accepted/result_visible file_count is accepted count, and a failure outcome means execution stopped on an unconfirmed item; the rest were not attempted. No image names, URLs or content are collected. Authoritative pool_removed and publication or purge stages explain retained bytes and actual revocation separately.'
   },
   {
     id: 'team.catalog_image_prompt',

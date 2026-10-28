@@ -49,6 +49,102 @@ const request = (path: string, body: unknown = {}) =>
   });
 
 describe('catalog image control authorization and boundaries', () => {
+  it.each(['storage', 'library'] as const)(
+    'keeps authenticated %s reads available while uploads are disabled',
+    async action => {
+      const d = deps();
+      d.enabled = false;
+      d.r2 = null;
+      const value =
+        action === 'storage'
+          ? {
+              limitBytes: 100_000_000,
+              limitImages: 500,
+              usedBytes: 1000,
+              reservedBytes: 0,
+              pendingDeletionBytes: 0,
+              retainedBytes: 1000,
+              libraryBytes: 0,
+              totalImages: 1,
+              availableBytes: 99_999_000,
+              teamBytes: 1000,
+              otherTeamBytes: 0
+            }
+          : { items: [], total: 0, revision: 1, hasMore: false, nextCursor: null };
+      d.service.rpc = vi.fn(async () => ({ data: value, error: null }));
+      const response = await handleCatalogImages(
+        new Request(
+          `https://backend.test/functions/v1/catalog-images/${action}?teamId=${TEAM}&cursor=${JOB}`
+        ),
+        d
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, value });
+      expect(d.authorize).toHaveBeenCalledOnce();
+      expect(d.service.rpc).toHaveBeenCalledExactlyOnceWith('service_catalog_image_control_v2', {
+        p_action: action,
+        p_actor: ACTOR,
+        p_payload: { teamId: TEAM, cursor: JOB }
+      });
+      expect(d.runWorker).not.toHaveBeenCalled();
+      expect(d.authorizeWorker).not.toHaveBeenCalled();
+    }
+  );
+  it.each(['storage', 'library'] as const)(
+    'preserves SQL permission denial for a %s read',
+    async action => {
+      const d = deps();
+      d.service.rpc = vi.fn(async () => ({ data: null, error: { message: 'PERMISSION_DENIED' } }));
+      const response = await handleCatalogImages(
+        new Request(`https://backend.test/functions/v1/catalog-images/${action}?teamId=${TEAM}`),
+        d
+      );
+      expect(response.status).toBe(403);
+      expect(d.runWorker).not.toHaveBeenCalled();
+    }
+  );
+  it.each(['storage', 'library'] as const)(
+    'rejects a malformed %s projection rather than returning a false empty balance',
+    async action => {
+      const d = deps();
+      d.service.rpc = vi.fn(async () => ({
+        data:
+          action === 'storage'
+            ? { usedBytes: 0 }
+            : {
+                items: [
+                  {
+                    id: 'entry',
+                    publicationId: 'publication',
+                    publicUrl: 'https://media.test/v1/image',
+                    classification: {
+                      mode: 'unclassified',
+                      garment: null,
+                      color: null,
+                      reason: 'unknown',
+                      vocabularyVersion: 'catalog-clothing-v1'
+                    },
+                    revision: 1
+                  }
+                ],
+                total: 1,
+                revision: 1,
+                hasMore: false,
+                nextCursor: null
+              },
+        error: null
+      }));
+      const response = await handleCatalogImages(
+        new Request(`https://backend.test/functions/v1/catalog-images/${action}?teamId=${TEAM}`),
+        d
+      );
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(await response.json()).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_RESPONSE' }
+      });
+    }
+  );
   it('never accepts worker secret instead of user authentication', async () => {
     const d = deps();
     d.authorize = vi.fn(async () => {

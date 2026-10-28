@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { classifyCatalogImageName } from '../packages/shared/src/team/catalog-images';
 import {
   runCatalogImageWorker,
@@ -6,6 +7,8 @@ import {
 } from '../supabase/functions/catalog-images/worker';
 import { CatalogImageR2 } from '../supabase/functions/_shared/r2-catalog-images';
 import { validateCatalogImage } from '../supabase/functions/_shared/catalog-image-validation';
+import * as optimization from '../supabase/functions/_shared/catalog-image-optimization';
+import { testPngChunk } from './support/catalog-image-fixtures';
 
 const ENTRY = '45000000-0000-4000-8000-000000000801';
 const JOB = '45000000-0000-4000-8000-000000000802';
@@ -14,12 +17,16 @@ const ACTOR = '45000000-0000-4000-8000-000000000804';
 const PUBLICATION = '45000000-0000-4000-8000-000000000805';
 const STAGING = '45000000-0000-4000-8000-000000000806';
 const KEY = `v1/${PUBLICATION}`;
+const originalPng = readFileSync('tests/fixtures/catalog-images/garment.png');
 const PNG = Uint8Array.from(
-  Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=',
-    'base64'
-  )
+  Buffer.concat([
+    originalPng.subarray(0, 33),
+    testPngChunk('tEXt', Buffer.from('Comment\0Removable worker metadata')),
+    originalPng.subarray(33)
+  ])
 );
+const WEBP = Uint8Array.from(readFileSync('tests/fixtures/catalog-images/garment.webp'));
+afterEach(() => vi.restoreAllMocks());
 const config = {
   accountId: 'a'.repeat(32),
   stagingBucket: 'staging',
@@ -36,9 +43,14 @@ async function fixture(
     publicMismatch?: boolean;
     overwriteStagingAfterReservation?: boolean;
     commitFailure?: boolean;
+    drive?: boolean;
+    webp?: boolean;
   } = {}
 ) {
-  const image = await validateCatalogImage(PNG, 'image/png');
+  const source = options.webp ? WEBP : PNG;
+  const sourceMime = options.webp ? 'image/webp' : 'image/png';
+  const canonical = await optimization.optimizeCatalogImage(source, sourceMime);
+  const image = canonical.image;
   const candidate = {
     id: PUBLICATION,
     key: KEY,
@@ -50,8 +62,8 @@ async function fixture(
   };
   const trace: string[] = [];
   const store = {
-    stage: PNG.slice(),
-    origin: options.put === 'exists' ? PNG.slice() : (null as Uint8Array | null),
+    stage: source.slice(),
+    origin: options.put === 'exists' ? canonical.bytes.slice() : (null as Uint8Array | null),
     entryState: 'staged',
     publicationState: 'candidate',
     persistedCandidate: null as string | null,
@@ -59,7 +71,7 @@ async function fixture(
   };
   if (options.originMismatch && store.origin) store.origin[store.origin.length - 1] ^= 1;
   const rpc = vi.fn<CatalogImageWorkerDeps['service']['rpc']>(async (name, params) => {
-    trace.push(`rpc:${name}:${String(params.p_state ?? params.p_stage ?? '')}`);
+    trace.push(`rpc:${name}:${String(params.p_state ?? params.p_stage ?? params.p_phase ?? '')}`);
     if (name === 'service_catalog_image_purge_claim_v2') return { data: null, error: null };
     if (name === 'service_catalog_image_claim_v2')
       return {
@@ -71,16 +83,17 @@ async function fixture(
           actorId: ACTOR,
           fence: 7,
           state: store.entryState,
-          source: {},
+          source: options.drive ? { fileId: 'owned-source-file' } : {},
           stagingKey: STAGING,
-          size: PNG.length,
-          mime: 'image/png',
+          size: source.length,
+          mime: sourceMime,
           classification: classifyCatalogImageName('IMG_2031.png')
         },
         error: null
       };
     if (name === 'service_catalog_image_reserve_v2') {
-      expect(params.p_image).toMatchObject({ sha256: image.sha256, size: PNG.length });
+      expect(params.p_image).toMatchObject(image);
+      expect(image.sourceSize).toBe(source.length);
       store.persistedCandidate = candidate.id;
       if (options.overwriteStagingAfterReservation) store.stage.fill(0);
       return { data: candidate, error: null };
@@ -110,10 +123,12 @@ async function fixture(
       expect(store.persistedCandidate).toBe(PUBLICATION);
       expect(store.publicationState).toBe('put_unknown');
       expect(request.headers.get('if-none-match')).toBe('*');
-      expect(new Uint8Array(await request.arrayBuffer())).toEqual(PNG);
+      const uploaded = new Uint8Array(await request.arrayBuffer());
+      expect(uploaded).toEqual(canonical.bytes);
+      expect(request.headers.get('content-type')).toBe(image.mime);
       if (options.put === 'lost') throw new TypeError('Response lost');
       if (options.put === 'exists') return new Response(null, { status: 412 });
-      store.origin = PNG.slice();
+      store.origin = uploaded.slice();
       return new Response(null, { status: 200 });
     }
     if (request.method !== 'GET') throw new Error('Unexpected provider operation');
@@ -123,7 +138,7 @@ async function fixture(
     if (publicRead && options.publicMismatch) response[response.length - 1] ^= 1;
     return new Response(response, {
       headers: {
-        'content-type': 'image/png',
+        'content-type': kind === 'staging' ? sourceMime : image.mime,
         'content-length': String(response.length),
         'x-content-type-options': 'nosniff'
       }
@@ -134,14 +149,15 @@ async function fixture(
     service: { rpc },
     r2,
     enabled: true,
-    readDrive: async () => {
-      throw new Error('Local import must not read Drive');
-    },
+    readDrive: vi.fn(async () => {
+      if (!options.drive) throw new Error('Local import must not read Drive');
+      return source.slice();
+    }),
     enumerateDrive: async () => {
       throw new Error('File claim must not enumerate');
     }
   };
-  return { deps, rpc, fetcher, store, trace };
+  return { deps, rpc, fetcher, store, trace, canonical, source, sourceMime };
 }
 const calls = (f: Awaited<ReturnType<typeof fixture>>, name: string) =>
   f.rpc.mock.calls.filter(([method]) => method === name);
@@ -151,7 +167,7 @@ describe('catalog image worker publication receipts and recovery', () => {
     const f = await fixture({ overwriteStagingAfterReservation: true });
     expect(await runCatalogImageWorker(f.deps)).toMatchObject({ outcome: 'ready' });
     expect(f.store.stage).not.toEqual(PNG);
-    expect(f.store.origin).toEqual(PNG);
+    expect(f.store.origin).toEqual(f.canonical.bytes);
     expect(f.trace.indexOf('fetch:PUT:origin')).toBeGreaterThan(
       f.trace.indexOf('rpc:service_catalog_image_reserve_v2:')
     );
@@ -160,6 +176,70 @@ describe('catalog image worker publication receipts and recovery', () => {
     );
     expect(f.trace.filter(item => item === 'fetch:GET:staging')).toHaveLength(1);
     expect(calls(f, 'service_catalog_image_commit_v2')).toHaveLength(1);
+    expect(f.store.committed).toBe(true);
+  });
+
+  it('reserves separate source and canonical identities only after optimization, before final publication', async () => {
+    const f = await fixture();
+    const source = await validateCatalogImage(f.source, f.sourceMime);
+    expect(f.canonical.image.sha256).not.toBe(source.sha256);
+    expect(f.canonical.bytes.length).toBeLessThan(f.source.length);
+    expect(await runCatalogImageWorker(f.deps)).toMatchObject({ outcome: 'ready' });
+    expect(calls(f, 'service_catalog_image_reserve_v2')[0]?.[1].p_image).toMatchObject({
+      sourceSize: source.size,
+      sourceSha256: source.sha256,
+      optimizationVersion: 'lossless-v1',
+      size: f.canonical.bytes.length,
+      sha256: f.canonical.image.sha256,
+      mime: 'image/png'
+    });
+    const order = [
+      'rpc:service_catalog_image_optimization_v2:started',
+      'rpc:service_catalog_image_optimization_v2:completed',
+      'rpc:service_catalog_image_reserve_v2:',
+      'fetch:PUT:origin',
+      'fetch:GET:origin',
+      'fetch:GET:cdn',
+      'rpc:service_catalog_image_commit_v2:'
+    ].map(stage => f.trace.indexOf(stage));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(f.deps.readDrive).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'normalizes local and Drive sources to the same final identity (WebP=%s)',
+    async webp => {
+      const local = await fixture({ webp });
+      const drive = await fixture({ webp, drive: true });
+      expect(await runCatalogImageWorker(local.deps)).toMatchObject({ outcome: 'ready' });
+      expect(await runCatalogImageWorker(drive.deps)).toMatchObject({ outcome: 'ready' });
+      expect(drive.store.origin).toEqual(local.store.origin);
+      expect(calls(drive, 'service_catalog_image_reserve_v2')[0]?.[1].p_image).toEqual(
+        calls(local, 'service_catalog_image_reserve_v2')[0]?.[1].p_image
+      );
+      expect(drive.deps.readDrive).toHaveBeenCalledOnce();
+      expect(drive.trace).not.toContain('fetch:GET:staging');
+      expect(local.trace.filter(stage => stage === 'fetch:GET:staging')).toHaveLength(1);
+      expect(drive.canonical.image.mime).toBe('image/png');
+    }
+  );
+
+  it('reconciles a positively observed canonical object without normalizing or reserving it again', async () => {
+    const f = await fixture({ put: 'lost', webp: true });
+    const normalize = vi.spyOn(optimization, 'optimizeCatalogImage');
+    expect(await runCatalogImageWorker(f.deps)).toMatchObject({ outcome: 'unknown' });
+    expect(normalize).toHaveBeenCalledOnce();
+    expect(f.store.entryState).toBe('awaiting_reconciliation');
+    // The timed-out write becomes visible later under the already persisted key.
+    f.store.origin = f.canonical.bytes.slice();
+    expect(await runCatalogImageWorker(f.deps)).toMatchObject({ outcome: 'ready' });
+    expect(normalize).toHaveBeenCalledOnce();
+    expect(calls(f, 'service_catalog_image_optimization_v2')).toHaveLength(2);
+    expect(calls(f, 'service_catalog_image_reserve_v2')).toHaveLength(1);
+    expect(calls(f, 'service_catalog_image_candidate_v2')).toHaveLength(1);
+    expect(f.trace.filter(stage => stage === 'fetch:PUT:origin')).toHaveLength(1);
+    expect(f.store.origin).toEqual(f.canonical.bytes);
     expect(f.store.committed).toBe(true);
   });
 

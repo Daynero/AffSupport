@@ -1155,6 +1155,8 @@ function build(): Record<string, CodeLocation> {
             ]
           : [
               'supabase/functions/catalog-images/worker.ts',
+              'supabase/functions/_shared/catalog-image-optimization.ts',
+              'supabase/migrations/20261206157000_catalog_image_storage.sql',
               'supabase/functions/catalog-images/drive-sources.ts',
               'supabase/functions/catalog-images/handler.ts',
               'apps/web/src/team/product-catalog/CatalogImageImport.tsx'

@@ -26,22 +26,22 @@
 
 **Performance Goals**: 50×15 каталогів/день; пул 25 000 image objects у базовому кошторисі. Після readiness — 0 повторних upload незмінних байтів; для dictionary first page/status p95 ≤2 s на 25k записів, UI залишається інтерактивним при 1000 dropped files. Старі каталоги/оновлення не обмежуються штучними 7 днями.
 
-**Constraints**: один файл на worker invocation і **одна byte-heavy операція на Edge isolate**, ≤50 000 000 bytes, ≤16 000 000 pixels; без decode/reencode. Isolate-local nonblocking semaphore отримується до DB claim/читання bytes; busy повертає bounded requeue, без lease/buffer/внутрішньої необмеженої черги. Global/team DB permits — окремі межі, не заміна isolate admission. 256 MB Edge memory / 2 s CPU — зовнішні жорсткі межі; beta acceptance ≤192 MB **aggregate isolate peak** при конкурентних 50MB requests і ≤1.5 s CPU на кожну найгіршу підтримувану invocation. Якщо межа не виконується, readiness blocked: не знижувати мовчки 50 MB і не називати benchmark пройденим.
+**Constraints (owner refinement 2026-10-28)**: один файл на worker invocation і **одна byte-heavy операція на Edge isolate**. JPEG/PNG source ≤50 000 000 bytes; PNG ≤16 MP, JPEG/WebP ≤4 MP; WebP source ≤8 MB. Lossless PNG recompression/WebP→PNG and strict JPEG validation replace the original no-decode rule; canonical JPEG/PNG ≤8 MB and ≥500 px each side. JPEG encoded scans remain unchanged. Isolate-local nonblocking semaphore отримується до DB claim/читання bytes; busy повертає bounded requeue, без lease/buffer/внутрішньої необмеженої черги. Global/team DB permits — окремі межі, не заміна isolate admission. 256 MB Edge memory / 2 s CPU — зовнішні жорсткі межі; beta acceptance ≤192 MB **aggregate isolate peak** при конкурентних 50MB requests і ≤1.5 s CPU на кожну найгіршу підтримувану invocation. Якщо межа не виконується, production readiness blocked: межі підтримки мають бути явними в UI/spec, failed benchmark не називати пройденим. Current offline mixed warm-codec 48 MB metadata/16 MP PNG reference exceeds the 192 MB RSS target (266 MB); T052 remains open. Individual cold/warm references are below150 MB, which does not replace aggregate hosted acceptance.
 
 **Scale/Scope**: одна import job — до 1000 файлів і 5 GB заявлених байтів; папка >ліміту повертає явний continuation, не «усі імпортовані». Manifest pages ≤100 записів /1 MB metadata; dictionary pages ≤100, keyset cursor, total і hasMore. Максимум 2 активні jobs/простір, 2 worker файли/простір і 8 глобально; браузер 2 PUT одночасно. Початкові publication quotas: 100 000 активних pool entries і 50 GB ready bytes/простір, перевищення явне; конфігурація змінюється тільки довіреним оператором. Ready retention не зникає при досягненні quota.
 
 ## Constitution Check
 
-| Принцип | Рішення | Pre / post design |
-| --- | --- | --- |
-| I: typed boundary | Новий discriminated contract у shared; усі HTTP/RPC/provider values parse як unknown; закриті errors | PASS / PASS |
-| II: release contract | Агентні tools/protocol не змінюються; shared build і canonical packaged beta/full release обов'язкові | PASS / PASS |
-| III: least privilege | manage_metadata; Drive download/live ancestry; private staging; service-only transitions; RLS narrow grants; no secrets in web | PASS / PASS |
-| IV: resources | Немає child processes; bounded bytes/CPU/concurrency/retries; abort/lease fencing | PASS / PASS |
-| V: HTTP/errors | Чинні `{error}` conventions; незалежні import operations, не підроблені Drive uploads | PASS / PASS |
-| VI: UI/state | Існуючі UI inventory/tokens; один team Realtime owner, authoritative reread; без recurring client polling | PASS / PASS |
-| 031 diagnostics | Повний signal→projection→CLI, missing evidence і privacy acceptance, не лише emit | PASS / PASS |
-| Media policy | Вузький owner-requested виняток для public catalog images; тексти privacy/terms/NO_SERVER_MEDIA_PLAN оновлюються до enable | PASS as planned gate / implementation evidence pending |
+| Принцип              | Рішення                                                                                                                        | Pre / post design                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| I: typed boundary    | Новий discriminated contract у shared; усі HTTP/RPC/provider values parse як unknown; закриті errors                           | PASS / PASS                                            |
+| II: release contract | Агентні tools/protocol не змінюються; shared build і canonical packaged beta/full release обов'язкові                          | PASS / PASS                                            |
+| III: least privilege | manage_metadata; Drive download/live ancestry; private staging; service-only transitions; RLS narrow grants; no secrets in web | PASS / PASS                                            |
+| IV: resources        | Немає child processes; bounded bytes/CPU/concurrency/retries; abort/lease fencing                                              | PASS / PASS                                            |
+| V: HTTP/errors       | Чинні `{error}` conventions; незалежні import operations, не підроблені Drive uploads                                          | PASS / PASS                                            |
+| VI: UI/state         | Існуючі UI inventory/tokens; один team Realtime owner, authoritative reread; без recurring client polling                      | PASS / PASS                                            |
+| 031 diagnostics      | Повний signal→projection→CLI, missing evidence і privacy acceptance, не лише emit                                              | PASS / PASS                                            |
+| Media policy         | Вузький owner-requested виняток для public catalog images; тексти privacy/terms/NO_SERVER_MEDIA_PLAN оновлюються до enable     | PASS as planned gate / implementation evidence pending |
 
 Немає виправданих порушень constitution. Plan readiness не означає, що product/beta gates вже пройдені.
 
@@ -129,3 +129,7 @@
 ## Complexity Tracking
 
 Не додається порушення constitution. Два buckets потрібні через reusable untrusted PUT; одна public bucket із прямим browser grant не забезпечує незмінності перевірених байтів. Окремі import tables потрібні для сумісності Drive-only operation parsers, retention і командної власності.
+
+## Owner refinement, 2026-10-28
+
+[Storage and lossless publication](storage-optimization.md) defines the current quota, canonical-image and library-management requirements. It replaces same-source-byte publication with verified deterministic canonical bytes for new imports; already-issued URLs remain immutable. Per-owner durable accounting and diagnostics are required, with deletion credit only after known cleanup.

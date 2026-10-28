@@ -22,7 +22,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   IMAGE_LOCAL_SOURCE_REQUIRED: 'catalogImagesErrorLocalSource',
   IMAGE_UNSUPPORTED_FORMAT: 'catalogImagesErrorFormat',
   IMAGE_TOO_LARGE: 'catalogImagesErrorTooLarge',
-  IMAGE_DIMENSIONS_INVALID: 'catalogImagesErrorFormat',
+  IMAGE_DIMENSIONS_INVALID: 'catalogImagesErrorDimensions',
   IMAGE_ANIMATED_UNSUPPORTED: 'catalogImagesErrorFormat',
   IMAGE_ORIENTATION_UNSUPPORTED: 'catalogImagesErrorFormat',
   IMAGE_CONTENT_INVALID: 'catalogImagesErrorFormat',

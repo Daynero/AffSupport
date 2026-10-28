@@ -164,3 +164,18 @@ Initial backlog: 56 tasks; setup 3, foundation 6, US1 13, US2 9, US3 8, US4 7, U
 - The urgent follow-up completed T035 with actual SQL Launch resource-freeze/planners, the reserved canonical child identity, R2-aware preflight and preexisting accepted-v1/no-child compatibility. Its six SQL cases and earlier focused56tests pass; actual source-beta Launch creation and Sheet readback also passed. T056 records the current verdict: local implementation, actual R2 provider proof and the stated authenticated source-beta journeys are verified; remaining hosted/resource/release/importer acceptance is unverified.
 
 - Current status: 53/59tasks checked. The original six mixed acceptance items remain unchecked:T003,T010,T052,T053,T054,T055; T059 is complete after actual same-intent revoke/purge readback. On2026-10-27 the owner activated R2 and confirmed domain/token setup. Actual adapter/CDN30/30 and Chrome9/9 staging CORS/expiry probes passed with all probe objects cleaned; authenticated source-beta results are in validation.md. The earlier missing-profile/occupied036-port blocker is historical: the idle036stack was canonically stopped with volumes/state preserved, and owned045beta reset/seed and actual local gateway/cron passed. Hosted gateway/resource, late-write/provider-race, packaged/platform/old-client, elapsed schedule and actual importer evidence remain separate gates. Two fresh beta-delta reviews each scored98/100. No production release is authorized by these checkboxes.
+
+## Owner refinement — storage and lossless publication (2026-10-28)
+
+The new owner scope is specified in [storage-optimization.md](storage-optimization.md); the earlier beta report remains a historical checkpoint for its exact source.
+
+- [x] T060 Define the per-owner storage allowance, retained/unknown accounting, safe library deletion and genuinely lossless normalization contract.
+- [ ] T061 Implement and independently decode-test bounded JPEG/PNG optimization and WebP-to-PNG canonical publication, source/output identities, deterministic retries and actual Edge decoder boot/resource evidence.
+- [ ] T062 Add forward-only1570 durable per-owner quota/ledger, transfer/delete/purge/reuse semantics, storage/library reads and meaningful SQL/concurrency regressions.
+- [ ] T063 Implement typed API/guards, visible used/pending/retained storage, inactive-photo management, impact confirmation and short optimization notice with UI/API regressions.
+- [ ] T064 Extend privacy-safe optimization/quota diagnostic stages/projections/CLI and coverage, including missing signals and failures.
+- [ ] T065 Verify the complete chain on disposable PostgreSQL, preserve/apply the reviewed beta delta, and verify actual local/Drive import, usage/delete/reupload and existing catalogs in Chrome.
+- [ ] T066 Obtain two independent reviews of the final new scope, fix findings recursively until both reach at least98/100, retaining explicit measured limits.
+- [ ] T067 Run required verification and affected resource/static gates, reconcile evidence/spec/plan/tasks and commit the reviewed source without the local project overlay or credentials.
+
+- [x] T068 Apply the revised 100,000,000-byte / 500-image per-owner cap through forward-only migration1590; update display, prompt, tests and preserved-beta verification. Actual CLI clone, full DB chain (1041 pgTAP / 2 Auth / 34 native), PGlite15, UI/API40, authenticated beta API and Chrome after restart passed; original profile and publication identities preserved.

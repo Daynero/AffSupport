@@ -1,3 +1,4 @@
+import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageAudit } from './catalog-images.js';
 import { getRecoveryRetirementEvidence, inspectRecoveryRetirement } from './recovery-retirement.js';
 import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
@@ -1734,6 +1735,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const launchAudit = await getLaunchAudit(period.start, period.end);
   const catalogSettingsAudit = await getCatalogSettingsAudit(period);
   const catalogImageAudit = await getCatalogImageAudit(period);
+  const textScheduleAudit = await getCatalogTextScheduleDiagnosis(null, period);
   const recoveryAudit = await getRecoveryEvidence(null, period.start, period.end);
   const retirementAudit = await getRetirementAudit(period, schema);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
@@ -1749,7 +1751,8 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       retirementAudit,
       period,
       Boolean(schema.tables.analytics_recovery_retirement),
-      catalogImageAudit
+      catalogImageAudit,
+      textScheduleAudit
     )
   );
 
@@ -1816,7 +1819,8 @@ function auditCapability(
   retirementAudit: RetirementAuditEvidence,
   period: ResolvedPeriod,
   browserRetirementReceiptsSupported = false,
-  catalogImageAudit?: Awaited<ReturnType<typeof getCatalogImageAudit>>
+  catalogImageAudit?: Awaited<ReturnType<typeof getCatalogImageAudit>>,
+  textScheduleAudit?: Awaited<ReturnType<typeof getCatalogTextScheduleDiagnosis>>
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1836,6 +1840,16 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (capability.id === 'team.catalog_text_schedule') {
+    const missing = textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'];
+    const samples = textScheduleAudit?.evidence.length ?? 0;
+    return {
+      ...base,
+      status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
+      missing,
+      samples
+    };
+  }
   if (capability.id === 'team.catalog_images') {
     const missing = catalogImageAudit?.missing ?? ['catalog_image_projection_unavailable'];
     const samples = catalogImageAudit?.samples ?? 0;

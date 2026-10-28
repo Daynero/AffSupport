@@ -78,7 +78,7 @@ export function SpaceNameSection({ teamId, client }: { teamId: string; client: S
             }}
           />
         </FormField>
-        <Button type="submit" variant="secondary" loading={saving} disabled={!changed}>
+        <Button type="submit" color="success" loading={saving} disabled={!changed}>
           {t('teamRenameSave')}
         </Button>
       </form>

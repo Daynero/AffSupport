@@ -246,6 +246,33 @@ export interface ProductCatalogImageSource {
   imageCount: number;
 }
 
+export interface ProductCatalogTextSchedule {
+  enabled: boolean;
+  count: number;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+}
+
+function parseProductCatalogTextSchedule(value: unknown): ProductCatalogTextSchedule {
+  const row = asRecord(value);
+  const nullableDate = (value: unknown) =>
+    value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
+  if (
+    !row ||
+    typeof row.enabled !== 'boolean' ||
+    typeof row.count !== 'number' ||
+    !Number.isInteger(row.count) ||
+    row.count < 1 ||
+    row.count > 1000 ||
+    !nullableDate(row.nextRunAt) ||
+    !nullableDate(row.lastRunAt) ||
+    (row.lastError !== null && typeof row.lastError !== 'string')
+  )
+    throw new TeamApiError('INVALID_RESPONSE', false);
+  return row as unknown as ProductCatalogTextSchedule;
+}
+
 export interface ProductCatalogText {
   id: string;
   title: string;
@@ -2638,6 +2665,29 @@ export const teamApi = {
       })
     );
     throwRpc(error);
+  },
+
+  async getProductCatalogTextSchedule(teamId: string): Promise<ProductCatalogTextSchedule> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_product_catalog_text_schedule', { p_team: teamId })
+    );
+    throwRpc(error);
+    return parseProductCatalogTextSchedule(data);
+  },
+
+  async setProductCatalogTextSchedule(
+    teamId: string,
+    input: { enabled: boolean; count: number }
+  ): Promise<ProductCatalogTextSchedule> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_text_schedule', {
+        p_team: teamId,
+        p_enabled: input.enabled,
+        p_count: input.count
+      })
+    );
+    throwRpc(error);
+    return parseProductCatalogTextSchedule(data);
   },
 
   async listProductCatalogTexts(teamId: string): Promise<ProductCatalogText[]> {

@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Settings2 } from 'lucide-react';
-import { Button, Checkbox, ErrorState, LoadingState } from '../../components/ui/index';
+import { CircleHelp, Settings2 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import './catalog-defaults.css';
+import {
+  Accordion,
+  Button,
+  Checkbox,
+  ErrorState,
+  IconButton,
+  LoadingState,
+  Popover
+} from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
 import { beginCatalogUiFlow, type CatalogUiFlow } from './analytics';
-import { SettingsSection } from '../workspace/SettingsSection';
 
 export interface CatalogDefaultsClient {
   getCatalogUpdaterRestitchDefault?: (teamId: string) => Promise<boolean>;
@@ -25,35 +34,35 @@ const FIELDS = [
     'restitch',
     'getCatalogUpdaterRestitchDefault',
     'setCatalogUpdaterRestitch',
-    'catalogUpdaterRestitch',
+    'catalogDefaultsRestitchAction',
     'catalogUpdaterRestitchEffect'
   ],
   [
     'randomLinkVariation',
     'getCatalogUpdaterRandomLinkVariation',
     'setCatalogUpdaterRandomLinkVariation',
-    'catalogRandomLinkVariation',
+    'catalogDefaultsLinksAction',
     'catalogUpdaterLinkVariationEffect'
   ],
   [
     'refreshImages',
     'getCatalogUpdaterRefreshImages',
     'setCatalogUpdaterRefreshImages',
-    'catalogUpdaterRefreshImages',
+    'catalogDefaultsImagesAction',
     'catalogUpdaterImagesEffect'
   ],
   [
     'refreshTexts',
     'getCatalogUpdaterRefreshTexts',
     'setCatalogUpdaterRefreshTexts',
-    'catalogUpdaterRefreshTexts',
+    'catalogDefaultsTextsAction',
     'catalogUpdaterTextsEffect'
   ],
   [
     'growProducts',
     'getCatalogUpdaterGrow',
     'setCatalogUpdaterGrow',
-    'catalogUpdaterGrow',
+    'catalogDefaultsGrowAction',
     'catalogUpdaterGrowEffect'
   ]
 ] as const;
@@ -63,10 +72,14 @@ type Defaults = Record<(typeof FIELDS)[number][0], boolean>;
 export function CatalogDefaultsEditor({
   teamId,
   client,
-  onDraftChange
+  onDraftChange,
+  open: controlledOpen,
+  onOpenChange
 }: {
   teamId: string;
   client: CatalogDefaultsClient;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
   const { t } = useI18n();
@@ -78,8 +91,17 @@ export function CatalogDefaultsEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [readVisibleAttempt, setReadVisibleAttempt] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const [fieldResults, setFieldResults] = useState<
+    Partial<Record<keyof Defaults, 'saved' | 'failed'>>
+  >({});
   const flow = useRef<CatalogUiFlow | null>(null);
+  useEffect(() => {
+    if (readVisibleAttempt && flow.current?.id === readVisibleAttempt) flow.current.complete();
+  }, [readVisibleAttempt]);
   useEffect(() => {
     if (confirmed) flow.current?.complete();
   }, [confirmed]);
@@ -95,9 +117,13 @@ export function CatalogDefaultsEditor({
     let active = true;
     flow.current?.cancel();
     flow.current = beginCatalogUiFlow('template');
+    const readFlow = flow.current;
+    readFlow.stage('readback_requested');
     setSaved(null);
     setDraft(null);
     setError(null);
+    setFieldResults({});
+    setConfirmed(false);
     void Promise.all(
       FIELDS.map(async ([field, get]) => [field, await client[get]!(teamId)] as const)
     )
@@ -106,11 +132,12 @@ export function CatalogDefaultsEditor({
         const loaded = Object.fromEntries(values) as Defaults;
         setSaved(loaded);
         setDraft(loaded);
+        setReadVisibleAttempt(readFlow.id);
       })
       .catch(cause => {
         if (active) {
           setError(teamErrorMessageFor(cause, t));
-          flow.current?.fail('READ_FAILED');
+          readFlow.fail('READ_FAILED');
         }
       });
     return () => {
@@ -160,10 +187,18 @@ export function CatalogDefaultsEditor({
     );
     const next = { ...saved };
     let failure: unknown;
-    for (const result of results) {
-      if (result.status === 'fulfilled') next[result.value] = draft[result.value];
-      else failure = result.reason;
-    }
+    const statuses: typeof fieldResults = {};
+    results.forEach((result, index) => {
+      const field = changed[index][0];
+      if (result.status === 'fulfilled') {
+        next[result.value] = draft[result.value];
+        statuses[field] = 'saved';
+      } else {
+        failure = result.reason;
+        statuses[field] = 'failed';
+      }
+    });
+    setFieldResults(current => ({ ...current, ...statuses }));
     setSaved(next);
     if (results.some(result => result.status === 'rejected')) {
       setError(teamErrorMessageFor(failure, t));
@@ -176,70 +211,143 @@ export function CatalogDefaultsEditor({
   };
 
   return (
-    <SettingsSection
-      icon={Settings2}
-      titleId="catalog-defaults-title"
-      title={t('catalogUpdaterDefaultsTitle')}
-      description={t('catalogUpdaterDefaultsScope')}
-    >
-      {!draft && !error && <LoadingState count={2} label={t('catalogUpdaterDefaultsTitle')} />}
-      {error && (
-        <ErrorState
-          message={error}
-          onRetry={() => (draft ? void save() : setRevision(value => value + 1))}
-          retryLabel={t('catalogUpdaterRetry')}
-        />
-      )}
-      {draft && (
-        <form
-          className="team-dialog-form"
-          onSubmit={event => {
-            event.preventDefault();
-            void save();
-          }}
-        >
-          {FIELDS.map(([field, , set, label, hint]) => (
-            <div key={field} className="field-group">
-              <Checkbox
-                checked={draft[field]}
-                disabled={!editable || !client[set] || saving}
-                label={t(label)}
-                onChange={checked => {
-                  setDraft({ ...draft, [field]: checked });
-                  setConfirmed(false);
-                  flow.current?.stage('draft_changed');
-                }}
-              />
-              <details>
-                <summary>{t('showDetails')}</summary>
-                <p className="field-hint">{t(hint)}</p>
-              </details>
-            </div>
-          ))}
-          {editable && (
-            <div className="settings-section-actions">
-              <Button type="submit" color="success" loading={saving} disabled={!changed.length}>
-                {t('catalogUpdaterSaveProfile')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!changed.length || saving}
-                onClick={() => {
-                  flow.current?.cancel();
-                  setDraft(saved);
-                  setError(null);
-                  setConfirmed(false);
-                  flow.current?.stage('draft_changed');
-                }}
-              >
-                {t('teamCancel')}
-              </Button>
-            </div>
-          )}
-          {confirmed && <p role="status">{t('catalogUpdaterDefaultsSaved')}</p>}
-        </form>
-      )}
-    </SettingsSection>
+    <section className="catalog-defaults" aria-label={t('catalogDefaultsRulesTitle')}>
+      <Accordion
+        openIds={new Set(open ? ['catalog-default-rules'] : [])}
+        onToggle={() => {
+          setLocalOpen(!open);
+          onOpenChange?.(!open);
+        }}
+        items={[
+          {
+            id: 'catalog-default-rules',
+            title: t('catalogDefaultsRulesTitle'),
+            icon: <Settings2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+            aside: (
+              <span className="catalog-defaults-summary">
+                {saved &&
+                  t('catalogDefaultsEnabled', {
+                    count: FIELDS.filter(([field]) => saved[field]).length
+                  })}
+                {dirty && <span>{t('catalogDefaultsUnsaved')}</span>}
+                {error && (
+                  <span>
+                    {t(draft ? 'catalogDefaultsFieldFailed' : 'catalogDefaultsLoadFailed')}
+                  </span>
+                )}
+              </span>
+            ),
+            content: (
+              <>
+                <p className="field-hint prose">{t('catalogUpdaterDefaultsScope')}</p>
+                {!editable && <p className="field-hint">{t('catalogDefaultsReadOnly')}</p>}
+                {!draft && !error && (
+                  <LoadingState count={2} label={t('catalogUpdaterDefaultsTitle')} />
+                )}
+                {error && (
+                  <ErrorState
+                    message={error}
+                    onRetry={() => (draft ? void save() : setRevision(value => value + 1))}
+                    retryLabel={t('catalogUpdaterRetry')}
+                  />
+                )}
+                {draft && (
+                  <form
+                    className="catalog-defaults-form"
+                    onSubmit={event => {
+                      event.preventDefault();
+                      void save();
+                    }}
+                  >
+                    {FIELDS.map(([field, , set, label, hint]) => (
+                      <div key={field} className="catalog-defaults-row">
+                        <Checkbox
+                          checked={draft[field]}
+                          disabled={!editable || !client[set] || saving}
+                          label={t(label)}
+                          onChange={checked => {
+                            setDraft({ ...draft, [field]: checked });
+                            setConfirmed(false);
+                            setFieldResults(current => ({ ...current, [field]: undefined }));
+                            flow.current?.stage('draft_changed');
+                          }}
+                        />
+                        <DefaultsHelp label={t(label)} hint={t(hint)} />
+                        {!client[set] && (
+                          <span className="field-hint">{t('catalogDefaultsUnavailable')}</span>
+                        )}
+                        {fieldResults[field] && (
+                          <span
+                            className={
+                              fieldResults[field] === 'failed' ? 'team-inline-error' : 'field-hint'
+                            }
+                            role="status"
+                          >
+                            {t(
+                              fieldResults[field] === 'failed'
+                                ? 'catalogDefaultsFieldFailed'
+                                : 'catalogDefaultsFieldSaved'
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {editable && (
+                      <div className="settings-section-actions">
+                        <Button
+                          type="submit"
+                          color="success"
+                          loading={saving}
+                          disabled={!changed.length}
+                        >
+                          {t('catalogUpdaterSaveProfile')}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={!changed.length || saving}
+                          onClick={() => {
+                            flow.current?.cancel();
+                            setDraft(saved);
+                            setError(null);
+                            setFieldResults({});
+                            setConfirmed(false);
+                            flow.current?.stage('draft_changed');
+                          }}
+                        >
+                          {t('teamCancel')}
+                        </Button>
+                      </div>
+                    )}
+                    {confirmed && <p role="status">{t('catalogUpdaterDefaultsSaved')}</p>}
+                  </form>
+                )}
+              </>
+            )
+          }
+        ]}
+      />
+    </section>
+  );
+}
+
+function DefaultsHelp({ label, hint }: { label: string; hint: string }) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null);
+  return (
+    <span ref={anchor}>
+      <IconButton
+        label={label}
+        title={hint}
+        variant="ghost"
+        onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+      >
+        <CircleHelp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+      </IconButton>
+      <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} label={label}>
+        <p className="prose">{hint}</p>
+      </Popover>
+    </span>
   );
 }

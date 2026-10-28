@@ -103,3 +103,23 @@ Fresh independent [beta correctness](reviews/beta-correctness.md) and [beta safe
 The read-only analytics CLI was used to inspect production errors and bounded catalog/Launch evidence. Sampled updates and one sampled current Launch had verified success; this does not establish the cause of every reported creation failure. Raw diagnostic output stayed outside the repository. No production fix or deployment is claimed.
 
 [Archived checkpoints](reviews/implementation-history.md) retain earlier commands, failures, isolation snapshot and browser component smoke scope.
+
+## 2026-10-28 owner quota refinement
+
+The revised owner allowance is 100,000,000 bytes and 500 retained unique publications, or about 0.1 GB per owner. On the owned local beta the controlled 1590 application and restart preserved the existing two users, memberships, Drive credential/connection and four original publication records; authenticated storage readback and Chrome showed 439 B of 100 MB and 3 of 500. Exact SHA-256 `8f01e3821706d3f00c6e3ae42cddaf08a10d510c556c69fc4a789421d852f54e` passed official CLI application on a disposable schema-only clone, 15 PGlite cases, 1041 pgTAP, two real Auth and 34 native cases including concurrent quota and migration/deletion locking. UI/API/prompt40 and worker/wire26 passed.
+
+A real Chrome import proved WebP optimization and R2 publication. JPEG and PNG optimized and reserved, but their final PUTs produced unknown outcomes pending reconciliation. They remain charged and are not counted as successful. Provider investigation remains open. Full current-source verifier, hosted memory, actual Meta importer and packaged promotion remain open.
+
+A follow-up isolated real-R2 comparison reproduced HTTP403 `SignatureDoesNotMatch` for the streamed 201 KB and 513 KB final PUTs, while the same signed bytes with a known-length body returned HTTP200 and exact origin bytes. All fresh probe objects were cleaned. The adapter now sends the verified bounded byte view with the same digest and conditional-create headers. Fixed-adapter real-R2 readback passed for three sizes and publication/worker tests passed21/21 (20-second per-test watchdog). After beta restart, a new actual Chrome import published JPEG and PNG2/2; a separate WebP-to-PNG import had already reached ready. Normal pool removal kept the new JPEG URL and 183.75 KB charged in the library, and the deletion-impact dialog was verified. The original two uncertain PUTs remain charged and await reconciliation; a negative read or the separate probe does not authorize replay. Full current-source verification, actual deletion-credit/reupload, hosted aggregate resources, Meta importer and packaged promotion remain open.
+
+### Weekly text replacement — 2026-10-28
+
+- Names action row now has explicit vertical spacing, focus clearance and wrapping.
+- Weekly schedule defaults to disabled/200, editable1–1000, explicit save and server readback. Enabling schedules the first replacement seven days later; it does not generate immediately.
+- Server lane reuses the manual generator, replaces all saved texts transactionally, fences run/lease/configuration/content revisions, and isolates dispatch failures from existing catalog work. Manual edits take the same lock order.
+- Targeted final suite:30 passed (UI, API, SQL, worker, generator, read-only diagnosis). Independent UX and backend reviews completed; NULL lease and lane-isolation findings fixed before final targeted run.
+- Disposable full-chain database verification:1041 pgTAP assertions plus36 native integration tests passed. First attempt timed out during local Docker unresponsiveness; second full run passed. No user database reset.
+- Incremental local beta applied only20261206160000. Earlier380 migration source hashes unchanged. User/material/image/text/Drive identity hashes matched before and after. Three cleanup fences exist; diagnostic role SELECT allowed and UPDATE denied.
+- No production deployment or packaged promotion is asserted by these checks.
+- Real Chrome beta acceptance: schedule enabled and saved with200; server readback shows next update2026-11-04 17:39 Europe/Kiev. Existing200 texts remained intact. Visual spacing inspected; screenshot /tmp/soty-weekly-schedule.jpg. Canonical beta:down/up completed, browser kept open.
+- Final sequential follow-up: repository lint and test TypeScript check passed; all previously flagged formatting files passed. Final image/schedule/API/diagnostic regression batch:90 passed. Earlier project/scripts typechecks and design/i18n/static gates passed. Full parallel `npm run verify` was interrupted when host system disk headroom fell below600MiB; no complete full-suite green result is claimed. The affected checks above were rerun sequentially.

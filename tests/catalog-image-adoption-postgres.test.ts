@@ -1,6 +1,7 @@
 import { assertDisposablePostgresContainer } from './support/disposable-postgres';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { waitFor } from './support/wait.js';
 
@@ -246,5 +247,156 @@ describe.skipIf(!container)(
         '0'
       );
     });
+
+    it('serializes the final owner storage allowance across two concurrently publishing workspaces', async () => {
+      const account = randomUUID(),
+        firstTeam = randomUUID(),
+        secondTeam = randomUUID();
+      await sql(`begin;
+        insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${account}','authenticated','authenticated','${account}@quota.test.invalid','{}','{}');
+        insert into public.admin_users(user_id) values('${account}');
+        insert into public.teams(id,name,owner_id) values('${firstTeam}','Quota A','${account}'),('${secondTeam}','Quota B','${account}');
+        insert into public.team_members(team_id,user_id,base_role) values('${firstTeam}','${account}','admin'),('${secondTeam}','${account}','admin');
+        insert into private.catalog_image_storage(publication_id,object_key,team_scope,owner_scope,size_bytes)
+          select gen_random_uuid(),gen_random_uuid()::text,'${firstTeam}','${account}',5000000 from generate_series(1,19);
+        commit;`);
+      const insert = (
+        scope: string
+      ) => `insert into private.catalog_image_publications(team_id,sha256,size_bytes,mime,width,height,classification)
+        values('${scope}',repeat('a',64),5000000,'image/png',1,1,'${classification}');`;
+      const first = sql(
+        `begin;${insert(firstTeam)} select pg_sleep(2) /* r2_quota_hold */;commit;`
+      );
+      await held('r2_quota_hold');
+      const second = sql(
+        `begin;${insert(secondTeam).replace(';', ' /* r2_quota_wait */;')}commit;`
+      ).then(
+        () => 'ACCEPTED',
+        error => String(error)
+      );
+      await held('r2_quota_wait', 'Lock');
+      await first;
+      expect(await second).toContain('IMAGE_QUOTA_EXCEEDED');
+      expect(
+        await sql(
+          `select sum(size_bytes)||':'||count(*) from private.catalog_image_storage where owner_scope='${account}' and charged`
+        )
+      ).toBe('100000000:20');
+      expect(
+        await sql(
+          `select count(*) from private.catalog_image_publications where team_id='${secondTeam}'`
+        )
+      ).toBe('0');
+    }, 15000);
+
+    it('locks both account identities in deterministic order during opposite concurrent owner transfers', async () => {
+      const a = randomUUID(),
+        b = randomUUID(),
+        ta = randomUUID(),
+        tb = randomUUID();
+      await sql(`begin;
+        insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${a}','authenticated','authenticated','${a}@owner.test.invalid','{}','{}'),('${b}','authenticated','authenticated','${b}@owner.test.invalid','{}','{}');
+        insert into public.admin_users(user_id) values('${a}'),('${b}');
+        insert into public.teams(id,name,owner_id) values('${ta}','Owner A','${a}'),('${tb}','Owner B','${b}');
+        insert into public.team_members(team_id,user_id,base_role) values('${ta}','${a}','admin'),('${ta}','${b}','admin'),('${tb}','${a}','admin'),('${tb}','${b}','admin');
+        insert into private.catalog_image_storage(publication_id,object_key,team_scope,owner_scope,size_bytes)
+          values(gen_random_uuid(),gen_random_uuid()::text,'${ta}','${a}',3),(gen_random_uuid(),gen_random_uuid()::text,'${tb}','${b}',5);
+        commit;`);
+      const first = sql(
+        `begin;update public.teams set owner_id='${b}' where id='${ta}';select pg_sleep(2) /* r2_owner_hold */;commit;`
+      );
+      await held('r2_owner_hold');
+      const second = sql(
+        `begin;update public.teams set owner_id='${a}' where id='${tb}' /* r2_owner_wait */;commit;`
+      );
+      await held('r2_owner_wait', 'Lock');
+      await first;
+      await second;
+      expect(
+        await sql(
+          `select count(*) from private.catalog_image_storage s join public.teams t on t.id=s.team_scope where t.id in ('${ta}','${tb}') and s.owner_scope=t.owner_id`
+        )
+      ).toBe('2');
+      expect(
+        await sql(
+          `select sum(size_bytes) from private.catalog_image_storage where owner_scope='${a}' and charged`
+        )
+      ).toBe('5');
+      expect(
+        await sql(
+          `select sum(size_bytes) from private.catalog_image_storage where owner_scope='${b}' and charged`
+        )
+      ).toBe('3');
+    }, 15000);
+
+    it('drains actual team deletion before the quota migration takes publication locks and fans out signals', async () => {
+      const account = randomUUID(),
+        deleting = randomUUID(),
+        remaining = randomUUID();
+      const suffix = randomUUID().replaceAll('-', '');
+      const pause = `storage_quota_delete_pause_${suffix}`;
+      const trigger = `catalog_image_01_quota_${suffix}`;
+      const migration = readFileSync(
+        'supabase/migrations/20261206159000_catalog_image_storage_quota.sql',
+        'utf8'
+      );
+      const locks = migration.match(/^lock table [^\n]+;$/gm);
+      const fanout =
+        /insert into public\.team_catalog_image_storage_signals\(team_id\)[\s\S]*?;/.exec(
+          migration
+        )?.[0];
+      expect(locks).toHaveLength(2);
+      expect(fanout).toBeDefined();
+      await sql(`begin;
+        insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${account}','authenticated','authenticated','${account}@ddl.test.invalid','{}','{}');
+        insert into public.admin_users(user_id) values('${account}');
+        insert into public.teams(id,name,owner_id) values('${deleting}','Delete during quota','${account}'),('${remaining}','Quota sibling','${account}');
+        insert into public.team_members(team_id,user_id,base_role) values('${deleting}','${account}','admin'),('${remaining}','${account}','admin');
+        insert into private.catalog_image_publications(team_id,sha256,size_bytes,mime,width,height,classification)
+          values('${deleting}',repeat('b',64),3,'image/png',1,1,'${classification}');
+        create function private.${pause}() returns trigger language plpgsql security definer set search_path='' as $pause$
+          begin if old.id='${deleting}'::uuid then perform pg_sleep(2); end if; return old; end $pause$;
+        create trigger ${trigger} before delete on public.teams for each row execute function private.${pause}();
+        commit;`);
+      // Alphabetical BEFORE-trigger order puts this pause after the real storage
+      // owner trigger (which holds signal rows), before publication cascades.
+      const first = sql(
+        `begin;delete from public.teams where id='${deleting}' /* r2_quota_delete_hold */;commit;`
+      ).then(
+        () => null,
+        error => String(error)
+      );
+      let second: Promise<string | null> | undefined;
+      try {
+        await held('r2_quota_delete_hold');
+        second = sql(
+          `begin;${locks![0]!.replace(';', ' /* r2_quota_ddl_wait */;')}${locks![1]}${fanout!}commit;`
+        ).then(
+          () => null,
+          error => String(error)
+        );
+        await held('r2_quota_ddl_wait', 'Lock');
+        expect(
+          await sql(`select count(*) from pg_locks l join pg_stat_activity a on a.pid=l.pid
+          where not l.granted and l.relation='public.teams'::regclass and a.query like '%r2_quota_ddl_wait%'`)
+        ).toBe('1');
+        expect(await first).toBeNull();
+        expect(await second).toBeNull();
+        expect(
+          await sql(
+            `select count(*) from public.team_catalog_image_storage_signals where team_id='${deleting}'`
+          )
+        ).toBe('0');
+        expect(
+          await sql(
+            `select count(*) from private.catalog_image_storage where team_scope='${deleting}' and charged`
+          )
+        ).toBe('1');
+      } finally {
+        await first;
+        if (second) await second;
+        await sql(`drop trigger ${trigger} on public.teams;drop function private.${pause}();`);
+      }
+    }, 15000);
   }
 );

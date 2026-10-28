@@ -8348,8 +8348,8 @@ body:has(.public-home) {
 /* 022: the catalog settings are free-text fields, drawn the way the space's dialogs draw
    theirs. The description is the one multi-line field in settings, so it grows with what it
    holds rather than keeping the 40px line. */
-.product-catalog-settings .field-group input,
-.product-catalog-settings .field-group textarea {
+.product-catalog-settings .field-group > input,
+.product-catalog-settings .field-group > textarea:not(.ui-textarea) {
   width: 100%;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -19561,6 +19561,39 @@ a.history-subject {
   outline: 1px solid var(--color-border-strong);
   outline-offset: -1px;
 }
+.catalog-video-toggle button[data-video-state] {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.catalog-video-toggle button[data-video-state]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-success-soft);
+  transform: scaleY(var(--catalog-video-fill, 0));
+  transform-origin: bottom;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='preparing'],
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='ready'] {
+  color: var(--color-success-text);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='ready'] {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='blocked'] {
+  color: var(--color-error-text);
+  border-color: var(--color-error-border);
+  background: var(--color-error-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-video-toggle button[data-video-state]::before {
+    transition: none;
+  }
+}
 .catalog-schedule-cell .team-updater-interval-picker > button {
   min-height: var(--control-height-md);
   border-radius: var(--radius-md);
@@ -19922,4 +19955,69 @@ a.history-subject {
 
 .team-members-section .team-member-list .team-inline-actions {
   margin-top: 0;
+}
+
+.catalog-settings-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.catalog-settings-heading {
+  padding: var(--space-3) 0;
+}
+.catalog-settings-heading h2 {
+  font-size: var(--text-title);
+  margin: 0;
+}
+.catalog-settings-editor .ui-accordion-trigger {
+  flex-wrap: wrap;
+}
+.catalog-settings-editor .ui-accordion-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.catalog-settings-editor .ui-accordion-panel {
+  min-width: 0;
+}
+.catalog-settings-editor .product-catalog-price-range,
+.catalog-settings-editor .product-catalog-generate {
+  flex-wrap: wrap;
+}
+
+.catalog-text-actions,
+.catalog-price-actions,
+.catalog-editor-close {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.catalog-editor-close {
+  justify-content: flex-end;
+}
+.catalog-text-generator .product-catalog-generate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.catalog-text-generator .product-catalog-generate > .field-hint {
+  flex-basis: 100%;
+}
+.catalog-settings-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.catalog-settings-heading > .product-catalog-updater-link {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.catalog-settings-heading > p {
+  margin: 0;
+}
+.product-catalog-browser .product-catalog-text strong {
+  font-size: var(--text-body);
+  font-weight: 500;
 }

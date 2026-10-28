@@ -11,7 +11,7 @@ select ok(not has_table_privilege('authenticated','private.catalog_image_publica
 select ok(private.task_cleanup_coverage_verified(),'all image metadata consumers retain the task cleanup reference fence');
 select ok(not has_function_privilege('authenticated','public.service_catalog_image_validate_rows_v2(uuid,jsonb)','EXECUTE'),'browser cannot validate private publication identities');
 select ok(not has_function_privilege('service_role','private.catalog_image_complete_update_v1(uuid,text,integer,uuid,integer,jsonb)','EXECUTE'),'service cannot bypass retained-row completion guard');
-select ok((select count(*)=14 and bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname like 'catalog_image_%' and c.relkind='r'),'all fourteen private image metadata tables enable RLS');
+select ok((select count(*)=15 and bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname like 'catalog_image_%' and c.relkind='r'),'all fifteen private image metadata tables enable RLS');
 select has_column('public','team_launch_generations','catalog_image_contract_version','Launch persists the accepted image contract');
 select has_column('public','team_launch_generations','catalog_image_attempt_id','Launch reserves the future child identity before restitch');
 select ok(not has_column_privilege('authenticated','public.team_launch_generations','catalog_image_contract_version','SELECT'),'browser cannot read the server-owned image contract');

@@ -5,7 +5,9 @@ import {
   isCatalogImageDictionaryPage,
   isCatalogImageImportJob,
   isCatalogImageImportList,
-  isCatalogImageInventory
+  isCatalogImageInventory,
+  isCatalogImageStorage,
+  isCatalogImageLibraryPage
 } from '../../../packages/shared/dist/team/catalog-images.js';
 import { corsHeadersForRequest } from '../_shared/cors.ts';
 import { errorResponse, successResponse, TeamFunctionError } from '../_shared/errors.ts';
@@ -86,7 +88,9 @@ export async function handleCatalogImages(
     let asynchronous = false;
     if (
       request.method === 'GET' &&
-      ['/capabilities', '/imports', '/dictionary', '/inventory'].includes(path)
+      ['/capabilities', '/imports', '/dictionary', '/inventory', '/storage', '/library'].includes(
+        path
+      )
     ) {
       action = path === '/imports' ? 'list' : path.slice(1);
       payload = {
@@ -226,9 +230,13 @@ export async function handleCatalogImages(
         ? isCatalogImageImportList(value)
         : action === 'inventory'
           ? isCatalogImageInventory(value)
-          : ['dictionary', 'remove', 'revoke'].includes(action)
-            ? isCatalogImageDictionaryPage(value)
-            : isCatalogImageImportJob(value);
+          : action === 'storage'
+            ? isCatalogImageStorage(value)
+            : action === 'library'
+              ? isCatalogImageLibraryPage(value)
+              : ['dictionary', 'remove', 'revoke'].includes(action)
+                ? isCatalogImageDictionaryPage(value)
+                : isCatalogImageImportJob(value);
     if (!valid) throw new TeamFunctionError('INVALID_RESPONSE');
     if (['begin', 'seal', 'delivered', 'retry', 'continue', 'revoke'].includes(action))
       await catalogImageRpc(deps.service, 'service_catalog_image_kick_v2', {}).catch(

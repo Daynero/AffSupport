@@ -119,6 +119,41 @@ describe('bounded image validation and immutable publication', () => {
       r2.stagingGrant(KEY, 'image/png', new Date(Date.now() + 60_000).toISOString(), 1)
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
+  it('attaches a known-length large payload after signing without exposing backing-buffer bytes', async () => {
+    const storage = new Uint8Array(512_630).fill(17);
+    const bytes = storage.subarray(1, storage.length - 1);
+    bytes[0] = 23;
+    bytes[bytes.length - 1] = 42;
+    const digest = Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex');
+    const signer = {
+      sign: vi.fn(async (request: Request) => {
+        expect(request.body).toBeNull();
+        expect(request.headers.get('content-length')).toBe(String(bytes.byteLength));
+        expect(request.headers.get('x-amz-content-sha256')).toBe(digest);
+        request.headers.set('authorization', 'signed-metadata');
+        return request;
+      })
+    };
+    const fetcher: typeof fetch = async input => {
+      const request = input as Request;
+      expect(request.headers.get('authorization')).toBe('signed-metadata');
+      expect(request.headers.get('content-length')).toBe(String(bytes.byteLength));
+      expect(request.headers.get('if-none-match')).toBe('*');
+      const reader = request.body!.getReader();
+      // A native BufferSource body retains its known size. The old manually
+      // chunked stream failed real R2 signature checks above the small-body path.
+      const first = await reader.read();
+      expect(first.value?.byteLength).toBe(bytes.byteLength);
+      expect(first.value?.every((value, index) => value === bytes[index])).toBe(true);
+      expect(await reader.read()).toEqual({ done: true, value: undefined });
+      return new Response(null, { status: 200 });
+    };
+    const r2 = new CatalogImageR2(config, signer, fetcher);
+    await expect(
+      r2.putFinal(KEY, bytes, 'image/png', new AbortController().signal, digest)
+    ).resolves.toBe('created');
+    expect(signer.sign).toHaveBeenCalledWith(expect.any(Request), { aws: { allHeaders: true } });
+  });
   it('verifies real public bytes and the response transform, not metadata or ETag alone', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

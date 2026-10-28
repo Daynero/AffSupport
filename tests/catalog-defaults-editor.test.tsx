@@ -51,8 +51,8 @@ describe('catalog defaults explicit save', () => {
   it('keeps edits local until Save and Cancel restores persisted defaults', async () => {
     const api = client();
     const user = userEvent.setup();
-    render(<CatalogDefaultsEditor teamId="space" client={api} />);
-    const checkbox = await screen.findByRole('checkbox', { name: 'Images' });
+    render(<CatalogDefaultsEditor teamId="space" client={api} open />);
+    const checkbox = await screen.findByRole('checkbox', { name: 'Change images' });
     await user.click(checkbox);
     expect(api.setCatalogUpdaterRefreshImages).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -79,15 +79,17 @@ describe('catalog defaults explicit save', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockImplementation(original);
     const user = userEvent.setup();
-    render(<CatalogDefaultsEditor teamId="space" client={api} />);
-    await user.click(await screen.findByRole('checkbox', { name: 'Images' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Names, texts and prices' }));
+    render(<CatalogDefaultsEditor teamId="space" client={api} open />);
+    await user.click(await screen.findByRole('checkbox', { name: 'Change images' }));
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Change names, descriptions and prices' })
+    );
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     await screen.findByRole('alert');
     expect(
       (
         screen.getByRole('checkbox', {
-          name: 'Names, texts and prices'
+          name: 'Change names, descriptions and prices'
         }) as HTMLInputElement
       ).checked
     ).toBe(false);
@@ -104,9 +106,9 @@ describe('catalog defaults explicit save', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue(false);
     const user = userEvent.setup();
-    render(<CatalogDefaultsEditor teamId="space" client={api} />);
+    render(<CatalogDefaultsEditor teamId="space" client={api} open />);
     await user.click(await screen.findByRole('button', { name: 'Retry' }));
-    const checkbox = await screen.findByRole('checkbox', { name: 'Images' });
+    const checkbox = await screen.findByRole('checkbox', { name: 'Change images' });
     expect(checkbox.hasAttribute('disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: 'Save settings' })).toBeNull();
   });

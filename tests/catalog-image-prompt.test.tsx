@@ -37,7 +37,18 @@ it('keeps every prompt filename token compatible with the canonical vocabulary',
   expect(CATALOG_IMAGE_PROMPT).toContain('1:1');
   expect(CATALOG_IMAGE_PROMPT).toContain('1024×1024');
   expect(CATALOG_IMAGE_PROMPT).toContain('брендів');
-  expect(CATALOG_IMAGE_PROMPT_VERSION).toBe('catalog-clothing-v1');
+  expect(CATALOG_IMAGE_PROMPT_VERSION).toBe('catalog-clothing-v2');
+  expect(CATALOG_IMAGE_PROMPT).toContain('Створи 100 окремих товарних зображень');
+  expect(CATALOG_IMAGE_PROMPT).toContain('кожна сторона щонайменше 500 px');
+  expect(CATALOG_IMAGE_PROMPT).toContain('Для JPEG — не більше 4 мегапікселів');
+  expect(CATALOG_IMAGE_PROMPT).toContain('для PNG — не більше 16 мегапікселів');
+  expect(CATALOG_IMAGE_PROMPT).toContain('Кожен готовий файл — до 8 MB');
+  expect(CATALOG_IMAGE_PROMPT).toContain('не завжди може стиснути завеликий файл до 8 MB');
+  expect(CATALOG_IMAGE_PROMPT).toContain('орієнтуйся приблизно на 200 KB');
+  expect(CATALOG_IMAGE_PROMPT).toContain('100 MB (0.1 GB) і 500 збережених картинок');
+  expect(CATALOG_IMAGE_PROMPT).toContain(
+    'не погіршуй якість і не перетворюй PNG на JPEG заради 200 KB'
+  );
 });
 
 it('records only fixed prompt metadata and cannot export clipboard text', () => {
@@ -84,6 +95,8 @@ it('passes the full prompt to the clipboard rather than a link or shortened exce
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
   mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Image actions' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Prepare images' }));
   fireEvent.click(screen.getByRole('button', { name: 'Copy prompt' }));
   await waitFor(() => expect(writeText).toHaveBeenCalledWith(CATALOG_IMAGE_PROMPT));
   expect(await screen.findByText('Prompt copied')).toBeTruthy();
@@ -100,6 +113,8 @@ it('never reports success when clipboard is denied and offers the complete manua
     }
   });
   mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Image actions' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Prepare images' }));
   fireEvent.click(screen.getByRole('button', { name: 'Copy prompt' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Open prompt' }));
   expect(screen.queryByText('Prompt copied')).toBeNull();

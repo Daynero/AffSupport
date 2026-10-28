@@ -149,24 +149,14 @@ export class CatalogImageR2 {
       }),
       { aws: { allHeaders: true } }
     );
-    let offset = 0;
-    const body = new ReadableStream<Uint8Array>(
-      {
-        pull(controller) {
-          if (offset === bytes.byteLength) {
-            controller.close();
-            return;
-          }
-          const end = Math.min(offset + 262_144, bytes.byteLength);
-          controller.enqueue(bytes.subarray(offset, end));
-          offset = end;
-        }
-      },
-      { highWaterMark: 0 }
-    );
-    // Node's fetch requires duplex for streams; Deno accepts the same portable init.
-    const streaming = { body, duplex: 'half', signal };
-    const request = new Request(signed, streaming);
+    // Keep a known-length body: Deno may stream larger ReadableStreams with
+    // chunked framing, changing Content-Length after it has been signed. Attach
+    // the verified bytes only after signing so aws4fetch never clones the body.
+    const body =
+      bytes.buffer instanceof ArrayBuffer
+        ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+        : Uint8Array.from(bytes);
+    const request = new Request(signed, { body, signal });
     let response: Response;
     try {
       response = await this.fetcher(request);

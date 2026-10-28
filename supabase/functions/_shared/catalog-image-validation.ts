@@ -1,4 +1,5 @@
 import { TeamFunctionError } from './errors.ts';
+import { createHash } from 'node:crypto';
 
 export const CATALOG_IMAGE_MAX_BYTES = 50_000_000;
 export const CATALOG_IMAGE_MAX_PIXELS = 16_000_000;
@@ -241,17 +242,18 @@ export async function validateCatalogImage(
   } else throw new TeamFunctionError('IMAGE_UNSUPPORTED_FORMAT', { retryable: false });
   if (declaredMime && declaredMime !== 'application/octet-stream' && declaredMime !== mime)
     invalid();
-  const digestInput =
-    bytes.buffer instanceof ArrayBuffer
-      ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-      : Uint8Array.from(bytes);
-  const sha = new Uint8Array(await crypto.subtle.digest('SHA-256', digestInput));
+  // Async WebCrypto clones the complete source before hashing it. Incremental
+  // native hashing bounds each borrowed/copied update even for metadata-heavy
+  // 50 MB sources, while producing the identical SHA-256 identity.
+  const hash = createHash('sha256');
+  for (let at = 0; at < bytes.length; at += 65_536)
+    hash.update(bytes.subarray(at, Math.min(bytes.length, at + 65_536)));
   return {
     ...geometry,
     mime,
     orientation: 1,
     size: bytes.length,
-    sha256: Array.from(sha, b => b.toString(16).padStart(2, '0')).join('')
+    sha256: hash.digest('hex')
   };
 }
 

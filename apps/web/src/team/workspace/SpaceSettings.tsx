@@ -1,3 +1,4 @@
+import './space-settings.css';
 import { BackgroundRecoverySettings } from '../tariffs/BackgroundRecoverySettings';
 import { useEffect, useState } from 'react';
 import { Link2 } from 'lucide-react';
@@ -153,17 +154,23 @@ export function SpaceSettings({
   const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
   const [catalogDraft, setCatalogDraft] = useState({ dirty: false, saving: false });
+  const [catalogEditor, setCatalogEditor] = useState('');
+  const [contentDraft, setContentDraft] = useState({ dirty: false, saving: false });
   const allowLeave = () =>
     !catalogDraft.saving &&
-    (!catalogDraft.dirty || window.confirm(t('catalogUpdaterDiscardDraft')));
+    !contentDraft.saving &&
+    ((!catalogDraft.dirty && !contentDraft.dirty) ||
+      window.confirm(t('catalogUpdaterDiscardDraft')));
   useEffect(() => {
     onBeforeCloseChange?.(
       () =>
         !catalogDraft.saving &&
-        (!catalogDraft.dirty || window.confirm(t('catalogUpdaterDiscardDraft')))
+        !contentDraft.saving &&
+        ((!catalogDraft.dirty && !contentDraft.dirty) ||
+          window.confirm(t('catalogUpdaterDiscardDraft')))
     );
     return () => onBeforeCloseChange?.(() => true);
-  }, [catalogDraft, onBeforeCloseChange, t]);
+  }, [catalogDraft, contentDraft, onBeforeCloseChange, t]);
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
@@ -275,12 +282,22 @@ export function SpaceSettings({
 
         {tab === 'product-catalog' && (
           <>
+            <ProductCatalogSettingsSection
+              key={teamId}
+              teamId={teamId}
+              client={client}
+              onBeforeLeave={allowLeave}
+              openEditor={catalogEditor}
+              onOpenEditorChange={setCatalogEditor}
+              onDraftChange={setContentDraft}
+            />
             <CatalogDefaultsEditor
               teamId={teamId}
               client={client}
+              open={catalogEditor === 'rules'}
+              onOpenChange={open => setCatalogEditor(open ? 'rules' : '')}
               onDraftChange={setCatalogDraft}
             />
-            <ProductCatalogSettingsSection teamId={teamId} client={client} />
           </>
         )}
       </div>

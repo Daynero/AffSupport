@@ -624,3 +624,13 @@ ratio й object requests лишаються `unsupported_by_producer`, доки 
 просторів із bounded evidence та не реконструюється як історичний `--as-of`.
 Для сценарного бюджету використовуйте калькулятор у
 `specs/045-catalog-r2-images/cost-model.py`; це оцінка, не фактичний рахунок.
+
+### Weekly catalog text replacement
+
+`npm run analytics -- catalog-texts <team-id|run-id> --period 30d --json`
+reports the saved schedule and its content-free run journal, including failure code,
+lease recovery and atomic commit. `--as-of` reports historical journal evidence only;
+current settings are deliberately omitted. `--limit` is bounded at 500 and truncation
+is explicit. A committed replacement changes the saved text list; it does not prove
+that existing catalogs or an open browser received new content. Missing source
+projections, inactive capture and pre-installation history remain explicit.

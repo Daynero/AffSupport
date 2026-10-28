@@ -122,6 +122,23 @@ beta still claims to be running, which makes the product look broken rather than
 - Supabase Studio: excluded from `beta:up`; the source beta does not need this dashboard.
 - Captured outbound mail: <http://127.0.0.1:54324>
 
+## Catalog image storage refinement (045)
+
+Migrations1570 and1580 extend the source-beta image journey with a durable per-owner allowance,
+lossless canonical images and diagnostic projections. A previously connected beta must receive the
+reviewed delta through the incremental workflow above after the complete disposable DB gate;
+`beta:up` alone cannot install it. Preserve users, pairing, Drive credentials/connections, catalog
+materials and existing publication identities. Source files and final JPEG/PNG have separate
+identities; verify actual anonymous canonical bytes, usage, retained removal, confirmed purge credit
+and subsequent upload. Do not reset a connected acceptance profile.
+
+The vendored JPEG validator requires `ArrayBuffer.transfer`; unsupported runtimes fail closed.
+Deno's native compression output is released only after consumption; Node zlib output may reuse
+complete slabs and is left with its producer. Native Edge JPEG/PNG/WebP boot and actual file imports
+must be proven, in addition to unit tests. Source-beta results do not replace the hosted aggregate
+192 MB resource gate, actual external Meta importer or exact-SHA packaged promotion. Keep failed
+resource measurements explicit rather than treating ordinary fixture success as maximum-size proof.
+
 ## Flows exercisable in beta
 
 | Flow                                                                                                              | Status in beta                                                                                                                             |

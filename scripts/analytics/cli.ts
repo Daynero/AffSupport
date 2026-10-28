@@ -1,3 +1,4 @@
+import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
 /**
  * Soty analytics CLI — argument parsing and command dispatch, kept apart from
@@ -122,6 +123,7 @@ Commands:
   retention           Return activity after registration
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
+  catalog-texts <team-id|run-id>     Weekly text replacement settings, runs and failures
   catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
   catalog team <team-id>  Recent catalog attempts and video preparation in one space
@@ -443,6 +445,11 @@ export async function executeCommand(
         JSON.stringify({ ...data, report_path: written[0] ?? null }, null, 2),
         written
       );
+    }
+    case 'catalog-texts': {
+      const id = requireArg(args, 0, 'catalog-texts <team-id|run-id>');
+      const data = await getCatalogTextScheduleDiagnosis(id, period, args.limit);
+      return done(data, JSON.stringify(data, null, 2));
     }
     case 'catalog-images': {
       const id = requireArg(args, 0, 'catalog-images <team-id|import-id|entry-id>');

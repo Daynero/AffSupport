@@ -18,6 +18,7 @@ import {
   validateCatalogImage
 } from '../_shared/catalog-image-validation.ts';
 import type { CatalogImageR2 } from '../_shared/r2-catalog-images.ts';
+import { optimizeCatalogImage } from '../_shared/catalog-image-optimization.ts';
 
 const PERMIT = createCatalogImagePermit();
 
@@ -193,10 +194,15 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
         }
         bytes = staged;
       }
-      const image = await validateCatalogImage(
+      await rpc('service_catalog_image_optimization_v2', { ...params, p_phase: 'started' });
+      const optimized = await optimizeCatalogImage(
         bytes,
-        typeof claim.mime === 'string' ? claim.mime : undefined
+        typeof claim.mime === 'string' ? claim.mime : undefined,
+        abort.signal
       );
+      bytes = optimized.bytes;
+      const image = optimized.image;
+      await rpc('service_catalog_image_optimization_v2', { ...params, p_phase: 'completed' });
       await progress('deduplicating');
       const reserved = catalogImageObject(
         await rpc('service_catalog_image_reserve_v2', { ...params, p_image: image })

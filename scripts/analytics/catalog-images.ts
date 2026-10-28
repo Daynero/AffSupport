@@ -15,6 +15,8 @@ const CODES: readonly string[] = [
 export const CATALOG_IMAGE_EXPECTED_STAGES = [
   'staged',
   'validating',
+  'optimizing',
+  'optimized',
   'deduplicating',
   'publishing',
   'verifying_origin',
@@ -23,7 +25,7 @@ export const CATALOG_IMAGE_EXPECTED_STAGES = [
   'ready'
 ];
 const STAGE =
-  /^(?:import_(?:collecting|enumerating|sealed|running|completed|partial|failed|cancelled|expired|awaiting_reconciliation)|waiting_source|staged|validating|deduplicating|publishing|verifying_origin|verifying_public|committing|ready|reused|failed|cancelled|expired|awaiting_reconciliation|publication_(?:candidate|put_unknown|origin_verified|public_verified|ready|purging|revoking|revoked|purge_unknown)|use_(?:reserved|committed|superseded|unknown)|pool_(?:added|removed)|purge_(?:pending|deleting|cache_purging|complete|unknown)|unknown)$/u;
+  /^(?:import_(?:collecting|enumerating|sealed|running|completed|partial|failed|cancelled|expired|awaiting_reconciliation)|waiting_source|staged|validating|optimizing|optimized|deduplicating|publishing|verifying_origin|verifying_public|committing|ready|reused|failed|cancelled|expired|awaiting_reconciliation|publication_(?:candidate|put_unknown|origin_verified|public_verified|ready|purging|revoking|revoked|purge_unknown)|use_(?:reserved|committed|superseded|unknown)|pool_(?:added|removed)|purge_(?:pending|deleting|cache_purging|complete|unknown)|unknown)$/u;
 const nullableUuid = (v: unknown): v is string | null =>
   v === null || (typeof v === 'string' && UUID.test(v));
 const timestamp = (v: unknown): v is string =>
@@ -69,6 +71,17 @@ export interface CatalogImageDiagnosis {
     unclassified: number | null;
     note: string;
   };
+  storage_budget?: {
+    status:
+      'current_observation' | 'historical_unknown' | 'not_observed' | 'projection_unavailable';
+    accounts: number | null;
+    used_bytes: number | null;
+    limit_bytes: number | null;
+    reserved_bytes: number | null;
+    pending_deletion_bytes: number | null;
+    retained_bytes: number | null;
+    note: string;
+  };
   costs: { status: 'unsupported_by_producer'; note: string };
   blind_spots: string[];
 }
@@ -94,6 +107,11 @@ export async function getCatalogImageDiagnosis(
   if (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 1))
     throw new Error('Expected a positive integer row limit.');
   const schema = await getSchema();
+  const expectedStages = CATALOG_IMAGE_EXPECTED_STAGES.filter(
+    stage =>
+      schema.tables.analytics_catalog_image_optimization ||
+      !['optimizing', 'optimized'].includes(stage)
+  );
   const base: CatalogImageDiagnosis = {
     supported: false,
     evidence: [],
@@ -104,7 +122,7 @@ export async function getCatalogImageDiagnosis(
       schema_version: null,
       installed_at: null,
       capture_enabled: null,
-      missing_stages: [...CATALOG_IMAGE_EXPECTED_STAGES]
+      missing_stages: [...expectedStages]
     },
     delivery_lag_ms: { p50: null, p95: null, samples: 0 },
     fresh_through: null,
@@ -122,6 +140,20 @@ export async function getCatalogImageDiagnosis(
     costs: {
       status: 'unsupported_by_producer',
       note: 'Object-request billing, cache hits and provider cost are not measured by the import journal. Use the versioned offline cost model as an estimate only.'
+    },
+    storage_budget: {
+      status: period.as_of
+        ? 'historical_unknown'
+        : schema.tables.analytics_catalog_image_storage
+          ? 'not_observed'
+          : 'projection_unavailable',
+      accounts: null,
+      used_bytes: null,
+      limit_bytes: null,
+      reserved_bytes: null,
+      pending_deletion_bytes: null,
+      retained_bytes: null,
+      note: 'Current physical quota for owners represented by this bounded subject only. Includes retained, reserved and uncertain objects; pending deletion is not free space. Accounts are counted once across workspaces. Historical usage and provider billing are not reconstructed.'
     },
     blind_spots: [...BLIND_SPOTS]
   };
@@ -199,7 +231,7 @@ export async function getCatalogImageDiagnosis(
     typeof meta.capture_enabled === 'boolean'
       ? meta
       : null;
-  const missing = CATALOG_IMAGE_EXPECTED_STAGES.filter(stage => !stages.has(stage));
+  const missing = expectedStages.filter(stage => !stages.has(stage));
   const findings = evidence
     .filter(
       row => row.code !== null || row.stage === 'awaiting_reconciliation' || row.stage === 'unknown'
@@ -223,6 +255,37 @@ export async function getCatalogImageDiagnosis(
     50
   );
   let observedStorage = base.observed_storage;
+  let storageBudget = base.storage_budget;
+  const budgetTeams = [...new Set([...teams, ...(id ? [id] : [])])];
+  if (!period.as_of && budgetTeams.length && schema.tables.analytics_catalog_image_storage) {
+    const rows = await query<Record<string, unknown>>(
+      `select count(*)::int accounts,coalesce(sum(used_bytes),0)::bigint used_bytes,
+       coalesce(sum(limit_bytes),0)::bigint limit_bytes,coalesce(sum(reserved_bytes),0)::bigint reserved_bytes,
+       coalesce(sum(pending_deletion_bytes),0)::bigint pending_deletion_bytes,
+       coalesce(sum(retained_bytes),0)::bigint retained_bytes
+       from (select distinct on(account_id) account_id,used_bytes,limit_bytes,reserved_bytes,pending_deletion_bytes,retained_bytes
+        from public.analytics_catalog_image_storage where team_id=any($1::uuid[]) order by account_id) accounts`,
+      [budgetTeams]
+    );
+    const row = rows[0];
+    if (
+      storageBudget &&
+      row &&
+      Number(row.accounts) > 0 &&
+      Object.values(row).every(value => Number.isSafeInteger(Number(value)) && Number(value) >= 0)
+    ) {
+      storageBudget = {
+        ...storageBudget,
+        status: 'current_observation',
+        accounts: Number(row.accounts),
+        used_bytes: Number(row.used_bytes),
+        limit_bytes: Number(row.limit_bytes),
+        reserved_bytes: Number(row.reserved_bytes),
+        pending_deletion_bytes: Number(row.pending_deletion_bytes),
+        retained_bytes: Number(row.retained_bytes)
+      };
+    }
+  }
   if (!period.as_of && teams.length) {
     const totals = await query<{
       publications: number;
@@ -272,6 +335,7 @@ export async function getCatalogImageDiagnosis(
     truncated: rows.length > limit,
     omitted_malformed: page.length - evidence.length,
     observed_storage: observedStorage,
+    storage_budget: storageBudget,
     blind_spots: [
       ...base.blind_spots,
       ...(missing.length
@@ -319,7 +383,12 @@ export async function getCatalogImageAudit(period: ResolvedPeriod) {
     missing.push('catalog_image_before_installation_unobserved');
   if (!observed.has('ready') && !observed.has('reused'))
     missing.push('catalog_image_ready_unobserved');
-  for (const stage of CATALOG_IMAGE_EXPECTED_STAGES.filter(stage => stage !== 'ready'))
+  for (const stage of CATALOG_IMAGE_EXPECTED_STAGES.filter(
+    stage =>
+      stage !== 'ready' &&
+      (schema.tables.analytics_catalog_image_optimization ||
+        !['optimizing', 'optimized'].includes(stage))
+  ))
     if (!observed.has(stage)) missing.push(`catalog_image_${stage}_unobserved`);
   if (observed.has('unknown')) missing.push('catalog_image_unknown_stage');
   if (rows.some(row => Number(row.unknown_codes ?? 0) > 0))
@@ -331,9 +400,10 @@ export async function getCatalogImageAudit(period: ResolvedPeriod) {
          and received_at <= $2::timestamptz
        group by entry_id
        having array['validating','deduplicating','publishing','verifying_origin','verifying_public','committing']::text[] <@ array_agg(distinct stage)
+         and (not $3::boolean or array['optimizing','optimized']::text[] <@ array_agg(distinct stage))
          and bool_or(stage in ('ready','reused'))
      ) chains`,
-    [period.start, period.end]
+    [period.start, period.end, schema.tables.analytics_catalog_image_optimization === true]
   );
   if (!complete[0]?.chains) missing.push('catalog_image_complete_correlated_chain_unobserved');
   return {
