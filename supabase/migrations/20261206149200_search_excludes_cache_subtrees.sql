@@ -1,6 +1,14 @@
 -- Hide Soty cache folders and all descendants before ranking, counts, facets and paging.
 -- Retain indexed records for direct folder access and dependent generated outputs.
 
+-- Register pg_trgm's USERSET parameters in this migration session before
+-- CREATE FUNCTION validates its SET clause under the non-superuser CLI role.
+do $$ begin
+  if pg_catalog.to_regprocedure('extensions.word_similarity(text,text)') is not null then
+    perform extensions.word_similarity('', '');
+  end if;
+end $$;
+
 create or replace function public.search_materials(
   p_team uuid,
   p_query text default null,
