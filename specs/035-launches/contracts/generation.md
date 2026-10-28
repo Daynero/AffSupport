@@ -56,3 +56,9 @@ Typed lifecycle flow → generation → attempt → child operation; stage/termi
 Worker відновлює тільки вже прийнятий intent: reconcile неопевненого provider output, commit доведеного результату або owned cleanup. Не починати нову generation й не повторювати доведено failed stage без explicit resume. Settled canceled intent не відновлюється. waiting_dependency без доступного агента не стартує server FFmpeg і не створює busy-loop. Закрита вкладка й відсутність scheduled catalogs не заважають завершити допустиму серверну роботу; reconnect лише читає її authoritative результат.
 
 Обов’язковий integration case: у БД лише один due Launch recovery/cleanup, жодного updater item/retired copy, вкладки закриті → SQL dispatch викликає endpoint, той claim-ить саме Launch, просуває/settle-ить стан; повторний tick не дублює output. Відсутність worker credentials дає діагностовану недоступність, а не удаваний успіх.
+
+## Регресії вводу бюджету та підготовки генерації
+
+- Поля меж бюджету зберігають DOM-вузол і фокус під час очищення та введення проміжних значень (140 → максимум «2», «25», «250»). Порівняння меж показує помилку після виходу з поля; серверна валідація лишається обов’язковою.
+- Натискання «Перегенерувати» під час upload, source refresh або dictionary save завершує наявний typed generate intent як blocked/WRONG_STATE та показує відповідний стан підготовки. Після завершення підготовки користувач може повторити дію; до прийняття не створюється generation. Неочікуваний preflight exception показує помилку й завершує intent без мовчазного виходу.
+- Проміжні цифри та фокус не збираються в аналітику. Без прийнятого generation немає server run для inspect; fallback — корельований client generate intent/blocked. Відсутність доставленої події не доводить відсутності кліку. Регресійні сценарії: launch-budget-editing і launch-workspace-ui.

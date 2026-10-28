@@ -670,6 +670,11 @@ export function LaunchSession({
     setPreflighting(true);
     try {
       await generateRequested(preflight.signal);
+    } catch (failure) {
+      if (inputAuthority.current.mounted) {
+        generation.blocked(failure instanceof TeamApiError ? failure.code : 'UNKNOWN');
+        reportError(failure);
+      }
     } finally {
       if (preflightAbort.current === preflight) preflightAbort.current = null;
       generationClick.current = false;
@@ -686,9 +691,21 @@ export function LaunchSession({
       }
       return;
     }
-    if (uploading || sourcesPending || dictionaryRequests.current > 0) return;
     setSubmitted(true);
     const key = generation.intent(draft.config.method ?? 'other', detail?.id);
+    if (uploading || sourcesPending || dictionaryRequests.current > 0) {
+      generation.blocked('WRONG_STATE');
+      setError(
+        t(
+          uploading
+            ? 'launchesPreparingCreative'
+            : sourcesPending
+              ? 'launchesCheckingSources'
+              : 'launchesSavingSelection'
+        )
+      );
+      return;
+    }
     if (sourceChanged) {
       generation.blocked('SOURCE_CHANGED');
       setError(t('launchesSourceChanged'));

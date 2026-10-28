@@ -8,6 +8,7 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { quickRangeValue } from '../apps/web/src/team/tasks/useTasks';
 import { launchConfig, launchSources } from './fixtures/launches';
 import { launchPreview, type LaunchDetail } from '../packages/shared/src/team/launches';
+import { launchAction } from '../apps/web/src/team/launches/analytics';
 const TEAM = '79999999-0000-4000-8000-000000000001';
 const LAUNCH = '79999999-0000-4000-8000-000000000002';
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
@@ -1670,4 +1671,71 @@ it('shows current saved notes on an existing result without requiring regenerati
   fireEvent.click(copy);
   await waitFor(() => expect(write).toHaveBeenCalledWith(note.text));
   expect(seams.generate).not.toHaveBeenCalled();
+});
+
+it('explains a regenerate click while the copied launch sources are still being checked', async () => {
+  seams.edit = true;
+  seams.realGeneration = true;
+  const config = launchConfig();
+  const preview = launchPreview(config, launchSources);
+  if (!preview.ok) throw new Error('fixture');
+  seams.detail.mockResolvedValue({
+    ...detail(config.originalUrl),
+    draft: { ...config, maxBudget: config.maxBudget + 100 },
+    activeRevision: {
+      id: 'copied-revision',
+      revisionNo: 1,
+      kind: 'generated',
+      config,
+      sources: launchSources,
+      baselineRevisionId: null,
+      baseline: preview.value,
+      overrides: {},
+      catalog: null,
+      createdAt: '2026-10-28T00:00:00Z'
+    }
+  });
+  const sources = {
+    ...launchSources,
+    schemaVersion: 1 as const,
+    agentRowId: config.agentRowId,
+    offerId: config.offerId,
+    buyerId: config.buyerId,
+    materialId: config.materialId,
+    catalogSettingsVersion: null
+  };
+  seams.accounts = [
+    {
+      id: sources.accountId,
+      name: sources.social,
+      agents: [{ id: config.agentRowId, agentId: sources.agentId }]
+    }
+  ];
+  seams.offers = [{ id: config.offerId, value: sources.offer }];
+  seams.buyers = [{ id: config.buyerId, value: sources.buyer }];
+  let finishSources!: (value: typeof sources) => void;
+  const pendingSources = new Promise<typeof sources>(resolve => {
+    finishSources = resolve;
+  });
+  seams.selection.mockReturnValue(pendingSources);
+  render(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
+  await waitFor(() => expect(seams.selection).toHaveBeenCalled());
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate update' }));
+  expect(await screen.findByRole('alert')).toHaveProperty(
+    'textContent',
+    'Checking launch sources…'
+  );
+  expect(launchAction).toHaveBeenCalledWith(
+    { flowId: expect.any(String) },
+    'generate',
+    'blocked',
+    'WRONG_STATE'
+  );
+  expect(seams.generate).not.toHaveBeenCalled();
+  await act(async () => {
+    finishSources(sources);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Generate update' }));
+  expect(await screen.findByRole('region', { name: 'Update launch?' })).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
 });

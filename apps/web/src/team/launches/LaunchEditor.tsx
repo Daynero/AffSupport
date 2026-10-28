@@ -75,6 +75,7 @@ export function LaunchEditor({
   const prefix = useId();
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
+  const [editingBudget, setEditingBudget] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -140,6 +141,7 @@ export function LaunchEditor({
   );
   const budgetKeys = ['minBudget', 'maxBudget', 'budgets'];
   const budgetError =
+    !editingBudget &&
     budgetKeys.some(key => Boolean(errors[key])) &&
     (submitted || budgetKeys.some(key => touched.has(key)));
   const field = (
@@ -213,6 +215,8 @@ export function LaunchEditor({
         aria-describedby={
           budgetKeys.includes(key) && budgetError ? `${prefix}-budget-error` : undefined
         }
+        onFocus={budgetKeys.includes(key) ? () => setEditingBudget(true) : undefined}
+        onBlur={budgetKeys.includes(key) ? () => setEditingBudget(false) : undefined}
         min={1}
         max={
           key === 'campaignCount'
@@ -274,7 +278,7 @@ export function LaunchEditor({
     return field(
       key,
       label,
-      trailing ? (
+      key === 'maxBudget' ? (
         <div className="launch-editor-auto-budget">
           {input}
           {trailing}
