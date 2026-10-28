@@ -97,6 +97,12 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
           operation_state: latest.video_operation_state ?? null,
           operation_stage: latest.video_operation_stage ?? null,
           failure_code: latest.video_preparation_error ?? null,
+          code_locations: latest.video_preparation_error
+            ? lookupCodeLocations(`catalog:video:${latest.video_preparation_error}`)
+            : null,
+          retry_blocked_by_open_operation:
+            latest.video_preparation_state === 'queued' &&
+            ['pending', 'running'].includes(latest.video_operation_state ?? ''),
           retry_at: latest.video_preparation_retry_at ?? null,
           lease_until: latest.video_preparation_lease_until ?? null
         }

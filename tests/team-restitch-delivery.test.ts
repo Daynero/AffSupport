@@ -171,6 +171,20 @@ afterEach(async () => {
 });
 
 describe('a re-stitched delivery', () => {
+  it.each([
+    ['BODY_HEAD_FAILED', 'BODY_HEAD_FAILED'],
+    ['/private/media/source.mp4 provider detail', 'PROCESS_FAILED']
+  ])('reports a bounded media failure from %s as %s', async (failure, code) => {
+    const record = vi.spyOn(diagnostics, 'record');
+    const input = await source();
+    staging.mockResolvedValueOnce({ ok: false, error: failure } as never);
+    await expect(run(input, { defaults, prepared: null })).rejects.toThrow(code);
+    expect(record).toHaveBeenCalledWith('stitcher', 'pipeline_failed', {
+      errorCode: code,
+      runId: 'op-1'
+    });
+  });
+
   it('never looks at a file somebody has already looked at', async () => {
     const input = await source();
     const result = await run(input, {

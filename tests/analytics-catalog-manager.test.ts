@@ -11,6 +11,24 @@ const ATTEMPT = '23000000-0000-4000-8000-000000000002';
 afterEach(() => setQueryExecutor(null));
 
 describe('catalog update diagnosis', () => {
+  it('exposes a queued video blocked by its still-running operation and maps its exact cause', async () => {
+    setQueryExecutor(async () => [
+      {
+        catalog_material_id: CATALOG,
+        team_id: CATALOG,
+        video_preparation_state: 'queued',
+        video_operation_state: 'running',
+        video_operation_stage: 'awaiting_agent',
+        video_preparation_error: 'BODY_HEAD_FAILED'
+      }
+    ]);
+    const diagnosis = await getCatalogUpdateDiagnosis(CATALOG);
+    expect(diagnosis.video_preparation).toMatchObject({
+      failure_code: 'BODY_HEAD_FAILED',
+      retry_blocked_by_open_operation: true,
+      code_locations: { matched: 'catalog:video:BODY_HEAD_FAILED' }
+    });
+  });
   it('discovers a bounded set of catalogs in exactly one team without names or content', async () => {
     const calls: unknown[][] = [];
     setQueryExecutor(async (sql, params) => {

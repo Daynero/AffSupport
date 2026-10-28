@@ -19326,10 +19326,10 @@ a.history-subject {
 }
 .catalog-compact-table tbody tr:hover,
 .catalog-compact-table tbody tr:focus-within {
-  background: var(--color-surface-subtle);
+  background-color: var(--color-surface-subtle);
 }
 .catalog-compact-table tbody tr.is-selected {
-  background: var(--color-accent-softer);
+  background-color: var(--color-accent-softer);
 }
 .catalog-compact-table .catalog-selection-check {
   position: relative;

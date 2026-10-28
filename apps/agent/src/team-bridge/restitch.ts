@@ -33,7 +33,8 @@ import {
   type StitchScreens,
   type StitchUnsupportedReason,
   type TeamRestitchDefaults,
-  RESTITCH_DETECTOR_VERSION
+  RESTITCH_DETECTOR_VERSION,
+  STITCH_ERROR_CODES
 } from '@video-compressor/shared';
 import { ScreenCacheError, type ResolvedScreen, type TeamScreenCache } from './screen-cache.js';
 import { runStitchPipeline, type StitchPipeline } from '../stitcher/pipeline.js';
@@ -372,9 +373,15 @@ export function createRestitchDelegate(
       bodies
     });
     if (!produced.ok) {
-      throw new Error(
-        produced.error === 'STITCH_CANCELLED' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'
-      );
+      const code =
+        produced.error === 'STITCH_CANCELLED'
+          ? 'PROCESS_CANCELED'
+          : (STITCH_ERROR_CODES.find(code => code === produced.error) ?? 'PROCESS_FAILED');
+      diagnostics.record('stitcher', 'pipeline_failed', {
+        runId: input.operationId,
+        errorCode: code
+      });
+      throw new Error(code);
     }
     const output = await stat(produced.stagedPath);
     if (!output.isFile() || output.size < 1) throw new Error('INVALID_RESPONSE');

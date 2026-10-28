@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { setQueryExecutor } from '../scripts/analytics/db';
+import { getCatalogUpdateDiagnosis } from '../scripts/analytics/catalog-updates';
 
 /**
  * Feature 023: re-stitched copies behind the catalogs, in the database — the member whose open tab
@@ -283,6 +285,85 @@ describe('who prepares', () => {
 });
 
 describe('spares', () => {
+  it.each(['media_failure', 'uploading', 'provider_result', 'unknown'] as const)(
+    'settles only a proven pre-upload browser failure (%s)',
+    async scenario => {
+      const uploading = scenario === 'uploading';
+      const error = scenario === 'unknown' ? 'PROCESS_FAILED' : 'BODY_HEAD_FAILED';
+      const { sheet } = await catalog('failed-browser-process');
+      await save([sheet], true);
+      await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1, $2)', [
+        teamId,
+        [sheet]
+      ]);
+      const lease = token();
+      expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+      const op = (
+        await harness.root<{ id: string }>(
+          `insert into public.team_operations(team_id,actor_id,kind,state,stage,idempotency_key,request_nonce)
+         values($1,$2,'process','running','awaiting_agent',gen_random_uuid()::text,gen_random_uuid()::text) returning id`,
+          [teamId, OWNER]
+        )
+      )[0]!.id;
+      expect(await bind(sheet, lease, op)).toBe(true);
+      if (scenario === 'provider_result')
+        await harness.root(
+          `insert into private.team_operation_intents(operation_id,team_id,provider_result_id) values($1,$2,'captured-result')`,
+          [op, teamId]
+        );
+      expect(
+        (
+          await harness.root<{ ok: boolean }>(
+            `select public.service_complete_restitch_job($1,$2,$3,'failed','BODY_HEAD_FAILED') as ok`,
+            [OWNER, sheet, token()]
+          )
+        )[0]?.ok
+      ).toBe(false);
+      if (uploading)
+        await harness.root(
+          `insert into private.process_upload_ownership(
+        operation_id,team_id,actor_id,connection_id,credential_id,root_id,parent_id,file_id,source_file_id,
+        expected_name,mime_type,size_bytes,checksum,handoff_expires_at)
+       select $1,$2,$3,id,credential_id,'root','parent',gen_random_uuid()::text,'source',
+         'copy.mp4','video/mp4',10,repeat('a',32),clock_timestamp()+interval '1 hour'
+       from public.team_drive_connections where id=$4`,
+          [op, teamId, OWNER, connectionId]
+        );
+      await harness.root(`select public.service_complete_restitch_job($1,$2,$3,'failed',$4)`, [
+        OWNER,
+        sheet,
+        lease,
+        error
+      ]);
+      expect(
+        (
+          await harness.root<{ state: string }>(
+            'select state from public.team_operations where id=$1',
+            [op]
+          )
+        )[0]?.state
+      ).toBe(scenario === 'media_failure' ? 'failed' : 'running');
+      setQueryExecutor((sql, params) => harness.root(sql, params));
+      try {
+        expect((await getCatalogUpdateDiagnosis(sheet)).video_preparation).toMatchObject({
+          failure_code: error,
+          retry_blocked_by_open_operation: scenario !== 'media_failure'
+        });
+      } finally {
+        setQueryExecutor(null);
+      }
+      await harness.root(
+        `update private.catalog_restitch_jobs set next_attempt_at=now()-interval '1 minute' where catalog_material_id=$1`,
+        [sheet]
+      );
+      const retry = await claimJob(enroll(EDITOR), token());
+      if (scenario !== 'media_failure') expect(retry).toBeNull();
+      else expect(retry?.jobId).toBe(sheet);
+      await stop();
+    },
+    60_000
+  );
+
   it.each(['expired', 'returned'] as const)(
     'reclaims a %s browser handoff without replaying a reserved native execution',
     async mode => {
@@ -303,6 +384,10 @@ describe('spares', () => {
         `update private.catalog_restitch_jobs set lease_expires_at=now()-interval '1 minute' where catalog_material_id=$1`,
         [sheet]
       );
+      await harness.root(
+        `insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)`,
+        [op, teamId, OWNER, sheet]
+      );
       if (mode === 'returned') {
         await harness.root(
           `select public.service_complete_restitch_job($1,$2,$3,'failed','PROCESS_CANCELED')`,
@@ -313,10 +398,6 @@ describe('spares', () => {
           [sheet]
         );
       }
-      await harness.root(
-        `insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)`,
-        [op, teamId, OWNER, sheet]
-      );
       expect(await claimJob(enroll(), token())).toBeNull();
       await harness.root(
         'delete from private.team_recovery_execution_fences where operation_id=$1',

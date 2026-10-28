@@ -563,6 +563,15 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     check:
       'Pair stage and runId with pipeline_stage_completed; an absent completion alone does not distinguish interruption from missing journal delivery.'
   },
+  'stitcher:pipeline_failed': {
+    files: [
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_BODY,
+      'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+    ],
+    check:
+      'Read the closed errorCode and correlated runId, then the catalog job retry and operation terminal. A native execution fence or provider upload remains uncertain and must not be replayed.'
+  },
   'stitcher:automatic_frame_started': {
     files: ['apps/agent/src/team-bridge/restitch.ts'],
     check:
@@ -752,6 +761,16 @@ function fromCodes(
   into: Record<string, CodeLocation>
 ): void {
   for (const [code, spec] of Object.entries(specs)) {
+    if (tool === 'stitcher')
+      into[`catalog:video:${code}`] = {
+        files: unique([
+          ...spec.agent,
+          'apps/agent/src/team-bridge/restitch.ts',
+          'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+        ]),
+        check:
+          'Read the exact local processing failure and catalog retry state. A queued job with an open operation cannot be retried; provider upload or native execution uncertainty must remain fenced.'
+      };
     into[`${tool}:${spec.stage}:${code}`] = {
       files: unique([...spec.agent, ...web, SHARED_TYPES]),
       check: spec.check
@@ -765,6 +784,15 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['catalog:video:*'] = {
+    files: [
+      'apps/agent/src/team-bridge/restitch.ts',
+      'apps/web/src/team/catalog-updater/useRestitchPreparer.ts',
+      'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+    ],
+    check:
+      'Inspect the correlated local journal and job operation. A generic processing failure does not prove native quiescence; retain provider and execution fences until the outcome is known.'
+  };
   map['team:process:LEASE_EXPIRED'] = {
     files: [
       'supabase/migrations/20261206146000_catalog_expired_browser_handoff.sql',
