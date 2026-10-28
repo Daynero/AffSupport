@@ -28,3 +28,4 @@ export * from './bulk-trash.js';
 export * from './task-cleanup.js';
 
 export * from './launch-assignment.js';
+export * from './catalog-images.js';

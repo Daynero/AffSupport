@@ -183,7 +183,6 @@
       "format": "any",
       "note": "Build metadata: which commit produced this bundle."
     },
-
     {
       "name": "SUPABASE_URL",
       "surface": "functions",
@@ -331,7 +330,6 @@
       "format": "enum:beta|production",
       "note": "Absent means production, matching the web surface."
     },
-
     {
       "name": "PUBLIC_SITE_ORIGIN",
       "surface": "agent",
@@ -371,6 +369,94 @@
       "secret": false,
       "format": "enum:disabled|testing|verified",
       "note": "Read by the web-env gate to decide which deploy command is legal. Must agree with the function secret of the same name."
+    },
+    {
+      "name": "CATALOG_IMAGES_ENABLED",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Disabled by default. Enable only after full beta and isolated R2 acceptance; pauses imports while retaining issued URL reads."
+    },
+    {
+      "name": "CATALOG_IMAGES_ENVIRONMENT",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Explicit dev, beta or production R2 namespace; required when enabling catalog images."
+    },
+    {
+      "name": "R2_CATALOG_ACCOUNT_ID",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Environment-isolated R2 account; required only for catalog-image activation."
+    },
+    {
+      "name": "R2_CATALOG_STAGING_BUCKET",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Private environment-scoped staging bucket; never used for public catalog links."
+    },
+    {
+      "name": "R2_CATALOG_PUBLIC_BUCKET",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Server-write-only public image bucket; immutable random final keys."
+    },
+    {
+      "name": "R2_CATALOG_PUBLIC_ORIGIN",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "url",
+      "note": "Dedicated HTTPS custom media origin with nosniff transform and negative caching disabled."
+    },
+    {
+      "name": "R2_CATALOG_TARGET_CONFIRMATION",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Exact environment, account, buckets and origin confirmation; mismatches disable the R2 adapter."
+    },
+    {
+      "name": "R2_CATALOG_ACCESS_KEY_ID",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "R2 S3 key scoped to the two buckets of this environment; never a browser value."
+    },
+    {
+      "name": "R2_CATALOG_SECRET_ACCESS_KEY",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Secret counterpart of the environment-scoped R2 S3 key."
+    },
+    {
+      "name": "R2_CATALOG_ZONE_ID",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Environment-scoped zone containing the catalog media origin."
+    },
+    {
+      "name": "R2_CATALOG_PURGE_TOKEN",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Least-privilege managed-media CDN purge token; no zone transform write permission."
     }
   ]
 }

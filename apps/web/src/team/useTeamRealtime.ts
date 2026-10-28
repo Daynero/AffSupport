@@ -112,6 +112,26 @@ export function useTeamRealtime(input: {
         {
           event: '*',
           schema: 'public',
+          table: 'team_catalog_image_imports',
+          filter: `team_id=eq.${teamId}`
+        },
+        refetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'team_catalog_image_storage_signals',
+          filter: `team_id=eq.${teamId}`
+        },
+        refetch
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
           table: 'team_launch_signals',
           filter: `team_id=eq.${teamId}`
         },

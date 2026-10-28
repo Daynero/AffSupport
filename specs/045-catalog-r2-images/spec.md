@@ -10,7 +10,7 @@
 
 **Owner decision, 2026-10-27**: Цілимось у R2 Standard тільки для картинок. У налаштуваннях каталогу Soty можна вказати папку Google Drive або перетягнути локальні зображення. Дія «Проаналізувати й завантажити» розбирає назви, розподіляє картинки за чинним словником і публікує їх; надалі продукт використовує компактний словник посилань та відповідностей. Потрібне людське пояснення, чому використовується одяг і які параметри міксуються, та прихований за посиланням із копіюванням промпт для агента: квадратні картинки 1:1, лише одяг, без брендів, із правильними назвами. Це уточнення специфікації, не запит на реалізацію. Подальше уточнення: звичайні картинки без розпізнаваних назв теж завантажуються й вибираються випадково без зіставлення; це потрібно пояснити в підказці.
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 — Один раз опублікувати вибрані картинки (Priority: P1)
 
@@ -106,7 +106,7 @@
 - У drop є відео, HTML, папка чи файл неправдивого типу; локальні байти зникли після перезавантаження вкладки; папка Drive змінюється під час аналізу. Локальні папки як drop не входять до MVP; пояснюється вибір файлів або папки Drive.
 - Промпт випадково пропонує токен, який одна частина продукту читає інакше; машинний словник, підказка та промпт мають проходити спільну перевірку сумісності.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -141,7 +141,7 @@
 - **FR-029**: Промпт вимагає окремий квадратний файл 1:1 для кожної картинки, один цілий предмет одягу, чисте біле тло, природний колір, відсутність людей, брендів, логотипів, написів, watermark, колажів та аксесуарів. Він містить сумісні списки типів/кольорів і правила іменування, приклади та самоперевірку. Рекомендований розмір 1024×1024 і JPEG або PNG; інші підтримувані імпортером джерела не відхиляються лише через інше співвідношення сторін.
 - **FR-030**: Підказка, промпт і словник класифікації мають бути узгоджені: усі комбінації рекомендованих токенів типу/кольору перевіряються чинними точками розбору та новим аналізатором. Якщо словник змінено, тексти й приймальні приклади оновлюються разом. UI використовує наявні компоненти й правила [DESIGN.md](../../docs/DESIGN.md), без великого постійного блоку промпту.
 
-### Analytics & Diagnostic Coverage *(mandatory)*
+### Analytics & Diagnostic Coverage _(mandatory)_
 
 Вимоги [031](../031-platform-autoanalytics/spec.md) поширюються на всі наведені journeys. Завдання реалізації повинні перевіряти повний шлях до read-only діагностики, а не тільки факт створення події.
 
@@ -155,7 +155,7 @@
 - **AD-008 — Нові межі.** Розрізняти невідомий тип, невідомий/неоднозначний колір, конфлікт відповідності, непридатний dropped-файл, втрату локального джерела після reload, частковий результат і невдалий запис словника після вдалого upload. unclassified/random — нормальний успішний режим, а не failure upload. Копіювання промпту має окремі intent/success/failed/manual-fallback outcomes із версією промпту; текст промпту, імена й вміст clipboard не збираються. Відсутність upload після копіювання не означає помилку генерації: зовнішній агент неспостережуваний.
 - **AD-009 — Додаткове приймання.** Обидва способи імпорту, 32×24 сумісних імен, sparse-пул із двома фактичними парами, конфлікти імен/вмісту, повторне вибирання local після reload та відмова clipboard перевіряються через product outcome і агентний read-only діагноз. Звичайний та змішаний пул і нормальний успішний random-режим перевіряються окремо. Сліпі зони зовнішньої генерації та візуальної правдивості назви лишаються явними.
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Джерело імпорту**: вибрана папка/файл Drive або локальний файл, права, вибірка та стан доступності в поточній спробі.
 - **Запис словника**: готове посилання, matched-пара тип+колір або unclassified без вигаданих значень, версія, стан і зв'язок із простором/публікацією; без постійної локальної копії байтів.
@@ -166,7 +166,7 @@
 - **Видане використання**: зв'язок версії з успішним результатом каталогу; підстава захистити копію від випадкового очищення.
 - **Оцінка витрат**: часовий горизонт, накопичення, параметри media/read/cache, тарифна дата, спостережуваність і розклад вартості.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
@@ -199,3 +199,51 @@
 - Залежності: доступ до джерел простору, серверна авторизація, production-медіадомен, доступне сховище, наявний створювач/оновлювач каталогів, read-only діагностика та підтвердження зовнішнього імпортера.
 - Ресурсна реалізація, контракти сумісності й спосіб релізу визначаються наступним планом. Нова спекa не дозволяє обходити beta/production gates або кваліфікувати зміни серверних функцій як суто web mini release.
 - Поза обсягом MVP: перенос відео/приватних previews/ре-стітч картинок, серверне перекодування медіа, генерація картинок усередині Soty, AI-аналіз вмісту, новий парсер матеріалу/крою/візерунка з назв, імпорт локальних папок drop, платні трансформації, нова система планування, автопауза, архівування/видалення виданих каталогів за строком, загальна дедуплікація між просторами та фактичні production-операції.
+
+## Owner refinement, 2026-10-28
+
+[Storage and lossless publication](storage-optimization.md) defines the current quota, canonical-image and library-management requirements. It replaces same-source-byte publication with verified deterministic canonical bytes for new imports; already-issued URLs remain immutable. Per-owner durable accounting and diagnostics are required, with deletion credit only after known cleanup.
+
+### Image editor task separation (2026-10-28)
+
+The expanded image editor is a visual gallery, not a combined operations report.
+It shows image previews, a bounded selection summary and one Add entry point.
+Upload, preparation guidance, storage management and import history have separate
+labelled surfaces. Upload retains the public-access notice before explicit submission;
+choosing/dropping files alone never publishes. Closing and reopening preserves queued
+inputs. Per-image menus distinguish removal from selection from publication deletion;
+the existing consequence confirmation, authorization and uncertain cleanup fences remain.
+
+A current interrupted, failed or uncertain import remains visible as a compact status
+with a concrete recovery action. Unknown delivery offers authoritative refresh before
+retry; no redesign may silently replay an upload. Storage unavailable/full and stale
+inventory retain visible contextual feedback, with detail reached through the matching
+surface. Read-only roles retain gallery, help and status without mutation controls.
+
+Existing catalog image import/read/pool/prompt diagnostic seams remain authoritative.
+Opening help, history or storage is intentionally unobserved: remote diagnosis cannot
+prove comprehension or a modal visit. Visible progress is not publication evidence;
+publication receipts and readback remain required. Component regressions must cover
+navigation to each task, queue retention, uncertainty visibility and unchanged safe
+revoke/retry boundaries. Acceptance includes inspecting the expanded editor and upload
+surface in the real beta, not just the collapsed overview.
+
+### Catalog management at collection scale (2026-10-28)
+
+- Storage occupied and available capacity are visible in the image section and its collapsed summary; the quota is owner-wide. Stale capacity is explicitly marked. Deletion never optimistically credits bytes.
+- A named Manage images action opens a complete bounded library read. Search uses available classification (type/color, not unavailable filenames), shows incomplete coverage, and requires matching total/read counts before claiming full search or selecting all matches. Rendering is paginated at 24 images; selection persists across pages and search.
+- Bulk remove and revoke use captured selections and one explicit confirmation showing count, bytes and existing catalog usage. Removing from the selection preserves public links and occupies storage. Revoking removes access and queues asynchronous cleanup; cache/storage completion remains authoritative server evidence.
+- Requests execute sequentially with stable per-item idempotency keys and stop on the first failed/uncertain reply. Result counts distinguish accepted, unconfirmed and unattempted. There is no automatic replay. Complete library and storage readback follows, with failures remaining visible.
+- Existing per-publication diagnostic flows retain React-committed receipts for every accepted item. Batch flows use the same pool capability: requested file_count is selection size, accepted/result_visible file_count is accepted count, and failure outcome distinguishes stopped batches (accepted count may be nonzero). Server publication/purge journal remains the authority for actual deletion. Missing client signals remain unknown; browser refresh loses local selection/queue context and does not resume mutations.
+- The complete settings tab is reviewed: names have compact browse/generate actions and a searchable title list; generation keeps errors/re-read inside its dialog. Price is one row with explicit save. Shared fallback values have concrete purpose and do not claim active use when source counts are unknown. New-catalog rules use action labels, short scope explanation and explicit save/cancel.
+- Acceptance covers a 400-image library spanning server pages, selecting 24 or all confirmed search matches, cancelled confirmation, stopped partial batch, per-item and aggregate diagnostics, viewer restrictions, names generation read recovery, price persistence and partial defaults save.
+
+### Weekly replacement of names and descriptions (2026-10-28)
+
+The names section separates its actions from the introductory text with token-based spacing and wrapping. An explicit weekly switch and editable integer count (1–1000, default 200) save a server schedule. It starts disabled. Enabling schedules the first run seven days later; changing an enabled count preserves its next due time. The interface reports only confirmed next/last times, protects unsaved drafts, and says that the complete saved text list is replaced. Existing catalogs keep their own content until their normal update.
+
+The existing catalog scheduler wakes independently of catalog update work, and executes a bounded text worker before the Drive OAuth gate. The manual and automatic paths share the same generator and image classification inputs. A durable lease and configuration/content revision fences prevent stale workers from committing over a changed configuration or intervening manual edits. The old pool survives failed generation/validation/insertion. Replacement, draw reset and committed receipt are one transaction. A replayed committed run is read-only. Failed attempts use bounded retry backoff; abandoned leases can be reclaimed. Disabling cancels the current lease. Deleting the configuring account does not block account deletion and permission checks fail closed.
+
+Diagnostics: content-free configured/claimed/lease_recovered/committed/failed/cancelled journal rows correlate by run and team IDs. Stable error codes distinguish read, validation, save, conflict and permission failures. The read-only `catalog-texts <team-id|run-id>` CLI reports current settings, period-bounded run evidence, source coverage and truncation. Historical as-of omits mutable current settings. Capture health does not prove worker deployment, secret delivery, browser visibility or changes in existing catalogs: these remain explicit blind spots until an actual run receipt or downstream evidence exists.
+
+Acceptance: UI spacing, persisted toggle/count/default, no immediate replacement on save, rejected counts, read-only roles, protected drafts, partial/unknown save feedback; SQL permissions, atomic failure, replay, stale lease/config/manual-content fencing, account deletion and capture health; worker exact count, image inputs and lost reply; shared generator regression; full disposable database migration gate before incremental local-beta application. Beta preserves connected identities and user rows; no production deployment is included.

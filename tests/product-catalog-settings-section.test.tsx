@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -60,7 +60,17 @@ function renderSection(client: Client, team: TeamContextSnapshot = owned) {
   return render(
     <TeamProvider initialTeams={[team]} realtime={false}>
       <ToastProvider>
-        <ProductCatalogSettingsSection teamId={TEAM_ID} client={client} />
+        <ProductCatalogSettingsSection
+          teamId={TEAM_ID}
+          client={client}
+          openEditor={
+            client.listProductCatalogTexts
+              ? 'product-catalog-texts-title'
+              : client.listProductCatalogImageSources
+                ? 'product-catalog-images-title'
+                : 'product-catalog-settings-title'
+          }
+        />
       </ToastProvider>
     </TeamProvider>
   );
@@ -73,7 +83,6 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       getProductCatalogSettings: vi.fn().mockResolvedValue(null),
       setProductCatalogSettings: set
     });
-    await openEditor('product-catalog-settings-title');
     expect(((await screen.findByLabelText('From')) as HTMLInputElement).value).toBe('9');
     expect((screen.getByLabelText('to') as HTMLInputElement).value).toBe('30');
     const user = userEvent.setup();
@@ -98,7 +107,6 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       setProductCatalogSettings: vi.fn()
     });
     const user = userEvent.setup();
-    await openEditor('product-catalog-settings-title');
     const from = await screen.findByLabelText('From');
     await user.clear(from);
     await user.type(from, '40');
@@ -114,7 +122,6 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       },
       viewing
     );
-    await openEditor('product-catalog-settings-title');
     await screen.findByLabelText('From');
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
@@ -125,7 +132,6 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       setProductCatalogSettings: vi.fn().mockResolvedValue(stored)
     });
     const user = userEvent.setup();
-    await openEditor('product-catalog-settings-title');
     const from = await screen.findByLabelText('From');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true)
@@ -160,9 +166,11 @@ describe('the name and description pool (024)', () => {
       replaceProductCatalogTexts: replace,
       updateProductCatalogText: vi.fn()
     });
-    await openEditor('product-catalog-texts-title');
-    expect(await screen.findByText(/for clothing only/)).toBeTruthy();
     const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Generate names and descriptions' })
+    );
+    expect(await screen.findByText(/for clothing only/)).toBeTruthy();
     const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
     await user.type(count, '3');
@@ -171,8 +179,8 @@ describe('the name and description pool (024)', () => {
     expect(replace.mock.calls[0]![1]).toHaveLength(3);
     expect(await screen.findByText('Saved: 3')).toBeTruthy();
     // A pool that exists is replaced only after saying so.
-    await user.click(screen.getByRole('button', { name: /More/ }));
-    await user.click(screen.getByRole('menuitem', { name: 'Replace all names and descriptions' }));
+    await user.click(screen.getByRole('button', { name: 'Generate names and descriptions' }));
+    await user.click(screen.getByRole('button', { name: 'Replace all names and descriptions' }));
     expect(await screen.findByText('Replace all names and descriptions?')).toBeTruthy();
   });
 });
@@ -188,9 +196,7 @@ describe('whether a catalog can be made (024, US23)', () => {
       setProductCatalogImageSources: vi.fn()
     });
     expect(await screen.findByText('Add missing content and save the price.')).toBeTruthy();
-    expect(screen.getByText('Saved: 0')).toBeTruthy();
-    expect(screen.getByText('Images: 0')).toBeTruthy();
-    expect(screen.getByText('9–30 USD')).toBeTruthy();
+    expect(screen.queryByText('Ready to create a catalog')).toBeNull();
   });
 
   it('says a catalog can be made once both pools have something', async () => {
@@ -207,7 +213,7 @@ describe('whether a catalog can be made (024, US23)', () => {
       })),
       setProductCatalogImageSources: vi.fn()
     });
-    expect(await screen.findByText('Catalog contents are configured.')).toBeTruthy();
+    expect(await screen.findByText('Ready to create a catalog')).toBeTruthy();
     expect(screen.getByText('Saved: 1')).toBeTruthy();
     expect(screen.getByText('Images: 4')).toBeTruthy();
     // Nothing typed into the single values, so they are empty rather than in use.
@@ -216,7 +222,7 @@ describe('whether a catalog can be made (024, US23)', () => {
 });
 
 describe('the pool, browsed and added to (024, US23)', () => {
-  it('shows three, opens the rest with a search, and adds without replacing', async () => {
+  it('keeps long samples out of settings, searches all names, and adds without replacing', async () => {
     const texts = Array.from({ length: 6 }, (_, index) => ({
       id: `t${index}`,
       title: index === 5 ? 'Ludia Navy Twill Wide Leg Jeans' : `Nova Sage Jersey Hoodie ${index}`,
@@ -231,15 +237,16 @@ describe('the pool, browsed and added to (024, US23)', () => {
       updateProductCatalogText: vi.fn()
     });
     const user = userEvent.setup();
-    await openEditor('product-catalog-texts-title');
-    expect(await screen.findByText('Nova Sage Jersey Hoodie 0')).toBeTruthy();
+    await screen.findByRole('button', { name: 'Browse and edit (6)' });
+    expect(screen.queryByText('Nova Sage Jersey Hoodie 0')).toBeNull();
     // Three of six in the tab; the rest behind one button.
     expect(screen.queryByText('Nova Sage Jersey Hoodie 4')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'View all (6)' }));
-    await user.type(screen.getByLabelText('Search the pool'), 'ludia');
+    await user.click(screen.getByRole('button', { name: 'Browse and edit (6)' }));
+    await user.type(screen.getByLabelText('Search names or descriptions'), 'ludia');
     expect(await screen.findByText('Found: 1')).toBeTruthy();
     expect(screen.getByText('Ludia Navy Twill Wide Leg Jeans')).toBeTruthy();
     await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Generate names and descriptions' }));
 
     const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
@@ -267,7 +274,6 @@ describe('the picture pool (024)', () => {
       })),
       setProductCatalogImageSources: setSources
     });
-    await openEditor('product-catalog-images-title');
     expect(await screen.findByText('Images: 13')).toBeTruthy();
     expect(screen.getByText('12 images')).toBeTruthy();
     const user = userEvent.setup();
@@ -278,6 +284,36 @@ describe('the picture pool (024)', () => {
   });
 });
 // @ts-nocheck — section mocks intentionally use narrower callbacks for focused cases.
+
+it('shows generation failure inside the dialog and retries reading without regenerating', async () => {
+  const user = userEvent.setup();
+  const replace = vi.fn().mockRejectedValue(new Error('offline'));
+  const list = vi.fn(async () => []);
+  renderSection({
+    getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+    setProductCatalogSettings: vi.fn(),
+    listProductCatalogTexts: list,
+    replaceProductCatalogTexts: replace
+  });
+  await user.click(await screen.findByRole('button', { name: 'Generate names and descriptions' }));
+  await user.click(screen.getByRole('button', { name: 'Generate', exact: true }));
+  const dialog = within(screen.getByRole('dialog', { name: 'Generate names and descriptions' }));
+  await dialog.findByRole('alert');
+  await user.click(dialog.getByRole('button', { name: 'Retry' }));
+  await dialog.findByRole('button', { name: 'Generate', exact: true });
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(list).toHaveBeenCalledTimes(2);
+});
+
+function renderEditableSection(client: Client) {
+  return render(
+    <TeamProvider initialTeams={[owned]} realtime={false}>
+      <ToastProvider>
+        <ProductCatalogSettingsSection teamId={TEAM_ID} client={client} />
+      </ToastProvider>
+    </TeamProvider>
+  );
+}
 
 // Select the disclosure by its stable association, without depending on changing count summaries.
 async function openEditor(id: string) {
@@ -300,9 +336,9 @@ describe('catalog editing boundaries', () => {
       .fn()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue({ sources: [], poolSize: 0 });
-    renderSection({ ...valuesClient(), listProductCatalogImageSources: load });
+    renderEditableSection({ ...valuesClient(), listProductCatalogImageSources: load });
     await screen.findByText('Could not load');
-    expect(screen.getByText('Check the contents: data is not confirmed yet.')).toBeTruthy();
+    expect(screen.queryByText('Ready to create a catalog')).toBeNull();
     expect(screen.queryByText('Images: 0')).toBeNull();
     await openEditor('product-catalog-images-title');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -311,7 +347,7 @@ describe('catalog editing boundaries', () => {
   });
 
   it('retains a price draft while switching editors and exposes its dirty summary', async () => {
-    renderSection(valuesClient());
+    renderEditableSection(valuesClient());
     await openEditor('product-catalog-settings-title');
     const input = await screen.findByLabelText('From');
     await userEvent.clear(input);
@@ -327,7 +363,7 @@ describe('catalog editing boundaries', () => {
 
   it('saves price without publishing the fallback draft', async () => {
     const api = valuesClient();
-    renderSection(api);
+    renderEditableSection(api);
     await openEditor('product-catalog-fallback-title');
     await userEvent.type(await screen.findByLabelText('Title'), 'Draft title');
     await openEditor('product-catalog-settings-title');
@@ -349,7 +385,7 @@ describe('catalog editing boundaries', () => {
 
   it('saves fallbacks using persisted prices even when the price draft is invalid', async () => {
     const api = valuesClient();
-    renderSection(api);
+    renderEditableSection(api);
     await openEditor('product-catalog-settings-title');
     await userEvent.clear(await screen.findByLabelText('From'));
     await openEditor('product-catalog-fallback-title');
@@ -377,7 +413,7 @@ describe('catalog editing boundaries', () => {
           resolveSave = resolve;
         })
     );
-    renderSection(api);
+    renderEditableSection(api);
     await openEditor('product-catalog-settings-title');
     const from = await screen.findByLabelText('From');
     await userEvent.clear(from);
@@ -397,7 +433,7 @@ describe('catalog editing boundaries', () => {
 
   it('blocks over-capacity generation and offers the exact remaining amount', async () => {
     const replace = vi.fn();
-    renderSection({
+    renderEditableSection({
       ...valuesClient(),
       listProductCatalogTexts: vi.fn().mockResolvedValue(
         Array.from({ length: 999 }, (_, i) => ({
@@ -409,6 +445,9 @@ describe('catalog editing boundaries', () => {
       replaceProductCatalogTexts: replace
     });
     await openEditor('product-catalog-texts-title');
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Generate names and descriptions' })
+    );
     const count = await screen.findByLabelText('Variants to add');
     await userEvent.clear(count);
     await userEvent.type(count, '2');

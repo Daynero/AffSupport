@@ -1,3 +1,4 @@
+import './space-settings.css';
 import { BackgroundRecoverySettings } from '../tariffs/BackgroundRecoverySettings';
 import { useEffect, useState } from 'react';
 import { Link2 } from 'lucide-react';

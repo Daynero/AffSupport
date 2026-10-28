@@ -11,6 +11,7 @@ type NullableInputs = {
   get_launch: 'p_revision';
   copy_launch: 'p_revision';
   set_launch_defaults: 'p_expected_version';
+  set_launch_offer_defaults: 'p_expected_version';
   update_launch_metadata: 'p_assignee';
   set_team_agent_finance_value: 'p_value';
   set_team_catalog_update_interval: 'p_interval';

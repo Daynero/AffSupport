@@ -1,0 +1,138 @@
+/* One visual rhythm across all workspace settings, scoped away from tool screens. */
+.team-space-settings .team-space-settings-grid {
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+.team-space-settings .team-space-settings-grid .settings-section,
+.team-space-settings .team-space-settings-grid .team-panel {
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-color: var(--color-neutral-border);
+  background: var(--color-neutral-surface-subtle);
+}
+.team-space-settings .settings-section .ui-card-title,
+.team-space-settings .settings-section-heading h2,
+.team-space-settings .team-panel h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-label);
+  margin: 0;
+}
+.team-space-settings .settings-section .ui-card-heading,
+.team-space-settings .settings-section-heading {
+  flex-wrap: wrap;
+}
+.team-space-settings .settings-section .ui-card-description,
+.team-space-settings .settings-section-note,
+.team-space-settings .settings-section p,
+.team-space-settings .team-panel > p {
+  margin: 0;
+  max-width: 70ch;
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+.team-space-settings .settings-section .ui-card-description,
+.team-space-settings .settings-section-note,
+.team-space-settings .settings-section p:not([role='alert']) {
+  color: var(--color-text-muted);
+}
+.team-space-settings .settings-section-note:empty {
+  display: none;
+}
+.team-space-settings .field-label,
+.team-space-settings .team-task-labels-name > span {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
+.team-space-settings .settings-field-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+}
+.team-space-settings .settings-field-grid > .field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+.team-space-settings .team-preferences select,
+.team-space-settings .team-preferences input {
+  font-size: var(--text-body);
+  padding-inline: var(--space-3);
+}
+.team-space-settings .team-preferences input[type='number'] {
+  width: 6rem;
+}
+.team-space-settings .team-space-name-form {
+  max-width: 44rem;
+  gap: var(--space-3);
+}
+.team-space-settings .settings-section-actions,
+.team-space-settings .team-inline-actions {
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.team-space-settings .settings-section > .ui-button {
+  justify-self: start;
+}
+.team-space-settings .team-restitch-prepare {
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+  margin-top: var(--space-2);
+}
+.team-space-settings .team-restitch-defaults p.team-inline-note {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--text-caption);
+}
+.team-space-settings .team-restitch-defaults .field-group {
+  gap: var(--space-2);
+}
+.team-space-settings .team-task-labels-create,
+.team-space-settings .team-task-labels-row.is-editing {
+  gap: var(--space-3);
+}
+.team-space-settings .team-task-labels-empty {
+  text-align: left;
+  padding: var(--space-3) 0;
+}
+.team-space-settings .team-task-labels-list {
+  margin: 0;
+}
+.team-space-settings .team-task-labels-row {
+  padding-block: var(--space-3);
+}
+@media (max-width: 700px) {
+  .team-space-settings .team-space-settings-grid .settings-section,
+  .team-space-settings .team-space-settings-grid .team-panel {
+    padding: var(--space-4);
+  }
+  .team-space-settings .settings-field-grid > .field-group {
+    flex-basis: 100%;
+  }
+  .team-space-settings .settings-field-grid select {
+    max-width: 100%;
+  }
+  .team-space-settings .team-space-name-form {
+    flex-wrap: wrap;
+  }
+  .team-space-settings .team-space-name-form > .ui-field {
+    flex-basis: 100%;
+  }
+}
+.team-space-settings .team-task-label-colors {
+  min-height: var(--control-height-md);
+}
+.team-space-settings .team-task-labels-empty {
+  justify-items: start;
+}
+.team-space-settings .team-task-labels-empty .ui-empty-title {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
+  color: var(--color-text-muted);
+}
+@media (max-width: 700px) {
+  .team-space-settings .team-task-labels-name {
+    flex-basis: 100%;
+  }
+}

@@ -241,7 +241,7 @@ export function TaskLabelsSection({
                 />
                 <Button
                   type="button"
-                  variant="primary"
+                  color="success"
                   loading={busy}
                   onClick={() => void saveEdit()}
                 >

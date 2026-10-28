@@ -34,35 +34,35 @@ const FIELDS = [
     'restitch',
     'getCatalogUpdaterRestitchDefault',
     'setCatalogUpdaterRestitch',
-    'catalogUpdaterRestitch',
+    'catalogDefaultsRestitchAction',
     'catalogUpdaterRestitchEffect'
   ],
   [
     'randomLinkVariation',
     'getCatalogUpdaterRandomLinkVariation',
     'setCatalogUpdaterRandomLinkVariation',
-    'catalogRandomLinkVariation',
+    'catalogDefaultsLinksAction',
     'catalogUpdaterLinkVariationEffect'
   ],
   [
     'refreshImages',
     'getCatalogUpdaterRefreshImages',
     'setCatalogUpdaterRefreshImages',
-    'catalogUpdaterRefreshImages',
+    'catalogDefaultsImagesAction',
     'catalogUpdaterImagesEffect'
   ],
   [
     'refreshTexts',
     'getCatalogUpdaterRefreshTexts',
     'setCatalogUpdaterRefreshTexts',
-    'catalogUpdaterRefreshTexts',
+    'catalogDefaultsTextsAction',
     'catalogUpdaterTextsEffect'
   ],
   [
     'growProducts',
     'getCatalogUpdaterGrow',
     'setCatalogUpdaterGrow',
-    'catalogUpdaterGrow',
+    'catalogDefaultsGrowAction',
     'catalogUpdaterGrowEffect'
   ]
 ] as const;
@@ -212,7 +212,6 @@ export function CatalogDefaultsEditor({
 
   return (
     <section className="catalog-defaults" aria-label={t('catalogDefaultsRulesTitle')}>
-      <p className="field-hint prose">{t('catalogUpdaterDefaultsScope')}</p>
       <Accordion
         openIds={new Set(open ? ['catalog-default-rules'] : [])}
         onToggle={() => {
@@ -241,6 +240,7 @@ export function CatalogDefaultsEditor({
             ),
             content: (
               <>
+                <p className="field-hint prose">{t('catalogUpdaterDefaultsScope')}</p>
                 {!editable && <p className="field-hint">{t('catalogDefaultsReadOnly')}</p>}
                 {!draft && !error && (
                   <LoadingState count={2} label={t('catalogUpdaterDefaultsTitle')} />

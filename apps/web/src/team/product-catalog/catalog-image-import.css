@@ -1,0 +1,286 @@
+.catalog-image-toolbar,
+.catalog-image-actions,
+.catalog-image-status,
+.catalog-image-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.catalog-image-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.catalog-image-actions {
+  margin-left: auto;
+}
+.catalog-image-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.catalog-image-tile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-surface-subtle);
+}
+.catalog-image-preview {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--color-neutral-surface-muted);
+}
+.catalog-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.catalog-image-caption {
+  padding: var(--space-2);
+  justify-content: space-between;
+}
+.catalog-image-caption > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+}
+.catalog-image-caption > span:last-child {
+  flex-shrink: 0;
+}
+.catalog-image-status {
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+  font-size: var(--text-caption);
+}
+.catalog-image-status > span:first-child {
+  flex: 1;
+  min-width: min(100%, 160px);
+}
+.catalog-image-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: var(--space-6);
+  gap: var(--space-3);
+}
+.catalog-image-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.catalog-image-dialog p {
+  margin: 0;
+}
+.catalog-image-dialog .product-catalog-sources {
+  margin: 0;
+}
+
+.catalog-image-dialog-close {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.catalog-image-library-list,
+.catalog-image-job-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.catalog-image-library-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--color-neutral-border);
+}
+.catalog-image-library-thumb {
+  width: calc(var(--space-6) * 2);
+  height: calc(var(--space-6) * 2);
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-muted);
+}
+.catalog-image-library-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.catalog-image-library-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.catalog-image-library-name,
+.catalog-image-job-name {
+  overflow-wrap: anywhere;
+}
+.catalog-image-library-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+}
+.catalog-image-library-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.catalog-image-open {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: calc(var(--space-5) * 2);
+  height: calc(var(--space-5) * 2);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+.catalog-image-open:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+.catalog-image-job-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-bottom: 1px solid var(--color-neutral-border);
+  overflow-wrap: anywhere;
+}
+.catalog-image-job-list small {
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 600px) {
+  .catalog-image-library-info {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .catalog-image-library-info > * {
+    grid-column: 1;
+  }
+  .catalog-image-library-info > .catalog-image-library-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+.catalog-image-storage-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-neutral-surface-subtle);
+  border-radius: var(--radius-md);
+}
+.catalog-image-storage-summary p {
+  margin: 0;
+}
+.catalog-image-storage-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.catalog-image-aside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.catalog-image-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.catalog-image-select-toolbar,
+.catalog-image-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.catalog-image-selection {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-neutral-border);
+  background: var(--color-neutral-surface);
+  border-radius: var(--radius-md);
+}
+
+.catalog-image-actions {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.catalog-image-selection-actions > button {
+  max-width: 100%;
+}
+.catalog-image-selection-actions .ui-button-label {
+  white-space: normal;
+}
+.catalog-image-pagination {
+  flex-wrap: wrap;
+}
+
+.catalog-image-manager-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.catalog-image-manager-capacity {
+  font-size: var(--text-body);
+}
+
+.catalog-image-confirm-summary {
+  font-size: var(--text-body);
+  color: var(--color-text-muted);
+}
+.catalog-image-confirm-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-warning-soft);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body);
+}
+.catalog-image-confirm-warning strong {
+  font-weight: 600;
+}
+
+.catalog-image-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.catalog-image-content > p {
+  margin: 0;
+}
+.catalog-image-dialog > section:not(.catalog-image-manager-summary) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.catalog-image-dialog .settings-section-actions {
+  margin: 0;
+  gap: var(--space-3);
+}

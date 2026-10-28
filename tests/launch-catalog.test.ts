@@ -20,6 +20,84 @@ const body = {
   restitchOperationId: null,
   idempotencyKey: 'catalog-durable-test'
 };
+
+describe('R2 durable version and publication authority', () => {
+  it('refuses a fresh old-client request before accepting an intent or touching Drive', async () => {
+    const f = fixture(false);
+    f.store.imageRequestVersion = vi.fn(async () => null);
+    f.deps.assertImageContract = vi.fn(async () => {
+      throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
+    });
+    await expect(
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+    ).rejects.toMatchObject({ code: 'CATALOG_IMAGE_UPGRADE_REQUIRED' });
+    expect(f.store.begin).not.toHaveBeenCalled();
+    expect(f.deps.loadVideo).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
+  });
+  it('normalizes only a server-accepted legacy request and preserves its original draw', async () => {
+    const f = fixture(false);
+    f.store.imageRequestVersion = vi.fn(async () => 1 as const);
+    f.deps.assertImageContract = vi.fn(async () => {
+      throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
+    });
+    await createDurableProductCatalog(
+      f.deps,
+      f.store,
+      async () => f.drive,
+      { ...body, catalogImageContractVersion: 2 },
+      ACTOR
+    );
+    expect(f.store.begin).toHaveBeenCalledWith(
+      { ...body, randomLinkVariation: true },
+      expect.any(String)
+    );
+    expect(f.deps.assertImageContract).not.toHaveBeenCalled();
+    expect(f.deps.drawImages).toHaveBeenCalledWith(
+      TEAM,
+      2,
+      expect.objectContaining({ contractVersion: undefined, attemptId: 'intent' })
+    );
+  });
+  it('keeps an accepted v2 request from being retried through an old payload', async () => {
+    const f = fixture(false);
+    f.store.imageRequestVersion = vi.fn(async () => 2 as const);
+    await expect(
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+    ).rejects.toMatchObject({ code: 'CATALOG_IMAGE_UPGRADE_REQUIRED' });
+    expect(f.store.begin).not.toHaveBeenCalled();
+  });
+  it('rechecks frozen image authority before creating a sheet and keeps revoked uses unknown', async () => {
+    const f = fixture(false);
+    f.deps.validateImageUses = vi.fn(async () => {
+      throw new TeamFunctionError('IMAGE_PUBLICATION_REVOKED');
+    });
+    f.deps.finalizeImageUses = vi.fn(async () => undefined);
+    await expect(
+      createDurableProductCatalog(
+        f.deps,
+        f.store,
+        async () => f.drive,
+        { ...body, catalogImageContractVersion: 2 },
+        ACTOR
+      )
+    ).rejects.toMatchObject({ code: 'IMAGE_PUBLICATION_REVOKED' });
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.deps.finalizeImageUses).toHaveBeenCalledWith(TEAM, 'intent', false);
+  });
+  it('does not report registered success when publication revocation races external delivery', async () => {
+    const f = fixture(false);
+    f.deps.finalizeImageUses = vi.fn(async (_team, _attempt, delivered) => {
+      if (delivered) throw new TeamFunctionError('IMAGE_PUBLICATION_REVOKED');
+    });
+    await expect(
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+    ).rejects.toMatchObject({ code: 'IMAGE_PUBLICATION_REVOKED' });
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.state.state).toBe('interrupted');
+    expect(f.state.checkpoint.providerFileId).toBe('sheet-drive');
+  });
+});
 function metadata(): DriveFileMetadata {
   return {
     id: 'sheet-drive',

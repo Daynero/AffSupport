@@ -1,5 +1,28 @@
 # Rollback notes
 
+## 045 — R2 catalog images
+
+This is a forward-only metadata feature; rollback must retain issued public image URLs and their
+publication/use/purge evidence. Disable new import/selection admission through the validated release
+workflow, retain the compatible v2 checkpoint/dictionary readers, and preserve R2 read access.
+Do not delete buckets, publication mappings, historical uses, pending unknown-write evidence or purge
+tombstones as a rollback shortcut. Stopping new imports is not proof that external catalogs no longer
+use their URLs.
+
+For an isolated local/beta rollback, pause `soty-catalog-images` dispatch only after recording pending
+leases, staging grants and unknown writes. Existing staging lifecycle remains a private-only safety
+net; explicitly requested public revocations and team deletion still require a live cleanup worker.
+Do not replay uncertain PUT/DELETE operations blindly. Reconcile positive provider receipts and keep
+an unknown status when completion cannot be proved. Neither origin deletion nor CDN purge proves
+that external cached/downloaded copies disappeared.
+
+The diagnostic migration `20261206151000_catalog_r2_diagnostics.sql` may be disabled by removing its
+safe read projections/state-capture triggers only after diagnostic consumers and feature readiness
+are disabled compatibly. Keep the underlying sanitized journal and publication/purge identity
+records. Recreate safe views/grants through a forward migration rather than dropping business data.
+No production rollback, credential change or destructive provider operation is authorized merely by
+this document.
+
 ## 20261202111000_agent_tenant_index_dedup.sql
 
 If the unreferenced duplicate was removed, restore it with
@@ -2108,9 +2131,9 @@ may return LEASE_EXPIRED; a fresh post-cutover call returns FEATURE_RETIRED.
 A provider upload already outside the transaction may remain unregistered; retain the
 existing ownership/reconciliation evidence rather than deleting files indiscriminately.
 
-## Search cache exclusion — 20261206151000
+## Search cache exclusion — 20261206149200
 
-To revert `20261206151000_search_excludes_cache_subtrees.sql`, restore only
+To revert `20261206149200_search_excludes_cache_subtrees.sql`, restore only
 `public.search_materials(uuid, text, jsonb, integer, integer, text, text[], boolean)`
 from `20261201100000_smarter_material_search.sql`. No indexed rows are changed
 or deleted by this migration; do not drop the function or its existing grants.

@@ -336,12 +336,13 @@ describe('filtering', () => {
     expect(rows()[0]?.getAttribute('data-free')).toBe('true');
   });
 
-  it('keeps only running agents the other way round', async () => {
+  it('keeps only busy agents the other way round', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
     await user.click(chip('Show ad accounts', /^Busy/));
     expect(groupNames()).toEqual(['v3', 'v31']);
+    expect(rows()).toHaveLength(2);
     expect(rows().every(row => row.getAttribute('data-free') === 'false')).toBe(true);
   });
 
@@ -509,7 +510,7 @@ describe('writing a run', () => {
     await waitFor(() => expect(within(busyRow).getByText('Keto | PL 06/09')).toBeTruthy());
   });
 
-  it('frees a running agent with one press', async () => {
+  it('frees a busy agent with one press', async () => {
     const api = client();
     const user = userEvent.setup();
     render(api);
@@ -649,7 +650,7 @@ describe('accounts and agents', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    await user.click(screen.getByRole('button', { name: /^Busy/ }));
+    await user.click(chip('Show ad accounts', /^Busy/));
     await user.click(screen.getByRole('button', { name: 'Add account' }));
     await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}{Enter}');
     // No ad accounts yet, so the filter alone would drop it — but its editor is open.

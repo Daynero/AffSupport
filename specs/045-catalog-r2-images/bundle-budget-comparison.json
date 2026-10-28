@@ -1,0 +1,59 @@
+{
+  "source_sha": "b0c0077b6b95f43f54daa32912052e2e7a7e953a",
+  "date": "2026-10-27",
+  "vite": "8.1.6",
+  "base_oxc": {
+    "total_gzip": 1094776,
+    "accounts_exclusive_gzip": 76475,
+    "launch_exclusive_gzip": 44680,
+    "shared_existing_gzip": 998034
+  },
+  "feature_oxc": {
+    "total_gzip": 1111679,
+    "accounts_exclusive_gzip": 76491,
+    "launch_exclusive_gzip": 44649,
+    "shared_existing_gzip": 1014952
+  },
+  "base_terser_probe": {
+    "version": "5.51.2",
+    "options": {
+      "maxWorkers": 1,
+      "compress": {
+        "passes": 3,
+        "unsafe": false
+      },
+      "mangle": {
+        "properties": false
+      }
+    },
+    "total_gzip": 1098712,
+    "accounts_exclusive_gzip": 77995,
+    "launch_exclusive_gzip": 44818,
+    "shared_existing_gzip": 1000312
+  },
+  "esbuild_probe": "Built in the owned baseline copy; increased chunk sizes, not adopted.",
+  "applied_minifier_changes": false,
+  "interpretation": "Clean base Launch44,680 B and feature44,649 B are both bounded by the owner-approved45,000 B ceiling. Feature shared/existing growth16,918 B is bounded by the explicit20,000 B allocation. Historical performance-baseline.json and entry/largest/Accounts ratchets are unchanged. No minifier/dependency changes, exclusions or skipped checks are adopted.",
+  "original_limits": {
+    "launch_exclusive_gzip": 40000,
+    "shared_existing_gzip": 1004788
+  },
+  "authorization": {
+    "decision": "Owner explicitly accepted modest measured feature JavaScript growth; prioritize completing R2 catalog functionality rather than broader base-route microoptimization.",
+    "shared_existing_incremental_allowance": 20000,
+    "launch_exclusive_ceiling": 45000,
+    "unchanged": [
+      "performance-baseline.json",
+      "original 5 percent total ratchet",
+      "entry chunk ratchet",
+      "largest chunk ratchet",
+      "pre038 Accounts baseline and existing Accounts allowances"
+    ],
+    "enforcement": "Both shared/existing growth against clean b0c0077b and original shared/existing ratchet plus the fixed allowance are checked. Complete route graphs remain included; no skipped or excluded assets."
+  },
+  "feature_delta": {
+    "total_gzip": 16903,
+    "shared_existing_gzip": 16918,
+    "launch_exclusive_gzip": -31
+  }
+}

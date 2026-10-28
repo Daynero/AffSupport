@@ -116,6 +116,8 @@ describe('team Realtime invalidation', () => {
     expect([...events.keys()].sort()).toEqual([
       'team_account_workspace_signals',
       'team_catalog_events',
+      'team_catalog_image_imports',
+      'team_catalog_image_storage_signals',
       'team_launch_signals',
       'team_launch_workspace_signals',
       'team_membership_access_signals',
@@ -146,6 +148,30 @@ describe('team Realtime invalidation', () => {
     expect(client.channel).toHaveBeenCalledTimes(1);
     unmount();
     expect(removeChannel).toHaveBeenCalledTimes(1);
+  });
+  it('rereads quota after private cleanup or sibling-workspace owner-budget changes on the same channel', async () => {
+    let charged = 100;
+    let visibleUsed = 100;
+    const onRefetch = vi.fn(async () => {
+      visibleUsed = charged;
+    });
+    const view = renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
+    const client = vi.mocked(getSupabaseClient).mock.results[0]?.value;
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    // No public import/pool mutation occurs when a private purge completes.
+    charged = 0;
+    act(() => events.get('team_catalog_image_storage_signals')!());
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(visibleUsed).toBe(0);
+    // A different workspace shares this owner's account allowance.
+    charged = 250;
+    act(() => events.get('team_catalog_image_storage_signals')!());
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(visibleUsed).toBe(250);
+    expect(onRefetch).toHaveBeenCalledTimes(3);
+    expect(client?.channel).toHaveBeenCalledOnce();
+    view.unmount();
   });
 
   it('does not let an older catalog response clear a newer invalidation', async () => {

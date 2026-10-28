@@ -66,7 +66,13 @@ describe('the object noun', () => {
     'tariffShowcaseTeamDescription'
   ]);
   const objectNounOffenders = (entries: { key: string; value: string }[], pattern: RegExp) =>
-    entries.filter(({ key, value }) => !commercialContexts.has(key) && pattern.test(value));
+    entries.filter(
+      ({ key, value }) =>
+        !commercialContexts.has(key) &&
+        // Interpolation identifiers are replaced with values at render time;
+        // their internal names are not interface vocabulary.
+        pattern.test(value.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/gu, ''))
+    );
 
   it('keeps "team" out of object names outside reviewed commercial contexts', () => {
     const offenders = objectNounOffenders(everyString('en'), /\bteam(s|mates?)?\b/iu);
@@ -86,6 +92,19 @@ describe('the object noun', () => {
     expect(objectNounOffenders(entries, /\bteam\b/iu).map(entry => entry.key)).toEqual([
       'tariffShowcaseOther',
       'teamSpaceSettings'
+    ]);
+  });
+  it('ignores interpolation identifiers while checking the surrounding visible copy', () => {
+    const entries = [
+      { key: 'storageUsage', value: 'This workspace: {team}. Other workspaces: {other}.' },
+      { key: 'settingsLabel', value: 'Team settings: {workspace}' },
+      { key: 'inviteLabel', value: 'Invite teammates to {workspace}' },
+      { key: 'literalBraces', value: 'Choose {team settings}' }
+    ];
+    expect(objectNounOffenders(entries, /\bteam(s|mates?)?\b/iu).map(entry => entry.key)).toEqual([
+      'settingsLabel',
+      'inviteLabel',
+      'literalBraces'
     ]);
   });
 });

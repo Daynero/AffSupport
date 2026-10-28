@@ -37,7 +37,7 @@ import { LaunchConflictReview } from './LaunchConflictReview';
 import { restitchSettingsError } from './recovery';
 import { LaunchGenerationProgress } from './LaunchGenerationProgress';
 import { useLaunchProgressScroll } from './useLaunchProgressScroll';
-import { readLaunchPreparation, LaunchPreparationError } from './preparation';
+import { isLaunchCatalogReady, readLaunchPreparation, LaunchPreparationError } from './preparation';
 import { useLaunchDraft } from './useLaunchDraft';
 import { newLaunchDraft } from './launchDraftDefaults';
 import { mergeLaunchOverrides, useLaunchOverrides } from './useLaunchOverrides';
@@ -740,19 +740,8 @@ export function LaunchSession({
     }
     if (parsed.value.method === 'catalog') {
       try {
-        const [settings, texts, images] = await readLaunchPreparation(
-          Promise.all([
-            teamApi.getProductCatalogSettings(teamId),
-            teamApi.listProductCatalogTexts(teamId),
-            teamApi.listProductCatalogImageSources(teamId)
-          ]),
-          signal
-        );
-        if (
-          !settings ||
-          (texts.length === 0 && (!settings.title || !settings.description)) ||
-          (images.poolSize === 0 && !settings.imageLink)
-        ) {
+        const ready = await readLaunchPreparation(isLaunchCatalogReady(teamApi, teamId), signal);
+        if (!ready) {
           generation.blocked('WRONG_STATE');
           setCatalogSetupMissing(true);
           setError(t('launchesCatalogSetupMissing'));

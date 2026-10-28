@@ -1,25 +1,26 @@
 # Catalog images contract v2
 
-Це майбутні interfaces, не вже доступні routes. Використати існуючі `authorizeCaller`, CORS, `{error:STABLE_CODE}` та `getSupabaseClient()` seams; decoded request/RPC/provider values — unknown→validated union. Body metadata ≤1 MB, publication bytes не приймаються control routes. Усі наведені mutation routes reauthorize current membership/feature epoch, а не лише validate JWT signature.
+Реалізований disabled-first contract; hosted provider acceptance ще не підтверджено. Використати існуючі `authorizeCaller`, CORS, `{error:STABLE_CODE}` та `getSupabaseClient()` seams; decoded request/RPC/provider values — unknown→validated union. Body metadata ≤1 MB, publication bytes не приймаються control routes. Усі наведені mutation routes reauthorize current membership/feature epoch, а не лише validate JWT signature.
 
 ## HTTP control plane — Supabase function `catalog-images`
 
-| Метод / шлях | Запит | Результат / правило |
-| --- | --- | --- |
-| POST `/imports` | teamId, contractVersion:2, sourceKind, idempotencyKey; Drive source material/folder IDs only | 202 job snapshot; same key+same payload same job; 409 mismatch; local не потребує Drive connection |
-| GET `/imports` | teamId, states:active/recent, cursor, limit≤20 | current-authorized paginated discovery після reload без job ID; safe counts/status; manager може знайти покинуті jobs |
-| POST `/imports/:id/manifest` | pageKey, entries ≤100: clientFileKey, name, declaredSize, declaredMime | Idempotent append while collecting; server limits; duplicates do not reserve twice |
-| POST `/imports/:id/seal` | revision, exact manifest count | CAS collecting→sealed; no partial manifest presented as complete |
-| POST `/imports/:id/entries/:entry/grant` | generation, requestKey | private staging PUT URL + exact key-bound required headers, expiresAt≤5min; no public write grant; pending current job only |
-| POST `/imports/:id/entries/:entry/delivered` | grantGeneration, requestKey | 202 status, not ready; received signal is hint; worker reads staging independently |
-| GET `/imports/:id` | optional entryCursor, limit≤100 | authorized job + paginated entry UI projection, stage/classification/outcome, counts, hasMore; no credential-bearing values |
-| POST `/imports/:id/cancel` | revision, idempotencyKey | CAS cancel/epoch increment; completed files retained; no false guarantee of instant staging URL invalidation |
-| POST `/imports/:id/retry` | failed entry IDs≤100, idempotencyKey | new attempts for same frozen versions, no re-upload ready copies; unknown writes reconciled first |
-| GET `/dictionary` | teamId, cursor, limit≤100 | ready active entries, dictionaryRevision, exact total, hasMore; not legacy filename list truncated at 500 |
-| GET `/inventory` | teamId, revision | aggregate matched pairs + unclassified count + completeness; consistent revision or 409 reread, no 25k-name payload |
-| POST `/pool/:entry/remove` | revision, idempotencyKey | active=false only; retained public object unchanged |
-| POST `/publications/:id/revoke` | explicitRevocation:true, revision, idempotencyKey | confirmed-impact action; queued durable purge and state; not instant all-cache deletion |
-| POST `/worker` | named worker secret; optional claimed work ID | internal dispatch only, no browser JWT/anonymous worker bypass; one file invocation |
+| Метод / шлях                                 | Запит                                                                                        | Результат / правило                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| POST `/imports`                              | teamId, contractVersion:2, sourceKind, idempotencyKey; Drive source material/folder IDs only | 202 job snapshot; same key+same payload same job; 409 mismatch; local не потребує Drive connection                          |
+| GET `/imports`                               | teamId, cursor; fixed page≤20, active/reconciliation first, newest history                   | current-authorized paginated discovery після reload без job ID; safe counts/status; manager може знайти покинуті jobs       |
+| POST `/imports/:id/manifest`                 | pageKey, entries ≤100: clientFileKey, name, declaredSize, declaredMime                       | Idempotent append while collecting; server limits; duplicates do not reserve twice                                          |
+| POST `/imports/:id/seal`                     | revision, exact manifest count                                                               | CAS collecting→sealed; no partial manifest presented as complete                                                            |
+| POST `/imports/:id/entries/:entry/grant`     | generation, requestKey                                                                       | private staging PUT URL + exact key-bound required headers, expiresAt≤5min; no public write grant; pending current job only |
+| POST `/imports/:id/entries/:entry/delivered` | grantGeneration, requestKey                                                                  | 202 status, not ready; received signal is hint; worker reads staging independently                                          |
+| GET `/imports/:id`                           | optional cursor, limit≤100                                                                   | authorized job + paginated entry UI projection, stage/classification/outcome, counts, hasMore; no credential-bearing values |
+| POST `/imports/:id/cancel`                   | revision, idempotencyKey                                                                     | CAS cancel/epoch increment; completed files retained; no false guarantee of instant staging URL invalidation                |
+| POST `/imports/:id/retry`                    | optional eligible entry IDs≤100, idempotencyKey; absent IDs retries all eligible pages       | new attempts for same frozen versions, no re-upload ready copies; unknown writes reconciled first                           |
+| GET `/dictionary`                            | teamId, cursor, limit≤100                                                                    | ready active entries, revision, exact total, hasMore; not legacy filename list truncated at 500                             |
+| GET `/inventory`                             | teamId                                                                                       | exact matched pairs, unclassified, total and revision; no 25k-name payload                                                  |
+| POST `/pool/:entry/remove`                   | revision, idempotencyKey                                                                     | active=false only; retained public object unchanged                                                                         |
+| POST `/publications/:id/revoke`              | explicitRevocation:true, revision, idempotencyKey                                            | confirmed-impact action; queued durable purge and state; not instant all-cache deletion                                     |
+| POST `/imports/:id/continue`                 | idempotencyKey                                                                               | explicit next bounded Drive source job, persisted cursor                                                                    |
+| POST `/worker`                               | named worker secret                                                                          | internal dispatch only, no browser JWT/anonymous worker bypass; one file invocation                                         |
 
 Route base is `/functions/v1/catalog-images`; prefix/table ownership must be consistent in tests. R2 credentials exist only in server runtime secrets; public browser config contains at most media origin and capability version. Exact origins for production/beta, isolated bucket credentials; dev/sandbox config cannot target production.
 
@@ -99,3 +100,12 @@ All APIs need same/different idempotency payload tests; tenant/current-membershi
 - Якщо title не має garment token, є кілька конфліктних типів/кольорів, old facts суперечливі або результат перевищує чинні TITLE_MAX=200 /DESCRIPTION_MAX=9999, **не вгадувати, не обрізати, не регенерувати приховано**. Уся спроба оновлення завершується `IMAGE_TEXT_PAIRING_CONFLICT` до зовнішнього запису каталогу; старий каталог/URL/snapshot збережені. Recovery: увімкнути оновлення текстів або виправити назви/описи й явно повторити.
 - Новий unclassified вибір не змінює текст заради вигаданої семантики; normal random mode збережений. Якщо matched identity/facts не змінювались і обидва прапори off, немає примусового переписування legacy custom text.
 - Fixtures: unknown custom title, conflicting two garment/color tokens, valid unique token replacement, exact 200/9999 boundary та +1 overflow; усі чотири комбінації refresh flags і growth. У failure немає partial external catalog write або image-use committed receipt.
+
+## Implemented recovery refinements
+
+- Eight active upload/unverified slots are independent of retired unexpired bearer grants. Admission pressure returns retryable `IMAGE_UPLOAD_CAPACITY_BUSY`; true storage/job quota remains `IMAGE_QUOTA_EXCEEDED`. The browser retries only capacity with the same generation/request key at five-second intervals, at most 48 retries (four minutes), abortable on cancellation. It retains local input on timeout. Trusted verification or a terminal result frees capacity; a browser delivery hint does not.
+- A failed incomplete Drive enumeration retains its cursor and already admitted/ready entries. Explicit retry fences the prior enumeration lease and resumes enumeration; a safe optional job `errorCode` explains a failure before the first file.
+- Frozen image selection is scoped by create/growth/refresh within an attempt. Empty admitted v2 pools return bounded settings-missing instead of falling back to the legacy settings URL. A cached recipe still validates publication authority before provider I/O; authoritative finalization conflicts are surfaced. Delivered updater reconciliation validates and finalizes use receipts in the same database transaction as completion.
+- Stage changes bump the public safe snapshot revision for the existing Realtime channel. Expiry does not fence a live service lease. Folder selection requires an actual material-backed folder; the unrepresented Drive root cannot be submitted.
+
+Launch1550 integration:service_claim_launch_generation additionally returns server-owned catalogImageContractVersion1|2. The executor sends create version2 only for persisted2. A reserved future child UUID identifies the pre-restitch image selection, issued uses and actual catalog child. Both SQL planners support the R2 union; exact accepted-v1/no-child recovery remains valid after team cutover. A memoized checkpoint does not waive current Launch authority, and a ready R2-only pool does not require legacy Drive pictures.

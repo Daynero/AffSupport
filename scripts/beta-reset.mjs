@@ -18,6 +18,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { BETA_PROFILE, evaluateResetTarget } from '../packages/shared/dist/environment.js';
 import { workerSecretStatements } from './lib/beta-worker-secrets.mjs';
+import { resetOwnedBetaStack } from './lib/beta-reset-stack.mjs';
 
 function fail(problem) {
   const message =
@@ -35,9 +36,6 @@ if (unsafe) fail(unsafe);
 const seed = 'supabase/fixtures/beta-seed.sql';
 if (!existsSync(seed)) fail(`the fixture file ${seed} is missing.`);
 
-const reset = spawnSync('npx', ['supabase', 'db', 'reset'], { shell: false, stdio: 'inherit' });
-if (reset.status !== 0) fail('`supabase db reset` did not complete.');
-
 /**
  * Applied explicitly rather than as config.toml's shared seed, so ordinary local
  * development keeps its own behaviour.
@@ -53,6 +51,19 @@ const target = process.env.SUPABASE_DB_URL?.trim() || LOCAL_DB_URL;
 // the earlier check passed on a different value.
 const targetUnsafe = evaluateResetTarget(target);
 if (targetUnsafe) fail(targetUnsafe);
+
+try {
+  resetOwnedBetaStack({
+    config: readFileSync('supabase/config.toml', 'utf8'),
+    ownership: JSON.parse(readFileSync('release/automation/beta-service.json', 'utf8')),
+    target,
+    readConfig: () => readFileSync('supabase/config.toml', 'utf8'),
+    run: (args, options) =>
+      spawnSync('npx', args, { shell: false, stdio: 'inherit', env: options.env })
+  });
+} catch (error) {
+  fail(error instanceof Error ? error.message : 'the owned beta stack could not be verified.');
+}
 
 const client = new pg.Client({ connectionString: target });
 try {

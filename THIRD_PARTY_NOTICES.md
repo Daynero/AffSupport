@@ -1,5 +1,11 @@
 # Third-party notices
 
+## Catalog image validation and lossless conversion
+
+The catalog-image Edge function embeds the exact libwebp WASM distributed with Playwright 1.62.1, whose release recipe pins libwebp source `3757b8afeb54e305eaef18502812a9a88b7ed662`. The original WASM SHA-256 is `164cd9583a3e4d081f767d3b41ff0a730443dc7535fcc5caff83561463384b79`. Only decoding is exposed by Soty. The adapted module has no runtime network/file loaders; its provenance, reproducible generator and Apache-2.0/libwebp BSD licenses are retained in `supabase/functions/_shared/catalog-webp/`.
+
+JPEG validation uses the decoder from jpeg-js 0.4.4, with strict bounds and local ESM adaptation. Source provenance and Apache-2.0/BSD notices are retained in `supabase/functions/_shared/catalog-jpeg/`. Validation never re-encodes JPEG image data.
+
 ## FFmpeg 7.1.1 and x264
 
 The application bundles arm64 `ffmpeg` and `ffprobe`, built locally from the official FFmpeg 7.1.1 release source and VideoLAN x264 commit `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee`. Build flags include `--enable-gpl --enable-libx264 --disable-shared --enable-static --disable-ffplay --disable-sdl2`; `--enable-nonfree` is not used. The resulting programs are distributed under GNU GPL version 2 or later. Complete corresponding source archives are included in `Contents/Resources/licenses/sources/` inside the app bundle.

@@ -33,7 +33,13 @@ const TABLES = [
   'analytics_recovery_execution',
   'analytics_recovery_retirement',
   'analytics_membership_access_signals',
-  'analytics_translation_retirement'
+  'analytics_translation_retirement',
+  'analytics_catalog_image_journal',
+  'analytics_catalog_text_schedule',
+  'analytics_catalog_text_schedule_journal',
+  'analytics_catalog_text_schedule_coverage',
+  'analytics_catalog_image_storage',
+  'analytics_catalog_image_optimization'
 ] as const;
 
 let cached: { generation: number; schema: Promise<AnalyticsSchema> } | null = null;
@@ -67,6 +73,24 @@ async function probe(): Promise<AnalyticsSchema> {
         : {}),
       ...(has('table', 'analytics_translation_retirement')
         ? { analytics_translation_retirement: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_text_schedule')
+        ? { analytics_catalog_text_schedule: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_text_schedule_journal')
+        ? { analytics_catalog_text_schedule_journal: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_text_schedule_coverage')
+        ? { analytics_catalog_text_schedule_coverage: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_image_storage')
+        ? { analytics_catalog_image_storage: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_image_optimization')
+        ? { analytics_catalog_image_optimization: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_image_journal')
+        ? { analytics_catalog_image_journal: true }
         : {}),
       ...(has('table', 'analytics_recovery_retirement')
         ? { analytics_recovery_retirement: true }
@@ -124,6 +148,12 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_recovery_retirement' &&
         table !== 'analytics_membership_access_signals' &&
         table !== 'analytics_translation_retirement' &&
+        table !== 'analytics_catalog_image_journal' &&
+        table !== 'analytics_catalog_text_schedule' &&
+        table !== 'analytics_catalog_text_schedule_journal' &&
+        table !== 'analytics_catalog_text_schedule_coverage' &&
+        table !== 'analytics_catalog_image_storage' &&
+        table !== 'analytics_catalog_image_optimization' &&
         table !== 'analytics_process_output_cleanup' &&
         !schema.tables[table]
     )

@@ -1,3 +1,5 @@
+// @ts-self-types="./transport.d.ts"
+import { CATALOG_IMAGE_ERROR_CODES } from './catalog-images.js';
 import {
   LANGUAGE_CODES,
   TEAM_OPERATION_KINDS,
@@ -34,6 +36,7 @@ export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
 export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 
 export const TEAM_ERROR_CODES = [
+  ...CATALOG_IMAGE_ERROR_CODES,
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,

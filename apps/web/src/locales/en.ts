@@ -1,4 +1,219 @@
 export const en = {
+  catalogTextScheduleTitle: 'Regenerate weekly',
+  catalogTextScheduleCount: 'New variants',
+  catalogTextScheduleSave: 'Save schedule',
+  catalogTextScheduleConsequence:
+    'Replaces all saved names and descriptions. The first update runs 7 days after enabling.',
+  catalogTextScheduleLoading: 'Loading schedule…',
+  catalogTextScheduleUnavailable: 'Weekly updates are unavailable in this connection.',
+  catalogTextScheduleSaved: 'Schedule saved',
+  catalogTextScheduleNext: 'Next update: {date}',
+  catalogTextScheduleNextUnknown: 'The next update time is not confirmed.',
+  catalogTextScheduleLast: 'Last update: {date}',
+  catalogTextScheduleLastFailed:
+    'The last automatic update is not confirmed. Check the current state.',
+
+  catalogImagesManagerHint:
+    'Select images to remove them from the selection or delete stored copies.',
+  catalogImagesCapacityUnconfirmed: 'Capacity not confirmed',
+  catalogImagesLibraryIncomplete:
+    'The image list is incomplete. Refresh before selecting all images.',
+  catalogImagesUsed: 'Used: {size}',
+  catalogImagesFree: 'Free: {size}',
+  catalogImagesStorageMeter: '{used} used · {free} free · {limit} total',
+  catalogImagesOwnerLimit: 'Shared storage across the owner’s spaces.',
+  catalogImagesManage: 'Manage images',
+  catalogImagesSearch: 'Search',
+  catalogImagesSearchStored: 'Search stored images',
+  catalogImagesSearchCoverage: 'Found {found} among {loaded} loaded of {total} images',
+  catalogImagesNoMatches: 'No matching images in the loaded results.',
+  catalogImagesPages: 'Image pages',
+  catalogImagesPrevious: 'Previous page',
+  catalogImagesNext: 'Next page',
+  catalogImagesLoadMore: 'Load more images',
+  catalogImagesSelectShown: 'Select shown ({count})',
+  catalogImagesSelectImage: 'Select {name}',
+  catalogImagesClearSelection: 'Clear selection',
+  catalogImagesSelected: '{count} selected · {size}',
+  catalogImagesRemoveSelected: 'Remove selected from selection',
+  catalogImagesDeleteSelected: 'Delete selected images ({count})',
+  catalogImagesBulkRemoveTitle: 'Remove {count} images from the selection?',
+  catalogImagesBulkRemoveBody:
+    'Existing catalog links will keep working. The copies remain stored and no space is freed.',
+  catalogImagesBulkDeleteTitle: 'Delete selected images?',
+  catalogImagesBulkDeleteBody:
+    'These copies use {size}. Existing catalogs using them will lose their images. Free space updates only after confirmed cleanup.',
+  catalogImagesSelectedInUse: 'Images used by existing catalogs: {count}',
+  catalogImagesBulkProgress: 'Processing {done} of {total}…',
+  catalogImagesBulkResult:
+    'Requested: {requested}. Accepted: {accepted}. Failed or unconfirmed: {failed}. Not attempted: {unattempted}.',
+  catalogImagesBulkStopped:
+    'Stopped at the first unconfirmed result. Check the current state before selecting images again.',
+  catalogImagesLoadingLibrary: 'Loading images for search… {loaded} of {total}',
+  catalogImagesSearchComplete: 'All {count} images are available for search.',
+  catalogImagesSelectAllMatches: 'Select all matches ({count})',
+  catalogImagesRemoveConfirm: 'Remove from selection',
+  catalogImagesDeleteConfirm: 'Delete stored images',
+  catalogImagesCancelAction: 'Cancel',
+
+  catalogImagesBackToUpload: 'Back to adding images',
+  catalogImagesQuickFormats: 'JPEG, PNG or WebP · at least 500 × 500',
+  catalogImagesAdd: 'Add images',
+  catalogImagesActions: 'Image actions',
+  catalogImagesHelpTitle: 'Prepare images',
+  catalogImagesGalleryHint: 'Images for your catalogs',
+  catalogImagesGalleryEmpty: 'No images yet',
+  catalogImagesDetails: 'Details',
+  catalogImagesHistoryEmpty: 'No uploads yet',
+  catalogImagesStillUnconfirmed:
+    'Status checked. The server has not confirmed upload completion yet. You do not need to upload the files again.',
+  catalogImagesStatusUpdated: 'Status updated.',
+  catalogImagesDeleteSpaceHint: 'Space will be freed once deletion finishes.',
+  catalogImagesSelectionSize: 'Selected: {count} · {size}',
+  catalogImagesDeleteLinksWarning: 'These images will disappear from catalogs that use them.',
+  catalogImagesReconcile: 'Check status',
+  catalogImagesCapacityFull: 'Storage is full. Free up space to add images.',
+
+  catalogImagesOptimizationNotice:
+    'Before publication, photos are optimized without quality loss or resizing. JPEG/PNG stay in their format; WebP becomes PNG. Already compressed files may not get smaller.',
+  catalogImagesFormatHint:
+    'At least 500 × 500; published result up to 8 MB. JPEG and WebP: up to 4 megapixels; PNG: up to 16. WebP sources up to 8 MB, other sources up to 50 MB.',
+  catalogImagesErrorDimensions:
+    'Check dimensions: at least 500 × 500, JPEG/WebP up to 4 megapixels, PNG up to 16. If dimensions fit, encoding may exceed the processing budget; save a copy as PNG.',
+  catalogImagesStorageHeading: 'Picture storage',
+  catalogImagesStorageUsage: 'Storage: {used} of {limit}. Pictures: {count} of {imageLimit}.',
+  catalogImagesStorageOwnerScope:
+    'This limit is shared across all workspaces owned by this workspace’s owner. Processing and retained copies count toward it.',
+  catalogImagesStorageBreakdown:
+    'Processing: {processing}. Pending cleanup: {deleting}. Outside selection: {retained}.',
+  catalogImagesStorageSpaces: 'This workspace: {team}. Other owned workspaces: {other}.',
+  catalogImagesStorageFull:
+    'The storage limit is reached. Existing copies can still be reused. To add new pictures, delete stored copies and wait for confirmed cleanup.',
+  catalogImagesStorageLoading: 'Loading storage usage…',
+  catalogImagesStorageUnavailable:
+    'Storage usage is unavailable. Refresh status to check the actual balance.',
+  catalogImagesStorageStale:
+    'Storage usage could not be refreshed. The displayed balance is from the last successful check.',
+  catalogImagesRemoveHint:
+    'Removing a picture from the selection keeps its link working in existing catalogs and does not free storage.',
+  catalogImagesManageLibrary: 'Manage stored pictures',
+  catalogImagesLibraryHeading: 'Stored picture library',
+  catalogImagesLibraryHint:
+    'This workspace’s stored copies include pictures removed from the selection. Delete a publication to request storage cleanup; existing catalogs using it will lose that picture.',
+  catalogImagesLibraryEmpty: 'No stored pictures in this workspace.',
+  catalogImagesLibraryUnavailable:
+    'The library could not be refreshed. Refresh status before managing its copies.',
+  catalogImagesLibraryActive: 'In selection',
+  catalogImagesLibraryRetained: 'Outside selection',
+  catalogImagesLibraryInUse: 'Used by catalogs',
+  catalogImagesLibraryDeleting: 'Cleanup pending; space is not free yet',
+  catalogImagesLibraryUnknown:
+    'Cleanup outcome is uncertain; space is still charged. Refresh status to reconcile it.',
+  catalogImagesDeletePicture: 'Delete stored picture',
+  catalogImagesCleanupCapacity:
+    'Storage becomes available only after confirmed cleanup. A pending or uncertain deletion still counts toward the limit.',
+  catalogImagesOpenPicture: 'Open picture',
+  catalogImagesRemovePicture: 'Remove from selection',
+  catalogImagesRevokePicture: 'Revoke publication',
+  catalogImagesNextPictures: 'Next pictures',
+  catalogImagesRevocationQueued:
+    'Revocation requested. Storage and managed cache cleanup can take time; external copies may remain.',
+  catalogImagesRevokeImpact:
+    'The link will stop working in existing catalogs. This revokes the publication, rather than only removing it from future selections. External caches and downloaded copies may remain.',
+  catalogImagesContinueImport: 'Continue folder import',
+  catalogImagesCopyFailed: 'Could not copy the prompt. Open it and copy it manually.',
+  catalogImagesTitle: 'Images',
+  catalogImagesPublicNotice:
+    'Uploaded images will be publicly accessible through catalog links. Only add images you have the right to publish.',
+  catalogImagesDescription: 'Upload pictures once and reuse their ready links in catalogs.',
+  catalogImagesLoading: 'Loading picture status…',
+  catalogImagesSetupRequired:
+    'Image uploads are not enabled for this space yet. Existing pictures and catalogs remain available.',
+  catalogImagesImportsPaused: 'New uploads are paused. Ready pictures remain available.',
+  catalogImagesInventory: 'Matched by name: {matched}. Random: {random}.',
+  catalogImagesDrop: 'Drop pictures here',
+  catalogImagesChooseFiles: 'Choose files',
+  catalogImagesChooseDrive: 'Choose a Google Drive folder',
+  catalogImagesAnalyzeUpload: 'Analyze and upload',
+  catalogImagesSelectedFolder: 'Selected folder: {name}',
+  catalogImagesQueued: 'Queued: {count}',
+  catalogImagesShowMore: 'Show more',
+  catalogImagesTransferBytes:
+    'Transferred {loaded} of {total} bytes. Pictures still need verification after transfer.',
+  catalogImagesHelpClothing:
+    'Use clothing on a white background: Soty’s product names, descriptions and categories are prepared for clothing. Correctly named pictures are matched to products by garment and color.',
+  catalogImagesHelpRandom:
+    'You can also add ordinary pictures without special names. They will simply be selected at random, without matching the product name, garment or color.',
+  catalogImagesHelpMix:
+    'Product variations mix names and descriptions, fabric, fit, style, pattern, size and price. The garment and color of correctly named pictures stay linked to the product. Other properties are not detected from photos.',
+  catalogImagesHelpNames:
+    'Name files garment_color_number: hoodie_black_001.jpg. We recommend square 1:1 pictures, one item on white, without people, brands or text.',
+  catalogImagesCopyPrompt: 'Copy prompt',
+  catalogImagesPromptCopied: 'Prompt copied',
+  catalogImagesPromptCopyFailed: 'Could not copy. Open the prompt and copy it manually.',
+  catalogImagesOpenPrompt: 'Open prompt',
+  catalogImagesRefresh: 'Refresh status',
+  catalogImagesRecentImports: 'Recent uploads',
+  catalogImagesImportStatus: 'Picture upload status',
+  catalogImagesJobCounts:
+    'Ready: {ready}. Reused: {reused}. Random: {random}. Failed: {failed}. Expired: {expired}.',
+  catalogImagesReselect:
+    'Some local files have not been transferred. Select them again to continue. Ready pictures will not be uploaded twice.',
+  catalogImagesRandomMode: 'Random selection',
+  catalogImagesEntriesLimited: 'Showing the first page of files; totals cover the entire upload.',
+  catalogImagesCancel: 'Cancel upload',
+  catalogImagesRetry: 'Retry unfinished pictures',
+  catalogImagesMigrateExisting: 'Add from existing image sources',
+  catalogImagesWaitingCapacity:
+    'Waiting for image verification to free upload capacity. The queue will continue automatically.',
+  catalogImagesUploadCapacityBusy:
+    'Upload capacity is temporarily full. Keep the selected files and retry when verification has finished.',
+  catalogImagesMigrateHint:
+    'Copies the current Drive files and folders through the same image analysis. Existing catalogs keep working. Unsupported files are shown as failures; source files and their sharing permissions stay as they are. Up to 100 source files or folders per import.',
+  catalogImagesClose: 'Close',
+  catalogImagesStageCollecting: 'Preparing file list',
+  catalogImagesStageEnumerating: 'Reading folder',
+  catalogImagesStageSealed: 'File list ready',
+  catalogImagesStageRunning: 'Processing pictures',
+  catalogImagesStageCompleted: 'Completed',
+  catalogImagesStagePartial: 'Partly completed',
+  catalogImagesStageFailed: 'Could not complete',
+  catalogImagesStageCancelled: 'Cancelled',
+  catalogImagesStageExpired: 'Source deadline expired',
+  catalogImagesStageUncertain: 'Upload completion not confirmed',
+  catalogImagesStageWaiting: 'Waiting for file',
+  catalogImagesStageStaged: 'File transferred',
+  catalogImagesStageValidating: 'Checking file',
+  catalogImagesStageDeduplicating: 'Checking duplicates',
+  catalogImagesStagePublishing: 'Publishing',
+  catalogImagesStageVerifying: 'Verifying stored bytes',
+  catalogImagesStageVerifyingPublic: 'Verifying public link',
+  catalogImagesStageCommitting: 'Saving classification',
+  catalogImagesStageReady: 'Ready',
+  catalogImagesStageReused: 'Reused ready copy',
+  catalogImagesErrorPairingConflict:
+    'The name and description cannot safely match the new picture. Enable text refresh or edit the text and retry. The previous catalog is preserved.',
+  catalogImagesErrorUnavailable: 'Picture storage is unavailable. Refresh status before retrying.',
+  catalogImagesErrorSource:
+    'The picture source is unavailable or changed. Check access and select it again.',
+  catalogImagesErrorFormat:
+    'Use a valid static PNG, JPEG or WebP picture with the correct orientation.',
+  catalogImagesErrorTooLarge:
+    'PNG: up to 50 MB and 16 megapixels. JPEG: up to 50 MB and 4 megapixels. WebP: up to 8 MB and 4 megapixels. The published result must be at most 8 MB.',
+  catalogImagesErrorQuota:
+    'An upload or owner-account storage limit was reached. Reduce the batch, or delete stored pictures and wait for confirmed cleanup before adding new copies.',
+  catalogImagesErrorConflict:
+    'These bytes already have a different classification, or the request changed. Refresh status and check the mapping.',
+  catalogImagesErrorUncertain:
+    'Upload completion has not been confirmed. Choose Check status; this does not upload the files again.',
+  catalogImagesErrorDisabled: 'New picture uploads are disabled for this space.',
+  catalogImagesErrorUpgrade: 'Refresh the page: this space uses the new picture mechanism.',
+  catalogImagesErrorVerification:
+    'The public picture link has not been verified. Refresh status before retrying.',
+  catalogImagesErrorLocalSource: 'Select the required local files again to continue.',
+  catalogImagesErrorRevoked: 'This picture publication was revoked. Choose another ready picture.',
+  catalogImagesErrorManifest:
+    'The file list is not complete. Check the selected pictures and retry.',
   accountsMoveDropped: 'Position selected. Saving the order.',
   accountsUnmatchedLaunches: 'Launches without a linked ad account',
   accountsMoveInstructions:
@@ -2247,10 +2462,9 @@ export const en = {
   productCatalogImagesRootRefused: 'Choose a folder, not the whole space.',
   productCatalogTextsTitle: 'Names and descriptions',
   productCatalogTextsDescription:
-    'New catalogs and products use these names and descriptions. Existing products change according to the names, descriptions and prices rule.',
+    'Ready English names and descriptions for products. Browse them or generate more.',
   productCatalogTextsPool: 'Saved: {count}',
-  productCatalogTextsApparelOnly:
-    'The generator writes names and descriptions for clothing only — choose clothing pictures to go with them.',
+  productCatalogTextsApparelOnly: 'The generator creates English texts for clothing only.',
   productCatalogTextsCount: 'Variants to add',
   productCatalogTextsCountInvalid: 'From 1 to {max}.',
   productCatalogTextsGenerate: 'Generate',
@@ -2266,13 +2480,13 @@ export const en = {
   productCatalogTextsFieldDescription: 'Description',
   productCatalogTextsFieldDescriptionHint: 'Plain text, in English.',
   productCatalogPriceTitle: 'Price',
-  productCatalogPriceDescription:
-    'Range for new products and price updates according to catalog rules.',
+  productCatalogPriceDescription: 'Each product gets a random price within this range.',
   productCatalogPriceFrom: 'From',
   productCatalogPriceTo: 'to',
   productCatalogPriceRangeInvalid: 'Whole dollars, and "from" no higher than "to".',
   productCatalogFallbackToggle: 'One name, description and picture link for every row',
-  productCatalogFallbackHint: 'Used when creating a catalog without saved names or images.',
+  productCatalogFallbackHint:
+    'When the names list is empty, products use the single name and description below. When there are no images, they use one shared image.',
   catalogUpdaterChangesTitle: 'Defaults for new catalogs',
   catalogUpdaterDefaultsExplanation:
     'These choices are copied only when a new catalog is created. Existing catalogs keep their own update settings above.',
@@ -2287,6 +2501,15 @@ export const en = {
   catalogUpdaterGrowHint:
     'Each update adds a few products of its own — their own names, pictures and prices — up to the 400 a sheet can hold.',
   productCatalogSettingsReadOnly: 'Only a space manager can change these.',
+  catalogSettingsAddTexts: 'Generate names and descriptions',
+  catalogDefaultsRestitchAction: 'Prepare a new video copy',
+  catalogDefaultsLinksAction: 'Change product links',
+  catalogDefaultsImagesAction: 'Change images',
+  catalogDefaultsTextsAction: 'Change names, descriptions and prices',
+  catalogDefaultsGrowAction: 'Add 1–5 products',
+  catalogFallbackTitleActive: 'The shared name and description are in use',
+  catalogFallbackImageActive: 'The shared image is in use',
+  catalogFallbackReserved: 'Saved as a fallback',
   catalogSettingsMore: 'More actions',
   catalogSettingsUnknown: 'Check the contents: data is not confirmed yet.',
   catalogSettingsReadFailed: 'Could not load',
@@ -2302,7 +2525,7 @@ export const en = {
   catalogDefaultsReadOnly: 'View only',
   catalogDefaultsUnavailable: 'Editing unavailable',
   catalogDefaultsLoadFailed: 'Could not load',
-  productCatalogSummaryTitle: 'Catalog contents',
+  productCatalogSummaryTitle: 'Catalog settings',
   productCatalogSummaryDescription:
     'Every row draws its own from what is below; this says whether there is anything to draw.',
   productCatalogSummaryNames: 'Names and descriptions — {count} in the pool',
@@ -2316,15 +2539,15 @@ export const en = {
     'Pictures — nothing to show: the pool is empty and there is no fallback link',
   productCatalogSummaryPrice: 'Price — {from} to {to} USD, a whole number per row',
   productCatalogSummaryPriceUnsaved: 'Price — not saved yet',
-  productCatalogSummaryReady: 'Catalog contents are configured.',
+  productCatalogSummaryReady: 'Ready to create a catalog',
   productCatalogSummaryBlocked: 'Add missing content and save the price.',
   productCatalogUpdaterLink: 'Go to catalogs',
   productCatalogTextsAdd: 'Add',
-  productCatalogTextsBrowse: 'View all ({count})',
+  productCatalogTextsBrowse: 'Browse and edit ({count})',
   productCatalogTextsBrowseTitle: 'Names and descriptions',
-  productCatalogTextsSearch: 'Search the pool',
+  productCatalogTextsSearch: 'Search names or descriptions',
   productCatalogTextsFound: 'Found: {count}',
-  productCatalogFallbackTitle: 'Fallback values',
+  productCatalogFallbackTitle: 'When names or images are missing',
   productCatalogFallbackInUse: 'In use',
   productCatalogFallbackUnused: 'Held in reserve',
   productCatalogFallbackEmpty: 'Empty',
@@ -2547,7 +2770,7 @@ export const en = {
   catalogUpdaterKeepEditing: 'Keep editing',
   catalogUpdaterDefaultsTitle: 'For new catalogs',
   catalogUpdaterDefaultsScope:
-    'Applies to catalogs created after saving. Existing catalogs keep their settings.',
+    'New catalogs will receive these rules. Change existing catalogs in the catalog manager.',
   catalogUpdaterDefaultsSaved: 'Defaults saved',
 
   catalogUpdaterClose: 'Close',

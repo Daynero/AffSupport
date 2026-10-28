@@ -1,3 +1,4 @@
+import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
   PROFILE_SYNC_CODES
@@ -567,7 +568,7 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [
       'apps/agent/src/team-bridge/restitch.ts',
       AGENT_STITCH_BODY,
-      'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+      'supabase/migrations/20261206149100_catalog_failed_browser_process.sql'
     ],
     check:
       'Read the closed errorCode and correlated runId, then the catalog job retry and operation terminal. A native execution fence or provider upload remains uncertain and must not be replayed.'
@@ -766,7 +767,7 @@ function fromCodes(
         files: unique([
           ...spec.agent,
           'apps/agent/src/team-bridge/restitch.ts',
-          'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+          'supabase/migrations/20261206149100_catalog_failed_browser_process.sql'
         ]),
         check:
           'Read the exact local processing failure and catalog retry state. A queued job with an open operation cannot be retried; provider upload or native execution uncertainty must remain fenced.'
@@ -788,7 +789,7 @@ function build(): Record<string, CodeLocation> {
     files: [
       'apps/agent/src/team-bridge/restitch.ts',
       'apps/web/src/team/catalog-updater/useRestitchPreparer.ts',
-      'supabase/migrations/20261206150000_catalog_failed_browser_process.sql'
+      'supabase/migrations/20261206149100_catalog_failed_browser_process.sql'
     ],
     check:
       'Inspect the correlated local journal and job operation. A generic processing failure does not prove native quiescence; retain provider and execution fences until the outcome is known.'
@@ -1180,6 +1181,55 @@ function build(): Record<string, CodeLocation> {
         'Inspect this exact correlated attempt. API completion validates the server response only; visible editor refresh is separate. Implicit preserve-draft keeps local typing and its original conflict version. An explicit Keep mine retries only unacknowledged fields against the reviewed version; a further peer change must conflict again. Take their version clears pending typing and renders the newest confirmed snapshot for that same task. For missing terminals read the protected current task before retrying; do not infer rollback or delivery from missing events.'
     };
   }
+  for (const code of CATALOG_IMAGE_ERROR_CODES) {
+    map[`catalog:update:${code}`] = {
+      files: [
+        'supabase/functions/catalog-updater/worker.ts',
+        'supabase/functions/_shared/catalog-image-rows.ts',
+        'supabase/migrations/20261206152000_catalog_r2_integration.sql'
+      ],
+      check:
+        'Check the outgoing picture identities and the retained publication state before retrying the catalog write.'
+    };
+    map[`launches:generation:${code}`] = {
+      files: [
+        'supabase/functions/drive-ops/launch-catalog.ts',
+        'supabase/functions/drive-ops/catalog-durable.ts',
+        'supabase/functions/_shared/catalog-image-rows.ts',
+        'supabase/functions/_shared/catalog-images.ts',
+        'apps/web/src/team/errors.ts'
+      ],
+      check:
+        'Inspect the persisted catalog image version, frozen pool snapshot, image and text pairing, and durable use receipts before retrying the same Launch attempt.'
+    };
+    map[`catalog:image:${code}`] = {
+      files:
+        code === 'IMAGE_CLIPBOARD_UNAVAILABLE'
+          ? [
+              'apps/web/src/team/product-catalog/catalogImagePrompt.ts',
+              'apps/web/src/team/product-catalog/CatalogImageImport.tsx'
+            ]
+          : [
+              'supabase/functions/catalog-images/worker.ts',
+              'supabase/functions/_shared/catalog-image-optimization.ts',
+              'supabase/migrations/20261206157000_catalog_image_storage.sql',
+              'supabase/functions/catalog-images/drive-sources.ts',
+              'supabase/functions/catalog-images/handler.ts',
+              'apps/web/src/team/product-catalog/CatalogImageImport.tsx'
+            ],
+      check:
+        'Inspect the immutable image stages and publication receipt before retrying; normal unclassified pictures are random-mode successes, while missing readback or a lost response remains unknown.'
+    };
+  }
+  map['catalog:image:POOL_REMOVED'] = {
+    files: [
+      'supabase/migrations/20261206150000_catalog_r2_images.sql',
+      'supabase/migrations/20261206151000_catalog_r2_diagnostics.sql',
+      'apps/web/src/team/product-catalog/useCatalogImageImport.ts'
+    ],
+    check:
+      'The image was removed from future pool selection. Its publication may remain ready for existing catalogs; inspect revocation and purge receipts separately.'
+  };
   return map;
 }
 

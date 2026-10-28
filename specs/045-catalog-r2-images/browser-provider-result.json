@@ -1,0 +1,104 @@
+{
+  "scope": "actual_chrome_staging_cors_and_expiry_only",
+  "generated_at": "2026-10-27T17:59:48.409Z",
+  "ok": true,
+  "results": [
+    {
+      "mode": "allowed",
+      "mime": "image/png",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "allowed",
+      "mime": "image/jpeg",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "allowed",
+      "mime": "image/webp",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "denied",
+      "mime": "image/png",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": true,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "denied",
+      "mime": "image/jpeg",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": true,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "denied",
+      "mime": "image/webp",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": null,
+      "outside_browser_control": true,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "expired",
+      "mime": "image/png",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": true,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "expired",
+      "mime": "image/jpeg",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": true,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    },
+    {
+      "mode": "expired",
+      "mime": "image/webp",
+      "browser_expected": true,
+      "origin_expected": true,
+      "expiry_denied": true,
+      "outside_browser_control": null,
+      "cleanup": true,
+      "ok": true
+    }
+  ],
+  "recovery_pending": false,
+  "not_proven": [
+    "Soty authenticated import journey",
+    "hosted gateway/cron/isolate",
+    "Meta importer",
+    "production readiness"
+  ]
+}

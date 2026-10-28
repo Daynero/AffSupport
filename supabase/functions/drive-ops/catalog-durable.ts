@@ -1,3 +1,4 @@
+import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import { parseCatalogRowRecipe } from '../_shared/product-catalog.ts';
 import type { XlsxCell } from '../_shared/xlsx.ts';
@@ -32,6 +33,7 @@ export interface CatalogIntent {
   operationId: string | null;
 }
 export interface CatalogIntentStore {
+  imageRequestVersion?: () => Promise<1 | 2 | null>;
   resources?: (intent: CatalogIntent, owner: string) => Promise<Record<string, unknown>>;
   completed?: (intent: CatalogIntent) => Promise<CreateProductCatalogResult | null>;
   operation?: (
@@ -131,6 +133,16 @@ export function catalogIntentStore(
       intent.operationId = null;
       return n;
     },
+    async imageRequestVersion() {
+      const version = await call('service_catalog_image_request_version_v2', {
+        p_team: teamId,
+        p_video: videoId,
+        p_actor: actorId,
+        p_key: key
+      });
+      if (version === null || version === 1 || version === 2) return version;
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    },
     async begin(payload, owner) {
       const r = await call('service_begin_catalog_intent', {
         p_team: teamId,
@@ -229,10 +241,20 @@ export async function createDurableProductCatalog(
   body: unknown,
   actor: string
 ): Promise<CreateProductCatalogResult> {
-  const request = parseCreateProductCatalogRequest(body);
+  const requested = parseCreateProductCatalogRequest(body);
+  const acceptedVersion = await store.imageRequestVersion?.();
+  // Only a server-owned accepted payload authorizes legacy retry normalization.
+  const request = { ...requested };
+  if (acceptedVersion === 1) delete request.catalogImageContractVersion;
+  if (acceptedVersion === 2 && request.catalogImageContractVersion !== 2)
+    throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
+  // Reject fresh old-client work before creating an accepted legacy receipt.
+  if (acceptedVersion !== 1)
+    await deps.assertImageContract?.(request.teamId, request.catalogImageContractVersion);
   const owner = crypto.randomUUID();
   const intent = await store.begin({ ...request }, owner);
   if (intent.state === 'registered') {
+    await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     const result = existingResult(intent.result);
     if (!result) throw new TeamFunctionError('INVALID_RESPONSE');
     return result;
@@ -240,6 +262,7 @@ export async function createDurableProductCatalog(
   try {
     const recovered = await store.completed?.(intent);
     if (recovered) {
+      await deps.finalizeImageUses?.(request.teamId, intent.id, true);
       await store.checkpoint(intent, owner, 'registered', {}, undefined, recovered);
       return recovered;
     }
@@ -308,7 +331,15 @@ export async function createDurableProductCatalog(
     };
     const wrapped: ProductCatalogDeps = {
       ...deps,
+      async beforeImageWrite() {
+        await deps.validateImageUses?.(request.teamId, intent.id);
+        await deps.beforeImageWrite?.();
+      },
       preserveUncertainOutput: true,
+      async assertImageContract(team, version) {
+        if (acceptedVersion === 1) return;
+        await deps.assertImageContract?.(team, version);
+      },
       failOperation: (id, cause) => deps.failOperation(id, launchFailure(cause)),
       readCreatedFile: recoverFile,
       async readSettings(team) {
@@ -423,28 +454,19 @@ export async function createDurableProductCatalog(
         await store.checkpoint(intent, owner, 'planning', { texts });
         return texts;
       },
-      async drawImages(team, count) {
+      async drawImages(team, count, options) {
         await ensureResources();
         if (Array.isArray(intent.checkpoint.images)) {
-          const values = [];
+          const values: CatalogDrawnImage[] = [];
           for (const row of intent.checkpoint.images) {
-            if (
-              !isRecord(row) ||
-              typeof row.driveFileId !== 'string' ||
-              (row.resourceKey !== null && typeof row.resourceKey !== 'string') ||
-              (row.name !== null && row.name !== undefined && typeof row.name !== 'string')
-            )
-              throw new TeamFunctionError('INVALID_RESPONSE');
-            values.push({
-              driveFileId: row.driveFileId,
-              resourceKey: row.resourceKey,
-              name: row.name
-            });
+            const parsed = parseCatalogDrawnImage(row);
+            if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
+            values.push(parsed);
           }
           return values;
         }
         await check();
-        const images = await deps.drawImages(team, count);
+        const images = await deps.drawImages(team, count, { ...options, attemptId: intent.id });
         await store.checkpoint(intent, owner, 'planning', { images });
         return images;
       },
@@ -566,9 +588,11 @@ export async function createDurableProductCatalog(
       }
     };
     const result = await createProductCatalog(wrapped, request, actor);
+    await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;
   } catch (error) {
+    await deps.finalizeImageUses?.(request.teamId, intent.id, false).catch(() => undefined);
     await store.checkpoint(intent, owner, 'interrupted', {}).catch(() => undefined);
     // The standalone form uses these closed reasons to explain how to repair
     // its input. Keep only the known enum, never arbitrary provider details.

@@ -1,37 +1,22 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ComponentProps
-} from 'react';
-import {
-  DollarSign,
-  FileSpreadsheet,
-  Folder,
-  MoreHorizontal,
-  Image,
-  Search,
-  Sparkles,
-  X
-} from 'lucide-react';
+import { createContext, useContext, useEffect, useId, useState, type ComponentProps } from 'react';
+import { DollarSign, FileSpreadsheet, Folder, Image, Search, Sparkles, X } from 'lucide-react';
 import type {
   ProductCatalogImageSource,
   ProductCatalogSettings,
   ProductCatalogText,
+  ProductCatalogTextSchedule,
   TeamMaterialSummary
 } from '../../api/team';
 import {
   Accordion,
   Button,
   ErrorState,
-  DropdownMenu,
   IconButton,
   Input,
   LoadingState,
-  Modal
+  Modal,
+  Switch,
+  Textarea
 } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -40,8 +25,12 @@ import { navigateTo } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { useCatalogSettingsFlow } from './useCatalogSettingsFlow';
+import './catalog-text-schedule.css';
+import './catalog-settings-layout.css';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
+import type { CatalogImageClient } from '../../api/team-catalog-images';
+import { CatalogImageImport } from './CatalogImageImport';
 import {
   TaskAttachmentPicker,
   type TaskAttachmentPickerClient
@@ -60,7 +49,15 @@ import {
   validateWebLink
 } from './limits';
 
+export type { ProductCatalogTextSchedule } from '../../api/team';
+
 export interface ProductCatalogSettingsClient {
+  getProductCatalogTextSchedule?: (teamId: string) => Promise<ProductCatalogTextSchedule>;
+  setProductCatalogTextSchedule?: (
+    teamId: string,
+    input: { enabled: boolean; count: number }
+  ) => Promise<ProductCatalogTextSchedule>;
+  catalogImages?: CatalogImageClient;
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
   setProductCatalogSettings: (
     teamId: string,
@@ -99,12 +96,13 @@ function CatalogSection({
   icon: Icon,
   aside,
   description,
-  children
+  children,
+  className
 }: ComponentProps<typeof SettingsSection>) {
   const { open, toggle } = useContext(EditorContext);
   return (
     <Accordion
-      className="catalog-settings-editor"
+      className={['catalog-settings-editor', className].filter(Boolean).join(' ')}
       openIds={new Set([open])}
       onToggle={toggle}
       items={[
@@ -159,12 +157,13 @@ export function ProductCatalogSettingsSection({
     onOpenEditorChange?.(id);
   };
   const [valueDraft, setValueDraft] = useState({ dirty: false, saving: false });
+  const [scheduleDraft, setScheduleDraft] = useState({ dirty: false, saving: false });
   const [imagesBusy, setImagesBusy] = useState(false);
   const [textsBusy, setTextsBusy] = useState(false);
-  const saving = valueDraft.saving || imagesBusy || textsBusy;
+  const saving = valueDraft.saving || scheduleDraft.saving || imagesBusy || textsBusy;
   useEffect(() => {
-    onDraftChange?.({ dirty: valueDraft.dirty, saving });
-  }, [onDraftChange, valueDraft.dirty, saving]);
+    onDraftChange?.({ dirty: valueDraft.dirty || scheduleDraft.dirty, saving });
+  }, [onDraftChange, valueDraft.dirty, scheduleDraft.dirty, saving]);
   useEffect(
     () => () => {
       onDraftChange?.({ dirty: false, saving: false });
@@ -193,7 +192,7 @@ export function ProductCatalogSettingsSection({
           texts={texts}
           fallback={fallback}
           range={range}
-          hasImageSources={Boolean(client.listProductCatalogImageSources)}
+          hasImageSources={Boolean(client.listProductCatalogImageSources || client.catalogImages)}
           hasTextPool={Boolean(client.listProductCatalogTexts)}
         />
         <CatalogImagesSection
@@ -207,6 +206,7 @@ export function ProductCatalogSettingsSection({
           client={client}
           onCount={setTexts}
           onBusyChange={setTextsBusy}
+          onScheduleDraftChange={setScheduleDraft}
         />
         <CatalogValuesSection
           teamId={teamId}
@@ -214,7 +214,8 @@ export function ProductCatalogSettingsSection({
           onDraftChange={setValueDraft}
           onRange={setRange}
           onFallback={setFallback}
-          poolsFilled={(images ?? 0) > 0 && (texts ?? 0) > 0}
+          hasImages={images === null ? null : images > 0}
+          hasTexts={texts === null ? null : texts > 0}
         />
       </div>
     </EditorContext.Provider>
@@ -295,6 +296,54 @@ function updaterHref(): string {
 // ---------------------------------------------------------------------------------------------
 
 function CatalogImagesSection({
+  teamId,
+  client,
+  onPool,
+  onBusyChange
+}: {
+  teamId: string;
+  client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+  onBusyChange: (busy: boolean) => void;
+  onPool: (count: number | null) => void;
+}) {
+  if (!client.catalogImages)
+    return (
+      <LegacyCatalogImagesSection
+        teamId={teamId}
+        client={client}
+        onPool={onPool}
+        onBusyChange={onBusyChange}
+      />
+    );
+  return (
+    <CatalogImageImport
+      teamId={teamId}
+      client={client.catalogImages}
+      section={CatalogSection}
+      onBusyChange={onBusyChange}
+      onPool={onPool}
+      folderClient={client.listMaterials ? { listMaterials: client.listMaterials } : undefined}
+      legacySources={
+        client.listProductCatalogImageSources
+          ? async () =>
+              (await client.listProductCatalogImageSources!(teamId)).sources.map(
+                source => source.materialId
+              )
+          : undefined
+      }
+      legacy={
+        <LegacyCatalogImagesSection
+          teamId={teamId}
+          client={client}
+          onPool={onPool}
+          onBusyChange={onBusyChange}
+        />
+      }
+    />
+  );
+}
+
+function LegacyCatalogImagesSection({
   teamId,
   client,
   onPool,
@@ -496,18 +545,19 @@ function CatalogImagesSection({
 // ---------------------------------------------------------------------------------------------
 
 /** A sample in the tab, a page at a time in the browser. */
-const TEXTS_SHOWN = 3;
 const TEXTS_PAGE = 50;
 
 function CatalogTextsSection({
   teamId,
   client,
   onCount,
-  onBusyChange
+  onBusyChange,
+  onScheduleDraftChange
 }: {
   teamId: string;
   client: ProductCatalogSettingsClient;
   onBusyChange: (busy: boolean) => void;
+  onScheduleDraftChange: (state: { dirty: boolean; saving: boolean }) => void;
   onCount: (count: number | null) => void;
 }) {
   const { t } = useI18n();
@@ -525,9 +575,8 @@ function CatalogTextsSection({
     onBusyChange(busy);
   }, [busy, onBusyChange]);
   const [confirming, setConfirming] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuAnchor = useRef<HTMLSpanElement>(null);
   const [browsing, setBrowsing] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ProductCatalogText | null>(null);
 
   useEffect(() => {
@@ -578,12 +627,23 @@ function CatalogTextsSection({
       const room = Math.max(0, APPAREL_POOL_MAX - kept.length);
       /* Written around the pictures the space has (US27): the names say hoodie where the
          pictures are hoodies, in the colours those pictures are. */
-      const pictures = await client.listProductCatalogPoolNames?.(teamId).catch(() => []);
-      const made = generateApparelTexts(
-        Math.min(wanted, room),
-        undefined,
-        pictures && pictures.length > 0 ? clothesInPictures(pictures) : undefined
-      );
+      const capabilities = await client.catalogImages?.capabilities(teamId);
+      const inventory =
+        capabilities?.mode === 'v2' ? await client.catalogImages?.inventory(teamId) : undefined;
+      const pictures = inventory
+        ? undefined
+        : await client.listProductCatalogPoolNames?.(teamId).catch(() => []);
+      const pictured =
+        inventory && inventory.pairs.length > 0
+          ? {
+              garments: [...new Set(inventory.pairs.map(pair => pair.garment))],
+              colors: [...new Set(inventory.pairs.map(pair => pair.color))],
+              pairs: inventory.pairs
+            }
+          : pictures && pictures.length > 0
+            ? clothesInPictures(pictures)
+            : undefined;
+      const made = generateApparelTexts(Math.min(wanted, room), undefined, pictured);
       await client.replaceProductCatalogTexts(teamId, [
         ...kept.map(text => ({ title: text.title, description: text.description })),
         ...made
@@ -593,6 +653,7 @@ function CatalogTextsSection({
       const found = await client.listProductCatalogTexts(teamId);
       setTexts(found);
       onCount(found.length);
+      setAdding(false);
       diagnostic.confirm();
       push({ tone: 'success', text: t('productCatalogTextsGenerated', { count: made.length }) });
     } catch (error) {
@@ -632,108 +693,118 @@ function CatalogTextsSection({
         />
       )}
       {!texts && !readError && <LoadingState count={1} label={t('catalogSettingsLoading')} />}
-      {/* Said where the pool is made: the generator knows clothing and nothing else. */}
-      <p className="product-catalog-warning">{t('productCatalogTextsApparelOnly')}</p>
-
-      {editable && texts && !readError && (
-        <div className="product-catalog-generate">
-          <label htmlFor={countId}>{t('productCatalogTextsCount')}</label>
-          <Input
-            id={countId}
-            size="sm"
-            className="product-catalog-number"
-            inputMode="numeric"
-            maxLength={4}
-            value={count}
-            aria-invalid={!countValid}
-            onChange={event => setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 4))}
-          />
-          <Button
-            type="button"
-            variant="primary"
-            loading={busy}
-            disabled={!countValid || full || wanted > APPAREL_POOL_MAX - texts.length}
-            onClick={() => void generate('add')}
-          >
-            <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t(hasPool ? 'productCatalogTextsAdd' : 'productCatalogTextsGenerate')}
-          </Button>
-          {countValid && wanted <= APPAREL_POOL_MAX - texts.length && (
-            <p className="field-hint">
-              {t('catalogSettingsForecast', { count: wanted, total: texts.length + wanted })}
-            </p>
-          )}
-          {countValid && !full && wanted > APPAREL_POOL_MAX - texts.length && (
-            <Button
-              variant="ghost"
-              onClick={() => setCount(String(APPAREL_POOL_MAX - texts.length))}
-            >
-              {t('catalogSettingsRoom', { count: APPAREL_POOL_MAX - texts.length })}
-            </Button>
-          )}
-          {hasPool && (
-            <span ref={menuAnchor}>
-              <IconButton
-                title=""
-                label={t('catalogSettingsMore')}
-                disabled={busy}
-                onClick={() => setMenuOpen(true)}
-              >
-                <MoreHorizontal />
-              </IconButton>
-              <DropdownMenu
-                open={menuOpen}
-                onClose={() => setMenuOpen(false)}
-                anchor={menuAnchor}
-                label={t('catalogSettingsMore')}
-                items={[
-                  {
-                    id: 'replace',
-                    label: t('productCatalogTextsRegenerate'),
-                    disabled: !countValid || busy,
-                    onSelect: () => setConfirming(true)
-                  }
-                ]}
-              />
-            </span>
-          )}
-          {!countValid && (
-            <small className="team-inline-error">
-              {t('productCatalogTextsCountInvalid', { max: APPAREL_POOL_MAX })}
-            </small>
-          )}
-          {full && (
-            <small className="field-hint">
-              {t('productCatalogTextsFull', { max: APPAREL_POOL_MAX })}
-            </small>
-          )}
-        </div>
-      )}
-
-      {/* Three of them, as a sample of what the generator writes. A thousand names listed in a
-          settings tab is a wall nobody reads and a page nobody can scroll past; the rest are a
-          click away, where they can be searched. */}
-      {texts && texts.length > 0 && (
-        <>
-          <ol className="product-catalog-texts">
-            {texts.slice(0, TEXTS_SHOWN).map(text => (
-              <li key={text.id}>
-                <button
-                  type="button"
-                  className="product-catalog-text"
-                  disabled={!editable || busy || Boolean(readError)}
-                  onClick={() => setEditing(text)}
-                >
-                  <strong>{text.title}</strong>
-                  <span>{text.description}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-          <Button type="button" variant="ghost" onClick={() => setBrowsing(true)}>
+      <div className="catalog-text-actions">
+        {texts && texts.length > 0 && (
+          <Button variant="secondary" disabled={busy} onClick={() => setBrowsing(true)}>
             {t('productCatalogTextsBrowse', { count: texts.length })}
           </Button>
-        </>
+        )}
+        {editable && texts && !readError && (
+          <Button variant="primary" disabled={busy} onClick={() => setAdding(true)}>
+            <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('catalogSettingsAddTexts')}
+          </Button>
+        )}
+      </div>
+      <CatalogTextScheduleEditor
+        teamId={teamId}
+        client={client}
+        onDraftChange={onScheduleDraftChange}
+      />
+      {adding && (
+        <Modal
+          nested
+          size="sm"
+          title={t('catalogSettingsAddTexts')}
+          busy={busy}
+          onClose={() => {
+            if (!busy) setAdding(false);
+          }}
+        >
+          <div className="catalog-text-generator">
+            <div className="catalog-editor-close">
+              <IconButton
+                title=""
+                label={t('catalogImagesClose')}
+                disabled={busy}
+                onClick={() => setAdding(false)}
+              >
+                <X />
+              </IconButton>
+            </div>
+            {readError && (
+              <ErrorState
+                message={readError}
+                retryLabel={t('catalogUpdaterRetry')}
+                onRetry={() => setRevision(value => value + 1)}
+              />
+            )}
+            {/* Said where the pool is made: the generator knows clothing and nothing else. */}
+            <p className="field-hint">{t('productCatalogTextsApparelOnly')}</p>
+
+            {editable && texts && !readError && (
+              <div className="product-catalog-generate">
+                <div className="catalog-price-field">
+                  <label htmlFor={countId}>{t('productCatalogTextsCount')}</label>
+                  <Input
+                    id={countId}
+                    size="sm"
+                    className="product-catalog-number"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={count}
+                    invalid={!countValid}
+                    onChange={event =>
+                      setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 4))
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={busy}
+                  disabled={!countValid || full || wanted > APPAREL_POOL_MAX - texts.length}
+                  onClick={() => void generate('add')}
+                >
+                  <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t(hasPool ? 'productCatalogTextsAdd' : 'productCatalogTextsGenerate')}
+                </Button>
+                {countValid && wanted <= APPAREL_POOL_MAX - texts.length && (
+                  <p className="field-hint">
+                    {t('catalogSettingsForecast', { count: wanted, total: texts.length + wanted })}
+                  </p>
+                )}
+                {countValid && !full && wanted > APPAREL_POOL_MAX - texts.length && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setCount(String(APPAREL_POOL_MAX - texts.length))}
+                  >
+                    {t('catalogSettingsRoom', { count: APPAREL_POOL_MAX - texts.length })}
+                  </Button>
+                )}
+                {hasPool && (
+                  <Button
+                    variant="link"
+                    disabled={!countValid || busy}
+                    onClick={() => setConfirming(true)}
+                  >
+                    {t('productCatalogTextsRegenerate')}
+                  </Button>
+                )}
+                {!countValid && (
+                  <small className="team-inline-error">
+                    {t('productCatalogTextsCountInvalid', { max: APPAREL_POOL_MAX })}
+                  </small>
+                )}
+                {full && (
+                  <small className="field-hint">
+                    {t('productCatalogTextsFull', { max: APPAREL_POOL_MAX })}
+                  </small>
+                )}
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {browsing && texts && (
@@ -762,7 +833,12 @@ function CatalogTextsSection({
             <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
               {t('teamCancel')}
             </Button>
-            <Button type="button" variant="primary" onClick={() => void generate('replace')}>
+            <Button
+              type="button"
+              color="error"
+              variant="outline"
+              onClick={() => void generate('replace')}
+            >
               {t('productCatalogTextsRegenerate')}
             </Button>
           </div>
@@ -848,12 +924,12 @@ function TextEditor({
       >
         <label htmlFor={titleId}>
           <span>{t('productCatalogTextsFieldTitle')}</span>
-          <input
+          <Input
             id={titleId}
             readOnly={saving}
             value={title}
             maxLength={TITLE_MAX}
-            aria-invalid={!titleOk}
+            invalid={!titleOk}
             onChange={event => setTitle(event.target.value)}
           />
         </label>
@@ -862,14 +938,14 @@ function TextEditor({
         </small>
         <label htmlFor={descriptionId}>
           <span>{t('productCatalogTextsFieldDescription')}</span>
-          <textarea
+          <Textarea
             id={descriptionId}
             className="product-catalog-description"
             rows={5}
             readOnly={saving}
             value={description}
             maxLength={DESCRIPTION_MAX}
-            aria-invalid={!descriptionOk}
+            invalid={!descriptionOk}
             onChange={event => setDescription(event.target.value)}
           />
         </label>
@@ -880,7 +956,7 @@ function TextEditor({
           </Button>
           <Button
             type="submit"
-            variant="primary"
+            color="success"
             loading={saving}
             disabled={!titleOk || !descriptionOk}
           >
@@ -918,6 +994,11 @@ function TextBrowser({
   return (
     <Modal nested size="lg" title={t('productCatalogTextsBrowseTitle')} onClose={onClose}>
       <div className="product-catalog-browser">
+        <div className="catalog-editor-close">
+          <IconButton title="" label={t('catalogImagesClose')} onClick={onClose}>
+            <X />
+          </IconButton>
+        </div>
         <Input
           aria-label={t('productCatalogTextsSearch')}
           placeholder={t('productCatalogTextsSearch')}
@@ -939,8 +1020,8 @@ function TextBrowser({
                 onClick={() => onPick(text)}
               >
                 <strong>{text.title}</strong>
-                <span>{text.description}</span>
               </button>
+              {!editable && <p className="field-hint">{text.description}</p>}
             </li>
           ))}
         </ol>
@@ -969,7 +1050,8 @@ function CatalogValuesSection({
   client,
   onRange,
   onFallback,
-  poolsFilled,
+  hasImages,
+  hasTexts,
   onDraftChange
 }: {
   teamId: string;
@@ -978,7 +1060,8 @@ function CatalogValuesSection({
   onRange: (range: { min: number; max: number }) => void;
   onFallback: (fallback: { title: boolean; image: boolean }) => void;
   /** Both pools have something to draw, so these values are held in reserve rather than used. */
-  poolsFilled: boolean;
+  hasImages: boolean | null;
+  hasTexts: boolean | null;
 }) {
   const { t } = useI18n();
   const diagnostic = useCatalogSettingsFlow();
@@ -1154,49 +1237,53 @@ function CatalogValuesSection({
         {!loaded && !readError && <LoadingState count={1} label={t('catalogSettingsLoading')} />}
         {!editable && <p className="team-inline-note">{t('productCatalogSettingsReadOnly')}</p>}
         <div className="product-catalog-price-range">
-          <label htmlFor={ids.min}>{t('productCatalogPriceFrom')}</label>
-          <Input
-            id={ids.min}
-            size="sm"
-            className="product-catalog-number"
-            inputMode="numeric"
-            maxLength={6}
-            value={min}
-            readOnly={!editable || saving || !loaded}
-            aria-invalid={!rangeOk}
-            onChange={event => setMin(event.target.value.replace(/[^\d]/gu, ''))}
-          />
-          <label htmlFor={ids.max}>{t('productCatalogPriceTo')}</label>
-          <Input
-            id={ids.max}
-            size="sm"
-            className="product-catalog-number"
-            inputMode="numeric"
-            maxLength={6}
-            value={max}
-            readOnly={!editable || saving || !loaded}
-            aria-invalid={!rangeOk}
-            onChange={event => setMax(event.target.value.replace(/[^\d]/gu, ''))}
-          />
-          <span>USD</span>
+          <div className="catalog-price-field">
+            <label htmlFor={ids.min}>{t('productCatalogPriceFrom')}</label>
+            <Input
+              id={ids.min}
+              size="sm"
+              className="product-catalog-number"
+              inputMode="numeric"
+              maxLength={6}
+              value={min}
+              readOnly={!editable || saving || !loaded}
+              invalid={!rangeOk}
+              onChange={event => setMin(event.target.value.replace(/[^\d]/gu, ''))}
+            />
+          </div>
+          <div className="catalog-price-field">
+            <label htmlFor={ids.max}>{t('productCatalogPriceTo')}</label>
+            <Input
+              id={ids.max}
+              size="sm"
+              className="product-catalog-number"
+              inputMode="numeric"
+              maxLength={6}
+              value={max}
+              readOnly={!editable || saving || !loaded}
+              invalid={!rangeOk}
+              onChange={event => setMax(event.target.value.replace(/[^\d]/gu, ''))}
+            />
+          </div>
+          <span className="field-hint">USD</span>
+          {editable && (
+            <div className="catalog-price-actions">
+              <Button
+                type="button"
+                color="success"
+                loading={saving}
+                disabled={!loaded || !rangeOk || !priceDirty}
+                onClick={() => void save('price')}
+              >
+                {t('productCatalogSettingsSave')}
+              </Button>
+              {loaded && priceDirty && rangeOk && (
+                <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
+              )}
+            </div>
+          )}
         </div>
         {!rangeOk && <p className="team-inline-error">{t('productCatalogPriceRangeInvalid')}</p>}
-        {editable && (
-          <div className="settings-section-actions">
-            <Button
-              type="button"
-              variant="primary"
-              loading={saving}
-              disabled={!loaded || !rangeOk || !priceDirty}
-              onClick={() => void save('price')}
-            >
-              {t('productCatalogSettingsSave')}
-            </Button>
-            {loaded && priceDirty && rangeOk && (
-              <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
-            )}
-          </div>
-        )}
       </CatalogSection>
 
       {/* The one title, description and picture link every row used to share. They sat inside the
@@ -1210,23 +1297,47 @@ function CatalogValuesSection({
         aside={
           fallbackDirty
             ? t('productCatalogUnsaved')
-            : t(
-                !fallbackUsed
-                  ? 'productCatalogFallbackEmpty'
-                  : poolsFilled
-                    ? 'productCatalogFallbackUnused'
-                    : 'productCatalogFallbackInUse'
-              )
+            : hasImages === null || hasTexts === null
+              ? t('catalogSettingsUnknown')
+              : t(
+                  !fallbackUsed
+                    ? 'productCatalogFallbackEmpty'
+                    : hasImages && hasTexts
+                      ? 'productCatalogFallbackUnused'
+                      : 'productCatalogFallbackInUse'
+                )
         }
         className="product-catalog-settings"
       >
         {!persisted && <p className="field-hint">{t('catalogSettingsSavePriceFirst')}</p>}
         <div className="product-catalog-fallback">
+          {persisted?.title && (
+            <p className="field-hint">
+              {t(
+                hasTexts === null
+                  ? 'catalogSettingsUnknown'
+                  : hasTexts
+                    ? 'catalogFallbackReserved'
+                    : 'catalogFallbackTitleActive'
+              )}
+            </p>
+          )}
+          {persisted?.imageLink && (
+            <p className="field-hint">
+              {t(
+                hasImages === null
+                  ? 'catalogSettingsUnknown'
+                  : hasImages
+                    ? 'catalogFallbackReserved'
+                    : 'catalogFallbackImageActive'
+              )}
+            </p>
+          )}
           <div className="field-group">
             <label className="field-label" htmlFor={ids.title}>
               <span>{t('productCatalogTitleLabel')}</span>
             </label>
-            <input
+            <Input
               id={ids.title}
               value={title}
               maxLength={TITLE_MAX + 50}
@@ -1238,7 +1349,7 @@ function CatalogValuesSection({
             <label className="field-label" htmlFor={ids.description}>
               <span>{t('productCatalogDescriptionLabel')}</span>
             </label>
-            <textarea
+            <Textarea
               id={ids.description}
               className="product-catalog-description"
               rows={3}
@@ -1252,13 +1363,13 @@ function CatalogValuesSection({
             <label className="field-label" htmlFor={ids.link}>
               <span>{t('productCatalogImageLinkLabel')}</span>
             </label>
-            <input
+            <Input
               id={ids.link}
               type="text"
               inputMode="url"
               value={link}
               readOnly={!editable || saving || !loaded}
-              aria-invalid={!linkOk}
+              invalid={!linkOk}
               onChange={event => setLink(event.target.value)}
             />
           </div>
@@ -1267,7 +1378,7 @@ function CatalogValuesSection({
             <div className="settings-section-actions">
               <Button
                 type="button"
-                variant="secondary"
+                color="success"
                 loading={saving}
                 disabled={
                   !loaded || !persisted || !linkOk || !titleOk || !descriptionOk || !fallbackDirty
@@ -1284,5 +1395,205 @@ function CatalogValuesSection({
         </div>
       </CatalogSection>
     </>
+  );
+}
+
+function CatalogTextScheduleEditor({
+  teamId,
+  client,
+  onDraftChange
+}: {
+  teamId: string;
+  client: ProductCatalogSettingsClient;
+  onDraftChange: (state: { dirty: boolean; saving: boolean }) => void;
+}) {
+  const { t, language } = useI18n();
+  const { can } = useTeam();
+  const editable = can('manage_metadata');
+  const diagnostic = useCatalogSettingsFlow();
+  const [saved, setSaved] = useState<ProductCatalogTextSchedule | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [count, setCount] = useState('200');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const countId = useId();
+  const hintId = useId();
+  const supported = Boolean(
+    client.getProductCatalogTextSchedule && client.setProductCatalogTextSchedule
+  );
+  const dirty = saved !== null && (enabled !== saved.enabled || count !== String(saved.count));
+  const amount = Number(count);
+  const valid = Number.isInteger(amount) && amount >= 1 && amount <= APPAREL_POOL_MAX;
+  useEffect(() => {
+    if (!supported) return;
+    let active = true;
+    const attempt = diagnostic.start();
+    diagnostic.stage('readback_requested', attempt);
+    setError(null);
+    setSaved(null);
+    setConfirmed(false);
+    void client.getProductCatalogTextSchedule!(teamId)
+      .then(value => {
+        if (!active) return;
+        setSaved(value);
+        setEnabled(value.enabled);
+        setCount(String(value.count));
+        diagnostic.confirm(attempt);
+      })
+      .catch(cause => {
+        if (!active) return;
+        setError(teamErrorMessageFor(cause, t));
+        diagnostic.fail('READ_FAILED', attempt);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, teamId, supported, revision, diagnostic, t]);
+  useEffect(() => {
+    onDraftChange({ dirty, saving });
+  }, [dirty, saving, onDraftChange]);
+  useEffect(() => () => onDraftChange({ dirty: false, saving: false }), [onDraftChange]);
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [dirty, saving]);
+  const save = async () => {
+    if (!supported || !editable || !saved || !dirty || saving || !valid) return;
+    const expected = { enabled, count: amount };
+    diagnostic.start();
+    diagnostic.stage('save_requested');
+    setSaving(true);
+    setError(null);
+    setConfirmed(false);
+    try {
+      await client.setProductCatalogTextSchedule!(teamId, expected);
+      diagnostic.stage('save_confirmed');
+      diagnostic.stage('readback_requested');
+      const result = await client.getProductCatalogTextSchedule!(teamId);
+      if (result.enabled !== expected.enabled || result.count !== expected.count)
+        throw new Error('Schedule save unconfirmed');
+      setSaved(result);
+      setEnabled(result.enabled);
+      setCount(String(result.count));
+      setConfirmed(true);
+      diagnostic.confirm();
+    } catch (cause) {
+      setError(teamErrorMessageFor(cause, t));
+      diagnostic.fail('SAVE_FAILED');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const dateLabel = (value: string) =>
+    new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(value));
+  if (!supported) return <p className="field-hint">{t('catalogTextScheduleUnavailable')}</p>;
+  return (
+    <section className="catalog-text-schedule" aria-label={t('catalogTextScheduleTitle')}>
+      {!saved && !error && <LoadingState count={1} label={t('catalogTextScheduleLoading')} />}
+      {error && (
+        <ErrorState
+          message={error}
+          retryLabel={t('catalogUpdaterRetry')}
+          onRetry={() => (saved ? void save() : setRevision(value => value + 1))}
+        />
+      )}
+      {saved && (
+        <>
+          <div className="catalog-text-schedule-row">
+            <Switch
+              label={t('catalogTextScheduleTitle')}
+              checked={enabled}
+              disabled={!editable || saving}
+              aria-describedby={hintId}
+              onChange={value => {
+                setEnabled(value);
+                if (!value && !valid) setCount(String(saved.count));
+                setConfirmed(false);
+              }}
+            />
+            {enabled && (
+              <div className="catalog-text-schedule-count">
+                <label htmlFor={countId}>{t('catalogTextScheduleCount')}</label>
+                <Input
+                  id={countId}
+                  className="product-catalog-number"
+                  size="sm"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={count}
+                  readOnly={!editable || saving}
+                  invalid={count !== '' && !valid}
+                  onChange={event => {
+                    setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 4));
+                    setConfirmed(false);
+                  }}
+                />
+              </div>
+            )}
+            {editable && (
+              <Button
+                color="success"
+                disabled={!dirty || !valid || saving}
+                loading={saving}
+                onClick={() => void save()}
+              >
+                {t('catalogTextScheduleSave')}
+              </Button>
+            )}
+          </div>
+          <p id={hintId} className="field-hint prose">
+            {t('catalogTextScheduleConsequence')}
+          </p>
+          {enabled && count !== '' && !valid && (
+            <p className="team-inline-error">
+              {t('productCatalogTextsCountInvalid', { max: APPAREL_POOL_MAX })}
+            </p>
+          )}
+          {dirty && <p className="field-hint">{t('productCatalogUnsaved')}</p>}
+          {confirmed && (
+            <p role="status" className="field-hint">
+              {t('catalogTextScheduleSaved')}
+            </p>
+          )}
+          {saved.enabled && saved.nextRunAt && (
+            <p className="field-hint">
+              {t('catalogTextScheduleNext', { date: dateLabel(saved.nextRunAt) })}
+            </p>
+          )}
+          {saved.enabled && !saved.nextRunAt && (
+            <p className="field-hint">{t('catalogTextScheduleNextUnknown')}</p>
+          )}
+          {saved.lastRunAt && (
+            <p className="field-hint">
+              {t('catalogTextScheduleLast', { date: dateLabel(saved.lastRunAt) })}
+            </p>
+          )}
+          {saved.lastError && (
+            <div className="catalog-text-schedule-row">
+              <p role="alert" className="team-inline-error">
+                {t('catalogTextScheduleLastFailed')}
+              </p>
+              <Button
+                variant="ghost"
+                disabled={dirty || saving}
+                onClick={() => setRevision(value => value + 1)}
+              >
+                {t('catalogImagesRefresh')}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

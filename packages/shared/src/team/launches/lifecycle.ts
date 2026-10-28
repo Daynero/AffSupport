@@ -1,3 +1,4 @@
+import { CATALOG_IMAGE_ERROR_CODES } from '../catalog-images.js';
 /** Closed diagnostic vocabulary: user configuration and output never enter telemetry. */
 export const LAUNCH_ANALYTICS_EVENTS = [
   'team_launch_intent',
@@ -53,6 +54,7 @@ export const LAUNCH_ANALYTICS_FIELDS = [
   'sub3'
 ] as const;
 export const LAUNCH_ANALYTICS_CODES = [
+  ...CATALOG_IMAGE_ERROR_CODES,
   'INVALID_INPUT',
   'INVALID_RESPONSE',
   'SOURCE_CHANGED',

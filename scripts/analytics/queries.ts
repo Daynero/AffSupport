@@ -3,6 +3,8 @@ import {
   getTranslationRetirementEvidence,
   inspectTranslationRetirement
 } from './library-retirement.js';
+import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
+import { getCatalogImageDiagnosis, getCatalogImageAudit } from './catalog-images.js';
 import { getRecoveryRetirementEvidence, inspectRecoveryRetirement } from './recovery-retirement.js';
 import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
 import {
@@ -1740,6 +1742,8 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const eventStatuses = registryEventStatuses();
   const launchAudit = await getLaunchAudit(period.start, period.end);
   const catalogSettingsAudit = await getCatalogSettingsAudit(period);
+  const catalogImageAudit = await getCatalogImageAudit(period);
+  const textScheduleAudit = await getCatalogTextScheduleDiagnosis(null, period);
   const recoveryAudit = await getRecoveryEvidence(null, period.start, period.end);
   const retirementAudit = await getRetirementAudit(period, schema);
   const capabilities = COVERAGE_REGISTRY.map(capability =>
@@ -1754,7 +1758,9 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       recoveryAudit,
       retirementAudit,
       period,
-      Boolean(schema.tables.analytics_recovery_retirement)
+      Boolean(schema.tables.analytics_recovery_retirement),
+      catalogImageAudit,
+      textScheduleAudit
     )
   );
 
@@ -1833,7 +1839,9 @@ function auditCapability(
   recoveryAudit: RecoveryEvidenceResult,
   retirementAudit: RetirementAuditEvidence,
   period: ResolvedPeriod,
-  browserRetirementReceiptsSupported = false
+  browserRetirementReceiptsSupported = false,
+  catalogImageAudit?: Awaited<ReturnType<typeof getCatalogImageAudit>>,
+  textScheduleAudit?: Awaited<ReturnType<typeof getCatalogTextScheduleDiagnosis>>
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -1853,6 +1861,26 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (capability.id === 'team.catalog_text_schedule') {
+    const missing = textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'];
+    const samples = textScheduleAudit?.evidence.length ?? 0;
+    return {
+      ...base,
+      status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
+      missing,
+      samples
+    };
+  }
+  if (capability.id === 'team.catalog_images') {
+    const missing = catalogImageAudit?.missing ?? ['catalog_image_projection_unavailable'];
+    const samples = catalogImageAudit?.samples ?? 0;
+    return {
+      ...base,
+      status: !missing.length ? 'covered' : samples ? 'partial' : 'uncovered',
+      missing,
+      samples
+    };
+  }
   if (capability.id === 'team.accounts_finance') {
     return {
       ...base,
@@ -2195,6 +2223,64 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
       original.blind_spots.push(
         'Multiple operation bindings; inspect an operation ID for native transcription stages.'
       );
+  }
+  const catalogImages =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)
+      ? await getCatalogImageDiagnosis(
+          id,
+          {
+            token: 'all',
+            start: null,
+            end: asOf ?? new Date().toISOString(),
+            label: 'all',
+            ...(asOf ? { as_of: asOf } : {})
+          },
+          { limit }
+        )
+      : null;
+  if (catalogImages?.evidence.length) {
+    if (core.found)
+      return {
+        ...core,
+        catalog_images: catalogImages,
+        ...(retirement.receipts.length ? { recovery_retirement: retirement } : {})
+      };
+    return {
+      found: true,
+      id,
+      matched_by: ['authoritative_table'],
+      capability: 'team.catalog_images',
+      tool: 'team',
+      stages: {
+        expected: [],
+        observed: [...new Set(catalogImages.evidence.map(row => row.stage))],
+        missing: catalogImages.coverage.missing_stages
+      },
+      terminal: catalogImages.terminal
+        ? {
+            event: catalogImages.terminal.stage,
+            outcome: catalogImages.terminal.stage,
+            occurred_at: catalogImages.terminal.at
+          }
+        : null,
+      last_proven_stage: catalogImages.last_proven_stage,
+      first_seen_at: catalogImages.evidence.at(-1)?.occurred_at ?? null,
+      last_seen_at: catalogImages.fresh_through,
+      delivery_lag_ms: catalogImages.delivery_lag_ms,
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'Server image publication does not require a local agent.'
+      },
+      events: [],
+      catalog_images: catalogImages
+    };
   }
   const receiptInspection = inspectRecoveryRetirement(id, retirement);
   // A browser acknowledgement is not the terminal of native protected-key cleanup.

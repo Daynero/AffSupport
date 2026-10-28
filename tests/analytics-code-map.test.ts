@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CATALOG_IMAGE_ERROR_CODES } from '../packages/shared/src/team/catalog-images';
 import {
   AUTH_SESSION_MUTATION_CODES,
   PROFILE_SYNC_CODES,
@@ -48,6 +49,11 @@ it('maps process output uncertainty to its durable ownership and upload seams', 
     'supabase/migrations/20261206134000_process_upload_ownership.sql'
   );
 });
+it('maps every catalog image failure to its updater diagnostic location', () => {
+  for (const code of CATALOG_IMAGE_ERROR_CODES)
+    expect(lookupCodeLocations(`catalog:update:${code}`)?.matched).toBe(`catalog:update:${code}`);
+});
+
 it('maps every closed Launch failure to an exact diagnostic code location', () => {
   for (const code of LAUNCH_ANALYTICS_CODES) {
     const fingerprint = `launches:generation:${code}`;

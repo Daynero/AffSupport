@@ -1,3 +1,17 @@
+import {
+  isR2CatalogImage,
+  type R2CatalogImage
+} from '../../../packages/shared/dist/team/catalog-images.js';
+import {
+  catalogImageUrl,
+  catalogImageFacts,
+  rowImageFacts,
+  catalogImagesInRows,
+  pairCatalogImageRow,
+  legacyImage,
+  type CatalogDrawnImage,
+  type CatalogImageDrawOptions
+} from '../_shared/catalog-image-rows.ts';
 import { rebuildCatalogRows, retryDelaySeconds } from '../_shared/catalog-updater.ts';
 import type { GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
@@ -6,19 +20,13 @@ import {
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
   PRODUCT_COUNT_MAX,
-  driveImageLink,
   randomPrice,
   takeMatchingText,
   type ProductCatalogRowDetails,
   type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
 } from '../_shared/product-catalog.ts';
-import {
-  drawProductDetails,
-  garmentOf,
-  inventedBrand,
-  pictureFacts
-} from '../_shared/product-details.ts';
+import { drawProductDetails, garmentOf, inventedBrand } from '../_shared/product-details.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
 
@@ -60,6 +68,7 @@ export interface ClaimedCatalog {
   randomLinkVariation?: boolean;
   catalogId: string;
   attempts: number;
+  imageAttemptId?: string;
   updateCount: number;
   productCount: number;
   sourceLink: string;
@@ -99,13 +108,17 @@ export interface CatalogUpdaterDeps {
   /** Pictures from the space's pool, none repeated until the pool is spent (024). */
   drawImages?(
     teamId: string,
-    count: number
-  ): Promise<Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>>;
+    count: number,
+    options?: CatalogImageDrawOptions
+  ): Promise<CatalogDrawnImage[]>;
   /** Names and texts from the space's pool, the same way (024, US21). */
   drawTexts?(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
+  finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
+  validateImageRows?(teamId: string, images: R2CatalogImage[]): Promise<void>;
+  validateImageUses?(teamId: string, attemptId: string): Promise<void>;
   progress(catalogId: string, stage: CatalogUpdateStage): Promise<boolean>;
   beginWrite(
     catalogId: string,
@@ -229,6 +242,7 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   const rows = parseSnapshotRows(settings.rows, productCount);
   return {
     catalogId,
+    imageAttemptId: text(row.image_attempt_id) ?? undefined,
     attempts,
     updateCount,
     productCount,
@@ -293,7 +307,7 @@ function parseSnapshotRows(value: unknown, count: number): ProductCatalogRowValu
 
 /** The US21 details a catalog was planned with, as far as the snapshot carries them. */
 function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalogRowDetails> {
-  const details: Record<string, unknown> = {};
+  const details: Partial<ProductCatalogRowDetails> = {};
   for (const key of DETAIL_TEXT_KEYS) {
     if (typeof entry[key] === 'string') details[key] = entry[key];
   }
@@ -302,11 +316,20 @@ function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalog
       details[key] = entry[key];
     }
   }
+  if (entry.pictureImage !== undefined) {
+    if (!isR2CatalogImage(entry.pictureImage)) throw new TeamFunctionError('INVALID_RESPONSE');
+    details.pictureImage = entry.pictureImage;
+  }
   const tags = entry.tags;
-  if (Array.isArray(tags) && tags.length === 2 && tags.every(tag => typeof tag === 'string')) {
+  if (
+    Array.isArray(tags) &&
+    tags.length === 2 &&
+    typeof tags[0] === 'string' &&
+    typeof tags[1] === 'string'
+  ) {
     details.tags = [tags[0], tags[1]];
   }
-  return details as Partial<ProductCatalogRowDetails>;
+  return details;
 }
 
 const DETAIL_TEXT_KEYS = [
@@ -342,7 +365,11 @@ async function refreshedRows(
   fallbackImageLink?: string | null
 ): Promise<ProductCatalogRowValues[] | undefined> {
   if (!item.refreshImages || !item.teamId || !deps.drawImages) return rows;
-  const drawn = await deps.drawImages(item.teamId, count);
+  const drawn = await deps.drawImages(item.teamId, count, {
+    contractVersion: 2,
+    attemptId: item.imageAttemptId,
+    scope: 'refresh'
+  });
   if (drawn.length === 0)
     return fallbackImageLink
       ? (rows ?? rowsOf(item, count)).map(row => ({
@@ -351,7 +378,7 @@ async function refreshedRows(
           pictureName: null
         }))
       : rows;
-  await shareImages(drawn);
+  await shareImages(drawn.filter(legacyImage));
   /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
      being a hoodie when its picture is drawn afresh. */
   const base = rows ?? rowsOf(item, count);
@@ -359,19 +386,13 @@ async function refreshedRows(
   return base.map((row, index) => {
     const wanted = garmentOf(row.title)?.name.toLowerCase() ?? null;
     const at = wanted
-      ? spare.findIndex(candidate =>
-          (candidate.image.name ?? '').toLowerCase().includes(wanted.replace(/\s+/gu, ''))
-            ? true
-            : pictureFacts(candidate.image.name ?? '').garment?.name.toLowerCase() === wanted
+      ? spare.findIndex(
+          candidate => catalogImageFacts(candidate.image).garment?.name.toLowerCase() === wanted
         )
       : -1;
     const chosen =
       (at >= 0 ? spare.splice(at, 1)[0] : spare.shift())?.image ?? drawn[index % drawn.length]!;
-    return {
-      ...row,
-      imageLink: driveImageLink(chosen.driveFileId, chosen.resourceKey),
-      pictureName: chosen.name ?? null
-    };
+    return pairCatalogImageRow(row, chosen, { allowTextGeneration: item.refreshTexts !== false });
   });
 }
 
@@ -408,10 +429,17 @@ async function addedRows(
   const base = rowsOf(item, item.productCount);
   const teamId = item.teamId;
   const [texts, images] = await Promise.all([
-    teamId && deps.drawTexts ? deps.drawTexts(teamId, added).catch(() => []) : [],
-    teamId && deps.drawImages ? deps.drawImages(teamId, added).catch(() => []) : []
+    teamId && deps.drawTexts ? deps.drawTexts(teamId, added) : [],
+    teamId && deps.drawImages
+      ? deps.drawImages(teamId, added, {
+          contractVersion: 2,
+          attemptId: item.imageAttemptId,
+          scope: 'growth'
+        })
+      : []
   ]);
-  await shareImages(images);
+  const drawnImages: CatalogDrawnImage[] = images;
+  await shareImages(drawnImages.filter(legacyImage));
   const brand = base[0]?.brand ?? inventedBrand();
   for (let index = 0; index < added; index += 1) {
     const text = texts[index % texts.length] ?? null;
@@ -420,15 +448,16 @@ async function addedRows(
     const price = item.priceRange
       ? randomPrice(item.priceRange.min, item.priceRange.max)
       : item.settings.price;
-    base.push({
+    const addedRow: ProductCatalogRowValues = {
       title,
       description: text?.description ?? item.settings.description,
-      imageLink: image
-        ? driveImageLink(image.driveFileId, image.resourceKey)
-        : (fallbackImageLink ?? item.settings.imageLink),
+      imageLink: image ? catalogImageUrl(image) : (fallbackImageLink ?? item.settings.imageLink),
       price,
       ...drawProductDetails({ title, price, brand })
-    });
+    };
+    base.push(
+      image ? pairCatalogImageRow(addedRow, image, { allowTextGeneration: true }) : addedRow
+    );
   }
   return base;
 }
@@ -468,12 +497,12 @@ function refreshedTexts(
   return base.map((row, index) => {
     /* Words for the picture this row shows (024, US27): the picture is not drawn again here,
        so the name has to be chosen for it rather than taken in turn. */
-    const facts = row.pictureName ? pictureFacts(row.pictureName) : { garment: null, color: null };
+    const facts = rowImageFacts(row);
     const text = takeMatchingText(spare, facts) ?? drawn[index % drawn.length]!;
     const price = item.priceRange
       ? randomPrice(item.priceRange.min, item.priceRange.max)
       : row.price;
-    return {
+    const refreshed: ProductCatalogRowValues = {
       ...row,
       title: text.title,
       description: text.description,
@@ -481,6 +510,9 @@ function refreshedTexts(
       ...drawProductDetails({ title: text.title, price, brand, pictureColor: facts.color }),
       pictureName: row.pictureName ?? null
     };
+    return row.pictureImage
+      ? pairCatalogImageRow(refreshed, row.pictureImage, { allowTextGeneration: true })
+      : refreshed;
   });
 }
 
@@ -600,6 +632,13 @@ async function updateOne(
           snapshot: { ...item.settings, randomLinkVariation: item.randomLinkVariation !== false }
         };
     const before = await drive.getFile(item.driveFileId, item.resourceKey);
+    const outgoingImages = catalogImagesInRows(rows);
+    if (outgoingImages.length) {
+      if (!item.teamId) throw new TeamFunctionError('INVALID_RESPONSE');
+      await deps.validateImageRows?.(item.teamId, outgoingImages);
+    }
+    if (item.teamId && item.imageAttemptId)
+      await deps.validateImageUses?.(item.teamId, item.imageAttemptId);
     const marker = crypto.randomUUID();
     if (
       !(await deps.beginWrite(item.catalogId, {
@@ -648,6 +687,8 @@ async function updateOne(
       })
       .catch(() => false);
     await deps.progress(item.catalogId, 'finalizing').catch(() => false);
+    if (item.teamId && item.imageAttemptId)
+      await deps.finalizeImageUses?.(item.teamId, item.imageAttemptId, true);
     if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null, became)) {
       await deps.finishWrite(item.catalogId);
       summary.updated += 1;
@@ -657,6 +698,10 @@ async function updateOne(
       summary.skipped += 1;
     }
   } catch (error) {
+    if (item.teamId && item.imageAttemptId)
+      await deps
+        .finalizeImageUses?.(item.teamId, item.imageAttemptId, false)
+        .catch(() => undefined);
     const code = codeOf(error);
     if (code === 'NEEDS_REAUTH') {
       await deps.markNeedsReauth(item.credentialId).catch(() => undefined);
@@ -702,7 +747,12 @@ export async function runCatalogUpdaterTick(
     if (rows.length === 0) break;
     const claimed: ClaimedCatalog[] = [];
     for (const row of rows) {
-      const parsed = parseClaimedCatalog(row);
+      let parsed: ClaimedCatalog | null;
+      try {
+        parsed = parseClaimedCatalog(row);
+      } catch {
+        parsed = null;
+      }
       if (parsed) {
         claimed.push(parsed);
         continue;

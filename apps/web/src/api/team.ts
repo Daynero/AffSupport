@@ -1,3 +1,4 @@
+import { catalogImageClient } from './team-catalog-images';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
   isTaskCleanupReceipt,
@@ -243,6 +244,33 @@ export interface ProductCatalogImageSource {
   kind: 'file' | 'folder';
   name: string;
   imageCount: number;
+}
+
+export interface ProductCatalogTextSchedule {
+  enabled: boolean;
+  count: number;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+}
+
+function parseProductCatalogTextSchedule(value: unknown): ProductCatalogTextSchedule {
+  const row = asRecord(value);
+  const nullableDate = (value: unknown) =>
+    value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
+  if (
+    !row ||
+    typeof row.enabled !== 'boolean' ||
+    typeof row.count !== 'number' ||
+    !Number.isInteger(row.count) ||
+    row.count < 1 ||
+    row.count > 1000 ||
+    !nullableDate(row.nextRunAt) ||
+    !nullableDate(row.lastRunAt) ||
+    (row.lastError !== null && typeof row.lastError !== 'string')
+  )
+    throw new TeamApiError('INVALID_RESPONSE', false);
+  return row as unknown as ProductCatalogTextSchedule;
 }
 
 export interface ProductCatalogText {
@@ -617,10 +645,14 @@ async function envelopeFromInvokeError(error: unknown): Promise<unknown> {
 export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
-  guard: UnknownGuard<T>
+  guard: UnknownGuard<T>,
+  options: { method?: 'GET' | 'POST' } = {}
 ): Promise<T> {
   const supabase = requireSupabaseClient();
-  const { data, error } = await supabase.functions.invoke(functionName, { body });
+  const { data, error } = await supabase.functions.invoke(
+    functionName,
+    options.method === 'GET' ? { method: 'GET' } : { body }
+  );
   let payload = data;
   if (error && data === null) {
     payload = await envelopeFromInvokeError(error);
@@ -1786,6 +1818,7 @@ export type RestitchDefaultsInput = Pick<
   >;
 
 export const teamApi = {
+  catalogImages: catalogImageClient,
   async listTeams(): Promise<TeamContextSnapshot[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_my_teams')
@@ -2628,6 +2661,29 @@ export const teamApi = {
     throwRpc(error);
   },
 
+  async getProductCatalogTextSchedule(teamId: string): Promise<ProductCatalogTextSchedule> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('get_team_product_catalog_text_schedule', { p_team: teamId })
+    );
+    throwRpc(error);
+    return parseProductCatalogTextSchedule(data);
+  },
+
+  async setProductCatalogTextSchedule(
+    teamId: string,
+    input: { enabled: boolean; count: number }
+  ): Promise<ProductCatalogTextSchedule> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('set_team_product_catalog_text_schedule', {
+        p_team: teamId,
+        p_enabled: input.enabled,
+        p_count: input.count
+      })
+    );
+    throwRpc(error);
+    return parseProductCatalogTextSchedule(data);
+  },
+
   async listProductCatalogTexts(teamId: string): Promise<ProductCatalogText[]> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_team_product_catalog_texts', { p_team: teamId })
@@ -2765,6 +2821,7 @@ export const teamApi = {
   },
 
   async createProductCatalog(input: {
+    catalogImageContractVersion?: 2;
     teamId: string;
     videoMaterialId: string;
     sourceLink: string;
@@ -2776,7 +2833,7 @@ export const teamApi = {
   }): Promise<ProductCatalogCreateResult> {
     return invokeTeamFunction(
       'drive-ops/product-catalog/create',
-      { ...input },
+      { ...input, catalogImageContractVersion: 2 },
       productCatalogCreateGuard
     );
   },

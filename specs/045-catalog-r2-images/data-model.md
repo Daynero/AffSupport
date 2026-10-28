@@ -93,3 +93,15 @@ Private sanitized journal — append-only operation/attempt/stage/terminal/evide
 ### Expiry terminal and counters
 
 `expired` є явним entry terminal із reason `local_source_deadline` або `manifest_deadline`, не provider failure. Public counts містять окремий expired; completed вимагає всі admitted ready/reused, partial — successes разом із failed/expired/cancelled entries, expired job — жодного success і лише source-deadline terminals. Коли є реальні provider failures без successes, job failed, а expired counts лишаються окремими. Awaiting-reconciliation не стає terminal absent/failed за negative HEAD.
+
+## Implemented projection details
+
+The SQL migration is the exact storage contract. Some conceptual fields above are projections:classification facts are stored in one immutable JSON object; pool removal is active=false plus revision and a safe pool_removed journal entry, without a redundant removed_at column. Committed use receipts are historical issued uses, not a claim that every catalog remains active. They intentionally retain evidence after replacement/removal.
+
+Before any updater provider write, every R2 identity in the actual outgoing rows is checked, including retained images when refreshImages=false. Guarded completion and delivered reconciliation repeat this check atomically under the team draw advisory and deterministic publication locks. Inactive historical pool membership is valid; revoked/missing/cross-team/substituted identity is refused. Revision equality is not required, but its shape remains a nonnegative safe integer. Legacy snapshots without pictureImage remain readable.
+
+Launch integration1550:each generation has immutable server-owned catalog_image_contract_version (existing accepted work1, newly accepted work2) and a reserved catalog_image_attempt_id. For new R2work that UUID becomes the actual child intent ID and the selection/use attempt before restitch begins. The claim RPC supplies the persisted version to the executor. Existing v1 work can prove its accepted parent even before a child exists. Memoized returns still reauthorize current actor/edit/archive/parent state under Launch→generation locks; they never redraw the frozen images.
+
+## Owner refinement, 2026-10-28
+
+[Storage and lossless publication](storage-optimization.md) defines the current quota, canonical-image and library-management requirements. It replaces same-source-byte publication with verified deterministic canonical bytes for new imports; already-issued URLs remain immutable. Per-owner durable accounting and diagnostics are required, with deletion credit only after known cleanup.

@@ -122,6 +122,23 @@ beta still claims to be running, which makes the product look broken rather than
 - Supabase Studio: excluded from `beta:up`; the source beta does not need this dashboard.
 - Captured outbound mail: <http://127.0.0.1:54324>
 
+## Catalog image storage refinement (045)
+
+Migrations1570 and1580 extend the source-beta image journey with a durable per-owner allowance,
+lossless canonical images and diagnostic projections. A previously connected beta must receive the
+reviewed delta through the incremental workflow above after the complete disposable DB gate;
+`beta:up` alone cannot install it. Preserve users, pairing, Drive credentials/connections, catalog
+materials and existing publication identities. Source files and final JPEG/PNG have separate
+identities; verify actual anonymous canonical bytes, usage, retained removal, confirmed purge credit
+and subsequent upload. Do not reset a connected acceptance profile.
+
+The vendored JPEG validator requires `ArrayBuffer.transfer`; unsupported runtimes fail closed.
+Deno's native compression output is released only after consumption; Node zlib output may reuse
+complete slabs and is left with its producer. Native Edge JPEG/PNG/WebP boot and actual file imports
+must be proven, in addition to unit tests. Source-beta results do not replace the hosted aggregate
+192 MB resource gate, actual external Meta importer or exact-SHA packaged promotion. Keep failed
+resource measurements explicit rather than treating ordinary fixture success as maximum-size proof.
+
 ## Flows exercisable in beta
 
 | Flow                                                                                                              | Status in beta                                                                                                                             |
@@ -207,6 +224,18 @@ They are beta-only and never shared with production or Soty Dev.
 The safety check runs **before** the first destructive step: a non-local database target fails with
 `BETA_RESET_TARGET_UNSAFE` and nothing is touched. An unparseable target is treated as remote, not
 assumed local.
+
+Reset also requires the running beta ownership record to match the configured project and its
+owned loopback bridge. It captures the local Docker endpoint once and pins every verification and
+CLI child to that endpoint, runs `db reset --local --network-id` on that bridge, then checks actual
+bindings before opening the fixture connection at `127.0.0.1`. An unsafe postcondition stops only
+the captured project with `stop --project-id`; it preserves volumes and the ownership journal.
+
+Treat reset as a single-writer operation: do not edit `supabase/config.toml` or run another beta
+start, stop or reset while it runs. Reset rechecks the source config immediately before launching
+the CLI and after it returns. These checks cannot atomically prevent an unrelated process from
+rewriting config during the CLI's own read; such concurrent edits are unsupported. Docker context
+changes cannot redirect this operation, and emergency stop uses the captured project ID.
 
 The baseline after a reset:
 
@@ -459,3 +488,17 @@ Private bounded CLI reports and plan/session evidence explain release outcomes;
 central analytics does not observe commit/rehearsal directly. Missing DB/browser
 prerequisites remain blocked, and implementation/test fixtures do not attest a
 real beta pass or authorize production.
+
+## Catalog image R2 acceptance (045)
+
+This feature requires the full packaged-beta route because it changes shared contracts, Edge
+functions and the database. Use separate beta R2 buckets and media origin configured by
+[CATALOG_IMAGES.md](CATALOG_IMAGES.md). Keep imports disabled until the real CORS, conditional
+write, origin and anonymous CDN readback, nosniff, purge and resource-budget checks in
+[045 validation](../specs/045-catalog-r2-images/validation.md) pass. A passing Node fixture or
+Deno check is separate evidence; neither attests live provider or external importer acceptance.
+
+Beta must keep real authentication, entitlement checks and production telemetry isolation.
+No test uses production credentials, buckets or customer media. Missing provider setup remains
+an explicit release blocker. Old-client refusal, accepted legacy retry, local-only input,
+keyboard/touch and light/dark modes belong to the packaged acceptance matrix.

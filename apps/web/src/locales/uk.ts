@@ -1,6 +1,223 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  catalogTextScheduleTitle: 'Оновлювати щотижня',
+  catalogTextScheduleCount: 'Нових варіантів',
+  catalogTextScheduleSave: 'Зберегти розклад',
+  catalogTextScheduleConsequence:
+    'Замінює всі збережені назви й описи. Перше оновлення — через 7 днів після ввімкнення.',
+  catalogTextScheduleLoading: 'Завантажуємо розклад…',
+  catalogTextScheduleUnavailable: 'Щотижневе оновлення недоступне в цьому підключенні.',
+  catalogTextScheduleSaved: 'Розклад збережено',
+  catalogTextScheduleNext: 'Наступне оновлення: {date}',
+  catalogTextScheduleNextUnknown: 'Час наступного оновлення не підтверджено.',
+  catalogTextScheduleLast: 'Останнє оновлення: {date}',
+  catalogTextScheduleLastFailed: 'Останнє автооновлення не підтверджено. Перевірте стан.',
+
+  catalogImagesManagerHint:
+    'Виберіть зображення, щоб прибрати їх із добірки або видалити збережені копії.',
+  catalogImagesCapacityUnconfirmed: 'Місткість не підтверджено',
+  catalogImagesLibraryIncomplete:
+    'Список зображень неповний. Оновіть стан перед вибором усіх зображень.',
+  catalogImagesUsed: 'Зайнято: {size}',
+  catalogImagesFree: 'Вільно: {size}',
+  catalogImagesStorageMeter: '{used} зайнято · {free} вільно · {limit} усього',
+  catalogImagesOwnerLimit: 'Спільне сховище просторів власника.',
+  catalogImagesManage: 'Керувати зображеннями',
+  catalogImagesSearch: 'Пошук',
+  catalogImagesSearchStored: 'Пошук збережених зображень',
+  catalogImagesSearchCoverage: 'Знайдено {found} серед {loaded} завантажених із {total} зображень',
+  catalogImagesNoMatches: 'Серед завантажених зображень збігів немає.',
+  catalogImagesPages: 'Сторінки зображень',
+  catalogImagesPrevious: 'Попередня сторінка',
+  catalogImagesNext: 'Наступна сторінка',
+  catalogImagesLoadMore: 'Завантажити ще зображення',
+  catalogImagesSelectShown: 'Вибрати показані ({count})',
+  catalogImagesSelectImage: 'Вибрати {name}',
+  catalogImagesClearSelection: 'Зняти вибір',
+  catalogImagesSelected: 'Вибрано {count} · {size}',
+  catalogImagesRemoveSelected: 'Прибрати вибрані з добірки',
+  catalogImagesDeleteSelected: 'Видалити вибрані зображення ({count})',
+  catalogImagesBulkRemoveTitle: 'Прибрати {count} зображень із добірки?',
+  catalogImagesBulkRemoveBody:
+    'Посилання в наявних каталогах працюватимуть далі. Копії залишаться у сховищі; місце не звільниться.',
+  catalogImagesBulkDeleteTitle: 'Видалити вибрані зображення?',
+  catalogImagesBulkDeleteBody:
+    'Ці копії займають {size}. Наявні каталоги з ними втратять зображення. Вільне місце оновиться лише після підтвердженого очищення.',
+  catalogImagesSelectedInUse: 'Зображень у наявних каталогах: {count}',
+  catalogImagesBulkProgress: 'Обробляємо {done} із {total}…',
+  catalogImagesBulkResult:
+    'Запитано: {requested}. Прийнято: {accepted}. Помилки або непідтверджені: {failed}. Не розпочато: {unattempted}.',
+  catalogImagesBulkStopped:
+    'Зупинено на першому непідтвердженому результаті. Звірте поточний стан перед новим вибором.',
+  catalogImagesLoadingLibrary: 'Завантажуємо зображення для пошуку… {loaded} із {total}',
+  catalogImagesSearchComplete: 'Усі {count} зображень доступні для пошуку.',
+  catalogImagesSelectAllMatches: 'Вибрати всі знайдені ({count})',
+  catalogImagesRemoveConfirm: 'Прибрати з добірки',
+  catalogImagesDeleteConfirm: 'Видалити збережені зображення',
+  catalogImagesCancelAction: 'Скасувати',
+
+  catalogImagesBackToUpload: 'Назад до додавання',
+  catalogImagesQuickFormats: 'JPEG, PNG або WebP · від 500 × 500',
+  catalogImagesAdd: 'Додати зображення',
+  catalogImagesActions: 'Дії із зображеннями',
+  catalogImagesHelpTitle: 'Підготувати зображення',
+  catalogImagesGalleryHint: 'Зображення для ваших каталогів',
+  catalogImagesGalleryEmpty: 'Зображень поки немає',
+  catalogImagesDetails: 'Деталі',
+  catalogImagesHistoryEmpty: 'Завантажень поки немає',
+  catalogImagesStillUnconfirmed:
+    'Стан перевірено. Сервер досі не підтвердив завершення завантаження. Повторно завантажувати файли не потрібно.',
+  catalogImagesStatusUpdated: 'Стан оновлено.',
+  catalogImagesDeleteSpaceHint: 'Місце звільниться після завершення видалення.',
+  catalogImagesSelectionSize: 'Вибрано: {count} · {size}',
+  catalogImagesDeleteLinksWarning: 'Ці зображення зникнуть із каталогів, які їх використовують.',
+  catalogImagesReconcile: 'Перевірити стан',
+  catalogImagesCapacityFull: 'Сховище заповнене. Звільніть місце, щоб додати зображення.',
+
+  catalogImagesOptimizationNotice:
+    'Перед публікацією оптимізуємо фото без втрат якості та зміни розмірів. Зберігаємо JPEG/PNG; WebP перетворюємо на PNG. Уже стиснений файл може не зменшитися.',
+  catalogImagesFormatHint:
+    'Від 500 × 500; результат до 8 MB. JPEG і WebP — до 4 мегапікселів, PNG — до 16. WebP до 8 MB, інші джерела — до 50 MB.',
+  catalogImagesErrorDimensions:
+    'Перевірте розмір: від 500 × 500, JPEG/WebP до 4 мегапікселів, PNG до 16. Якщо розмір підходить, кодування може бути надто складним — збережіть копію у PNG.',
+  catalogImagesStorageHeading: 'Сховище картинок',
+  catalogImagesStorageUsage: 'Сховище: {used} із {limit}. Картинок: {count} із {imageLimit}.',
+  catalogImagesStorageOwnerScope:
+    'Ліміт спільний для всіх просторів власника цього простору. Обробка та збережені копії також займають місце.',
+  catalogImagesStorageBreakdown:
+    'В обробці: {processing}. Очікують очищення: {deleting}. Не в добірці: {retained}.',
+  catalogImagesStorageSpaces: 'Цей простір: {team}. Інші простори власника: {other}.',
+  catalogImagesStorageFull:
+    'Ліміт сховища вичерпано. Готові копії можна використовувати повторно. Щоб додати нові картинки, видаліть збережені копії й дочекайтеся підтвердженого очищення.',
+  catalogImagesStorageLoading: 'Завантажуємо використання сховища…',
+  catalogImagesStorageUnavailable:
+    'Використання сховища недоступне. Оновіть стан, щоб дізнатися фактичний залишок.',
+  catalogImagesStorageStale:
+    'Не вдалося оновити використання сховища. Показано залишок із попередньої успішної перевірки.',
+  catalogImagesRemoveHint:
+    'Прибирання картинки з добірки зберігає посилання в наявних каталогах і не звільняє сховище.',
+  catalogImagesManageLibrary: 'Керувати збереженими картинками',
+  catalogImagesLibraryHeading: 'Бібліотека збережених картинок',
+  catalogImagesLibraryHint:
+    'Тут усі збережені копії цього простору, зокрема прибрані з добірки. Видалення публікації запускає очищення сховища; наявні каталоги з нею втратять цю картинку.',
+  catalogImagesLibraryEmpty: 'У цьому просторі немає збережених картинок.',
+  catalogImagesLibraryUnavailable:
+    'Не вдалося оновити бібліотеку. Оновіть стан перед керуванням копіями.',
+  catalogImagesLibraryActive: 'У добірці',
+  catalogImagesLibraryRetained: 'Поза добіркою',
+  catalogImagesLibraryInUse: 'Використовується каталогами',
+  catalogImagesLibraryDeleting: 'Очищення триває; місце ще зайняте',
+  catalogImagesLibraryUnknown:
+    'Результат очищення невідомий; місце ще зайняте. Оновіть стан для звірки.',
+  catalogImagesDeletePicture: 'Видалити збережену картинку',
+  catalogImagesCleanupCapacity:
+    'Місце звільниться лише після підтвердженого очищення. Видалення в очікуванні або з невідомим результатом усе ще враховується в ліміті.',
+  catalogImagesOpenPicture: 'Відкрити картинку',
+  catalogImagesRemovePicture: 'Прибрати з добірки',
+  catalogImagesRevokePicture: 'Відкликати публікацію',
+  catalogImagesNextPictures: 'Наступні картинки',
+  catalogImagesRevocationQueued:
+    'Відкликання прийнято. Очищення сховища й керованого кешу може тривати; зовнішні копії можуть залишитися.',
+  catalogImagesRevokeImpact:
+    'Посилання перестане працювати для старих каталогів. Це відкликає публікацію, а не просто прибирає картинку з нових виборів. Зовнішні кеші та скачані копії можуть залишитися.',
+  catalogImagesContinueImport: 'Продовжити імпорт папки',
+  catalogImagesCopyFailed: 'Не вдалося скопіювати промпт. Відкрийте його й скопіюйте вручну.',
+  catalogImagesTitle: 'Зображення',
+  catalogImagesPublicNotice:
+    'Завантажені картинки будуть публічно доступні за посиланнями для каталогів. Додавайте лише те, що можете публікувати.',
+  catalogImagesDescription:
+    'Один раз завантажте картинки й використовуйте готові посилання в каталогах.',
+  catalogImagesLoading: 'Завантажуємо стан картинок…',
+  catalogImagesSetupRequired:
+    'Завантаження зображень ще не підключене для цього простору. Чинні картинки й каталоги залишаються доступними.',
+  catalogImagesImportsPaused:
+    'Нові завантаження призупинено. Готові картинки залишаються доступними.',
+  catalogImagesInventory: 'З підбором за назвою: {matched}. Випадкові: {random}.',
+  catalogImagesDrop: 'Перетягніть сюди картинки',
+  catalogImagesChooseFiles: 'Обрати файли',
+  catalogImagesChooseDrive: 'Обрати папку Google Drive',
+  catalogImagesAnalyzeUpload: 'Проаналізувати й завантажити',
+  catalogImagesSelectedFolder: 'Обрана папка: {name}',
+  catalogImagesQueued: 'У черзі: {count}',
+  catalogImagesShowMore: 'Показати ще',
+  catalogImagesTransferBytes:
+    'Передано {loaded} з {total} байтів. Після передачі картинки ще перевіряються.',
+  catalogImagesHelpClothing:
+    'Використовуйте одяг на білому тлі: назви, описи й категорії товарів у Soty підготовлені саме для одягу. Правильно названі картинки поєднуються з товарами за типом і кольором.',
+  catalogImagesHelpRandom:
+    'Можна додати й звичайні картинки без спеціальних назв. Вони просто вибиратимуться випадково — без зіставлення з назвою, типом одягу та кольором товару.',
+  catalogImagesHelpMix:
+    'Для варіантів товарів міксуються назви й описи, матеріал, крій, стиль, візерунок, розмір і ціна. Тип і колір правильно названої картинки прив’язуються до товару. Інші параметри не визначаються з фото.',
+  catalogImagesHelpNames:
+    'Називайте файли за схемою тип_колір_номер: hoodie_black_001.jpg. Рекомендуємо квадрат 1:1, один предмет на білому тлі, без людей, брендів і написів.',
+  catalogImagesCopyPrompt: 'Скопіювати промпт',
+  catalogImagesPromptCopied: 'Промпт скопійовано',
+  catalogImagesPromptCopyFailed: 'Не вдалося скопіювати. Відкрийте промпт і скопіюйте вручну.',
+  catalogImagesOpenPrompt: 'Відкрити промпт',
+  catalogImagesRefresh: 'Оновити стан',
+  catalogImagesRecentImports: 'Останні завантаження',
+  catalogImagesImportStatus: 'Стан завантаження картинок',
+  catalogImagesJobCounts:
+    'Готові: {ready}. Повторно використані: {reused}. Випадкові: {random}. Помилки: {failed}. Строк очікування минув: {expired}.',
+  catalogImagesReselect:
+    'Частину локальних файлів ще не передано. Оберіть їх повторно, щоб продовжити. Уже готові картинки не завантажуються вдруге.',
+  catalogImagesRandomMode: 'Випадковий вибір',
+  catalogImagesEntriesLimited:
+    'Показано першу сторінку файлів; підсумки охоплюють усе завантаження.',
+  catalogImagesCancel: 'Скасувати завантаження',
+  catalogImagesRetry: 'Повторити незавершені зображення',
+  catalogImagesMigrateExisting: 'Додати з наявних джерел',
+  catalogImagesWaitingCapacity:
+    'Очікуємо перевірки зображень, щоб звільнилося місце для завантаження. Черга продовжиться автоматично.',
+  catalogImagesUploadCapacityBusy:
+    'Тимчасово немає вільних місць для завантаження. Збережіть вибрані файли й повторіть після завершення перевірки.',
+  catalogImagesMigrateHint:
+    'Копіює поточні файли й папки Drive через той самий аналіз зображень. Наявні каталоги працюють далі. Непідтримувані файли показуються як невдалі; оригінали та їхні дозволи на поширення зберігаються. До 100 файлів або папок джерел за імпорт.',
+  catalogImagesClose: 'Закрити',
+  catalogImagesStageCollecting: 'Готуємо список файлів',
+  catalogImagesStageEnumerating: 'Переглядаємо папку',
+  catalogImagesStageSealed: 'Список готовий',
+  catalogImagesStageRunning: 'Обробляємо картинки',
+  catalogImagesStageCompleted: 'Завершено',
+  catalogImagesStagePartial: 'Завершено частково',
+  catalogImagesStageFailed: 'Не вдалося завершити',
+  catalogImagesStageCancelled: 'Скасовано',
+  catalogImagesStageExpired: 'Строк очікування минув',
+  catalogImagesStageUncertain: 'Завершення завантаження не підтверджено',
+  catalogImagesStageWaiting: 'Очікуємо файл',
+  catalogImagesStageStaged: 'Файл передано',
+  catalogImagesStageValidating: 'Перевіряємо файл',
+  catalogImagesStageDeduplicating: 'Перевіряємо повтори',
+  catalogImagesStagePublishing: 'Публікуємо',
+  catalogImagesStageVerifying: 'Перевіряємо збережені байти',
+  catalogImagesStageVerifyingPublic: 'Перевіряємо публічне посилання',
+  catalogImagesStageCommitting: 'Зберігаємо відповідність',
+  catalogImagesStageReady: 'Готово',
+  catalogImagesStageReused: 'Використано готову копію',
+  catalogImagesErrorPairingConflict:
+    'Не вдалося однозначно узгодити назву й опис із новою картинкою. Увімкніть оновлення текстів або виправте їх і повторіть. Попередній каталог збережено.',
+  catalogImagesErrorUnavailable: 'Сховище картинок зараз недоступне. Оновіть стан перед повтором.',
+  catalogImagesErrorSource:
+    'Джерело картинки недоступне або змінилося. Перевірте доступ і оберіть його повторно.',
+  catalogImagesErrorFormat:
+    'Потрібна придатна статична картинка PNG, JPEG або WebP із правильною орієнтацією.',
+  catalogImagesErrorTooLarge:
+    'PNG: до 50 MB і 16 мегапікселів. JPEG: до 50 MB і 4 мегапікселів. WebP: до 8 MB і 4 мегапікселів. Опублікований результат — до 8 MB.',
+  catalogImagesErrorQuota:
+    'Перевищено ліміт завантаження або сховища акаунта власника. Зменште набір або видаліть збережені картинки й дочекайтеся підтвердженого очищення перед додаванням нових копій.',
+  catalogImagesErrorConflict:
+    'Ці байти вже пов’язані з іншою назвою або запит змінився. Оновіть стан і перевірте відповідності.',
+  catalogImagesErrorUncertain:
+    'Немає підтвердження, що завантаження завершилося. Натисніть «Перевірити стан»; це не завантажує файли повторно.',
+  catalogImagesErrorDisabled: 'Нові завантаження картинок поки вимкнені для цього простору.',
+  catalogImagesErrorUpgrade: 'Оновіть сторінку: цей простір використовує новий механізм картинок.',
+  catalogImagesErrorVerification:
+    'Картинку ще не підтверджено за публічним посиланням. Оновіть стан перед повтором.',
+  catalogImagesErrorLocalSource: 'Оберіть знову потрібні локальні файли, щоб продовжити.',
+  catalogImagesErrorRevoked: 'Публікацію картинки відкликано. Оберіть іншу готову картинку.',
+  catalogImagesErrorManifest:
+    'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
   accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',
   accountsUnmatchedLaunches: 'Запуски без пов’язаного РК',
   accountsMoveInstructions:
@@ -2239,10 +2456,9 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogImagesRootRefused: 'Оберіть папку, а не весь простір.',
   productCatalogTextsTitle: 'Назви й описи',
   productCatalogTextsDescription:
-    'Нові каталоги та нові товари беруть назви й описи звідси. В існуючих товарах вони змінюються за правилом «Назви, описи й ціни».',
+    'Готові англомовні назви й описи для товарів. Перегляньте або створіть нові.',
   productCatalogTextsPool: 'Збережено: {count}',
-  productCatalogTextsApparelOnly:
-    'Генератор складає назви й описи лише для одягу — додавайте до них зображення одягу.',
+  productCatalogTextsApparelOnly: 'Генератор створює англомовні тексти лише для одягу.',
   productCatalogTextsCount: 'Додати варіантів',
   productCatalogTextsCountInvalid: 'Від 1 до {max}.',
   productCatalogTextsGenerate: 'Згенерувати',
@@ -2258,13 +2474,13 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogTextsFieldDescription: 'Опис',
   productCatalogTextsFieldDescriptionHint: 'Звичайний текст, англійською.',
   productCatalogPriceTitle: 'Ціна',
-  productCatalogPriceDescription:
-    'Діапазон для нових товарів і оновлення цін за правилами каталогу.',
+  productCatalogPriceDescription: 'Кожен товар отримує випадкову ціну в цьому діапазоні.',
   productCatalogPriceFrom: 'Від',
   productCatalogPriceTo: 'до',
   productCatalogPriceRangeInvalid: 'Цілі долари, і «від» не більше за «до».',
   productCatalogFallbackToggle: 'Одна назва, опис і посилання на картинку для всіх рядків',
-  productCatalogFallbackHint: 'Для створення каталогу, коли немає збережених назв або зображень.',
+  productCatalogFallbackHint:
+    'Коли список назв порожній, товари отримають одну назву й опис нижче. Коли немає зображень — одне спільне зображення.',
   catalogUpdaterChangesTitle: 'Типові зміни для нових каталогів',
   catalogUpdaterDefaultsExplanation:
     'Ці параметри копіюються лише під час створення нового каталогу. Наявні каталоги зберігають власні налаштування вище.',
@@ -2279,6 +2495,15 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterGrowHint:
     'Кожне оновлення додає кілька нових товарів — зі своїми назвами, картинками й цінами — доки в таблиці не набереться 400.',
   productCatalogSettingsReadOnly: 'Змінювати це може лише керівник простору.',
+  catalogSettingsAddTexts: 'Згенерувати назви й описи',
+  catalogDefaultsRestitchAction: 'Готувати нову копію відео',
+  catalogDefaultsLinksAction: 'Змінювати посилання товарів',
+  catalogDefaultsImagesAction: 'Змінювати зображення',
+  catalogDefaultsTextsAction: 'Змінювати назви, описи й ціни',
+  catalogDefaultsGrowAction: 'Додавати 1–5 товарів',
+  catalogFallbackTitleActive: 'Назва й опис зараз використовуються',
+  catalogFallbackImageActive: 'Спільне зображення зараз використовується',
+  catalogFallbackReserved: 'Збережено про запас',
   catalogSettingsMore: 'Додаткові дії',
   catalogSettingsUnknown: 'Перевірте наповнення: дані ще не підтверджено.',
   catalogSettingsReadFailed: 'Не вдалося завантажити',
@@ -2294,7 +2519,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogDefaultsReadOnly: 'Доступний лише перегляд',
   catalogDefaultsUnavailable: 'Зміна недоступна',
   catalogDefaultsLoadFailed: 'Не вдалося завантажити',
-  productCatalogSummaryTitle: 'Наповнення каталогу',
+  productCatalogSummaryTitle: 'Налаштування каталогу',
   productCatalogSummaryDescription:
     'Кожен рядок бере своє з того, що нижче; тут видно, чи є з чого брати.',
   productCatalogSummaryNames: 'Назви й описи — у пулі {count}',
@@ -2307,15 +2532,15 @@ export const uk: Record<keyof typeof en, string> = {
     'Картинки — нічого показати: пул порожній і запасного посилання немає',
   productCatalogSummaryPrice: 'Ціна — від {from} до {to} USD, ціла для кожного рядка',
   productCatalogSummaryPriceUnsaved: 'Ціна — ще не збережена',
-  productCatalogSummaryReady: 'Наповнення налаштовано.',
+  productCatalogSummaryReady: 'Готово до створення каталогу',
   productCatalogSummaryBlocked: 'Додайте відсутні матеріали та збережіть ціну.',
   productCatalogUpdaterLink: 'До каталогів',
   productCatalogTextsAdd: 'Додати',
-  productCatalogTextsBrowse: 'Переглянути всі ({count})',
+  productCatalogTextsBrowse: 'Переглянути й редагувати ({count})',
   productCatalogTextsBrowseTitle: 'Назви й описи',
-  productCatalogTextsSearch: 'Пошук у пулі',
+  productCatalogTextsSearch: 'Пошук за назвою або описом',
   productCatalogTextsFound: 'Знайдено: {count}',
-  productCatalogFallbackTitle: 'Запасні значення',
+  productCatalogFallbackTitle: 'Якщо немає назв чи зображень',
   productCatalogFallbackInUse: 'Використовуються',
   productCatalogFallbackUnused: 'Про запас',
   productCatalogFallbackEmpty: 'Порожні',
@@ -2539,7 +2764,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterKeepEditing: 'Продовжити редагування',
   catalogUpdaterDefaultsTitle: 'Для нових каталогів',
   catalogUpdaterDefaultsScope:
-    'Застосується до каталогів, створених після збереження. Наявні каталоги збережуть свої налаштування.',
+    'Ці правила отримають нові каталоги. Налаштування вже створених змінюються в менеджері каталогів.',
   catalogUpdaterDefaultsSaved: 'Типові налаштування збережено',
 
   catalogUpdaterClose: 'Закрити',

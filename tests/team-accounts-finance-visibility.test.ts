@@ -106,6 +106,37 @@ it('a parent archive hides its empty child without modifying child own state', (
   expect(financeAgentVisible(data, 'agent', '2026-10-18')).toBe(false);
 });
 
+it.each(['agent', 'social'] as const)(
+  'orders %s lifecycle changes chronologically across whole and fractional PostgreSQL timestamps',
+  entityKind => {
+    const data = snapshot();
+    const entityId = entityKind === 'agent' ? 'agent' : 'social';
+    data.lifecycle!.agents[0]!.archivedAt = null;
+    data.lifecycle!.events = [
+      {
+        entityKind,
+        entityId,
+        archived: false,
+        occurredAt: '2026-10-18T07:00:00.001+00:00'
+      },
+      {
+        entityKind,
+        entityId,
+        archived: true,
+        occurredAt: '2026-10-18T07:00:00+00:00'
+      }
+    ];
+    // SQL may omit a zero fractional part. Locale string order puts that
+    // earlier archive after the later restore; input order must not decide it.
+    expect(financeAgentVisible(data, 'agent', '2026-10-18')).toBe(true);
+    // The opposite transition must also use the later event, never prefer a
+    // restore simply because its timestamp has no fractional part.
+    data.lifecycle!.events[0]!.archived = true;
+    data.lifecycle!.events[1]!.archived = false;
+    expect(financeAgentVisible(data, 'agent', '2026-10-18')).toBe(false);
+  }
+);
+
 it('retains closed history for deleted legacy identities without blocking all finance; live or malformed references still fail', () => {
   const data = snapshot();
   const old: NonNullable<FinanceSnapshot['lifecycle']>['parents'][number] = {

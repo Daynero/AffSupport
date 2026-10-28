@@ -34,6 +34,12 @@ export interface AnalyticsSchema {
     analytics_recovery_retirement?: boolean;
     analytics_membership_access_signals?: boolean;
     analytics_translation_retirement?: boolean;
+    analytics_catalog_image_journal?: boolean;
+    analytics_catalog_text_schedule?: boolean;
+    analytics_catalog_text_schedule_journal?: boolean;
+    analytics_catalog_text_schedule_coverage?: boolean;
+    analytics_catalog_image_storage?: boolean;
+    analytics_catalog_image_optimization?: boolean;
   };
 }
 
@@ -117,6 +123,7 @@ export interface CohortsData {
   delivery_lag_ms: DeliveryLag;
 }
 export interface JourneyData {
+  catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   events: JourneyEvent[];
   delivery_lag_ms: DeliveryLag;
 }
@@ -245,6 +252,7 @@ export interface InspectAgentIdentity {
 export interface InspectFound {
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
+  catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
@@ -907,6 +915,7 @@ export interface InvestigateFinding {
 
 export interface InvestigateData {
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
+  catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   membership_access?: import('./membership-access.js').MembershipAccessEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;

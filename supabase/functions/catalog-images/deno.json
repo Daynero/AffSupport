@@ -1,0 +1,7 @@
+{
+  "compilerOptions": { "strict": true },
+  "imports": {
+    "aws4fetch": "npm:aws4fetch@1.0.20",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.7"
+  }
+}

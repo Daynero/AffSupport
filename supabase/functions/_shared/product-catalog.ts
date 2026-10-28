@@ -1,3 +1,8 @@
+import {
+  isR2CatalogImage,
+  type R2CatalogImage
+} from '../../../packages/shared/dist/team/catalog-images.js';
+import { pairCatalogImageRow, catalogImageFacts } from './catalog-image-rows.ts';
 import { isRecord } from './validation.ts';
 /**
  * A video's product catalog sheet (feature 022) — everything about it that is not I/O.
@@ -80,6 +85,7 @@ export interface ProductCatalogRowDetails {
    * kept so a later update can pair the row's words with the picture it already has.
    */
   pictureName: string | null;
+  pictureImage?: R2CatalogImage;
 }
 
 /**
@@ -137,7 +143,7 @@ export function planCatalogRows(input: {
   settings: ProductCatalogSpaceSettings;
   texts: ReadonlyArray<{ title: string; description: string }>;
   /** The pictures drawn for this catalog, with the file names that say what they show. */
-  images: ReadonlyArray<{ link: string; name?: string | null }>;
+  images: ReadonlyArray<{ link: string; name?: string | null; image?: R2CatalogImage }>;
   random?: () => number;
   now?: number;
   /** The catalog's own label; invented when none is given. */
@@ -148,11 +154,15 @@ export function planCatalogRows(input: {
   const rows: ProductCatalogRowValues[] = [];
   const spare = [...input.texts];
   for (let index = 0; index < input.count; index += 1) {
-    const image =
+    const image: { link: string; name?: string | null; image?: R2CatalogImage } =
       input.images.length > 0
         ? input.images[index % input.images.length]
         : { link: input.settings.imageLink ?? '', name: null };
-    const facts = image?.name ? pictureFacts(image.name) : { garment: null, color: null };
+    const facts = image?.image
+      ? catalogImageFacts(image.image)
+      : image?.name
+        ? pictureFacts(image.name)
+        : { garment: null, color: null };
     const text = takeMatchingText(spare, facts);
     const imageLink = image?.link || input.settings.imageLink;
     /* The picture decides the colour: a name in navy over a photo of a black hoodie is the one
@@ -167,15 +177,16 @@ export function planCatalogRows(input: {
         : text;
     const title = recoloured?.title ?? input.settings.title;
     const description = recoloured?.description ?? input.settings.description;
-    if (!title || !description || !imageLink) return null;
+    const canGenerateFactualText = image?.image?.classification.mode === 'matched';
+    if (!imageLink || ((!title || !description) && !canGenerateFactualText)) return null;
     const price = randomPrice(input.settings.priceMin, input.settings.priceMax, random);
     rows.push({
-      title,
-      description,
+      title: title ?? '',
+      description: description ?? '',
       imageLink,
       price,
       ...drawProductDetails({
-        title,
+        title: title ?? '',
         price,
         brand,
         random,
@@ -185,7 +196,10 @@ export function planCatalogRows(input: {
       pictureName: image?.name ?? null
     });
   }
-  return rows;
+  return rows.map((row, index) => {
+    const source = input.images[index % input.images.length]?.image;
+    return source ? pairCatalogImageRow(row, source, { allowTextGeneration: true }) : row;
+  });
 }
 
 /**
@@ -665,6 +679,10 @@ export function parseCatalogRowRecipe(value: unknown): ProductCatalogRowValues[]
         if (typeof r[key] !== 'number' || !Number.isFinite(r[key])) return null;
         row[key] = r[key];
       }
+    }
+    if (r.pictureImage !== undefined) {
+      if (!isR2CatalogImage(r.pictureImage)) return null;
+      row.pictureImage = r.pictureImage;
     }
     if (r.pictureName !== undefined) {
       if (r.pictureName !== null && typeof r.pictureName !== 'string') return null;

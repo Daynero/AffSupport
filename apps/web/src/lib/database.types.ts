@@ -1662,6 +1662,109 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_catalog_image_imports: {
+        Row: {
+          actor_id: string | null;
+          actor_scope: string;
+          authorization_epoch: number;
+          counts: NonNullable<Json>;
+          created_at: string;
+          id: string;
+          last_user_activity: string;
+          revision: number;
+          source_deadline: string;
+          source_kind: string;
+          state: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          actor_scope: string;
+          authorization_epoch?: number;
+          counts?: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          last_user_activity?: string;
+          revision?: number;
+          source_deadline?: string;
+          source_kind: string;
+          state?: string;
+          team_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          actor_scope?: string;
+          authorization_epoch?: number;
+          counts?: NonNullable<Json>;
+          created_at?: string;
+          id?: string;
+          last_user_activity?: string;
+          revision?: number;
+          source_deadline?: string;
+          source_kind?: string;
+          state?: string;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_image_imports_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_catalog_image_pool_entries: {
+        Row: {
+          active: boolean;
+          added_at: string;
+          classification: NonNullable<Json>;
+          id: string;
+          public_url: string;
+          publication_id: string;
+          revision: number;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          active?: boolean;
+          added_at?: string;
+          classification: NonNullable<Json>;
+          id?: string;
+          public_url: string;
+          publication_id: string;
+          revision?: number;
+          team_id: string;
+        };
+        Update: {
+          active?: boolean;
+          added_at?: string;
+          classification?: NonNullable<Json>;
+          id?: string;
+          public_url?: string;
+          publication_id?: string;
+          revision?: number;
+          team_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_image_pool_entries_publication_id_team_id_fkey';
+            columns: ['publication_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_publications';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_image_pool_entries_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_catalog_restitch_copies: {
         Row: {
           catalog_material_id: string | null;
@@ -2509,52 +2612,6 @@ export type GeneratedDatabase = {
           }
         ];
       };
-      team_launch_offer_defaults: {
-        Row: {
-          config: NonNullable<Json>;
-          offer_id: string;
-          sub_config: NonNullable<Json>;
-          team_id: string;
-          updated_at: string;
-          updated_by: string;
-          version: number;
-        };
-        ComputedFields: never;
-        Insert: {
-          config?: NonNullable<Json>;
-          offer_id: string;
-          sub_config?: NonNullable<Json>;
-          team_id: string;
-          updated_at?: string;
-          updated_by: string;
-          version?: number;
-        };
-        Update: {
-          config?: NonNullable<Json>;
-          offer_id?: string;
-          sub_config?: NonNullable<Json>;
-          team_id?: string;
-          updated_at?: string;
-          updated_by?: string;
-          version?: number;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'team_launch_offer_defaults_offer_id_team_id_fkey';
-            columns: ['offer_id', 'team_id'];
-            isOneToOne: true;
-            referencedRelation: 'team_launch_offers';
-            referencedColumns: ['id', 'team_id'];
-          },
-          {
-            foreignKeyName: 'team_launch_offer_defaults_team_id_fkey';
-            columns: ['team_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
-            referencedColumns: ['id'];
-          }
-        ];
-      };
       team_launch_generation_steps: {
         Row: {
           attempt_no: number;
@@ -2646,6 +2703,8 @@ export type GeneratedDatabase = {
           actor_id: string;
           attempt_no: number;
           cancel_requested_at: string | null;
+          catalog_image_attempt_id: string;
+          catalog_image_contract_version: number;
           catalog_retry_from_attempt: number | null;
           created_at: string;
           fence: number;
@@ -2672,6 +2731,8 @@ export type GeneratedDatabase = {
           actor_id: string;
           attempt_no?: number;
           cancel_requested_at?: string | null;
+          catalog_image_attempt_id?: string;
+          catalog_image_contract_version?: number;
           catalog_retry_from_attempt?: number | null;
           created_at?: string;
           fence?: number;
@@ -2697,6 +2758,8 @@ export type GeneratedDatabase = {
           actor_id?: string;
           attempt_no?: number;
           cancel_requested_at?: string | null;
+          catalog_image_attempt_id?: string;
+          catalog_image_contract_version?: number;
           catalog_retry_from_attempt?: number | null;
           created_at?: string;
           fence?: number;
@@ -2758,6 +2821,52 @@ export type GeneratedDatabase = {
         Relationships: [
           {
             foreignKeyName: 'team_launch_member_preferences_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      team_launch_offer_defaults: {
+        Row: {
+          config: NonNullable<Json>;
+          offer_id: string;
+          sub_config: NonNullable<Json>;
+          team_id: string;
+          updated_at: string;
+          updated_by: string;
+          version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          config?: NonNullable<Json>;
+          offer_id: string;
+          sub_config?: NonNullable<Json>;
+          team_id: string;
+          updated_at?: string;
+          updated_by: string;
+          version?: number;
+        };
+        Update: {
+          config?: NonNullable<Json>;
+          offer_id?: string;
+          sub_config?: NonNullable<Json>;
+          team_id?: string;
+          updated_at?: string;
+          updated_by?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_offer_defaults_offer_id_team_id_fkey';
+            columns: ['offer_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_offers';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_offer_defaults_team_id_fkey';
             columns: ['team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
@@ -4812,11 +4921,233 @@ export type GeneratedDatabase = {
       };
     };
     Views: {
+      analytics_catalog_image_coverage: {
+        Row: {
+          capture_enabled: boolean | null;
+          installed_at: string;
+          schema_version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Update: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_image_daily: {
+        Row: {
+          code: string;
+          day: string;
+          samples: number;
+          stage: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          code?: string | null;
+          day?: string | null;
+          samples?: number | null;
+          stage?: string | null;
+        };
+        Update: {
+          code?: string | null;
+          day?: string | null;
+          samples?: number | null;
+          stage?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_image_imports: {
+        Row: {
+          actor_id: string | null;
+          counts: NonNullable<Json>;
+          created_at: string;
+          id: string;
+          revision: number;
+          source_deadline: string;
+          source_kind: string;
+          state: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          counts?: Json | null;
+          created_at?: string | null;
+          id?: string | null;
+          revision?: number | null;
+          source_deadline?: string | null;
+          source_kind?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          counts?: Json | null;
+          created_at?: string | null;
+          id?: string | null;
+          revision?: number | null;
+          source_deadline?: string | null;
+          source_kind?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_image_imports_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_image_journal: {
+        Row: {
+          actor_id: string | null;
+          code: string | null;
+          entry_id: string | null;
+          evidence_id: string | null;
+          job_id: string | null;
+          occurred_at: string;
+          publication_id: string | null;
+          received_at: string;
+          stage: string | null;
+          team_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          code?: never;
+          entry_id?: string | null;
+          evidence_id?: never;
+          job_id?: string | null;
+          occurred_at?: string | null;
+          publication_id?: string | null;
+          received_at?: string | null;
+          stage?: never;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          code?: never;
+          entry_id?: string | null;
+          evidence_id?: never;
+          job_id?: string | null;
+          occurred_at?: string | null;
+          publication_id?: string | null;
+          received_at?: string | null;
+          stage?: never;
+          team_id?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_image_publications: {
+        Row: {
+          classification_mode: string | null;
+          created_at: string;
+          id: string;
+          pool_active: boolean | null;
+          size_bytes: number;
+          state: string;
+          team_id: string;
+          verified_at: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          classification_mode?: never;
+          created_at?: string | null;
+          id?: string | null;
+          pool_active?: never;
+          size_bytes?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+          verified_at?: string | null;
+        };
+        Update: {
+          classification_mode?: never;
+          created_at?: string | null;
+          id?: string | null;
+          pool_active?: never;
+          size_bytes?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+          verified_at?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_image_purges: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          id: string;
+          next_attempt_at: string;
+          publication_id: string | null;
+          reason: string;
+          scope_id: string;
+          state: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number | null;
+          created_at?: string | null;
+          id?: string | null;
+          next_attempt_at?: string | null;
+          publication_id?: string | null;
+          reason?: string | null;
+          scope_id?: string | null;
+          state?: string | null;
+        };
+        Update: {
+          attempts?: number | null;
+          created_at?: string | null;
+          id?: string | null;
+          next_attempt_at?: string | null;
+          publication_id?: string | null;
+          reason?: string | null;
+          scope_id?: string | null;
+          state?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_image_uses: {
+        Row: {
+          catalog_attempt_id: string;
+          created_at: string;
+          publication_id: string;
+          row_identity: string;
+          state: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          catalog_attempt_id?: string | null;
+          created_at?: string | null;
+          publication_id?: string | null;
+          row_identity?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          catalog_attempt_id?: string | null;
+          created_at?: string | null;
+          publication_id?: string | null;
+          row_identity?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [];
+      };
       analytics_catalog_settings_coverage: {
         Row: {
           capture_enabled: boolean | null;
-          installed_at: string | null;
-          schema_version: number | null;
+          installed_at: string;
+          schema_version: number;
         };
         ComputedFields: never;
         Insert: {
@@ -4833,12 +5164,12 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_settings_current: {
         Row: {
-          catalog_material_id: string | null;
+          catalog_material_id: string;
           creator_id: string | null;
-          observed_at: string | null;
+          observed_at: string;
           profile_version: number | null;
-          state: Json | null;
-          team_id: string | null;
+          state: NonNullable<Json>;
+          team_id: string;
         };
         ComputedFields: never;
         Relationships: [];
@@ -4846,19 +5177,19 @@ export type GeneratedDatabase = {
       analytics_catalog_settings_history: {
         Row: {
           actor_id: string | null;
-          actor_kind: string | null;
-          after_state: Json | null;
+          actor_kind: string;
+          after_state: NonNullable<Json>;
           baseline_kind: string | null;
           before_state: Json | null;
-          catalog_material_id: string | null;
-          changed_fields: string[] | null;
+          catalog_material_id: string;
+          changed_fields: string[];
           creator_id: string | null;
-          event_id: string | null;
-          observed_at: string | null;
+          event_id: string;
+          observed_at: string;
           profile_version: number | null;
-          source: string | null;
-          team_id: string | null;
-          transaction_id: number | null;
+          source: string;
+          team_id: string;
+          transaction_id: number;
         };
         ComputedFields: never;
         Insert: {
@@ -4897,7 +5228,7 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_sync_jobs: {
         Row: {
-          attempts: number | null;
+          attempts: number;
           cancel_requested_at: string | null;
           canonical_error_code: string | null;
           canonical_job_id: string | null;
@@ -4906,41 +5237,41 @@ export type GeneratedDatabase = {
           completed_at: string | null;
           confirmed_at: string | null;
           confirmed_sequence: number | null;
-          connection_id: string | null;
-          connection_state: string | null;
-          created_at: string | null;
+          connection_id: string;
+          connection_state: string;
+          created_at: string;
           detached_at: string | null;
           error_detail: string | null;
-          files_added: number | null;
-          files_listed: number | null;
-          files_removed: number | null;
-          files_updated: number | null;
-          folders_done: number | null;
-          items_unavailable: number | null;
-          job_id: string | null;
+          files_added: number;
+          files_listed: number;
+          files_removed: number;
+          files_updated: number;
+          folders_done: number;
+          items_unavailable: number;
+          job_id: string;
           job_kind: string | null;
           last_error_code: string | null;
           last_progress_at: string | null;
           last_recovery_at: string | null;
-          lease_epoch: number | null;
+          lease_epoch: number;
           lease_expires_at: string | null;
-          lease_lost_count: number | null;
-          next_attempt_at: string | null;
-          no_progress_runs: number | null;
+          lease_lost_count: number;
+          next_attempt_at: string;
+          no_progress_runs: number;
           owner_email_normalized: string | null;
-          phase: string | null;
+          phase: string;
           recovery_count: number | null;
           replay_after: number | null;
           request_id: string | null;
           request_key_hash: string | null;
           request_outcome: string | null;
           requested_by: string | null;
-          run_count: number | null;
+          run_count: number;
           scan_completed_at: string | null;
           scope_hash: string | null;
-          state: string | null;
-          team_id: string | null;
-          updated_at: string | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
         };
         ComputedFields: never;
         Relationships: [
@@ -4956,10 +5287,10 @@ export type GeneratedDatabase = {
       analytics_catalog_updates: {
         Row: {
           actual_changes: Json | null;
-          attempt_id: string | null;
+          attempt_id: string;
           attempt_schedule: Json | null;
-          catalog_material_id: string | null;
-          current_profile_version: number | null;
+          catalog_material_id: string;
+          current_profile_version: number;
           delivery_verified_at: string | null;
           ended_at: string | null;
           failure_code: string | null;
@@ -4969,13 +5300,13 @@ export type GeneratedDatabase = {
           next_run_at: string | null;
           profile_version: number | null;
           reconciliation_required: boolean | null;
-          result: string | null;
+          result: string;
           schedule: Json | null;
           source_attempt_id: string | null;
-          stage_history: Json | null;
-          started_at: string | null;
-          team_id: string | null;
-          trigger_kind: string | null;
+          stage_history: NonNullable<Json>;
+          started_at: string;
+          team_id: string;
+          trigger_kind: string;
           update_interval: string | null;
           video_operation_stage: string | null;
           video_operation_state: string | null;
@@ -5004,28 +5335,29 @@ export type GeneratedDatabase = {
       };
       analytics_launch_generations: {
         Row: {
-          actor_id: string | null;
-          attempt_no: number | null;
+          actor_id: string;
+          attempt_no: number;
           cancel_requested_at: string | null;
           catalog_registered: boolean | null;
-          created_at: string | null;
+          catalog_sub_binding: Json | null;
+          created_at: string;
           flow_id: string | null;
-          generation_id: string | null;
-          launch_id: string | null;
+          generation_id: string;
+          launch_id: string;
           lease_expires_at: string | null;
           method: string | null;
           next_attempt_at: string | null;
           result_is_active: boolean | null;
-          retryable: boolean | null;
+          retryable: boolean;
           reuse_evidence: Json | null;
-          revision_id: string | null;
+          revision_id: string;
           safe_error_code: string | null;
           stage: string | null;
-          state: string | null;
+          state: string;
           state_version: string | null;
           steps: Json | null;
-          team_id: string | null;
-          updated_at: string | null;
+          team_id: string;
+          updated_at: string;
         };
         ComputedFields: never;
         Relationships: [
@@ -5047,10 +5379,10 @@ export type GeneratedDatabase = {
       };
       analytics_membership_access_signals: {
         Row: {
-          changed_at: string | null;
-          revision: number | null;
-          team_id: string | null;
-          user_id: string | null;
+          changed_at: string;
+          revision: number;
+          team_id: string;
+          user_id: string;
         };
         ComputedFields: never;
         Insert: {
@@ -5077,20 +5409,20 @@ export type GeneratedDatabase = {
       };
       analytics_process_output_cleanup: {
         Row: {
-          actor_id: string | null;
-          attempts: number | null;
-          captured_handoff_expires_at: string | null;
-          cleanup_state: string | null;
-          created_at: string | null;
-          id: string | null;
+          actor_id: string;
+          attempts: number;
+          captured_handoff_expires_at: string;
+          cleanup_state: string;
+          created_at: string;
+          id: string;
           lease_expires_at: string | null;
           max_attempts: number | null;
           next_attempt_at: string | null;
           provider_material_registered: boolean | null;
           provider_mutation_reserved: boolean | null;
           provider_result_recorded: boolean | null;
-          updated_at: string | null;
-          upload_state: string | null;
+          updated_at: string;
+          upload_state: string;
         };
         ComputedFields: never;
         Insert: {
@@ -5129,11 +5461,11 @@ export type GeneratedDatabase = {
       };
       analytics_recovery_execution: {
         Row: {
-          actor_id: string | null;
+          actor_id: string;
           member_ids: string[] | null;
-          operation_id: string | null;
-          started_at: string | null;
-          team_id: string | null;
+          operation_id: string;
+          started_at: string;
+          team_id: string;
         };
         ComputedFields: never;
         Insert: {
@@ -5152,15 +5484,40 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      analytics_recovery_retirement: {
+        Row: {
+          actor_id: string;
+          attempt_id: string;
+          confirmed_at: string;
+          installation_id: string;
+          retired_count: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          attempt_id?: string | null;
+          confirmed_at?: string | null;
+          installation_id?: string | null;
+          retired_count?: number | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          attempt_id?: string | null;
+          confirmed_at?: string | null;
+          installation_id?: string | null;
+          retired_count?: number | null;
+        };
+        Relationships: [];
+      };
       analytics_team_workspace: {
         Row: {
-          member_joined_at: string | null;
+          member_joined_at: string;
           member_removed_at: string | null;
-          member_user_id: string | null;
-          pilot_enrolled_at: string | null;
+          member_user_id: string;
+          pilot_enrolled_at: string;
           pilot_exited_at: string | null;
           root_connected_at: string | null;
-          root_state: string | null;
+          root_state: string;
           workspace_key: string | null;
         };
         ComputedFields: never;
@@ -5186,17 +5543,17 @@ export type GeneratedDatabase = {
       };
       analytics_users: {
         Row: {
-          account_status: string | null;
+          account_status: string;
           display_name: string | null;
           email: string | null;
           email_normalized: string | null;
-          id: string | null;
-          language: string | null;
+          id: string;
+          language: string;
           last_login_at: string | null;
           last_seen_at: string | null;
-          marketing_consent: boolean | null;
-          plan: string | null;
-          registered_at: string | null;
+          marketing_consent: boolean;
+          plan: string;
+          registered_at: string;
         };
         ComputedFields: never;
         Relationships: [];
@@ -5221,25 +5578,25 @@ export type GeneratedDatabase = {
         Row: {
           actor_id: string | null;
           attempt_id: string | null;
-          attempts: number | null;
+          attempts: number;
           delivered_at: string | null;
-          epoch: number | null;
+          epoch: number;
           finished_at: string | null;
-          item_id: string | null;
-          kind: string | null;
-          last_progress_at: string | null;
+          item_id: string;
+          kind: string;
+          last_progress_at: string;
           member_ids: string[] | null;
           operation_id: string | null;
           reason_code: string | null;
-          recovery_id: string | null;
-          recovery_state: string | null;
-          registered_at: string | null;
-          resource_id: string | null;
-          stage: string | null;
+          recovery_id: string;
+          recovery_state: string;
+          registered_at: string;
+          resource_id: string;
+          stage: string;
           started_at: string | null;
-          state: string | null;
-          team_id: string | null;
-          updated_at: string | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
         };
         ComputedFields: never;
         Relationships: [];
@@ -5881,34 +6238,23 @@ export type GeneratedDatabase = {
         }[];
       };
       get_effective_restitch_defaults: { Args: { p_team: string }; Returns: Json };
-      get_launch_copy_marks: {
-        Args: {
-          p_team: string;
-          p_launch: string;
-          p_revision: string;
-          p_actor: string;
-          p_values: Json;
-        };
-        Returns: Json;
-      };
-      set_launch_copy_marks: {
-        Args: {
-          p_team: string;
-          p_launch: string;
-          p_revision: string;
-          p_actor: string;
-          p_values: Json;
-          p_copied: boolean;
-        };
-        Returns: undefined;
-      };
       get_launch: {
         Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;
       };
       get_launch_archive_warning: { Args: { p_launch: string; p_team: string }; Returns: Json };
-      get_launch_offer_defaults: { Args: { p_team: string; p_offer: string }; Returns: Json };
+      get_launch_copy_marks: {
+        Args: {
+          p_actor: string;
+          p_launch: string;
+          p_revision: string;
+          p_team: string;
+          p_values: Json;
+        };
+        Returns: Json;
+      };
       get_launch_defaults: { Args: { p_team: string }; Returns: Json };
+      get_launch_offer_defaults: { Args: { p_offer: string; p_team: string }; Returns: Json };
       get_launch_restitch_preparation: {
         Args: { p_generation: string; p_team: string };
         Returns: Json;
@@ -6556,6 +6902,14 @@ export type GeneratedDatabase = {
           name: string;
         }[];
       };
+      get_team_product_catalog_text_schedule: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
+      set_team_product_catalog_text_schedule: {
+        Args: { p_team: string; p_enabled: boolean; p_count?: number };
+        Returns: Json;
+      };
       list_team_product_catalog_texts: {
         Args: { p_team: string };
         Returns: {
@@ -6827,6 +7181,11 @@ export type GeneratedDatabase = {
       reset_share_preference: { Args: { p_team: string }; Returns: boolean };
       resolve_launch_selection: { Args: { p_config: Json; p_team: string }; Returns: Json };
       resume_team_catalog_updater: { Args: { p_team: string }; Returns: boolean };
+      retire_team_recovery_installation: { Args: { p_installation: string }; Returns: number };
+      retire_team_recovery_installation_observed: {
+        Args: { p_attempt: string; p_installation: string };
+        Returns: Json;
+      };
       retry_failed_library_jobs: {
         Args: { p_sources?: string[]; p_team: string };
         Returns: number;
@@ -6845,7 +7204,6 @@ export type GeneratedDatabase = {
       };
       retry_workspace_recovery: { Args: { p_recovery: string }; Returns: boolean };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
-      retire_team_recovery_installation: { Args: { p_installation: string }; Returns: number };
       revoke_team_recovery: { Args: { p_installation: string; p_team: string }; Returns: boolean };
       run_team_catalog_update_now: {
         Args: { p_catalogs: string[]; p_team: string };
@@ -6978,6 +7336,16 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_attach_launch_catalog_before_catalog_sub: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
       service_authorize_catalog_cleanup: {
         Args: { p_kind: string; p_material: string; p_worker: string };
         Returns: boolean;
@@ -7075,6 +7443,19 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_credential: string; p_team: string };
         Returns: boolean;
       };
+      service_bind_launch_catalog_subs: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_name: string;
+          p_owner: string;
+          p_sub_values: Json;
+          p_team: string;
+          p_url: string;
+        };
+        Returns: undefined;
+      };
       service_bind_restitch_job_operation: {
         Args: { p_job: string; p_lease_token_hash: string; p_operation: string };
         Returns: boolean;
@@ -7092,6 +7473,108 @@ export type GeneratedDatabase = {
       service_bootstrap_catalog_sync: {
         Args: { p_epoch: number; p_job: string; p_token: string; p_worker: string };
         Returns: boolean;
+      };
+      service_catalog_image_admit_v2: {
+        Args: { p_expected_revision: number; p_team: string };
+        Returns: boolean;
+      };
+      service_catalog_image_candidate_v2: {
+        Args: { p_entry: string; p_fence: number; p_worker: string };
+        Returns: Json;
+      };
+      service_catalog_image_claim_v2: { Args: { p_worker: string }; Returns: Json };
+      service_catalog_image_commit_v2: {
+        Args: {
+          p_entry: string;
+          p_fence: number;
+          p_publication: string;
+          p_publication_fence: number;
+          p_url: string;
+          p_worker: string;
+        };
+        Returns: Json;
+      };
+      service_catalog_image_control_v2: {
+        Args: { p_action: string; p_actor: string; p_payload: Json };
+        Returns: Json;
+      };
+      service_catalog_image_enumeration_error_v2: {
+        Args: { p_code: string; p_fence: number; p_job: string; p_worker: string };
+        Returns: undefined;
+      };
+      service_catalog_image_enumeration_v2: {
+        Args: {
+          p_complete: boolean;
+          p_cursor: Json;
+          p_entries: Json;
+          p_fence: number;
+          p_job: string;
+          p_more?: boolean;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_image_expire_v2: { Args: Record<PropertyKey, never>; Returns: undefined };
+      service_catalog_image_finalize_uses_v2: {
+        Args: { p_attempt: string; p_delivered: boolean; p_team: string };
+        Returns: undefined;
+      };
+      service_catalog_image_kick_v2: { Args: Record<PropertyKey, never>; Returns: undefined };
+      service_catalog_image_mode_v2: { Args: { p_team: string }; Returns: string };
+      service_catalog_image_progress_v2: {
+        Args: { p_entry: string; p_fence: number; p_stage: string; p_worker: string };
+        Returns: undefined;
+      };
+      service_catalog_image_publication_v2: {
+        Args: {
+          p_entry: string;
+          p_fence: number;
+          p_publication: string;
+          p_publication_fence: number;
+          p_state: string;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_image_purge_claim_v2: { Args: Record<PropertyKey, never>; Returns: Json };
+      service_catalog_image_purge_finish_v2: {
+        Args: { p_fence: number; p_id: string; p_success: boolean };
+        Returns: undefined;
+      };
+      service_catalog_image_release_v2: {
+        Args: {
+          p_code?: string;
+          p_entry: string;
+          p_fence: number;
+          p_unknown?: boolean;
+          p_wait?: boolean;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_image_renew_v2: {
+        Args: { p_entry: string; p_fence: number; p_worker: string };
+        Returns: boolean;
+      };
+      service_catalog_image_request_version_v2: {
+        Args: { p_actor: string; p_key: string; p_team: string; p_video: string };
+        Returns: number;
+      };
+      service_catalog_image_reserve_v2: {
+        Args: { p_entry: string; p_fence: number; p_image: Json; p_worker: string };
+        Returns: Json;
+      };
+      service_catalog_image_update_attempt_v2: {
+        Args: { p_catalog: string; p_worker: string };
+        Returns: string;
+      };
+      service_catalog_image_validate_rows_v2: {
+        Args: { p_images: Json; p_team: string };
+        Returns: undefined;
+      };
+      service_catalog_image_validate_uses_v2: {
+        Args: { p_attempt: string; p_team: string };
+        Returns: undefined;
       };
       service_catalog_missing_candidates: {
         Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
@@ -7593,6 +8076,10 @@ export type GeneratedDatabase = {
           name: string;
           resource_key: string;
         }[];
+      };
+      service_draw_product_catalog_images_v2: {
+        Args: { p_attempt?: string; p_count: number; p_scope?: string; p_team: string };
+        Returns: Json;
       };
       service_draw_product_catalog_texts: {
         Args: { p_count: number; p_team: string };
@@ -8555,6 +9042,17 @@ export type GeneratedDatabase = {
         Args: { p_delivery_state: string; p_error_code?: string; p_invitation: string };
         Returns: boolean;
       };
+      set_launch_copy_marks: {
+        Args: {
+          p_actor: string;
+          p_copied: boolean;
+          p_launch: string;
+          p_revision: string;
+          p_team: string;
+          p_values: Json;
+        };
+        Returns: undefined;
+      };
       set_launch_defaults: {
         Args: {
           p_config: Json;
@@ -8568,11 +9066,11 @@ export type GeneratedDatabase = {
       set_launch_offer_defaults: {
         Args: {
           p_config: Json;
-          p_expected_version: string | null;
+          p_expected_version: string;
           p_key: string;
+          p_offer: string;
           p_sub_config: Json;
           p_team: string;
-          p_offer: string;
         };
         Returns: Json;
       };

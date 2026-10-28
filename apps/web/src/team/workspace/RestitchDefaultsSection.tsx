@@ -569,7 +569,7 @@ export function RestitchDefaultsSection({
         <div className="settings-section-actions">
           <Button
             type="button"
-            variant="primary"
+            color="success"
             loading={saving}
             disabled={!loaded || !formValid}
             onClick={() => void save()}

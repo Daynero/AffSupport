@@ -1,3 +1,4 @@
+// @ts-self-types="./material-category.d.ts"
 import { normalizeExtension, normalizeMimeType } from './contract.js';
 
 export const MATERIAL_CLASSIFIER_VERSION = 1;

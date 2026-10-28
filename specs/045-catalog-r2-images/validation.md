@@ -1,0 +1,163 @@
+# Implementation validation — 045
+
+Status: authenticated source-beta import, Drive import, standalone creation, background update and Launch generation have passed against real R2 and Google Drive. The latest full `npm run verify` passed14/14gates:8057total tests, including45explicit skips, in2440seconds. The subsequently added revoke migration has8/8targeted regressions; canonical `npm run test:db` exited0 with41SQLfiles/995assertions,2realAuth and31native concurrency tests. Migration1560 was applied only to the owned local beta; restart preserved identity and the same-intent live revoke/purge passed with anonymous404 and the original three-image pool intact. Provider HTTP/CDN probes passed30/30 and Chrome CORS/expiry probes9/9. Hosted limits, packaged/platform/old-client and external importer acceptance remain unverified. Imports default to disabled; activation for acceptance is restricted to the isolated beta environment/team. No production app/database deployment was performed.
+
+Sanitized application evidence: [beta application result](beta-application-result.json). It binds the tested source hashes, actual imports/catalog CSV readbacks, connected-profile preservation and completed revocation to this session. The beta remains running at `http://127.0.0.1:5175`; this is not an exact-SHA packaged promotion proof.
+
+After the native/live repair, the eight revoke regressions passed again in a single-worker Vitest run. The affected test type check, ESLint, Prettier and diff whitespace checks passed; the tested source hashes remained unchanged. Fresh independent [correctness](reviews/beta-correctness.md) and [safety](reviews/beta-safety.md) reviews each scored 98/100 for the beta-hardening delta.
+
+## Delivered behavior
+
+- Local drag/drop and Google Drive folder import, explicit Analyze and upload, bounded manifests/uploads, resume/retry/cancel and verified R2 publication.
+- Filename garment/color matching; ordinary names remain successful random images. Catalogs reuse the URL dictionary without re-uploading immutable images.
+- Human help explains clothing, mixed attributes, filenames and random behavior; one-click copy exposes the complete unbranded1:1 generation prompt.
+- Standalone creation, Launch and updater use the new image contract. Migration1550 reserves a future child UUID before video restitch; frozen selection, issued uses and the child share that identity. Preexisting acceptedv1 generations/checkpoints remain compatible after team cutover.
+- Current permission, actor, archive and parent-state checks apply before memoized resources are returned. Revocation and retained-row identity guards protect external catalog writes.
+- Privacy-safe diagnostic producers, authoritative projections, CLI diagnosis and explicit missing evidence.
+
+## Executed checks
+
+| Check                                                                               | Actual result                                                                                                   |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Earlier targeted SQL, Launch readiness/execution/durable, budget and finance timing | 56/56 passed across6suites; includes6actual PGlite SQL cases                                                    |
+| Latest canonical disposable PostgreSQL chain + pgTAP through1560                    | EXIT0;41SQLfiles,995assertions passed                                                                           |
+| Native Auth/concurrency/retention                                                   | 2Auth +31native tests passed, including4R2publication/adoption/deletion races                                   |
+| Additive1560 targeted regressions, after the full verifier                          | 8/8passed; original alias rollback, authorization/replay, purge promotion/fences/unknown and team deletion      |
+| Final public database types                                                         | Generated from the owned schema-only clone using Supabase CLI2.122.0; formatted, no hand-edited generated types |
+| Fresh web build after Launch fix                                                    | Passed                                                                                                          |
+| Historical scoped release build / end-to-end gates                                  | 5/5build gates;8/8build+DB+a11y+CSP gates passed; not an exact-SHA packaged promotion proof                     |
+| Deno2.5.6 function entry and pinned lock                                            | Passed; aws4fetch1.0.20, supabase-js2.110.7                                                                     |
+| Latest full `nice -n 15 env SOTY_VERIFY_SERIAL=1 npm run verify`                    | Passed14/14gates;8012passed,45explicit skips (8057total);2440seconds                                            |
+| Owned local beta incremental migration1560                                          | Applied only to `r2beta045`; identity preserved; same-intent replay, actual purge and anonymous404 passed       |
+| Production environment gate                                                         | Not passed: deployment environment values are absent in this isolated worktree                                  |
+
+The earlier976-assertion native checkpoint preceded the final memoized-authority guard. That guard and its edit-loss/archive/cancellation cases were verified in the6-case actual PGlite SQL suite; the latest995-assertion canonical chain now includes the additive1560repair. Full-verifier counts above belong to the run before the8new revoke regressions, which passed separately. The temporary type-generation runner and its disposable clone were removed. No source application rows, source passwords or scheduled job execution were copied.
+
+Command for the earlier focused batch:
+
+```sh
+nice -n 15 npx vitest run tests/team-accounts-unified-finance.test.tsx tests/catalog-image-launch-resources.test.ts tests/launch-catalog-preparation.test.ts tests/launch-catalog-execution.test.ts tests/launch-catalog.test.ts tests/performance-budgets.test.ts --maxWorkers=1
+```
+
+The final full run includes the final memoized-authority guard and its sixth SQL regression. Earlier full runs found genuine contract/integration failures and one unrelated finance-test timing race. Each was repaired. The finance assertion now waits for the existing post-commit microtask signal while retaining its exact four-phase chain, correlation and privacy assertions; no production finance behavior or timeout was changed. Earlier failures are archived, not counted as passes.
+
+## Independent review
+
+The storage and integration reviewers reached98/100 in their explicitly stated independent slices. The final1550 follow-up initially fell to97 for missing current-authority validation on the memoized branch, then returned to98 after the fix and real SQL regression were reviewed. Its initially suggested public bypass was corrected:the dispatcher already rejects reserved Launch keys. The guard strengthens contract parity and defense in depth. Review scores do not attest actual R2/provider behavior.
+
+[Storage review](reviews/implementation-storage.md), [integration review](reviews/implementation-integration.md).
+
+## Bounded performance allocation
+
+The owner instructed us to prioritize the catalog feature over16KB savings. The unchanged old entry/largest/Accounts ratchets remain enforced. Shared/existing growth is separately limited to20,000gzip bytes against the exact clean base, and the complete Launch graph is capped at45,000bytes. Fresh budget tests pass. [Measured comparison](bundle-budget-comparison.json). Neither esbuild nor Terser probes was adopted; dependencies and minifier settings are unchanged.
+
+The offline50MB Deno reference found and repaired an SDK body-copy defect:peak RSS fell from315MB to about169MB; final local CPU437ms. The signer receives metadata/verified digest and length only; bounded views of the same buffer carry publication bytes and abort signals are restored at fetch boundaries. [Benchmark](benchmark-local.ts), [result](benchmark-local-result.json). This is synthetic transport, not hosted aggregate-isolate acceptance.
+
+## Actual provider setup — 2026-10-27
+
+The owner completed R2 payment/activation in Chrome and confirmed domain/key activation with «перевіряй». The earlier API10042 blocker is resolved. Created and verified Standard buckets in automatic EEUR: `soty-catalog-images-beta-staging` (private) and `soty-catalog-images-beta-public` (published only through the isolated custom domain). Both have r2.dev disabled. Staging has an enabled one-day object expiry backstop and exact PUT/Content-Type CORS for `http://127.0.0.1:5175` and `http://127.0.0.1:43140` (300-second preflight max age). No expiry was added to the public bucket. `catalog-images-beta.soty.pp.ua` is Active/Enabled with minimum TLS1.2.
+
+The following active rules match only `catalog-images-beta.soty.pp.ua`:
+
+- Response Header Transform `a63bf20715c14e0c83c51c3a253c2cb9`: set `X-Content-Type-Options: nosniff`.
+- Cache Rule `66d7112008f9483faac519273db98f65`: eligible for caching, respect an existing origin Cache-Control header, otherwise bypass; status codes >=400 use No store. Positive object metadata supplies the immutable one-year TTL. The settings follow [Cloudflare's documentation](https://developers.cloudflare.com/cache/how-to/cache-rules/settings/); actual probes observed negative BYPASS and positive HIT with verified payloads.
+
+Issued a 24-hour Object Read & Write account token restricted to these two beta buckets and a separate Cache Purge token for only the `soty.pp.ua` zone, expiring 2026-10-28 17:35 UTC. Cloudflare's purge permission covers the zone, not just the beta hostname; probes purged only owned synthetic beta URLs. An initial CDN-token value accidentally appeared in technical tool output. It was immediately rolled through Cloudflare's successful rotation flow before use; the replacement was captured without printing it. S3 credentials and the replacement CDN token are stored only in ignored local mode0600 configuration. No credential/grant is in these tracked artifacts. The reference provider configuration remains disabled; only isolated beta Functions and its fixture team were enabled for authenticated acceptance.
+
+[Actual provider result](provider-result.json): **30/30 passed**, using Deno2.5.6, pinned aws4fetch1.0.20, the actual application adapter and three synthetic PNG/JPEG/WebP fixtures. Passed HTTP CORS allowed/denied preflight, presign upload/readback, signed MIME tamper403, forged public-path403, missing-path negative-cache checks, streamed create-only PUT, conditional overwrite rejection with unchanged origin and anonymous bytes/MIME/nosniff, unexpired staging replay with unchanged final bytes, and verified ordinary CDN HIT delivery. All six staging/public cleanup checks passed, including origin absence and anonymous404 after single-file CDN purge. No recovery identities remain. The first invocation stopped before provider IO because Deno rename also needs read permission on its private journal; the empty journal was inspected/removed and the corrected permissions were used for the successful run.
+
+Two independent static reviews of each harness reached98/100 after recursive fixes. Provider cleanup is independent for staging/public; private ignored0700 directories and atomic0600 ownership ledgers precede provider IO and prevent a rerun from ignoring unknown outcomes. The browser probe additionally serializes mutations, bounds metadata to4096bytes/5seconds and readback to fixture size, and sets browser POST/PUT deadlines. Its actual delivered script blocks for all three modes passed syntax parsing, independently of Deno's TypeScript check. A transient typed-array BodyInit type error was fixed before the actual browser run; the first empty probe server was stopped and restarted, without provider writes. These scores attest harness quality; actual results are the separate recorded runs.
+
+[Actual Chrome result](browser-provider-result.json): **9/9 passed**, three formats in each of three modes. Allowed origin5175: browser PUT succeeded and S3 MIME/bytes matched exactly. Denied origin5176: browser PUT failed, origin was absent, then the same still-live grant succeeded from the server with exact-byte readback (a positive control against a network-outage false pass). Expired grant: after its deadline the browser rejected it, an independent same-grant PUT returned403 and S3 remained absent. Every owned staging object was cleaned; the private recovery directory was removed and the two loopback probe listeners were shut down. These are disposable probe pages, not the authenticated Soty import UI.
+
+Both scripts pass Deno2.5.6 checks. Commands and scoped network/file permissions are documented with the probes; report files contain only bounded sanitized evidence. Screenshots remain local under `/tmp/soty-r2-setup/` (active domain and the three browser verdicts), without credentials or grants.
+
+Remaining gates: secret-only hosted gateway/cron, real lost-response/late-write and DB/provider race coverage; hosted aggregate resources and 25k/1000-file scale; packaged beta/old clients/macOS+Windows; elapsed schedule and actual external feed importer. Authenticated source-beta journeys are recorded below. Anonymous format/feed readback is proven, Meta acceptance is not. Production activation stays disabled and requires the full release workflow.
+
+The first beta preparation attempt stopped at `BETA_ENV_MISSING` and found an existing 036 stack on the canonical ports. This historical blocker was resolved after proving its recorded processes/listeners were idle: canonical shutdown preserved its volumes and state, and a fresh owned 045 namespace/profile was prepared. No old application rows or credentials were copied into the new database. Source-beta acceptance below supersedes that initial blocker; it does not replace packaged promotion.
+
+## Isolation and diagnosis
+
+### Authenticated source beta, 2026-10-27
+
+- Canonical `beta:up` and the corrected `beta:reset` ran against a fresh, owned `r2beta045` project. All 376 migrations through `20261206155000` and the two canonical fixture accounts are present. All 9 containers and 3 published bindings were verified as loopback-only; the reset database is explicitly bound to `127.0.0.1:54322`. The previous 036 stack was idle, stopped through its canonical ownership workflow, and its volumes and resettable Application Support state were preserved separately. The unrelated 037 stack was left alone.
+- The local CLI's per-function dependency mounting omitted declarations referenced only in Deno type pragmas. A shared declaration dependency anchor fixed actual startup: all 16 canonical function boot probes passed, with user-authenticated routes still refusing anonymous requests. This is actual local runtime evidence rather than only a Deno type check.
+- Reset originally recreated its database outside the loopback bridge. The fix verifies ownership, bridge labels, effective bindings and the exact seed target before/after reset; pins the captured local Docker endpoint; passes `--local --network-id`; and stops only the captured project if the postcondition fails. No fixtures are seeded on a refused/failed reset. The 44 targeted safety/network tests passed, followed by a successful real reset and fixture seed. Independent scoped review: 98/100.
+- Real gateway matrix 7/7: missing/wrong worker secret and user-JWT-only worker requests return 401; the secret-only worker without JWT/apikey returns 200 idle; owner capabilities permit import; Viewer capabilities deny management and an actual Viewer begin request returns 403.
+- Actual Chrome selection of PNG/JPEG/WebP created no import before the explicit CTA. The authenticated application import completed 3/3: 2 matched, 1 normal random, 439 retained bytes. First ready commit admitted v2. Reload restored the dictionary and recent import without a persisted browser job ID. A second actual browser import completed with 3 reused and 0 new publications; the same three public URLs remained.
+- Independent anonymous GET of each application-produced URL matched the exact fixture bytes, MIME and `nosniff`. Active 30-second pg_cron jobs and actual pg_net 200 responses included 3 ready, 3 reused and bounded busy outcomes; this proves local scheduled dispatch, not hosted gateway parity.
+- Two intentional negative inputs produced `IMAGE_CONTENT_INVALID` and `IMAGE_CLASSIFICATION_CONFLICT` in the read-only local analytics CLI, while the three ready publications remained intact. The browser exposed a missing per-file error explanation; after the fix, Chrome displayed the existing localized cause beside each corresponding file. The full verifier includes three added failed/partial/random regressions, including no alert for a ready random image.
+- Actual system-clipboard readback contained3895characters after the prompt-copy action. It included the1:1format, `hoodie_black_001` naming example, brand exclusions and clothing requirements. The temporary unsaved test field used for paste verification was cleared. This verifies real OS clipboard delivery, separately from mocked clipboard regression tests; external image generation and visual truth remain unverified.
+- These are synthetic format/classification fixtures, not clothing-recognition evidence. The beta uses real local Auth and its own entitlement key; dev auth, outbound delivery and production analytics remain disabled. R2 credentials stay in ignored private files. Only this beta team's imports were enabled for acceptance.
+- The existing Soty Beta OAuth grant was refreshed without adding scopes. A newly created private QA root containing only synthetic fixtures was selected and indexed. The actual folder-based import completed with 3 reused, no additional public copies and unchanged source files.
+- The browser generated and saved a 100-entry text pool against the two matched R2 pairs. Actual standalone creation returned a Google Sheets catalog with 100 unique product IDs. Independent anonymous CSV readback found 67 correctly paired matched rows and 33 normal random rows, with all image URLs belonging to the verified R2 dictionary. The initial image counts were 33/33/34.
+- The browser saved a 12-hour schedule and explicitly requested an update. The real background worker completed it; registry `update_count=1`, no error, and the manager displayed its success. Independent CSV readback verified a changed checksum, 100 unique products, 66 correctly paired matched rows and 34 random rows, using the same three R2 URLs. Counts 32/34/34 are valid when a bounded draw starts/ends inside different persistent rounds. This is actual manual-trigger worker acceptance and schedule persistence, not an observation of a full elapsed 12-hour interval.
+- Actual Launch generation used the canonical fixture account/offer/buyer and indexed QA video, with 100 products and restitch disabled. The server journal reports `succeeded/result_committed`, registered catalog and active result. Chrome automatically displayed the result, catalog URL and campaign names. Independent anonymous readback of that second Sheet verified 100 unique products, 67 correctly paired matched rows, 33 random rows and only the same verified R2 URLs. No advertising-platform publication was performed.
+- Live explicit revocation exposed PostgreSQL's `e.publication_id` alias/row-variable ambiguity. The rejected transaction preserved the dictionary and publication; no successful revoke is inferred from that request. Additive migration `20261206156000_catalog_r2_revoke_purge.sql` (SHA-256 `61e8a5582f034b2c09587575f80e0bfaea926f67964446444135181d1fde4b1c`) repairs the alias and promotes existing orphan cleanup for explicit/team deletion, retaining fences, uncertainty and holds. Its8targeted cases and the canonical native chain pass. The exact migration was applied only to the owned local beta. Canonical restart and read-only identity comparison confirmed377migrations with the same two users/members, Google credential, root connection and four publication records before cleanup. Read-only reconciliation proved the original failed transaction had aborted. Retrying its existing revoke intent immediately removed only the spare image from selection; the exact accepted request replayed the same memoized response. Actual scheduled cleanup produced `purge_deleting`, `purge_complete` and `publication_revoked` in the SELECT-only CLI, and the public URL returned404. Final independent readback verified all original three URLs still return exact bytes/MIME/nosniff,439bytes total. T059 is complete.
+- This session is source acceptance with a local one-line `project_id` overlay and its ownership journal. Keep that overlay until canonical beta shutdown; restore the saved original only after the owned stack is down. It is not a clean exact-SHA packaged promotion proof. Hosted resource limits, platform/old-client, elapsed schedule and real importer evidence remain separate gates.
+
+Base: b0c0077b6b95f43f54daa32912052e2e7a7e953a. Branch: `045-catalog-r2-images`. Worktree: `/Users/daynero/RiderProjects/AffSupport-045-r2-images`. Original dirty044/046/account work was not modified. Applied migrations through1550 remain unchanged; the subsequent revoke repair is additive migration1560. The initial56tasks plus3acceptance-hardening tasks total59:53checked; original mixed acceptance tasks T003/T010/T052/T053/T054/T055 remain open.
+
+Fresh independent [beta correctness](reviews/beta-correctness.md) and [beta safety](reviews/beta-safety.md) reviews each scored98/100 for their source delta. These scores exclude live/hosted/packaged/Meta certification and do not substitute for the executed checks above.
+
+The read-only analytics CLI was used to inspect production errors and bounded catalog/Launch evidence. Sampled updates and one sampled current Launch had verified success; this does not establish the cause of every reported creation failure. Raw diagnostic output stayed outside the repository. No production fix or deployment is claimed.
+
+[Archived checkpoints](reviews/implementation-history.md) retain earlier commands, failures, isolation snapshot and browser component smoke scope.
+
+## 2026-10-28 owner quota refinement
+
+The revised owner allowance is 100,000,000 bytes and 500 retained unique publications, or about 0.1 GB per owner. On the owned local beta the controlled 1590 application and restart preserved the existing two users, memberships, Drive credential/connection and four original publication records; authenticated storage readback and Chrome showed 439 B of 100 MB and 3 of 500. Exact SHA-256 `8f01e3821706d3f00c6e3ae42cddaf08a10d510c556c69fc4a789421d852f54e` passed official CLI application on a disposable schema-only clone, 15 PGlite cases, 1041 pgTAP, two real Auth and 34 native cases including concurrent quota and migration/deletion locking. UI/API/prompt40 and worker/wire26 passed.
+
+A real Chrome import proved WebP optimization and R2 publication. JPEG and PNG optimized and reserved, but their final PUTs produced unknown outcomes pending reconciliation. They remain charged and are not counted as successful. Provider investigation remains open. Full current-source verifier, hosted memory, actual Meta importer and packaged promotion remain open.
+
+A follow-up isolated real-R2 comparison reproduced HTTP403 `SignatureDoesNotMatch` for the streamed 201 KB and 513 KB final PUTs, while the same signed bytes with a known-length body returned HTTP200 and exact origin bytes. All fresh probe objects were cleaned. The adapter now sends the verified bounded byte view with the same digest and conditional-create headers. Fixed-adapter real-R2 readback passed for three sizes and publication/worker tests passed21/21 (20-second per-test watchdog). After beta restart, a new actual Chrome import published JPEG and PNG2/2; a separate WebP-to-PNG import had already reached ready. Normal pool removal kept the new JPEG URL and 183.75 KB charged in the library, and the deletion-impact dialog was verified. The original two uncertain PUTs remain charged and await reconciliation; a negative read or the separate probe does not authorize replay. Full current-source verification, actual deletion-credit/reupload, hosted aggregate resources, Meta importer and packaged promotion remain open.
+
+### Weekly text replacement — 2026-10-28
+
+- Names action row now has explicit vertical spacing, focus clearance and wrapping.
+- Weekly schedule defaults to disabled/200, editable1–1000, explicit save and server readback. Enabling schedules the first replacement seven days later; it does not generate immediately.
+- Server lane reuses the manual generator, replaces all saved texts transactionally, fences run/lease/configuration/content revisions, and isolates dispatch failures from existing catalog work. Manual edits take the same lock order.
+- Targeted final suite:30 passed (UI, API, SQL, worker, generator, read-only diagnosis). Independent UX and backend reviews completed; NULL lease and lane-isolation findings fixed before final targeted run.
+- Disposable full-chain database verification:1041 pgTAP assertions plus36 native integration tests passed. First attempt timed out during local Docker unresponsiveness; second full run passed. No user database reset.
+- Incremental local beta applied only20261206160000. Earlier380 migration source hashes unchanged. User/material/image/text/Drive identity hashes matched before and after. Three cleanup fences exist; diagnostic role SELECT allowed and UPDATE denied.
+- No production deployment or packaged promotion is asserted by these checks.
+- Real Chrome beta acceptance: schedule enabled and saved with200; server readback shows next update2026-11-04 17:39 Europe/Kiev. Existing200 texts remained intact. Visual spacing inspected; screenshot /tmp/soty-weekly-schedule.jpg. Canonical beta:down/up completed, browser kept open.
+- Final sequential follow-up: repository lint and test TypeScript check passed; all previously flagged formatting files passed. Final image/schedule/API/diagnostic regression batch:90 passed. Earlier project/scripts typechecks and design/i18n/static gates passed. Full parallel `npm run verify` was interrupted when host system disk headroom fell below600MiB; no complete full-suite green result is claimed. The affected checks above were rerun sequentially.
+
+## 2026-10-28 live storage lifecycle
+
+On the isolated beta/R2, an independently identified synthetic JPEG (183,749 bytes, inactive,
+`inUse=false`) was revoked through the normal API. Before confirmed cleanup the usage remained
+1,792,695 bytes / 9 objects and its CDN URL still returned 200. After the `purge_complete` and
+`publication_revoked` journal stages, both the authenticated R2 origin and anonymous CDN returned
+404; usage became 1,608,946 bytes / 8 objects, exactly 183,749 bytes less. Reimporting the same
+fixture produced a new URL returning the exact bytes and increased usage to 1,792,695 bytes / 9
+objects; the old URL remained 404. Six other ready publications and the previous 713,613 reserved
+unknown bytes stayed unchanged. The sanitized local proof is
+`release/automation/045-live-storage-acceptance.json` (private, no signed URLs or secrets).
+
+The earlier test random publication was already explicitly revoked and purged at 14:48 UTC, before
+this lifecycle test. Its previous URL returned 404; two other original publications were intact.
+The diagnostic journal does not establish who initiated that earlier action.
+
+## 2026-10-28 local Edge resource checks
+
+Five local Edge Runtime v1.77.8 scenarios exercised the real image worker, current R2 adapter,
+synthetic provider, 50 MB sources, a 7.68 MB canonical body and a concurrent invocation. All
+completed ready and the second invocation returned busy; the worker used a 192 MB or 256 MB
+supervisor cap. The complete container-wide peak was 181,108,736 bytes for the cold PNG and
+233,746,432–261,812,224 bytes in mixed warm cases. That includes the main runtime, synthetic
+provider and cache; it is not an isolate-only peak and must not be subtracted into a claimed pass.
+Container CPU was up to 1,349 ms for the 192 MB cases and 1,818 ms in one 256 MB repeat, so a
+stable 1.5-second isolate CPU result remains unproven. This network-isolated local harness is not
+hosted acceptance. Raw results and large fixtures were kept on the external LaCie drive; see the
+private sanitized `release/automation/045-resource-report-sanitized.md`.
+
+A follow-up isolated sidecar run put the synthetic provider in a separate cgroup sharing only the
+case container's network-none loopback. Five scenarios reached ready with concurrent busy and cleaned
+all owned containers/volumes. Case cgroup peaks were 159,080,448; 192,000,000; 207,720,448;
+239,017,984; and 210,903,040 bytes; the cgroup still includes the main process, runtime and cache.
+Container CPU deltas were 1,262; 797; 1,401; 674; and 1,539 ms respectively. Worker memory
+snapshots had 24–51 ms gaps and are not a continuous peak; one lifetime shutdown event was observed,
+not sufficient to establish per-invocation CPU. Therefore hosted isolate peak ≤192 MB and stable
+CPU ≤1.5 s remain unproven. Evidence is on the external LaCie resource staging volume.

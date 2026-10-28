@@ -129,7 +129,7 @@ it('does not replace an unavailable selection or open a locked control', async (
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(changed).not.toHaveBeenCalled();
 });
-it('browses socials with occupancy counts, filters running RK and selects the real row', async () => {
+it('browses socials with occupancy counts, filters busy RK and selects the real row', async () => {
   const track = vi.spyOn(analytics, 'track');
   const accounts = rows();
   accounts[0].agents[1].runs = [
