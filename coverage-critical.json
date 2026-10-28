@@ -89,6 +89,7 @@
     "packages/shared/src/team/recovery.ts": 90,
     "packages/shared/src/team/task-cleanup.ts": 90,
     "packages/shared/src/team/launches/notes.ts": 90,
+    "packages/shared/src/team/launch-assignment.ts": 90,
     "apps/agent/src/transcription/segmentation.ts": 95,
     "apps/agent/src/transcription/diagnostics.ts": 95
   }

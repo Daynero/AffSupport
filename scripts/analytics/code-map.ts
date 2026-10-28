@@ -1061,6 +1061,9 @@ function build(): Record<string, CodeLocation> {
   }
   map['launches:generation:WRONG_STATE'] = {
     files: [
+      'supabase/migrations/20261206148000_launch_current_assignments.sql',
+      'apps/web/src/team/launches/LaunchAssignmentControls.tsx',
+      'apps/web/src/team/accounts/AccountLinkedLaunchRow.tsx',
       'supabase/functions/drive-ops/catalog-durable.ts',
       'supabase/migrations/20261201189000_launch_catalog_explicit_child_retry.sql',
       'apps/web/src/team/launches/useLaunchGeneration.ts',
@@ -1071,7 +1074,7 @@ function build(): Record<string, CodeLocation> {
       'supabase/migrations/20261201149000_launch_restitch_explicit_retry.sql'
     ],
     check:
-      'Inspect the bound child operation, last proven stage and catalog intent attempt. A failed child needs an explicit parent retry for that exact attempt; a running or successful child must not be replaced.'
+      'First verify the current Launch assignment matches the configured RK for fresh generation; detached or unconfirmed links require explicit assignment. Then inspect the bound child operation, last proven stage and catalog intent attempt. A failed child needs an explicit parent retry for that exact attempt; a running or successful child must not be replaced.'
   };
   for (const code of [
     'NEEDS_REAUTH',
@@ -1083,10 +1086,13 @@ function build(): Record<string, CodeLocation> {
       files: [
         'supabase/functions/drive-ops/launch-catalog.ts',
         'supabase/functions/drive-ops/catalog-durable.ts',
-        'supabase/functions/_shared/drive.ts'
+        'supabase/functions/_shared/drive.ts',
+        'apps/web/src/team/launches/useLaunchGeneration.ts',
+        'apps/web/src/team/launches/restitch-runner.ts',
+        'supabase/migrations/20261201145000_launch_restitch_settlement.sql'
       ],
       check:
-        'Inspect the catalog intent receipt and current storage authority. Do not repeat provider creation while its outcome is unknown.'
+        'Inspect the generation and child receipt, including a child found by the frozen process key but not yet bound. Settle before choosing explicit retry; reconcile lost acceptance replies without creating a new Launch. Do not repeat provider creation while its outcome is unknown.'
     };
   }
   for (const code of ACCOUNT_ANALYTICS_CODES) {

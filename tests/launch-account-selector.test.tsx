@@ -145,7 +145,7 @@ it('browses socials with occupancy counts, filters running RK and selects the re
   const dialog = screen.getByRole('dialog');
   const ui = within(dialog);
   expect(ui.getByRole('button', { name: /Free · 2/ })).toBeTruthy();
-  await user.click(ui.getByRole('button', { name: /^Running · 1$/ }));
+  await user.click(ui.getByRole('button', { name: /^Busy · 1$/ }));
   expect(ui.queryByRole('button', { name: /g2/ })).toBeNull();
   await user.click(ui.getByRole('button', { name: /Main social/ }));
   expect(ui.getByText('TR ProCaps')).toBeTruthy();
@@ -157,7 +157,7 @@ it('browses socials with occupancy counts, filters running RK and selects the re
   );
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(
-    within(screen.getByRole('button', { name: /Choose account:/ })).getByText('Running')
+    within(screen.getByRole('button', { name: /Choose account:/ })).getByText('Busy')
   ).toBeTruthy();
 });
 it('searches inside the browser without changing selection and cancels safely', async () => {

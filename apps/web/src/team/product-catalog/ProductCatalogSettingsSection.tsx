@@ -1,14 +1,20 @@
-import { useEffect, useId, useState } from 'react';
 import {
-  Check,
-  ClipboardList,
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentProps
+} from 'react';
+import {
   DollarSign,
   FileSpreadsheet,
   Folder,
+  MoreHorizontal,
   Image,
   Search,
   Sparkles,
-  TriangleAlert,
   X
 } from 'lucide-react';
 import type {
@@ -17,13 +23,23 @@ import type {
   ProductCatalogText,
   TeamMaterialSummary
 } from '../../api/team';
-import { Button, IconButton, Input, Modal } from '../../components/ui/index';
-import { ICON_STROKE } from '../../components/icons';
+import {
+  Accordion,
+  Button,
+  ErrorState,
+  DropdownMenu,
+  IconButton,
+  Input,
+  LoadingState,
+  Modal
+} from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import { useI18n, type TranslationKey } from '../../i18n';
+import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
+import { useCatalogSettingsFlow } from './useCatalogSettingsFlow';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import {
@@ -76,6 +92,39 @@ export interface ProductCatalogSettingsClient {
   listProductCatalogPoolNames?: (teamId: string) => Promise<string[]>;
 }
 
+const EditorContext = createContext({ open: '', toggle: (_id: string) => {} });
+function CatalogSection({
+  titleId,
+  title,
+  icon: Icon,
+  aside,
+  description,
+  children
+}: ComponentProps<typeof SettingsSection>) {
+  const { open, toggle } = useContext(EditorContext);
+  return (
+    <Accordion
+      className="catalog-settings-editor"
+      openIds={new Set([open])}
+      onToggle={toggle}
+      items={[
+        {
+          id: titleId,
+          title,
+          icon: <Icon size={20} strokeWidth={ICON_STROKE} />,
+          aside,
+          content: (
+            <>
+              {description && <p className="field-hint prose">{description}</p>}
+              {children}
+            </>
+          )
+        }
+      ]}
+    />
+  );
+}
+
 export const PRICE_RANGE_DEFAULT = { min: 9, max: 30 } as const;
 
 /**
@@ -90,35 +139,85 @@ export const PRICE_RANGE_DEFAULT = { min: 9, max: 30 } as const;
  */
 export function ProductCatalogSettingsSection({
   teamId,
-  client
+  client,
+  onDraftChange,
+  openEditor,
+  onOpenEditorChange,
+  onBeforeLeave
 }: {
   teamId: string;
   client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+  onBeforeLeave?: () => boolean;
+  openEditor?: string;
+  onOpenEditorChange?: (id: string) => void;
+  onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
+  const [localOpen, setLocalOpen] = useState('');
+  const open = openEditor ?? localOpen;
+  const setOpen = (id: string) => {
+    setLocalOpen(id);
+    onOpenEditorChange?.(id);
+  };
+  const [valueDraft, setValueDraft] = useState({ dirty: false, saving: false });
+  const [imagesBusy, setImagesBusy] = useState(false);
+  const [textsBusy, setTextsBusy] = useState(false);
+  const saving = valueDraft.saving || imagesBusy || textsBusy;
+  useEffect(() => {
+    onDraftChange?.({ dirty: valueDraft.dirty, saving });
+  }, [onDraftChange, valueDraft.dirty, saving]);
+  useEffect(
+    () => () => {
+      onDraftChange?.({ dirty: false, saving: false });
+    },
+    [onDraftChange]
+  );
+  useEffect(() => {
+    if (!saving) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [saving]);
   const [images, setImages] = useState<number | null>(null);
   const [texts, setTexts] = useState<number | null>(null);
   const [fallback, setFallback] = useState<{ title: boolean; image: boolean } | null>(null);
   const [range, setRange] = useState<{ min: number; max: number } | null>(null);
   return (
-    <>
-      <CatalogSummarySection
-        images={images}
-        texts={texts}
-        fallback={fallback}
-        range={range}
-        hasImageSources={Boolean(client.listProductCatalogImageSources)}
-        hasTextPool={Boolean(client.listProductCatalogTexts)}
-      />
-      <CatalogTextsSection teamId={teamId} client={client} onCount={setTexts} />
-      <CatalogImagesSection teamId={teamId} client={client} onPool={setImages} />
-      <CatalogValuesSection
-        teamId={teamId}
-        client={client}
-        onRange={setRange}
-        onFallback={setFallback}
-        poolsFilled={(images ?? 0) > 0 && (texts ?? 0) > 0}
-      />
-    </>
+    <EditorContext.Provider value={{ open, toggle: id => setOpen(open === id ? '' : id) }}>
+      <div className="catalog-settings-overview">
+        <CatalogSummarySection
+          onBeforeLeave={onBeforeLeave}
+          images={images}
+          texts={texts}
+          fallback={fallback}
+          range={range}
+          hasImageSources={Boolean(client.listProductCatalogImageSources)}
+          hasTextPool={Boolean(client.listProductCatalogTexts)}
+        />
+        <CatalogImagesSection
+          teamId={teamId}
+          client={client}
+          onPool={setImages}
+          onBusyChange={setImagesBusy}
+        />
+        <CatalogTextsSection
+          teamId={teamId}
+          client={client}
+          onCount={setTexts}
+          onBusyChange={setTextsBusy}
+        />
+        <CatalogValuesSection
+          teamId={teamId}
+          client={client}
+          onDraftChange={setValueDraft}
+          onRange={setRange}
+          onFallback={setFallback}
+          poolsFilled={(images ?? 0) > 0 && (texts ?? 0) > 0}
+        />
+      </div>
+    </EditorContext.Provider>
   );
 }
 
@@ -133,8 +232,10 @@ function CatalogSummarySection({
   fallback,
   range,
   hasImageSources,
-  hasTextPool
+  hasTextPool,
+  onBeforeLeave
 }: {
+  onBeforeLeave?: () => boolean;
   images: number | null;
   texts: number | null;
   fallback: { title: boolean; image: boolean } | null;
@@ -143,77 +244,40 @@ function CatalogSummarySection({
   hasTextPool: boolean;
 }) {
   const { t } = useI18n();
-  if (fallback === null) return null;
-  const nameState = (texts ?? 0) > 0 ? 'pool' : fallback.title ? 'fallback' : 'missing';
-  const imageState = (images ?? 0) > 0 ? 'pool' : fallback.image ? 'fallback' : 'missing';
-  const blocked = nameState === 'missing' || imageState === 'missing';
-  const line = (
-    state: 'pool' | 'fallback' | 'missing',
-    keys: { pool: TranslationKey; fallback: TranslationKey; missing: TranslationKey },
-    count: number
-  ) => (
-    <li className={`is-${state === 'missing' ? 'missing' : state === 'pool' ? 'ready' : 'spare'}`}>
-      {state === 'missing' ? (
-        <TriangleAlert size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      ) : (
-        <Check size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      )}
-      <span>{t(keys[state], { count })}</span>
-    </li>
-  );
+  const known =
+    fallback !== null && (!hasTextPool || texts !== null) && (!hasImageSources || images !== null);
+  const ready =
+    known &&
+    ((texts ?? 0) > 0 || fallback?.title) &&
+    ((images ?? 0) > 0 || fallback?.image) &&
+    range !== null;
   return (
-    <SettingsSection
-      icon={ClipboardList}
-      titleId="product-catalog-summary-title"
-      title={t('productCatalogSummaryTitle')}
-      description={t('productCatalogSummaryDescription')}
-      className="product-catalog-summary"
-    >
-      <ul className="product-catalog-summary-list">
-        {hasTextPool &&
-          line(
-            nameState,
-            {
-              pool: 'productCatalogSummaryNames',
-              fallback: 'productCatalogSummaryNamesFallback',
-              missing: 'productCatalogSummaryNamesMissing'
-            },
-            texts ?? 0
-          )}
-        {hasImageSources &&
-          line(
-            imageState,
-            {
-              pool: 'productCatalogSummaryImages',
-              fallback: 'productCatalogSummaryImagesFallback',
-              missing: 'productCatalogSummaryImagesMissing'
-            },
-            images ?? 0
-          )}
-        <li className="is-ready">
-          <Check size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <span>
-            {range
-              ? t('productCatalogSummaryPrice', { from: range.min, to: range.max })
-              : t('productCatalogSummaryPriceUnsaved')}
-          </span>
-        </li>
-      </ul>
-      <p className={blocked ? 'team-inline-error' : 'field-hint'}>
-        {t(blocked ? 'productCatalogSummaryBlocked' : 'productCatalogSummaryReady')}
+    <header className="catalog-settings-heading">
+      <h2>{t('productCatalogSummaryTitle')}</h2>
+      <p className="field-hint" role="status">
+        {t(
+          !known
+            ? 'catalogSettingsUnknown'
+            : ready
+              ? 'productCatalogSummaryReady'
+              : 'productCatalogSummaryBlocked'
+        )}
       </p>
+      {known && ((!(texts ?? 0) && fallback?.title) || (!(images ?? 0) && fallback?.image)) && (
+        <p className="field-hint">{t('productCatalogFallbackInUse')}</p>
+      )}
       <a
         className="product-catalog-updater-link"
         href={updaterHref()}
         onClick={event => {
           if (event.metaKey || event.ctrlKey) return;
           event.preventDefault();
-          navigateTo(updaterHref());
+          if (!onBeforeLeave || onBeforeLeave()) navigateTo(updaterHref());
         }}
       >
         {t('productCatalogUpdaterLink')}
       </a>
-    </SettingsSection>
+    </header>
   );
 }
 
@@ -233,43 +297,68 @@ function updaterHref(): string {
 function CatalogImagesSection({
   teamId,
   client,
-  onPool
+  onPool,
+  onBusyChange
 }: {
   teamId: string;
   client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
-  onPool: (count: number) => void;
+  onBusyChange: (busy: boolean) => void;
+  onPool: (count: number | null) => void;
 }) {
   const { t } = useI18n();
+  const diagnostic = useCatalogSettingsFlow();
   const { push } = useToasts();
   const { can } = useTeam();
   const editable = can('manage_metadata');
   const [sources, setSources] = useState<ProductCatalogImageSource[] | null>(null);
   const [poolSize, setPoolSize] = useState(0);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    onBusyChange(saving);
+  }, [saving, onBusyChange]);
   const [pickingFolder, setPickingFolder] = useState(false);
 
-  const load = async () => {
+  const load = async (existingAttempt?: string) => {
     if (!client.listProductCatalogImageSources) return;
+    setReadError(null);
+    const attempt = existingAttempt ?? diagnostic.start();
+    diagnostic.stage('readback_requested', attempt);
     try {
       const found = await client.listProductCatalogImageSources(teamId);
       setSources(found.sources);
       setPoolSize(found.poolSize);
       onPool(found.poolSize);
-    } catch {
-      setSources([]);
+      diagnostic.confirm(attempt);
+    } catch (error) {
+      setReadError(teamErrorMessageFor(error, t));
+      onPool(null);
+      diagnostic.fail('READ_FAILED', attempt);
+      throw error;
     }
   };
 
   useEffect(() => {
-    void load();
+    void load().catch(() => undefined);
   }, [teamId]);
 
   const save = async (next: ReadonlyArray<{ materialId: string; kind: 'file' | 'folder' }>) => {
-    if (!client.setProductCatalogImageSources) return;
+    if (!client.setProductCatalogImageSources || saving || readError || !sources) return;
+    setSaving(true);
+    const attempt = diagnostic.start();
+    diagnostic.stage('save_requested');
     try {
       await client.setProductCatalogImageSources(teamId, next);
-      await load();
+      diagnostic.stage('save_confirmed');
+      await load(attempt);
+      push({ tone: 'success', text: t('productCatalogSettingsSaved') });
     } catch (error) {
+      setReadError(teamErrorMessageFor(error, t));
+      onPool(null);
+      diagnostic.fail('SAVE_FAILED');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -281,22 +370,36 @@ function CatalogImagesSection({
   if (!client.listProductCatalogImageSources) return null;
 
   return (
-    <SettingsSection
+    <CatalogSection
       icon={Image}
       titleId="product-catalog-images-title"
       title={t('productCatalogImagesTitle')}
       description={t('productCatalogImagesDescription')}
-      aside={sources ? t('productCatalogImagesPool', { count: poolSize }) : undefined}
+      aside={
+        readError
+          ? t('catalogSettingsReadFailed')
+          : sources
+            ? t('productCatalogImagesPool', { count: poolSize })
+            : t('catalogSettingsLoading')
+      }
       className="product-catalog-pool"
     >
+      {readError && (
+        <ErrorState
+          retryLabel={t('catalogUpdaterRetry')}
+          message={readError}
+          onRetry={() => void load().catch(() => undefined)}
+        />
+      )}
+      {!sources && !readError && <LoadingState count={1} label={t('catalogSettingsLoading')} />}
       {sources && sources.length > 0 && (
         <ul className="product-catalog-sources">
           {sources.map(source => (
             <li key={source.materialId}>
               {source.kind === 'folder' ? (
-                <Folder size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                <Folder size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               ) : (
-                <Image size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               )}
               <span className="product-catalog-source-name" title={source.name}>
                 {source.name}
@@ -309,6 +412,7 @@ function CatalogImagesSection({
                   title=""
                   size="xs"
                   variant="ghost"
+                  disabled={saving || Boolean(readError)}
                   label={t('productCatalogImagesRemove', { name: source.name })}
                   onClick={() =>
                     void save(current.filter(item => item.materialId !== source.materialId))
@@ -324,38 +428,47 @@ function CatalogImagesSection({
       {sources && sources.length === 0 && (
         <p className="team-inline-note">{t('productCatalogImagesEmpty')}</p>
       )}
-      {editable && client.listMaterials && client.attachTaskMaterials !== undefined && (
-        <div className="settings-section-actions">
-          <TaskAttachmentPicker
-            teamId={teamId}
-            client={client as TaskAttachmentPickerClient}
-            /* Files only: a chosen folder stays open to browse, so single images inside it can be
+      {editable &&
+        sources &&
+        !readError &&
+        client.listMaterials &&
+        client.attachTaskMaterials !== undefined && (
+          <div className="settings-section-actions">
+            <TaskAttachmentPicker
+              teamId={teamId}
+              client={client as TaskAttachmentPickerClient}
+              /* Files only: a chosen folder stays open to browse, so single images inside it can be
                picked too. */
-            attachedMaterialIds={
-              new Set(current.filter(item => item.kind === 'file').map(item => item.materialId))
-            }
-            accept={(material: TeamMaterialSummary) => material.category === 'image'}
-            title={t('productCatalogImagesPickTitle')}
-            confirmLabel={count => t('productCatalogImagesPickConfirm', { count })}
-            trigger={open => (
-              <Button type="button" variant="secondary" onClick={open}>
-                <Image size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('productCatalogImagesAddFiles')}
-              </Button>
-            )}
-            onAdd={picked =>
-              void save([
-                ...current,
-                ...picked.map(item => ({ materialId: item.id, kind: 'file' as const }))
-              ])
-            }
-          />
-          <Button type="button" variant="secondary" onClick={() => setPickingFolder(true)}>
-            <Folder size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('productCatalogImagesAddFolder')}
-          </Button>
-        </div>
-      )}
+              attachedMaterialIds={
+                new Set(current.filter(item => item.kind === 'file').map(item => item.materialId))
+              }
+              accept={(material: TeamMaterialSummary) => material.category === 'image'}
+              title={t('productCatalogImagesPickTitle')}
+              confirmLabel={count => t('productCatalogImagesPickConfirm', { count })}
+              trigger={open => (
+                <Button type="button" variant="secondary" disabled={saving} onClick={open}>
+                  <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('productCatalogImagesAddFiles')}
+                </Button>
+              )}
+              onAdd={picked =>
+                void save([
+                  ...current,
+                  ...picked.map(item => ({ materialId: item.id, kind: 'file' as const }))
+                ])
+              }
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={saving}
+              onClick={() => setPickingFolder(true)}
+            >
+              <Folder size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('productCatalogImagesAddFolder')}
+            </Button>
+          </div>
+        )}
       {pickingFolder && client.listMaterials && (
         <FolderPicker
           teamId={teamId}
@@ -374,7 +487,7 @@ function CatalogImagesSection({
           }}
         />
       )}
-    </SettingsSection>
+    </CatalogSection>
   );
 }
 
@@ -389,41 +502,59 @@ const TEXTS_PAGE = 50;
 function CatalogTextsSection({
   teamId,
   client,
-  onCount
+  onCount,
+  onBusyChange
 }: {
   teamId: string;
   client: ProductCatalogSettingsClient;
-  onCount: (count: number) => void;
+  onBusyChange: (busy: boolean) => void;
+  onCount: (count: number | null) => void;
 }) {
   const { t } = useI18n();
+  const diagnostic = useCatalogSettingsFlow();
   const { push } = useToasts();
   const { can } = useTeam();
   const editable = can('manage_metadata');
   const countId = useId();
   const [texts, setTexts] = useState<ProductCatalogText[] | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
   const [count, setCount] = useState(String(APPAREL_POOL_DEFAULT));
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    onBusyChange(busy);
+  }, [busy, onBusyChange]);
   const [confirming, setConfirming] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchor = useRef<HTMLSpanElement>(null);
   const [browsing, setBrowsing] = useState(false);
   const [editing, setEditing] = useState<ProductCatalogText | null>(null);
 
   useEffect(() => {
     if (!client.listProductCatalogTexts) return;
     let active = true;
+    setReadError(null);
+    const attempt = diagnostic.start();
+    diagnostic.stage('readback_requested', attempt);
     void client
       .listProductCatalogTexts(teamId)
       .then(found => {
         if (!active) return;
+        diagnostic.confirm(attempt);
         setTexts(found);
         onCount(found.length);
       })
-      .catch(() => {
-        if (active) setTexts([]);
+      .catch(error => {
+        if (active) {
+          setReadError(teamErrorMessageFor(error, t));
+          onCount(null);
+          diagnostic.fail('READ_FAILED', attempt);
+        }
       });
     return () => {
       active = false;
     };
-  }, [client, onCount, teamId]);
+  }, [client, onCount, teamId, revision]);
 
   const wanted = Number(count);
   const countValid = Number.isInteger(wanted) && wanted >= 1 && wanted <= APPAREL_POOL_MAX;
@@ -436,8 +567,12 @@ function CatalogTextsSection({
   const generate = async (mode: 'add' | 'replace') => {
     if (!client.replaceProductCatalogTexts || !client.listProductCatalogTexts || !countValid)
       return;
+    if (!texts || busy || readError || (mode === 'add' && wanted > APPAREL_POOL_MAX - texts.length))
+      return;
     setConfirming(false);
     setBusy(true);
+    diagnostic.start();
+    diagnostic.stage('save_requested');
     try {
       const kept = mode === 'add' ? (texts ?? []) : [];
       const room = Math.max(0, APPAREL_POOL_MAX - kept.length);
@@ -453,11 +588,17 @@ function CatalogTextsSection({
         ...kept.map(text => ({ title: text.title, description: text.description })),
         ...made
       ]);
+      diagnostic.stage('save_confirmed');
+      diagnostic.stage('readback_requested');
       const found = await client.listProductCatalogTexts(teamId);
       setTexts(found);
       onCount(found.length);
+      diagnostic.confirm();
       push({ tone: 'success', text: t('productCatalogTextsGenerated', { count: made.length }) });
     } catch (error) {
+      setReadError(teamErrorMessageFor(error, t));
+      onCount(null);
+      diagnostic.fail('SAVE_FAILED');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setBusy(false);
@@ -469,18 +610,32 @@ function CatalogTextsSection({
   const full = (texts?.length ?? 0) >= APPAREL_POOL_MAX;
 
   return (
-    <SettingsSection
+    <CatalogSection
       icon={Sparkles}
       titleId="product-catalog-texts-title"
       title={t('productCatalogTextsTitle')}
       description={t('productCatalogTextsDescription')}
-      aside={texts ? t('productCatalogTextsPool', { count: texts.length }) : undefined}
+      aside={
+        readError
+          ? t('catalogSettingsReadFailed')
+          : texts
+            ? t('productCatalogTextsPool', { count: texts.length })
+            : t('catalogSettingsLoading')
+      }
       className="product-catalog-pool"
     >
+      {readError && (
+        <ErrorState
+          retryLabel={t('catalogUpdaterRetry')}
+          message={readError}
+          onRetry={() => setRevision(value => value + 1)}
+        />
+      )}
+      {!texts && !readError && <LoadingState count={1} label={t('catalogSettingsLoading')} />}
       {/* Said where the pool is made: the generator knows clothing and nothing else. */}
       <p className="product-catalog-warning">{t('productCatalogTextsApparelOnly')}</p>
 
-      {editable && (
+      {editable && texts && !readError && (
         <div className="product-catalog-generate">
           <label htmlFor={countId}>{t('productCatalogTextsCount')}</label>
           <Input
@@ -497,21 +652,50 @@ function CatalogTextsSection({
             type="button"
             variant="primary"
             loading={busy}
-            disabled={!countValid || full}
+            disabled={!countValid || full || wanted > APPAREL_POOL_MAX - texts.length}
             onClick={() => void generate('add')}
           >
-            <Sparkles size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t(hasPool ? 'productCatalogTextsAdd' : 'productCatalogTextsGenerate')}
           </Button>
-          {hasPool && (
+          {countValid && wanted <= APPAREL_POOL_MAX - texts.length && (
+            <p className="field-hint">
+              {t('catalogSettingsForecast', { count: wanted, total: texts.length + wanted })}
+            </p>
+          )}
+          {countValid && !full && wanted > APPAREL_POOL_MAX - texts.length && (
             <Button
-              type="button"
               variant="ghost"
-              disabled={!countValid || busy}
-              onClick={() => setConfirming(true)}
+              onClick={() => setCount(String(APPAREL_POOL_MAX - texts.length))}
             >
-              {t('productCatalogTextsRegenerate')}
+              {t('catalogSettingsRoom', { count: APPAREL_POOL_MAX - texts.length })}
             </Button>
+          )}
+          {hasPool && (
+            <span ref={menuAnchor}>
+              <IconButton
+                title=""
+                label={t('catalogSettingsMore')}
+                disabled={busy}
+                onClick={() => setMenuOpen(true)}
+              >
+                <MoreHorizontal />
+              </IconButton>
+              <DropdownMenu
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                anchor={menuAnchor}
+                label={t('catalogSettingsMore')}
+                items={[
+                  {
+                    id: 'replace',
+                    label: t('productCatalogTextsRegenerate'),
+                    disabled: !countValid || busy,
+                    onSelect: () => setConfirming(true)
+                  }
+                ]}
+              />
+            </span>
           )}
           {!countValid && (
             <small className="team-inline-error">
@@ -537,7 +721,7 @@ function CatalogTextsSection({
                 <button
                   type="button"
                   className="product-catalog-text"
-                  disabled={!editable}
+                  disabled={!editable || busy || Boolean(readError)}
                   onClick={() => setEditing(text)}
                 >
                   <strong>{text.title}</strong>
@@ -555,7 +739,7 @@ function CatalogTextsSection({
       {browsing && texts && (
         <TextBrowser
           texts={texts}
-          editable={editable}
+          editable={editable && !busy && !readError}
           onPick={text => {
             setBrowsing(false);
             setEditing(text);
@@ -571,7 +755,9 @@ function CatalogTextsSection({
           title={t('productCatalogTextsRegenerateTitle')}
           onClose={() => setConfirming(false)}
         >
-          <p>{t('productCatalogTextsRegenerateBody', { count: texts?.length ?? 0 })}</p>
+          <p>
+            {t('productCatalogTextsRegenerateBody', { count: texts?.length ?? 0, next: wanted })}
+          </p>
           <div className="team-dialog-actions">
             <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
               {t('teamCancel')}
@@ -588,13 +774,24 @@ function CatalogTextsSection({
           text={editing}
           onClose={() => setEditing(null)}
           onSave={async next => {
-            const saved = await client.updateProductCatalogText!(teamId, next);
-            setTexts(current => (current ?? []).map(item => (item.id === saved.id ? saved : item)));
-            setEditing(null);
+            diagnostic.start();
+            diagnostic.stage('save_requested');
+            try {
+              const saved = await client.updateProductCatalogText!(teamId, next);
+              diagnostic.stage('save_confirmed');
+              setTexts(current =>
+                (current ?? []).map(item => (item.id === saved.id ? saved : item))
+              );
+              setEditing(null);
+              diagnostic.confirm();
+            } catch (error) {
+              diagnostic.fail('SAVE_FAILED');
+              throw error;
+            }
           }}
         />
       )}
-    </SettingsSection>
+    </CatalogSection>
   );
 }
 
@@ -619,14 +816,25 @@ function TextEditor({
   const descriptionOk =
     description.trim().length >= 1 && description.trim().length <= DESCRIPTION_MAX;
 
+  useEffect(() => {
+    if (!saving && title === text.title && description === text.description) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [saving, title, description, text]);
+  const close = () => {
+    if (
+      !saving &&
+      ((title === text.title && description === text.description) ||
+        window.confirm(t('catalogUpdaterDiscardDraft')))
+    )
+      onClose();
+  };
   return (
-    <Modal
-      nested
-      size="md"
-      title={t('productCatalogTextsEditTitle')}
-      onClose={onClose}
-      busy={saving}
-    >
+    <Modal nested size="md" title={t('productCatalogTextsEditTitle')} onClose={close} busy={saving}>
       <form
         className="team-dialog-form"
         onSubmit={event => {
@@ -642,6 +850,7 @@ function TextEditor({
           <span>{t('productCatalogTextsFieldTitle')}</span>
           <input
             id={titleId}
+            readOnly={saving}
             value={title}
             maxLength={TITLE_MAX}
             aria-invalid={!titleOk}
@@ -657,6 +866,7 @@ function TextEditor({
             id={descriptionId}
             className="product-catalog-description"
             rows={5}
+            readOnly={saving}
             value={description}
             maxLength={DESCRIPTION_MAX}
             aria-invalid={!descriptionOk}
@@ -665,7 +875,7 @@ function TextEditor({
         </label>
         <small className="field-hint">{t('productCatalogTextsFieldDescriptionHint')}</small>
         <div className="team-dialog-actions">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={close}>
             {t('teamCancel')}
           </Button>
           <Button
@@ -712,7 +922,7 @@ function TextBrowser({
           aria-label={t('productCatalogTextsSearch')}
           placeholder={t('productCatalogTextsSearch')}
           value={query}
-          leading={<Search size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+          leading={<Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
           onChange={event => {
             setQuery(event.target.value);
             setShown(TEXTS_PAGE);
@@ -759,20 +969,26 @@ function CatalogValuesSection({
   client,
   onRange,
   onFallback,
-  poolsFilled
+  poolsFilled,
+  onDraftChange
 }: {
   teamId: string;
   client: ProductCatalogSettingsClient;
+  onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
   onRange: (range: { min: number; max: number }) => void;
   onFallback: (fallback: { title: boolean; image: boolean }) => void;
   /** Both pools have something to draw, so these values are held in reserve rather than used. */
   poolsFilled: boolean;
 }) {
   const { t } = useI18n();
+  const diagnostic = useCatalogSettingsFlow();
   const { push } = useToasts();
   const { can } = useTeam();
   const editable = can('manage_metadata');
   const ids = { min: useId(), max: useId(), title: useId(), description: useId(), link: useId() };
+  const [readError, setReadError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [persisted, setPersisted] = useState<ProductCatalogSettings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [min, setMin] = useState(String(PRICE_RANGE_DEFAULT.min));
@@ -780,7 +996,6 @@ function CatalogValuesSection({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [link, setLink] = useState('');
-  const [fallbackOpen, setFallbackOpen] = useState(false);
   // What the space holds, to tell an edit from what is already saved: nothing said whether a
   // changed price was kept. Nothing stored yet (null) is not the defaults stored — without a row
   // a catalog has no price at all. The two cards track their own halves.
@@ -789,10 +1004,22 @@ function CatalogValuesSection({
 
   useEffect(() => {
     let active = true;
+    setLoaded(false);
+    setReadError(null);
+    const attempt = diagnostic.start();
+    diagnostic.stage('readback_requested', attempt);
     void client
       .getProductCatalogSettings(teamId)
       .then(found => {
-        if (!active || !found) return;
+        if (!active) return;
+        diagnostic.confirm(attempt);
+        setLoaded(true);
+        setPersisted(found);
+        if (!found) {
+          onFallback({ title: false, image: false });
+          setSavedFallback(snapshot('', '', ''));
+          return;
+        }
         setMin(String(found.priceMin));
         setMax(String(found.priceMax));
         setTitle(found.title ?? '');
@@ -805,14 +1032,16 @@ function CatalogValuesSection({
         onRange({ min: found.priceMin, max: found.priceMax });
         onFallback({ title: Boolean(found.title), image: Boolean(found.imageLink) });
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (active) setLoaded(true);
+      .catch(error => {
+        if (active) {
+          setReadError(teamErrorMessageFor(error, t));
+          diagnostic.fail('READ_FAILED', attempt);
+        }
       });
     return () => {
       active = false;
     };
-  }, [client, teamId]);
+  }, [client, teamId, revision]);
 
   const minCheck = validatePrice(min);
   const maxCheck = validatePrice(max);
@@ -822,50 +1051,107 @@ function CatalogValuesSection({
   const titleOk = title.trim().length <= TITLE_MAX;
   const descriptionOk = description.trim().length <= DESCRIPTION_MAX;
   const valid = rangeOk && linkOk && titleOk && descriptionOk;
-  const fallbackUsed = Boolean(title.trim() || description.trim() || link.trim());
+  const fallbackUsed = Boolean(persisted?.title || persisted?.description || persisted?.imageLink);
 
-  const save = async () => {
-    if (!valid || !minCheck.ok || !maxCheck.ok) return;
+  useEffect(
+    () => () => {
+      onDraftChange?.({ dirty: false, saving: false });
+    },
+    [onDraftChange]
+  );
+  const priceDirty = loaded && snapshot(min, max) !== savedPrice;
+  const fallbackDirty = loaded && snapshot(title, description, link) !== savedFallback;
+  useEffect(() => {
+    onDraftChange?.({ dirty: priceDirty || fallbackDirty, saving });
+  }, [priceDirty, fallbackDirty, saving, onDraftChange]);
+  useEffect(() => {
+    if (!priceDirty && !fallbackDirty && !saving) return;
+    const prevent = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', prevent);
+    return () => window.removeEventListener('beforeunload', prevent);
+  }, [priceDirty, fallbackDirty, saving]);
+  const save = async (part: 'price' | 'fallback') => {
+    if (
+      !loaded ||
+      saving ||
+      !editable ||
+      (part === 'price' ? !rangeOk : !linkOk || !titleOk || !descriptionOk || !persisted)
+    )
+      return;
     setSaving(true);
+    diagnostic.start();
+    diagnostic.stage('save_requested');
     try {
-      await client.setProductCatalogSettings(teamId, {
-        title: title.trim() || null,
-        description: description.trim() || null,
-        imageLink: linkCheck?.ok ? linkCheck.value : null,
-        priceMin: minCheck.value,
-        priceMax: maxCheck.value
+      const result = await client.setProductCatalogSettings(teamId, {
+        title: part === 'fallback' ? title.trim() || null : (persisted?.title ?? null),
+        description:
+          part === 'fallback' ? description.trim() || null : (persisted?.description ?? null),
+        imageLink:
+          part === 'fallback'
+            ? linkCheck?.ok
+              ? linkCheck.value
+              : null
+            : (persisted?.imageLink ?? null),
+        priceMin: part === 'price' && minCheck.ok ? minCheck.value : persisted!.priceMin,
+        priceMax: part === 'price' && maxCheck.ok ? maxCheck.value : persisted!.priceMax
       });
-      setSavedPrice(snapshot(min, max));
-      setSavedFallback(snapshot(title, description, link));
-      onRange({ min: minCheck.value, max: maxCheck.value });
-      onFallback({ title: Boolean(title.trim()), image: Boolean(link.trim()) });
+      diagnostic.stage('save_confirmed');
+      setPersisted(result);
+      diagnostic.confirm();
+      if (part === 'price') {
+        setMin(String(result.priceMin));
+        setMax(String(result.priceMax));
+        setSavedPrice(snapshot(String(result.priceMin), String(result.priceMax)));
+      } else {
+        setTitle(result.title ?? '');
+        setDescription(result.description ?? '');
+        setLink(result.imageLink ?? '');
+        setSavedFallback(
+          snapshot(result.title ?? '', result.description ?? '', result.imageLink ?? '')
+        );
+      }
+      onRange({ min: result.priceMin, max: result.priceMax });
+      onFallback({ title: Boolean(result.title), image: Boolean(result.imageLink) });
       push({ tone: 'success', text: t('productCatalogSettingsSaved') });
     } catch (error) {
+      diagnostic.fail('SAVE_FAILED');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setSaving(false);
     }
   };
 
-  const priceDirty = snapshot(min, max) !== savedPrice;
-  const fallbackDirty = snapshot(title, description, link) !== savedFallback;
-
   return (
     <>
-      <SettingsSection
+      <CatalogSection
         icon={DollarSign}
         titleId="product-catalog-settings-title"
-        title={`${t('productCatalogPriceTitle')} · ${t('productCatalogRequiredLabel')}`}
+        title={t('productCatalogPriceTitle')}
         description={t('productCatalogPriceDescription')}
         aside={
-          rangeOk && minCheck.ok && maxCheck.ok
-            ? minCheck.value === maxCheck.value
-              ? `${minCheck.value} USD`
-              : `${minCheck.value}\u2013${maxCheck.value} USD`
-            : undefined
+          readError
+            ? t('catalogSettingsReadFailed')
+            : !loaded
+              ? t('catalogSettingsLoading')
+              : priceDirty
+                ? t('productCatalogUnsaved')
+                : persisted
+                  ? `${persisted.priceMin}–${persisted.priceMax} USD`
+                  : t('productCatalogSummaryPriceUnsaved')
         }
         className="product-catalog-settings"
       >
+        {readError && (
+          <ErrorState
+            retryLabel={t('catalogUpdaterRetry')}
+            message={readError}
+            onRetry={() => setRevision(value => value + 1)}
+          />
+        )}
+        {!loaded && !readError && <LoadingState count={1} label={t('catalogSettingsLoading')} />}
         {!editable && <p className="team-inline-note">{t('productCatalogSettingsReadOnly')}</p>}
         <div className="product-catalog-price-range">
           <label htmlFor={ids.min}>{t('productCatalogPriceFrom')}</label>
@@ -876,7 +1162,7 @@ function CatalogValuesSection({
             inputMode="numeric"
             maxLength={6}
             value={min}
-            readOnly={!editable}
+            readOnly={!editable || saving || !loaded}
             aria-invalid={!rangeOk}
             onChange={event => setMin(event.target.value.replace(/[^\d]/gu, ''))}
           />
@@ -888,7 +1174,7 @@ function CatalogValuesSection({
             inputMode="numeric"
             maxLength={6}
             value={max}
-            readOnly={!editable}
+            readOnly={!editable || saving || !loaded}
             aria-invalid={!rangeOk}
             onChange={event => setMax(event.target.value.replace(/[^\d]/gu, ''))}
           />
@@ -901,8 +1187,8 @@ function CatalogValuesSection({
               type="button"
               variant="primary"
               loading={saving}
-              disabled={!loaded || !valid || !priceDirty}
-              onClick={() => void save()}
+              disabled={!loaded || !rangeOk || !priceDirty}
+              onClick={() => void save('price')}
             >
               {t('productCatalogSettingsSave')}
             </Button>
@@ -911,96 +1197,92 @@ function CatalogValuesSection({
             )}
           </div>
         )}
-      </SettingsSection>
+      </CatalogSection>
 
       {/* The one title, description and picture link every row used to share. They sat inside the
           price card, where the button under them looked like the price's own; here they are a
           section of their own, folded, with what they are for said once. */}
-      <SettingsSection
+      <CatalogSection
         icon={FileSpreadsheet}
         titleId="product-catalog-fallback-title"
         title={t('productCatalogFallbackTitle')}
         description={t('productCatalogFallbackHint')}
-        aside={t(
-          !fallbackUsed
-            ? 'productCatalogFallbackEmpty'
-            : poolsFilled
-              ? 'productCatalogFallbackUnused'
-              : 'productCatalogFallbackInUse'
-        )}
+        aside={
+          fallbackDirty
+            ? t('productCatalogUnsaved')
+            : t(
+                !fallbackUsed
+                  ? 'productCatalogFallbackEmpty'
+                  : poolsFilled
+                    ? 'productCatalogFallbackUnused'
+                    : 'productCatalogFallbackInUse'
+              )
+        }
         className="product-catalog-settings"
       >
-        <button
-          type="button"
-          className="product-catalog-fallback-toggle"
-          aria-expanded={fallbackOpen}
-          onClick={() => setFallbackOpen(open => !open)}
-        >
-          <FileSpreadsheet size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          {t('productCatalogFallbackToggle')}
-        </button>
-        {fallbackOpen && (
-          <div className="product-catalog-fallback">
-            <div className="field-group">
-              <label className="field-label" htmlFor={ids.title}>
-                <span>{t('productCatalogTitleLabel')}</span>
-              </label>
-              <input
-                id={ids.title}
-                value={title}
-                maxLength={TITLE_MAX + 50}
-                readOnly={!editable}
-                onChange={event => setTitle(event.target.value)}
-              />
-            </div>
-            <div className="field-group">
-              <label className="field-label" htmlFor={ids.description}>
-                <span>{t('productCatalogDescriptionLabel')}</span>
-              </label>
-              <textarea
-                id={ids.description}
-                className="product-catalog-description"
-                rows={3}
-                value={description}
-                maxLength={DESCRIPTION_MAX + 50}
-                readOnly={!editable}
-                onChange={event => setDescription(event.target.value)}
-              />
-            </div>
-            <div className="field-group">
-              <label className="field-label" htmlFor={ids.link}>
-                <span>{t('productCatalogImageLinkLabel')}</span>
-              </label>
-              <input
-                id={ids.link}
-                type="text"
-                inputMode="url"
-                value={link}
-                readOnly={!editable}
-                aria-invalid={!linkOk}
-                onChange={event => setLink(event.target.value)}
-              />
-            </div>
-            {!linkOk && <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>}
-            {editable && (
-              <div className="settings-section-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  loading={saving}
-                  disabled={!loaded || !valid || !fallbackDirty}
-                  onClick={() => void save()}
-                >
-                  {t('productCatalogFallbackSave')}
-                </Button>
-                {loaded && fallbackDirty && valid && (
-                  <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
-                )}
-              </div>
-            )}
+        {!persisted && <p className="field-hint">{t('catalogSettingsSavePriceFirst')}</p>}
+        <div className="product-catalog-fallback">
+          <div className="field-group">
+            <label className="field-label" htmlFor={ids.title}>
+              <span>{t('productCatalogTitleLabel')}</span>
+            </label>
+            <input
+              id={ids.title}
+              value={title}
+              maxLength={TITLE_MAX + 50}
+              readOnly={!editable || saving || !loaded}
+              onChange={event => setTitle(event.target.value)}
+            />
           </div>
-        )}
-      </SettingsSection>
+          <div className="field-group">
+            <label className="field-label" htmlFor={ids.description}>
+              <span>{t('productCatalogDescriptionLabel')}</span>
+            </label>
+            <textarea
+              id={ids.description}
+              className="product-catalog-description"
+              rows={3}
+              value={description}
+              maxLength={DESCRIPTION_MAX + 50}
+              readOnly={!editable || saving || !loaded}
+              onChange={event => setDescription(event.target.value)}
+            />
+          </div>
+          <div className="field-group">
+            <label className="field-label" htmlFor={ids.link}>
+              <span>{t('productCatalogImageLinkLabel')}</span>
+            </label>
+            <input
+              id={ids.link}
+              type="text"
+              inputMode="url"
+              value={link}
+              readOnly={!editable || saving || !loaded}
+              aria-invalid={!linkOk}
+              onChange={event => setLink(event.target.value)}
+            />
+          </div>
+          {!linkOk && <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>}
+          {editable && (
+            <div className="settings-section-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                loading={saving}
+                disabled={
+                  !loaded || !persisted || !linkOk || !titleOk || !descriptionOk || !fallbackDirty
+                }
+                onClick={() => void save('fallback')}
+              >
+                {t('productCatalogFallbackSave')}
+              </Button>
+              {loaded && fallbackDirty && valid && (
+                <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </CatalogSection>
     </>
   );
 }

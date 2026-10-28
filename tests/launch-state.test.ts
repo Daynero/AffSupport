@@ -10,6 +10,7 @@ import { getCatalogUpdateDiagnosis } from '../scripts/analytics/catalog-updates'
 import { getLaunchEvidence } from '../scripts/analytics/launches';
 import { setQueryExecutor } from '../scripts/analytics/db';
 import { updateLaunchCatalog } from './support/launch-catalog-updater';
+import { assignLaunchFixture } from './support/launch-assignment';
 import {
   launchPreview,
   launchRevisionImpact,
@@ -372,6 +373,7 @@ async function prepare(
       [team, key, JSON.stringify(config)]
     )
   )[0].v;
+  const assignedVersion = await assignLaunchFixture(db, actor, team, saved.id, config.agentRowId);
   const source = (
     await db.asUser<{ v: unknown }>(actor, 'select public.get_launch_sources($1,$2) v', [
       team,
@@ -388,7 +390,7 @@ async function prepare(
       [
         team,
         saved.id,
-        saved.version,
+        assignedVersion,
         `${key}-source`,
         JSON.stringify(config),
         JSON.stringify(source)

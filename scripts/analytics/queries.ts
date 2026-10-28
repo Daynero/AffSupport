@@ -223,6 +223,9 @@ export const QUERY_EVENT_NAMES: readonly string[] = Object.freeze(
 
 /** Events `audit` reads to detect emission; they are probes, never metrics. */
 export const AUDIT_PROBE_EVENT_NAMES: readonly string[] = Object.freeze([
+  // Assignment inspection observes explicit intent/acceptance without treating it as generation completion.
+  'team_launch_intent',
+  'team_launch_action',
   'analytics_delivery_report',
   'error_occurred',
   'team_launch_visible'
@@ -2231,7 +2234,98 @@ async function getInspectCore(id: string, asOf?: string, limit = 500): Promise<I
     const found = inspectRecovery(id, recovery);
     if (found) return found;
   }
+  if (events.found) {
+    const assignmentEvents = events.events.filter(event =>
+      ['assign_account', 'release_account'].includes(String(event.properties.launch_action))
+    );
+    if (assignmentEvents.length) {
+      const subject = assignmentEvents
+        .map(event => event.properties.workflow_id)
+        .find(value => typeof value === 'string');
+      const assignmentEvidence = await getLaunchEvidence(
+        typeof subject === 'string' ? subject : id,
+        asOf
+      );
+      const observed = [
+        ...(assignmentEvents.some(event => event.event_name === 'team_launch_intent')
+          ? ['intent']
+          : []),
+        ...(assignmentEvents.some(
+          event =>
+            event.event_name === 'team_launch_action' && event.properties.outcome === 'success'
+        )
+          ? ['accepted']
+          : []),
+        ...(assignmentEvents.some(event => event.event_name === 'team_launch_visible')
+          ? ['result_visible']
+          : [])
+      ];
+      const expected = ['intent', 'accepted', 'result_visible'];
+      return {
+        ...events,
+        capability: 'team.launches',
+        stages: {
+          expected,
+          observed,
+          missing: expected.filter(stage => !observed.includes(stage))
+        },
+        last_proven_stage: observed.at(-1) ?? null,
+        launches: assignmentEvidence
+      };
+    }
+  }
   const launches = await getLaunchEvidence(id, asOf);
+  if (!launches.generations.length && launches.assignments?.length) {
+    const latest = launches.assignments[0];
+    const assignment = {
+      ...launches,
+      blind_spots: [
+        ...launches.blind_spots,
+        'Assignment commit does not prove browser delivery or external ads running.'
+      ]
+    };
+    if (events.found) return { ...events, launches: assignment };
+    return {
+      found: true,
+      id,
+      matched_by: ['authoritative_table'],
+      capability: 'team.launches',
+      tool: 'team',
+      stages: {
+        expected: ['intent', 'accepted', 'result_visible'],
+        observed: latest.state === 'legacy_unknown' ? ['legacy_observed'] : ['accepted'],
+        missing:
+          latest.state === 'legacy_unknown'
+            ? ['intent', 'accepted', 'result_visible']
+            : ['intent', 'result_visible']
+      },
+      terminal:
+        latest.state === 'legacy_unknown'
+          ? null
+          : {
+              event: `database:assignment_${latest.state}`,
+              outcome: 'success',
+              occurred_at: latest.updated_at
+            },
+      last_proven_stage: latest.state === 'legacy_unknown' ? 'legacy_observed' : 'accepted',
+      first_seen_at: latest.updated_at,
+      last_seen_at: latest.updated_at,
+      delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'Assignment rows prove current persistence only; browser delivery and advertising activity remain unknown.'
+      },
+      events: [],
+      launches: assignment
+    };
+  }
   if (!launches.generations.length)
     return events.found && events.events.some(event => event.event_name.startsWith('team_account_'))
       ? { ...events, accounts: diagnoseAccountEvents(events.events) }

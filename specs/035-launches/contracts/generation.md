@@ -21,6 +21,16 @@ Generate зберігає immutable input, request digest та logical generatio
 
 `other` проходить accepted/text_derived/result_committed; швидка операція може показувати лише «Готуємо запуск…» → результат. Не додавати фіктивний sleep. Catalog без restitch пропускає його stages.
 
+Повтор після помилки Drive спершу звіряє збережену генерацію: втрачена відповідь
+не створює нового запуску чи нового ключа прийняття. Підтверджені failed/partial/interrupted
+відновлюються через явний retry тієї самої генерації. Дочірня операція, знайдена
+за незмінним process key після втраченої відповіді start, прив’язується перед settlement.
+Застарілий waiting_dependency звіряється перед вибором retry; успіх і скасування
+не запускають заміну. Невдале звіряння зберігає ключі та невизначеність.
+Регресії: launch-generation-hook, launch-restitch-runner, launch-workspace-ui.
+Діагностика використовує наявні generation/operation IDs, retry action, protected
+terminal receipt та окремий visible signal; успішний retry RPC не є доставкою результату.
+
 ## Progress DTO
 
 Generation snapshot має state, stage, stageStatus, stageUpdatedAt, stateVersion, completedStages, childOperationIds. Numeric progress — nullable `{completed,total,unit,source}` тільки для виміряного stage, наприклад bytes або rows. FFmpeg відсоток описує процес перезашивки, не всі наступні uploads. Немає довільно зваженого загального процента. Invalid/stale progress не відкатує settled stage.

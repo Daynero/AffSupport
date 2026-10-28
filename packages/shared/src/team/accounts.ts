@@ -12,10 +12,10 @@ import {
 /**
  * Team accounts (017): the social accounts a space runs its campaigns from,
  * each holding the agents attached to it. An agent carries any number of
- * *runs* — "Pro Caps | TR 02/09" — and an agent with none is free.
+ * manual holds — "Pro Caps | TR 02/09" — alongside current Launch assignments.
  *
  * The contract is deliberately small: names, ids and run notes are text, and
- * the one derived fact — free or busy — is a function of the runs alone, so
+ * current availability combines manual holds and authoritative Launch assignments, so
  * the list, the filter and the tag a task carries all agree by construction
  * rather than by convention.
  */
@@ -200,12 +200,20 @@ export interface TeamAccountWorkspaceMetadata {
   nameColorVersion?: string;
 }
 
+export type TeamAgentAvailabilityStatus = 'free' | 'busy' | 'unknown';
+export interface TeamAgentAvailability {
+  status: TeamAgentAvailabilityStatus;
+  assignmentCount: number;
+  legacyCount: number;
+}
+
 export interface TeamAccountAgentSummary extends TeamAccountWorkspaceMetadata {
   id: string;
   accountId: string;
   teamId: string;
   agentId: string;
-  /** The runs on this agent, oldest first; none means free. */
+  /** Manual holds, oldest first; Launch assignments are counted separately. */
+  availability?: TeamAgentAvailability;
   runs: TeamAgentRun[];
   /** The agent tags hung on it (019), in natural order by name. */
   labels: TeamTaskLabelRef[];
@@ -232,19 +240,25 @@ export interface TeamTaskAgentTag {
   accountName: string;
   agentId: string;
   runs: TeamAgentRun[];
+  availability?: TeamAgentAvailability;
 }
 
 export function parseTeamTaskAgentTag(value: unknown): TeamTaskAgentTag | null {
   if (!isRecord(value)) return null;
   const { id, agent_row_id, account_id, account_name, agent_id, runs } = value;
   const parsedRuns = parseTeamAgentRuns(runs);
+  const availability =
+    value.availability === undefined
+      ? { status: 'unknown' as const, assignmentCount: 0, legacyCount: 0 }
+      : parseTeamAgentAvailability(value.availability);
   if (
     typeof id !== 'string' ||
     typeof agent_row_id !== 'string' ||
     typeof account_id !== 'string' ||
     typeof account_name !== 'string' ||
     typeof agent_id !== 'string' ||
-    parsedRuns === null
+    parsedRuns === null ||
+    availability === null
   ) {
     return null;
   }
@@ -254,7 +268,8 @@ export function parseTeamTaskAgentTag(value: unknown): TeamTaskAgentTag | null {
     accountId: account_id,
     accountName: account_name,
     agentId: agent_id,
-    runs: parsedRuns
+    runs: parsedRuns,
+    availability
   };
 }
 
@@ -300,8 +315,45 @@ export interface TeamAccountSummary extends TeamAccountWorkspaceMetadata {
   agents: TeamAccountAgentSummary[];
 }
 
-export function isTeamAgentFree(agent: { runs: readonly TeamAgentRun[] }): boolean {
-  return agent.runs.length === 0;
+/** Missing wire authority is unknown; in-memory legacy fixtures retain their old contract. */
+export function getTeamAgentAvailability(agent: {
+  runs: readonly TeamAgentRun[];
+  availability?: TeamAgentAvailability;
+}): TeamAgentAvailabilityStatus {
+  if (agent.runs.length > 0 || (agent.availability?.assignmentCount ?? 0) > 0) return 'busy';
+  if (!agent.availability) return 'free';
+  if (agent.availability.status === 'busy') return 'busy';
+  if (agent.availability.legacyCount > 0 || agent.availability.status === 'unknown')
+    return 'unknown';
+  return 'free';
+}
+
+export function isTeamAgentFree(agent: {
+  runs: readonly TeamAgentRun[];
+  availability?: TeamAgentAvailability;
+}): boolean {
+  return getTeamAgentAvailability(agent) === 'free';
+}
+
+export function parseTeamAgentAvailability(value: unknown): TeamAgentAvailability | null {
+  if (
+    !isRecord(value) ||
+    !['free', 'busy', 'unknown'].includes(String(value.status)) ||
+    typeof value.assignmentCount !== 'number' ||
+    !Number.isSafeInteger(value.assignmentCount) ||
+    value.assignmentCount < 0 ||
+    typeof value.legacyCount !== 'number' ||
+    !Number.isSafeInteger(value.legacyCount) ||
+    value.legacyCount < 0 ||
+    (value.status === 'free' && (value.assignmentCount !== 0 || value.legacyCount !== 0)) ||
+    (value.status === 'unknown' && value.assignmentCount !== 0)
+  )
+    return null;
+  return {
+    status: value.status as TeamAgentAvailabilityStatus,
+    assignmentCount: value.assignmentCount,
+    legacyCount: value.legacyCount
+  };
 }
 
 /** The runs as one line — for a tooltip, a search, a compact cell. */
@@ -315,6 +367,10 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
   const metadata = parseWorkspaceMetadata(value);
   if (!metadata) return null;
   const parsedRuns = parseTeamAgentRuns(runs);
+  const availability =
+    value.availability === undefined
+      ? { status: 'unknown' as const, assignmentCount: 0, legacyCount: 0 }
+      : parseTeamAgentAvailability(value.availability);
   const labels = parseTeamTaskLabelRefs(value.labels);
   const balance = normalizeTeamAgentAmount(value.balance);
   const topup = normalizeTeamAgentAmount(value.topup);
@@ -324,6 +380,7 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     typeof team_id !== 'string' ||
     typeof agent_id !== 'string' ||
     parsedRuns === null ||
+    availability === null ||
     labels === null ||
     balance === undefined ||
     topup === undefined ||
@@ -342,6 +399,7 @@ export function parseTeamAccountAgent(value: unknown): TeamAccountAgentSummary |
     teamId: team_id,
     agentId: agent_id,
     runs: parsedRuns,
+    availability,
     labels,
     balance,
     topup,
@@ -423,7 +481,7 @@ export function sortTeamAgents<
   return [...agents].sort((left, right) => {
     if (left.sortRank !== undefined && right.sortRank !== undefined)
       return left.sortRank - right.sortRank;
-    const free = Number(right.runs.length === 0) - Number(left.runs.length === 0);
+    const free = Number(isTeamAgentFree(right)) - Number(isTeamAgentFree(left));
     if (free !== 0) return free;
     return left.agentId.localeCompare(right.agentId, undefined, {
       numeric: true,
@@ -432,7 +490,7 @@ export function sortTeamAgents<
   });
 }
 
-export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy';
+export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy' | 'unknown';
 
 /** The marker filter: every agent, or only those carrying a run of one colour. */
 export type TeamAccountMarkerFilter = 'all' | TeamAgentRunMarker;
@@ -495,7 +553,7 @@ function filterTeamAccountsBy(
     if (input.occupancy !== 'all') {
       const wantFree = input.occupancy === 'free';
       const emptyAccount = emptyActiveAccount && nameMatches;
-      agents = agents.filter(agent => isTeamAgentFree(agent) === wantFree);
+      agents = agents.filter(agent => getTeamAgentAvailability(agent) === input.occupancy);
       if (agents.length === 0 && !(wantFree && emptyAccount)) continue;
     }
     /* A colour is asked of the runs themselves, so an account with none of
@@ -516,6 +574,8 @@ export interface TeamAccountCounts {
   agents: number;
   free: number;
   busy: number;
+  /** Missing authority is separate from both free and busy. Omitted when zero. */
+  unknown?: number;
   /**
    * Agents, not runs: the number on a marker chip is how many rows pressing it
    * leaves on screen, which is the only figure a filter chip can promise.
@@ -527,6 +587,8 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
   let activeAccounts = 0;
   let agents = 0;
   let free = 0;
+  let busy = 0;
+  let unknown = 0;
   const markers: Record<TeamAgentRunMarker, number> = { green: 0, amber: 0, red: 0 };
   for (const account of accounts) {
     if (account.archivedAt) continue;
@@ -534,13 +596,16 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
     for (const agent of account.agents) {
       if (agent.archivedAt) continue;
       agents += 1;
-      if (isTeamAgentFree(agent)) free += 1;
+      const availability = getTeamAgentAvailability(agent);
+      if (availability === 'free') free += 1;
+      else if (availability === 'busy') busy += 1;
+      else unknown += 1;
       for (const marker of TEAM_AGENT_RUN_MARKERS) {
         if (teamAgentHasMarker(agent, marker)) markers[marker] += 1;
       }
     }
   }
-  return { accounts: activeAccounts, agents, free, busy: agents - free, markers };
+  return { accounts: activeAccounts, agents, free, busy, ...(unknown ? { unknown } : {}), markers };
 }
 
 function parseWorkspaceMetadata(

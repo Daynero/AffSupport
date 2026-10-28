@@ -52,10 +52,39 @@ export function LaunchCard({
   const accountChipLabel = agentSuffix
     ? [value.social.trim() || accountLabel, agentSuffix].filter(Boolean).join('-')
     : accountLabel;
+  const assignment = value.assignment;
+  const matchingCurrentAssignment =
+    assignment?.state === 'assigned' &&
+    assignment.agentRowId !== null &&
+    assignment.agentRowId === assignment.sourceAgentRowId;
+  const accountStatus: 'free' | 'busy' | 'unknown' | 'historical' = assignment
+    ? assignment.state === 'legacy_unknown'
+      ? 'unknown'
+      : !matchingCurrentAssignment
+        ? 'historical'
+        : value.agentFree === false
+          ? 'busy'
+          : 'unknown' // A confirmed assignment and "free" contradict each other.
+    : value.agentFree === true
+      ? 'free'
+      : value.agentFree === false
+        ? 'busy'
+        : 'unknown';
   const accountTooltip = [
-    `${t('teamAgentTooltipAccount', { name: accountLabel })}`,
-    `${t('teamAgentTooltipId', { id: value.agentId || value.agentSuffix || '' })}`,
-    t(value.agentFree === false ? 'teamAgentBusy' : 'teamAgentFree')
+    t('teamAgentTooltipAccount', { name: accountLabel }),
+    t('teamAgentTooltipId', { id: value.agentId || value.agentSuffix || '' }),
+    ...(matchingCurrentAssignment ? [t('launchesAssignmentCurrentAccount')] : []),
+    accountStatus === 'historical'
+      ? t('launchesAssignmentOriginalAccount')
+      : assignment?.state === 'legacy_unknown'
+        ? t('launchesAssignmentLegacy')
+        : t(
+            accountStatus === 'unknown'
+              ? 'teamAgentAvailabilityUnknown'
+              : accountStatus === 'busy'
+                ? 'teamAgentBusy'
+                : 'teamAgentFree'
+          )
   ].join('\n');
   const methodLabel = t(value.method === 'catalog' ? 'launchesCatalog' : 'launchesOther');
   const heading =
@@ -99,7 +128,8 @@ export function LaunchCard({
         </button>
         {accountChipLabel && (
           <span
-            className={`team-task-agent-chip${value.agentFree === false ? '' : ' is-free'}`}
+            className={`team-task-agent-chip${accountStatus === 'free' ? ' is-free' : accountStatus === 'unknown' || accountStatus === 'historical' ? ' is-neutral' : ''}`}
+            data-availability={accountStatus}
             title={accountTooltip}
           >
             <span className="team-task-agent-chip-dot" aria-hidden="true" />

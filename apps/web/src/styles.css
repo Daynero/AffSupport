@@ -19369,6 +19369,39 @@ a.history-subject {
   outline: 1px solid var(--color-border-strong);
   outline-offset: -1px;
 }
+.catalog-video-toggle button[data-video-state] {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.catalog-video-toggle button[data-video-state]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-success-soft);
+  transform: scaleY(var(--catalog-video-fill, 0));
+  transform-origin: bottom;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='preparing'],
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='ready'] {
+  color: var(--color-success-text);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='ready'] {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+.catalog-icon-toolbar .catalog-video-toggle button[data-video-state='blocked'] {
+  color: var(--color-error-text);
+  border-color: var(--color-error-border);
+  background: var(--color-error-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-video-toggle button[data-video-state]::before {
+    transition: none;
+  }
+}
 .catalog-schedule-cell .team-updater-interval-picker > button {
   min-height: var(--control-height-md);
   border-radius: var(--radius-md);
@@ -19730,4 +19763,31 @@ a.history-subject {
 
 .team-members-section .team-member-list .team-inline-actions {
   margin-top: 0;
+}
+
+.catalog-settings-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.catalog-settings-heading {
+  padding: var(--space-3) 0;
+}
+.catalog-settings-heading h2 {
+  font-size: var(--text-title);
+  margin: 0;
+}
+.catalog-settings-editor .ui-accordion-trigger {
+  flex-wrap: wrap;
+}
+.catalog-settings-editor .ui-accordion-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.catalog-settings-editor .ui-accordion-panel {
+  min-width: 0;
+}
+.catalog-settings-editor .product-catalog-price-range,
+.catalog-settings-editor .product-catalog-generate {
+  flex-wrap: wrap;
 }

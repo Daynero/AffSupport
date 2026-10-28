@@ -12,6 +12,10 @@ export interface TeamAccountLaunchSummary {
   method: string;
   unmatchedReason: 'missing_agent' | 'unknown_agent' | null;
 }
+export interface TeamAccountLaunchAssignment extends TeamAccountLaunchSummary {
+  assignmentState: 'assigned' | 'legacy_unknown';
+  assignmentVersion: string;
+}
 export interface TeamAccountsOverview {
   schemaVersion: 1;
   accounts: TeamAccountSummary[];
@@ -19,6 +23,8 @@ export interface TeamAccountsOverview {
   agentOrderVersions: Record<string, string>;
   coverage: 'complete' | 'partial';
   launchSummaries?: TeamAccountLaunchSummary[];
+  launchAssignments?: TeamAccountLaunchAssignment[];
+  assignmentCoverage?: 'complete' | 'partial';
   launchCoverage?: 'complete' | 'partial';
 }
 export function parseTeamAccountsOverview(value: unknown): TeamAccountsOverview | null {
@@ -53,13 +59,29 @@ export function parseTeamAccountsOverview(value: unknown): TeamAccountsOverview 
     value.launchCoverage !== 'partial'
   )
     return null;
+  if (
+    value.launchAssignments !== undefined &&
+    (!Array.isArray(value.launchAssignments) ||
+      !value.launchAssignments.every(isTeamAccountLaunchAssignment))
+  )
+    return null;
+  if (
+    value.assignmentCoverage !== undefined &&
+    value.assignmentCoverage !== 'complete' &&
+    value.assignmentCoverage !== 'partial'
+  )
+    return null;
   return {
+    ...(value.launchAssignments !== undefined
+      ? { launchAssignments: value.launchAssignments as TeamAccountLaunchAssignment[] }
+      : {}),
     ...(value.launchSummaries !== undefined
       ? { launchSummaries: value.launchSummaries as TeamAccountLaunchSummary[] }
       : {}),
     ...(value.launchCoverage !== undefined
       ? { launchCoverage: value.launchCoverage as 'complete' | 'partial' }
       : {}),
+    assignmentCoverage: value.assignmentCoverage === 'complete' ? 'complete' : 'partial',
     schemaVersion: 1,
     accounts,
     socialOrderVersion: value.socialOrderVersion,
@@ -84,5 +106,15 @@ function isTeamAccountLaunchSummary(value: unknown): value is TeamAccountLaunchS
     (value.unmatchedReason === null ||
       value.unmatchedReason === 'missing_agent' ||
       value.unmatchedReason === 'unknown_agent')
+  );
+}
+
+function isTeamAccountLaunchAssignment(value: unknown): value is TeamAccountLaunchAssignment {
+  return (
+    isTeamAccountLaunchSummary(value) &&
+    isRecord(value) &&
+    (value.assignmentState === 'assigned' || value.assignmentState === 'legacy_unknown') &&
+    typeof value.assignmentVersion === 'string' &&
+    /^\d{1,19}$/u.test(value.assignmentVersion)
   );
 }

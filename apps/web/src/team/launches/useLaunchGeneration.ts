@@ -73,6 +73,7 @@ export function useLaunchGeneration(
           older(detail.generation?.stateVersion, known.generation?.stateVersion)))
     )
       return;
+    lastObserved.current = detail;
     if (mounted.current) resultHandler.current(detail);
   };
   const continueAccepted = async (detail: LaunchDetail, attempt: number, signal: AbortSignal) => {
@@ -102,7 +103,26 @@ export function useLaunchGeneration(
       );
     } catch (error) {
       // An existing child still running is progress, not permission to start another.
-      if (!(error instanceof TeamApiError && error.code === 'LAUNCH_BUSY')) throw error;
+      if (!(error instanceof TeamApiError && error.code === 'LAUNCH_BUSY')) {
+        if (attempt !== execution.current || signal.aborted) throw error;
+        // Settlement can have recorded a failed child before Realtime arrives.
+        // Expose that durable state so Repeat chooses retry, not another replay.
+        try {
+          const latest = await whileLaunchActive(
+            launchReply(launchApi.detail(teamId, detail.id)),
+            signal
+          );
+          if (
+            attempt === execution.current &&
+            latest.id === detail.id &&
+            latest.generation?.id === detail.generation?.id
+          )
+            notify(latest);
+        } catch {
+          // Keep the original failure and the same recovery keys if readback fails.
+        }
+        throw error;
+      }
     }
     if (attempt !== execution.current) return;
     const latest = await whileLaunchActive(
@@ -325,7 +345,7 @@ export function useLaunchGeneration(
     }
   };
   const resume = async (detail: LaunchDetail) => {
-    const gen = detail.generation;
+    let gen = detail.generation;
     if (!gen?.requestKey || !gen.inputVersion || submitting.current) return;
     const attempt = ++execution.current;
     const controller = new AbortController();
@@ -336,6 +356,26 @@ export function useLaunchGeneration(
     setBusy(true);
     setPendingStage('preparing');
     try {
+      // A failed native child can precede its parent's Realtime update. Settle
+      // the durable receipt before choosing replay versus an explicit retry.
+      if (gen.state === 'waiting_dependency') {
+        await active(launchReply(launchApi.settleRestitch(teamId, gen.id)));
+        const latest = await active(launchReply(launchApi.detail(teamId, detail.id)));
+        if (attempt !== execution.current) return;
+        if (latest.generation?.id !== gen.id || latest.generation.requestKey !== gen.requestKey)
+          throw new TeamApiError('LAUNCH_VERSION_CONFLICT', false);
+        detail = latest;
+        gen = latest.generation;
+        if (
+          ['succeeded', 'canceled', 'cancel_requested', 'canceled_with_cleanup_pending'].includes(
+            gen.state
+          )
+        ) {
+          notify(latest);
+          return;
+        }
+      }
+      if (!gen.requestKey || !gen.inputVersion) throw new TeamApiError('INVALID_RESPONSE', false);
       const parsed = parseLaunchConfig(detail.draft);
       if (
         gen.state === 'failed' &&
@@ -449,6 +489,52 @@ export function useLaunchGeneration(
       }
     }
   };
+  const retry = async (
+    detail: LaunchDetail | null,
+    config: LaunchDraft,
+    sources: LaunchSourceSnapshot | null,
+    expectedVersion: string | null
+  ) => {
+    if (submitting.current || cancelSubmitting.current) return;
+    const pending = request.current;
+    if (pending && !cancelRequested.current) {
+      const reconciliation = ++execution.current;
+      submitting.current = true;
+      setBusy(true);
+      let latest: LaunchDetail;
+      try {
+        latest = await launchReply(launchApi.detail(teamId, pending.id));
+      } catch (error) {
+        if (reconciliation !== execution.current) return;
+        if (mounted.current)
+          launchAction(
+            { flowId: pending.key, launchId: pending.id },
+            'retry',
+            'failure',
+            error instanceof TeamApiError ? error.code : undefined
+          );
+        throw error;
+      } finally {
+        if (reconciliation === execution.current) {
+          submitting.current = false;
+          if (mounted.current) setBusy(cancelSubmitting.current);
+        }
+      }
+      if (!mounted.current || reconciliation !== execution.current || request.current !== pending)
+        return;
+      if (
+        !cancelRequested.current &&
+        latest.generation?.requestKey === pending.key &&
+        ['failed', 'partial', 'interrupted'].includes(latest.generation.state)
+      ) {
+        request.current = null;
+        saveIntent.current = null;
+        flow.current = null;
+        return resume(latest);
+      }
+    }
+    return generate(detail, config, sources, expectedVersion);
+  };
   return {
     busy,
     pendingStage,
@@ -500,6 +586,7 @@ export function useLaunchGeneration(
       return true;
     },
     generate,
+    retry,
     resume,
     cancel,
     cancelPending,

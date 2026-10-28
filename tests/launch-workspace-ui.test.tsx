@@ -22,6 +22,8 @@ const seams = vi.hoisted(() => ({
   edit: false,
   manage: false,
   delete: false,
+  assignment: vi.fn(),
+  setAssignment: vi.fn(),
   archiveWarning: vi.fn(),
   archive: vi.fn(),
   copy: vi.fn(),
@@ -63,7 +65,11 @@ vi.mock('../apps/web/src/team/TeamContext', () => ({
 vi.mock('../apps/web/src/api/team', () => ({
   launchApi: {
     assignees: async () => seams.members,
-    accounts: async () => seams.accounts,
+    accounts: async () =>
+      (seams.accounts as Array<{ agents: Array<Record<string, unknown>> }>).map(account => ({
+        ...account,
+        agents: account.agents.map(agent => ({ runs: [], labels: [], ...agent }))
+      })),
     dictionaries: async () => ({ offers: seams.offers, buyers: seams.buyers }),
     defaults: seams.defaults,
     setDefaults: seams.setDefaults,
@@ -92,6 +98,18 @@ vi.mock('../apps/web/src/api/team', () => ({
     }
   }
 }));
+vi.mock('../apps/web/src/api/team-launch-assignments', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../apps/web/src/api/team-launch-assignments')>();
+  return {
+    ...actual,
+    launchAssignmentsApi: {
+      read: seams.assignment,
+      set: seams.setAssignment,
+      readMutation: vi.fn()
+    }
+  };
+});
 vi.mock('../apps/web/src/team/launches/useLaunchGeneration', async () => {
   const actual = await vi.importActual<
     typeof import('../apps/web/src/team/launches/useLaunchGeneration')
@@ -185,6 +203,14 @@ function clickLaunchClose() {
   fireEvent.click(close);
 }
 function resetSeams() {
+  seams.assignment.mockReset().mockImplementation(async (_team: string, launchId: string) => ({
+    launchId,
+    version: '0',
+    state: 'assigned',
+    agentRowId: launchConfig().agentRowId,
+    sourceAgentRowId: launchConfig().agentRowId
+  }));
+  seams.setAssignment.mockReset();
   seams.actor = 'actor-a';
   seams.revision = 0;
   seams.view = true;
@@ -1329,6 +1355,13 @@ it('autosaves settings without disabling typing and restores the confirmed draft
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await screen.findByRole('button', { name: 'Age 50' });
   await waitFor(() => expect(screen.queryByText('Loading default settings…')).toBeNull());
+  await waitFor(() =>
+    expect(
+      screen.queryByText(
+        'Before generating, assign this launch to the ad account selected in settings, or change settings to match its current assignment.'
+      )
+    ).toBeNull()
+  );
   const statusRow = document.querySelector('.launch-draft-save-status')!;
   const detailChildren = document.querySelector('.launch-detail')!.children.length;
   const actionChildren = document.querySelector('.launch-detail-actions')!.children.length;
@@ -1672,6 +1705,46 @@ it('shows current saved notes on an existing result without requiring regenerati
   await waitFor(() => expect(write).toHaveBeenCalledWith(note.text));
   expect(seams.generate).not.toHaveBeenCalled();
 });
+
+it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as const)(
+  'blocks new generation until a matching current assignment is confirmed (%s)',
+  async state => {
+    seams.edit = true;
+    const config = launchConfig();
+    seams.accounts = [
+      {
+        id: launchSources.accountId,
+        name: launchSources.social,
+        agents: [{ id: config.agentRowId, agentId: launchSources.agentId }]
+      }
+    ];
+    seams.offers = [{ id: config.offerId, value: launchSources.offer }];
+    seams.buyers = [{ id: config.buyerId, value: launchSources.buyer }];
+    seams.detail.mockResolvedValue(detail(config.originalUrl));
+    seams.selection.mockResolvedValue(launchSources);
+    if (state === 'unknown') seams.assignment.mockRejectedValue(new Error('offline'));
+    else
+      seams.assignment.mockResolvedValue({
+        launchId: LAUNCH,
+        version: '0',
+        state: state === 'mismatch' ? 'assigned' : state,
+        agentRowId: state === 'mismatch' ? 'different-rk' : null,
+        sourceAgentRowId: config.agentRowId
+      });
+    render(<LaunchSpace teamId={TEAM} query={query} />);
+    const generate = await screen.findByRole('button', { name: 'Generate launch' });
+    await waitFor(() => expect(seams.assignment).toHaveBeenCalledWith(TEAM, LAUNCH));
+    expect(generate).toHaveProperty('disabled', true);
+    fireEvent.click(generate);
+    expect(seams.generate).not.toHaveBeenCalled();
+    expect(seams.setAssignment).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        'Before generating, assign this launch to the ad account selected in settings, or change settings to match its current assignment.'
+      )
+    ).toBeTruthy();
+  }
+);
 
 it('explains a regenerate click while the copied launch sources are still being checked', async () => {
   seams.edit = true;

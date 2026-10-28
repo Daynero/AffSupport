@@ -166,6 +166,21 @@ Deno.serve(async request => {
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
+          readImageLink: async teamId => {
+            const rows = await rpcValue(service, 'service_get_team_product_catalog_settings', {
+              p_team: teamId
+            });
+            const settings = Array.isArray(rows) ? rows[0] : null;
+            if (!settings) return null;
+            if (
+              typeof settings !== 'object' ||
+              (settings.image_link !== null && typeof settings.image_link !== 'string')
+            )
+              throw new TeamFunctionError('INVALID_RESPONSE');
+            return typeof settings.image_link === 'string' && settings.image_link.trim()
+              ? settings.image_link.trim()
+              : null;
+          },
           drawImages: async (teamId, count) => {
             const rows = await rpcValue(service, 'service_draw_product_catalog_images', {
               p_team: teamId,

@@ -1,0 +1,1042 @@
+{
+  "as_of": "2026-10-27",
+  "currency": "USD",
+  "days_per_month": 30,
+  "assumptions": {
+    "users": 50,
+    "creates_per_user_day": 15,
+    "products_per_catalog": 100,
+    "pool_images_per_user": 500,
+    "image_mb": 0.2,
+    "video_mb": 100.0,
+    "pool_gb": 5.0,
+    "updates_per_day": 2,
+    "consumer_fetches_per_row_per_cycle": 1,
+    "cache_hit_ratio_default": 0,
+    "single_put_per_upload": true
+  },
+  "months": [
+    {
+      "month": 1,
+      "catalogs_end": 22500,
+      "updates": 675000,
+      "cycles_including_creation": 697500,
+      "image_reads_before_cache": 69750000,
+      "latest_video_gb_end": 2250.0,
+      "latest_video_gb_month": 1162.5,
+      "all_video_versions_gb_end": 69750.0,
+      "all_video_versions_gb_month": 24800.0,
+      "video_upload_gb_month": 69750.0,
+      "consumer_media_egress_gb": 83700.0,
+      "local_hours_at_20_seconds_per_restitch": 3875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 21.6,
+        "total": 21.6
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 17.37,
+        "class_a": 0.0,
+        "class_b": 21.96,
+        "total": 39.33
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 17.37,
+        "class_a": 0.0,
+        "class_b": 21.96,
+        "total": 39.33
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 17.37,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 17.37
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 371.93,
+        "class_a": 0.0,
+        "class_b": 21.96,
+        "total": 393.89
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 17.52,
+        "class_a": 4.5,
+        "class_b": 25.56,
+        "total": 47.58
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 17.37,
+        "class_a": 0.0,
+        "class_b": 7.56,
+        "total": 24.93
+      },
+      "r2_optional_pause_7d_paused_cycles": 300750,
+      "comparative_latest_video_cold": {
+        "b2_direct": 810.02,
+        "b2_storage_only_partner_delivery_extra": 8.04,
+        "bunny_europe_na": 848.68,
+        "supabase_cached": 2526.24,
+        "supabase_uncached": 7533.24
+      }
+    },
+    {
+      "month": 2,
+      "catalogs_end": 45000,
+      "updates": 2025000,
+      "cycles_including_creation": 2047500,
+      "image_reads_before_cache": 204750000,
+      "latest_video_gb_end": 4500.0,
+      "latest_video_gb_month": 3412.5,
+      "all_video_versions_gb_end": 274500.0,
+      "all_video_versions_gb_month": 164300.0,
+      "video_upload_gb_month": 204750.0,
+      "consumer_media_egress_gb": 245700.0,
+      "local_hours_at_20_seconds_per_restitch": 11375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 70.2,
+        "total": 70.2
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 3.96,
+        "total": 3.96
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 51.12,
+        "class_a": 0.0,
+        "class_b": 70.92,
+        "total": 122.04
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 51.12,
+        "class_a": 9.0,
+        "class_b": 70.92,
+        "total": 131.04
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 51.12,
+        "class_a": 9.0,
+        "class_b": 0.0,
+        "total": 60.12
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 2464.43,
+        "class_a": 9.0,
+        "class_b": 70.92,
+        "total": 2544.35
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 51.27,
+        "class_a": 13.5,
+        "class_b": 74.52,
+        "total": 139.29
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 51.12,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 60.12
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 2378.16,
+        "b2_storage_only_partner_delivery_extra": 23.68,
+        "bunny_europe_na": 2491.18,
+        "supabase_cached": 7434.16,
+        "supabase_uncached": 22161.16
+      }
+    },
+    {
+      "month": 3,
+      "catalogs_end": 67500,
+      "updates": 3375000,
+      "cycles_including_creation": 3397500,
+      "image_reads_before_cache": 339750000,
+      "latest_video_gb_end": 6750.0,
+      "latest_video_gb_month": 5662.5,
+      "all_video_versions_gb_end": 614250.0,
+      "all_video_versions_gb_month": 438800.0,
+      "video_upload_gb_month": 339750.0,
+      "consumer_media_egress_gb": 407700.0,
+      "local_hours_at_20_seconds_per_restitch": 18875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 118.8,
+        "total": 118.8
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 8.64,
+        "total": 8.64
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 84.87,
+        "class_a": 0.0,
+        "class_b": 120.24,
+        "total": 205.11
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 84.87,
+        "class_a": 13.5,
+        "class_b": 120.24,
+        "total": 218.61
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 84.87,
+        "class_a": 13.5,
+        "class_b": 0.0,
+        "total": 98.37
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 6581.93,
+        "class_a": 13.5,
+        "class_b": 120.24,
+        "total": 6715.67
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 85.02,
+        "class_a": 18.0,
+        "class_b": 123.84,
+        "total": 226.86
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 84.87,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 93.87
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 3946.29,
+        "b2_storage_only_partner_delivery_extra": 39.32,
+        "bunny_europe_na": 4133.68,
+        "supabase_cached": 12342.09,
+        "supabase_uncached": 36789.09
+      }
+    },
+    {
+      "month": 4,
+      "catalogs_end": 90000,
+      "updates": 4725000,
+      "cycles_including_creation": 4747500,
+      "image_reads_before_cache": 474750000,
+      "latest_video_gb_end": 9000.0,
+      "latest_video_gb_month": 7912.5,
+      "all_video_versions_gb_end": 1089000.0,
+      "all_video_versions_gb_month": 848300.0,
+      "video_upload_gb_month": 474750.0,
+      "consumer_media_egress_gb": 569700.0,
+      "local_hours_at_20_seconds_per_restitch": 26375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 167.4,
+        "total": 167.4
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 13.68,
+        "total": 13.68
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 118.62,
+        "class_a": 0.0,
+        "class_b": 169.2,
+        "total": 287.82
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 118.62,
+        "class_a": 18.0,
+        "class_b": 169.2,
+        "total": 305.82
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 118.62,
+        "class_a": 18.0,
+        "class_b": 0.0,
+        "total": 136.62
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 12724.43,
+        "class_a": 18.0,
+        "class_b": 169.2,
+        "total": 12911.63
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 118.77,
+        "class_a": 22.5,
+        "class_b": 172.8,
+        "total": 314.07
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 118.62,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 127.62
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 5514.43,
+        "b2_storage_only_partner_delivery_extra": 54.96,
+        "bunny_europe_na": 5776.18,
+        "supabase_cached": 17250.01,
+        "supabase_uncached": 51417.01
+      }
+    },
+    {
+      "month": 5,
+      "catalogs_end": 112500,
+      "updates": 6075000,
+      "cycles_including_creation": 6097500,
+      "image_reads_before_cache": 609750000,
+      "latest_video_gb_end": 11250.0,
+      "latest_video_gb_month": 10162.5,
+      "all_video_versions_gb_end": 1698750.0,
+      "all_video_versions_gb_month": 1392800.0,
+      "video_upload_gb_month": 609750.0,
+      "consumer_media_egress_gb": 731700.0,
+      "local_hours_at_20_seconds_per_restitch": 33875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 216.0,
+        "total": 216.0
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 18.36,
+        "total": 18.36
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 152.37,
+        "class_a": 0.0,
+        "class_b": 218.16,
+        "total": 370.53
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 152.37,
+        "class_a": 27.0,
+        "class_b": 218.16,
+        "total": 397.53
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 152.37,
+        "class_a": 27.0,
+        "class_b": 1.08,
+        "total": 180.45
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 20891.93,
+        "class_a": 27.0,
+        "class_b": 218.16,
+        "total": 21137.09
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 152.52,
+        "class_a": 31.5,
+        "class_b": 221.76,
+        "total": 405.78
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 152.37,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 161.37
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 7082.57,
+        "b2_storage_only_partner_delivery_extra": 70.59,
+        "bunny_europe_na": 7418.68,
+        "supabase_cached": 22157.94,
+        "supabase_uncached": 66044.94
+      }
+    },
+    {
+      "month": 6,
+      "catalogs_end": 135000,
+      "updates": 7425000,
+      "cycles_including_creation": 7447500,
+      "image_reads_before_cache": 744750000,
+      "latest_video_gb_end": 13500.0,
+      "latest_video_gb_month": 12412.5,
+      "all_video_versions_gb_end": 2443500.0,
+      "all_video_versions_gb_month": 2072300.0,
+      "video_upload_gb_month": 744750.0,
+      "consumer_media_egress_gb": 893700.0,
+      "local_hours_at_20_seconds_per_restitch": 41375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 264.6,
+        "total": 264.6
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 23.4,
+        "total": 23.4
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 186.12,
+        "class_a": 0.0,
+        "class_b": 267.48,
+        "total": 453.6
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 186.12,
+        "class_a": 31.5,
+        "class_b": 267.48,
+        "total": 485.1
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 186.12,
+        "class_a": 31.5,
+        "class_b": 1.8,
+        "total": 219.42
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 31084.43,
+        "class_a": 31.5,
+        "class_b": 267.48,
+        "total": 31383.41
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 186.27,
+        "class_a": 36.0,
+        "class_b": 271.08,
+        "total": 493.35
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 186.12,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 195.12
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 8650.71,
+        "b2_storage_only_partner_delivery_extra": 86.23,
+        "bunny_europe_na": 9061.18,
+        "supabase_cached": 27065.86,
+        "supabase_uncached": 80672.86
+      }
+    },
+    {
+      "month": 7,
+      "catalogs_end": 157500,
+      "updates": 8775000,
+      "cycles_including_creation": 8797500,
+      "image_reads_before_cache": 879750000,
+      "latest_video_gb_end": 15750.0,
+      "latest_video_gb_month": 14662.5,
+      "all_video_versions_gb_end": 3323250.0,
+      "all_video_versions_gb_month": 2886800.0,
+      "video_upload_gb_month": 879750.0,
+      "consumer_media_egress_gb": 1055700.0,
+      "local_hours_at_20_seconds_per_restitch": 48875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 313.2,
+        "total": 313.2
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 28.08,
+        "total": 28.08
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_video_creation_only": {
+        "storage": 219.87,
+        "class_a": 0.0,
+        "class_b": 316.44,
+        "total": 536.31
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 219.87,
+        "class_a": 36.0,
+        "class_b": 316.44,
+        "total": 572.31
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 219.87,
+        "class_a": 36.0,
+        "class_b": 2.88,
+        "total": 258.75
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 43301.93,
+        "class_a": 36.0,
+        "class_b": 316.44,
+        "total": 43654.37
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 220.02,
+        "class_a": 40.5,
+        "class_b": 320.04,
+        "total": 580.56
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 219.87,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 228.87
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 10218.84,
+        "b2_storage_only_partner_delivery_extra": 101.87,
+        "bunny_europe_na": 10703.68,
+        "supabase_cached": 31973.79,
+        "supabase_uncached": 95300.79
+      }
+    },
+    {
+      "month": 8,
+      "catalogs_end": 180000,
+      "updates": 10125000,
+      "cycles_including_creation": 10147500,
+      "image_reads_before_cache": 1014750000,
+      "latest_video_gb_end": 18000.0,
+      "latest_video_gb_month": 16912.5,
+      "all_video_versions_gb_end": 4338000.0,
+      "all_video_versions_gb_month": 3836300.0,
+      "video_upload_gb_month": 1014750.0,
+      "consumer_media_egress_gb": 1217700.0,
+      "local_hours_at_20_seconds_per_restitch": 56375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 361.8,
+        "total": 361.8
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 33.12,
+        "total": 33.12
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.36,
+        "total": 0.36
+      },
+      "r2_video_creation_only": {
+        "storage": 253.62,
+        "class_a": 0.0,
+        "class_b": 365.4,
+        "total": 619.02
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 253.62,
+        "class_a": 45.0,
+        "class_b": 365.4,
+        "total": 664.02
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 253.62,
+        "class_a": 45.0,
+        "class_b": 3.96,
+        "total": 302.58
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 57544.43,
+        "class_a": 45.0,
+        "class_b": 365.4,
+        "total": 57954.83
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 253.77,
+        "class_a": 49.5,
+        "class_b": 369.0,
+        "total": 672.27
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 253.62,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 262.62
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 11786.98,
+        "b2_storage_only_partner_delivery_extra": 117.51,
+        "bunny_europe_na": 12346.18,
+        "supabase_cached": 36881.71,
+        "supabase_uncached": 109928.71
+      }
+    },
+    {
+      "month": 9,
+      "catalogs_end": 202500,
+      "updates": 11475000,
+      "cycles_including_creation": 11497500,
+      "image_reads_before_cache": 1149750000,
+      "latest_video_gb_end": 20250.0,
+      "latest_video_gb_month": 19162.5,
+      "all_video_versions_gb_end": 5487750.0,
+      "all_video_versions_gb_month": 4920800.0,
+      "video_upload_gb_month": 1149750.0,
+      "consumer_media_egress_gb": 1379700.0,
+      "local_hours_at_20_seconds_per_restitch": 63875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 410.4,
+        "total": 410.4
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 37.8,
+        "total": 37.8
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.72,
+        "total": 0.72
+      },
+      "r2_video_creation_only": {
+        "storage": 287.37,
+        "class_a": 0.0,
+        "class_b": 414.72,
+        "total": 702.09
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 287.37,
+        "class_a": 49.5,
+        "class_b": 414.72,
+        "total": 751.59
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 287.37,
+        "class_a": 49.5,
+        "class_b": 4.68,
+        "total": 341.55
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 73811.93,
+        "class_a": 49.5,
+        "class_b": 414.72,
+        "total": 74276.15
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 287.52,
+        "class_a": 54.0,
+        "class_b": 418.32,
+        "total": 759.84
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 287.37,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 296.37
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 13355.12,
+        "b2_storage_only_partner_delivery_extra": 133.14,
+        "bunny_europe_na": 13988.68,
+        "supabase_cached": 41789.64,
+        "supabase_uncached": 124556.64
+      }
+    },
+    {
+      "month": 10,
+      "catalogs_end": 225000,
+      "updates": 12825000,
+      "cycles_including_creation": 12847500,
+      "image_reads_before_cache": 1284750000,
+      "latest_video_gb_end": 22500.0,
+      "latest_video_gb_month": 21412.5,
+      "all_video_versions_gb_end": 6772500.0,
+      "all_video_versions_gb_month": 6140300.0,
+      "video_upload_gb_month": 1284750.0,
+      "consumer_media_egress_gb": 1541700.0,
+      "local_hours_at_20_seconds_per_restitch": 71375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 459.0,
+        "total": 459.0
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 42.84,
+        "total": 42.84
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 1.08,
+        "total": 1.08
+      },
+      "r2_video_creation_only": {
+        "storage": 321.12,
+        "class_a": 0.0,
+        "class_b": 463.68,
+        "total": 784.8
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 321.12,
+        "class_a": 54.0,
+        "class_b": 463.68,
+        "total": 838.8
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 321.12,
+        "class_a": 54.0,
+        "class_b": 5.76,
+        "total": 380.88
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 92104.43,
+        "class_a": 54.0,
+        "class_b": 463.68,
+        "total": 92622.11
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 321.27,
+        "class_a": 58.5,
+        "class_b": 467.28,
+        "total": 847.05
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 321.12,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 330.12
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 14923.26,
+        "b2_storage_only_partner_delivery_extra": 148.78,
+        "bunny_europe_na": 15631.18,
+        "supabase_cached": 46697.56,
+        "supabase_uncached": 139184.56
+      }
+    },
+    {
+      "month": 11,
+      "catalogs_end": 247500,
+      "updates": 14175000,
+      "cycles_including_creation": 14197500,
+      "image_reads_before_cache": 1419750000,
+      "latest_video_gb_end": 24750.0,
+      "latest_video_gb_month": 23662.5,
+      "all_video_versions_gb_end": 8192250.0,
+      "all_video_versions_gb_month": 7494800.0,
+      "video_upload_gb_month": 1419750.0,
+      "consumer_media_egress_gb": 1703700.0,
+      "local_hours_at_20_seconds_per_restitch": 78875.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 507.6,
+        "total": 507.6
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 47.52,
+        "total": 47.52
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 1.8,
+        "total": 1.8
+      },
+      "r2_video_creation_only": {
+        "storage": 354.87,
+        "class_a": 0.0,
+        "class_b": 512.64,
+        "total": 867.51
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 354.87,
+        "class_a": 63.0,
+        "class_b": 512.64,
+        "total": 930.51
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 354.87,
+        "class_a": 63.0,
+        "class_b": 6.84,
+        "total": 424.71
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 112421.93,
+        "class_a": 63.0,
+        "class_b": 512.64,
+        "total": 112997.57
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 355.02,
+        "class_a": 67.5,
+        "class_b": 516.24,
+        "total": 938.76
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 354.87,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 363.87
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 16491.39,
+        "b2_storage_only_partner_delivery_extra": 164.42,
+        "bunny_europe_na": 17273.68,
+        "supabase_cached": 51605.49,
+        "supabase_uncached": 153812.49
+      }
+    },
+    {
+      "month": 12,
+      "catalogs_end": 270000,
+      "updates": 15525000,
+      "cycles_including_creation": 15547500,
+      "image_reads_before_cache": 1554750000,
+      "latest_video_gb_end": 27000.0,
+      "latest_video_gb_month": 25912.5,
+      "all_video_versions_gb_end": 9747000.0,
+      "all_video_versions_gb_month": 8984300.0,
+      "video_upload_gb_month": 1554750.0,
+      "consumer_media_egress_gb": 1865700.0,
+      "local_hours_at_20_seconds_per_restitch": 86375.0,
+      "r2_images_creation_reads_only": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 0.0,
+        "total": 0.0
+      },
+      "r2_images_every_cycle": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 556.2,
+        "total": 556.2
+      },
+      "r2_images_every_cycle_90pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 52.56,
+        "total": 52.56
+      },
+      "r2_images_every_cycle_99pct_cache": {
+        "storage": 0.0,
+        "class_a": 0.0,
+        "class_b": 2.16,
+        "total": 2.16
+      },
+      "r2_video_creation_only": {
+        "storage": 388.62,
+        "class_a": 0.0,
+        "class_b": 561.96,
+        "total": 950.58
+      },
+      "r2_video_every_cycle_latest": {
+        "storage": 388.62,
+        "class_a": 67.5,
+        "class_b": 561.96,
+        "total": 1018.08
+      },
+      "r2_video_every_cycle_latest_99pct_image_cache": {
+        "storage": 388.62,
+        "class_a": 67.5,
+        "class_b": 7.92,
+        "total": 464.04
+      },
+      "r2_video_every_cycle_all_versions": {
+        "storage": 134764.43,
+        "class_a": 67.5,
+        "class_b": 561.96,
+        "total": 135393.89
+      },
+      "r2_video_latest_without_free_tier": {
+        "storage": 388.77,
+        "class_a": 72.0,
+        "class_b": 565.56,
+        "total": 1026.33
+      },
+      "r2_optional_pause_7d_keep_latest_forever": {
+        "storage": 388.62,
+        "class_a": 0.0,
+        "class_b": 9.0,
+        "total": 397.62
+      },
+      "r2_optional_pause_7d_paused_cycles": 337500,
+      "comparative_latest_video_cold": {
+        "b2_direct": 18059.53,
+        "b2_storage_only_partner_delivery_extra": 180.06,
+        "bunny_europe_na": 18916.18,
+        "supabase_cached": 56513.41,
+        "supabase_uncached": 168440.41
+      }
+    }
+  ],
+  "year_total": {
+    "r2_images_every_cycle": 3466.8,
+    "r2_video_creation_only": 5938.74,
+    "r2_video_every_cycle_latest": 6352.74,
+    "r2_video_every_cycle_all_versions": 591984.96
+  },
+  "video_size_sensitivity_month_12": {
+    "25": {
+      "storage": 97.11,
+      "class_a": 67.5,
+      "class_b": 561.96,
+      "total": 726.57
+    },
+    "50": {
+      "storage": 194.28,
+      "class_a": 67.5,
+      "class_b": 561.96,
+      "total": 823.74
+    },
+    "100": {
+      "storage": 388.62,
+      "class_a": 67.5,
+      "class_b": 561.96,
+      "total": 1018.08
+    },
+    "200": {
+      "storage": 777.3,
+      "class_a": 67.5,
+      "class_b": 561.96,
+      "total": 1406.76
+    },
+    "500": {
+      "storage": 1943.37,
+      "class_a": 67.5,
+      "class_b": 561.96,
+      "total": 2572.83
+    }
+  }
+}

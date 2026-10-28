@@ -122,8 +122,12 @@ describe.each([
     if (post031) {
       expect(kinds).not.toContain('journal_table_missing');
       expect(kinds).not.toContain('envelope_v3_missing');
-      // This compatibility fixture intentionally predates the 037 diagnostic view.
-      expect(data.schema.missing).toEqual(['analytics_workspace_operations']);
+      // This compatibility fixture predates the 037 workspace and 044 assignment projections.
+      expect(data.schema.missing).toEqual([
+        'analytics_launch_assignments',
+        'analytics_launch_assignment_events',
+        'analytics_workspace_operations'
+      ]);
       expect(data.coverage.journal_records).toBe(1);
       expect(data.subject.agent_instance_ids).toEqual([AGENT]);
     } else {
@@ -142,6 +146,8 @@ describe.each([
         'agent_journal_records',
         'analytics_daily_events',
         'analytics_daily_tool_outcomes',
+        'analytics_launch_assignments',
+        'analytics_launch_assignment_events',
         'analytics_workspace_operations'
       ]);
       expect(data.coverage.journal_records).toBe(0);
@@ -193,8 +199,12 @@ describe.each([
     const data = (await run('audit', '--period', '30d')).data as AuditData;
     expect(data.capabilities.length).toBe(data.registry_size);
     if (post031) {
-      // This compatibility fixture intentionally predates the 037 diagnostic view.
-      expect(data.schema.missing).toEqual(['analytics_workspace_operations']);
+      // This compatibility fixture predates the 037 workspace and 044 assignment projections.
+      expect(data.schema.missing).toEqual([
+        'analytics_launch_assignments',
+        'analytics_launch_assignment_events',
+        'analytics_workspace_operations'
+      ]);
       expect(data.schema.note).toMatch(/lacks/);
     } else {
       expect(data.schema.missing).toContain('analytics_events.attempt_id');

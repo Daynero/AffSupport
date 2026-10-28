@@ -1,4 +1,5 @@
 import { parseLaunchNotes } from './notes.js';
+import { parseLaunchAssignmentState } from '../launch-assignment.js';
 import { isRecord } from '../contract.js';
 import {
   LAUNCH_GENERATION_STATES,
@@ -328,6 +329,9 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
     )
   )
     return null;
+  const assignment =
+    value.assignment === undefined ? undefined : parseLaunchAssignmentState(value.assignment);
+  if (assignment === null || (assignment && assignment.launchId !== value.id)) return null;
   const generationState =
     value.generationState === null
       ? null
@@ -335,6 +339,7 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
   if (generationState === undefined) return null;
   return {
     id: value.id,
+    ...(assignment ? { assignment } : {}),
     version: value.version,
     ...(typeof value.createdAt === 'string' ? { createdAt: value.createdAt } : {}),
     launchDate: value.launchDate,
@@ -349,7 +354,10 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
     ...(typeof value.agentSuffix === 'string' ? { agentSuffix: value.agentSuffix } : {}),
     ...(typeof value.agentId === 'string' ? { agentId: value.agentId } : {}),
     ...(typeof value.accountName === 'string' ? { accountName: value.accountName } : {}),
-    ...(typeof value.agentFree === 'boolean' ? { agentFree: value.agentFree } : {}),
+    ...(value.agentFree === false ||
+    (typeof value.agentFree === 'boolean' && value.assignment !== undefined)
+      ? { agentFree: value.agentFree }
+      : {}),
     ...(typeof value.assigneeLabel === 'string' || value.assigneeLabel === null
       ? { assigneeLabel: value.assigneeLabel }
       : {}),

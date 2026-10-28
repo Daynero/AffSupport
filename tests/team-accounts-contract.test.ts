@@ -321,6 +321,7 @@ describe('tags on tasks (017, part 2)', () => {
         accountId: V31,
         accountName: 'v31',
         agentId: '1000098765434',
+        availability: { status: 'unknown', assignmentCount: 0, legacyCount: 0 },
         runs: [
           {
             id: 'r1',

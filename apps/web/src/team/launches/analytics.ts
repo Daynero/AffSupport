@@ -64,8 +64,18 @@ export function launchAction(
     })
   );
 }
-export function launchVisible(c: Correlation, tracker: AnalyticsTracker = analytics) {
-  emit(() => tracker.track('team_launch_visible', { ...ids(c), outcome: 'success' }));
+export function launchVisible(
+  c: Correlation,
+  tracker: AnalyticsTracker = analytics,
+  action?: LaunchAnalyticsAction
+) {
+  emit(() =>
+    tracker.track('team_launch_visible', {
+      ...ids(c),
+      outcome: 'success',
+      ...(action ? { launch_action: action } : {})
+    })
+  );
 }
 export function launchLocalStage(
   c: Correlation,
@@ -129,4 +139,13 @@ export async function launchMutation<T>(
     launchAction(c, action, 'failure', code, undefined, tracker);
     throw error;
   }
+}
+
+/** Assignment proof follows the committed row, not merely RPC acceptance. */
+export function launchAssignmentVisible(
+  c: Correlation,
+  action: 'assign_account' | 'release_account',
+  tracker: AnalyticsTracker = analytics
+) {
+  launchVisible(c, tracker, action);
 }

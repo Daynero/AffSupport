@@ -105,7 +105,11 @@ export function useCatalogRegistry(
     const byId = new Map(profiles.map(profile => [profile.catalogId, profile]));
     return rows.map(row => ({ ...row, profile: byId.get(row.catalogId) ?? row.profile }));
   }, enabled);
-  const hasPendingUpdate = value?.some(row => row.updatePending) ?? false;
+  const hasPendingUpdate =
+    value?.some(
+      row =>
+        row.updatePending || (row.profile?.restitch && row.profile.restitchStatus === 'preparing')
+    ) ?? false;
   useEffect(() => {
     if (!enabled || !hasPendingUpdate) return;
     const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);

@@ -34,6 +34,8 @@ export const LAUNCH_ANALYTICS_ACTIONS = [
   'save_defaults',
   'copy_launch',
   'archive_launch',
+  'assign_account',
+  'release_account',
   'copy_field',
   'rename_dictionary',
   'archive_dictionary',

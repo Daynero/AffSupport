@@ -130,3 +130,117 @@ it('uses available identity for unnamed launches and omits an orphan separator',
   expect(screen.getByRole('button', { name: 'Social · Catalog' })).toBeTruthy();
   expect(view.container.querySelector('.launch-card-context')?.textContent).toBe('Catalog');
 });
+
+it('does not show a missing availability observation as a green Free source chip', () => {
+  render(<LaunchCard value={summary({ agentId: '1234567892' })} onOpen={vi.fn()} />);
+  const chip = screen.getByText('g1-892');
+  expect(chip.classList.contains('is-free')).toBe(false);
+  expect(chip.classList.contains('is-neutral')).toBe(true);
+  expect(chip.dataset.availability).toBe('unknown');
+  expect(chip.title).toContain('Availability unconfirmed');
+});
+
+it.each(['unassigned', 'released', 'reassigned'] as const)(
+  'keeps %s launch source identity neutral without borrowing current RK availability',
+  state => {
+    render(
+      <LaunchCard
+        value={summary({
+          agentId: '1234567892',
+          agentFree: true,
+          assignment: {
+            launchId: 'launch-one',
+            version: '2',
+            state: state === 'reassigned' ? 'assigned' : state,
+            agentRowId: state === 'reassigned' ? 'different-rk' : null,
+            sourceAgentRowId: 'original-rk'
+          }
+        })}
+        onOpen={vi.fn()}
+      />
+    );
+    const chip = screen.getByText('g1-892');
+    expect(chip.dataset.availability).toBe('historical');
+    expect(chip.classList.contains('is-free')).toBe(false);
+    expect(chip.classList.contains('is-neutral')).toBe(true);
+    expect(chip.title).toContain('Original ad account · historical link');
+    expect(chip.title).not.toContain('Free');
+  }
+);
+
+it('shows legacy unconfirmed assignment as unknown rather than busy or free', () => {
+  render(
+    <LaunchCard
+      value={summary({
+        agentId: '1234567892',
+        agentFree: false,
+        assignment: {
+          launchId: 'launch-one',
+          version: '0',
+          state: 'legacy_unknown',
+          agentRowId: null,
+          sourceAgentRowId: 'original-rk'
+        }
+      })}
+      onOpen={vi.fn()}
+    />
+  );
+  const chip = screen.getByText('g1-892');
+  expect(chip.dataset.availability).toBe('unknown');
+  expect(chip.title).toContain('Historical link · current assignment unconfirmed');
+  expect(chip.title).not.toContain('Busy');
+});
+
+it('shows a confirmed assignment on its original source RK as busy', () => {
+  render(
+    <LaunchCard
+      value={summary({
+        agentId: '1234567892',
+        agentFree: false,
+        assignment: {
+          launchId: 'launch-one',
+          version: '1',
+          state: 'assigned',
+          agentRowId: 'original-rk',
+          sourceAgentRowId: 'original-rk'
+        }
+      })}
+      onOpen={vi.fn()}
+    />
+  );
+  const chip = screen.getByText('g1-892');
+  expect(chip.dataset.availability).toBe('busy');
+  expect(chip.title).toContain('Current assignment confirmed for this ad account');
+  expect(chip.title).toContain('Busy');
+});
+
+it('does not label contradictory assigned-and-free observations as known Free', () => {
+  render(
+    <LaunchCard
+      value={summary({
+        agentId: '1234567892',
+        agentFree: true,
+        assignment: {
+          launchId: 'launch-one',
+          version: '1',
+          state: 'assigned',
+          agentRowId: 'original-rk',
+          sourceAgentRowId: 'original-rk'
+        }
+      })}
+      onOpen={vi.fn()}
+    />
+  );
+  const chip = screen.getByText('g1-892');
+  expect(chip.dataset.availability).toBe('unknown');
+  expect(chip.classList.contains('is-free')).toBe(false);
+});
+
+it('retains an explicit legacy boolean observation without manufacturing an assignment', () => {
+  render(
+    <LaunchCard value={summary({ agentId: '1234567892', agentFree: true })} onOpen={vi.fn()} />
+  );
+  const chip = screen.getByText('g1-892');
+  expect(chip.dataset.availability).toBe('free');
+  expect(chip.classList.contains('is-free')).toBe(true);
+});

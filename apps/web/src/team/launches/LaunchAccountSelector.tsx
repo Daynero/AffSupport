@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronRight, UserRound } from 'lucide-react';
-import { isTeamAgentFree, type TeamAccountSummary } from '@video-compressor/shared';
+import { getTeamAgentAvailability, type TeamAccountSummary } from '@video-compressor/shared';
 import { LaunchAccountBrowser } from './LaunchAccountBrowser';
 import { Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -30,7 +30,8 @@ export function LaunchAccountSelector({
         .map(agent => ({ ...agent, label: `${account.name} · ${agent.agentId.slice(-3)}` }))
     )
     .find(agent => agent.id === value);
-  const free = selected ? isTeamAgentFree(selected) : false;
+  const availability = selected ? getTeamAgentAvailability(selected) : 'unknown';
+  const free = availability === 'free';
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Button
@@ -58,8 +59,19 @@ export function LaunchAccountSelector({
             <span id={`${id}-details`} className="flex flex-wrap gap-x-3 text-caption">
               <span className="break-all font-mono text-muted">ID {selected.agentId}</span>
               <span className={free ? 'text-success-text' : 'text-warning-text'}>
-                {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
+                {t(
+                  availability === 'unknown'
+                    ? 'teamAgentAvailabilityUnknown'
+                    : free
+                      ? 'teamAgentFree'
+                      : 'teamAgentBusy'
+                )}
               </span>
+              {(selected.availability?.assignmentCount ?? 0) > 0 && (
+                <span className="text-muted">
+                  {t('launchesAssignmentCount', { count: selected.availability!.assignmentCount })}
+                </span>
+              )}
             </span>
           )}
         </span>

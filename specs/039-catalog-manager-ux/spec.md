@@ -119,6 +119,30 @@
 
 ## Assumptions and scope
 
+- Якщо «Оновлювати зображення» увімкнено, актуальний пул має пріоритет;
+  за порожнього пулу використовується збережене одиночне посилання з поточних
+  налаштувань простору, а не історичний imageLink каталогу. Якщо обидва джерела
+  порожні, попередні картинки зберігаються. Помилка читання пулу не вважається
+  порожнім пулом і не завершує оновлення як успішне. За вимкненого refreshImages
+  чинні рядки не змінюють картинок; нові товари можуть використати поточний fallback.
+  Читання налаштувань виконується один раз на спробу. Регресії перевіряють XLSX,
+  snapshot перед записом, imagesRefreshed і відсутність запису при збої джерела.
+  Посилання не додаються до телеметрії; перевірка Drive readback не доводить імпорт Meta.
+
+- Іконка відео показує підготовку запасного відео до наступного оновлення:
+  фіолетовий — очікування; зелена заливка знизу вгору — підтверджений прогрес;
+  повністю зелений — сервер підтвердив придатне запасне відео; червоний — blocked.
+  Вимкнення перезашивки або використання запасу прибирає зелений стан.
+  До підтвердження ready значення обмежене 99%; невідомий або прострочений
+  прогрес не отримує вигаданого відсотка. Reduced motion прибирає анімацію.
+  Protected registry повертає heartbeat прогрес чинної lease ще до round_due;
+  інтерфейс використовує наявне оновлення даних лише під час активної підготовки.
+  Діагностичні докази — job/operation receipt, heartbeat та перевірений spare;
+  зелена іконка не є доказом публікації таблиці або імпорту Meta. Per-tick
+  телеметрія не збирається; регресії покривають SQL, доступність, споживання
+  запасу та зупинку частого оновлення після ready. Відсутня історія перегляду
+  індикатора залишається явною сліпою зоною.
+
 - Під «різними оновленнями» маються на увазі і різні частоти, і різний зміст для кожного каталогу. Чинні спільні значення стають початковими значеннями профілів без зміни поведінки.
 - Наявні дозволені інтервали й ліміти зберігаються; ця робота не додає планування за годиною доби.
 - Назви та значення товарів не редагуються в менеджері; це керування способом їхнього оновлення.
@@ -140,3 +164,47 @@ operation ID; CLI `catalog` MUST показувати причину, місця
 `team-catalog-restitch-sql`, `analytics-catalog-manager`, `analytics-code-map`.
 Прогрес рядка MUST залишатися видимим при hover, keyboard focus та selection;
 ці стани змінюють лише колір тла, зберігаючи градієнт прогресу.
+
+### Catalog settings editor delivery coverage
+
+Independent settings editors reuse `catalog_manager_template` flows through
+`useCatalogSettingsFlow`: opened → readback_requested or save_requested →
+save_confirmed for mutations → result_visible only after React commits the
+confirmed result. Read failures remain READ_FAILED rather than an empty list;
+mutation failures remain SAVE_FAILED or a closed server code. Unmount and
+superseded attempts cancel unfinished flows, and stale replies cannot complete
+a newer attempt. A partial mutation must fail its attempt, retain confirmed
+sub-results and retry only unresolved work in a new attempt.
+
+No source names, text, price values, paths or provider payloads enter this seam.
+The existing `inspect` command reconstructs template attempts; the settings
+journal independently proves committed server changes. UI template evidence
+does not identify an individual content editor or prove comprehension or a
+subsequent catalog publication. Missing/delayed delivery remains unknown; beta
+collection is disabled. Regressions: `catalog-settings-flow.test.tsx` verifies
+commit timing, stale replies, failure and cancellation;
+`catalog-ui-diagnosis.test.ts` persists actual producer events and verifies
+read-only CLI classification of a settings read failure.
+
+### Compact workspace catalog settings
+
+The initial view shows configured contents and compact image, text and price rows,
+with fallback values and update defaults collapsed. Only one editor is open across
+content and defaults; closing a row preserves its draft and visible unsaved marker.
+Read errors are retryable and never interpreted as empty contents. Readiness describes
+saved contents only, not agent availability or completed catalog delivery.
+
+Image and text mutations apply on confirmation; price and fallback saves preserve the
+other half's saved values without submitting its draft. Pending requests lock editing;
+page/tab/manager navigation protects drafts and pending writes. Defaults retain per-field
+confirmed successes after partial failure. Generator capacity is explicit, no silent
+truncation, and replacing all text requires a count-aware confirmation from the actions
+menu. Scope follows the creation and worker contracts: shared sources can affect future
+updates according to catalog rules; only updater defaults are restricted to newly created
+catalogs. Fallback text for existing catalogs can come from their historical snapshot.
+
+Acceptance: keyboard-accessible inline editors/help, no horizontal overflow at 320px or
+200% zoom, overview and collapsed rules within 1280×800, and novice scenarios covering
+missing content, generation capacity, price changes, partial save and safe navigation.
+Component regressions live in product-catalog-settings-section, space-settings and
+catalog-defaults-editor tests; visual acceptance requires an actual browser review.

@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import {
   nextTeamAgentRunMarker,
+  getTeamAgentAvailability,
   normalizeTeamAgentId,
   normalizeTeamAgentNote,
   teamAgentLabel,
@@ -128,7 +129,7 @@ function agentErrorKey(error: unknown): TranslationKey {
 /** The full account and id, for a tooltip: what the chip abbreviates. */
 export function agentTooltip(
   accountName: string,
-  agent: Pick<TeamAccountAgentSummary, 'agentId' | 'runs'>,
+  agent: Pick<TeamAccountAgentSummary, 'agentId' | 'runs' | 'availability'>,
   t: (key: TranslationKey, values?: Record<string, string | number>) => string
 ): string {
   const lines = [
@@ -136,7 +137,18 @@ export function agentTooltip(
     t('teamAgentTooltipId', { id: agent.agentId })
   ];
   for (const run of agent.runs) lines.push(t('teamAgentTooltipRun', { note: run.note }));
-  if (agent.runs.length === 0) lines.push(t('teamAgentFree'));
+  const availability = getTeamAgentAvailability(agent);
+  lines.push(
+    t(
+      availability === 'unknown'
+        ? 'teamAgentAvailabilityUnknown'
+        : availability === 'free'
+          ? 'teamAgentFree'
+          : 'teamAgentBusy'
+    )
+  );
+  if (agent.availability?.assignmentCount)
+    lines.push(t('launchesAssignmentCount', { count: agent.availability.assignmentCount }));
   return lines.join('\n');
 }
 
@@ -519,7 +531,8 @@ export function AgentRow({
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const free = agent.runs.length === 0;
+  const availability = getTeamAgentAvailability(agent);
+  const free = availability === 'free';
   const tag = teamAgentLabel(accountName, agent.agentId);
   const waiting = busy || pending;
   /** Every row's buttons say which agent they act on, not just what they do. */
@@ -570,9 +583,12 @@ export function AgentRow({
    * what the press meant.
    */
   const editingRun = runEditing !== null;
-  const releaseLabel = `${named('teamAgentRelease')} · ${t('teamAgentReleaseCount', {
-    runs: t(runCountKey(language, agent.runs.length), { count: agent.runs.length })
-  })}`;
+  const releaseLabel = `${named('teamAgentRelease')} · ${agent.availability?.assignmentCount ? t('launchesAssignmentCount', { count: agent.availability.assignmentCount }) + ' · ' : ''}${t(
+    'teamAgentReleaseCount',
+    {
+      runs: t(runCountKey(language, agent.runs.length), { count: agent.runs.length })
+    }
+  )}`;
   /**
    * Writing a run is the point of the row, so the control says so in words.
    * On a free agent it is the row's own call to action, in place of the runs
@@ -717,7 +733,15 @@ export function AgentRow({
           className={`team-agent-state${agent.archivedAt ? ' is-archived' : free ? ' is-free' : ' is-busy'}`}
         >
           <span className="team-agent-state-dot" aria-hidden="true" />
-          {agent.archivedAt ? t('accountsArchived') : t(free ? 'teamAgentFree' : 'teamAgentBusy')}
+          {agent.archivedAt
+            ? t('accountsArchived')
+            : t(
+                availability === 'unknown'
+                  ? 'teamAgentAvailabilityUnknown'
+                  : free
+                    ? 'teamAgentFree'
+                    : 'teamAgentBusy'
+              )}
         </span>
         {/* Under the state, the same place on every row (024). On the last run's line it
             pushed that run's age out of line with the others, and on a free agent it stood
@@ -830,7 +854,7 @@ export function AgentRow({
               {free ? assignRunButton : addRunButton}
               {/* Freeing an agent is the one thing done to the agent itself
                   often enough to be worth a word and a place of its own. */}
-              {!free && (
+              {availability === 'busy' && (
                 <button
                   type="button"
                   className="team-agent-release"

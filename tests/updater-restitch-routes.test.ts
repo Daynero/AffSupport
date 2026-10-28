@@ -417,6 +417,13 @@ describe('the committed copy', () => {
       { operationId: 'op', materialId: 'm', driveFileId: 'file-1' }
     );
     expect(outcome).toBe('spare');
+    expect(drive.listAnyonePermissions).toHaveBeenCalledTimes(2);
+    expect(drive.createAnyoneReaderPermission.mock.invocationCallOrder[0]).toBeLessThan(
+      drive.listAnyonePermissions.mock.invocationCallOrder[1]!
+    );
+    expect(drive.listAnyonePermissions.mock.invocationCallOrder[1]).toBeLessThan(
+      rpc.mock.invocationCallOrder.at(-1)!
+    );
     expect(rpc).toHaveBeenCalledWith('service_record_restitch_output', {
       p_operation: 'op',
       p_material: 'm',

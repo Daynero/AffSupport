@@ -743,7 +743,23 @@ describe('rounds', () => {
     const { sheet } = await catalog('swap');
     const device = enroll();
     await save([sheet], true);
+    // Preparation must not wait for the scheduled sheet round to become due.
+    await harness.root(
+      "update public.team_catalog_updater_items set next_run_at=clock_timestamp()+interval '12 hours',round_due_at=null where catalog_material_id=$1",
+      [sheet]
+    );
     const first = await prepareSpare(device, sheet, 'https://drive.google.com/file/d/first/view');
+    const beforeRound = (
+      await harness.root<{ due: boolean; unopened: boolean }>(
+        'select next_run_at<=clock_timestamp() as due,round_due_at is null as unopened from public.team_catalog_updater_items where catalog_material_id=$1',
+        [sheet]
+      )
+    )[0];
+    expect(beforeRound).toEqual({ due: false, unopened: true });
+    expect((await copies(sheet))[0]).toMatchObject({
+      role: 'spare',
+      shared_link: 'https://drive.google.com/file/d/first/view'
+    });
 
     const item = await round(sheet);
     expect(item).toMatchObject({
@@ -760,6 +776,10 @@ describe('rounds', () => {
     expect(record[0]!.current_video_link).toBe('https://drive.google.com/file/d/first/view');
     expect(await jobs(sheet)).toHaveLength(1);
 
+    await harness.root(
+      "update public.team_catalog_updater_items set next_run_at=clock_timestamp()+interval '12 hours',round_due_at=null where catalog_material_id=$1",
+      [sheet]
+    );
     const second = await prepareSpare(device, sheet, 'https://drive.google.com/file/d/second/view');
     const next = await round(sheet);
     expect(next.current_video_link).toBe('https://drive.google.com/file/d/first/view');

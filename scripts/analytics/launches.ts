@@ -40,7 +40,18 @@ export interface LaunchEvidence {
     updated_at: string;
   }>;
 }
+export interface LaunchAssignmentEvidence {
+  launch_id: string;
+  agent_row_id: string | null;
+  state: 'unassigned' | 'assigned' | 'released' | 'legacy_unknown';
+  version: string;
+  updated_at: string;
+  counts_scope: 'current_read_not_as_of';
+  manual_hold_count: number;
+  current_assignment_count: number;
+}
 export interface LaunchEvidenceResult {
+  assignments?: LaunchAssignmentEvidence[];
   supported: boolean;
   generations: LaunchEvidence[];
   blind_spots: string[];
@@ -52,9 +63,15 @@ export async function getLaunchEvidence(
   since?: string | null
 ): Promise<LaunchEvidenceResult> {
   const schema = await getSchema();
+  const assignments =
+    schema.tables.analytics_launch_assignments && LAUNCH_ID_PATTERN.test(id)
+      ? await getLaunchAssignmentEvidence(id, asOf, since)
+      : [];
+  const assignmentPart = schema.tables.analytics_launch_assignments ? { assignments } : {};
   if (!schema.tables.analytics_launch_generations)
     return {
-      supported: false,
+      ...assignmentPart,
+      supported: assignments.length > 0,
       generations: [],
       blind_spots: [
         'Launch authoritative diagnostic view is unavailable; absence of events does not prove no generation.'
@@ -203,10 +220,12 @@ export async function getLaunchEvidence(
     });
   }
   return {
+    ...assignmentPart,
     supported: true,
     generations,
     blind_spots: [
       'Database commit proves persistence; result visibility requires a browser signal.',
+      'Assignment evidence is current and bounded to 100 rows; missing or later-updated rows cannot prove historical availability. External advertising delivery is unobservable.',
       ...(generations.some(g => g.catalog_sub_binding === null)
         ? ['Catalog SUB binding projection is unavailable; resolution cannot be inferred.']
         : []),
@@ -257,4 +276,52 @@ export async function getLaunchAudit(
     [start, end]
   );
   return rows[0] ?? { generations: 0, missing_visibility: 0, unknown_causes: 0, unsettled: 0 };
+}
+
+/** Current, content-free assignment proof. Later state is never reconstructed as historical. */
+export async function getLaunchAssignmentEvidence(
+  id: string,
+  asOf?: string,
+  since?: string | null
+): Promise<LaunchAssignmentEvidence[]> {
+  const schema = await getSchema();
+  if (!schema.tables.analytics_launch_assignments || !LAUNCH_ID_PATTERN.test(id)) return [];
+  const historicalMatch = schema.tables.analytics_launch_assignment_events
+    ? ' or launch_id in (select launch_id from public.analytics_launch_assignment_events where (agent_row_id=$1::uuid or previous_agent_row_id=$1::uuid or actor_id=$1::uuid) and occurred_at<=$2::timestamptz)'
+    : '';
+  const rows = await query<Record<string, unknown>>(
+    `select launch_id::text,agent_row_id::text,state,version::text,updated_at::text,manual_hold_count::integer,current_assignment_count::integer from public.analytics_launch_assignments where (launch_id=$1::uuid or agent_row_id=$1::uuid or actor_id=$1::uuid${historicalMatch}) and updated_at<=$2::timestamptz and ($3::timestamptz is null or updated_at>=$3::timestamptz) order by updated_at desc,launch_id limit 100`,
+    [id, asOf ?? '9999-12-31T23:59:59Z', since ?? null]
+  );
+  return rows.map(row => {
+    const version =
+      typeof row.version === 'string'
+        ? row.version
+        : Number.isSafeInteger(row.version)
+          ? String(row.version)
+          : null;
+    if (
+      typeof row.launch_id !== 'string' ||
+      !(row.agent_row_id === null || typeof row.agent_row_id === 'string') ||
+      !['unassigned', 'assigned', 'released', 'legacy_unknown'].includes(String(row.state)) ||
+      !/^[0-9]{1,19}$/u.test(version ?? '') ||
+      typeof row.updated_at !== 'string' ||
+      !utc(row.updated_at) ||
+      !Number.isSafeInteger(row.manual_hold_count) ||
+      Number(row.manual_hold_count) < 0 ||
+      !Number.isSafeInteger(row.current_assignment_count) ||
+      Number(row.current_assignment_count) < 0
+    )
+      throw new Error('Invalid Launch assignment diagnostic projection.');
+    return {
+      launch_id: row.launch_id,
+      agent_row_id: row.agent_row_id as string | null,
+      state: row.state as LaunchAssignmentEvidence['state'],
+      version: version!,
+      updated_at: utc(row.updated_at)!,
+      counts_scope: 'current_read_not_as_of',
+      manual_hold_count: Number(row.manual_hold_count),
+      current_assignment_count: Number(row.current_assignment_count)
+    };
+  });
 }

@@ -15,6 +15,36 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('catalog registry first read', () => {
+  it('refreshes spare preparation before an update is due and stops when ready', async () => {
+    vi.useFakeTimers();
+    const row = {
+      catalogId: 'catalog',
+      updatePending: false,
+      profile: { restitch: true, restitchStatus: 'preparing' }
+    } as CatalogRegistryRow;
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce([row])
+      .mockResolvedValue([{ ...row, profile: { ...row.profile, restitchStatus: 'ready' } }]);
+    const client = { listTeamProductCatalogs: list } as unknown as CatalogUpdaterClient;
+    const view = renderHook(() => useCatalogRegistry('team', true, client));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(list).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('polls confirmed active work and stops the fast poll once the server reports completion', async () => {
     vi.useFakeTimers();
     const get = vi

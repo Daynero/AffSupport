@@ -6,6 +6,7 @@ import {
   type TeamAccountAgentSummary,
   type TeamAccountSummary,
   type TeamAccountLaunchSummary,
+  type TeamAccountLaunchAssignment,
   type TeamAgentRunMarker,
   type TeamAgentRunMarkerSnapshot
 } from '@video-compressor/shared';
@@ -135,6 +136,8 @@ export function useAccounts({
   const [accounts, setAccounts] = useState<TeamAccountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [launchSummaries, setLaunchSummaries] = useState<TeamAccountLaunchSummary[]>([]);
+  const [launchAssignments, setLaunchAssignments] = useState<TeamAccountLaunchAssignment[]>([]);
+  const [assignmentCoverage, setAssignmentCoverage] = useState<'complete' | 'partial'>('partial');
   const [launchCoverage, setLaunchCoverage] = useState<'complete' | 'partial'>('complete');
   const [orderVersions, setOrderVersions] = useState({
     socials: '0',
@@ -256,6 +259,8 @@ export function useAccounts({
       setAccounts(canonical);
       if (overview) {
         setLaunchSummaries(overview.launchSummaries ?? []);
+        setLaunchAssignments(overview.launchAssignments ?? []);
+        setAssignmentCoverage(overview.assignmentCoverage ?? 'partial');
         setLaunchCoverage(overview.launchCoverage ?? 'partial');
       }
       if (overview)
@@ -515,6 +520,8 @@ export function useAccounts({
     accounts,
     orderVersions,
     launchSummaries,
+    launchAssignments,
+    assignmentCoverage,
     launchCoverage,
     loading,
     error,

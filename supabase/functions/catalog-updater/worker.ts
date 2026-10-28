@@ -94,6 +94,8 @@ export interface RetiredCopy {
 
 export interface CatalogUpdaterDeps {
   workerId: string;
+  /** Current single-image fallback, distinct from a catalog's historical row snapshot. */
+  readImageLink?(teamId: string): Promise<string | null>;
   /** Pictures from the space's pool, none repeated until the pool is spent (024). */
   drawImages?(
     teamId: string,
@@ -328,23 +330,27 @@ const DETAIL_NUMBER_KEYS = ['salePrice', 'quantity'] as const;
 
 /**
  * Fresh pictures for the rows (024): drawn from the space's pool and shared by link. None when
- * the refresh is off, the pool is empty, or the draw fails — the rows keep the pictures they had.
+ * the refresh is off. An empty pool uses the current space fallback when configured;
+ * a failed pool read is not evidence of an empty pool or a successful refresh.
  */
 async function refreshedRows(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
   shareImages: ShareImages,
   rows: ProductCatalogRowValues[] | undefined,
-  count: number
+  count: number,
+  fallbackImageLink?: string | null
 ): Promise<ProductCatalogRowValues[] | undefined> {
   if (!item.refreshImages || !item.teamId || !deps.drawImages) return rows;
-  let drawn: Array<{ driveFileId: string; resourceKey: string | null; name?: string | null }>;
-  try {
-    drawn = await deps.drawImages(item.teamId, count);
-  } catch {
-    return rows;
-  }
-  if (drawn.length === 0) return rows;
+  const drawn = await deps.drawImages(item.teamId, count);
+  if (drawn.length === 0)
+    return fallbackImageLink
+      ? (rows ?? rowsOf(item, count)).map(row => ({
+          ...row,
+          imageLink: fallbackImageLink,
+          pictureName: null
+        }))
+      : rows;
   await shareImages(drawn);
   /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
      being a hoodie when its picture is drawn afresh. */
@@ -394,7 +400,8 @@ async function addedRows(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
   shareImages: ShareImages,
-  count: number
+  count: number,
+  fallbackImageLink?: string | null
 ): Promise<ProductCatalogRowValues[] | undefined> {
   const added = count - item.productCount;
   if (added <= 0) return item.rows;
@@ -418,7 +425,7 @@ async function addedRows(
       description: text?.description ?? item.settings.description,
       imageLink: image
         ? driveImageLink(image.driveFileId, image.resourceKey)
-        : item.settings.imageLink,
+        : (fallbackImageLink ?? item.settings.imageLink),
       price,
       ...drawProductDetails({ title, price, brand })
     });
@@ -545,11 +552,15 @@ async function updateOne(
     const shareImages = createCatalogImageSharer(drive);
     const count = grownCount(item.productCount, item.growProducts === true);
     await deps.progress(item.catalogId, 'refreshing').catch(() => false);
-    const grown = await addedRows(deps, item, shareImages, count);
+    const fallbackImageLink =
+      item.teamId && (item.refreshImages || item.growProducts)
+        ? await deps.readImageLink?.(item.teamId)
+        : undefined;
+    const grown = await addedRows(deps, item, shareImages, count, fallbackImageLink);
     // Draw independent pools together, but match words only after the pictures are known.
     // Wait for both even on failure: pool draws must not outlive this attempt's retry.
     const [pictures, texts] = await Promise.allSettled([
-      refreshedRows(deps, item, shareImages, grown, count),
+      refreshedRows(deps, item, shareImages, grown, count, fallbackImageLink),
       drawRefreshedTexts(deps, item, count)
     ]);
     if (pictures.status === 'rejected') throw pictures.reason;

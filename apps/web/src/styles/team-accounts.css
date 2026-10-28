@@ -10,6 +10,9 @@
 
 .team-account-space {
   display: grid;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   /* A grid item refuses to shrink below its content by default, and on a
      320px phone that made the whole card wider than the screen — the page
      scrolled sideways while every row inside it fitted. */
@@ -66,6 +69,8 @@
   z-index: calc(var(--layer-sticky) + 1);
   top: var(--topbar-h, 62px);
   display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
   gap: var(--space-4);
   padding-block: var(--space-3) var(--space-4);
   margin-block: calc(-1 * var(--space-3)) calc(-1 * var(--space-4));
@@ -2793,7 +2798,7 @@ button.team-task-agent-chip.is-selected {
 }
 .account-linked-launch {
   display: block;
-  padding: var(--space-1) 0;
+  padding: 0;
   color: var(--color-accent);
   font-size: var(--text-label);
 }
@@ -3165,4 +3170,12 @@ button.team-task-agent-chip.is-selected {
     opacity: 1;
     stroke-dashoffset: 0;
   }
+}
+
+/* Linked Launch and manual entry share the same row geometry and left inset. */
+.account-linked-launch-row {
+  cursor: default;
+}
+.account-linked-launch-row .account-linked-launch {
+  text-align: left;
 }

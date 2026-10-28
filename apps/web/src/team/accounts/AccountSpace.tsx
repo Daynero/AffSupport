@@ -20,8 +20,6 @@ import { internalLink } from '../../lib/navigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
 import {
-  buildFinanceReport,
-  financeAgentVisible,
   countTeamAccounts,
   filterTeamAccounts,
   sortTeamAccounts,
@@ -53,6 +51,16 @@ import {
 } from './finance/UnifiedFinance';
 import { AccountReorderProvider, type ReorderRequest } from './AccountReorderProvider';
 import { AccountArchiveDrawer } from './AccountArchiveDrawer';
+import { accountsForPeriod } from './accountsForPeriod';
+import { AccountLinkedLaunchRow } from './AccountLinkedLaunchRow';
+import {
+  LAUNCH_ASSIGNMENTS_CHANGED_EVENT,
+  launchAssignmentsApi
+} from '../../api/team-launch-assignments';
+import { agentReleaseApi, type ReleaseAgentRequest } from '../../api/team-agent-release';
+import { TeamApiError } from '../../api/team';
+import { launchMutation, launchAssignmentVisible } from '../launches/analytics';
+import type { LaunchAssignmentReceipt } from '@video-compressor/shared';
 import { useAccountPreferences } from './useAccountPreferences';
 import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
 import { accountFlowId, emitAccountSignal } from './analytics';
@@ -64,7 +72,7 @@ import { financeToday } from '@video-compressor/shared';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
-const OCCUPANCY: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy'];
+const OCCUPANCY: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy', 'unknown'];
 
 /**
  * Which accounts are folded, remembered per space in this browser. A
@@ -129,6 +137,14 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
   const { push } = useToasts();
   const { can, revision } = useTeam();
   const canEdit = can('edit');
+  const assignmentScope = useRef({ teamId, canEdit, alive: true });
+  assignmentScope.current = { teamId, canEdit, alive: true };
+  useEffect(() => {
+    assignmentScope.current.alive = true;
+    return () => {
+      assignmentScope.current.alive = false;
+    };
+  }, []);
   const finance = useUnifiedFinance();
   const accounts = useAccounts({
     teamId,
@@ -492,47 +508,13 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
    */
   const periodAccounts = useMemo(() => {
     if (client) return accounts.accounts;
-    const snap = finance.reportRange ? finance.reports.snapshot : finance.snapshot;
-    const reportMembers =
-      snap && finance.reportRange
-        ? new Set(
-            buildFinanceReport(snap).columns.map(
-              column => `${column.accountId}/${column.agentRowId}`
-            )
-          )
-        : null;
-    return accounts.accounts
-      .map(social => ({
-        ...social,
-        agents: social.agents.filter(agent => {
-          const end = finance.reportRange?.[1] ?? finance.date;
-          if (agent.startsOn && agent.startsOn > end) return false;
-          if (social.startsOn && social.startsOn > end) return false;
-          if (finance.getAffectedDrafts([agent.id]).length > 0) return true;
-          if (
-            finance.date === finance.today &&
-            !finance.reportRange &&
-            !social.archivedAt &&
-            !agent.archivedAt
-          )
-            return true;
-          if (!snap) return !social.archivedAt && !agent.archivedAt;
-          if (finance.reportRange) return reportMembers?.has(`${social.id}/${agent.id}`) ?? false;
-          return financeAgentVisible(snap, agent.id, finance.date, finance.timezone, social.id);
-        })
-      }))
-      .filter(
-        social =>
-          (!social.startsOn || social.startsOn <= (finance.reportRange?.[1] ?? finance.date)) &&
-          (social.agents.length > 0 ||
-            (!social.archivedAt &&
-              accounts.accounts
-                .find(item => item.id === social.id)
-                ?.agents.every(
-                  agent =>
-                    agent.startsOn && agent.startsOn > (finance.reportRange?.[1] ?? finance.date)
-                )))
-      );
+    return accountsForPeriod(
+      accounts.accounts,
+      finance.reportRange?.[0] ?? finance.date,
+      finance.reportRange?.[1] ?? finance.date,
+      finance.reportRange ? finance.reports.snapshot : finance.snapshot,
+      id => finance.getAffectedDrafts([id]).length > 0
+    );
   }, [
     accounts.accounts,
     client,
@@ -609,15 +591,23 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
   const allCollapsed = visible.length > 0 && visible.every(account => collapsed.has(account.id));
 
   const occupancyCount = (value: TeamAccountOccupancyFilter) =>
-    value === 'all' ? counts.agents : value === 'free' ? counts.free : counts.busy;
+    value === 'all'
+      ? counts.agents
+      : value === 'unknown'
+        ? (counts.unknown ?? 0)
+        : value === 'free'
+          ? counts.free
+          : counts.busy;
 
   const occupancyLabel = (value: TeamAccountOccupancyFilter) =>
     t(
       value === 'all'
         ? 'teamAccountsFilterAll'
-        : value === 'free'
-          ? 'teamAccountsFilterFree'
-          : 'teamAccountsFilterBusy'
+        : value === 'unknown'
+          ? 'teamAgentAvailabilityUnknown'
+          : value === 'free'
+            ? 'teamAccountsFilterFree'
+            : 'teamAccountsFilterBusy'
     );
 
   const panel = useRef<HTMLElement>(null);
@@ -763,6 +753,63 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
       return next;
     });
 
+  const [assignmentProofs, setAssignmentProofs] = useState<
+    {
+      receipt: LaunchAssignmentReceipt;
+      flowId: string;
+      action: 'assign_account' | 'release_account';
+    }[]
+  >([]);
+  const assignmentChanged = async (
+    receipt: LaunchAssignmentReceipt,
+    flowId: string,
+    action: 'assign_account' | 'release_account'
+  ) => {
+    const canonicalAssignment = await launchAssignmentsApi.read(teamId, receipt.launchId);
+    if (
+      canonicalAssignment.version !== receipt.version ||
+      canonicalAssignment.agentRowId !== receipt.agentRowId ||
+      canonicalAssignment.state !== receipt.state
+    )
+      throw new TeamApiError('LAUNCH_VERSION_CONFLICT', false);
+    setAssignmentProofs(current => [...current, { receipt, flowId, action }]);
+    if (!(await accounts.refetch())) throw new Error('INVALID_RESPONSE');
+  };
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail?.teamId === teamId) void accounts.refetch();
+    };
+    window.addEventListener(LAUNCH_ASSIGNMENTS_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(LAUNCH_ASSIGNMENTS_CHANGED_EVENT, changed);
+  }, [teamId, accounts.refetch]);
+  useEffect(() => {
+    if (accounts.loading || accounts.error || !panel.current) return;
+    const settled = assignmentProofs.filter(({ receipt, flowId, action }) => {
+      const current = accounts.launchAssignments.find(row => row.id === receipt.launchId);
+      const rendered = [
+        ...panel.current!.querySelectorAll<HTMLElement>('[data-launch-assignment-id]')
+      ].some(row => row.dataset.launchAssignmentId === receipt.launchId);
+      if (
+        receipt.state === 'assigned'
+          ? current?.assignmentVersion !== receipt.version ||
+            current?.agentRowId !== receipt.agentRowId ||
+            !rendered
+          : accounts.assignmentCoverage !== 'complete' || current !== undefined || rendered
+      )
+        return false;
+      launchAssignmentVisible({ flowId, launchId: receipt.launchId }, action);
+      return true;
+    });
+    if (settled.length)
+      setAssignmentProofs(current => current.filter(item => !settled.includes(item)));
+  }, [
+    assignmentProofs,
+    accounts.launchAssignments,
+    accounts.assignmentCoverage,
+    accounts.loading,
+    accounts.error
+  ]);
+
   const labelOf = (agent: TeamAccountAgentSummary) =>
     teamAgentLabel(
       accounts.accounts.find(account => account.id === agent.accountId)?.name ?? '',
@@ -773,7 +820,115 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
    * Freeing is one press, so it gets an undo: the toast carries the runs that
    * were just erased and writes them back onto the same agent.
    */
+  const releaseRequests = useRef(
+    new Map<string, ReleaseAgentRequest & { manualRuns: readonly TeamAgentRun[] }>()
+  );
+  const [bulkReleaseProofs, setBulkReleaseProofs] = useState<{ agentId: string; flowId: string }[]>(
+    []
+  );
+  useEffect(() => {
+    if (accounts.loading || accounts.error || !panel.current) return;
+    const settled = bulkReleaseProofs.filter(proof => {
+      const agent = accounts.accounts
+        .flatMap(account => account.agents)
+        .find(row => row.id === proof.agentId);
+      const rendered = [
+        ...panel.current!.querySelectorAll<HTMLElement>('[data-agent-row-id]')
+      ].find(row => row.dataset.agentRowId === proof.agentId);
+      if (
+        !agent ||
+        agent.runs.length ||
+        agent.availability?.status !== 'free' ||
+        !rendered?.querySelector('.team-agent-state.is-free')
+      )
+        return false;
+      launchAssignmentVisible({ flowId: proof.flowId }, 'release_account');
+      return true;
+    });
+    if (settled.length)
+      setBulkReleaseProofs(current => current.filter(item => !settled.includes(item)));
+  }, [bulkReleaseProofs, accounts.accounts, accounts.loading, accounts.error]);
   const release = async (agent: TeamAccountAgentSummary) => {
+    if (agent.availability?.legacyCount) {
+      push({ tone: 'warning', text: t('launchesAssignmentReconcileFirst') });
+      return;
+    }
+    if (agent.availability || releaseRequests.current.has(agent.id)) {
+      let request = releaseRequests.current.get(agent.id);
+      if (!request) {
+        const state = await agentReleaseApi.read(teamId, agent.id);
+        const canonical = await accounts.refetch();
+        if (!canonical) throw new TeamApiError('INVALID_RESPONSE', false);
+        const before = canonical
+          ?.flatMap(account => account.agents)
+          .find(row => row.id === agent.id);
+        if (!before) throw new TeamApiError('NOT_FOUND', false);
+        const checked = await agentReleaseApi.read(teamId, agent.id);
+        if (checked.version !== state.version)
+          throw new TeamApiError('LAUNCH_VERSION_CONFLICT', false);
+        request = {
+          teamId,
+          agentRowId: agent.id,
+          expectedVersion: String(state.version),
+          requestKey: crypto.randomUUID(),
+          manualRuns: before.runs.map(run => ({ ...run }))
+        };
+        releaseRequests.current.set(agent.id, request);
+      }
+      if (
+        !assignmentScope.current.alive ||
+        !assignmentScope.current.canEdit ||
+        assignmentScope.current.teamId !== teamId
+      )
+        throw new TeamApiError('PERMISSION_DENIED', false);
+      const flowId = request.requestKey;
+      try {
+        await launchMutation({ flowId }, 'release_account', () =>
+          agentReleaseApi.release(request!)
+        );
+        setBulkReleaseProofs(current => [...current, { agentId: agent.id, flowId }]);
+        if (!(await accounts.refetch())) throw new TeamApiError('LAUNCH_RESULT_UNCERTAIN', true);
+        releaseRequests.current.delete(agent.id);
+        const manualRuns = request.manualRuns;
+        push({
+          tone: 'success',
+          text: t('launchesAssignmentAllReleased'),
+          ...(manualRuns.length
+            ? {
+                action: {
+                  label: t('launchesAssignmentRestoreManual'),
+                  run: async () => {
+                    if (
+                      !assignmentScope.current.alive ||
+                      !assignmentScope.current.canEdit ||
+                      assignmentScope.current.teamId !== teamId
+                    ) {
+                      push({
+                        tone: 'error',
+                        text: teamErrorMessageFor(new TeamApiError('PERMISSION_DENIED', false), t)
+                      });
+                      return;
+                    }
+                    markPending(agent.id, true);
+                    try {
+                      for (const item of manualRuns) await accounts.addRun(agent, item.note);
+                    } catch (error) {
+                      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+                    } finally {
+                      markPending(agent.id, false);
+                    }
+                  }
+                }
+              }
+            : {})
+        });
+      } catch (error) {
+        if (!(error instanceof TeamApiError && error.code === 'LAUNCH_RESULT_UNCERTAIN'))
+          releaseRequests.current.delete(agent.id);
+        throw error;
+      }
+      return;
+    }
     const before = agent.runs;
     if (before.length === 0) return;
     await accounts.clearRuns(agent);
@@ -873,13 +1028,16 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
   useLayoutEffect(() => {
     const surface = panel.current;
     if (!surface || client) return;
+    let lastOffset: number | null = null;
     const measure = () => {
       const table = surface.querySelector<HTMLElement>('.team-accounts-table');
-      if (table) {
-        surface.style.setProperty(
-          '--team-accounts-table-offset',
-          `${table.getBoundingClientRect().top + window.scrollY}px`
-        );
+      // A retained section can be hidden while another workspace tab is open.
+      // Its zero geometry is not a new scroll-viewport size.
+      if (table && surface.getClientRects().length > 0) {
+        const offset = Math.ceil(table.getBoundingClientRect().top + window.scrollY);
+        if (offset === lastOffset) return;
+        lastOffset = offset;
+        surface.style.setProperty('--team-accounts-table-offset', `${offset}px`);
       }
     };
     measure();
@@ -887,6 +1045,11 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     observer?.observe(surface);
     if (surface.parentElement) observer?.observe(surface.parentElement);
+    // Wrapping controls or expanding period details can move the table without
+    // changing the panel's total height (the table shrinks by the same amount).
+    if (stickyHeader.current) observer?.observe(stickyHeader.current);
+    const heading = surface.querySelector<HTMLElement>('.team-account-space-heading');
+    if (heading) observer?.observe(heading);
     return () => {
       window.removeEventListener('resize', measure);
       observer?.disconnect();
@@ -994,7 +1157,9 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                   role="group"
                   aria-label={t('teamAccountsFilterLabel')}
                 >
-                  {OCCUPANCY.map(value => (
+                  {OCCUPANCY.filter(
+                    value => value !== 'unknown' || counts.unknown || occupancy === 'unknown'
+                  ).map(value => (
                     <button
                       key={value}
                       type="button"
@@ -1169,31 +1334,22 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     onCycleColor={client ? undefined : preferences.cycle}
                     rowLaunches={agent => (
                       <>
-                        {accounts.launchSummaries
+                        {accounts.launchAssignments
                           .filter(launch => launch.agentRowId === agent.id)
                           .map(launch => (
-                            <a
-                              className="account-linked-launch"
+                            <AccountLinkedLaunchRow
                               key={launch.id}
-                              href={buildTeamRoute({
-                                spaceId: teamId,
-                                section: 'launches',
-                                query: { launchId: launch.id }
-                              })}
-                              onClick={event =>
-                                internalLink(
-                                  event,
-                                  buildTeamRoute({
-                                    spaceId: teamId,
-                                    section: 'launches',
-                                    query: { launchId: launch.id }
-                                  })
-                                )
+                              teamId={teamId}
+                              launch={launch}
+                              canEdit={canEdit}
+                              canAssign={canEdit && !account.archivedAt && !agent.archivedAt}
+                              canMutate={() =>
+                                assignmentScope.current.alive &&
+                                assignmentScope.current.canEdit &&
+                                assignmentScope.current.teamId === teamId
                               }
-                            >
-                              {launch.creativeAlias || t('launchesTitle')} ·{' '}
-                              {launch.launchDate ?? launch.workStatus}
-                            </a>
+                              onChanged={assignmentChanged}
+                            />
                           ))}
                       </>
                     )}
@@ -1348,6 +1504,9 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
             </div>
           )}
 
+          {accounts.assignmentCoverage === 'partial' && !client && (
+            <p className="team-accounts-notice">{t('launchesAssignmentPartial')}</p>
+          )}
           {accounts.launchSummaries.some(launch => launch.unmatchedReason) && (
             <section className="account-unmatched-launches">
               <h3>{t('accountsUnmatchedLaunches')}</h3>

@@ -1007,6 +1007,53 @@ describe('each catalog on its own schedule (024)', () => {
 });
 
 describe('the worker’s address and grants', () => {
+  it('exposes measured spare preparation before a round is due and hides expired progress', async () => {
+    const item = await catalog('spare-progress-before-round');
+    await harness.asUser(OWNER, 'select public.set_team_catalog_update_interval($1,$2,$3)', [
+      teamId,
+      [item.sheet],
+      '1d'
+    ]);
+    await harness.root('delete from private.catalog_restitch_jobs where catalog_material_id=$1', [
+      item.sheet
+    ]);
+    await harness.root(
+      `insert into private.catalog_restitch_jobs
+      (catalog_material_id,team_id,state,lease_owner,lease_token_hash,lease_expires_at,progress,progress_stage)
+      values($1,$2,'leased',$3,decode('aa','hex'),clock_timestamp()+interval '5 minutes',67,'processing')`,
+      [item.sheet, teamId, OWNER]
+    );
+    await harness.root(
+      'update public.team_catalog_updater_items set round_due_at=null where catalog_material_id=$1',
+      [item.sheet]
+    );
+    const read = async () =>
+      (
+        await harness.asUser<{
+          update_pending: boolean;
+          restitch_progress: number | null;
+          restitch_stage: string | null;
+        }>(
+          VIEWER,
+          'select update_pending,restitch_progress,restitch_stage from public.list_team_product_catalogs($1) where catalog_id=$2',
+          [teamId, item.sheet]
+        )
+      )[0];
+    expect(await read()).toEqual({
+      update_pending: false,
+      restitch_progress: 67,
+      restitch_stage: 'processing'
+    });
+    await harness.root(
+      "update private.catalog_restitch_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where catalog_material_id=$1",
+      [item.sheet]
+    );
+    expect(await read()).toEqual({
+      update_pending: false,
+      restitch_progress: null,
+      restitch_stage: null
+    });
+  }, 60_000);
   it('derives the updater URL from the catalog-sync URL, and nothing else', async () => {
     const derive = async (url: string) =>
       (

@@ -1,6 +1,7 @@
 /** Launches are a separate workspace aggregate; Tasks remain unchanged. */
 import type { LaunchNote } from './launches/notes.js';
 import type { LaunchAnalyticsStage } from './launches/lifecycle.js';
+import type { LaunchAssignmentState } from './launch-assignment.js';
 export const LAUNCH_SCHEMA_VERSION = 1;
 export const LAUNCH_CAMPAIGN_MAX = 100;
 export const LAUNCH_BUDGET_MAX = 999999;
@@ -136,6 +137,7 @@ export interface LaunchGeneration {
 }
 export interface LaunchSummary {
   id: string;
+  assignment?: LaunchAssignmentState;
   version: string;
   createdAt?: string;
   launchDate: string | null;

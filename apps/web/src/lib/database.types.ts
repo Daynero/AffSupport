@@ -6054,6 +6054,23 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_team_account_mutation: { Args: { p_request_id: string; p_team: string }; Returns: Json };
+      get_launch_assignment: { Args: { p_team: string; p_launch: string }; Returns: Json };
+      set_launch_assignment: {
+        Args: {
+          p_team: string;
+          p_launch: string;
+          p_agent: string | null;
+          p_expected_version: string;
+          p_key: string;
+        };
+        Returns: Json;
+      };
+      get_launch_assignment_mutation: { Args: { p_team: string; p_key: string }; Returns: Json };
+      get_team_agent_assignment_state: { Args: { p_team: string; p_agent: string }; Returns: Json };
+      release_team_agent_assignments: {
+        Args: { p_team: string; p_agent: string; p_expected_version: string; p_key: string };
+        Returns: Json;
+      };
       get_team_accounts_overview: {
         Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;

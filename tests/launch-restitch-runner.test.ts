@@ -121,19 +121,23 @@ it('recovers the completed child without drawing, granting, starting or invoking
   expect(f.client.runAgentProcess).not.toHaveBeenCalled();
   expect(f.launches.settleRestitch).toHaveBeenCalledTimes(1);
 });
-it('preserves a child still running after a lost browser reply', async () => {
-  const f = fixture('child');
-  f.operation.mockResolvedValue({
-    id: 'child',
-    teamId: 'team',
-    state: 'running',
-    sourceMaterialId: 'video',
-    resultMaterialId: null
-  });
-  await expect(runLaunchRestitch(input, f.deps)).rejects.toMatchObject({ code: 'LAUNCH_BUSY' });
-  expect(f.client.runAgentProcess).not.toHaveBeenCalled();
-  expect(f.client.cancelOperation).not.toHaveBeenCalled();
-});
+it.each(['running', 'pending'] as const)(
+  'preserves a child still %s after a lost browser reply',
+  async state => {
+    const f = fixture('child');
+    f.operation.mockResolvedValue({
+      id: 'child',
+      teamId: 'team',
+      state,
+      sourceMaterialId: 'video',
+      resultMaterialId: null
+    });
+    await expect(runLaunchRestitch(input, f.deps)).rejects.toMatchObject({ code: 'LAUNCH_BUSY' });
+    expect(f.client.runAgentProcess).not.toHaveBeenCalled();
+    expect(f.client.cancelOperation).not.toHaveBeenCalled();
+    expect(f.client.startProcess).not.toHaveBeenCalled();
+  }
+);
 it('fences a cancellation arriving while transient screen grants are being prepared', async () => {
   const f = fixture();
   f.launches.restitchPreparation.mockRejectedValueOnce(new TeamApiError('WRONG_STATE', false));
@@ -158,6 +162,32 @@ it('does not automatically restart a failed child', async () => {
   });
   await expect(runLaunchRestitch(input, f.deps)).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
   expect(f.launches.settleRestitch).toHaveBeenCalledTimes(1);
+  expect(f.client.startProcess).not.toHaveBeenCalled();
+});
+
+it('binds a discovered failed child before settlement after a lost start reply', async () => {
+  const f = fixture('child');
+  let bound = false;
+  f.launches.bindRestitch.mockImplementation(async () => {
+    bound = true;
+  });
+  f.launches.settleRestitch.mockImplementation(async () => bound);
+  f.operation.mockResolvedValue({
+    id: 'child',
+    teamId: 'team',
+    state: 'failed',
+    sourceMaterialId: 'video',
+    resultMaterialId: null,
+    errorCode: 'DRIVE_UNAVAILABLE'
+  });
+  await expect(runLaunchRestitch(input, f.deps)).rejects.toMatchObject({
+    code: 'DRIVE_UNAVAILABLE'
+  });
+  expect(f.launches.bindRestitch).toHaveBeenCalledWith('team', 'generation', 'child');
+  expect(bound).toBe(true);
+  expect(f.launches.bindRestitch.mock.invocationCallOrder[0]).toBeLessThan(
+    f.launches.settleRestitch.mock.invocationCallOrder[1]!
+  );
   expect(f.client.startProcess).not.toHaveBeenCalled();
 });
 

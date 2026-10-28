@@ -3,7 +3,7 @@ import { Check, ChevronRight, ArrowLeft, UserRound } from 'lucide-react';
 import {
   countTeamAccounts,
   filterTeamAccounts,
-  isTeamAgentFree,
+  getTeamAgentAvailability,
   teamAgentRunsSummary,
   type TeamAccountSummary,
   type TeamAccountOccupancyFilter
@@ -65,7 +65,15 @@ export function LaunchAccountBrowser({
   const rows = socialId ? shown.filter(account => account.id === socialId) : shown;
   const hasResults =
     socialId || search.trim() ? rows.some(account => account.agents.length > 0) : rows.length > 0;
-  const totals = { all: counts.agents, free: counts.free, busy: counts.busy };
+  const totals = {
+    all: counts.agents,
+    free: counts.free,
+    busy: counts.busy,
+    unknown: counts.unknown ?? 0
+  };
+  const filters: readonly TeamAccountOccupancyFilter[] = counts.unknown
+    ? ['all', 'free', 'busy', 'unknown']
+    : ['all', 'free', 'busy'];
   return (
     <Modal nested labelledBy={titleId} onClose={onClose} closeLabel={t('teamCancel')} size="md">
       <div className="team-task-picker-dialog team-task-account-picker launch-account-browser">
@@ -83,7 +91,7 @@ export function LaunchAccountBrowser({
           role="group"
           aria-label={t('teamAccountsFilterLabel')}
         >
-          {(['all', 'free', 'busy'] as const).map(filter => (
+          {filters.map(filter => (
             <button
               key={filter}
               type="button"
@@ -92,11 +100,13 @@ export function LaunchAccountBrowser({
               onClick={() => setOccupancy(filter)}
             >
               {t(
-                filter === 'all'
-                  ? 'teamAccountsFilterAll'
-                  : filter === 'free'
-                    ? 'teamAccountsFilterFree'
-                    : 'teamAccountsFilterBusy'
+                filter === 'unknown'
+                  ? 'teamAgentAvailabilityUnknown'
+                  : filter === 'all'
+                    ? 'teamAccountsFilterAll'
+                    : filter === 'free'
+                      ? 'teamAccountsFilterFree'
+                      : 'teamAccountsFilterBusy'
               )}{' '}
               · {totals[filter]}
             </button>
@@ -142,6 +152,14 @@ export function LaunchAccountBrowser({
                             <span className="text-warning-text">
                               {t('teamAccountsFilterBusy')} · {total.busy}
                             </span>
+                            {(total.unknown ?? 0) > 0 && (
+                              <>
+                                {' · '}
+                                <span className="text-muted">
+                                  {t('teamAgentAvailabilityUnknown')} · {total.unknown}
+                                </span>
+                              </>
+                            )}
                           </>
                         )}
                       </small>
@@ -151,7 +169,8 @@ export function LaunchAccountBrowser({
                 </li>
               ) : (
                 account.agents.map(agent => {
-                  const free = isTeamAgentFree(agent);
+                  const availability = getTeamAgentAvailability(agent);
+                  const free = availability === 'free';
                   return (
                     <li key={agent.id}>
                       <button
@@ -173,8 +192,21 @@ export function LaunchAccountBrowser({
                           </strong>
                           <small className="font-mono">ID {agent.agentId}</small>
                           <small className={free ? 'text-success-text' : 'text-warning-text'}>
-                            {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
+                            {t(
+                              availability === 'unknown'
+                                ? 'teamAgentAvailabilityUnknown'
+                                : free
+                                  ? 'teamAgentFree'
+                                  : 'teamAgentBusy'
+                            )}
                           </small>
+                          {(agent.availability?.assignmentCount ?? 0) > 0 && (
+                            <small>
+                              {t('launchesAssignmentCount', {
+                                count: agent.availability!.assignmentCount
+                              })}
+                            </small>
+                          )}
                           {!free && (
                             <small className="whitespace-normal break-words">
                               {teamAgentRunsSummary(agent)}

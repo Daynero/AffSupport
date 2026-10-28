@@ -24,6 +24,8 @@ const TABLES = [
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
+  'analytics_launch_assignments',
+  'analytics_launch_assignment_events',
   'analytics_catalog_sync_jobs',
   'analytics_workspace_operations',
   'analytics_process_output_cleanup',
@@ -57,6 +59,12 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_launch_assignments')
+        ? { analytics_launch_assignments: true }
+        : {}),
+      ...(has('table', 'analytics_launch_assignment_events')
+        ? { analytics_launch_assignment_events: true }
+        : {}),
       ...(has('table', 'analytics_translation_retirement')
         ? { analytics_translation_retirement: true }
         : {}),

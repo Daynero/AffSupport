@@ -13,7 +13,8 @@ const api = vi.hoisted(() => ({
   save: vi.fn(),
   generate: vi.fn(),
   retryRestitch: vi.fn(),
-  retryGeneration: vi.fn()
+  retryGeneration: vi.fn(),
+  settleRestitch: vi.fn()
 }));
 const local = vi.hoisted(() => ({
   run: vi.fn(),
@@ -326,6 +327,156 @@ it('retains the explicit restitch retry key after an uncertain reply', async () 
   expect(api.retryRestitch.mock.calls[1]).toEqual(api.retryRestitch.mock.calls[0]);
   expect(api.generate).not.toHaveBeenCalled();
 });
+it('retries a Drive failure already settled from a stale waiting snapshot in one click', async () => {
+  const config = launchConfig({
+    method: 'catalog',
+    catalog: {
+      productCount: 100,
+      restitchEnabled: true,
+      finalDurationMode: 'custom',
+      customFinalDurationSeconds: 120
+    }
+  });
+  const waiting = {
+    id: 'launch',
+    draft: config,
+    generation: {
+      id: 'generation',
+      state: 'waiting_dependency',
+      stage: 'restitch_processing',
+      requestKey: 'accepted-key',
+      inputVersion: '1'
+    }
+  } as LaunchDetail;
+  const failed = {
+    ...waiting,
+    generation: { ...waiting.generation!, state: 'failed', errorCode: 'DRIVE_UNAVAILABLE' }
+  } as LaunchDetail;
+  api.settleRestitch.mockResolvedValue(true);
+  api.detail.mockResolvedValueOnce(failed).mockResolvedValue({
+    ...waiting,
+    generation: { ...waiting.generation!, stage: 'restitch_preparing' }
+  });
+  api.retryRestitch.mockResolvedValue(undefined);
+  local.run.mockResolvedValue(undefined);
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await result.current.resume(waiting);
+  });
+  expect(api.settleRestitch).toHaveBeenCalledWith('team', 'generation');
+  expect(api.retryRestitch).toHaveBeenCalledOnce();
+  expect(local.run).toHaveBeenCalledOnce();
+  expect(api.generate).not.toHaveBeenCalled();
+});
+
+it('turns Repeat after a lost acceptance reply into retry of the failed generation, without saving a duplicate', async () => {
+  const config = launchConfig({ method: 'catalog' });
+  api.save.mockResolvedValue({ id: 'launch', version: '1' });
+  api.generate
+    .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+    .mockResolvedValue(undefined);
+  api.retryGeneration.mockResolvedValue(undefined);
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toMatchObject({
+      code: 'DRIVE_UNAVAILABLE'
+    });
+  });
+  const key = api.generate.mock.calls[0][3];
+  const failed = {
+    id: 'launch',
+    draft: config,
+    generation: {
+      id: 'generation',
+      state: 'interrupted',
+      stage: 'catalog_creating',
+      requestKey: key,
+      inputVersion: '1',
+      errorCode: 'DRIVE_UNAVAILABLE'
+    }
+  } as LaunchDetail;
+  api.detail.mockResolvedValueOnce(failed).mockResolvedValue({
+    ...failed,
+    generation: { ...failed.generation!, state: 'accepted' }
+  });
+  await act(async () => {
+    await result.current.retry(null, config, null, null);
+  });
+  expect(api.retryGeneration).toHaveBeenCalledOnce();
+  expect(api.generate).toHaveBeenLastCalledWith('team', 'launch', '1', key);
+  expect(api.save).toHaveBeenCalledOnce();
+  expect(result.current.hasUnresolvedRequest).toBe(false);
+});
+
+it('keeps the original request when Repeat cannot reconcile, and fences duplicate clicks', async () => {
+  const config = launchConfig();
+  api.save.mockResolvedValue({ id: 'retry-launch', version: '1' });
+  api.generate
+    .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+    .mockResolvedValue(undefined);
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toMatchObject({
+      code: 'DRIVE_UNAVAILABLE'
+    });
+  });
+  const original = api.generate.mock.calls[0];
+  let rejectRead!: (error: Error) => void;
+  api.detail.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectRead = reject;
+      })
+  );
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.retry(null, config, null, null);
+    void pending.catch(() => undefined);
+    await result.current.retry(null, config, null, null);
+  });
+  expect(api.detail).toHaveBeenCalledOnce();
+  await act(async () => {
+    rejectRead(new TeamApiError('DRIVE_UNAVAILABLE', true));
+    await expect(pending).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
+  });
+  expect(result.current.hasUnresolvedRequest).toBe(true);
+  api.detail.mockResolvedValue({ id: 'retry-launch', draft: config, generation: null });
+  await act(async () => {
+    await result.current.retry(null, config, null, null);
+  });
+  expect(api.generate.mock.calls[1]).toEqual(original);
+  expect(api.save).toHaveBeenCalledOnce();
+});
+
+it.each(['succeeded', 'canceled'] as const)(
+  'does not restart a waiting generation already %s',
+  async state => {
+    const waiting = {
+      id: 'launch',
+      draft: launchConfig(),
+      generation: {
+        id: 'generation',
+        state: 'waiting_dependency',
+        requestKey: 'key',
+        inputVersion: '1'
+      }
+    } as LaunchDetail;
+    api.settleRestitch.mockResolvedValue(true);
+    const terminal = { ...waiting, generation: { ...waiting.generation!, state } } as LaunchDetail;
+    api.detail.mockResolvedValue(terminal);
+    const notify = vi.fn();
+    const { result } = renderHook(() => useLaunchGeneration('team', notify));
+    await act(async () => {
+      await result.current.resume(waiting);
+    });
+    expect(api.retryRestitch).not.toHaveBeenCalled();
+    expect(api.retryGeneration).not.toHaveBeenCalled();
+    expect(api.generate).not.toHaveBeenCalled();
+    expect(local.run).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenLastCalledWith(terminal);
+  }
+);
+
 it('preserves success winning a cancellation race instead of stopping its child', async () => {
   api.cancel.mockResolvedValue(undefined);
   const completed = {

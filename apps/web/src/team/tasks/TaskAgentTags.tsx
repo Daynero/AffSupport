@@ -15,6 +15,7 @@ import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   TEAM_AGENT_NOTE_MAX,
   isTeamAgentFree,
+  getTeamAgentAvailability,
   normalizeTeamAgentNote,
   sortTeamTaskAgentTags,
   teamAgentLabel,
@@ -66,7 +67,18 @@ function chipTooltip(
     t('teamAgentTooltipId', { id: tag.agentId })
   ];
   for (const run of tag.runs) lines.push(t('teamAgentTooltipRun', { note: run.note }));
-  if (tag.runs.length === 0) lines.push(t('teamAgentFree'));
+  const availability = getTeamAgentAvailability(tag);
+  lines.push(
+    t(
+      availability === 'unknown'
+        ? 'teamAgentAvailabilityUnknown'
+        : availability === 'free'
+          ? 'teamAgentFree'
+          : 'teamAgentBusy'
+    )
+  );
+  if ((tag.availability?.assignmentCount ?? 0) > 0)
+    lines.push(t('launchesAssignmentCount', { count: tag.availability!.assignmentCount }));
   return lines.join('\n');
 }
 
@@ -81,7 +93,8 @@ function TagChip({
   onSelect?: () => void;
 }) {
   const { t } = useI18n();
-  const free = isTeamAgentFree(tag);
+  const availability = getTeamAgentAvailability(tag);
+  const free = availability === 'free';
   const label = teamTaskAgentTagLabel(tag);
   const title = chipTooltip(tag, t);
   const className = `team-task-agent-chip${free ? ' is-free' : ''}${selected ? ' is-selected' : ''}`;
@@ -99,7 +112,7 @@ function TagChip({
       className={className}
       title={title}
       aria-pressed={selected}
-      aria-label={`${label} — ${free ? t('teamAgentFree') : teamAgentRunsSummary(tag)}`}
+      aria-label={`${label} — ${availability === 'unknown' ? t('teamAgentAvailabilityUnknown') : free ? t('teamAgentFree') : teamAgentRunsSummary(tag) || t('teamAgentBusy')}`}
       onClick={onSelect}
     >
       <span className="team-task-agent-chip-dot" aria-hidden="true" />
@@ -359,7 +372,13 @@ export function TaskAgentTagsEditor({
             />
             <strong className="team-task-agent-panel-tag">{teamTaskAgentTagLabel(openTag)}</strong>
             <span className="team-task-agent-panel-state">
-              {isTeamAgentFree(openTag) ? t('teamTaskAgentIsFree') : t('teamTaskAgentRuns')}
+              {getTeamAgentAvailability(openTag) === 'unknown'
+                ? t('teamAgentAvailabilityUnknown')
+                : isTeamAgentFree(openTag)
+                  ? t('teamTaskAgentIsFree')
+                  : (openTag.availability?.assignmentCount ?? 0) > 0
+                    ? t('launchesAssignmentCount', { count: openTag.availability!.assignmentCount })
+                    : t('teamTaskAgentRuns')}
             </span>
             <IconButton
               type="button"

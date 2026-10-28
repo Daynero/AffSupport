@@ -3,6 +3,7 @@ import { expect, it } from 'vitest';
 import { launchPreview, parseLaunchSources } from '../packages/shared/src/team/launches';
 import { launchConfig } from './fixtures/launches';
 import { financeFixture, FINANCE_OWNER } from './support/team-agent-finance';
+import { assignLaunchFixture } from './support/launch-assignment';
 
 it('publishes an already accepted generation after RK archive, replays its receipt, retains history, and rejects new acceptance', async () => {
   const f = await financeFixture();
@@ -52,7 +53,7 @@ it('publishes an already accepted generation after RK archive, replays its recei
       offerId: offer.id,
       method: 'other'
     });
-    const prepare = async () => {
+    const prepare = async (assign = true) => {
       const draft = await call('save_launch_draft', [
         f.team,
         null,
@@ -61,13 +62,16 @@ it('publishes an already accepted generation after RK archive, replays its recei
         JSON.stringify(config),
         null
       ]);
+      const draftVersion = assign
+        ? await assignLaunchFixture(f.db, FINANCE_OWNER, f.team, draft.id, config.agentRowId)
+        : draft.version;
       const source = await call('get_launch_sources', [f.team, draft.id]);
       const parsed = parseLaunchSources(source);
       expect(parsed).not.toBeNull();
       const saved = await call('save_launch_draft', [
         f.team,
         draft.id,
-        draft.version,
+        draftVersion,
         randomUUID(),
         JSON.stringify(config),
         JSON.stringify(source)
@@ -136,7 +140,7 @@ it('publishes an already accepted generation after RK archive, replays its recei
       (await call('get_team_account_archive_preflight', [f.team, 'agent', f.agent]))
         .effectiveArchived
     ).toBe(true);
-    const fresh = await prepare();
+    const fresh = await prepare(false);
     await expect(accept(fresh.args)).rejects.toThrow('ACCOUNT_ARCHIVED');
     expect(
       (

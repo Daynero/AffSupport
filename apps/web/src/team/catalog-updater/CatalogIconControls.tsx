@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { Clapperboard, Link, Image, Type, ListPlus, LoaderCircle, LockKeyhole } from 'lucide-react';
 import type { CatalogUpdateProfile } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -45,6 +45,7 @@ export function CatalogIconControls({
   name,
   disabledReason,
   state,
+  restitchProgress,
   onChange,
   onReadiness
 }: {
@@ -52,6 +53,7 @@ export function CatalogIconControls({
   name: string;
   disabledReason?: string;
   state?: InlineChangeState;
+  restitchProgress?: number | null;
   onChange: (field: CatalogField, value: boolean) => void;
   onReadiness?: () => void;
 }) {
@@ -59,6 +61,23 @@ export function CatalogIconControls({
   const group = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const pending = state?.phase === 'pending';
+  const videoState = !profile.restitch ? 'off' : (profile.restitchStatus ?? 'waiting');
+  const measured = typeof restitchProgress === 'number' && Number.isFinite(restitchProgress);
+  // Processing completion is not proof that the finalized spare can be consumed.
+  const percent =
+    videoState === 'ready'
+      ? 100
+      : videoState === 'preparing' && measured
+        ? Math.min(99, Math.max(0, restitchProgress))
+        : 0;
+  const videoLabel =
+    videoState === 'ready'
+      ? t('catalogSpareVideoReady')
+      : videoState === 'preparing'
+        ? `${t('catalogRunPreparingVideo')}${measured ? ` · ${Math.round(percent)}%` : ''}`
+        : videoState === 'blocked'
+          ? t('catalogRunNextVideoFailed')
+          : t('catalogRunVideoWaiting');
 
   return (
     <div className="catalog-icon-group">
@@ -81,7 +100,7 @@ export function CatalogIconControls({
         {CATALOG_FIELDS.map(({ field, icon: Icon, label }, index) => {
           const selected = profile[field];
           const waiting = pending && state.field === field;
-          const description = `${t(label)} · ${t(selected ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')}${disabledReason ? ` · ${disabledReason}` : ''}`;
+          const description = `${t(label)} · ${t(selected ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')}${field === 'restitch' && selected ? ` · ${videoLabel}` : ''}${disabledReason ? ` · ${disabledReason}` : ''}`;
           return (
             <div
               key={field}
@@ -91,6 +110,12 @@ export function CatalogIconControls({
                 <button
                   type="button"
                   className={selected ? 'is-selected' : undefined}
+                  data-video-state={field === 'restitch' ? videoState : undefined}
+                  style={
+                    field === 'restitch'
+                      ? ({ '--catalog-video-fill': percent / 100 } as CSSProperties)
+                      : undefined
+                  }
                   tabIndex={active === index ? 0 : -1}
                   aria-pressed={selected}
                   aria-disabled={Boolean(disabledReason)}
@@ -110,13 +135,24 @@ export function CatalogIconControls({
                       className="is-spinning"
                       aria-hidden="true"
                     />
-                  ) : disabledReason && !pending ? (
+                  ) : disabledReason && !pending && !(field === 'restitch' && selected) ? (
                     <LockKeyhole size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   ) : (
                     <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   )}
                 </button>
               </Tooltip>
+              {field === 'restitch' && videoState === 'preparing' && (
+                <span
+                  className="sr-only"
+                  role="progressbar"
+                  aria-label={`${t('catalogRunPreparingVideo')}: ${name}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={measured ? percent : undefined}
+                  aria-valuetext={videoLabel}
+                />
+              )}
             </div>
           );
         })}

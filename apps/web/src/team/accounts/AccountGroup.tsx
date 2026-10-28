@@ -478,6 +478,11 @@ export function AccountGroup({
             </h3>
             <span className="team-account-meta">
               {account.archivedAt && <span>{t('accountsArchived')}</span>}
+              {!!counts.unknown && (
+                <span>
+                  {t('teamAgentAvailabilityUnknown')} · {counts.unknown}
+                </span>
+              )}
               {counts.agents === 0 ? (
                 <span>
                   {t(account.agents.length ? 'accountsNoActiveAgents' : 'teamAccountAgentsNone')}

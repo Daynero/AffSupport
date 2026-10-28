@@ -392,6 +392,15 @@ it('keeps linked launch identities after a rename and exposes unmatched historic
       unmatchedReason: 'missing_agent'
     }
   ];
+  initial.launchAssignments = initial.launchSummaries
+    .filter(row => row.unmatchedReason === null)
+    .map(row => ({ ...row, assignmentState: 'assigned', assignmentVersion: '1' }));
+  initial.assignmentCoverage = 'complete';
+  initial.accounts[0]!.agents[0]!.availability = {
+    status: 'busy',
+    assignmentCount: 2,
+    legacyCount: 0
+  };
   const view = start(initial);
   const linked = await screen.findByRole('link', { name: 'Alpha · 2026-10-18' }, { timeout: 750 });
   expect(linked.getAttribute('href')).toContain('launch-a');

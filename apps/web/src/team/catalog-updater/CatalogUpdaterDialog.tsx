@@ -1048,6 +1048,7 @@ export function CatalogUpdaterDialog({
                       {row.profile ? (
                         <CatalogIconControls
                           profile={row.profile}
+                          restitchProgress={row.restitchProgress}
                           name={row.name}
                           state={state}
                           disabledReason={disabledReason}
@@ -1095,7 +1096,12 @@ export function CatalogUpdaterDialog({
                       <div className="catalog-row-actions">
                         {mayRun && (
                           <IconButton
-                            variant="ghost"
+                            color={
+                              row.updatePending && !row.profile?.reconciliationRequired
+                                ? 'error'
+                                : 'success'
+                            }
+                            variant="soft"
                             data-setting-save={
                               state?.phase === 'pending' &&
                               !busyIds.has(row.catalogId) &&
@@ -1230,7 +1236,8 @@ export function CatalogUpdaterDialog({
               )}
               <Button
                 size="sm"
-                variant="ghost"
+                color="success"
+                variant="soft"
                 onClick={() => void updateNow(liveSelected.map(row => row.catalogId))}
               >
                 {t('catalogUpdaterNow')}
@@ -1303,6 +1310,7 @@ export function CatalogUpdaterDialog({
                     {!mayRun && <p>{t('catalogIconsReadOnly')}</p>}
                     <CatalogIconControls
                       profile={row.profile}
+                      restitchProgress={row.restitchProgress}
                       name={row.name}
                       state={inline.states[row.catalogId]}
                       disabledReason={

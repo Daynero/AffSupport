@@ -478,9 +478,71 @@ describe('refreshing pictures (024)', () => {
       batches: [[claimedRow('a', { refresh_images: false })]]
     });
     deps.drawImages = vi.fn(async () => [{ driveFileId: 'img-1', resourceKey: null }]);
+    deps.readImageLink = vi.fn(async () => 'https://i.postimg.cc/example/new.jpg');
     await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
     expect(deps.drawImages).not.toHaveBeenCalled();
+    expect(deps.readImageLink).not.toHaveBeenCalled();
     expect(await zipEntryAny(written[0]!.bytes)).toContain('img.example.test');
+  });
+
+  it('replaces historical Drive images with the current space link when the image pool was removed', async () => {
+    const { deps, drive, written } = setup({
+      batches: [[claimedRow('a', { refresh_images: true })]]
+    });
+    deps.drawImages = vi.fn(async () => []);
+    deps.readImageLink = vi.fn(async () => 'https://i.postimg.cc/example/new.jpg');
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.readImageLink).toHaveBeenCalledWith('team');
+    const sheet = await zipEntryAny(written[0]!.bytes);
+    expect(sheet).toContain('https://i.postimg.cc/example/new.jpg');
+    expect(sheet).not.toContain('https://img.example.test/a.png');
+    expect(deps.recordChanges).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({ imagesRefreshed: true })
+    );
+    expect(deps.beginWrite).toHaveBeenCalledWith(
+      'a',
+      expect.objectContaining({
+        became: expect.objectContaining({
+          snapshot: expect.objectContaining({ imageLink: 'https://i.postimg.cc/example/new.jpg' })
+        })
+      })
+    );
+    expect(drive.listAnyonePermissions).toBeUndefined();
+    expect(deps.complete).toHaveBeenCalledOnce();
+  });
+
+  it('does not treat a failed pool read as an empty pool or publish old images as a refresh', async () => {
+    const { deps, written } = setup({ batches: [[claimedRow('a', { refresh_images: true })]] });
+    deps.drawImages = vi.fn(async () => {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+    });
+    deps.readImageLink = vi.fn(async () => 'https://i.postimg.cc/example/new.jpg');
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(written).toHaveLength(0);
+    expect(deps.complete).not.toHaveBeenCalled();
+    expect(deps.retry).toHaveBeenCalledOnce();
+  });
+
+  it('retains previous images when the pool and current space fallback are both empty', async () => {
+    const { deps, written } = setup({ batches: [[claimedRow('a', { refresh_images: true })]] });
+    deps.drawImages = vi.fn(async () => []);
+    deps.readImageLink = vi.fn(async () => null);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(await zipEntryAny(written[0]!.bytes)).toContain('img.example.test');
+  });
+
+  it('uses the current fallback for newly added products without changing existing images when refresh is off', async () => {
+    const { deps, written } = setup({
+      batches: [[claimedRow('a', { refresh_images: false, grow_products: true })]]
+    });
+    deps.drawImages = vi.fn(async () => []);
+    deps.readImageLink = vi.fn(async () => 'https://i.postimg.cc/example/new.jpg');
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    const sheet = await zipEntryAny(written[0]!.bytes);
+    expect(sheet).toContain('img.example.test');
+    expect(sheet).toContain('https://i.postimg.cc/example/new.jpg');
+    expect(deps.readImageLink).toHaveBeenCalledOnce();
   });
 });
 

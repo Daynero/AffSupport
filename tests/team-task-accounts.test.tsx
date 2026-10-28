@@ -285,7 +285,7 @@ describe('a card', () => {
     expect(chips[1]?.classList.contains('is-free')).toBe(false);
     // The tooltip spells out what the chip abbreviates: account, full id, runs.
     expect(chips[1]?.getAttribute('title')).toBe(
-      'Account: v31\nID: 1000098765434\nRun: Pro Caps | TR 02/09'
+      'Account: v31\nID: 1000098765434\nRun: Pro Caps | TR 02/09\nBusy'
     );
     unmount();
 

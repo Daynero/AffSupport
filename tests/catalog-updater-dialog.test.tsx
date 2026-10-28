@@ -717,7 +717,9 @@ it('keeps focus on the saved toggle and only offers recency and sorting filters'
   await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
   expect(screen.queryByRole('button', { name: 'Update includes' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Frequency' })).toBeNull();
-  const toggle = screen.getByRole('button', { name: 'Replace video · On: second catalog' });
+  const toggle = screen.getByRole('button', {
+    name: 'Replace video · On · Video ready for the next update: second catalog'
+  });
   await userEvent.click(toggle);
   await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
   await waitFor(() =>

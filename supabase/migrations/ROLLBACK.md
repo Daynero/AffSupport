@@ -2108,9 +2108,9 @@ may return LEASE_EXPIRED; a fresh post-cutover call returns FEATURE_RETIRED.
 A provider upload already outside the transaction may remain unregistered; retain the
 existing ownership/reconciliation evidence rather than deleting files indiscriminately.
 
-## Search cache exclusion — 20261206150000
+## Search cache exclusion — 20261206151000
 
-To revert `20261206150000_search_excludes_cache_subtrees.sql`, restore only
+To revert `20261206151000_search_excludes_cache_subtrees.sql`, restore only
 `public.search_materials(uuid, text, jsonb, integer, integer, text, text[], boolean)`
 from `20261201100000_smarter_material_search.sql`. No indexed rows are changed
 or deleted by this migration; do not drop the function or its existing grants.

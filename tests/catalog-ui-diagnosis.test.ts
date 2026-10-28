@@ -66,3 +66,30 @@ it('exposes the produced server refusal through the read-only agent diagnosis', 
     action_identifier: 'save_requested'
   });
 });
+
+it('keeps a settings read failure distinct from an empty successfully displayed editor', async () => {
+  const track = vi.fn();
+  const flow = beginCatalogUiFlow('template', {}, { track });
+  flow.stage('readback_requested');
+  flow.fail('READ_FAILED');
+  for (const [event, properties] of track.mock.calls) {
+    await db.db.query(
+      'insert into public.analytics_events(user_id,event_name,flow_id,attempt_id,properties,error_code,occurred_at,created_at) values($1,$2,$3::uuid,$3::text,$4,$5,$6,$6)',
+      [
+        USER,
+        event,
+        flow.id,
+        JSON.stringify(properties),
+        properties.error_code ?? null,
+        '2026-10-01T12:00:00Z'
+      ]
+    );
+  }
+  const result = await getInspect(flow.id);
+  expect(result.found).toBe(true);
+  if (!result.found) throw new Error('Expected settings read evidence');
+  expect(result.capability).toBe('team.catalog_manager_template');
+  expect(result.terminal?.event).toBe('operation_failed');
+  expect(result.events.at(-1)?.properties.error_code).toBe('READ_FAILED');
+  expect(result.events.some(event => event.event_name === 'operation_completed')).toBe(false);
+});

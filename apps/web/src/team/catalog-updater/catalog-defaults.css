@@ -1,0 +1,37 @@
+.catalog-defaults {
+  min-width: 0;
+}
+
+.catalog-defaults-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.catalog-defaults-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.catalog-defaults-row .ui-checkbox-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.catalog-defaults-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.catalog-defaults .ui-accordion-trigger {
+  flex-wrap: wrap;
+}
+.catalog-defaults .ui-accordion-aside {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

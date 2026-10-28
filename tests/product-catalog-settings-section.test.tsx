@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -73,6 +73,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       getProductCatalogSettings: vi.fn().mockResolvedValue(null),
       setProductCatalogSettings: set
     });
+    await openEditor('product-catalog-settings-title');
     expect(((await screen.findByLabelText('From')) as HTMLInputElement).value).toBe('9');
     expect((screen.getByLabelText('to') as HTMLInputElement).value).toBe('30');
     const user = userEvent.setup();
@@ -97,6 +98,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       setProductCatalogSettings: vi.fn()
     });
     const user = userEvent.setup();
+    await openEditor('product-catalog-settings-title');
     const from = await screen.findByLabelText('From');
     await user.clear(from);
     await user.type(from, '40');
@@ -112,6 +114,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       },
       viewing
     );
+    await openEditor('product-catalog-settings-title');
     await screen.findByLabelText('From');
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
@@ -122,6 +125,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
       setProductCatalogSettings: vi.fn().mockResolvedValue(stored)
     });
     const user = userEvent.setup();
+    await openEditor('product-catalog-settings-title');
     const from = await screen.findByLabelText('From');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true)
@@ -130,7 +134,7 @@ describe('a space’s catalog price and fallbacks (024)', () => {
     await user.clear(from);
     await user.type(from, '5');
     expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', false);
-    expect(screen.getByText('Not saved yet')).toBeTruthy();
+    expect(screen.getAllByText('Not saved yet').length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByText('Not saved yet')).toBeNull());
   });
@@ -156,18 +160,20 @@ describe('the name and description pool (024)', () => {
       replaceProductCatalogTexts: replace,
       updateProductCatalogText: vi.fn()
     });
+    await openEditor('product-catalog-texts-title');
     expect(await screen.findByText(/for clothing only/)).toBeTruthy();
     const user = userEvent.setup();
-    const count = screen.getByLabelText('How many');
+    const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
     await user.type(count, '3');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await waitFor(() => expect(replace).toHaveBeenCalled());
     expect(replace.mock.calls[0]![1]).toHaveLength(3);
-    expect(await screen.findByText('3 in the pool')).toBeTruthy();
+    expect(await screen.findByText('Saved: 3')).toBeTruthy();
     // A pool that exists is replaced only after saying so.
-    await user.click(screen.getByRole('button', { name: 'Generate again' }));
-    expect(await screen.findByText('Replace the pool?')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /More/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Replace all names and descriptions' }));
+    expect(await screen.findByText('Replace all names and descriptions?')).toBeTruthy();
   });
 });
 
@@ -181,20 +187,10 @@ describe('whether a catalog can be made (024, US23)', () => {
       listProductCatalogImageSources: vi.fn(async () => ({ sources: [], poolSize: 0 })),
       setProductCatalogImageSources: vi.fn()
     });
-    expect(
-      await screen.findByText(
-        'Names and descriptions — nothing to write: the pool is empty and there is no fallback'
-      )
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        'Pictures — nothing to show: the pool is empty and there is no fallback link'
-      )
-    ).toBeTruthy();
-    expect(screen.getByText('Price — 9 to 30 USD, a whole number per row')).toBeTruthy();
-    expect(
-      screen.getByText('A catalog cannot be made yet — fill what is marked above.')
-    ).toBeTruthy();
+    expect(await screen.findByText('Add missing content and save the price.')).toBeTruthy();
+    expect(screen.getByText('Saved: 0')).toBeTruthy();
+    expect(screen.getByText('Images: 0')).toBeTruthy();
+    expect(screen.getByText('9–30 USD')).toBeTruthy();
   });
 
   it('says a catalog can be made once both pools have something', async () => {
@@ -211,9 +207,9 @@ describe('whether a catalog can be made (024, US23)', () => {
       })),
       setProductCatalogImageSources: vi.fn()
     });
-    expect(await screen.findByText('A catalog can be made from this.')).toBeTruthy();
-    expect(screen.getByText('Names and descriptions — 1 in the pool')).toBeTruthy();
-    expect(screen.getByText('Pictures — 4 in the pool')).toBeTruthy();
+    expect(await screen.findByText('Catalog contents are configured.')).toBeTruthy();
+    expect(screen.getByText('Saved: 1')).toBeTruthy();
+    expect(screen.getByText('Images: 4')).toBeTruthy();
     // Nothing typed into the single values, so they are empty rather than in use.
     expect(screen.getByText('Empty')).toBeTruthy();
   });
@@ -235,6 +231,7 @@ describe('the pool, browsed and added to (024, US23)', () => {
       updateProductCatalogText: vi.fn()
     });
     const user = userEvent.setup();
+    await openEditor('product-catalog-texts-title');
     expect(await screen.findByText('Nova Sage Jersey Hoodie 0')).toBeTruthy();
     // Three of six in the tab; the rest behind one button.
     expect(screen.queryByText('Nova Sage Jersey Hoodie 4')).toBeNull();
@@ -244,7 +241,7 @@ describe('the pool, browsed and added to (024, US23)', () => {
     expect(screen.getByText('Ludia Navy Twill Wide Leg Jeans')).toBeTruthy();
     await user.keyboard('{Escape}');
 
-    const count = screen.getByLabelText('How many');
+    const count = screen.getByLabelText('Variants to add');
     await user.clear(count);
     await user.type(count, '2');
     await user.click(screen.getByRole('button', { name: 'Add' }));
@@ -270,7 +267,8 @@ describe('the picture pool (024)', () => {
       })),
       setProductCatalogImageSources: setSources
     });
-    expect(await screen.findByText('13 pictures')).toBeTruthy();
+    await openEditor('product-catalog-images-title');
+    expect(await screen.findByText('Images: 13')).toBeTruthy();
     expect(screen.getByText('12 images')).toBeTruthy();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Remove plain.png from the pictures' }));
@@ -280,3 +278,153 @@ describe('the picture pool (024)', () => {
   });
 });
 // @ts-nocheck — section mocks intentionally use narrower callbacks for focused cases.
+
+// Select the disclosure by its stable association, without depending on changing count summaries.
+async function openEditor(id: string) {
+  const trigger = document.querySelector<HTMLButtonElement>(
+    `button[aria-controls="accordion-${id}"]`
+  )!;
+  if (trigger.getAttribute('aria-expanded') !== 'true') await userEvent.click(trigger);
+}
+
+function valuesClient() {
+  return {
+    getProductCatalogSettings: vi.fn().mockResolvedValue(stored),
+    setProductCatalogSettings: vi.fn(async (_team, input) => ({ ...stored, ...input }))
+  };
+}
+
+describe('catalog editing boundaries', () => {
+  it('keeps failed image reads unknown and recovers through Retry', async () => {
+    const load = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ sources: [], poolSize: 0 });
+    renderSection({ ...valuesClient(), listProductCatalogImageSources: load });
+    await screen.findByText('Could not load');
+    expect(screen.getByText('Check the contents: data is not confirmed yet.')).toBeTruthy();
+    expect(screen.queryByText('Images: 0')).toBeNull();
+    await openEditor('product-catalog-images-title');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Images: 0')).toBeTruthy();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('retains a price draft while switching editors and exposes its dirty summary', async () => {
+    renderSection(valuesClient());
+    await openEditor('product-catalog-settings-title');
+    const input = await screen.findByLabelText('From');
+    await userEvent.clear(input);
+    await userEvent.type(input, '17');
+    await openEditor('product-catalog-fallback-title');
+    expect(
+      document.querySelector('button[aria-controls="accordion-product-catalog-settings-title"]')
+        ?.textContent
+    ).toContain('Not saved yet');
+    await openEditor('product-catalog-settings-title');
+    expect(screen.getByLabelText('From')).toHaveProperty('value', '17');
+  });
+
+  it('saves price without publishing the fallback draft', async () => {
+    const api = valuesClient();
+    renderSection(api);
+    await openEditor('product-catalog-fallback-title');
+    await userEvent.type(await screen.findByLabelText('Title'), 'Draft title');
+    await openEditor('product-catalog-settings-title');
+    await userEvent.clear(screen.getByLabelText('From'));
+    await userEvent.type(screen.getByLabelText('From'), '17');
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() =>
+      expect(api.setProductCatalogSettings).toHaveBeenCalledWith(TEAM_ID, {
+        title: null,
+        description: null,
+        imageLink: null,
+        priceMin: 17,
+        priceMax: 30
+      })
+    );
+    await openEditor('product-catalog-fallback-title');
+    expect(screen.getByLabelText('Title')).toHaveProperty('value', 'Draft title');
+  });
+
+  it('saves fallbacks using persisted prices even when the price draft is invalid', async () => {
+    const api = valuesClient();
+    renderSection(api);
+    await openEditor('product-catalog-settings-title');
+    await userEvent.clear(await screen.findByLabelText('From'));
+    await openEditor('product-catalog-fallback-title');
+    await userEvent.type(screen.getByLabelText('Title'), 'Saved title');
+    await userEvent.click(screen.getByRole('button', { name: 'Save the fallbacks' }));
+    await waitFor(() =>
+      expect(api.setProductCatalogSettings).toHaveBeenCalledWith(TEAM_ID, {
+        title: 'Saved title',
+        description: null,
+        imageLink: null,
+        priceMin: 9,
+        priceMax: 30
+      })
+    );
+    await openEditor('product-catalog-settings-title');
+    expect(screen.getByLabelText('From')).toHaveProperty('value', '');
+  });
+
+  it('blocks edits during an outstanding save and restores editing after confirmation', async () => {
+    let resolveSave!: (value: ProductCatalogSettings) => void;
+    const api = valuesClient();
+    api.setProductCatalogSettings = vi.fn(
+      () =>
+        new Promise<ProductCatalogSettings>(resolve => {
+          resolveSave = resolve;
+        })
+    );
+    renderSection(api);
+    await openEditor('product-catalog-settings-title');
+    const from = await screen.findByLabelText('From');
+    await userEvent.clear(from);
+    await userEvent.type(from, '17');
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    expect(from).toHaveProperty('readOnly', true);
+    await userEvent.type(from, '2');
+    expect(from).toHaveProperty('value', '17');
+    await openEditor('product-catalog-fallback-title');
+    expect(screen.getByLabelText('Title')).toHaveProperty('readOnly', true);
+    await act(async () => resolveSave({ ...stored, priceMin: 17 }));
+    expect(screen.getByLabelText('Title')).toHaveProperty('readOnly', false);
+    await openEditor('product-catalog-settings-title');
+    expect(screen.getByLabelText('From')).toHaveProperty('value', '17');
+    expect(screen.getByLabelText('From')).toHaveProperty('readOnly', false);
+  });
+
+  it('blocks over-capacity generation and offers the exact remaining amount', async () => {
+    const replace = vi.fn();
+    renderSection({
+      ...valuesClient(),
+      listProductCatalogTexts: vi.fn().mockResolvedValue(
+        Array.from({ length: 999 }, (_, i) => ({
+          id: String(i),
+          title: `Item ${i}`,
+          description: 'Text'
+        }))
+      ),
+      replaceProductCatalogTexts: replace
+    });
+    await openEditor('product-catalog-texts-title');
+    const count = await screen.findByLabelText('Variants to add');
+    await userEvent.clear(count);
+    await userEvent.type(count, '2');
+    expect(screen.getByRole('button', { name: 'Add', exact: true })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(replace).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Room for 1 more — use this amount' })
+    );
+    expect(count).toHaveProperty('value', '1');
+    expect(screen.getByText('Add 1 · total 1000')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add', exact: true })).toHaveProperty(
+      'disabled',
+      false
+    );
+  });
+});

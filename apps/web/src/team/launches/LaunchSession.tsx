@@ -13,7 +13,8 @@ import {
   type LaunchConfig,
   type LaunchSourceSnapshot,
   type LaunchOverrides,
-  type TeamAccountSummary
+  type TeamAccountSummary,
+  type LaunchAssignmentState
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
@@ -43,6 +44,7 @@ import { mergeLaunchOverrides, useLaunchOverrides } from './useLaunchOverrides';
 import { useLaunchGeneration } from './useLaunchGeneration';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
+import { LaunchAssignmentControls } from './LaunchAssignmentControls';
 
 export function LaunchSession({
   teamId,
@@ -88,6 +90,13 @@ export function LaunchSession({
   const { t } = useI18n();
   const toasts = useOptionalToasts();
   const draft = useLaunchDraft(detail, initialMaterialId);
+  const [assignment, setAssignment] = useState<LaunchAssignmentState | null>(null);
+  const assignmentBlocksGeneration =
+    !detail ||
+    !assignment ||
+    assignment.launchId !== detail.id ||
+    assignment.state !== 'assigned' ||
+    assignment.agentRowId !== draft.config.agentRowId;
   const progressScroll = useLaunchProgressScroll();
   const latestProgressDetail = useRef(detail);
   latestProgressDetail.current = detail;
@@ -685,7 +694,7 @@ export function LaunchSession({
     if (generation.hasUnresolvedRequest) {
       setPreflighting(false);
       try {
-        await generation.generate(detail, draft.config, draft.sources, draft.baseVersion);
+        await generation.retry(detail, draft.config, draft.sources, draft.baseVersion);
       } catch (e) {
         if (inputAuthority.current.mounted) reportError(e);
       }
@@ -706,6 +715,12 @@ export function LaunchSession({
       );
       return;
     }
+    if (assignmentBlocksGeneration) {
+      generation.blocked('WRONG_STATE');
+      setError(t('launchesAssignmentGenerationRequired'));
+      return;
+    }
+
     if (sourceChanged) {
       generation.blocked('SOURCE_CHANGED');
       setError(t('launchesSourceChanged'));
@@ -1065,7 +1080,8 @@ export function LaunchSession({
           {t(generation.pendingStage === 'cancel' ? 'launchesProgressRetryCancel' : 'retry')}
         </Button>
       )}
-      {editable &&
+      {!generation.hasUnresolvedRequest &&
+        editable &&
         detail?.generation?.requestKey &&
         !['succeeded', 'canceled'].includes(detail.generation.state) && (
           <Button
@@ -1179,6 +1195,25 @@ export function LaunchSession({
           </span>
         </div>
       </header>
+      {detail && !historical && (
+        <LaunchAssignmentControls
+          teamId={teamId}
+          launchId={detail.id}
+          sourceAgentRowId={
+            detail.activeRevision?.config.agentRowId ?? detail.draft.agentRowId ?? null
+          }
+          accounts={accounts}
+          editable={editable && !unsavedChanges && !working && !preparationStatus}
+          hasResults={Boolean(detail.activeRevision)}
+          onAssignmentChange={setAssignment}
+          onConfirmed={() => run(() => reload(detail.id))}
+        />
+      )}
+      {assignmentBlocksGeneration && (
+        <p role="status" className="text-warning-text">
+          {t('launchesAssignmentGenerationRequired')}
+        </p>
+      )}
       {sourceChanged && (
         <p role="status" className="text-warning-text">
           {t('launchesSourceChanged')}
@@ -1560,6 +1595,7 @@ export function LaunchSession({
                     dictionaryBusy ||
                     sourcesPending ||
                     sourceChanged ||
+                    assignmentBlocksGeneration ||
                     detail?.generation?.state === 'failed'
                   }
                   onClick={() => void generate()}

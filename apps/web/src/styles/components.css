@@ -125,6 +125,16 @@
 .launch-card-body {
   min-width: 0;
 }
+/* Historical source identity and missing authority never imply current availability. */
+.launch-card .team-task-agent-chip.is-neutral {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.launch-card .team-task-agent-chip.is-neutral .team-task-agent-chip-dot {
+  background: var(--color-text-muted);
+  box-shadow: none;
+}
 .launch-card .team-task-card-footer {
   margin: 0;
   padding: 0;

@@ -67,6 +67,20 @@ export async function runLaunchRestitch(
     (await request(() => deps.launches.restitchPreparation(teamId, generationId))) ??
     (await request(() => deps.launches.prepareRestitch(teamId, generationId)));
   const catalogKey = `launch:${generationId}:catalog`;
+  const settleRecovered = async (operationId: string) => {
+    if (await request(() => deps.launches.settleRestitch(teamId, generationId))) return;
+    // The start reply may have been lost before the browser bound its receipt.
+    // The preparation read can discover that child by its durable process key;
+    // settlement needs the explicit, server-validated binding as well.
+    try {
+      await request(() => deps.launches.bindRestitch(teamId, generationId, operationId));
+    } catch (error) {
+      // Another observer may already have settled or canceled the parent.
+      // Its state remains authoritative; never start a replacement here.
+      if (!(error instanceof TeamApiError && error.code === 'WRONG_STATE')) throw error;
+    }
+    await request(() => deps.launches.settleRestitch(teamId, generationId));
+  };
   const drawScreens: NonNullable<CreateProductCatalogClient['prepareRestitchScreens']> = (
     team,
     defaults
@@ -126,15 +140,20 @@ export async function runLaunchRestitch(
       async completed(choice) {
         if (!preparation.operationId) return null;
         const operation = await request(() => deps.operation(teamId, preparation.operationId!));
-        if (operation.teamId !== teamId || operation.sourceMaterialId !== video.id)
+        if (
+          operation.id !== preparation.operationId ||
+          operation.teamId !== teamId ||
+          operation.sourceMaterialId !== video.id
+        )
           throw new TeamApiError('INVALID_RESPONSE', false);
         if (operation.state === 'succeeded' && operation.resultMaterialId) {
-          await request(() => deps.launches.settleRestitch(teamId, generationId));
+          await settleRecovered(operation.id);
           return { operationId: operation.id, choice, catalogKey };
         }
-        if (operation.state === 'running') throw new TeamApiError('LAUNCH_BUSY', true);
+        if (operation.state === 'running' || operation.state === 'pending')
+          throw new TeamApiError('LAUNCH_BUSY', true);
         if (operation.state === 'failed' || operation.state === 'canceled') {
-          await request(() => deps.launches.settleRestitch(teamId, generationId));
+          await settleRecovered(operation.id);
           if (operation.errorCode) throw new TeamApiError(operation.errorCode, false);
           throw new TeamApiError('PROCESS_FAILED', false);
         }
