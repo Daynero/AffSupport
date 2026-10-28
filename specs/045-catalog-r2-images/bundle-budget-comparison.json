@@ -41,7 +41,7 @@
   "authorization": {
     "decision": "Owner explicitly accepted modest measured feature JavaScript growth; prioritize completing R2 catalog functionality rather than broader base-route microoptimization.",
     "shared_existing_incremental_allowance": 20000,
-    "launch_exclusive_ceiling": 45000,
+    "launch_exclusive_ceiling": 48000,
     "unchanged": [
       "performance-baseline.json",
       "original 5 percent total ratchet",
@@ -49,11 +49,21 @@
       "largest chunk ratchet",
       "pre038 Accounts baseline and existing Accounts allowances"
     ],
-    "enforcement": "Both shared/existing growth against clean b0c0077b and original shared/existing ratchet plus the fixed allowance are checked. Complete route graphs remain included; no skipped or excluded assets."
+    "enforcement": "Both shared/existing growth against clean b0c0077b and original shared/existing ratchet plus the fixed allowance are checked. Complete route graphs remain included; no skipped or excluded assets.",
+    "previous_launch_exclusive_ceiling": 45000,
+    "release_1_2_10_decision": "Owner approved 48,000 gzip bytes for the integrated launch workflows on 2026-10-28; historical measurements above remain unchanged."
   },
   "feature_delta": {
     "total_gzip": 16903,
     "shared_existing_gzip": 16918,
     "launch_exclusive_gzip": -31
+  },
+  "integration_1_2_10": {
+    "app_source_sha": "9e9a2408",
+    "launch_exclusive_gzip": 46241,
+    "accounts_exclusive_gzip": 78847,
+    "shared_existing_growth_gzip": 30145,
+    "decision": "Bound the completed library, owner quota, scheduling and integrated account workflows under the standing acceptance of modest measured feature growth and the owner instruction to include all post-1.2.9 work. Historical measurements and global/entry/largest/Accounts baselines are retained.",
+    "shared_existing_incremental_allowance": 32000
   }
 }

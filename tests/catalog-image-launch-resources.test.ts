@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
 import { launchConfig } from './fixtures/launches';
 import { launchPreview, parseLaunchSources } from '../packages/shared/src/team/launches';
+import { assignLaunchFixture } from './support/launch-assignment';
 import { classifyCatalogImageName } from '../packages/shared/src/team/catalog-images';
 
 const ACTOR = '45150000-0000-4000-8000-000000000001';
@@ -68,20 +69,19 @@ async function prepare(actor = ACTOR): Promise<Generation> {
   )[0]!.v;
   const parsed = parseLaunchSources(source);
   if (!parsed) throw new Error('Invalid synthetic sources');
-  const updated = (
-    await db.asUser<{ v: { version: string } }>(
-      actor,
-      'select public.save_launch_draft($1,$2,$3,$4,$5::jsonb,$6::jsonb) v',
-      [
-        team,
-        saved.id,
-        saved.version,
-        `${key}-sources`,
-        JSON.stringify(config),
-        JSON.stringify(source)
-      ]
-    )
-  )[0]!.v;
+  await db.asUser<{ v: { version: string } }>(
+    actor,
+    'select public.save_launch_draft($1,$2,$3,$4,$5::jsonb,$6::jsonb) v',
+    [
+      team,
+      saved.id,
+      saved.version,
+      `${key}-sources`,
+      JSON.stringify(config),
+      JSON.stringify(source)
+    ]
+  );
+  const assignedVersion = await assignLaunchFixture(db, actor, team, saved.id, agent);
   const preview = launchPreview(config, parsed);
   if (!preview.ok) throw new Error('Invalid synthetic preview');
   const generation = (
@@ -91,7 +91,7 @@ async function prepare(actor = ACTOR): Promise<Generation> {
         team,
         saved.id,
         actor,
-        updated.version,
+        assignedVersion,
         `${key}-accept`,
         `digest-${sequence}`,
         JSON.stringify(config),

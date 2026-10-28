@@ -2137,3 +2137,7 @@ To revert `20261206149200_search_excludes_cache_subtrees.sql`, restore only
 `public.search_materials(uuid, text, jsonb, integer, integer, text, text[], boolean)`
 from `20261201100000_smarter_material_search.sql`. No indexed rows are changed
 or deleted by this migration; do not drop the function or its existing grants.
+
+## Integrated launch analytics guard — 20261207092000
+
+Restore the guard definition from `20261206154000_catalog_image_analytics_guard.sql` only after assignment producers are disabled. This removes assignment-action acceptance and does not change existing event rows.

@@ -1,13 +1,11 @@
 import { useId } from 'react';
 import { Download, X } from 'lucide-react';
-import { combineModelInfo, type TranscriptionModelInfo } from '@video-compressor/shared';
+import type { TranscriptionModelInfo } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
 import { Button, ProgressBar, type Translate } from '../components/ui';
 import { formatSize } from '../format';
 import type { Language } from '../i18n';
 import { Alert } from '../components/ui/index';
-
-export { combineModelInfo };
 
 /** The band above the queue while the speech model of the chosen mode is missing. */
 export function ModelGate({

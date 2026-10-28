@@ -52,6 +52,27 @@ async function makeQueue(jobs: TranscriptionJob[]) {
 }
 
 describe('transcription queue snapshots and cleanup', () => {
+  it('lets a manual language override detection and return safely to automatic detection', async () => {
+    const restored = job('language', path.join(os.tmpdir(), 'language.mp3'), 'ready');
+    restored.languageSource = 'probe';
+    restored.languageConfidence = 0.8;
+    restored.languageCandidates = [{ language: 'en', share: 0.8 }];
+    restored.languageSamples = 2;
+    const subject = await makeQueue([restored]);
+    expect(subject.setJobLanguage('absent', 'uk')).toBe(false);
+    expect(subject.setJobLanguage('language', 'uk')).toBe(true);
+    expect(subject.state().jobs[0]).toMatchObject({
+      detectedLanguage: 'uk',
+      languageSource: 'manual'
+    });
+    expect(subject.state().jobs[0]).not.toHaveProperty('languageCandidates');
+    expect(subject.state().jobs[0]).not.toHaveProperty('languageConfidence');
+    expect(subject.setJobLanguage('language', 'auto')).toBe(true);
+    expect(subject.state().jobs[0].detectedLanguage).toBeNull();
+    expect(subject.state().jobs[0]).not.toHaveProperty('languageSource');
+    expect(await subject.prepareMediaPreview('absent')).toBeNull();
+    expect(await subject.playbackMediaSource('absent')).toBeNull();
+  });
   it('updates local settings and tooling without starting absent models', async () => {
     const subject = await makeQueue([]);
     subject.updateSettings({ language: 'en', quality: 'accurate' });

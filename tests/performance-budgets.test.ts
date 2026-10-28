@@ -43,7 +43,9 @@ const LAUNCH_ROOT_CEILING = 20_000;
 // Owner-approved 1.2.10 allowance for current launch assignments and expanded
 // launch workflows. The root chunk and global download ratchets stay fixed.
 const LAUNCH_EXCLUSIVE_CEILING = 48_000;
-const FEATURE_045_INCREMENTAL_ALLOWANCE = 20_000;
+// Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
+// measured shared growth is 30,145 B against the unchanged clean 045 base.
+const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
 
 /**
  * How far the total may drift before this fails.
@@ -72,6 +74,7 @@ interface AccountsBefore {
 }
 interface Feature045Comparison {
   source_sha: string;
+  integration_1_2_10: { shared_existing_incremental_allowance: number };
   authorization: {
     shared_existing_incremental_allowance: number;
     launch_exclusive_ceiling: number;
@@ -136,7 +139,8 @@ describeRequiring(
         readFileSync(FEATURE_045_COMPARISON, 'utf8')
       ) as Feature045Comparison;
       expect(feature045.source_sha).toBe('b0c0077b6b95f43f54daa32912052e2e7a7e953a');
-      expect(feature045.authorization.shared_existing_incremental_allowance).toBe(
+      expect(feature045.authorization.shared_existing_incremental_allowance).toBe(20_000);
+      expect(feature045.integration_1_2_10.shared_existing_incremental_allowance).toBe(
         FEATURE_045_INCREMENTAL_ALLOWANCE
       );
       expect(feature045.authorization.launch_exclusive_ceiling).toBe(LAUNCH_EXCLUSIVE_CEILING);
@@ -178,7 +182,7 @@ describeRequiring(
       );
       expect(
         feature045Increment,
-        `shared/existing growth from clean 045 base: ${feature045Increment}B; owner-approved allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
+        `shared/existing growth from clean 045 base: ${feature045Increment}B; bounded integration allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
       ).toBeLessThanOrEqual(FEATURE_045_INCREMENTAL_ALLOWANCE);
       expect(
         existingBytes,

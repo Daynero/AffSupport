@@ -1785,53 +1785,6 @@ export interface TranscriptionState {
   settings: TranscriptionSettings;
 }
 
-/**
- * Byte-weighted progress across several models installed from one confirmation.
- *
- * Models already present count as done; a model still downloading counts by its bytes; a
- * model with an unknown size makes the whole thing indeterminate rather than wrong. Written
- * once for the agent and the interface: two copies had already started to disagree about
- * which parts belong to the current download.
- */
-export function combineModelInfo(
-  label: string,
-  parts: readonly TranscriptionModelInfo[],
-  downloadBatchId?: string | null
-): TranscriptionModelInfo {
-  const activeBatchId =
-    downloadBatchId ??
-    parts.find(part => part.downloading && part.downloadBatchId)?.downloadBatchId ??
-    null;
-  const participants = activeBatchId
-    ? parts.filter(part => part.downloadBatchId === activeBatchId)
-    : parts.filter(part => !part.present);
-  const sizeBytes = participants.reduce((sum, part) => sum + Math.max(0, part.sizeBytes), 0);
-  const downloadedBytes = participants.reduce(
-    (sum, part) =>
-      sum +
-      (part.present
-        ? Math.max(0, part.sizeBytes)
-        : Math.min(Math.max(0, part.downloadedBytes), Math.max(0, part.sizeBytes))),
-    0
-  );
-  const present = parts.every(part => part.present);
-  const downloading = parts.some(part => part.downloading);
-  return {
-    present,
-    downloading,
-    progress: present
-      ? 100
-      : downloading && sizeBytes > 0
-        ? Math.min(99, Math.floor((downloadedBytes / sizeBytes) * 100))
-        : null,
-    sizeBytes,
-    downloadedBytes,
-    downloadBatchId: activeBatchId,
-    label,
-    error: parts.map(part => part.error).find((error): error is string => Boolean(error)) ?? null
-  };
-}
-
 export type TranscriptionEventType = 'transcription:state' | 'transcription:progress';
 
 export interface TranscriptionEvent {

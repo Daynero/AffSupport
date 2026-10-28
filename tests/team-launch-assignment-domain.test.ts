@@ -63,6 +63,44 @@ function rawAgent(availability?: unknown) {
   };
 }
 describe('authoritative current RK availability', () => {
+  it('validates complete assignment projections and rejects malformed authority', () => {
+    const assignment = {
+      id: 'launch',
+      agentRowId: 'rk',
+      accountId: 'social',
+      revisionId: null,
+      launchDate: '2026-10-29',
+      workStatus: 'active',
+      hasResult: false,
+      creativeAlias: 'synthetic',
+      method: 'catalog',
+      unmatchedReason: null,
+      assignmentState: 'assigned',
+      assignmentVersion: '1'
+    };
+    const snapshot = {
+      schemaVersion: 1,
+      accounts: [],
+      socialOrderVersion: '0',
+      agentOrderVersions: {},
+      coverage: 'complete',
+      assignmentCoverage: 'complete',
+      launchAssignments: [assignment]
+    };
+    expect(parseTeamAccountsOverview(snapshot)?.launchAssignments).toEqual([assignment]);
+    for (const patch of [
+      { assignmentState: 'released' },
+      { assignmentVersion: 'invalid' },
+      { assignmentVersion: '1'.repeat(20) },
+      { launchDate: 'unknown' },
+      { id: null }
+    ]) {
+      expect(
+        parseTeamAccountsOverview({ ...snapshot, launchAssignments: [{ ...assignment, ...patch }] })
+      ).toBeNull();
+    }
+    expect(parseTeamAccountsOverview({ ...snapshot, assignmentCoverage: 'unknown' })).toBeNull();
+  });
   it('uses all current assignments, with no date, work-status, result or displayed-launch dependency', () => {
     expect(getTeamAgentAvailability(agent(busy))).toBe('busy');
     expect(isTeamAgentFree(agent(busy))).toBe(false);
