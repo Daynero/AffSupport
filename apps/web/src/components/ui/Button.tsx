@@ -90,7 +90,10 @@ function useMergedRef(
  * differently under touch and keyboard. Nothing in the product used them on a
  * Button.
  */
-export interface ButtonProps {
+export interface ButtonProps extends Pick<
+  HeroButtonProps,
+  'onPressStart' | 'onPressEnd' | 'onBlur'
+> {
   color?: UiColor;
   variant?: UiVariant | LegacyVariant;
   size?: UiSize;

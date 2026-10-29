@@ -4,14 +4,14 @@
 
 ## Межа паралельної роботи
 
-| Колишній scope 037 | Новий власник / зміна |
-| --- | --- |
-| US5, FR-010, T028–T029 — шапка фінансів | 038 US1; шапка єдиної таблиці |
-| US6, FR-011–012, T030–T034 — порядок | 038 US2–US3; додано 500 мс, згортання, стабільну вставку |
-| US7, FR-013–014, T035–T038 — огляд | 038 US1; замінено на повний робочий UI без вкладок |
-| US8, FR-015, T044–T048 — архів | 038 US5; архів соцiв/окремих РК через другорядний пункт меню, історія за датами |
-| T003 — аудит зв'язків запусків/фінансів | Planning 038; сталі ID, історичні placement, без join за назвою |
-| Нове побажання — фон назви | 038 US4; 7 кольорів + без кольору, без семантики маркерів |
+| Колишній scope 037                      | Новий власник / зміна                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------- |
+| US5, FR-010, T028–T029 — шапка фінансів | 038 US1; шапка єдиної таблиці                                                   |
+| US6, FR-011–012, T030–T034 — порядок    | 038 US2–US3; додано 500 мс, згортання, стабільну вставку                        |
+| US7, FR-013–014, T035–T038 — огляд      | 038 US1; замінено на повний робочий UI без вкладок                              |
+| US8, FR-015, T044–T048 — архів          | 038 US5; архів соцiв/окремих РК через другорядний пункт меню, історія за датами |
+| T003 — аудит зв'язків запусків/фінансів | Planning 038; сталі ID, історичні placement, без join за назвою                 |
+| Нове побажання — фон назви              | 038 US4; 7 кольорів + без кольору, без семантики маркерів                       |
 
 037 не реалізує наведені задачі. Номери залишені як посилання на передачу, не як завершені задачі. Її загальні diagnostic/gate задачі стосуються тільки решти scope. Діагностичні файли спільні: інтегрувати зміни двох фіч без перезапису чужих capability/code-map записів.
 
@@ -21,25 +21,25 @@
 
 Перевірено за поточними компонентами 2026-10-17. Кожен рядок — обов'язковий регресійний сценарій перед готовністю 038; це не твердження про вже виконані тести.
 
-| Можливість | Розміщення в новому UI / що зберегти | Поточне джерело |
-| --- | --- | --- |
-| Соци: створення, перейменування, видалення з підтвердженням | Заголовок групи й чинний інлайн-редактор; потік додавання РК після створення соца | `AccountSpace.tsx`, `AccountGroup.tsx` |
-| РК: додавання, редагування ID, видалення, перенесення між соцами | Рядок і його меню; чинні валідації та підтвердження | `AccountGroup.tsx`, `AgentRow.tsx`, `finance/MoveAgentDialog.tsx` |
-| Копіювання повного ID, fallback при відмові clipboard | Окрема іконка поряд із назвою, яка тепер перемикає колір | `AgentRow.tsx`, `AgentIdentity.tsx` |
-| 2FA соца: встановлення/очищення, код, копіювання й таймер | Заголовок соца; drag не перехоплює контрол, секрети не потрапляють у telemetry | `AccountGroup.tsx` |
-| Ручні запуски: створення, редагування, видалення, звільнення РК | Чинна клітинка запусків та редактори; кілька запусків не множать фінанси | `AgentRow.tsx`, `useAccounts.ts` |
-| Маркери запусків, їх очищення й Undo | Збережені поряд із запусками; колір назви не маркер | `Marked.tsx`, `MarkerFilter.tsx`, `AccountSpace.tsx` |
-| Теги РК, словник тегів, копіювання з групуванням | Чинні контролі та дії | `AgentLabels.tsx`, `AccountSpace.tsx` |
-| Пошук, зайнятість, маркери, лічильники, згортання всіх/одного | Єдина панель; ручний порядок не скидається; редагований об'єкт не зникає без завершення редактора | `AccountSpace.tsx`, `AccountGroup.tsx` |
-| Пов'язані завдання та переходи до них | Чинні лічильники/peek у групі та РК | `AgentTasksPeek.tsx`, `AccountGroup.tsx` |
-| Дата, вчора/сьогодні, місяць/попередній, діапазон і перехід по періодах | Спільна доступна при прокрутці шапка; зберегти чинні межі діапазону та timezone | `finance/FinanceToolbar.tsx`, `useFinancePeriod.ts` |
-| Денний баланс, поповнення, витрати | Фінансові колонки того самого рядка; чинні правила редагування й обчислення | `finance/DailyFinanceFields.tsx`, `FinanceWorkspace.tsx` |
-| Чернетки, save/cancel, захист виходу/зміни періоду, конфлікт placement | Спільний стан чернеток, не прив'язаний до змонтованості рядка під час згортання | `finance/FinanceWorkspace.tsx` |
-| Очищення значень/періоду, підтвердження, Undo | Меню поля/панелі з тими самими межами та наслідками | `finance/FinanceWorkspace.tsx`, `FinanceActions.tsx` |
-| Місячний/діапазонний підсумок і перехід до дня/назад | Агрегати РК в єдиній таблиці; деталі за діями, без вкладки фінансів | `finance/MonthlyFinanceSummary.tsx` |
-| Копіювання підсумків і поповнень за соцом/тегом, statement, експорт | Панель фінансів/контекстні дії; формати й scope не змінюються | `finance/FinanceTopupStatement.tsx`, `FinanceWorkspace.tsx` |
-| Історія та перевірка/імпорт legacy-фінансів | Чинні drawer/діалог, доступні з рядка РК | `finance/FinanceHistoryDrawer.tsx`, `LegacyFinanceReview.tsx` |
-| Права, loading/error/retry/empty, realtime, локалізації, фокус | Зберегти на всіх шляхах, у тому числі після об'єднання | `useAccounts.ts`, `finance/useAgentFinance.ts`, чинні shared contracts |
+| Можливість                                                              | Розміщення в новому UI / що зберегти                                                              | Поточне джерело                                                        |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Соци: створення, перейменування, видалення з підтвердженням             | Заголовок групи й чинний інлайн-редактор; потік додавання РК після створення соца                 | `AccountSpace.tsx`, `AccountGroup.tsx`                                 |
+| РК: додавання, редагування ID, видалення, перенесення між соцами        | Рядок і його меню; чинні валідації та підтвердження                                               | `AccountGroup.tsx`, `AgentRow.tsx`, `finance/MoveAgentDialog.tsx`      |
+| Копіювання повного ID, fallback при відмові clipboard                   | Окрема іконка поряд із назвою, яка тепер перемикає колір                                          | `AgentRow.tsx`, `AgentIdentity.tsx`                                    |
+| 2FA соца: встановлення/очищення, код, копіювання й таймер               | Заголовок соца; drag не перехоплює контрол, секрети не потрапляють у telemetry                    | `AccountGroup.tsx`                                                     |
+| Ручні запуски: створення, редагування, видалення, звільнення РК         | Чинна клітинка запусків та редактори; кілька запусків не множать фінанси                          | `AgentRow.tsx`, `useAccounts.ts`                                       |
+| Маркери запусків, їх очищення й Undo                                    | Збережені поряд із запусками; колір назви не маркер                                               | `Marked.tsx`, `MarkerFilter.tsx`, `AccountSpace.tsx`                   |
+| Теги РК, словник тегів, копіювання з групуванням                        | Чинні контролі та дії                                                                             | `AgentLabels.tsx`, `AccountSpace.tsx`                                  |
+| Пошук, зайнятість, маркери, лічильники, згортання всіх/одного           | Єдина панель; ручний порядок не скидається; редагований об'єкт не зникає без завершення редактора | `AccountSpace.tsx`, `AccountGroup.tsx`                                 |
+| Пов'язані завдання та переходи до них                                   | Чинні лічильники/peek у групі та РК                                                               | `AgentTasksPeek.tsx`, `AccountGroup.tsx`                               |
+| Дата, вчора/сьогодні, місяць/попередній, діапазон і перехід по періодах | Спільна доступна при прокрутці шапка; зберегти чинні межі діапазону та timezone                   | `finance/FinanceToolbar.tsx`, `useFinancePeriod.ts`                    |
+| Денний баланс, поповнення, витрати                                      | Фінансові колонки того самого рядка; чинні правила редагування й обчислення                       | `finance/DailyFinanceFields.tsx`, `FinanceWorkspace.tsx`               |
+| Чернетки, save/cancel, захист виходу/зміни періоду, конфлікт placement  | Спільний стан чернеток, не прив'язаний до змонтованості рядка під час згортання                   | `finance/FinanceWorkspace.tsx`                                         |
+| Очищення значень/періоду, підтвердження, Undo                           | Меню поля/панелі з тими самими межами та наслідками                                               | `finance/FinanceWorkspace.tsx`, `FinanceActions.tsx`                   |
+| Місячний/діапазонний підсумок і перехід до дня/назад                    | Агрегати РК в єдиній таблиці; деталі за діями, без вкладки фінансів                               | `finance/MonthlyFinanceSummary.tsx`                                    |
+| Копіювання підсумків і поповнень за соцом/тегом, statement, експорт     | Панель фінансів/контекстні дії; формати й scope не змінюються                                     | `finance/FinanceTopupStatement.tsx`, `FinanceWorkspace.tsx`            |
+| Історія та перевірка/імпорт legacy-фінансів                             | Чинні drawer/діалог, доступні з рядка РК                                                          | `finance/FinanceHistoryDrawer.tsx`, `LegacyFinanceReview.tsx`          |
+| Права, loading/error/retry/empty, realtime, локалізації, фокус          | Зберегти на всіх шляхах, у тому числі після об'єднання                                            | `useAccounts.ts`, `finance/useAgentFinance.ts`, чинні shared contracts |
 
 Шляхи компонентів у таблиці відносні до `apps/web/src/team/accounts/`. Planning має звірити цей інвентар із кодом на своїй стартовій ревізії: паралельна робота може додати можливості, які також треба зберегти.
 
@@ -104,3 +104,20 @@
 - **Колишня 037** T046 [US8] Extend active/archived/all readers and typed archive calls in `packages/shared/src/team/accounts.ts`, `apps/web/src/api/team.ts` and `apps/web/src/team/accounts/useAccounts.ts`; remove archived socials from active pickers without hiding history.
 - **Колишня 037** T047 [US8] Add archive action, archived view/search and restore feedback in `apps/web/src/team/accounts/AccountSpace.tsx` and `apps/web/src/team/accounts/AccountGroup.tsx`; explain active-launch refusal and preserve manual order.
 - **Колишня 037** T048 [US8] Add UI and diagnostic regression for restore, history in the combined table, and refusal in `tests/team-accounts-archive.test.tsx`, `scripts/analytics/queries.ts` and `tests/analytics-investigate-command.test.ts`.
+
+## Permanent-deletion amendment (2026-10-29)
+
+The owner explicitly permits deleting active/archived socials and ad accounts with
+all associated financial history. The forward migration
+`20261207093000_accounts_destructive_delete.sql` removes the old protection guards,
+releases current Launch assignments, preserves launches/tasks and keeps only
+content-free finance request tombstones so retries cannot restore deleted money.
+The shared confirmation requires a continuous three-second hold; archived menus
+contain Restore/Delete. Financial summaries and reports refresh after deletion.
+
+Production has not received this migration. It changes functions/triggers and is
+outside the additive DB mini-release allowance; use the canonical full release.
+Local PostgreSQL 17 replay of the complete migration chain succeeded. The isolated
+DB suite passed its finance/Launch/R2/RLS checks but timed out later, so the complete
+native DB gate and the updated finance-concurrency e2e remain release checks. The
+owned disposable container was removed; no production rows were used or changed.

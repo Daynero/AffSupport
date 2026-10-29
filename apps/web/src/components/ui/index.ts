@@ -14,6 +14,7 @@ export { UI_COLORS, UI_SIZES, UI_VARIANTS, fillRatio, uiClasses } from './types'
 export type { UiColor, UiSize, UiVariant } from './types';
 
 export { Button, IconButton } from './Button';
+export { HoldToConfirmButton, DESTRUCTIVE_HOLD_MS } from './HoldToConfirmButton';
 export type { ButtonProps, IconButtonProps } from './Button';
 
 export { Badge, Chip } from './Badge';

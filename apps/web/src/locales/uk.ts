@@ -245,6 +245,11 @@ export const uk: Record<keyof typeof en, string> = {
   accountsMoveUp: 'Перемістити вище',
   accountsMoveDown: 'Перемістити нижче',
   accountsArchive: 'Архівувати',
+  accountsDeleteHoldHint: 'Затисніть на 3 секунди для підтвердження',
+  accountsDeleteAgentWarning:
+    'РК та всю його фінансову історію буде видалено назавжди. Щоб зберегти історію, натомість архівуйте РК.',
+  accountsDeleteSocialWarning:
+    'Соц, усі його РК та всю їхню фінансову історію буде видалено назавжди. Щоб зберегти історію, натомість архівуйте соц.',
   accountsArchiveTitle: 'Архів',
   accountsArchiveAction: 'Архівувати {name}',
   accountsArchived: 'В архіві',

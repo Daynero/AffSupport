@@ -135,8 +135,16 @@ describe('the token layer', () => {
     // This is the deliberate long-press activation threshold, not a visual
     // transition. Feedback waits 200ms, then fills within the 300ms ceiling.
     expect(light.get('--motion-account-hold')).toBe('500ms');
+    // Deliberate destructive-action dwell time, mirrored by the JS hold timer.
+    // Its fill reports elapsed confirmation time rather than a UI transition.
+    expect(light.get('--motion-destructive-hold')).toBe('3000ms');
     for (const [name, value] of light) {
-      if (!name.startsWith('--motion-') || AMBIENT.has(name) || name === '--motion-account-hold')
+      if (
+        !name.startsWith('--motion-') ||
+        AMBIENT.has(name) ||
+        name === '--motion-account-hold' ||
+        name === '--motion-destructive-hold'
+      )
         continue;
       const ms = /^(\d+(?:\.\d+)?)ms$/.exec(value);
       expect(ms, `${name} should be a plain millisecond value`).not.toBeNull();

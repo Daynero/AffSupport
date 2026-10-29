@@ -12,6 +12,51 @@
 /* ============================================================
    Button
    ============================================================ */
+.ui-modal-footer:has(.hold-confirm-control) {
+  align-items: flex-start;
+}
+.hold-confirm-control {
+  display: grid;
+  gap: var(--space-1);
+}
+.hold-confirm-button {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.hold-confirm-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--color-error-soft);
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+.hold-confirm-button.is-holding .hold-confirm-fill {
+  animation: destructive-hold-fill var(--motion-destructive-hold) linear forwards;
+}
+/* Functional elapsed-time feedback must match the confirmation timer even
+   when decorative animation is disabled. */
+@media (prefers-reduced-motion: reduce) {
+  .hold-confirm-button.is-holding .hold-confirm-fill {
+    animation-duration: var(--motion-destructive-hold) !important;
+  }
+}
+.hold-confirm-label {
+  position: relative;
+}
+.hold-confirm-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+@keyframes destructive-hold-fill {
+  to {
+    transform: scaleX(1);
+  }
+}
+
 .ui-button {
   display: inline-flex;
   align-items: center;

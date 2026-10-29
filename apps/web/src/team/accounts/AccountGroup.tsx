@@ -51,8 +51,7 @@ import {
   type TeamTaskLabel,
   type TeamTaskLabelRef
 } from '@video-compressor/shared';
-import { Modal } from '../../components/Modal';
-import { Button, IconButton, DropdownMenu } from '../../components/ui';
+import { IconButton, DropdownMenu, ConfirmDialog } from '../../components/ui';
 import { IconButton as MenuIconButton } from '../../components/ui/Button';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -62,6 +61,7 @@ import { teamErrorMessageFor } from '../errors';
 import { copyText } from '../../two-factor/clipboard';
 import { buildTeamRoute } from '../routes';
 import { AgentEditRow, AgentRow, EditField } from './AgentRow';
+import { ArchivedAccountActions } from './AccountArchiveDrawer';
 import { agentCountKey, busyCountKey, freeCountKey, taskCountKey } from './plural';
 
 const ICON = 18;
@@ -143,6 +143,8 @@ export function AccountGroup({
   colorOf,
   onCycleColor,
   onArchive,
+  onRestore,
+  canManageArchived = false,
   onHistory,
   /** The agents the filter left; the count in the head is of all of them. */
   visibleAgents,
@@ -180,6 +182,8 @@ export function AccountGroup({
   colorOf?: (agent: TeamAccountAgentSummary) => TeamAccountNameColor;
   onCycleColor?: (agent: TeamAccountAgentSummary) => void;
   onArchive?: (agent?: TeamAccountAgentSummary) => void;
+  onRestore?: (agent?: TeamAccountAgentSummary) => void;
+  canManageArchived?: boolean;
   onHistory?: (agent: TeamAccountAgentSummary) => void;
   account: TeamAccountSummary;
   visibleAgents: TeamAccountAgentSummary[];
@@ -222,7 +226,6 @@ export function AccountGroup({
     !canEdit || !reorderEnabled || Boolean(account.archivedAt)
   );
   const { push } = useToasts();
-  const titleId = useId();
   const nameId = useId();
   // Renaming is an editor like any other, so it goes through the same
   // one-at-a-time gate as the agent rows.
@@ -572,6 +575,21 @@ export function AccountGroup({
                 )}
               </button>
             )}
+            {account.archivedAt && canManageArchived && (
+              <ArchivedAccountActions
+                row={{
+                  id: account.id,
+                  entityKind: 'social',
+                  name: account.name,
+                  archivedAt: account.archivedAt,
+                  parentArchived: false,
+                  canRestore: Boolean(onRestore)
+                }}
+                busy={deleting}
+                onRestore={() => onRestore?.()}
+                onDelete={() => setConfirming(true)}
+              />
+            )}
             {canEdit && (
               <>
                 {onArchive && (
@@ -701,6 +719,9 @@ export function AccountGroup({
                         }
                         accountName={account.name}
                         canEdit={canEdit && !agent.archivedAt}
+                        canManageArchived={canManageArchived}
+                        parentArchived={Boolean(account.archivedAt)}
+                        onRestore={onRestore ? () => onRestore(agent) : undefined}
                         pending={pendingAgentIds?.has(agent.id) ?? false}
                         search={search}
                         tasksHref={buildTeamRoute({
@@ -769,38 +790,29 @@ export function AccountGroup({
         </div>
       )}
 
-      {confirming && (
-        <Modal
-          labelledBy={titleId}
-          onClose={() => setConfirming(false)}
-          size="sm"
-          initialFocus="[data-cancel]"
-        >
-          <h3 id={titleId}>{t('teamAccountDeleteTitle', { name: account.name })}</h3>
-          <p>
-            {counts.agents === 0
-              ? t('teamAccountDeleteBodyEmpty')
-              : t('teamAccountDeleteBody', { agents: agentsLabel(counts.agents) })}
-          </p>
-          <div className="team-dialog-actions">
-            <Button
-              type="button"
-              variant="danger"
-              loading={deleting}
-              onClick={() => void confirmDelete()}
-            >
-              {t('teamAccountDeleteConfirm')}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              data-cancel="true"
-              onClick={() => setConfirming(false)}
-            >
-              {t('teamCancel')}
-            </Button>
-          </div>
-        </Modal>
+      {confirming && (canEdit || canManageArchived) && (
+        <ConfirmDialog
+          title={t('teamAccountDeleteTitle', { name: account.name })}
+          body={t('accountsDeleteSocialWarning')}
+          confirmLabel={t('teamAccountDeleteConfirm')}
+          cancelLabel={t('teamCancel')}
+          holdHint={t('accountsDeleteHoldHint')}
+          initialFocus="cancel"
+          busy={deleting}
+          onCancel={() => setConfirming(false)}
+          alternative={
+            onArchive && !account.archivedAt
+              ? {
+                  label: t('accountsArchive'),
+                  onSelect: () => {
+                    setConfirming(false);
+                    onArchive();
+                  }
+                }
+              : undefined
+          }
+          onConfirm={() => void confirmDelete()}
+        />
       )}
     </section>
   );

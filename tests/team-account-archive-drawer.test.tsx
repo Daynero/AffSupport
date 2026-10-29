@@ -17,6 +17,7 @@ vi.mock('../apps/web/src/api/team-accounts-workspace', () => ({
 }));
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.mocked(emitAccountSignal).mockReset();
 });
@@ -48,13 +49,14 @@ it.each(['unmount', 'team change', 'permission loss'] as const)(
     vi.mocked(accountsWorkspaceApi.preflight).mockReturnValue(preflight.promise);
     const onRestore = vi.fn().mockResolvedValue(undefined);
     const props = { teamId: 'original-team', canEdit: true, onClose: vi.fn(), onRestore };
-    const view = render(<AccountArchiveDrawer {...props} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Restore Archived Social' }));
+    const view = render(<AccountArchiveDrawer onDelete={vi.fn()} {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions: Archived Social' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore' }));
     expect(accountsWorkspaceApi.preflight).toHaveBeenCalledTimes(1);
     if (interruption === 'unmount') view.unmount();
     else if (interruption === 'team change')
-      view.rerender(<AccountArchiveDrawer {...props} teamId="other-team" />);
-    else view.rerender(<AccountArchiveDrawer {...props} canEdit={false} />);
+      view.rerender(<AccountArchiveDrawer onDelete={vi.fn()} {...props} teamId="other-team" />);
+    else view.rerender(<AccountArchiveDrawer onDelete={vi.fn()} {...props} canEdit={false} />);
     await act(async () => {
       preflight.resolve({
         entityId: 'social',
@@ -88,6 +90,7 @@ it('does not append a stale next page after the archive search changes', async (
   });
   render(
     <AccountArchiveDrawer
+      onDelete={vi.fn()}
       teamId="team"
       canEdit
       onClose={vi.fn()}
@@ -154,8 +157,17 @@ it('proves restored only after canonical reread removes the row in a React commi
     .mockResolvedValueOnce({ items: [archived], next: null })
     .mockReturnValue(canonical.promise);
   const onRestore = vi.fn(() => refresh.promise);
-  render(<AccountArchiveDrawer teamId="team" canEdit onClose={vi.fn()} onRestore={onRestore} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Restore Archived Social' }));
+  render(
+    <AccountArchiveDrawer
+      onDelete={vi.fn()}
+      teamId="team"
+      canEdit
+      onClose={vi.fn()}
+      onRestore={onRestore}
+    />
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions: Archived Social' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore' }));
   await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1));
   expect(vi.mocked(emitAccountSignal).mock.calls.some(([, stage]) => stage === 'accepted')).toBe(
     true
@@ -185,16 +197,70 @@ it('keeps accepted restoration visibility unknown when the canonical reread fail
     .mockRejectedValue(new Error('INVALID_RESPONSE'));
   render(
     <AccountArchiveDrawer
+      onDelete={vi.fn()}
       teamId="team"
       canEdit
       onClose={vi.fn()}
       onRestore={vi.fn().mockResolvedValue(undefined)}
     />
   );
-  fireEvent.click(await screen.findByRole('button', { name: 'Restore Archived Social' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions: Archived Social' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore' }));
   await screen.findByText('Could not load the accounts.');
   expect(vi.mocked(emitAccountSignal).mock.calls.some(([, stage]) => stage === 'accepted')).toBe(
     true
   );
   expect(restoredProofs()).toHaveLength(0);
+});
+
+it('offers only restore/delete for archived rows and proves deletion after canonical reread', async () => {
+  let removed = false;
+  vi.mocked(accountsWorkspaceApi.listArchive).mockImplementation(async () => ({
+    items: removed ? [] : [archived],
+    next: null
+  }));
+  const onDelete = vi.fn(async () => {
+    removed = true;
+  });
+  render(
+    <AccountArchiveDrawer
+      teamId="team"
+      canEdit
+      onClose={vi.fn()}
+      onRestore={vi.fn().mockResolvedValue(undefined)}
+      onDelete={onDelete}
+    />
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions: Archived Social' }));
+  expect(screen.getAllByRole('menuitem').map(node => node.textContent)).toEqual([
+    'Restore',
+    'Delete the account'
+  ]);
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete the account' }));
+  const button = screen.getByRole('button', { name: 'Delete the account' });
+  expect(screen.queryByRole('button', { name: /^Archive$/ })).toBeNull();
+  fireEvent.click(button);
+  expect(onDelete).not.toHaveBeenCalled();
+  button.focus();
+  vi.useFakeTimers();
+  fireEvent.keyDown(button, { key: ' ', code: 'Space' });
+  await act(async () => {
+    vi.advanceTimersByTime(3000);
+  });
+  fireEvent.keyUp(button, { key: ' ', code: 'Space' });
+  await act(async () => {
+    vi.advanceTimersByTime(150);
+  });
+  vi.useRealTimers();
+  await waitFor(() => expect(onDelete).toHaveBeenCalledWith('social', 'social'));
+  await waitFor(() => expect(screen.queryByText('Archived Social')).toBeNull());
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(emitAccountSignal)
+        .mock.calls.some(
+          ([, stage, props]) => stage === 'applied' && props.operation === 'deleteAccount'
+        )
+    ).toBe(true)
+  );
 });

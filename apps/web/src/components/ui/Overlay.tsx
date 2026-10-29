@@ -242,6 +242,7 @@ export function useDialogBehaviour({
 }
 
 export interface ModalProps {
+  returnFocus?: HTMLElement | null;
   open?: boolean;
   onClose: () => void;
   /** Names the dialog; either this or `labelledBy` is required. */
@@ -267,6 +268,7 @@ export interface ModalProps {
 }
 
 export function Modal({
+  returnFocus,
   open = true,
   onClose,
   title,
@@ -282,7 +284,7 @@ export function Modal({
   const surface = useRef<HTMLDivElement>(null);
   const generatedId = useId();
   const close = useCallback(() => onClose(), [onClose]);
-  useDialogBehaviour({ surface, active: open, onClose: close, initialFocus });
+  useDialogBehaviour({ surface, active: open, onClose: close, initialFocus, returnFocus });
 
   if (!open || typeof document === 'undefined') return null;
 

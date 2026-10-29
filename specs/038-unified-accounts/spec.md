@@ -285,3 +285,32 @@ The accounts table keeps at least ten spacing units of row height when wrapped c
 Acceptance: активний порожній соц g4 доступний сьогодні й за попередній період; додавання РК відкривається без пошуку історичної дати. Архів соцiв/РК приховує порожні історичні рядки основної таблиці; явний нуль, дані лише всередині діапазону та пізні виправлення зберігають належні рядки. Майбутні дати існування й placement іншого соца не створюють хибної історії. Регресії: `team-account-period-inventory`, `team-accounts-live-finance`, `team-account-birthdate-ui`, `account-lifecycle-applied`.
 
 Діагностика повторно використовує lifecycle requested → accepted → authoritative refresh → applied з чинними flow/version і результатами hidden_no_period_data / retained_period_data. Зміна projection не є новою операцією запису. Відсутній або відсталий snapshot не доводить успіх відображення; proof очікує узгоджену lifecycle-версію та DOM. Фільтр або згортання не створюють вигаданий applied. Перемикання дат саме по собі не має індивідуальної telemetry: без знімка вибраного UI scope причина відсутності рядка лишається unknown; локальна регресія є fallback, а не доказ production-доставлення. Назви соцiв, ID РК, дати та суми не додаються в події.
+
+### Owner amendment — permanent deletion (2026-10-29)
+
+This amendment supersedes earlier financial/lifecycle deletion guards.
+Editors may permanently delete an active or archived social or ad account regardless
+of financial history or launch assignments. Deleting a social also deletes its
+current ad accounts and their financial history; previously transferred ad accounts
+remain intact. Existing launches and tasks remain, with deleted ad assignments
+released atomically. Permission and workspace boundaries still apply.
+
+The confirmation warns that all associated finances are lost and recommends
+archiving to preserve them. Active entities offer Delete, Archive and Cancel;
+archived entities expose only Restore and Delete in their three-dot menu. Delete
+requires one continuous three-second mouse, touch or keyboard press. A red fill
+shows elapsed hold time, with a small instruction below. Release, loss of focus,
+hidden document, permission loss or unmount cancels the hold; separate presses
+never accumulate. Ordinary clicks cannot delete.
+
+Diagnostics reuse the privacy-safe `retained_action` delete operation flow:
+requested → accepted → applied after canonical account reread; failures have a
+terminal code, and an accepted request without confirmed visibility remains
+unknown. A cancelled hold makes no delete request. Finance idempotency receipts
+retain only a content-free deletion tombstone, preventing retries from restoring
+deleted history. No finance amounts, names or user content enter analytics.
+Browser closure before request and an uncompleted hold are intentionally not
+observable remotely; absence of a request does not prove user intent. Existing
+account capability inventory covers these delete operations; acceptance requires
+permission denial, active/archived deletion with money, launch release, unrelated
+entity preservation, continuous-hold cancellation and archive menu regression tests.

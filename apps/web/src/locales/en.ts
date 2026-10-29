@@ -241,6 +241,11 @@ export const en = {
   accountsMoveUp: 'Move up',
   accountsMoveDown: 'Move down',
   accountsArchive: 'Archive',
+  accountsDeleteHoldHint: 'Hold for 3 seconds to confirm',
+  accountsDeleteAgentWarning:
+    'This ad account and all its financial history will be permanently deleted. To keep the history, archive it instead.',
+  accountsDeleteSocialWarning:
+    'This social account, its ad accounts and all their financial history will be permanently deleted. To keep the history, archive it instead.',
   accountsArchiveTitle: 'Archive',
   accountsArchiveAction: 'Archive {name}',
   accountsArchived: 'Archived',

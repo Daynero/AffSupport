@@ -1,4 +1,5 @@
 import { useOptionalAuth } from '../../auth/AuthContext';
+import { teamApi } from '../../api/team';
 import { buildTeamRoute } from '../routes';
 import { internalLink } from '../../lib/navigation';
 /**
@@ -211,6 +212,69 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     }
   );
   proofPending.current = pendingProofs.length > 0 || preferences.hasPresentationProof;
+  const restoreArchivedRow = async (kind: TeamAccountEntityKind, id: string) => {
+    const generation = lifetime.current.generation;
+    const current = () =>
+      lifetime.current.active &&
+      lifetime.current.generation === generation &&
+      writePermission.current;
+    if (!current()) return;
+    const flowId = accountFlowId();
+    let accepted = false;
+    try {
+      emitAccountSignal('lifecycle', 'preflight', {
+        flowId,
+        entity: kind === 'agent' ? 'rk' : 'social'
+      });
+      const before = await accountsWorkspaceApi.preflight(teamId, kind, id);
+      if (!current()) return;
+      emitAccountSignal('lifecycle', 'requested', {
+        flowId,
+        entity: kind === 'agent' ? 'rk' : 'social'
+      });
+      const result = await accountsWorkspaceApi.archive(
+        teamId,
+        kind,
+        id,
+        false,
+        before.lifecycleVersion,
+        before.token,
+        crypto.randomUUID()
+      );
+      accepted = true;
+      emitAccountSignal('lifecycle', 'accepted', {
+        flowId,
+        outcome: 'success',
+        result: 'restored'
+      });
+      if (!current()) return;
+      const canonical = await accounts.refetch();
+      if (!current()) return;
+      finance.refresh();
+      if (finance.reportRange) finance.reports.refresh();
+      if (canonical)
+        setPendingProofs(proofs => [
+          ...proofs,
+          {
+            action: 'lifecycle',
+            flowId,
+            kind,
+            id,
+            version: result.lifecycleVersion,
+            archivedAt: result.archivedAt,
+            view: proofView
+          }
+        ]);
+    } catch (cause) {
+      emitAccountSignal('lifecycle', 'terminal', {
+        flowId,
+        outcome: 'failure',
+        result: accepted ? 'unknown' : 'failed',
+        code: cause instanceof TeamApiError ? cause.code : 'UNKNOWN'
+      });
+      if (current()) fail(cause);
+    }
+  };
   const doArchive = async (save: boolean) => {
     const target = archiveTarget;
     if (!target || archiveBusy || !lifetime.current.active || !writePermission.current) return;
@@ -1395,6 +1459,17 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     account={periodAccounts.find(item => item.id === account.id) ?? account}
                     visibleAgents={account.agents}
                     canEdit={canEdit && !account.archivedAt}
+                    canManageArchived={canEdit}
+                    onRestore={
+                      client
+                        ? undefined
+                        : agent => {
+                            void restoreArchivedRow(
+                              agent ? 'agent' : 'social',
+                              agent?.id ?? account.id
+                            );
+                          }
+                    }
                     collapsed={collapsed.has(account.id)}
                     onCollapsedChange={value => setAccountCollapsed(account.id, value)}
                     editing={
@@ -1417,6 +1492,8 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     onSetTwoFactor={seed => accounts.setAccountTwoFactor(account.id, seed)}
                     onDelete={async () => {
                       await accounts.deleteAccount(account.id);
+                      finance.refresh();
+                      if (finance.reportRange) finance.reports.refresh();
                       // The section is gone with its buttons; the dialog has nowhere
                       // to return focus to, so it goes to the one control that is
                       // always there.
@@ -1469,6 +1546,8 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     }
                     onDeleteAgent={async agent => {
                       await accounts.deleteAgent(agent);
+                      finance.refresh();
+                      if (finance.reportRange) finance.reports.refresh();
                       push({ tone: 'success', text: t('teamAccountsToastAgentDeleted') });
                       /*
                        * The row is gone and the dialog went with it, so the dialog's own
@@ -1563,10 +1642,16 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
         <AccountArchiveDrawer
           teamId={teamId}
           canEdit={canEdit}
+          onDelete={async (kind, id) => {
+            const api = client ?? teamApi;
+            if (kind === 'agent') await api.deleteAccountAgent({ teamId, agentRowId: id });
+            else await api.deleteAccount({ teamId, accountId: id });
+          }}
           onClose={() => setArchiveOpen(false)}
           onRestore={async () => {
             await accounts.refetch();
             finance.refresh();
+            if (finance.reportRange) finance.reports.refresh();
           }}
         />
       )}

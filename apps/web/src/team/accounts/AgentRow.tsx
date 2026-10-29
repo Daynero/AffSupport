@@ -22,7 +22,6 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
 import {
   useCallback,
   useEffect,
-  useId,
   useRef,
   useState,
   type KeyboardEvent,
@@ -54,8 +53,7 @@ import {
   type TeamAgentRunMarker,
   type TeamTaskLabel
 } from '@video-compressor/shared';
-import { Modal } from '../../components/Modal';
-import { Button, IconButton } from '../../components/ui';
+import { IconButton, ConfirmDialog } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type Language, type TranslationKey } from '../../i18n';
@@ -69,6 +67,7 @@ import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
 import { Popover } from '../../components/ui/index';
+import { ArchivedAccountActions } from './AccountArchiveDrawer';
 
 const ICON = 18;
 
@@ -447,6 +446,9 @@ export function AgentRow({
   nameColor = 0,
   onCycleColor,
   onArchive,
+  onRestore,
+  canManageArchived = false,
+  parentArchived = false,
   onHistory,
   reorderEnabled = false,
   accountName,
@@ -476,6 +478,9 @@ export function AgentRow({
   nameColor?: TeamAccountNameColor;
   onCycleColor?: () => void;
   onArchive?: () => void;
+  onRestore?: () => void;
+  canManageArchived?: boolean;
+  parentArchived?: boolean;
   onHistory?: () => void;
   reorderEnabled?: boolean;
   accountName: string;
@@ -520,7 +525,6 @@ export function AgentRow({
   ] as const;
   const { push } = useToasts();
   const { activeTeam } = useTeam();
-  const titleId = useId();
   /**
    * The "…" the menu hangs from. The delete dialog returns focus here by hand:
    * the menu item that opened it is gone by the time the dialog reads
@@ -879,66 +883,74 @@ export function AgentRow({
              */}
           </>
         )}
-        {(canEdit || onHistory) && (
-          <AgentMenu
-            label={named('teamAgentMore')}
-            editLabel={named('teamAgentEdit')}
-            moveLabel={named('teamAgentMove')}
-            deleteLabel={named('teamAgentDelete')}
-            historyLabel={`${t('financeHistory')} · ${accountName} · ${agent.agentId}`}
-            archiveLabel={t('accountsArchiveAction', { name: tag })}
-            triggerRef={menuTrigger}
-            onEdit={canEdit ? onEdit : undefined}
-            onMove={canEdit ? onMove : undefined}
-            onDelete={canEdit ? () => setConfirming(true) : undefined}
-            onHistory={onHistory}
-            onArchive={canEdit ? onArchive : undefined}
-            onOrderUp={reorder.canMove(-1) ? () => reorder.move(-1) : undefined}
-            onOrderDown={reorder.canMove(1) ? () => reorder.move(1) : undefined}
+        {(agent.archivedAt || parentArchived) && canManageArchived ? (
+          <ArchivedAccountActions
+            row={{
+              id: agent.id,
+              entityKind: 'agent',
+              name: tag,
+              archivedAt: agent.archivedAt ?? null,
+              parentArchived,
+              canRestore: Boolean(onRestore) && !parentArchived
+            }}
+            busy={waiting}
+            onRestore={() => onRestore?.()}
+            onDelete={() => setConfirming(true)}
           />
+        ) : (
+          (canEdit || onHistory) && (
+            <AgentMenu
+              label={named('teamAgentMore')}
+              editLabel={named('teamAgentEdit')}
+              moveLabel={named('teamAgentMove')}
+              deleteLabel={named('teamAgentDelete')}
+              historyLabel={`${t('financeHistory')} · ${accountName} · ${agent.agentId}`}
+              archiveLabel={t('accountsArchiveAction', { name: tag })}
+              triggerRef={menuTrigger}
+              onEdit={canEdit ? onEdit : undefined}
+              onMove={canEdit ? onMove : undefined}
+              onDelete={canEdit ? () => setConfirming(true) : undefined}
+              onHistory={onHistory}
+              onArchive={canEdit ? onArchive : undefined}
+              onOrderUp={reorder.canMove(-1) ? () => reorder.move(-1) : undefined}
+              onOrderDown={reorder.canMove(1) ? () => reorder.move(1) : undefined}
+            />
+          )
         )}
       </div>
       {finance}
 
       {/* Focus starts on Cancel: Enter on the menu item and Enter again must
           not be a deletion with no pause in between. */}
-      {confirming && (
-        <Modal
-          labelledBy={titleId}
-          onClose={() => setConfirming(false)}
-          size="sm"
-          initialFocus="[data-cancel]"
+      {confirming && (canEdit || canManageArchived) && (
+        <ConfirmDialog
+          title={t('teamAgentDeleteTitle', { tag })}
+          body={t('accountsDeleteAgentWarning')}
+          confirmLabel={t('teamAgentDelete')}
+          cancelLabel={t('teamCancel')}
+          holdHint={t('accountsDeleteHoldHint')}
+          initialFocus="cancel"
           returnFocus={menuTrigger.current}
-        >
-          <h3 id={titleId}>{t('teamAgentDeleteTitle', { tag })}</h3>
-          <p>{t('teamAgentDeleteBody', { id: agent.agentId })}</p>
-          <div className="team-dialog-actions">
-            <Button
-              type="button"
-              variant="danger"
-              // `pending` too, not only this row's own write: an undo from a
-              // toast is in flight on the same agent, and a delete racing it
-              // ends with "Agent deleted" and the undo's error side by side.
-              loading={waiting}
-              onClick={() =>
-                void run(async () => {
-                  await onDelete();
-                  setConfirming(false);
-                })
-              }
-            >
-              {t('teamAgentDelete')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              data-cancel="true"
-              onClick={() => setConfirming(false)}
-            >
-              {t('teamCancel')}
-            </Button>
-          </div>
-        </Modal>
+          busy={waiting}
+          onCancel={() => setConfirming(false)}
+          alternative={
+            onArchive && !agent.archivedAt && !parentArchived
+              ? {
+                  label: t('accountsArchive'),
+                  onSelect: () => {
+                    setConfirming(false);
+                    onArchive();
+                  }
+                }
+              : undefined
+          }
+          onConfirm={() =>
+            void run(async () => {
+              await onDelete();
+              setConfirming(false);
+            })
+          }
+        />
       )}
     </li>
   );

@@ -242,3 +242,10 @@
 Дата створення каталогу показується поруч із назвою, із роком; точний час і часовий пояс доступні в підказці. Календар біля фільтрів обирає локальні включні дні створення, підтримує відкриті межі та очищення. Останній успіх лишається окремою колонкою.
 
 Менеджер каталогів має сталий розмір незалежно від кількості результатів, завантаження та активного періоду. Десктопні розміри задають `--catalog-manager-width` і `--catalog-manager-height`, обмежені доступним viewport. Порожній список не зменшує й не збільшує вікно; переповнення прокручується всередині списку зі стабільним місцем для scrollbar. Геометрію не прив’язуємо до `:has(table)`.
+
+### Permanent deletion confirmation
+
+Use `ConfirmDialog` with `holdHint` for irreversible account deletion. Its shared
+`HoldToConfirmButton` requires a continuous three-second press (pointer or keyboard),
+shows a red progress fill and a caption hint, and cancels on release or focus loss.
+Use the dialog's alternative action for Archive when the entity is active.

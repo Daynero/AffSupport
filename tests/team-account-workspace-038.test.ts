@@ -291,9 +291,10 @@ it('parent restore keeps child-owned archives and archived sources cannot bypass
     expect(
       history.events.filter((e: any) => e.entityKind === 'social').map((e: any) => e.archived)
     ).toEqual([true, false]);
-    await expect(call('delete_team_account_agent', [f.team, f.agent])).rejects.toThrow(
-      'FINANCE_HISTORY_PROTECTED'
-    );
+    await call('delete_team_account_agent', [f.team, f.agent]);
+    expect(
+      await f.db.root('select id from public.team_account_agents where id=$1', [f.agent])
+    ).toHaveLength(0);
   } finally {
     await f.db.close();
   }

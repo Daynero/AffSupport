@@ -34,6 +34,8 @@ afterAll(async () => {
 
 describe('account diagnostics typed producer → actual ingestion guard → persisted CLI evidence', () => {
   it.each([
+    'deleteAccount',
+    'deleteAccountAgent',
     'financeClear',
     'financeUndo',
     'financeLegacyImport',

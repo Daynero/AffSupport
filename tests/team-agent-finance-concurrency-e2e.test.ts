@@ -163,7 +163,7 @@ it('preserves concurrent changes to different metrics', async () => {
     ).rows[0].n
   ).toBe(2);
 });
-it('does not let a concurrent delete erase a committed financial write', async () => {
+it('serializes deletion after a financial write and removes its history atomically', async () => {
   const id = await agent();
   await editor(a);
   await editor(b);
@@ -174,9 +174,16 @@ it('does not let a concurrent delete erase a committed financial write', async (
   );
   await blocked();
   await a.query('commit');
-  expect((await deletion)?.message).toContain('FINANCE_HISTORY_PROTECTED');
-  await b.query('rollback');
+  expect(await deletion).toBeNull();
+  await b.query('commit');
   expect(
     (await root.query('select id from public.team_account_agents where id=$1', [id])).rowCount
-  ).toBe(1);
+  ).toBe(0);
+  expect(
+    (
+      await root.query('select id from public.team_agent_finance_events where agent_row_id=$1', [
+        id
+      ])
+    ).rowCount
+  ).toBe(0);
 });

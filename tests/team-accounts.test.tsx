@@ -50,6 +50,18 @@ it('keeps the caret in an inline field after its clear control disappears', asyn
   expect(document.activeElement).toBe(input);
 });
 
+function holdDelete(button: HTMLElement) {
+  button.focus();
+  vi.useFakeTimers();
+  try {
+    fireEvent.keyDown(button, { key: ' ', code: 'Space' });
+    act(() => vi.advanceTimersByTime(3000));
+    fireEvent.keyUp(button, { key: ' ', code: 'Space' });
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
 let sequence = 0;
 /** An agent with zero or one run — the fixtures' shapes; more come from the client. */
 function agent(accountId: string, agentId: string, note: string | null, taskCount = 0) {
@@ -703,8 +715,10 @@ describe('accounts and agents', () => {
     await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
-    expect(within(dialog).getByText('Its 2 ad accounts and their runs go with it.')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete the account' }));
+    expect(
+      within(dialog).getByText(/all their financial history will be permanently deleted/)
+    ).toBeTruthy();
+    holdDelete(within(dialog).getByRole('button', { name: 'Delete the account' }));
     await waitFor(() =>
       expect(api.deleteAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, accountId: V31 })
     );
@@ -846,7 +860,7 @@ describe('deleting an agent', () => {
     await user.click(screen.getByRole('menuitem', { name: /^Delete ad account/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31-434?')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete ad account' }));
+    holdDelete(within(dialog).getByRole('button', { name: 'Delete ad account' }));
 
     await waitFor(() =>
       expect(api.deleteAccountAgent).toHaveBeenCalledWith(

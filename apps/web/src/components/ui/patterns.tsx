@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Alert } from './Alert';
 import { Button } from './Button';
+import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { Empty, Skeleton } from './Feedback';
 import { Modal } from './Overlay';
 import { uiClasses } from './types';
@@ -101,6 +102,9 @@ export function PermissionState({ message, className }: PermissionStateProps) {
 }
 
 export interface ConfirmDialogProps {
+  returnFocus?: HTMLElement | null;
+  holdHint?: string;
+  alternative?: { label: string; onSelect: () => void };
   open?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -123,6 +127,9 @@ export interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({
+  returnFocus,
+  holdHint,
+  alternative,
   open = true,
   onCancel,
   onConfirm,
@@ -142,20 +149,37 @@ export function ConfirmDialog({
       title={title}
       size="sm"
       busy={busy}
+      returnFocus={returnFocus}
       nested={nested}
       initialFocus={initialFocus === 'cancel' ? '.ui-confirm-cancel' : undefined}
       footer={
         <>
           {/* The safe action carries the emphasis and sits where the eye lands
               last; the destructive one is soft and to its left. */}
-          <Button
-            color={tone === 'destructive' ? 'error' : 'neutral'}
-            variant="soft"
-            loading={busy}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
+          {holdHint ? (
+            <HoldToConfirmButton disabled={busy} hint={holdHint} onConfirm={onConfirm}>
+              {confirmLabel}
+            </HoldToConfirmButton>
+          ) : (
+            <Button
+              color={tone === 'destructive' ? 'error' : 'neutral'}
+              variant="soft"
+              loading={busy}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          )}
+          {alternative && (
+            <Button
+              color="neutral"
+              variant="outline"
+              disabled={busy}
+              onClick={alternative.onSelect}
+            >
+              {alternative.label}
+            </Button>
+          )}
           <Button
             className="ui-confirm-cancel"
             color="neutral"

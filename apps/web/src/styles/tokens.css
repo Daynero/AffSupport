@@ -365,6 +365,7 @@
   --motion-progress: 750ms;
   --motion-catalog-success: 1500ms;
   --motion-account-hold: 500ms;
+  --motion-destructive-hold: 3000ms;
   --motion-account-hold-grace: 200ms;
   --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);

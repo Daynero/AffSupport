@@ -91,10 +91,7 @@ it('moves every sum the agent ever had to the new social account', async () => {
       [f.agent]
     )
   ).toEqual([{ account_id: f.accounts[1] }]);
-  // The former social account holds nothing any more; the new one is protected.
-  await expect(
-    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[1]])
-  ).rejects.toThrow(/FINANCE_HISTORY_PROTECTED/);
+  // Deleting the former social preserves the moved RK and its financial history.
   await f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [
     f.team,
     f.accounts[0]
@@ -200,9 +197,7 @@ it('preserves the same agent through X → Y → X and counts backdated money wh
   );
   // Every sum follows the agent to where it is now, whatever day it is for.
   expect(value[0]!.account_id).toBe(f.accounts[0]);
-  await expect(
-    f.db.asUser(FINANCE_OWNER, 'select public.delete_team_account($1,$2)', [f.team, f.accounts[0]])
-  ).rejects.toThrow(/FINANCE_HISTORY_PROTECTED/);
+
   expect(
     await f.db.root('select id from public.team_account_agents where id=$1', [f.agent])
   ).toHaveLength(1);
