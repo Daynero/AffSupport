@@ -123,6 +123,10 @@ export function LaunchSession({
   const [autosaving, setAutosaving] = useState(false);
   const preparationStatusId = useId();
   const autosaveError = useRef<string | null>(null);
+  const ownSavedId = useRef<string | null>(detail?.id ?? null);
+  const [pendingExit, setPendingExit] = useState<(() => void) | null>(null);
+  const exitAction = useRef<(leave: () => void) => void>(() => {});
+  const exitInFlight = useRef(false);
   const workingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [dictionaryBusy, setDictionaryBusy] = useState(false);
@@ -149,7 +153,10 @@ export function LaunchSession({
     current: Awaited<ReturnType<typeof launchApi.defaults>>;
     offerId?: string;
   } | null>(null);
-  const copying = useLaunchCopy(teamId, next => onChange(next, 'settings'));
+  const copying = useLaunchCopy(teamId, next => {
+    ownSavedId.current = next.id;
+    onChange(next, 'settings');
+  });
   const saveIntent = useRef<Parameters<typeof launchApi.save>[0] | null>(null);
   const defaultsIntent = useRef<Parameters<typeof launchApi.setDefaults> | null>(null);
   const overridesIntent = useRef<Parameters<typeof launchApi.overrides> | null>(null);
@@ -250,6 +257,7 @@ export function LaunchSession({
     }
   }, [detail]);
   const inputLocked =
+    pendingExit !== null ||
     preflighting ||
     generation.busy ||
     copying.busy ||
@@ -389,16 +397,46 @@ export function LaunchSession({
         route?.kind === 'space' &&
         route.spaceId === teamId &&
         route.section === 'launches' &&
-        route.query.launchId === (detail?.id ?? 'new') &&
+        (route.query.launchId === (detail?.id ?? 'new') ||
+          route.query.launchId === ownSavedId.current) &&
         (route.query.revisionId ?? null) === revisionId
       )
         return;
+      const leavingSection =
+        route?.kind === 'space' &&
+        route.spaceId === teamId &&
+        (route.section !== 'launches' || route.query.launchId !== (detail?.id ?? 'new'));
+      if (leavingSection && (copying.busy || copying.hasUnresolvedRequest)) {
+        event.preventDefault();
+        return;
+      }
+      if (
+        leavingSection &&
+        (draft.isDirty() || manual.isDirty() || autosaving || exitInFlight.current)
+      ) {
+        event.preventDefault();
+        if (!exitInFlight.current) {
+          const { path, replace, animate } = event.detail;
+          setPendingExit(() => () => navigateTo(path, replace, animate));
+        }
+        return;
+      }
       if ((draft.isDirty() || manual.isDirty()) && !window.confirm(t('launchesUnsaved')))
         event.preventDefault();
     };
     window.addEventListener(BEFORE_NAVIGATION_EVENT, before);
     return () => window.removeEventListener(BEFORE_NAVIGATION_EVENT, before);
-  }, [draft, manual, teamId, detail?.id, revisionId, t]);
+  }, [
+    draft,
+    manual,
+    teamId,
+    detail?.id,
+    revisionId,
+    t,
+    autosaving,
+    copying.busy,
+    copying.hasUnresolvedRequest
+  ]);
   const refreshSources = useCallback(
     async (live = false) => {
       const seq = ++sourceRequest.current;
@@ -628,6 +666,7 @@ export function LaunchSession({
       const previousError = autosaveError.current;
       if (previousError) setError(current => (current === previousError ? null : current));
       autosaveError.current = null;
+      ownSavedId.current = result.id;
       draft.acknowledge(request.config, request.sources, result.version);
       manual.advanceBase(result.version);
       onChange({
@@ -816,13 +855,15 @@ export function LaunchSession({
       generationClick.current = false;
     }
   };
-  const close = () => {
+  const saveAndLeave = (leave: () => void) => {
     if (workingRef.current || autosaving) return;
     if (!draft.dirty && !manual.dirty) {
-      onClose();
+      leave();
       return;
     }
+    exitInFlight.current = true;
     void run(async () => {
+      if (!inputAuthority.current.editable) throw new TeamApiError('PERMISSION_DENIED', false);
       if (!detail) {
         await save();
       } else {
@@ -858,10 +899,48 @@ export function LaunchSession({
         manual.acknowledge(intended.overrides ?? overrides);
         manual.advanceBase(saved.version);
       }
-      onClose();
+      exitInFlight.current = false;
+      leave();
+    }).finally(() => {
+      exitInFlight.current = false;
     });
   };
+  exitAction.current = saveAndLeave;
+  const close = () => {
+    if (
+      !draft.isDirty() &&
+      !manual.isDirty() &&
+      !autosaving &&
+      !workingRef.current &&
+      !copying.busy &&
+      !copying.hasUnresolvedRequest &&
+      !exitInFlight.current
+    )
+      onClose();
+    else if (!exitInFlight.current) setPendingExit(() => onClose);
+  };
   closeRequestRef.current = close;
+  useEffect(() => {
+    if (
+      !pendingExit ||
+      autosaving ||
+      working ||
+      sourcesPending ||
+      copying.busy ||
+      copying.hasUnresolvedRequest
+    )
+      return;
+    const leave = pendingExit;
+    setPendingExit(null);
+    exitAction.current(leave);
+  }, [
+    pendingExit,
+    autosaving,
+    working,
+    sourcesPending,
+    copying.busy,
+    copying.hasUnresolvedRequest
+  ]);
   const restore = async (revisionId: string, saveEdits: boolean) => {
     if (!detail) return;
     return launchMutation(

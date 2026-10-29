@@ -494,6 +494,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesBusy: 'Готуємо запуск…',
   launchesReady: 'Готовий',
   launchesDraft: 'Чернетка',
+  launchesCopyCreatedForDate: 'Копію створено на {date}. Шукайте її за цією датою.',
+  launchesOpenCopy: 'Відкрити копію',
   launchesCopySavedNotice: 'Дочекайтеся збереження змін, щоб скопіювати запуск.',
   launchesDefaultBuyerMissing: 'Стандартний Buyer недоступний. Оберіть іншого Buyer.',
   launchesCancel: 'Скасувати',

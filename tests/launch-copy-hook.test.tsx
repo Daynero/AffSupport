@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
+import React from 'react';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useLaunchCopy } from '../apps/web/src/team/launches/useLaunchCopy';
-const api = vi.hoisted(() => ({ copy: vi.fn(), detail: vi.fn() }));
+const api = vi.hoisted(() => ({
+  copy: vi.fn(),
+  detail: vi.fn(),
+  correlations: [] as Array<{ launchId?: string }>
+}));
 vi.mock('../apps/web/src/api/team', () => ({
   launchApi: api,
   TeamApiError: class extends Error {
@@ -15,11 +20,19 @@ vi.mock('../apps/web/src/api/team', () => ({
   }
 }));
 vi.mock('../apps/web/src/team/launches/analytics', () => ({
-  launchMutation: (_c: unknown, _a: unknown, execute: () => Promise<unknown>) => execute()
+  launchMutation: (
+    correlation: { launchId?: string },
+    _a: unknown,
+    execute: () => Promise<unknown>
+  ) => {
+    api.correlations.push(correlation);
+    return execute();
+  }
 }));
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  api.correlations.length = 0;
 });
 it('replays a lost copy reply with the exact saved version and timezone', async () => {
   api.copy.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ id: 'copy' });
@@ -35,6 +48,7 @@ it('replays a lost copy reply with the exact saved version and timezone', async 
   });
   expect(api.copy.mock.calls[1]).toEqual(api.copy.mock.calls[0]);
   expect(done).toHaveBeenCalledWith({ id: 'copy' });
+  expect(api.correlations.at(-1)?.launchId).toBe('copy');
   expect(result.current.hasUnresolvedRequest).toBe(false);
 });
 it('only retries reading an already confirmed copy', async () => {
@@ -101,4 +115,30 @@ it('does not read or notify after its authorization scope unmounts', async () =>
   });
   expect(api.detail).not.toHaveBeenCalled();
   expect(done).not.toHaveBeenCalled();
+});
+
+it('keeps a confirmed copy successful if its notification host fails', async () => {
+  const { ToastContextOverride } = await import('../apps/web/src/components/toast');
+  api.copy.mockResolvedValueOnce({ id: 'copy' });
+  api.detail.mockResolvedValueOnce({ id: 'copy', draft: { launchDate: '2026-10-30' } });
+  const push = vi.fn(() => {
+    throw new Error('notification unavailable');
+  });
+  const done = vi.fn();
+  const hook = renderHook(() => useLaunchCopy('team', done), {
+    wrapper: ({ children }) => (
+      <ToastContextOverride value={{ toasts: [], push, update: vi.fn(), dismiss: vi.fn() }}>
+        {children}
+      </ToastContextOverride>
+    )
+  });
+  await act(async () => {
+    await expect(
+      hook.result.current.copy({ id: 'original', version: '1' })
+    ).resolves.toBeUndefined();
+  });
+  expect(push).toHaveBeenCalledOnce();
+  expect(done).toHaveBeenCalledOnce();
+  expect(hook.result.current.hasUnresolvedRequest).toBe(false);
+  expect(api.copy).toHaveBeenCalledOnce();
 });

@@ -69,7 +69,7 @@ export function activeQuickRange(value: TaskDateFilter, now: Date): QuickRange |
  * A quick range is stored by name, so "today" means today after tomorrow's reload rather than the
  * day it was pressed; a range picked on the calendar is stored as its days.
  */
-function encodeDateFilter(value: TaskDateFilter): unknown {
+export function encodeDateFilter(value: TaskDateFilter): unknown {
   const quick = activeQuickRange(value, new Date());
   return quick && quick !== 'all' ? { kind: 'quick', range: quick } : value;
 }

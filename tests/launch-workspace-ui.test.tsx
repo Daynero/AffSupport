@@ -203,6 +203,7 @@ function clickLaunchClose() {
   fireEvent.click(close);
 }
 function resetSeams() {
+  localStorage.clear();
   seams.assignment.mockReset().mockImplementation(async (_team: string, launchId: string) => ({
     launchId,
     version: '0',
@@ -740,7 +741,7 @@ it('requires confirmation before a dirty draft switches to another revision', as
   }
 });
 
-it('guards a browser history navigation away from a dirty Launch draft', async () => {
+it('saves a dirty Launch draft before completing browser history navigation', async () => {
   const { useBrowserRoute } = await import('../apps/web/src/lib/navigation');
   const { buildTeamRoute, parseTeamRoute } = await import('../apps/web/src/team/routes');
   seams.edit = true;
@@ -755,7 +756,19 @@ it('guards a browser history navigation away from a dirty Launch draft', async (
     query: { ...query, launchId: 'new', launchTab: 'settings' }
   });
   window.history.replaceState({}, '', draftPath);
-  const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  let savedConfig: LaunchDetail['draft'];
+  let resolveSave!: (result: { id: string; version: string }) => void;
+  seams.save.mockImplementation((input: { config: LaunchDetail['draft'] }) => {
+    savedConfig = input.config;
+    return new Promise(resolve => {
+      resolveSave = resolve;
+    });
+  });
+  seams.detail.mockImplementation(async () => ({
+    ...detail('https://example.invalid'),
+    draft: savedConfig
+  }));
   function Host() {
     const parsed = parseTeamRoute(useBrowserRoute());
     return parsed?.kind === 'space' ? <LaunchSpace teamId={TEAM} query={parsed.query} /> : null;
@@ -768,11 +781,13 @@ it('guards a browser history navigation away from a dirty Launch draft', async (
     fireEvent(window, new PopStateEvent('popstate'));
     expect(window.location.pathname + window.location.search).toBe(draftPath);
     expect(screen.getByText('Age: 50')).toBeTruthy();
-    window.history.replaceState({}, '', listPath);
-    fireEvent(window, new PopStateEvent('popstate'));
-    expect(window.location.pathname + window.location.search).toBe(listPath);
+    await waitFor(() => expect(seams.save).toHaveBeenCalledOnce());
+    expect(window.location.pathname + window.location.search).toBe(draftPath);
+    await act(async () => resolveSave({ id: LAUNCH, version: '1' }));
+    await waitFor(() => expect(window.location.pathname + window.location.search).toBe(listPath));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Age 50' })).toBeNull());
-    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(seams.save.mock.calls[0][0].config.age).toBe(50);
+    expect(confirm).not.toHaveBeenCalled();
   } finally {
     confirm.mockRestore();
     window.history.replaceState({}, '', '/');
@@ -1811,4 +1826,214 @@ it('explains a regenerate click while the copied launch sources are still being 
   fireEvent.click(screen.getByRole('button', { name: 'Generate update' }));
   expect(await screen.findByRole('region', { name: 'Update launch?' })).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it.each(['single', 'bulk'] as const)(
+  'honors the saved warning suppression for %s list deletion',
+  async mode => {
+    seams.delete = true;
+    const second = '79999999-0000-4000-8000-000000000003';
+    const rows = mode === 'bulk' ? [listLaunch(), listLaunch(second)] : [listLaunch()];
+    seams.list.mockResolvedValue({ items: rows, nextCursor: null });
+    seams.archiveWarning.mockResolvedValue({
+      hasCatalog: true,
+      hasRestitch: true,
+      suppressed: true
+    });
+    seams.archive.mockResolvedValue(undefined);
+    render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+    await screen.findAllByRole('button', { name: 'Launch actions' });
+    if (mode === 'single') {
+      fireEvent.click(screen.getByRole('button', { name: 'Launch actions' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete launch' }));
+    } else {
+      for (const checkbox of screen.getAllByRole('checkbox', { name: 'Select launch' }))
+        fireEvent.click(checkbox);
+      fireEvent.click(screen.getByRole('button', { name: 'Do to all' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete selected launches (2)' }));
+    }
+    await waitFor(() => expect(seams.archive).toHaveBeenCalledTimes(rows.length));
+    expect(screen.queryByRole('checkbox', { name: 'Do not show again' })).toBeNull();
+    expect(seams.archive.mock.calls.every(call => call[4] === true)).toBe(true);
+    expect(seams.archive.mock.calls.map(call => call[1])).toEqual(rows.map(row => row.id));
+  }
+);
+
+it('does not auto-delete after permission loss while a suppressed warning is loading', async () => {
+  seams.delete = true;
+  seams.list.mockResolvedValue({ items: [listLaunch()], nextCursor: null });
+  let resolveWarning!: (value: {
+    hasCatalog: boolean;
+    hasRestitch: boolean;
+    suppressed: boolean;
+  }) => void;
+  seams.archiveWarning.mockReturnValue(
+    new Promise(resolve => {
+      resolveWarning = resolve;
+    })
+  );
+  const view = render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Launch actions' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete launch' }));
+  seams.delete = false;
+  view.rerender(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  await act(async () => resolveWarning({ hasCatalog: true, hasRestitch: false, suppressed: true }));
+  expect(seams.archive).not.toHaveBeenCalled();
+  expect(screen.queryByRole('checkbox', { name: 'Do not show again' })).toBeNull();
+});
+
+it('preserves Today and search when returning to launches, scoped to actor and workspace', async () => {
+  const query = emptyTeamRouteQuery();
+  const first = render(<LaunchSpace teamId={TEAM} query={query} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Today' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), {
+    target: { value: 'needle' }
+  });
+  const today = quickRangeValue('today', new Date());
+  if (today.kind !== 'range') throw new Error('Expected range');
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      search: 'needle',
+      from: today.from,
+      to: today.to
+    })
+  );
+  first.unmount();
+  const returned = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true')
+  );
+  expect((screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement).value).toBe(
+    'needle'
+  );
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      search: 'needle',
+      from: today.from,
+      to: today.to
+    })
+  );
+  returned.rerender(<LaunchSpace teamId="another-team" query={query} />);
+  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith('another-team', { search: '' }));
+  returned.unmount();
+  seams.actor = 'actor-b';
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  expect((screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
+});
+
+it.each(['section', 'outside while saving', 'save failure'] as const)(
+  'keeps the latest new draft until saved on %s',
+  async exit => {
+    const { useBrowserRoute, navigateTo } = await import('../apps/web/src/lib/navigation');
+    const { buildTeamRoute, parseTeamRoute } = await import('../apps/web/src/team/routes');
+    seams.edit = true;
+    const draftPath = buildTeamRoute({
+      spaceId: TEAM,
+      section: 'launches',
+      query: { ...query, launchId: 'new', launchTab: 'settings' }
+    });
+    const tasksPath = buildTeamRoute({
+      spaceId: TEAM,
+      section: 'tasks',
+      query: emptyTeamRouteQuery()
+    });
+    window.history.replaceState({}, '', draftPath);
+    let resolveSave!: (result: { id: string; version: string }) => void;
+    let rejectSave!: (error: Error) => void;
+    let savedConfig!: LaunchDetail['draft'];
+    seams.save.mockImplementation((input: { config: LaunchDetail['draft'] }) => {
+      savedConfig = input.config;
+      return new Promise((resolve, reject) => {
+        resolveSave = resolve;
+        rejectSave = reject;
+      });
+    });
+    seams.detail.mockImplementation(async () => ({
+      ...detail('https://example.invalid'),
+      draft: savedConfig
+    }));
+    function Host() {
+      const parsed = parseTeamRoute(useBrowserRoute());
+      return parsed?.kind === 'space' && parsed.section === 'launches' ? (
+        <LaunchSpace teamId={TEAM} query={parsed.query} />
+      ) : (
+        <p>Other section</p>
+      );
+    }
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      render(<Host />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Age 50' }));
+      if (exit === 'outside while saving') {
+        await waitFor(() => expect(seams.save).toHaveBeenCalledOnce());
+        const overlay = document.querySelector('.ui-overlay');
+        if (!overlay) throw new Error('Missing overlay');
+        fireEvent.mouseDown(overlay);
+      } else act(() => navigateTo(tasksPath));
+      await waitFor(() => expect(seams.save).toHaveBeenCalledOnce());
+      expect(screen.getByRole('dialog', { name: 'Launches' })).toBeTruthy();
+      expect(savedConfig.age).toBe(50);
+      if (exit === 'save failure') {
+        await act(async () => rejectSave(new Error('offline')));
+        expect(screen.getByRole('dialog', { name: 'Launches' })).toBeTruthy();
+        expect(screen.getByText('Age: 50')).toBeTruthy();
+        expect(window.location.pathname + window.location.search).toBe(draftPath);
+      } else {
+        await act(async () => resolveSave({ id: LAUNCH, version: '1' }));
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Launches' })).toBeNull());
+        if (exit === 'section')
+          expect(window.location.pathname + window.location.search).toBe(tasksPath);
+      }
+      expect(seams.save).toHaveBeenCalledOnce();
+      expect(confirm).not.toHaveBeenCalled();
+    } finally {
+      confirm.mockRestore();
+      window.history.replaceState({}, '', '/');
+    }
+  }
+);
+
+it('keeps the date filter and reports where to find a scheduled copy', async () => {
+  const { ToastContextOverride } = await import('../apps/web/src/components/toast');
+  seams.edit = true;
+  const copyId = '79999999-0000-4000-8000-000000000009';
+  const copied = {
+    ...detail('https://example.invalid'),
+    id: copyId,
+    draft: { ...launchConfig(), launchDate: '2026-11-01' }
+  };
+  seams.detail.mockImplementation(async (_team, id) =>
+    id === copyId ? copied : detail('https://example.invalid')
+  );
+  let resolveCopy!: (value: { id: string; version: string }) => void;
+  seams.copy.mockReturnValue(
+    new Promise(resolve => {
+      resolveCopy = resolve;
+    })
+  );
+  const push = vi.fn().mockReturnValue(1);
+  render(
+    <ToastContextOverride value={{ toasts: [], push, update: vi.fn(), dismiss: vi.fn() }}>
+      <LaunchSpace teamId={TEAM} query={query} />
+    </ToastContextOverride>
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Today' }));
+  const button = await screen.findByRole('button', { name: 'Copy launch' });
+  await waitFor(() => expect(button).toHaveProperty('disabled', false));
+  fireEvent.click(button);
+  await waitFor(() => expect(seams.copy).toHaveBeenCalledOnce());
+  const overlay = document.querySelector('.ui-overlay');
+  if (!overlay) throw new Error('Missing copy overlay');
+  fireEvent.mouseDown(overlay);
+  expect(screen.getByRole('dialog', { name: 'Launches' })).toBeTruthy();
+  await act(async () => resolveCopy({ id: copyId, version: '1' }));
+  await waitFor(() => expect(push).toHaveBeenCalledOnce());
+  const notice = push.mock.calls[0][0];
+  expect(notice.text).toContain('2026-11-01');
+  expect(notice.action.label).toBe('Open copy');
+  act(() => notice.action.run());
+  expect(window.location.search).toContain(copyId);
+  expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true');
+  expect(seams.copy).toHaveBeenCalledOnce();
 });

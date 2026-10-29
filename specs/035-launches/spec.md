@@ -808,3 +808,47 @@ Acceptance: Generate → publication → save schedule → manual run → schedu
 Діагностика: чинні launch_defaults_read/save/apply з flow/attempt/scope; apply success лише після React commit відповідної форми, save після підтвердження та feedback. No і сам фокус не створюють apply; без terminal доставка unknown. URL, примітки, вік та інші значення не входять у telemetry, invalidation або browser storage. Захищений профіль і version receipt — fallback для втраченого save reply; tests/analytics-launch-defaults.test.ts перевіряє producer → sanitizer → persistence → CLI. Beta має вимкнену доставку analytics, тому live UI та автоматизована діагностика є окремими доказами.
 
 Міграція 453 розширює лише наявні профілі та валідацію. Rollback UI не видаляє збережені нові поля; перед відновленням старої SQL-валідації залишити їх захищеними, не обрізати конфігурацію і не дозволяти старому клієнту мовчки перезаписати повний профіль.
+
+### Retention-warning preference regression (2026-10-29)
+
+The list's single and bulk delete actions must honor the actor/workspace-scoped
+`suppressed` value returned by `archiveWarning`, matching the detail view. If all
+selected warnings are suppressed, use the existing archive mutation directly;
+otherwise retain confirmation. The same immutable version/request key and chosen
+preference survive a failed mutation retry. Permission loss or unmount while the
+warning is loading must prevent starting the mutation. Existing `archive_launch`
+flow/attempt diagnostic stages remain unchanged, with no preference or launch
+content added to telemetry. Acceptance includes single/bulk suppression and the
+existing transactional preference, retry and permission tests.
+
+### Remembering the list view (2026-10-29)
+
+Switching sections, opening/closing a launch and reloading must preserve launch
+list date, search, social, assignee and offer filters for this actor/workspace in
+this browser. Reuse the validated persisted-view seam. Store quick Today by name
+so a return on a later day resolves to that day's dates; retain explicit calendar
+ranges as dates. Invalid or unavailable storage falls back safely. Another actor
+or workspace starts with its own view. Stored search/filter values remain local
+and must not enter telemetry; existing list request diagnostics retain explicit
+unknown/missing-read outcomes. Acceptance tests remount the list and verify the
+visible selection and server filter arguments, including actor/workspace isolation.
+
+### Save before leaving a working launch (2026-10-29)
+
+Clicking outside an edited launch, returning to the launch list with browser Back,
+or switching workspace sections must wait for the protected server save, including
+an already running autosave. The queued exit retains the latest draft and manual
+outputs, uses existing CAS/idempotent working-copy writes and stays in the editor
+on failure. It must not offer to discard those edits for ordinary section changes.
+Revision-switch conflict decisions and browser reload protection remain explicit.
+Sensitive drafts remain RAM-only until server acknowledgment; no local URL storage.
+New/copy records and their confirmed settings survive closing and reopening.
+
+Copies retain their specified next-day schedule. Keep the selected list filters;
+show the confirmed copy's date and an Open copy action so a copy hidden by Today
+is findable. The action rereads its protected detail rather than issuing another
+copy. Save and copy diagnostic stages reuse `save_draft`/`copy_launch` with distinct
+request keys; unknown replies never imply failure or justify duplicating a copy.
+Acceptance covers section/Back/outside exits, in-flight saves, failed save retention,
+filter preservation and the dated copy notice. Missing remote acknowledgment and
+browser interruption remain explicit unknown outcomes.

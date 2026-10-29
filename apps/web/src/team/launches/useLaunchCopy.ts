@@ -2,10 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { LaunchDetail } from '@video-compressor/shared';
 import { launchApi, TeamApiError } from '../../api/team';
 import { launchMutation } from './analytics';
+import { useOptionalToasts } from '../../components/toast';
+import { useI18n } from '../../i18n';
+import { navigateTo } from '../../lib/navigation';
+import { buildTeamRoute, emptyTeamRouteQuery } from '../routes';
 
 /** One config-only copy seam for both the list and an open Launch. */
 export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) => void) {
   const [busy, setBusy] = useState(false);
+  const toasts = useOptionalToasts();
+  const { t } = useI18n();
   const [, refresh] = useState(0);
   const mounted = useRef(true);
   const inFlight = useRef(false);
@@ -42,20 +48,41 @@ export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) =>
     inFlight.current = true;
     setBusy(true);
     try {
-      pending.receipt ??= await launchMutation(
-        {
-          flowId: pending.args[3],
-          launchId: pending.args[1],
-          revisionId: pending.args[5] ?? undefined
-        },
-        'copy_launch',
-        () => launchApi.copy(...pending.args)
-      );
+      const correlation = {
+        flowId: pending.args[3],
+        launchId: pending.args[1],
+        revisionId: pending.args[5] ?? undefined
+      };
+      pending.receipt ??= await launchMutation(correlation, 'copy_launch', async () => {
+        const receipt = await launchApi.copy(...pending.args);
+        // The intent names the source; acceptance names the confirmed new record.
+        correlation.launchId = receipt.id;
+        return receipt;
+      });
       if (!mounted.current) return;
       const next = await launchApi.detail(teamId, pending.receipt.id);
       if (!mounted.current) return;
       pending.onCopied(next);
       intent.current = null;
+      try {
+        const copyPath = buildTeamRoute({
+          spaceId: teamId,
+          section: 'launches',
+          query: { ...emptyTeamRouteQuery(), launchId: next.id, launchTab: 'settings' }
+        });
+        if (toasts && next.draft.launchDate)
+          toasts.push({
+            tone: 'success',
+            sticky: true,
+            text: t('launchesCopyCreatedForDate', { date: next.draft.launchDate }),
+            action: {
+              label: t('launchesOpenCopy'),
+              run: () => navigateTo(copyPath)
+            }
+          });
+      } catch {
+        // A notification cannot invalidate a confirmed copy or invite another one.
+      }
     } catch (error) {
       // A confirmed copy is never repeated just because the subsequent read failed.
       if (

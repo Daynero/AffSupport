@@ -491,6 +491,8 @@ export const en = {
   launchesBusy: 'Preparing launch…',
   launchesReady: 'Ready',
   launchesDraft: 'Draft',
+  launchesCopyCreatedForDate: 'Copy created for {date}. Find it under that date.',
+  launchesOpenCopy: 'Open copy',
   launchesCopySavedNotice: 'Wait for changes to save before copying this launch.',
   launchesDefaultBuyerMissing: 'The default Buyer is unavailable. Select another Buyer.',
   launchesCancel: 'Cancel',

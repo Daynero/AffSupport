@@ -24,7 +24,8 @@ import { teamErrorMessageFor } from '../errors';
 import { buildTeamRoute, emptyTeamRouteQuery, type TeamRouteQuery } from '../routes';
 import { navigateTo } from '../../lib/navigation';
 import { TaskDateFilterControl } from '../tasks/TaskDateFilter';
-import type { TaskDateFilter } from '../tasks/useTasks';
+import { encodeDateFilter, parseStoredDateFilter, type TaskDateFilter } from '../tasks/useTasks';
+import { boundedText, persistedViewKey, usePersistedState } from '../persistedView';
 import { LaunchCard } from './LaunchCard';
 import { useLaunchMarqueeSelection } from './useLaunchMarqueeSelection';
 import { useOptionalAuth } from '../../auth/AuthContext';
@@ -50,6 +51,7 @@ type ArchiveCandidate = {
   requestKey: string;
   hasCatalog: boolean;
   hasRestitch: boolean;
+  suppressed: boolean;
 };
 type ArchiveTarget = { items: ArchiveCandidate[]; suppress?: boolean };
 export function LaunchSpace({ teamId, query }: { teamId: string; query: TeamRouteQuery }) {
@@ -90,15 +92,31 @@ function LaunchSpaceContent({
   const launchMarquee = useLaunchMarqueeSelection(items, selectedIds, setSelectedIds);
   const [archiveTarget, setArchiveTarget] = useState<ArchiveTarget | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const archiveRunning = useRef(false);
   const [archiveSuppress, setArchiveSuppress] = useState(false);
   const bulkAnchor = useRef<HTMLDivElement>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [cursor, setCursor] = useState<{ id: string; date: string | null } | null>(null);
-  const [search, setSearch] = useState('');
-  const [accountFilter, setAccountFilter] = useState('');
-  const [assigneeFilter, setAssigneeFilter] = useState('');
-  const [offerFilter, setOfferFilter] = useState('');
-  const [dates, setDates] = useState<TaskDateFilter>({ kind: 'all' });
+  const viewKey = (name: string) =>
+    persistedViewKey(teamId, `launches.${actorId ?? 'preview'}.${name}`);
+  const [search, setSearch] = usePersistedState(viewKey('search'), '', boundedText());
+  const [accountFilter, setAccountFilter] = usePersistedState(
+    viewKey('account'),
+    '',
+    boundedText()
+  );
+  const [assigneeFilter, setAssigneeFilter] = usePersistedState(
+    viewKey('assignee'),
+    '',
+    boundedText()
+  );
+  const [offerFilter, setOfferFilter] = usePersistedState(viewKey('offer'), '', boundedText());
+  const [dates, setDates] = usePersistedState<TaskDateFilter>(
+    viewKey('date'),
+    { kind: 'all' },
+    parseStoredDateFilter,
+    encodeDateFilter
+  );
   const filtersRoot = useRef<HTMLDivElement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterHeadingId = useId();
@@ -120,11 +138,12 @@ function LaunchSpaceContent({
   const sessionIdentity = useRef({ open, key: crypto.randomUUID() });
   if (sessionIdentity.current.open !== open)
     sessionIdentity.current = { open, key: crypto.randomUUID() };
-  const scope = useRef({ mounted: true, teamId, actorId, open });
+  const scope = useRef({ mounted: true, teamId, actorId, open, canDelete: can('delete') });
   const closeRequestRef = useRef<() => void>(() => {});
   scope.current.teamId = teamId;
   scope.current.actorId = actorId;
   scope.current.open = open;
+  scope.current.canDelete = can('delete');
   useEffect(() => {
     scope.current.mounted = true;
     return () => {
@@ -285,6 +304,50 @@ function LaunchSpaceContent({
     if (open !== next.id || tab)
       route(next.id, tab ?? (next.activeRevision ? 'result' : 'settings'));
     void refresh();
+  };
+  const executeArchive = (target: ArchiveTarget, suppressWarning: boolean) => {
+    if (archiveRunning.current || !scope.current.mounted || !scope.current.canDelete) return;
+    archiveRunning.current = true;
+    const suppress = target.suppress ?? suppressWarning;
+    if (archiveTarget) setArchiveTarget({ ...target, suppress });
+    setArchiveBusy(true);
+    void (async () => {
+      for (const item of target.items) {
+        await launchMutation({ flowId: item.requestKey, launchId: item.id }, 'archive_launch', () =>
+          launchApi.archive(teamId, item.id, item.version, item.requestKey, suppress)
+        );
+      }
+    })()
+      .then(() => {
+        if (!scope.current.mounted) return;
+        setArchiveTarget(null);
+        setSelectedIds(previous => {
+          const next = new Set(previous);
+          for (const item of target.items) next.delete(item.id);
+          return next;
+        });
+        void refresh().catch(e => {
+          if (!scope.current.mounted) return;
+          setError(teamErrorMessageFor(e, t));
+        });
+      })
+      .catch(e => {
+        if (!scope.current.mounted) return;
+        setArchiveTarget({ ...target, suppress });
+        setError(teamErrorMessageFor(e, t));
+      })
+      .finally(() => {
+        archiveRunning.current = false;
+        if (scope.current.mounted) setArchiveBusy(false);
+      });
+  };
+  const requestArchive = (targets: ArchiveCandidate[]) => {
+    if (!targets.length || !scope.current.mounted || !scope.current.canDelete) return;
+    if (targets.every(item => item.suppressed)) executeArchive({ items: targets }, true);
+    else {
+      setArchiveSuppress(false);
+      setArchiveTarget({ items: targets });
+    }
   };
   const visibleDetail =
     detail?.id === open &&
@@ -478,13 +541,13 @@ function LaunchSpaceContent({
                                 version: item.version,
                                 requestKey: crypto.randomUUID(),
                                 hasCatalog: warning.hasCatalog,
-                                hasRestitch: warning.hasRestitch
+                                hasRestitch: warning.hasRestitch,
+                                suppressed: warning.suppressed
                               };
                             })
                           )
                             .then(targets => {
-                              setArchiveSuppress(false);
-                              setArchiveTarget({ items: targets });
+                              requestArchive(targets);
                             })
                             .catch(e => setError(teamErrorMessageFor(e, t)));
                           setBulkOpen(false);
@@ -528,18 +591,16 @@ function LaunchSpaceContent({
                     void launchApi
                       .archiveWarning(teamId, value.id)
                       .then(warning => {
-                        setArchiveSuppress(false);
-                        setArchiveTarget({
-                          items: [
-                            {
-                              id: value.id,
-                              version: value.version,
-                              requestKey: crypto.randomUUID(),
-                              hasCatalog: warning.hasCatalog,
-                              hasRestitch: warning.hasRestitch
-                            }
-                          ]
-                        });
+                        requestArchive([
+                          {
+                            id: value.id,
+                            version: value.version,
+                            requestKey: crypto.randomUUID(),
+                            hasCatalog: warning.hasCatalog,
+                            hasRestitch: warning.hasRestitch,
+                            suppressed: warning.suppressed
+                          }
+                        ]);
                       })
                       .catch(e => setError(teamErrorMessageFor(e, t)));
                   }
@@ -575,37 +636,7 @@ function LaunchSpaceContent({
                 variant="danger"
                 disabled={archiveBusy}
                 onClick={() => {
-                  const target = archiveTarget;
-                  const suppress = target.suppress ?? archiveSuppress;
-                  if (target.suppress === undefined) setArchiveTarget({ ...target, suppress });
-                  setArchiveBusy(true);
-                  void (async () => {
-                    for (const item of target.items) {
-                      await launchMutation(
-                        { flowId: item.requestKey, launchId: item.id },
-                        'archive_launch',
-                        () =>
-                          launchApi.archive(
-                            teamId,
-                            item.id,
-                            item.version,
-                            item.requestKey,
-                            suppress
-                          )
-                      );
-                    }
-                  })()
-                    .then(() => {
-                      setArchiveTarget(null);
-                      setSelectedIds(previous => {
-                        const next = new Set(previous);
-                        for (const item of target.items) next.delete(item.id);
-                        return next;
-                      });
-                      void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
-                    })
-                    .catch(e => setError(teamErrorMessageFor(e, t)))
-                    .finally(() => setArchiveBusy(false));
+                  executeArchive(archiveTarget, archiveSuppress);
                 }}
               >
                 {t('launchesArchive')}
