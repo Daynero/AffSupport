@@ -52,9 +52,9 @@ it('opens one existing-account browser, searches and replaces the trigger select
   expect(changed).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: /ID 9999999892/ }));
   expect(changed).toHaveBeenCalledWith('second');
-  expect(trigger.textContent).toContain('Main social · 892');
-  expect(within(trigger).getByText('ID 9999999892')).toBeTruthy();
-  expect(within(trigger).getByText('Free')).toBeTruthy();
+  expect(trigger.textContent).toContain('Main social-892');
+  expect(within(trigger).queryByText('ID 9999999892')).toBeNull();
+  expect(within(trigger).queryByText('Free')).toBeNull();
   expect(screen.getAllByRole('button')).toEqual([trigger]);
 });
 it('distinguishes duplicate suffixes and preserves workspace order in the browser', async () => {
@@ -80,7 +80,7 @@ it('selects by keyboard and preserves selection when an unmatched search is dism
   account.focus();
   await user.keyboard('{Enter}');
   expect(changed).toHaveBeenCalledWith(launchFixtureAccounts()[1].agents[0].id);
-  expect(trigger.textContent).toContain('g2 · 892');
+  expect(trigger.textContent).toContain('g2-892');
   expect(document.activeElement).toBe(trigger);
   await user.click(trigger);
   await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), 'missing');
@@ -88,7 +88,7 @@ it('selects by keyboard and preserves selection when an unmatched search is dism
     screen.getByText('No matching ad accounts. Try a social name or another part of the ID.')
   ).toBeTruthy();
   await user.keyboard('{Escape}');
-  expect(trigger.textContent).toContain('g2 · 892');
+  expect(trigger.textContent).toContain('g2-892');
   expect(changed).toHaveBeenCalledOnce();
   expect(document.activeElement).toBe(trigger);
 });
@@ -157,8 +157,8 @@ it('browses socials with occupancy counts, filters busy RK and selects the real 
   );
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(
-    within(screen.getByRole('button', { name: /Choose account:/ })).getByText('Busy')
-  ).toBeTruthy();
+    within(screen.getByRole('button', { name: /Choose account:/ })).queryByText('Busy')
+  ).toBeNull();
 });
 it('searches inside the browser without changing selection and cancels safely', async () => {
   const track = vi.spyOn(analytics, 'track');

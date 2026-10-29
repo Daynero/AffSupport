@@ -75,7 +75,14 @@ export function LaunchAccountBrowser({
     ? ['all', 'free', 'busy', 'unknown']
     : ['all', 'free', 'busy'];
   return (
-    <Modal nested labelledBy={titleId} onClose={onClose} closeLabel={t('teamCancel')} size="md">
+    <Modal
+      layout="search"
+      nested
+      labelledBy={titleId}
+      onClose={onClose}
+      closeLabel={t('teamCancel')}
+      size="md"
+    >
       <div className="team-task-picker-dialog team-task-account-picker launch-account-browser">
         <div className="team-task-account-picker-heading">
           <h2 id={titleId}>{t('launchesAccount')}</h2>
@@ -125,105 +132,107 @@ export function LaunchAccountBrowser({
             <strong aria-current="page">{social.name}</strong>
           </nav>
         )}
-        {!hasResults ? (
-          <EmptyState size="sm" title={t('launchesAccountNoResults')} />
-        ) : (
-          <ul className="team-task-picker-results team-task-picker-folder-results">
-            {rows.map(account => {
-              const total = countTeamAccounts([active.find(item => item.id === account.id)!]);
-              // Search exposes matching RK directly; browsing starts at the social level.
-              return !socialId && !search.trim() ? (
-                <li key={account.id}>
-                  <button type="button" onClick={() => setSocialId(account.id)}>
-                    <span className="team-task-picker-item-type" aria-hidden="true">
-                      <UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                    </span>
-                    <span className="team-task-picker-item-copy">
-                      <strong>{account.name}</strong>
-                      <small>
-                        {total.agents === 0 ? (
-                          t('teamAccountAgentsNone')
-                        ) : (
-                          <>
-                            <span className="text-success-text">
-                              {t('teamAccountsFilterFree')} · {total.free}
-                            </span>
-                            {' · '}
-                            <span className="text-warning-text">
-                              {t('teamAccountsFilterBusy')} · {total.busy}
-                            </span>
-                            {(total.unknown ?? 0) > 0 && (
-                              <>
-                                {' · '}
-                                <span className="text-muted">
-                                  {t('teamAgentAvailabilityUnknown')} · {total.unknown}
-                                </span>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </small>
-                    </span>
-                    <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </button>
-                </li>
-              ) : (
-                account.agents.map(agent => {
-                  const availability = getTeamAgentAvailability(agent);
-                  const free = availability === 'free';
-                  return (
-                    <li key={agent.id}>
-                      <button
-                        type="button"
-                        aria-pressed={agent.id === value}
-                        className={`${agent.id === value ? 'is-selected' : ''} ${free ? 'is-free' : ''}`}
-                        onClick={() => {
-                          onChange(agent.id);
-                          if (attempt.current) {
-                            attempt.current.done = true;
-                            signal('operation_completed', attempt.current.id);
-                          }
-                          onClose();
-                        }}
-                      >
-                        <span className="team-task-picker-item-copy">
-                          <strong>
-                            {account.name} · {agent.agentId.slice(-3)}
-                          </strong>
-                          <small className="font-mono">ID {agent.agentId}</small>
-                          <small className={free ? 'text-success-text' : 'text-warning-text'}>
-                            {t(
-                              availability === 'unknown'
-                                ? 'teamAgentAvailabilityUnknown'
-                                : free
-                                  ? 'teamAgentFree'
-                                  : 'teamAgentBusy'
-                            )}
-                          </small>
-                          {(agent.availability?.assignmentCount ?? 0) > 0 && (
-                            <small>
-                              {t('launchesAssignmentCount', {
-                                count: agent.availability!.assignmentCount
-                              })}
-                            </small>
+        <div className="modal-search-results">
+          {!hasResults ? (
+            <EmptyState size="sm" title={t('launchesAccountNoResults')} />
+          ) : (
+            <ul className="team-task-picker-results team-task-picker-folder-results">
+              {rows.map(account => {
+                const total = countTeamAccounts([active.find(item => item.id === account.id)!]);
+                // Search exposes matching RK directly; browsing starts at the social level.
+                return !socialId && !search.trim() ? (
+                  <li key={account.id}>
+                    <button type="button" onClick={() => setSocialId(account.id)}>
+                      <span className="team-task-picker-item-type" aria-hidden="true">
+                        <UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                      </span>
+                      <span className="team-task-picker-item-copy">
+                        <strong>{account.name}</strong>
+                        <small>
+                          {total.agents === 0 ? (
+                            t('teamAccountAgentsNone')
+                          ) : (
+                            <>
+                              <span className="text-success-text">
+                                {t('teamAccountsFilterFree')} · {total.free}
+                              </span>
+                              {' · '}
+                              <span className="text-warning-text">
+                                {t('teamAccountsFilterBusy')} · {total.busy}
+                              </span>
+                              {(total.unknown ?? 0) > 0 && (
+                                <>
+                                  {' · '}
+                                  <span className="text-muted">
+                                    {t('teamAgentAvailabilityUnknown')} · {total.unknown}
+                                  </span>
+                                </>
+                              )}
+                            </>
                           )}
-                          {!free && (
-                            <small className="whitespace-normal break-words">
-                              {teamAgentRunsSummary(agent)}
+                        </small>
+                      </span>
+                      <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    </button>
+                  </li>
+                ) : (
+                  account.agents.map(agent => {
+                    const availability = getTeamAgentAvailability(agent);
+                    const free = availability === 'free';
+                    return (
+                      <li key={agent.id}>
+                        <button
+                          type="button"
+                          aria-pressed={agent.id === value}
+                          className={`${agent.id === value ? 'is-selected' : ''} ${free ? 'is-free' : ''}`}
+                          onClick={() => {
+                            onChange(agent.id);
+                            if (attempt.current) {
+                              attempt.current.done = true;
+                              signal('operation_completed', attempt.current.id);
+                            }
+                            onClose();
+                          }}
+                        >
+                          <span className="team-task-picker-item-copy">
+                            <strong>
+                              {account.name} · {agent.agentId.slice(-3)}
+                            </strong>
+                            <small className="font-mono">ID {agent.agentId}</small>
+                            <small className={free ? 'text-success-text' : 'text-warning-text'}>
+                              {t(
+                                availability === 'unknown'
+                                  ? 'teamAgentAvailabilityUnknown'
+                                  : free
+                                    ? 'teamAgentFree'
+                                    : 'teamAgentBusy'
+                              )}
                             </small>
+                            {(agent.availability?.assignmentCount ?? 0) > 0 && (
+                              <small>
+                                {t('launchesAssignmentCount', {
+                                  count: agent.availability!.assignmentCount
+                                })}
+                              </small>
+                            )}
+                            {!free && (
+                              <small className="whitespace-normal break-words">
+                                {teamAgentRunsSummary(agent)}
+                              </small>
+                            )}
+                          </span>
+                          {agent.id === value && (
+                            <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                           )}
-                        </span>
-                        {agent.id === value && (
-                          <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })
-              );
-            })}
-          </ul>
-        )}
+                        </button>
+                      </li>
+                    );
+                  })
+                );
+              })}
+            </ul>
+          )}
+        </div>
         <div className="team-dialog-actions">
           <Button variant="ghost" onClick={onClose}>
             {t('teamCancel')}

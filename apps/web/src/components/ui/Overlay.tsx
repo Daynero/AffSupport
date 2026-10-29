@@ -249,6 +249,7 @@ export interface ModalProps {
   title?: ReactNode;
   labelledBy?: string;
   size?: UiSize | 'full';
+  layout?: 'content' | 'search';
   /** A dialog raised over another one. */
   nested?: boolean;
   /** Work is running inside: the surface says so and keeps its controls. */
@@ -274,6 +275,7 @@ export function Modal({
   title,
   labelledBy,
   size = 'md',
+  layout = 'content',
   nested = false,
   busy = false,
   className,
@@ -303,7 +305,7 @@ export function Modal({
         aria-busy={busy || undefined}
         className={uiClasses('modal', {
           size: size === 'full' ? undefined : size,
-          states: { full: size === 'full', busy },
+          states: { full: size === 'full', busy, search: layout === 'search' },
           className
         })}
       >

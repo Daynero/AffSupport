@@ -1,3 +1,4 @@
+import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -966,6 +967,7 @@ describe('team processing orchestration and SSE state', () => {
     'RESTITCH_SCREEN_FETCH_FAILED',
     'RESTITCH_SCREEN_UNSUPPORTED'
   ])('preserves the actionable screen preparation failure %s', async code => {
+    const record = vi.spyOn(diagnostics, 'record');
     const events = new TeamOperationEvents();
     const bridge = new TeamProcessBridge({
       events,
@@ -979,6 +981,17 @@ describe('team processing orchestration and SSE state', () => {
     });
     await expect(bridge.process(processRequest())).rejects.toThrow(code);
     expect(events.snapshot().operations[0]).toMatchObject({ state: 'failed', errorCode: code });
+    expect(record).toHaveBeenCalledWith(
+      'team',
+      'process_terminal',
+      expect.objectContaining({
+        operationId: 'operation-process',
+        stage: 'downloading',
+        outcome: 'failed',
+        errorCode: code
+      })
+    );
+    record.mockRestore();
   });
 
   it.each(['provider token=secret https://example.invalid/ /private/path', 'PRIVATE_CAPI_SECRET'])(

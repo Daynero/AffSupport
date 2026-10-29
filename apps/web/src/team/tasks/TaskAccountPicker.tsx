@@ -152,6 +152,7 @@ export function TaskAccountPicker({
 
   return (
     <Modal
+      layout="search"
       nested
       labelledBy={titleId}
       onClose={onClose}
@@ -203,131 +204,134 @@ export function TaskAccountPicker({
           </nav>
         )}
 
-        {loading && <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />}
-        {error && <ErrorState message={t('teamAccountsLoadFailed')} />}
-        {!loading && !error && accounts.length === 0 && (
-          <EmptyState
-            size="sm"
-            title={t('teamTaskAccountPickerEmpty')}
-            /* Named by where it goes: accounts are made on their own tab, not
+        <div className="modal-search-results">
+          {loading && <LoadingState shape="row" count={4} label={t('teamAccountsLoading')} />}
+          {error && <ErrorState message={t('teamAccountsLoadFailed')} />}
+          {!loading && !error && accounts.length === 0 && (
+            <EmptyState
+              size="sm"
+              title={t('teamTaskAccountPickerEmpty')}
+              /* Named by where it goes: accounts are made on their own tab, not
                in the settings dialog. */
-            action={
-              <SpaceSettingsLink
-                target={{ kind: 'section', section: 'accounts' }}
-                label={t('teamSectionAccounts')}
-              />
-            }
-          />
-        )}
+              action={
+                <SpaceSettingsLink
+                  target={{ kind: 'section', section: 'accounts' }}
+                  label={t('teamSectionAccounts')}
+                />
+              }
+            />
+          )}
 
-        {!loading &&
-          !error &&
-          !openAccount &&
-          accounts.length > 0 &&
-          shownAccounts.length === 0 && <EmptyState size="sm" title={t('teamAccountsEmptyFree')} />}
-
-        {/* Step one: the accounts, each with what is inside it. */}
-        {!loading && !error && !openAccount && shownAccounts.length > 0 && (
-          <ul className="team-task-picker-results team-task-picker-folder-results">
-            {shownAccounts.map(account => {
-              // Counted on the whole account, not the filtered copy: under
-              // "Free" the row still says how many agents there are in all.
-              const counts = countTeamAccounts([
-                accounts.find(item => item.id === account.id) ?? account
-              ]);
-              const chosenHere = account.agents.filter(agent => selected.has(agent.id)).length;
-              return (
-                <li key={account.id}>
-                  <button type="button" onClick={() => setOpenAccountId(account.id)}>
-                    <span className="team-task-picker-item-type" aria-hidden="true">
-                      <UserRound size={18} strokeWidth={ICON_STROKE} />
-                    </span>
-                    <span className="team-task-picker-item-copy">
-                      <strong>{account.name}</strong>
-                      <small>
-                        {counts.agents === 0
-                          ? t('teamAccountAgentsNone')
-                          : t(agentCountKey(language, counts.agents), { count: counts.agents })}
-                        {counts.free > 0 && (
-                          <span className="team-task-account-free">
-                            {' · '}
-                            {t(freeCountKey(language, counts.free), { count: counts.free })}
-                          </span>
-                        )}
-                        {chosenHere > 0 && (
-                          <span className="team-task-account-chosen">
-                            {' · '}
-                            {t('teamTaskAccountPickerChosen', { count: chosenHere })}
-                          </span>
-                        )}
-                      </small>
-                    </span>
-                    <span className="team-task-picker-check" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {/* Step two: the agents of one account, free ones marked. */}
-        {!loading && !error && openAccount && (
-          <>
-            {shownAgents.length === 0 && (
-              <EmptyState
-                size="sm"
-                title={
-                  openAccount.agents.length === 0
-                    ? t('teamAccountAgentsNone')
-                    : t('teamAccountsEmptyFree')
-                }
-              />
+          {!loading &&
+            !error &&
+            !openAccount &&
+            accounts.length > 0 &&
+            shownAccounts.length === 0 && (
+              <EmptyState size="sm" title={t('teamAccountsEmptyFree')} />
             )}
-            {shownAgents.length > 0 && (
-              <ul className="team-task-picker-results">
-                {shownAgents.map(agent => {
-                  const attached = attachedAgentRowIds.has(agent.id);
-                  const chosen = selected.has(agent.id);
-                  const free = isTeamAgentFree(agent);
-                  return (
-                    <li key={agent.id}>
-                      <button
-                        type="button"
-                        className={`${chosen ? 'is-selected' : ''} ${attached ? 'is-attached' : ''} ${free ? 'is-free' : ''}`.trim()}
-                        aria-pressed={chosen}
-                        disabled={attached}
-                        onClick={() => toggle(agent)}
-                      >
-                        <span
-                          className="team-task-picker-item-type team-task-agent-tail"
-                          aria-hidden="true"
+
+          {/* Step one: the accounts, each with what is inside it. */}
+          {!loading && !error && !openAccount && shownAccounts.length > 0 && (
+            <ul className="team-task-picker-results team-task-picker-folder-results">
+              {shownAccounts.map(account => {
+                // Counted on the whole account, not the filtered copy: under
+                // "Free" the row still says how many agents there are in all.
+                const counts = countTeamAccounts([
+                  accounts.find(item => item.id === account.id) ?? account
+                ]);
+                const chosenHere = account.agents.filter(agent => selected.has(agent.id)).length;
+                return (
+                  <li key={account.id}>
+                    <button type="button" onClick={() => setOpenAccountId(account.id)}>
+                      <span className="team-task-picker-item-type" aria-hidden="true">
+                        <UserRound size={18} strokeWidth={ICON_STROKE} />
+                      </span>
+                      <span className="team-task-picker-item-copy">
+                        <strong>{account.name}</strong>
+                        <small>
+                          {counts.agents === 0
+                            ? t('teamAccountAgentsNone')
+                            : t(agentCountKey(language, counts.agents), { count: counts.agents })}
+                          {counts.free > 0 && (
+                            <span className="team-task-account-free">
+                              {' · '}
+                              {t(freeCountKey(language, counts.free), { count: counts.free })}
+                            </span>
+                          )}
+                          {chosenHere > 0 && (
+                            <span className="team-task-account-chosen">
+                              {' · '}
+                              {t('teamTaskAccountPickerChosen', { count: chosenHere })}
+                            </span>
+                          )}
+                        </small>
+                      </span>
+                      <span className="team-task-picker-check" aria-hidden="true">
+                        ›
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {/* Step two: the agents of one account, free ones marked. */}
+          {!loading && !error && openAccount && (
+            <>
+              {shownAgents.length === 0 && (
+                <EmptyState
+                  size="sm"
+                  title={
+                    openAccount.agents.length === 0
+                      ? t('teamAccountAgentsNone')
+                      : t('teamAccountsEmptyFree')
+                  }
+                />
+              )}
+              {shownAgents.length > 0 && (
+                <ul className="team-task-picker-results">
+                  {shownAgents.map(agent => {
+                    const attached = attachedAgentRowIds.has(agent.id);
+                    const chosen = selected.has(agent.id);
+                    const free = isTeamAgentFree(agent);
+                    return (
+                      <li key={agent.id}>
+                        <button
+                          type="button"
+                          className={`${chosen ? 'is-selected' : ''} ${attached ? 'is-attached' : ''} ${free ? 'is-free' : ''}`.trim()}
+                          aria-pressed={chosen}
+                          disabled={attached}
+                          onClick={() => toggle(agent)}
                         >
-                          {teamAgentIdSuffix(agent.agentId)}
-                        </span>
-                        <span className="team-task-picker-item-copy">
-                          <strong>{teamAgentLabel(openAccount.name, agent.agentId)}</strong>
-                          <small>
-                            {attached
-                              ? t('teamTaskAccountAlreadyTagged')
-                              : free
-                                ? t('teamAgentFree')
-                                : teamAgentRunsSummary(agent)}
-                          </small>
-                        </span>
-                        <span className="team-task-picker-check" aria-hidden="true">
-                          {attached || chosen ? '✓' : ''}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </>
-        )}
-
+                          <span
+                            className="team-task-picker-item-type team-task-agent-tail"
+                            aria-hidden="true"
+                          >
+                            {teamAgentIdSuffix(agent.agentId)}
+                          </span>
+                          <span className="team-task-picker-item-copy">
+                            <strong>{teamAgentLabel(openAccount.name, agent.agentId)}</strong>
+                            <small>
+                              {attached
+                                ? t('teamTaskAccountAlreadyTagged')
+                                : free
+                                  ? t('teamAgentFree')
+                                  : teamAgentRunsSummary(agent)}
+                            </small>
+                          </span>
+                          <span className="team-task-picker-check" aria-hidden="true">
+                            {attached || chosen ? '✓' : ''}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
         {/* What the two buttons differ by, said once above them (024). */}
         {onAddWithRun && selected.size > 0 && (
           <p className="team-task-account-picker-hint">{t('teamTaskAccountPickerHint')}</p>

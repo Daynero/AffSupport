@@ -10,7 +10,7 @@ import type {
   LaunchSourceSnapshot,
   LaunchStage
 } from '@video-compressor/shared';
-import { launchApi } from '../../api/team';
+import { launchApi, teamApi } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 type SaveIntent = {
   teamId: string;
@@ -159,7 +159,7 @@ export function useLaunchGeneration(
     cancelSubmitting.current = true;
     if (mounted.current) setBusy(true);
     try {
-      await launchReply(
+      const receipt = await launchReply(
         launchApi.cancelRequest(
           teamId,
           pending.id,
@@ -167,15 +167,19 @@ export function useLaunchGeneration(
           cancelRequestIntent.current.cancelKey
         )
       );
-      const latest = await launchReply(launchApi.detail(teamId, pending.id));
+      const latest = receipt?.detail ?? (await launchReply(launchApi.detail(teamId, pending.id)));
+      const canceledGenerationId =
+        typeof receipt?.id === 'string' ? receipt.id : activeReceipt.current?.generationId;
       if (
         mounted.current &&
+        canceledGenerationId &&
+        latest.generation?.id === canceledGenerationId &&
         latest.generation?.restitchOperationId &&
         ['cancel_requested', 'canceled_with_cleanup_pending', 'canceled'].includes(
           latest.generation.state
         )
       )
-        await launchReply(cancelTeamAgentProcess(latest.generation.restitchOperationId)).catch(
+        void launchReply(cancelTeamAgentProcess(latest.generation.restitchOperationId)).catch(
           () => false
         );
       notify(latest);
@@ -344,9 +348,12 @@ export function useLaunchGeneration(
       }
     }
   };
-  const resume = async (detail: LaunchDetail) => {
+  const resume = async (detail: LaunchDetail, failedRestitchOperationId?: string) => {
     let gen = detail.generation;
     if (!gen?.requestKey || !gen.inputVersion || submitting.current) return;
+    if (['cancel_requested', 'canceled_with_cleanup_pending'].includes(gen.state))
+      throw new TeamApiError('LAUNCH_BUSY', true);
+    if (['succeeded', 'canceled'].includes(gen.state)) return;
     const attempt = ++execution.current;
     const controller = new AbortController();
     executionController.current = controller;
@@ -359,6 +366,11 @@ export function useLaunchGeneration(
       // A failed native child can precede its parent's Realtime update. Settle
       // the durable receipt before choosing replay versus an explicit retry.
       if (gen.state === 'waiting_dependency') {
+        // An explicit Repeat can retire a child proved terminal by this paired
+        // agent even when an older server left its durable row running.
+        if (failedRestitchOperationId && gen.restitchOperationId === failedRestitchOperationId)
+          await active(launchReply(teamApi.cancelOperation(teamId, failedRestitchOperationId)));
+
         await active(launchReply(launchApi.settleRestitch(teamId, gen.id)));
         const latest = await active(launchReply(launchApi.detail(teamId, detail.id)));
         if (attempt !== execution.current) return;
@@ -449,12 +461,27 @@ export function useLaunchGeneration(
       cancelIntent.current = { generationId, key: crypto.randomUUID() };
     cancelSubmitting.current = true;
     setBusy(true);
+    setPendingStage('cancel');
     try {
-      await launchReply(
+      const receipt = await launchReply(
         launchApi.cancel(teamId, detail.id, generationId, cancelIntent.current.key)
       );
-      const latest = await launchReply(launchApi.detail(teamId, detail.id));
+      // Stop native work as soon as the server accepts cancellation. Neither
+      // a slow detail read nor an unreachable agent may hold the UI hostage.
+      const cancelAccepted =
+        receipt &&
+        typeof receipt === 'object' &&
+        'state' in receipt &&
+        ['cancel_requested', 'canceled_with_cleanup_pending', 'canceled'].includes(
+          String(receipt.state)
+        );
+      if (cancelAccepted && detail.generation?.restitchOperationId)
+        void launchReply(cancelTeamAgentProcess(detail.generation.restitchOperationId)).catch(
+          () => false
+        );
+      const latest = receipt?.detail ?? (await launchReply(launchApi.detail(teamId, detail.id)));
       if (
+        !cancelAccepted &&
         mounted.current &&
         latest.generation?.id === generationId &&
         ['cancel_requested', 'canceled_with_cleanup_pending', 'canceled'].includes(
@@ -462,7 +489,7 @@ export function useLaunchGeneration(
         ) &&
         latest.generation.restitchOperationId
       )
-        await launchReply(cancelTeamAgentProcess(latest.generation.restitchOperationId)).catch(
+        void launchReply(cancelTeamAgentProcess(latest.generation.restitchOperationId)).catch(
           () => false
         );
       notify(latest);
@@ -484,6 +511,7 @@ export function useLaunchGeneration(
     } finally {
       cancelSubmitting.current = false;
       if (mounted.current) {
+        setPendingStage(null);
         refreshIntentState(value => value + 1);
         setBusy(submitting.current);
       }

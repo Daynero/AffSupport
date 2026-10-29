@@ -1,5 +1,5 @@
 import type { LaunchGeneration, LaunchStage } from '@video-compressor/shared';
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { CircleAlert } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Alert, Button, Card, StageProgress } from '../../components/ui/index';
@@ -7,13 +7,19 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { useOptionalTeam } from '../TeamContext';
 import { teamErrorMessage } from '../errors';
-import { launchProgressStages, launchStageLabels } from './progress';
+import {
+  launchProgressStages,
+  launchStageLabels,
+  newLaunchProgressMemory,
+  rememberLaunchProgress
+} from './progress';
 import { restitchSettingsError } from './recovery';
 import { useLaunchProgressWatch } from './useLaunchProgressWatch';
 
 export function LaunchGenerationProgress({
   generation,
   onCancel,
+  onFailedRestitch,
   disabled,
   teamId,
   method = 'catalog',
@@ -32,6 +38,7 @@ export function LaunchGenerationProgress({
   retryActions?: ReactNode;
   generation: LaunchGeneration | null;
   onCancel: () => void;
+  onFailedRestitch?: (operationId: string | null) => void;
   disabled: boolean;
   teamId?: string;
   method?: 'catalog' | 'other';
@@ -65,6 +72,12 @@ export function LaunchGenerationProgress({
       : (child.localState ?? child.operation?.state);
   const childFailed = observingRestitch && (childState === 'failed' || childState === 'canceled');
   const childSucceeded = observingRestitch && childState === 'succeeded';
+  const failedChildId =
+    childFailed && !child.streamDisconnected ? (generation?.restitchOperationId ?? null) : null;
+  useEffect(() => {
+    onFailedRestitch?.(failedChildId);
+    return () => onFailedRestitch?.(null);
+  }, [failedChildId, onFailedRestitch]);
   const code =
     requestErrorCode ??
     current?.errorCode ??
@@ -101,7 +114,7 @@ export function LaunchGenerationProgress({
     child.localProgress?.progress,
     childState
   ]);
-  const watching = !terminal && !cancelling && !needsAttention;
+  const watching = !terminal && (cancelling || !needsAttention);
   const watch = useLaunchProgressWatch(watching, evidence, onRefresh);
   const uncertain = watch.quiet || disconnected || watch.readFailed;
   const localLabels: Record<string, TranslationKey> = {
@@ -147,12 +160,7 @@ export function LaunchGenerationProgress({
       : validMeasured
         ? measured.completed / measured.total
         : undefined;
-  const statusLabel = cancelling
-    ? t(cleanupPending ? 'launchesStageCleanup' : 'launchesStageCancel')
-    : uncertain || needsAttention
-      ? t('launchesProgressLastConfirmed', { stage: action })
-      : action;
-  const stages = launchProgressStages(
+  const observedStages = launchProgressStages(
     {
       generation: current,
       stage,
@@ -165,21 +173,23 @@ export function LaunchGenerationProgress({
     },
     t
   );
-  const attempt = Math.max(0, ...(current?.steps?.map(step => step.attemptNo) ?? []));
-  const fillScope = `${teamId ?? ''}:${current?.id ?? 'pending'}:${attempt}`;
-  const confirmedFills = useRef({ scope: fillScope, values: new Map<string, number>() });
-  if (confirmedFills.current.scope !== fillScope)
-    confirmedFills.current = { scope: fillScope, values: new Map() };
-  // Retain observed work through a missing/stale sample, but never carry it into
-  // another generation or retry. This preserves evidence, not estimated time.
-  for (const entry of stages) {
-    if (entry.state === 'pending' || entry.state === 'complete') continue;
-    const previous = confirmedFills.current.values.get(entry.id);
-    if (entry.fraction !== undefined || previous !== undefined) {
-      entry.fraction = Math.max(entry.fraction ?? 0, previous ?? 0);
-      confirmedFills.current.values.set(entry.id, entry.fraction);
-    }
-  }
+  const progressMemory = useRef(newLaunchProgressMemory());
+  const stages = rememberLaunchProgress(progressMemory.current, {
+    scope: `${teamId ?? ''}:${current?.id ?? 'pending'}`,
+    generation: current,
+    stage,
+    stages: observedStages,
+    attention: needsAttention || cancelling || uncertain
+  });
+  const confirmedAction =
+    progressMemory.current.stage && progressMemory.current.stage !== stage && current
+      ? t(launchStageLabels[progressMemory.current.stage] ?? 'launchesStageUnknown')
+      : action;
+  const statusLabel = cancelling
+    ? t(cleanupPending ? 'launchesStageCleanup' : 'launchesStageCancel')
+    : uncertain || needsAttention
+      ? t('launchesProgressLastConfirmed', { stage: confirmedAction })
+      : confirmedAction;
   const currentIndex = stages.findIndex(
     entry => entry.state === 'active' || entry.state === 'attention'
   );
@@ -239,7 +249,7 @@ export function LaunchGenerationProgress({
         stages={stages}
         label={statusLabel}
         detail={detail ?? '\u00a0'}
-        active={watching && !uncertain}
+        active={watching && !cancelling && !uncertain}
         stepsLabel={t('launchesSteps')}
       />
       {showNotice && (

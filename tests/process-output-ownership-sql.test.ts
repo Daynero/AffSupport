@@ -625,3 +625,48 @@ it('does not count a hidden output as added in a leased incremental replay', asy
     )[0]
   ).toEqual({ files_added: 1, files_updated: 0 });
 });
+
+it.each([
+  ['metadata-only version advance', 'a'.repeat(32), 'a'.repeat(32), true],
+  ['changed bytes', 'a'.repeat(32), 'b'.repeat(32), false],
+  ['unknown content', null, null, false],
+  ['lost checksum', 'a'.repeat(32), null, false]
+] as const)(
+  'finalizes process source by content identity: %s',
+  async (_name, before, after, allowed) => {
+    const id = await operation();
+    await db.root("update public.team_materials set drive_version='7',checksum=$2 where id=$1", [
+      source,
+      before
+    ]);
+    await db.root(
+      "select public.service_bind_team_operation_source($1,$2,'original-source','7',$3)",
+      [id, OWNER, before]
+    );
+    await db.root("update public.team_materials set drive_version='8',checksum=$2 where id=$1", [
+      source,
+      after
+    ]);
+    const result = db.root(
+      'select public.service_finalize_uploaded_material($1,$2,$3::jsonb) result',
+      [
+        id,
+        OWNER,
+        JSON.stringify({
+          driveFileId: `output-${id}`,
+          parentFolderId: 'own-root',
+          name: `out-${id}.mp4`,
+          mimeType: 'video/mp4',
+          kind: 'file',
+          category: 'video',
+          classificationSource: 'mime',
+          sizeBytes: 16,
+          driveVersion: '1',
+          checksum: CHECKSUM
+        })
+      ]
+    );
+    if (allowed) expect((await result)[0].result).toMatchObject({ state: 'succeeded' });
+    else await expect(result).rejects.toThrow('SOURCE_CHANGED');
+  }
+);

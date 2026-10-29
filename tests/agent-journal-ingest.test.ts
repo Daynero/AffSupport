@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DiagnosticsLog } from '../apps/agent/src/server/diagnostics-log';
 import { TranscriptionAttemptJournal } from '../apps/agent/src/transcription/diagnostics';
 import { setQueryExecutor } from '../scripts/analytics/db';
+import { getJournal } from '../scripts/analytics/investigate';
 import { getInspect } from '../scripts/analytics/queries';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -335,6 +336,42 @@ it('round-trips actual original attempts through the journal sanitizer, ingestio
     }
     const flowInspection = await getInspect(flow, new Date().toISOString());
     expect(flowInspection.found && flowInspection.transcription_original?.attempts).toHaveLength(5);
+  } finally {
+    setQueryExecutor(null);
+  }
+});
+
+it('delivers a safe native process failure through journal ingestion to the read-only CLI', async () => {
+  const instance = randomUUID();
+  const operationId = randomUUID();
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  const props = {
+    operationId,
+    tool: 'restitch',
+    stage: 'uploading',
+    outcome: 'failed',
+    errorCode: 'SOURCE_CHANGED'
+  };
+  expect(log.record('team', 'process_terminal', props)).toBe(true);
+  expect(await ingest(log.since(0), { instance })).toEqual({
+    accepted: 1,
+    duplicates: 0,
+    rejected: []
+  });
+  setQueryExecutor((sql, params) => harness.root(sql, params));
+  try {
+    const evidence = await getJournal(instance, {
+      token: 'all',
+      start: null,
+      end: new Date(Date.now() + 1000).toISOString(),
+      label: 'all'
+    });
+    expect(evidence.available).toBe(true);
+    expect(evidence.records[0]).toMatchObject({
+      category: 'team',
+      code: 'process_terminal',
+      props
+    });
   } finally {
     setQueryExecutor(null);
   }

@@ -168,3 +168,28 @@ it.each(['canceled', 'failed'] as const)(
     expect(result.current.localProgress?.progress).toBe(20);
   }
 );
+
+it('never exposes the prior child success during the replacement child first render', async () => {
+  seams.getOperation.mockImplementation(async (_team: string, id: string) => ({
+    ...snapshot(id),
+    state: id === 'old' ? 'succeeded' : 'running'
+  }));
+  const rendered: Array<{ id: string; observed: string | null }> = [];
+  const { rerender } = renderHook(
+    ({ id }) => {
+      const observation = useTeamOperation({
+        teamId: 'team',
+        operationId: id,
+        agentEnabled: false,
+        workspaceObservation: true
+      });
+      rendered.push({ id, observed: observation.operation?.id ?? null });
+      return observation;
+    },
+    { initialProps: { id: 'old' } }
+  );
+  await act(async () => undefined);
+  rerender({ id: 'new' });
+  await act(async () => undefined);
+  expect(rendered.filter(row => row.id === 'new').every(row => row.observed !== 'old')).toBe(true);
+});

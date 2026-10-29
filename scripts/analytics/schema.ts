@@ -24,6 +24,7 @@ const TABLES = [
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
+  'analytics_launch_cleanup',
   'analytics_launch_assignments',
   'analytics_launch_assignment_events',
   'analytics_catalog_sync_jobs',
@@ -65,6 +66,7 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_launch_cleanup') ? { analytics_launch_cleanup: true } : {}),
       ...(has('table', 'analytics_launch_assignments')
         ? { analytics_launch_assignments: true }
         : {}),
@@ -143,6 +145,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
     ...TABLES.filter(
       table =>
         table !== 'analytics_launch_generations' &&
+        table !== 'analytics_launch_cleanup' &&
         table !== 'analytics_workspace_recovery' &&
         table !== 'analytics_recovery_execution' &&
         table !== 'analytics_recovery_retirement' &&

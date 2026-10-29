@@ -25,6 +25,7 @@ export interface AnalyticsSchema {
     analytics_daily_tool_outcomes: boolean;
     analytics_catalog_sync_jobs: boolean;
     analytics_launch_generations?: boolean;
+    analytics_launch_cleanup?: boolean;
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
     analytics_workspace_operations?: boolean;

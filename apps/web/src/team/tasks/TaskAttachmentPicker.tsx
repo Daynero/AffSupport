@@ -265,6 +265,7 @@ export function TaskAttachmentPicker({
       )}
       {open && (
         <Modal
+          layout="search"
           nested
           labelledBy={pickerTitleId}
           onClose={close}
@@ -300,109 +301,112 @@ export function TaskAttachmentPicker({
               </div>
             )}
             {/* The trail is about the open folder, and a search is not in one. */}
-            {found === null && (
-              <div
-                className="team-task-picker-path"
-                aria-label={t('teamTaskAttachmentPickerTitle')}
-              >
-                {/* "Root" used to appear twice: once as a standalone action and
+            <div
+              className="team-task-picker-path"
+              data-search-active={found !== null}
+              aria-hidden={found !== null || undefined}
+              inert={found !== null}
+              aria-label={t('teamTaskAttachmentPickerTitle')}
+            >
+              {/* "Root" used to appear twice: once as a standalone action and
                   again as the first crumb. The standalone one was also the
                   dialog's initial-focus target while being disabled at the
                   root, so opening the picker focused nothing. One root, in the
                   trail, where a path reads. */}
-                {path.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="team-task-picker-path-action"
-                    onClick={() => setPath(current => current.slice(0, -1))}
-                  >
-                    <ChevronLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    {t('teamTaskFolderBack')}
-                  </Button>
-                )}
-                <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
-                  <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
-                    {t('teamTaskFolderRoot')}
-                  </button>
-                  {path.map((folder, index) => (
-                    <span key={folder.id}>
-                      <i aria-hidden="true">/</i>
-                      <button
-                        type="button"
-                        onClick={() => setPath(current => current.slice(0, index + 1))}
-                      >
-                        {folder.name}
-                      </button>
-                    </span>
-                  ))}
-                </nav>
-              </div>
-            )}
-            {(loading || searching) && (
-              <LoadingState shape="row" count={5} label={t('teamTaskLoadingPickable')} />
-            )}
-            {error && <ErrorState message={t('teamTaskSearchFailed')} />}
-            {!loading && !searching && !error && shown.length === 0 && (
-              <EmptyState
-                size="sm"
-                title={found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
-              />
-            )}
-            {!loading && !searching && !error && shown.length > 0 && (
-              <ul className="team-task-picker-results team-task-picker-folder-results">
-                {shown.map(material => {
-                  const isFolder = material.kind === 'folder';
-                  const isAttached = attachedMaterialIds.has(material.id);
-                  const selectedMaterial = selected.has(material.id);
-                  return (
-                    <li key={material.id}>
-                      <button
-                        type="button"
-                        className={`${selectedMaterial ? 'is-selected' : ''} ${
-                          isAttached ? 'is-attached' : ''
-                        }`.trim()}
-                        aria-pressed={isFolder ? undefined : selectedMaterial}
-                        disabled={isAttached}
-                        onClick={() => {
-                          if (isFolder) {
-                            setPath(current => [
-                              ...current,
-                              { id: material.providerId ?? material.id, name: material.name }
-                            ]);
-                          } else {
-                            toggle(material);
-                          }
-                        }}
-                      >
-                        <span className="team-task-picker-item-type" aria-hidden="true">
-                          {isFolder ? (
-                            <Folder size={18} strokeWidth={ICON_STROKE} />
-                          ) : (
-                            <MediaIcon category={material.category} />
-                          )}
-                        </span>
-                        <span className="team-task-picker-item-copy">
-                          <strong>{material.name}</strong>
-                          <small>
-                            {isAttached
-                              ? t('teamTaskAttachmentAlreadyAdded')
-                              : isFolder
-                                ? t('teamTaskFolderOpen')
-                                : found && pathOf
-                                  ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
-                                  : t(CATEGORY_LABEL[material.category ?? 'other'])}
-                          </small>
-                        </span>
-                        <span className="team-task-picker-check" aria-hidden="true">
-                          {isFolder ? '›' : selectedMaterial ? '✓' : ''}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+              {path.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="team-task-picker-path-action"
+                  onClick={() => setPath(current => current.slice(0, -1))}
+                >
+                  <ChevronLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('teamTaskFolderBack')}
+                </Button>
+              )}
+              <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
+                <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
+                  {t('teamTaskFolderRoot')}
+                </button>
+                {path.map((folder, index) => (
+                  <span key={folder.id}>
+                    <i aria-hidden="true">/</i>
+                    <button
+                      type="button"
+                      onClick={() => setPath(current => current.slice(0, index + 1))}
+                    >
+                      {folder.name}
+                    </button>
+                  </span>
+                ))}
+              </nav>
+            </div>
+            <div className="modal-search-results">
+              {(loading || searching) && (
+                <LoadingState shape="row" count={5} label={t('teamTaskLoadingPickable')} />
+              )}
+              {error && <ErrorState message={t('teamTaskSearchFailed')} />}
+              {!loading && !searching && !error && shown.length === 0 && (
+                <EmptyState
+                  size="sm"
+                  title={found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
+                />
+              )}
+              {!loading && !searching && !error && shown.length > 0 && (
+                <ul className="team-task-picker-results team-task-picker-folder-results">
+                  {shown.map(material => {
+                    const isFolder = material.kind === 'folder';
+                    const isAttached = attachedMaterialIds.has(material.id);
+                    const selectedMaterial = selected.has(material.id);
+                    return (
+                      <li key={material.id}>
+                        <button
+                          type="button"
+                          className={`${selectedMaterial ? 'is-selected' : ''} ${
+                            isAttached ? 'is-attached' : ''
+                          }`.trim()}
+                          aria-pressed={isFolder ? undefined : selectedMaterial}
+                          disabled={isAttached}
+                          onClick={() => {
+                            if (isFolder) {
+                              setPath(current => [
+                                ...current,
+                                { id: material.providerId ?? material.id, name: material.name }
+                              ]);
+                            } else {
+                              toggle(material);
+                            }
+                          }}
+                        >
+                          <span className="team-task-picker-item-type" aria-hidden="true">
+                            {isFolder ? (
+                              <Folder size={18} strokeWidth={ICON_STROKE} />
+                            ) : (
+                              <MediaIcon category={material.category} />
+                            )}
+                          </span>
+                          <span className="team-task-picker-item-copy">
+                            <strong>{material.name}</strong>
+                            <small>
+                              {isAttached
+                                ? t('teamTaskAttachmentAlreadyAdded')
+                                : isFolder
+                                  ? t('teamTaskFolderOpen')
+                                  : found && pathOf
+                                    ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
+                                    : t(CATEGORY_LABEL[material.category ?? 'other'])}
+                            </small>
+                          </span>
+                          <span className="team-task-picker-check" aria-hidden="true">
+                            {isFolder ? '›' : selectedMaterial ? '✓' : ''}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
             <div className="team-dialog-actions team-task-picker-dialog-actions">
               <Button type="button" variant="ghost" onClick={close}>
                 {t('teamCancel')}

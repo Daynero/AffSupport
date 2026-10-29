@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertExpectedSourceIdentity,
+  assertExpectedProcessSourceIdentity,
   assertTextEditEligibility,
   buildUploadConflictPlan,
   normalizeReservedName,
@@ -247,4 +248,19 @@ describe('Drive operation authority and exact-target guards', () => {
     expect(commit).toHaveBeenCalledWith(providerResult);
     expect(reconcile).toHaveBeenCalledWith(providerResult);
   });
+});
+
+it('allows metadata-only version advances for binary processing, but preserves strict edit guards', () => {
+  const expected = { driveFileId: 'drive-source-1', driveVersion: '7', checksum: 'a'.repeat(32) };
+  const actual = live({ driveVersion: '8', checksum: expected.checksum });
+  expect(() => assertExpectedProcessSourceIdentity(actual, expected)).not.toThrow();
+  expect(() => assertExpectedSourceIdentity(actual, expected)).toThrow('SOURCE_CHANGED');
+  for (const changed of [{ checksum: 'b'.repeat(32) }, { checksum: null }, { id: 'another-file' }])
+    expect(() => assertExpectedProcessSourceIdentity({ ...actual, ...changed }, expected)).toThrow(
+      'SOURCE_CHANGED'
+    );
+  for (const checksum of [null, undefined, ''])
+    expect(() => assertExpectedProcessSourceIdentity(actual, { ...expected, checksum })).toThrow(
+      'SOURCE_CHANGED'
+    );
 });

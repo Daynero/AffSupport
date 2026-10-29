@@ -256,7 +256,7 @@ describe('explicit operational launch assignment', () => {
     expect((await call('get_launch_assignment', [f.team, current])).state).toBe('released');
     expect((await state(agent)).availability.status).toBe('free');
   });
-  it('fences fresh generation but preserves accepted replay/publication after release', async () => {
+  it('allows optional assignment for fresh generation and preserves replay/publication after release', async () => {
     const agent = f.agents[2]!.id;
     await f.db.root("update public.team_account_agents set agent_id='888123456' where id=$1", [
       agent
@@ -345,10 +345,13 @@ describe('explicit operational launch assignment', () => {
     await expect(call('service_accept_launch_generation', args(await version()))).rejects.toThrow(
       'WRONG_STATE'
     );
-    await assign(draft.id, agent, '1');
+    await f.db.db.exec(
+      readFileSync('supabase/migrations/20261207094000_launch_optional_assignment.sql', 'utf8')
+    );
+    // The saved RK remains the source even if the operational reservation points elsewhere.
     const acceptedArgs = args(await version());
     const accepted = await call('service_accept_launch_generation', acceptedArgs);
-    await call('set_launch_assignment', [f.team, draft.id, null, '2', randomUUID()]);
+    await call('set_launch_assignment', [f.team, draft.id, null, '1', randomUUID()]);
     const replay = await call('service_accept_launch_generation', acceptedArgs);
     expect(replay).toMatchObject({
       id: accepted.id,

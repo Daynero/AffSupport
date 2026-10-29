@@ -70,6 +70,8 @@ export function useTeamOperation(input: {
   const workspaceRevision = workspace?.revision;
   const workspaceObservation = input.workspaceObservation === true;
   const readSequence = useRef(0);
+  const observationKey = `${teamId}:${operationId ?? ''}`;
+  const observationScope = useRef(observationKey);
 
   const refetch = useCallback(async () => {
     if (!operationId) return;
@@ -89,6 +91,7 @@ export function useTeamOperation(input: {
   }, [client, operationId, teamId, workflowId]);
 
   useEffect(() => {
+    observationScope.current = `${teamId}:${operationId ?? ''}`;
     setOperation(null);
     setLocalProgress(null);
     setError(null);
@@ -170,14 +173,17 @@ export function useTeamOperation(input: {
     await refetch();
   }, [agentEnabled, client, operationId, refetch, teamId]);
 
+  // A replacement child must never render the previous child's terminal
+  // snapshot while the effect above is resetting its observation.
+  const sameOperation = observationScope.current === observationKey;
   return {
-    operation,
-    localProgress,
-    localState,
-    localErrorCode,
-    observedAt,
-    streamDisconnected,
-    error,
+    operation: sameOperation ? operation : null,
+    localProgress: sameOperation ? localProgress : null,
+    localState: sameOperation ? localState : null,
+    localErrorCode: sameOperation ? localErrorCode : null,
+    observedAt: sameOperation ? observedAt : null,
+    streamDisconnected: sameOperation && streamDisconnected,
+    error: sameOperation ? error : null,
     refetch,
     cancel
   };

@@ -39,6 +39,18 @@ function mutation(value: unknown): { id: string; version: string } {
     throw new TeamApiError('INVALID_RESPONSE', false);
   return { id: value.id, version: value.version };
 }
+function cancelReceipt(data: unknown) {
+  if (!isRecord(data) || typeof data.state !== 'string')
+    throw new TeamApiError('INVALID_RESPONSE', false);
+  const detail = data.detail === undefined ? undefined : parseLaunchDetail(data.detail);
+  if (data.detail !== undefined && !detail) throw new TeamApiError('INVALID_RESPONSE', false);
+  return {
+    ...data,
+    id: typeof data.id === 'string' ? data.id : undefined,
+    state: data.state,
+    detail: detail ?? undefined
+  };
+}
 export interface LaunchDictionaryItem {
   id: string;
   value: string;
@@ -409,9 +421,7 @@ export const launchApi = {
       })
     );
     throwRpc(error);
-    if (!isRecord(data) || typeof data.state !== 'string')
-      throw new TeamApiError('INVALID_RESPONSE', false);
-    return data;
+    return cancelReceipt(data);
   },
   async generate(teamId: string, id: string, version: string, key: string) {
     return invokeTeamFunction(
@@ -431,7 +441,7 @@ export const launchApi = {
       })
     );
     throwRpc(error);
-    return data;
+    return cancelReceipt(data);
   },
   async overrides(
     teamId: string,

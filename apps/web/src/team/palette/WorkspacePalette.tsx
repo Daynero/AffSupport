@@ -233,6 +233,7 @@ export function WorkspacePalette({
 
   return (
     <Modal
+      layout="search"
       labelledBy="workspace-palette-title"
       onClose={onClose}
       closeLabel={t('teamCancel')}
@@ -265,7 +266,7 @@ export function WorkspacePalette({
         </div>
         <div
           id="workspace-palette-list"
-          className="workspace-palette-list"
+          className="workspace-palette-list modal-search-results"
           role="listbox"
           ref={listRef}
         >

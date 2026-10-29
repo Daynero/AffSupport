@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   generate: vi.fn(),
   retryRestitch: vi.fn(),
   retryGeneration: vi.fn(),
+  cancelOperation: vi.fn(),
   settleRestitch: vi.fn()
 }));
 const local = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ vi.mock('../apps/web/src/api/client', () => ({
 }));
 vi.mock('../apps/web/src/api/team', () => ({
   launchApi: api,
+  teamApi: api,
   TeamApiError: class extends Error {
     constructor(
       public code: string,
@@ -169,7 +171,7 @@ it('starts the accepted restitch after publishing its progress and cancels only 
   api.save.mockResolvedValue({ id: 'launch', version: '1' });
   api.generate.mockResolvedValue(undefined);
   api.detail.mockResolvedValueOnce(pending).mockResolvedValue(canceled);
-  api.cancel.mockResolvedValue(undefined);
+  api.cancelRequest.mockResolvedValue({ state: 'cancel_requested', detail: canceled });
   let finish: () => void = () => undefined;
   local.run.mockImplementationOnce(
     () =>
@@ -186,9 +188,11 @@ it('starts the accepted restitch after publishing its progress and cancels only 
   expect(onResult).toHaveBeenCalledWith(pending);
   expect(result.current.busy).toBe(true);
   await act(async () => {
-    await result.current.cancel(pending);
+    await result.current.cancelPending();
   });
   expect(local.cancel).toHaveBeenCalledWith('child');
+  expect(api.detail).toHaveBeenCalledOnce();
+  expect(api.cancel).not.toHaveBeenCalled();
   await act(async () => {
     finish();
     await generating;
@@ -921,4 +925,130 @@ it('releases a terminal receipt before the POST reply and never starts work from
   });
   expect(api.detail).not.toHaveBeenCalled();
   expect(local.run).not.toHaveBeenCalled();
+});
+
+it('starts native cancellation immediately after acceptance and never waits for its reply', async () => {
+  api.cancel.mockResolvedValue({ id: 'generation', state: 'cancel_requested' });
+  let read!: (value: LaunchDetail) => void;
+  api.detail.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        read = resolve;
+      })
+  );
+  local.cancel.mockImplementationOnce(() => new Promise(() => {}));
+  const current = {
+    id: 'launch',
+    generation: { id: 'generation', state: 'waiting_dependency', restitchOperationId: 'child' }
+  } as LaunchDetail;
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  let work!: Promise<void>;
+  act(() => {
+    work = result.current.cancel(current);
+  });
+  await waitFor(() => expect(local.cancel).toHaveBeenCalledWith('child'));
+  expect(result.current.pendingStage).toBe('cancel');
+  await act(async () => {
+    read({ ...current, generation: { ...current.generation!, state: 'cancel_requested' } });
+    await work;
+  });
+  expect(result.current.busy).toBe(false);
+});
+
+it('explicitly retires a locally failed legacy child before choosing a new restitch attempt', async () => {
+  const config = launchConfig({ method: 'catalog' });
+  config.catalog.restitchEnabled = true;
+  const current = {
+    id: 'launch',
+    draft: config,
+    generation: {
+      id: 'generation',
+      requestKey: 'request',
+      inputVersion: '1',
+      state: 'waiting_dependency',
+      stage: 'restitch_processing',
+      restitchOperationId: 'child'
+    }
+  } as LaunchDetail;
+  api.cancelOperation.mockResolvedValue({ state: 'canceled' });
+  api.settleRestitch.mockResolvedValue(true);
+  api.detail.mockResolvedValue({
+    ...current,
+    generation: { ...current.generation!, state: 'failed' }
+  });
+  api.retryRestitch.mockResolvedValue(undefined);
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await result.current.resume(current, 'child');
+  });
+  expect(api.cancelOperation).toHaveBeenCalledWith('team', 'child');
+  expect(api.cancelOperation.mock.invocationCallOrder.at(-1)).toBeLessThan(
+    api.settleRestitch.mock.invocationCallOrder.at(-1)!
+  );
+  expect(api.retryRestitch).toHaveBeenCalledWith('team', 'generation', expect.any(String));
+});
+
+it('uses cancellation readback from the receipt without another network request', async () => {
+  const canceled = {
+    id: 'launch',
+    generation: { id: 'generation', state: 'cancel_requested', restitchOperationId: 'child' }
+  } as LaunchDetail;
+  api.cancel.mockResolvedValueOnce({
+    id: 'generation',
+    state: 'cancel_requested',
+    detail: canceled
+  });
+  const notify = vi.fn();
+  const { result } = renderHook(() => useLaunchGeneration('team', notify));
+  await act(async () => {
+    await result.current.cancel({
+      ...canceled,
+      generation: { ...canceled.generation!, state: 'waiting_dependency' }
+    });
+  });
+  expect(api.detail).not.toHaveBeenCalled();
+  expect(local.cancel).toHaveBeenCalledExactlyOnceWith('child');
+  expect(notify).toHaveBeenCalledWith(canceled);
+});
+
+it.each(['cancel_requested', 'canceled_with_cleanup_pending'] as const)(
+  'does not report a no-op retry as success during %s',
+  async state => {
+    const current = {
+      id: 'launch',
+      generation: { id: 'generation', requestKey: 'request', inputVersion: '1', state }
+    } as LaunchDetail;
+    const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+    await expect(result.current.resume(current)).rejects.toMatchObject({ code: 'LAUNCH_BUSY' });
+    expect(api.generate).not.toHaveBeenCalled();
+    expect(launchAction).not.toHaveBeenCalledWith(expect.anything(), 'retry', 'success');
+  }
+);
+
+it('never cancels a newer child when replay readback belongs to another generation', async () => {
+  api.save.mockResolvedValueOnce({ id: 'launch', version: '1' });
+  api.generate.mockRejectedValueOnce(new Error('lost acceptance reply'));
+  const newer = {
+    id: 'launch',
+    generation: {
+      id: 'newer-generation',
+      state: 'cancel_requested',
+      restitchOperationId: 'newer-child'
+    }
+  } as LaunchDetail;
+  api.cancelRequest.mockResolvedValueOnce({
+    id: 'original-generation',
+    state: 'canceled',
+    detail: newer
+  });
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toThrow(
+      'lost acceptance reply'
+    );
+  });
+  await act(async () => {
+    await result.current.cancelPending();
+  });
+  expect(local.cancel).not.toHaveBeenCalled();
 });

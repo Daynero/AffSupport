@@ -2827,7 +2827,7 @@ it.each([
     ]);
     expect(
       (await db.root<{ due: boolean }>('select private.launch_cleanup_due() due'))[0].due
-    ).toBe(!startUpload);
+    ).toBe(true);
     await expect(
       db.root('select public.service_start_launch_process_upload($1,$2)', [op, ACTOR])
     ).rejects.toThrow('WRONG_STATE');
@@ -2942,15 +2942,10 @@ it('claims and settles only a canceled unregistered native upload after an exact
   ]);
   const owner = '72000000-0000-4000-8000-000000000080';
   expect((await db.root<{ due: boolean }>('select private.launch_cleanup_due() due'))[0].due).toBe(
-    false
+    true
   );
-  expect(
-    (
-      await db.root<{ v: unknown[] }>('select public.service_claim_launch_video_cleanup($1,3) v', [
-        owner
-      ])
-    )[0].v
-  ).toEqual([]);
+  // Claiming permits provider inspection only. Deletion still requires the
+  // original quiescence receipt or exact completed-upload proof.
   await db.root(
     "insert into private.team_transfer_grants(token_hash,operation_id,team_id,actor_id,purpose,tool_id,max_range_bytes,expires_at) values(decode(repeat('ab',32),'hex'),$1,$2,$3,'finalize','restitch',1048576,clock_timestamp()+interval '1 hour')",
     [op, team, ACTOR]
@@ -4725,4 +4720,154 @@ it('registers a restitched catalog with the staged versioned SUB before publishi
       [g.revisionId]
     )
   ).rejects.toThrow('WRONG_STATE');
+});
+
+it.each([false, true])(
+  'recovers cancellation after a lost agent upload acknowledgment (cataloged=%s)',
+  async cataloged => {
+    const p = await prepare({
+      method: 'catalog',
+      catalog: {
+        productCount: 100,
+        restitchEnabled: true,
+        finalDurationMode: 'custom',
+        customFinalDurationSeconds: 120
+      }
+    });
+    const generation = await accept(p.args);
+    const preparation = (
+      await db.asUser<{ v: { processKey: string } }>(
+        ACTOR,
+        'select public.prepare_launch_restitch($1,$2) v',
+        [team, generation.id]
+      )
+    )[0].v;
+    const operation = (
+      await db.root<{ id: string }>(
+        "insert into public.team_operations(team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce) values($1,$2,'process','running',$3,$4,$5) returning id",
+        [team, ACTOR, material, preparation.processKey, `completion-proof-${++seq}`]
+      )
+    )[0].id;
+    await db.root(
+      "insert into private.team_operation_intents(operation_id,team_id,tool_id,tool_contract_version,relation,mime_type) values($1,$2,'restitch',2,'processed_from','video/mp4')",
+      [operation, team]
+    );
+    await db.asUser(ACTOR, 'select public.bind_launch_restitch($1,$2,$3)', [
+      team,
+      generation.id,
+      operation
+    ]);
+    await db.root('select public.service_prepare_launch_process_upload($1,$2)', [operation, ACTOR]);
+    await db.root(
+      "select public.service_set_team_operation_intent($1,$2,null,'video/mp4',100,null,null,'restitch',2)",
+      [operation, ACTOR]
+    );
+    await db.root('select public.service_start_launch_process_upload($1,$2)', [operation, ACTOR]);
+    const fileId = `finished-proof-${++seq}`;
+    if (cataloged)
+      await db.root(
+        "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,size_bytes,checksum) select team_id,connection_id,$2,'retained.mp4','file','video','video/mp4',100,$3 from public.team_materials where id=$1",
+        [material, fileId, 'a'.repeat(32)]
+      );
+    await db.asUser(ACTOR, 'select public.cancel_launch_generation($1,$2,$3,$4)', [
+      team,
+      p.id,
+      generation.id,
+      `proof-cancel-${++seq}`
+    ]);
+    expect(
+      (await db.root<{ due: boolean }>('select private.launch_cleanup_due() due'))[0].due
+    ).toBe(true);
+    const owner = '72000000-0000-4000-8000-000000000089';
+    const plans = (
+      await db.root<{ v: { generationId: string; fence: string }[] }>(
+        'select public.service_claim_launch_video_cleanup($1,10) v',
+        [owner]
+      )
+    )[0].v;
+    const plan = plans.find(row => row.generationId === generation.id)!;
+    expect(plan).toBeTruthy();
+    const authority = [team, generation.id, operation, owner, plan.fence];
+    const prove = async (size: number, checksum: string | null, fence = plan.fence) =>
+      (
+        await db.root<{ v: string }>(
+          'select public.service_prove_launch_video_upload($1,$2,$3,$4,$5,$6,$7,$8,$9) v',
+          [team, generation.id, operation, owner, fence, fileId, size, checksum, 'video/mp4']
+        )
+      )[0].v;
+    expect(await prove(99, 'a'.repeat(32))).toBe('unknown');
+    expect(await prove(100, null)).toBe('unknown');
+    expect(await prove(100, 'a'.repeat(32), '999999')).toBe('unknown');
+    expect(await prove(100, 'a'.repeat(32))).toBe(cataloged ? 'retained' : 'complete');
+    expect(
+      (
+        await db.root<{ v: string }>(
+          'select public.service_authorize_launch_video_cleanup($1,$2,$3,$4,$5,$6) v',
+          [...authority, fileId]
+        )
+      )[0].v
+    ).toBe(cataloged ? 'unknown' : 'owned_unpublished');
+    await db.root('select public.service_finish_launch_video_cleanup($1,$2,$3,$4,$5,$6)', [
+      ...authority,
+      cataloged ? null : fileId
+    ]);
+    await db.root('select public.service_settle_launch_restitch_cancellations(10)');
+    expect(
+      (
+        await db.root<{ state: string }>(
+          'select state from public.team_launch_generations where id=$1',
+          [generation.id]
+        )
+      )[0].state
+    ).toBe('canceled');
+    expect(
+      (
+        await db.root<{ allowed: boolean }>(
+          "select has_table_privilege('authenticated','public.analytics_launch_cleanup','select') allowed"
+        )
+      )[0].allowed
+    ).toBe(false);
+    expect(
+      (
+        await db.root<{ allowed: boolean }>(
+          "select has_table_privilege('service_role','public.analytics_launch_cleanup','select') allowed"
+        )
+      )[0].allowed
+    ).toBe(false);
+    setQueryExecutor(async (sql, parameters) => db.root(sql, parameters));
+    const diagnosis = await getLaunchEvidence(generation.id);
+    expect(diagnosis.cleanup?.find(row => row.operation_id === operation)).toMatchObject({
+      upload_phase: cataloged ? 'retained' : 'cleaned',
+      quiescence_proven: true,
+      provider_result_known: true,
+      registered_output_present: cataloged
+    });
+    setQueryExecutor(null);
+    if (cataloged)
+      expect(
+        (
+          await db.root<{ lifecycle: string }>(
+            'select lifecycle from public.team_materials where drive_file_id=$1',
+            [fileId]
+          )
+        )[0].lifecycle
+      ).toBe('active');
+  }
+);
+
+it('projects the real parent retry counter through the protected detail without losing existing receipt fields', async () => {
+  const p = await prepare();
+  const accepted = await accept(p.args);
+  await db.root(
+    'update public.team_launch_generations set attempt_no=2,state_version=state_version+1 where id=$1',
+    [accepted.id]
+  );
+  const detail = (
+    await db.asUser<{
+      v: { generation: { id: string; attemptNo: number; steps: unknown[] }; assignment: unknown };
+    }>(ACTOR, 'select public.get_launch($1,$2,null) v', [team, p.id])
+  )[0].v;
+  expect(detail.generation).toMatchObject({ id: accepted.id, attemptNo: 2 });
+  expect(Array.isArray(detail.generation.steps)).toBe(true);
+  expect(detail.assignment).toBeTruthy();
 });

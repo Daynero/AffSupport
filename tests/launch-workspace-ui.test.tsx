@@ -125,8 +125,10 @@ vi.mock('../apps/web/src/team/launches/LaunchEditor', () => ({
   LaunchEditor: ({
     config,
     onChange,
-    disabled
+    disabled,
+    accountAssignment
   }: {
+    accountAssignment?: React.ReactNode;
     config: { originalUrl: string; age: number; launchDate: string; maxBudget: number };
     onChange: (patch: { age?: number; originalUrl?: string }) => void;
     disabled: boolean;
@@ -136,6 +138,7 @@ vi.mock('../apps/web/src/team/launches/LaunchEditor', () => ({
     }, []);
     return (
       <div>
+        {accountAssignment}
         {config.originalUrl}
         <span>Age: {config.age}</span>
         <span>Date: {config.launchDate}</span>
@@ -1722,9 +1725,10 @@ it('shows current saved notes on an existing result without requiring regenerati
 });
 
 it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as const)(
-  'blocks new generation until a matching current assignment is confirmed (%s)',
+  'allows generation independently of operational assignment (%s)',
   async state => {
     seams.edit = true;
+    seams.realGeneration = true;
     const config = launchConfig();
     seams.accounts = [
       {
@@ -1737,6 +1741,8 @@ it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as c
     seams.buyers = [{ id: config.buyerId, value: launchSources.buyer }];
     seams.detail.mockResolvedValue(detail(config.originalUrl));
     seams.selection.mockResolvedValue(launchSources);
+    // Generation persists the draft before submitting, regardless of assignment.
+    seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
     if (state === 'unknown') seams.assignment.mockRejectedValue(new Error('offline'));
     else
       seams.assignment.mockResolvedValue({
@@ -1749,15 +1755,10 @@ it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as c
     render(<LaunchSpace teamId={TEAM} query={query} />);
     const generate = await screen.findByRole('button', { name: 'Generate launch' });
     await waitFor(() => expect(seams.assignment).toHaveBeenCalledWith(TEAM, LAUNCH));
-    expect(generate).toHaveProperty('disabled', true);
+    await waitFor(() => expect(generate).toHaveProperty('disabled', false));
     fireEvent.click(generate);
-    expect(seams.generate).not.toHaveBeenCalled();
+    await waitFor(() => expect(seams.generate).toHaveBeenCalled());
     expect(seams.setAssignment).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(
-        'Before generating, assign this launch to the ad account selected in settings, or change settings to match its current assignment.'
-      )
-    ).toBeTruthy();
   }
 );
 

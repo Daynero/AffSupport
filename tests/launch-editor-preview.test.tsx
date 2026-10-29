@@ -74,8 +74,8 @@ it('distinguishes equal account suffixes and updates campaign names without IO',
   render(<Host />);
   fireEvent.click(screen.getByRole('button', { name: /Preview/u }));
   expect(screen.getByText('[g1-892-v5] ProCaps TR $10 m45+ 13/10 #1(1-3)')).toBeTruthy();
-  const accountTrigger = screen.getByRole('button', { name: 'Choose account: g1 · 892' });
-  expect(accountTrigger.textContent).toContain('ID 1234567892');
+  const accountTrigger = screen.getByRole('button', { name: 'Choose account: g1-892' });
+  expect(accountTrigger.textContent).toBe('g1-892');
   expect((screen.getByText('Ad account').closest('label') as HTMLLabelElement).htmlFor).toBe(
     accountTrigger.id
   );

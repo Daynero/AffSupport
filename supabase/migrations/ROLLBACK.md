@@ -2141,3 +2141,11 @@ or deleted by this migration; do not drop the function or its existing grants.
 ## Integrated launch analytics guard — 20261207092000
 
 Restore the guard definition from `20261206154000_catalog_image_analytics_guard.sql` only after assignment producers are disabled. This removes assignment-action acceptance and does not change existing event rows.
+
+### 20261207094000–20261207098000 · Launch assignment and recovery correction
+
+Forward fixes only for application rollout. The optional-assignment migration removes only the matching reservation requirement and preserves active-account/source fences. Process source matching accepts a known unchanged binary checksum while retaining strict identity for other operations. Cancellation returns protected readback and cleanup can prove exact completed uploads under its lease; cataloged outputs are retained. Do not restore the mandatory assignment gate or remove retained-phase support while affected operations exist. No production data reset, down migration or deletion of cancellation evidence is part of recovery. The diagnostic view is SELECT-only for the analytics role and contains no provider IDs, paths, names or tickets. Validate using launch-state, process-output-ownership-sql, launch-generation-hook and launch-recovery regressions before promotion.
+
+### 20261207099000 · Launch progress retry projection
+
+Adds only the accepted parent attempt counter to protected Launch detail. It preserves existing assignment/source/result fields and permissions; older clients ignore the additive field and newer clients accept older servers without it. Do not conflate this counter with per-step attempt history when diagnosing a retry. The UI must retain completed earlier phases and reset only the affected retry scope. Verify launch-step-contract, launch-state and launch-progress-memory before rollout.

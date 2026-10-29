@@ -794,6 +794,15 @@ function build(): Record<string, CodeLocation> {
     check:
       'Inspect the correlated local journal and job operation. A generic processing failure does not prove native quiescence; retain provider and execution fences until the outcome is known.'
   };
+  map['journal:team:process_terminal'] = {
+    files: [
+      'apps/agent/src/team-bridge/process.ts',
+      'supabase/functions/drive-ops/process-finalize.ts',
+      'supabase/functions/drive-ops/handler.ts'
+    ],
+    check:
+      'Inspect operationId, last native stage and safe errorCode. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. Missing journal delivery leaves the cause unknown.'
+  };
   map['team:process:LEASE_EXPIRED'] = {
     files: [
       'supabase/migrations/20261206146000_catalog_expired_browser_handoff.sql',
@@ -975,6 +984,10 @@ function build(): Record<string, CodeLocation> {
     map[`launches:generation:${code}`] = {
       files: [
         'supabase/functions/drive-ops/launches.ts',
+        'supabase/functions/drive-ops/process-finalize.ts',
+        'supabase/functions/drive-ops/launch-recovery.ts',
+        'supabase/migrations/20261207097000_launch_cleanup_completion_proof.sql',
+        'supabase/functions/drive-ops/handler.ts',
         'packages/shared/src/team/launches/validation.ts',
         'apps/web/src/team/errors.ts'
       ],
@@ -1063,6 +1076,7 @@ function build(): Record<string, CodeLocation> {
   map['launches:generation:WRONG_STATE'] = {
     files: [
       'supabase/migrations/20261206148000_launch_current_assignments.sql',
+      'supabase/migrations/20261207094000_launch_optional_assignment.sql',
       'apps/web/src/team/launches/LaunchAssignmentControls.tsx',
       'apps/web/src/team/accounts/AccountLinkedLaunchRow.tsx',
       'supabase/functions/drive-ops/catalog-durable.ts',
@@ -1075,7 +1089,7 @@ function build(): Record<string, CodeLocation> {
       'supabase/migrations/20261201149000_launch_restitch_explicit_retry.sql'
     ],
     check:
-      'First verify the current Launch assignment matches the configured RK for fresh generation; detached or unconfirmed links require explicit assignment. Then inspect the bound child operation, last proven stage and catalog intent attempt. A failed child needs an explicit parent retry for that exact attempt; a running or successful child must not be replaced.'
+      'Assignment is optional after the correction; on older servers verify whether the mandatory-assignment migration is still active. Inspect the bound child operation, last proven stage and catalog intent attempt. A failed child needs an explicit parent retry for that exact attempt; a running or successful child must not be replaced.'
   };
   for (const code of [
     'NEEDS_REAUTH',

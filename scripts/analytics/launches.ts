@@ -50,7 +50,17 @@ export interface LaunchAssignmentEvidence {
   manual_hold_count: number;
   current_assignment_count: number;
 }
+export interface LaunchCleanupEvidence {
+  generation_id: string;
+  operation_id: string;
+  operation_state: string;
+  upload_phase: string | null;
+  quiescence_proven: boolean;
+  provider_result_known: boolean;
+  registered_output_present: boolean;
+}
 export interface LaunchEvidenceResult {
+  cleanup?: LaunchCleanupEvidence[];
   assignments?: LaunchAssignmentEvidence[];
   supported: boolean;
   generations: LaunchEvidence[];
@@ -219,11 +229,25 @@ export async function getLaunchEvidence(
       steps
     });
   }
+  const cleanup =
+    schema.tables.analytics_launch_cleanup && generations.length
+      ? await getLaunchCleanupEvidence(
+          generations.map(g => g.generation_id),
+          asOf
+        )
+      : undefined;
   return {
     ...assignmentPart,
+    ...(cleanup ? { cleanup } : {}),
     supported: true,
     generations,
     blind_spots: [
+      ...(!schema.tables.analytics_launch_cleanup &&
+      generations.some(g => ['cancel_requested', 'canceled_with_cleanup_pending'].includes(g.state))
+        ? [
+            'Cancellation upload/quiescence evidence is unavailable on this server; the cleanup blocker cannot be identified.'
+          ]
+        : []),
       'Database commit proves persistence; result visibility requires a browser signal.',
       'Assignment evidence is current and bounded to 100 rows; missing or later-updated rows cannot prove historical availability. External advertising delivery is unobservable.',
       ...(generations.some(g => g.catalog_sub_binding === null)
@@ -322,6 +346,46 @@ export async function getLaunchAssignmentEvidence(
       counts_scope: 'current_read_not_as_of',
       manual_hold_count: Number(row.manual_hold_count),
       current_assignment_count: Number(row.current_assignment_count)
+    };
+  });
+}
+
+/** Closed projection: no file names, provider identifiers, tickets or user content. */
+async function getLaunchCleanupEvidence(
+  ids: string[],
+  asOf?: string
+): Promise<LaunchCleanupEvidence[]> {
+  const rows = await query<Record<string, unknown>>(
+    `select generation_id::text,operation_id::text,operation_state,upload_phase,quiescence_proven,provider_result_known,registered_output_present
+     from public.analytics_launch_cleanup where generation_id=any($1::uuid[])
+       and updated_at <= $2::timestamptz and generation_updated_at <= $2::timestamptz
+     order by updated_at desc limit 100`,
+    [ids, asOf ?? '9999-12-31T23:59:59Z']
+  );
+  return rows.map(row => {
+    if (
+      typeof row.generation_id !== 'string' ||
+      !LAUNCH_ID_PATTERN.test(row.generation_id) ||
+      typeof row.operation_id !== 'string' ||
+      !LAUNCH_ID_PATTERN.test(row.operation_id) ||
+      typeof row.operation_state !== 'string' ||
+      !['pending', 'running', 'failed', 'canceled', 'succeeded'].includes(row.operation_state) ||
+      (row.upload_phase !== null &&
+        (typeof row.upload_phase !== 'string' ||
+          !['not_started', 'started', 'cleaned', 'retained'].includes(row.upload_phase))) ||
+      typeof row.quiescence_proven !== 'boolean' ||
+      typeof row.provider_result_known !== 'boolean' ||
+      typeof row.registered_output_present !== 'boolean'
+    )
+      throw new Error('Invalid Launch cleanup diagnostic projection.');
+    return {
+      generation_id: row.generation_id,
+      operation_id: row.operation_id,
+      operation_state: row.operation_state,
+      upload_phase: row.upload_phase as string | null,
+      quiescence_proven: row.quiescence_proven,
+      provider_result_known: row.provider_result_known,
+      registered_output_present: row.registered_output_present
     };
   });
 }

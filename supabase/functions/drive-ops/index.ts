@@ -1,3 +1,4 @@
+import { finalizeProcessOutput } from './process-finalize.ts';
 import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
 import {
   requireProcessUploadProducer,
@@ -109,6 +110,7 @@ import {
 } from '../_shared/validation.ts';
 import {
   assertExpectedSourceIdentity,
+  assertExpectedProcessSourceIdentity,
   assertTextEditEligibility,
   buildUploadConflictPlan,
   displayDriveName,
@@ -991,7 +993,11 @@ async function verifyBoundSource(
   });
   const client = await driveClient(service, context.credentialId, request);
   const live = await proveContext(context, client);
-  assertExpectedSourceIdentity(liveTarget(live), {
+  const assertIdentity =
+    operation.kind === 'process'
+      ? assertExpectedProcessSourceIdentity
+      : assertExpectedSourceIdentity;
+  assertIdentity(liveTarget(live), {
     driveFileId: stringValue(binding, 'drive_file_id') ?? context.driveFileId,
     driveVersion: stringValue(binding, 'drive_version') ?? context.driveVersion ?? '',
     checksum: stringValue(binding, 'checksum') ?? undefined
@@ -2206,16 +2212,28 @@ async function handleProcessOutputFinalize(
     typeof body.audioFingerprint === 'string' && /^[a-f0-9]{64}$/u.test(body.audioFingerprint)
       ? body.audioFingerprint
       : undefined;
-  return handleUploadFinalize(
-    request,
-    operationId,
-    {
-      driveFileId: body.driveFileId,
-      idempotencyKey: `agent:${operationId}`,
-      ...(audioFingerprint ? { audioFingerprint } : {})
-    },
-    service,
-    grant.actorId
+  return finalizeProcessOutput(
+    () =>
+      handleUploadFinalize(
+        request,
+        operationId,
+        {
+          driveFileId: body.driveFileId,
+          idempotencyKey: `agent:${operationId}`,
+          ...(audioFingerprint ? { audioFingerprint } : {})
+        },
+        service,
+        grant.actorId
+      ),
+    () =>
+      transitionOperation({
+        service,
+        operationId,
+        state: 'failed',
+        stage: 'failed',
+        errorCode: 'SOURCE_CHANGED',
+        retryable: false
+      })
   );
 }
 

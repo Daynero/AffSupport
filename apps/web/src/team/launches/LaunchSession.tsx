@@ -13,12 +13,11 @@ import {
   type LaunchConfig,
   type LaunchSourceSnapshot,
   type LaunchOverrides,
-  type TeamAccountSummary,
-  type LaunchAssignmentState
+  type TeamAccountSummary
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
-import { Button, Card, Checkbox, IconButton, Tabs } from '../../components/ui/index';
+import { Button, Card, Checkbox, IconButton, Switch, Tabs } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -90,17 +89,14 @@ export function LaunchSession({
   const { t } = useI18n();
   const toasts = useOptionalToasts();
   const draft = useLaunchDraft(detail, initialMaterialId);
-  const [assignment, setAssignment] = useState<LaunchAssignmentState | null>(null);
-  const assignmentBlocksGeneration =
-    !detail ||
-    !assignment ||
-    assignment.launchId !== detail.id ||
-    assignment.state !== 'assigned' ||
-    assignment.agentRowId !== draft.config.agentRowId;
   const progressScroll = useLaunchProgressScroll();
   const latestProgressDetail = useRef(detail);
   latestProgressDetail.current = detail;
   const generationClick = useRef(false);
+  const failedRestitch = useRef<string | null>(null);
+  const observeFailedRestitch = useCallback((id: string | null) => {
+    failedRestitch.current = id;
+  }, []);
   const preflightAbort = useRef<AbortController | null>(null);
   useEffect(() => () => preflightAbort.current?.abort(), []);
   const [preflighting, setPreflighting] = useState(false);
@@ -754,12 +750,6 @@ export function LaunchSession({
       );
       return;
     }
-    if (assignmentBlocksGeneration) {
-      generation.blocked('WRONG_STATE');
-      setError(t('launchesAssignmentGenerationRequired'));
-      return;
-    }
-
     if (sourceChanged) {
       generation.blocked('SOURCE_CHANGED');
       setError(t('launchesSourceChanged'));
@@ -848,7 +838,7 @@ export function LaunchSession({
     setError(null);
     setRequestErrorCode(null);
     try {
-      await generation.resume(detail);
+      await generation.resume(detail, failedRestitch.current ?? undefined);
     } catch (error) {
       if (inputAuthority.current.mounted) reportError(error);
     } finally {
@@ -1045,7 +1035,12 @@ export function LaunchSession({
     preflighting ||
     generation.busy ||
     generation.hasUnresolvedRequest ||
-    Boolean(detail?.generation && !['succeeded', 'canceled'].includes(detail.generation.state));
+    Boolean(
+      detail?.generation &&
+      !['succeeded', 'canceled', 'cancel_requested', 'canceled_with_cleanup_pending'].includes(
+        detail.generation.state
+      )
+    );
   const preparationStatus = historical
     ? null
     : uploading
@@ -1263,25 +1258,6 @@ export function LaunchSession({
           </span>
         </div>
       </header>
-      {detail && !historical && (
-        <LaunchAssignmentControls
-          teamId={teamId}
-          launchId={detail.id}
-          sourceAgentRowId={
-            detail.activeRevision?.config.agentRowId ?? detail.draft.agentRowId ?? null
-          }
-          accounts={accounts}
-          editable={editable && !unsavedChanges && !working && !preparationStatus}
-          hasResults={Boolean(detail.activeRevision)}
-          onAssignmentChange={setAssignment}
-          onConfirmed={() => run(() => reload(detail.id))}
-        />
-      )}
-      {assignmentBlocksGeneration && (
-        <p role="status" className="text-warning-text">
-          {t('launchesAssignmentGenerationRequired')}
-        </p>
-      )}
       {sourceChanged && (
         <p role="status" className="text-warning-text">
           {t('launchesSourceChanged')}
@@ -1451,6 +1427,7 @@ export function LaunchSession({
       )}
       {showProgress && (
         <LaunchGenerationProgress
+          onFailedRestitch={observeFailedRestitch}
           teamId={teamId}
           method={draft.config.method ?? 'other'}
           restitchEnabled={draft.config.catalog?.restitchEnabled === true}
@@ -1582,6 +1559,22 @@ export function LaunchSession({
                 draft.setConfig(old => ({ ...old, ...patch }));
               }
             }}
+            accountAssignment={
+              detail && !historical ? (
+                <LaunchAssignmentControls
+                  key={detail.id}
+                  teamId={teamId}
+                  launchId={detail.id}
+                  sourceAgentRowId={draft.config.agentRowId ?? null}
+                  accounts={accounts}
+                  editable={editable && !working && !preparationStatus}
+                  hasResults={Boolean(detail.activeRevision)}
+                  onConfirmed={onDictionaries}
+                />
+              ) : (
+                <Switch size="sm" label={t('launchesAssignmentAssign')} checked={false} disabled />
+              )
+            }
             accounts={accounts}
             offers={offers}
             buyers={buyers}
@@ -1663,7 +1656,6 @@ export function LaunchSession({
                     dictionaryBusy ||
                     sourcesPending ||
                     sourceChanged ||
-                    assignmentBlocksGeneration ||
                     detail?.generation?.state === 'failed'
                   }
                   onClick={() => void generate()}

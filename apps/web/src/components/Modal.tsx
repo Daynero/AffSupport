@@ -30,6 +30,8 @@ export interface ModalProps {
    * Ignored when `bare`.
    */
   size?: ModalSize;
+  /** Stable search/picker surface; results scroll inside a reserved viewport. */
+  layout?: 'content' | 'search';
   /** Extra class(es) for the dialog surface. */
   className?: string;
   /**
@@ -88,6 +90,7 @@ export function Modal({
   labelledBy,
   onClose,
   size = 'md',
+  layout = 'content',
   className = '',
   bare = false,
   data,
@@ -119,7 +122,11 @@ export function Modal({
   )
     .replace(/\s+/g, ' ')
     .trim();
-  const surfaceClasses = (bare ? className : `modal modal-${size} ${className}`)
+  const surfaceClasses = (
+    bare
+      ? className
+      : `modal modal-${size}${layout === 'search' ? ' modal-search' : ''} ${className}`
+  )
     .replace(/\s+/g, ' ')
     .trim();
 

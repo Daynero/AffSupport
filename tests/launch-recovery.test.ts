@@ -346,3 +346,58 @@ it('bounds hosted catalog recovery and distinguishes committed results from pend
   expect(rpc).toHaveBeenCalledWith('service_list_launch_catalog_recovery', { p_limit: 3 });
   expect(execute).toHaveBeenCalledTimes(2);
 });
+
+it.each(['complete', 'retained', 'unknown'] as const)(
+  'recovers a lost native acknowledgment using provider completion: %s',
+  async proof => {
+    const id = '72000000-0000-4000-8000-000000000088';
+    const rpc = vi.fn(async (name: string) => ({
+      error: null,
+      data:
+        name === 'service_claim_launch_video_cleanup'
+          ? [
+              {
+                teamId: id,
+                generationId: id,
+                operationId: id,
+                credentialId: id,
+                parentId: 'parent',
+                fence: '1'
+              }
+            ]
+          : name === 'service_prove_launch_video_upload'
+            ? proof
+            : name === 'service_authorize_launch_video_cleanup'
+              ? proof === 'complete'
+                ? 'owned_unpublished'
+                : 'unknown'
+              : name === 'service_finish_launch_video_cleanup'
+                ? proof === 'complete'
+                  ? 'cleaned'
+                  : 'pending'
+                : 1
+    }));
+    const video = {
+      ...file(),
+      id: 'finished-video',
+      mimeType: 'video/mp4',
+      size: 100,
+      checksum: 'a'.repeat(32),
+      appProperties: { 'soty.launch.restitch.operation': id }
+    };
+    const drive = {
+      findLaunchRestitchFiles: vi.fn(async () => [video]),
+      getFile: vi.fn(),
+      updateFileMetadata: vi.fn(async () => ({ ...video, trashed: true }))
+    };
+    expect(await runLaunchVideoCleanupTick({ rpc }, async () => drive)).toEqual({
+      completed: proof === 'unknown' ? 0 : 1,
+      pending: proof === 'unknown' ? 1 : 0
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      'service_prove_launch_video_upload',
+      expect.objectContaining({ p_operation: id, p_size: 100, p_checksum: 'a'.repeat(32) })
+    );
+    expect(drive.updateFileMetadata).toHaveBeenCalledTimes(proof === 'complete' ? 1 : 0);
+  }
+);

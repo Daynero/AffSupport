@@ -110,6 +110,7 @@ export function LaunchDictionaryManager({
       </IconButton>
       {open && (
         <Modal
+          layout="search"
           nested
           size="md"
           labelledBy={heading}
@@ -142,7 +143,7 @@ export function LaunchDictionaryManager({
                 {t('teamOperationRetry')}
               </Button>
             )}
-            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+            <div className="modal-search-results flex flex-col gap-2">
               {items
                 .filter(row => row.value.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
                 .map(row => (

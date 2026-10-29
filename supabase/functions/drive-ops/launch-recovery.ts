@@ -169,11 +169,34 @@ export async function runLaunchVideoCleanupTick(
             )
               throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
           }
+          // A complete marked binary is independent proof that the resumable
+          // upload finished, even if the agent acknowledgment was lost.
+          const completion =
+            file.size !== null &&
+            file.size > 0 &&
+            file.checksum !== null &&
+            /^[a-f0-9]{32}$/u.test(file.checksum)
+              ? await rpc('service_prove_launch_video_upload', {
+                  ...authority,
+                  p_file: file.id,
+                  p_size: file.size,
+                  p_checksum: file.checksum,
+                  p_mime: file.mimeType
+                })
+              : 'unknown';
+          if (completion === 'retained') {
+            // Keep registered content; only settle the canceled operation.
+            await rpc('service_finish_launch_video_cleanup', {
+              ...authority,
+              p_cleaned_file: null
+            });
+            cleaned = true;
+          }
           const allowed = await rpc('service_authorize_launch_video_cleanup', {
             ...authority,
             p_file: file.id
           });
-          if (allowed === 'owned_unpublished') {
+          if (!cleaned && allowed === 'owned_unpublished') {
             if (!file.trashed) {
               // A second authority read narrows the window between provider proof and effect.
               const latest = await rpc('service_authorize_launch_video_cleanup', {
@@ -214,6 +237,10 @@ export async function runLaunchVideoCleanupTick(
     if (cleaned) summary.completed++;
     else summary.pending++;
   }
+  if (summary.completed > 0)
+    await rpc('service_settle_launch_restitch_cancellations', { p_limit: 3 }).catch(
+      () => undefined
+    );
   return summary;
 }
 

@@ -1,7 +1,7 @@
 import { LaunchNotesEditor } from './LaunchNotes';
 import { CircleHelp } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   launchBudgets,
   clampStitchEndDuration,
@@ -42,6 +42,7 @@ export function LaunchEditor({
   sources,
   onChange,
   accounts,
+  accountAssignment,
   offers,
   buyers,
   onCreate,
@@ -57,6 +58,7 @@ export function LaunchEditor({
   sources: LaunchSourceSnapshot | null;
   onChange: (patch: LaunchDraft) => void;
   accounts: TeamAccountSummary[];
+  accountAssignment?: ReactNode;
   offers: LaunchDictionaryItem[];
   buyers: LaunchDictionaryItem[];
   onCreate?: (kind: 'offers' | 'buyers', value: string) => Promise<string | void>;
@@ -341,6 +343,7 @@ export function LaunchEditor({
                     onChange={agentRowId => changed({ agentRowId })}
                   />
                 )}
+                {accountAssignment}
               </div>
               <div className="min-w-0">
                 {field(

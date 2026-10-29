@@ -217,6 +217,10 @@ export function parseLaunchGeneration(value: unknown): LaunchGeneration | null {
   if (
     !isRecord(value) ||
     typeof value.id !== 'string' ||
+    (value.attemptNo !== undefined &&
+      (typeof value.attemptNo !== 'number' ||
+        !Number.isSafeInteger(value.attemptNo) ||
+        value.attemptNo < 1)) ||
     typeof value.state !== 'string' ||
     typeof value.stage !== 'string' ||
     !isLaunchVersion(value.stateVersion) ||
@@ -258,6 +262,7 @@ export function parseLaunchGeneration(value: unknown): LaunchGeneration | null {
   }
   return {
     id: value.id,
+    ...(typeof value.attemptNo === 'number' ? { attemptNo: value.attemptNo } : {}),
     ...(typeof value.requestKey === 'string' ? { requestKey: value.requestKey } : {}),
     ...(typeof value.inputVersion === 'string' ? { inputVersion: value.inputVersion } : {}),
     ...(value.restitchOperationId === null || typeof value.restitchOperationId === 'string'

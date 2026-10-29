@@ -1,3 +1,4 @@
+import { diagnostics } from '../server/diagnostics-log.js';
 import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -433,6 +434,16 @@ export class TeamProcessBridge {
       // Never log provider bodies, credentials, source paths or raw error stacks.
       // The same safe code is carried by the operation snapshot for diagnosis.
       if (!canceled) console.error('[team-process] failed:', code);
+      const snapshot = this.#events
+        .snapshot()
+        .operations.find(row => row.operationId === request.operationId);
+      diagnostics.record('team', 'process_terminal', {
+        operationId: request.operationId,
+        tool: request.toolId,
+        stage: snapshot?.stage ?? 'unknown',
+        outcome: canceled ? 'canceled' : 'failed',
+        errorCode: code
+      });
       this.#events.update(request.operationId, {
         state: canceled ? 'canceled' : 'failed',
         stage: canceled ? 'canceled' : 'failed',

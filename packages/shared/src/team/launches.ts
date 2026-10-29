@@ -123,6 +123,8 @@ export interface LaunchGenerationStep {
 }
 export interface LaunchGeneration {
   id: string;
+  /** Accepted parent retry; absent on older servers. */
+  attemptNo?: number;
   requestKey?: string;
   inputVersion?: string;
   restitchOperationId?: string | null;

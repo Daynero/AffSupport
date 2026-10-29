@@ -243,6 +243,21 @@ export function assertExpectedSourceIdentity(
   }
 }
 
+/** Processing consumes file bytes; Drive metadata edits may advance version without changing them. */
+export function assertExpectedProcessSourceIdentity(
+  actual: LiveDriveTarget,
+  expected: { driveFileId: string; driveVersion: string; checksum?: string | null }
+): void {
+  const contentKnown =
+    typeof expected.checksum === 'string' && /^[a-f0-9]{32}$/u.test(expected.checksum);
+  if (contentKnown) {
+    if (actual.id !== expected.driveFileId || actual.checksum !== expected.checksum)
+      throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+    return;
+  }
+  assertExpectedSourceIdentity(actual, expected);
+}
+
 const REQUIRED_CAPABILITY: Record<DriveMutationAction, keyof LiveDriveCapabilities> = {
   rename: 'canRename',
   move: 'canMoveItemWithinDrive',

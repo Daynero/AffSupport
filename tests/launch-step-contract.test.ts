@@ -53,3 +53,19 @@ it('keeps bigint versions as canonical strings without unsafe numeric coercion',
   for (const invalid of ['9223372036854775808', '01', '0', '-1', '1.0', 1])
     expect(isLaunchVersion(invalid)).toBe(false);
 });
+
+it('projects the accepted parent attempt independently of step retries and keeps older producers compatible', () => {
+  const input = {
+    id: 'generation',
+    state: 'running',
+    stage: 'catalog_creating',
+    stateVersion: '2',
+    progress: null,
+    errorCode: null,
+    childOperationIds: []
+  };
+  expect(parseLaunchGeneration({ ...input, attemptNo: 2 })?.attemptNo).toBe(2);
+  expect(parseLaunchGeneration(input)?.attemptNo).toBeUndefined();
+  for (const attemptNo of [null, 0, -1, 1.5, '2'])
+    expect(parseLaunchGeneration({ ...input, attemptNo })).toBeNull();
+});

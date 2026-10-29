@@ -4388,8 +4388,7 @@
 }
 
 .ui-button.launch-account-trigger {
-  height: auto;
-  white-space: normal;
+  white-space: nowrap;
 }
 .launch-account-trigger .ui-button-label {
   flex: 1;
@@ -4503,4 +4502,82 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Search chrome stays anchored; only the result viewport changes and scrolls. */
+.modal.modal-search {
+  grid-template-rows: minmax(0, 1fr);
+  block-size: min(var(--search-dialog-height), calc(100dvh - var(--space-6) - var(--space-6)));
+  max-block-size: calc(100dvh - var(--space-6) - var(--space-6));
+  overflow: hidden;
+}
+.modal-search > :not(.modal-close) {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.modal-search > :not(.modal-close) > * {
+  flex-shrink: 0;
+}
+.modal-search .modal-search-results {
+  flex: 1 1 0;
+  min-block-size: 0;
+  min-inline-size: 0;
+  max-block-size: none;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.modal-search-results > .team-task-picker-results,
+.modal-search-results > .team-add-to-task-list {
+  max-block-size: none;
+  overflow: visible;
+  align-content: start;
+}
+.modal-search .workspace-palette-list {
+  align-content: start;
+}
+.modal-search .team-task-picker-path[data-search-active='true'] {
+  visibility: hidden;
+}
+@media (max-height: 480px) {
+  .modal.modal-search {
+    padding: var(--space-3);
+    overflow-y: auto;
+  }
+  .modal-search > :not(.modal-close) {
+    gap: var(--space-2);
+  }
+}
+
+.ui-modal.is-search {
+  display: flex;
+  flex-direction: column;
+  block-size: min(var(--search-dialog-height), calc(100dvh - var(--space-6) - var(--space-6)));
+  overflow: hidden;
+}
+.ui-modal.is-search > * {
+  flex-shrink: 0;
+}
+.ui-modal.is-search .ui-modal-body {
+  display: flex;
+  flex: 1 1 0;
+  min-block-size: 0;
+  overflow: hidden;
+}
+.ui-modal.is-search .ui-modal-body > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.ui-modal.is-search .modal-search-results {
+  flex: 1 1 0;
+  min-block-size: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }

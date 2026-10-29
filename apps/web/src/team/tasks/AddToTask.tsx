@@ -225,6 +225,7 @@ export function AddToTaskDialog({
 
   return (
     <Modal
+      layout="search"
       labelledBy={titleId}
       size="sm"
       onClose={onClose}
@@ -259,61 +260,63 @@ export function AddToTaskDialog({
             }
           }}
         />
-        {failed ? (
-          <p className="team-inline-error" role="alert">
-            {t('teamAddToTaskLoadFailed')}
-          </p>
-        ) : tasks === null ? (
-          <p className="team-add-to-task-note">{t('teamAddToTaskLoading')}</p>
-        ) : optionCount === 0 ? (
-          <p className="team-add-to-task-note">
-            {t(query.trim() ? 'teamAddToTaskNoMatch' : 'teamAddToTaskNone')}
-          </p>
-        ) : (
-          <ul
-            ref={list}
-            id={listId}
-            role="listbox"
-            aria-label={heading}
-            className="team-add-to-task-list"
-          >
-            {shown.map((task, index) => (
-              <li
-                key={task.id}
-                id={`${listId}-${index}`}
-                data-index={index}
-                role="option"
-                aria-selected={index === active}
-                className={index === active ? 'is-active' : undefined}
-                onMouseEnter={() => setActive(index)}
-                onClick={() => {
-                  if (!busy) void add(task);
-                }}
-              >
-                <span className="team-add-to-task-name">{task.title}</span>
-                <span className="team-add-to-task-meta">{taskStatusLabel(task.status, t)}</span>
-              </li>
-            ))}
-            {canCreate && (
-              <li
-                id={`${listId}-${shown.length}`}
-                data-index={shown.length}
-                role="option"
-                aria-selected={active === shown.length}
-                className={`team-add-to-task-create${active === shown.length ? ' is-active' : ''}`}
-                onMouseEnter={() => setActive(shown.length)}
-                onClick={() => {
-                  if (!busy) void create();
-                }}
-              >
-                <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span className="team-add-to-task-name">
-                  {t('teamAddToTaskCreate', { task: newTitle })}
-                </span>
-              </li>
-            )}
-          </ul>
-        )}
+        <div className="modal-search-results">
+          {failed ? (
+            <p className="team-inline-error" role="alert">
+              {t('teamAddToTaskLoadFailed')}
+            </p>
+          ) : tasks === null ? (
+            <p className="team-add-to-task-note">{t('teamAddToTaskLoading')}</p>
+          ) : optionCount === 0 ? (
+            <p className="team-add-to-task-note">
+              {t(query.trim() ? 'teamAddToTaskNoMatch' : 'teamAddToTaskNone')}
+            </p>
+          ) : (
+            <ul
+              ref={list}
+              id={listId}
+              role="listbox"
+              aria-label={heading}
+              className="team-add-to-task-list"
+            >
+              {shown.map((task, index) => (
+                <li
+                  key={task.id}
+                  id={`${listId}-${index}`}
+                  data-index={index}
+                  role="option"
+                  aria-selected={index === active}
+                  className={index === active ? 'is-active' : undefined}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => {
+                    if (!busy) void add(task);
+                  }}
+                >
+                  <span className="team-add-to-task-name">{task.title}</span>
+                  <span className="team-add-to-task-meta">{taskStatusLabel(task.status, t)}</span>
+                </li>
+              ))}
+              {canCreate && (
+                <li
+                  id={`${listId}-${shown.length}`}
+                  data-index={shown.length}
+                  role="option"
+                  aria-selected={active === shown.length}
+                  className={`team-add-to-task-create${active === shown.length ? ' is-active' : ''}`}
+                  onMouseEnter={() => setActive(shown.length)}
+                  onClick={() => {
+                    if (!busy) void create();
+                  }}
+                >
+                  <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  <span className="team-add-to-task-name">
+                    {t('teamAddToTaskCreate', { task: newTitle })}
+                  </span>
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
       </div>
     </Modal>
   );

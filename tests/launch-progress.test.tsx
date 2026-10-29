@@ -553,3 +553,44 @@ it('makes an uncertain request error explicit without claiming the server stoppe
   expect(document.querySelector('.launch-generation-progress.is-error')).toBeTruthy();
   expect(screen.getAllByRole('listitem').some(item => item.dataset.state === 'active')).toBe(false);
 });
+
+it('keeps completed segment colors and the active stage coherent through partial and older snapshots', () => {
+  const receipt = {
+    id: 'video-receipt',
+    stage: 'restitch_processing',
+    state: 'succeeded',
+    attemptNo: 1,
+    errorCode: null
+  } as const;
+  const props = { onCancel: vi.fn(), disabled: false, teamId: 'team', restitchEnabled: true };
+  const current = { ...generation, stateVersion: '10', steps: [receipt] };
+  const view = render(<LaunchGenerationProgress {...props} generation={current} />);
+  const states = () => screen.getAllByRole('listitem').map(item => item.dataset.state);
+  expect(states()).toEqual(['complete', 'complete', 'active', 'pending']);
+  view.rerender(
+    <LaunchGenerationProgress
+      {...props}
+      generation={{ ...current, stateVersion: '11', stage: 'preparing', steps: [] }}
+    />
+  );
+  expect(states()).toEqual(['complete', 'complete', 'active', 'pending']);
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toContain(
+    'Creating catalog'
+  );
+  workspace.realtimeConnectionState = 'reconnecting';
+  view.rerender(
+    <LaunchGenerationProgress
+      {...props}
+      generation={{ ...current, stateVersion: '9', stage: 'restitch_preparing', steps: [] }}
+    />
+  );
+  expect(states()).toEqual(['complete', 'complete', 'attention', 'pending']);
+  workspace.realtimeConnectionState = 'connected';
+  view.rerender(
+    <LaunchGenerationProgress
+      {...props}
+      generation={{ ...current, stateVersion: '12', stage: 'result_committing' }}
+    />
+  );
+  expect(states()).toEqual(['complete', 'complete', 'complete', 'active']);
+});

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   LaunchAssignmentReceipt,
   LaunchAssignmentState,
@@ -10,9 +10,8 @@ import {
   launchAssignmentsApi,
   type SetLaunchAssignment
 } from '../../api/team-launch-assignments';
-import { Button } from '../../components/ui/index';
+import { Button, Switch } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
-import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { launchAction, launchMutation, launchVisible } from './analytics';
 
 /** Operational assignment is independent of saved inputs and immutable results. */
@@ -20,9 +19,7 @@ export function LaunchAssignmentControls({
   teamId,
   launchId,
   sourceAgentRowId,
-  accounts,
   editable,
-  hasResults,
   onAssignmentChange,
   onConfirmed
 }: {
@@ -36,14 +33,10 @@ export function LaunchAssignmentControls({
   onConfirmed?: () => Promise<void>;
 }) {
   const { t } = useI18n();
-  const id = useId();
   const [state, setState] = useState<LaunchAssignmentState | null>(null);
-  const [target, setTarget] = useState(sourceAgentRowId ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<'read' | 'unknown' | 'write' | null>(null);
   const [retryRead, setRetryRead] = useState(0);
-  const source = useRef(sourceAgentRowId);
-  source.current = sourceAgentRowId;
   const inFlight = useRef(false);
   useEffect(() => {
     onAssignmentChange?.(state);
@@ -72,7 +65,6 @@ export function LaunchAssignmentControls({
       result => {
         if (active) {
           setState(result);
-          setTarget(result.agentRowId ?? source.current ?? '');
         }
       },
       () => {
@@ -186,66 +178,17 @@ export function LaunchAssignmentControls({
       if (isCurrent()) setBusy(false);
     }
   }
-  const currentAgent = accounts
-    .flatMap(account =>
-      account.agents.map(agent => ({
-        ...agent,
-        label: `${account.name} · ${agent.agentId.slice(-3)}`
-      }))
-    )
-    .find(agent => agent.id === state?.agentRowId);
-  const assigned = state?.state === 'assigned';
+  const assigned = state?.state === 'assigned' && state.agentRowId === sourceAgentRowId;
   const uncertain = error === 'unknown';
   return (
-    <section
-      className="flex min-w-0 flex-col gap-2 rounded-control bg-surface p-2"
-      aria-label={t('launchesAssignmentTitle')}
-    >
-      <div role="status" className="text-caption text-muted">
-        {!state
-          ? error
-            ? t('launchesAssignmentReadError')
-            : t('loading')
-          : state.state === 'legacy_unknown'
-            ? t('launchesAssignmentLegacy')
-            : assigned
-              ? t('launchesAssignmentSelected', {
-                  account: currentAgent?.label ?? t('launchesAccountUnavailable')
-                })
-              : t('launchesAssignmentUnassigned')}
-      </div>
-      {editable && state && (
-        <>
-          <LaunchAccountSelector
-            id={id}
-            value={target}
-            accounts={accounts}
-            disabled={busy || uncertain}
-            onChange={setTarget}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!target || busy || uncertain || (assigned && state.agentRowId === target)}
-              onClick={() => void save(target)}
-            >
-              {t(assigned ? 'launchesAssignmentReassign' : 'launchesAssignmentAssign')}
-            </Button>
-            {(assigned || state.state === 'legacy_unknown') && (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy || uncertain}
-                onClick={() => void save(null)}
-              >
-                {t(assigned ? 'launchesAssignmentRelease' : 'launchesAssignmentHistoryOnly')}
-              </Button>
-            )}
-          </div>
-        </>
-      )}
-      {hasResults && <p className="text-caption text-muted">{t('launchesAssignmentProvenance')}</p>}
+    <div className="flex min-w-0 flex-col gap-2">
+      <Switch
+        size="sm"
+        label={t('launchesAssignmentAssign')}
+        checked={assigned}
+        disabled={!editable || !state || !sourceAgentRowId || busy || uncertain}
+        onChange={checked => void save(checked ? sourceAgentRowId : null)}
+      />
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-warning-text">
           <span>{t(uncertain ? 'launchesAssignmentUnknown' : 'launchesAssignmentReadError')}</span>
@@ -277,6 +220,6 @@ export function LaunchAssignmentControls({
           {t('launchesAssignmentBusy')}
         </span>
       )}
-    </section>
+    </div>
   );
 }
