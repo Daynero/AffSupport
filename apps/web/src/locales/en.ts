@@ -123,6 +123,7 @@ export const en = {
   catalogImagesContinueImport: 'Continue folder import',
   catalogImagesCopyFailed: 'Could not copy the prompt. Open it and copy it manually.',
   catalogImagesTitle: 'Images',
+  catalogImagesLegacySources: 'Existing Google Drive sources',
   catalogImagesPublicNotice:
     'Uploaded images will be publicly accessible through catalog links. Only add images you have the right to publish.',
   catalogImagesDescription: 'Upload pictures once and reuse their ready links in catalogs.',

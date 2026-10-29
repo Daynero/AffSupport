@@ -124,6 +124,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesContinueImport: 'Продовжити імпорт папки',
   catalogImagesCopyFailed: 'Не вдалося скопіювати промпт. Відкрийте його й скопіюйте вручну.',
   catalogImagesTitle: 'Зображення',
+  catalogImagesLegacySources: 'Наявні джерела Google Drive',
   catalogImagesPublicNotice:
     'Завантажені картинки будуть публічно доступні за посиланнями для каталогів. Додавайте лише те, що можете публікувати.',
   catalogImagesDescription:

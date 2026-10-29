@@ -19,6 +19,7 @@ import type {
 import type { CatalogImageClient } from '../../api/team-catalog-images';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
+  Accordion,
   Button,
   Checkbox,
   DropdownMenu,
@@ -104,6 +105,7 @@ export function CatalogImageImport({
     'upload' | 'help' | 'storage' | 'history' | 'status' | null
   >(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
   const [helpFromUpload, setHelpFromUpload] = useState(false);
   const closeSurface = () => setSurface(surface === 'help' && helpFromUpload ? 'upload' : null);
   const [bulkConfirm, setBulkConfirm] = useState<{
@@ -215,7 +217,6 @@ export function CatalogImageImport({
 
   return (
     <>
-      {state.capabilities?.mode === 'legacy' && legacy}
       <Section
         icon={Image}
         titleId="catalog-r2-images-title"
@@ -343,6 +344,17 @@ export function CatalogImageImport({
           )}
           {state.capabilities?.enabled && !state.capabilities.importEnabled && (
             <p className="team-inline-note">{t('catalogImagesImportsPaused')}</p>
+          )}
+          {state.capabilities?.mode === 'legacy' && legacy && (
+            // Accordion keeps the legacy reader mounted so its pool summary
+            // and diagnostic readback remain available while controls are hidden.
+            <Accordion
+              openIds={new Set(legacyOpen ? ['legacy-sources'] : [])}
+              onToggle={() => setLegacyOpen(open => !open)}
+              items={[
+                { id: 'legacy-sources', title: t('catalogImagesLegacySources'), content: legacy }
+              ]}
+            />
           )}
           {state.error !== null && (
             <div className="catalog-image-status" role="alert">

@@ -124,6 +124,7 @@ function fixture(enabled = true): CatalogImageClient {
 function mount(
   client: CatalogImageClient,
   options: {
+    legacy?: React.ReactNode;
     legacySources?: () => Promise<readonly string[]>;
     onPool?: (count: number | null) => void;
     folderClient?: FolderPickerClient;
@@ -145,6 +146,7 @@ function mount(
       <CatalogImageImport
         teamId={TEAM}
         client={client}
+        legacy={options.legacy}
         onPool={options.onPool ?? vi.fn()}
         legacySources={options.legacySources}
         folderClient={options.folderClient}
@@ -946,6 +948,36 @@ describe('catalog image import', () => {
       expect(client.retry).toHaveBeenCalledWith('job', { idempotencyKey: expect.any(String) })
     );
   });
+  it('keeps legacy controls inside the single image section and hides them after v2 admission', async () => {
+    const client = fixture();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: true,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'legacy'
+    });
+    mount(client, { legacy: <button>Saved Drive folder</button> });
+    const toggle = await screen.findByRole('button', { name: 'Existing Google Drive sources' });
+    expect(toggle.closest('section')?.querySelector('#catalog-r2-images-title')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Saved Drive folder' })).toBeNull();
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Saved Drive folder' })).toBeTruthy();
+    expect(client.beginImport).not.toHaveBeenCalled();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: true,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'v2'
+    });
+    await openSurface('Refresh status');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Existing Google Drive sources' })).toBeNull()
+    );
+    expect(screen.queryByRole('button', { name: 'Saved Drive folder' })).toBeNull();
+  });
+
   it('imports saved Drive sources only on explicit action and preserves the legacy pool summary', async () => {
     const client = fixture();
     vi.mocked(client.capabilities).mockResolvedValue({

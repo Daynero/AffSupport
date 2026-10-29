@@ -333,6 +333,7 @@ function CatalogImagesSection({
       }
       legacy={
         <LegacyCatalogImagesSection
+          section={SettingsSection}
           teamId={teamId}
           client={client}
           onPool={onPool}
@@ -347,8 +348,10 @@ function LegacyCatalogImagesSection({
   teamId,
   client,
   onPool,
-  onBusyChange
+  onBusyChange,
+  section: Section = CatalogSection
 }: {
+  section?: typeof SettingsSection;
   teamId: string;
   client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
   onBusyChange: (busy: boolean) => void;
@@ -419,7 +422,7 @@ function LegacyCatalogImagesSection({
   if (!client.listProductCatalogImageSources) return null;
 
   return (
-    <CatalogSection
+    <Section
       icon={Image}
       titleId="product-catalog-images-title"
       title={t('productCatalogImagesTitle')}
@@ -536,7 +539,7 @@ function LegacyCatalogImagesSection({
           }}
         />
       )}
-    </CatalogSection>
+    </Section>
   );
 }
 
