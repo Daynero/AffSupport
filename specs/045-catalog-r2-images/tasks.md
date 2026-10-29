@@ -179,3 +179,7 @@ The new owner scope is specified in [storage-optimization.md](storage-optimizati
 - [ ] T067 Run required verification and affected resource/static gates, reconcile evidence/spec/plan/tasks and commit the reviewed source without the local project overlay or credentials.
 
 - [x] T068 Apply the revised 100,000,000-byte / 500-image per-owner cap through forward-only migration1590; update display, prompt, tests and preserved-beta verification. Actual CLI clone, full DB chain (1041 pgTAP / 2 Auth / 34 native), PGlite15, UI/API40, authenticated beta API and Chrome after restart passed; original profile and publication identities preserved.
+
+## Production diagnostic follow-up — 2026-10-29
+
+- [ ] T069 Preserve and expose the correlated failure before manifest sealing, including a collecting-only import with no later receipts. Correct `investigate` attribution of catalog-image input failures currently falling back to the stitcher. Add regression scenarios for a failed manifest response and browser upload/CORS uncertainty without collecting file names, paths, signed URLs or provider payloads. The first large production attempt has only a collecting receipt; its historical cause remains unknown.

@@ -379,7 +379,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     terminal: [],
     platforms: BOTH,
     unobservable: [
-      'External generation, visual truth, browser visibility, advertising-platform ingestion and provider billing/cache remain unknown without independent evidence.'
+      'External generation, visual truth, browser visibility, advertising-platform ingestion and provider billing/cache remain unknown without independent evidence.',
+      'Cleanup completion does not prove successor dispatch or browser upload delivery. Later staged/validation/publication receipts are the fallback evidence; catalog-image-worker regressions require dispatch after cleanup with imports enabled or paused. Missing dispatch failure and browser CORS evidence remain explicit blind spots.'
     ],
     producerStatus: 'emitted',
     source: 'authoritative_table',

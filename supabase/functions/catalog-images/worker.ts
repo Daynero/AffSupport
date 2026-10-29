@@ -78,6 +78,7 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let renewal: Promise<void> | null = null;
   let claim: Record<string, unknown> | null = null;
+  let purgeClaimed = false;
   let candidate: Candidate | null = null;
   let putUncertain = false;
   const rpc = (name: string, parameters: Record<string, unknown>) =>
@@ -93,6 +94,7 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
       try {
         if (purge.kind !== 'public' && purge.kind !== 'staging')
           throw new TeamFunctionError('INVALID_RESPONSE');
+        purgeClaimed = true;
         await deps.r2.remove(purge.kind, catalogImageString(purge.key), abort.signal);
         success = true;
       } finally {
@@ -287,6 +289,9 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
     abort.abort();
     if (renewal) await renewal;
     release();
-    if (claim) await rpc('service_catalog_image_kick_v2', {}).catch(() => undefined);
+    // Cleanup consumes an invocation too. Without a successor dispatch, a
+    // backlog of expired staging grants can starve the bounded upload slots.
+    if (claim || purgeClaimed)
+      await rpc('service_catalog_image_kick_v2', {}).catch(() => undefined);
   }
 }

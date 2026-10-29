@@ -324,6 +324,30 @@ describe('catalog image worker publication receipts and recovery', () => {
     expect(f.store.committed).toBe(false);
   });
 
+  it.each([true, false])(
+    'continues dispatch after cleanup so staged uploads do not wait for cron (imports enabled: %s)',
+    async enabled => {
+      const f = await fixture();
+      const remove = vi.spyOn(f.deps.r2, 'remove').mockResolvedValue(undefined);
+      const rpc = vi.fn<CatalogImageWorkerDeps['service']['rpc']>(async name => ({
+        data:
+          name === 'service_catalog_image_purge_claim_v2'
+            ? { id: STAGING, fence: 1, kind: 'staging', key: STAGING }
+            : null,
+        error: null
+      }));
+      expect(await runCatalogImageWorker({ ...f.deps, enabled, service: { rpc } })).toEqual({
+        purge: 'observed_deleted'
+      });
+      expect(remove).toHaveBeenCalledWith('staging', STAGING, expect.any(AbortSignal));
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+        'service_catalog_image_purge_claim_v2',
+        'service_catalog_image_purge_finish_v2',
+        'service_catalog_image_kick_v2'
+      ]);
+    }
+  );
+
   it('refuses a concurrent invocation before even claiming work in a busy isolate', async () => {
     const f = await fixture();
     let unblock = () => {};
