@@ -6624,8 +6624,12 @@ body:has(.public-home) {
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 37px;
-  height: 37px;
+  flex: 0 0 auto;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  min-width: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  aspect-ratio: 1;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
@@ -11398,6 +11402,22 @@ button.team-landing-tile:hover {
   }
 }
 
+/* Circular legacy controls must satisfy the global touch floor on both axes.
+   Otherwise their fixed width and inherited minimum height produce an oval. */
+.release-update-close,
+.modal-close,
+.landing-batch-chevron,
+.team-explorer-filter-clear,
+.team-explorer-tile-play {
+  flex: 0 0 auto;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  min-width: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  aspect-ratio: 1;
+  padding: 0;
+}
+
 /* ── Local Agent power throttle ─────────────────────────────────────────── */
 
 .power-throttle {
@@ -11410,13 +11430,13 @@ button.team-landing-tile:hover {
 .power-toggle {
   position: relative;
   display: inline-flex;
-  flex: 0 0 44.2px;
+  flex: 0 0 var(--control-height-lg);
   align-items: center;
   justify-content: center;
-  inline-size: 44.2px;
-  block-size: 44.2px;
-  min-inline-size: 44.2px;
-  min-block-size: 44.2px;
+  inline-size: var(--control-height-lg);
+  block-size: var(--control-height-lg);
+  min-inline-size: var(--control-height-lg);
+  min-block-size: var(--control-height-lg);
   aspect-ratio: 1;
   padding: 0;
   border: 1px solid var(--color-border);
