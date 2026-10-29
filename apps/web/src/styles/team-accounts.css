@@ -875,12 +875,15 @@
 
 .team-agent-state {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 7px;
   font-size: var(--text-caption);
   font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .team-agent-state-dot {
@@ -3178,4 +3181,31 @@ button.team-task-agent-chip.is-selected {
 }
 .account-linked-launch-row .account-linked-launch {
   text-align: left;
+}
+
+/* Assignment explanations belong below the title: they can be longer than
+   the entire launch column, especially in Ukrainian. Keep actions alongside. */
+.team-account-space.is-unified .account-linked-launch-row:not(.is-editing) {
+  grid-template-columns: minmax(0, 1fr) max-content;
+}
+.account-linked-launch-row .account-linked-launch {
+  grid-column: 1;
+  grid-row: 1;
+}
+.account-linked-launch-row .team-agent-run-age {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.account-linked-launch-row .team-agent-run-age::before {
+  content: none;
+}
+.account-linked-launch-row .team-agent-run-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.account-linked-launch-row > [aria-hidden='true'] {
+  display: none;
 }
