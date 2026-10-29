@@ -44,6 +44,10 @@ capabilities and before/after source identity checks.
 - Set the default storage class to **R2 Standard** for both environment buckets; verify the actual class in provider acceptance before enable.
 - Enable no public access on staging. CORS allows only exact intended browser origins, PUT and the
   explicitly signed Content-Type header. Presigned URLs use the S3 API endpoint, never media origin.
+  Production must include `https://soty.pp.ua`, `http://127.0.0.1:43120` and
+  `http://localhost:43120`: the installed production app uploads directly from its loopback origin.
+  Verify each origin with an actual browser upload, as well as a refused foreign-origin preflight;
+  a successful upload from the hosted website alone does not verify the installed app.
 - Attach the isolated public bucket to its dedicated custom media domain, without `r2.dev` access.
   Enable immutable positive caching and disable negative caching for missing candidate paths.
 - Configure a Cloudflare response-header transform setting `X-Content-Type-Options: nosniff` on
