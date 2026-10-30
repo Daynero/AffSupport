@@ -32,6 +32,63 @@ function request(body: unknown, origin = false) {
   });
 }
 describe('native recovery protocol', () => {
+  it('reports the exact native pre-upload failure before returning the job to the queue', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockImplementation(async action => ({
+      operationState: action === 'authorize_execute' ? 'running' : 'failed'
+    }));
+    const failureCode = 'RESTITCH_SCREEN_FETCH_FAILED';
+    expect(
+      await handleRecovery(
+        request({ action: 'settle', operationId: ID, jobId: ID, leaseToken: SECRET, failureCode }),
+        d
+      )
+    ).toEqual({ settled: true, state: 'failed' });
+    expect(vi.mocked(d.rpc).mock.calls.map(([action]) => action)).toEqual([
+      'authorize_execute',
+      'report_failure',
+      'settle'
+    ]);
+    expect(d.drive).toHaveBeenCalledWith('complete', SECRET, {
+      jobId: ID,
+      leaseToken: SECRET,
+      outcome: 'failed',
+      errorCode: failureCode
+    });
+  });
+  it('keeps an uncertain upload fenced even when a native failure is reported', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockResolvedValue({ operationState: 'running' });
+    expect(
+      await handleRecovery(
+        request({
+          action: 'settle',
+          operationId: ID,
+          jobId: ID,
+          leaseToken: SECRET,
+          failureCode: 'RESTITCH_SCREEN_FETCH_FAILED'
+        }),
+        d
+      )
+    ).toEqual({ pending: true });
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+  it('rejects unclassified native failure reports without completing the job', async () => {
+    const d = deps();
+    await expect(
+      handleRecovery(
+        request({
+          action: 'settle',
+          operationId: ID,
+          jobId: ID,
+          leaseToken: SECRET,
+          failureCode: 'DRIVE_UNAVAILABLE'
+        }),
+        d
+      )
+    ).rejects.toThrow('INVALID_INPUT');
+    expect(d.drive).not.toHaveBeenCalled();
+  });
   it.each(['redeem', 'claim', 'checkpoint'])(
     'rejects an older %s producer before consuming a credential',
     async action => {

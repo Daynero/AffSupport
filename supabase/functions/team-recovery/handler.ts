@@ -1,4 +1,7 @@
-import { TEAM_RECOVERY_PROTOCOL_VERSION } from '../../../packages/shared/dist/team/recovery.js';
+import {
+  TEAM_RECOVERY_PROTOCOL_VERSION,
+  RECOVERY_PREUPLOAD_FAILURE_CODES
+} from '../../../packages/shared/dist/team/recovery.js';
 import { recoveryDigest } from './digest.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
@@ -146,7 +149,19 @@ export async function handleRecovery(
     await deps.rpc('heartbeat', hash, { operationId, jobId });
     return value;
   }
-  const state = authorized.operationState;
+  let state = authorized.operationState;
+  if (body.failureCode !== undefined) {
+    if (!RECOVERY_PREUPLOAD_FAILURE_CODES.some(code => code === body.failureCode))
+      throw new TeamFunctionError('INVALID_INPUT');
+    const reported = object(
+      await deps.rpc('report_failure', hash, {
+        operationId,
+        jobId,
+        failureCode: body.failureCode
+      })
+    );
+    state = reported.operationState;
+  }
   if (state !== 'succeeded' && state !== 'failed' && state !== 'canceled') return { pending: true };
   // A committed upload is not yet proof that the updater owns its output.
   if (state === 'succeeded' && authorized.outputRecorded !== true) return { pending: true };
@@ -154,7 +169,12 @@ export async function handleRecovery(
     jobId,
     leaseToken: token(body.leaseToken),
     outcome: state === 'succeeded' ? 'finalized' : 'failed',
-    errorCode: state === 'succeeded' ? null : 'PROCESS_FAILED'
+    errorCode:
+      state === 'succeeded'
+        ? null
+        : typeof body.failureCode === 'string'
+          ? body.failureCode
+          : 'PROCESS_FAILED'
   });
   await deps.rpc('settle', hash, { operationId, jobId });
   return { settled: true, state };

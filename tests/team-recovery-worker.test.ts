@@ -135,6 +135,51 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
   };
 }
 describe('background recovery worker', () => {
+  it('resends a durable screen failure after restart without executing the operation', async () => {
+    const f = await fixture('running');
+    f.setSecrets({
+      ...f.getSecrets(),
+      active: { ...brokerClaim(), failureCode: 'RESTITCH_SCREEN_FETCH_FAILED' }
+    });
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.action === 'settle') expect(body.failureCode).toBe('RESTITCH_SCREEN_FETCH_FAILED');
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value: body.action === 'settle' ? { settled: true } : { job: null }
+        })
+      );
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.process.process).not.toHaveBeenCalled();
+    expect(f.getSecrets().active).toBeNull();
+  });
+  it('reports a quiescent screen fetch failure before settling, without replaying native work', async () => {
+    const f = await fixture();
+    f.process.process.mockRejectedValue(new Error('RESTITCH_SCREEN_FETCH_FAILED'));
+    const actions: string[] = [];
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      actions.push(body.action);
+      if (body.action === 'settle') {
+        expect(body.failureCode).toBe('RESTITCH_SCREEN_FETCH_FAILED');
+        expect(f.getSecrets().active).toMatchObject({ failureCode: body.failureCode });
+      }
+      const value =
+        body.action === 'claim' ? brokerClaim() : { settled: true, executionAllowed: true };
+      return new Response(JSON.stringify({ ok: true, value }));
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(actions).toEqual(['claim', 'checkpoint', 'settle']);
+    expect(f.process.process).toHaveBeenCalledOnce();
+    expect(f.getSecrets().active).toBeNull();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled' });
+  });
   it('blocks a rewound accepted checkpoint when the server already reserved execution', async () => {
     const f = await fixture();
     const saved = await f.journal.load();

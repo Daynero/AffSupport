@@ -5,6 +5,7 @@ import {
   parseMaterialRestitchPrep,
   usablePrep,
   RECOVERY_BUDGET,
+  RECOVERY_PREUPLOAD_FAILURE_CODES,
   TEAM_RECOVERY_PROTOCOL_VERSION,
   type RecoveryRetirementStage,
   type AppEnvironment
@@ -57,7 +58,13 @@ function text(value: unknown): string {
 function activeClaim(
   value: unknown,
   registration: RecoveryRegistration
-): { request: TeamProcessRequest; jobId: string; leaseToken: string; credential: string } | null {
+): {
+  request: TeamProcessRequest;
+  jobId: string;
+  leaseToken: string;
+  credential: string;
+  failureCode?: string;
+} | null {
   if (
     !isRecord(value) ||
     !isRecord(value.job) ||
@@ -66,6 +73,11 @@ function activeClaim(
   )
     return null;
   const job = value.job;
+  if (
+    value.failureCode !== undefined &&
+    !RECOVERY_PREUPLOAD_FAILURE_CODES.some(code => code === value.failureCode)
+  )
+    return null;
   const sourceGrant = parseTeamTransferGrant(job.sourceGrant);
   const finalizeGrant = parseTeamTransferGrant(job.finalizeGrant);
   if (
@@ -87,6 +99,7 @@ function activeClaim(
     jobId: job.jobId,
     leaseToken: job.leaseToken,
     credential: value.operationCredential,
+    ...(typeof value.failureCode === 'string' ? { failureCode: value.failureCode } : {}),
     request: {
       operationId: job.operationId,
       toolId: 'restitch',
@@ -724,7 +737,8 @@ export class TeamRecoveryWorker {
         const settled = await this.#call(r.endpoint, 'settle', active.credential, {
           operationId: active.request.operationId,
           jobId: active.jobId,
-          leaseToken: active.leaseToken
+          leaseToken: active.leaseToken,
+          ...(active.failureCode ? { failureCode: active.failureCode } : {})
         });
         if (!(await this.#checkIdentity(r))) return;
         if (settled.pending === true) {
@@ -807,6 +821,14 @@ export class TeamRecoveryWorker {
       heartbeat.unref();
       try {
         await this.options.process.process(active.request);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : '';
+        if (!RECOVERY_PREUPLOAD_FAILURE_CODES.some(known => known === code)) throw error;
+        // process() has awaited delegate/transfer cleanup. Persist the classified
+        // pre-upload outcome before reporting, so a lost reply never reruns it.
+        active.failureCode = code;
+        secrets.active = { ...value, failureCode: code };
+        await this.#secrets.write(r.account, secrets);
       } finally {
         clearInterval(heartbeat);
       }
@@ -814,7 +836,8 @@ export class TeamRecoveryWorker {
       const settled = await this.#call(r.endpoint, 'settle', active.credential, {
         operationId: active.request.operationId,
         jobId: active.jobId,
-        leaseToken: active.leaseToken
+        leaseToken: active.leaseToken,
+        ...(active.failureCode ? { failureCode: active.failureCode } : {})
       });
       if (!(await this.#checkIdentity(r))) return;
       if (settled.pending === true) {

@@ -2149,3 +2149,11 @@ Forward fixes only for application rollout. The optional-assignment migration re
 ### 20261207099000 · Launch progress retry projection
 
 Adds only the accepted parent attempt counter to protected Launch detail. It preserves existing assignment/source/result fields and permissions; older clients ignore the additive field and newer clients accept older servers without it. Do not conflate this counter with per-step attempt history when diagnosing a retry. The UI must retain completed earlier phases and reset only the affected retry scope. Verify launch-step-contract, launch-state and launch-progress-memory before rollout.
+
+### 20261207100000 — native screen failure receipt
+
+Forward-only recovery correction. To disable the new report action, restore
+`service_team_recovery` from `20261206139975_recovery_actor_retirement.sql`.
+Existing operation failures, transfer revocations, audit evidence and execution
+fences must remain. Do not replay native work or clear blocked journals. The
+previous private wrapper may remain inaccessible; it grants no service access.

@@ -170,3 +170,33 @@ schema was removed from the beta database by hand (never `db reset`) before appl
   after started work settles. Tests: `catalog-image-sharing`, `catalog-updater-worker`,
   `catalog-updater-parity`, `product-catalog-xlsx`. Production speedup is not measured;
   the diagnostic coverage gap and follow-up are recorded in feature 022's findings.
+
+## 2026-10-30: native screen failure stranded catalog preparation
+
+- Read-only CLI evidence: the 05:49 UTC manual round delivered images/texts but
+  did not replace the video. Preparation remained queued. The agent journal
+  recorded `checkpoint_unavailable` for the preceding native execution.
+- Local content-free operation readback confirmed `RESTITCH_SCREEN_FETCH_FAILED`
+  at 05:22 UTC, while the cloud still reported `running/awaiting_agent`.
+  The image failing here belongs to video restitch preparation. Successful R2
+  catalog-image use does not prove that a restitch screen downloaded.
+- The worker threw past settlement after local preparation failed. On retry,
+  server settlement saw the unfinished operation and permanently blocked this
+  delegation. Its ownership also prevented the browser from preparing later jobs.
+- Fix: persist classified screen failures after local cleanup; report the exact
+  operation/job through the execute credential before settlement. SQL retains the
+  execution fence, checks actor/team/job/current authority, requires the pre-upload
+  stage and refuses any upload ownership, provider result or registered material.
+  Only three closed screen-preparation codes are accepted; unknown failures remain
+  uncertain. The normal job completion supplies bounded retry/backoff.
+- Acceptance: exact failure survives report loss/restart; no second execution;
+  cloud failure and catalog retry retain the code; invalid authority, other codes,
+  terminal success and uncertain uploads cannot be rewritten. Regression coverage:
+  `team-recovery-worker`, `team-recovery-handler`, `team-recovery-delegation`.
+- Diagnostic follow-up: `screen_fetch_failed` records only the closed reason
+  transfer/checksum/cache-write. The original event lacks this detail, so its
+  underlying transfer failure cannot be reconstructed. No URLs, paths, image
+  content, provider payloads or grants are collected.
+- Production recovery is not performed by this change. Old blocked work has an
+  expired execute credential and must go through the existing explicit recovery
+  retirement/setup after release; never delete local journals or server fences.

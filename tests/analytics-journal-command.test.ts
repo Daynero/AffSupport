@@ -56,6 +56,21 @@ async function journal(subject: string, ...extra: string[]): Promise<JournalData
 }
 
 describe('journal · by email', () => {
+  it('delivers a bounded screen failure reason without collecting image or provider details', async () => {
+    const user = '0b000000-0000-4000-8000-000000000099';
+    const run = '2d000000-0000-4000-8000-000000000099';
+    await db.exec(`insert into public.analytics_users(id,email,email_normalized) values('${user}','screens@example.test','screens@example.test');
+      insert into public.agent_journal_records(user_id,installation_id,agent_instance_id,seq,recorded_at,received_at,category,code,props)
+      values('${user}',null,'${run}',1,'2026-10-05T10:00:00Z','2026-10-05T10:00:01Z','team','screen_fetch_failed','{"reason":"checksum_mismatch"}');`);
+    const data = await journal('screens@example.test');
+    expect(data.records).toHaveLength(1);
+    expect(data.records[0]).toMatchObject({
+      category: 'team',
+      code: 'screen_fetch_failed',
+      props: { reason: 'checksum_mismatch' }
+    });
+    expect(investigateOutputIsPrivate(data)).toBe(true);
+  });
   it('returns the user records in the period, oldest first, with both clocks and the lag', async () => {
     const data = await journal('journal.user@example.test');
     expect(data.subject).toEqual({

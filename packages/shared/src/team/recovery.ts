@@ -38,6 +38,12 @@ export const RECOVERY_STATES = [
   'superseded'
 ] as const;
 export type RecoveryState = (typeof RECOVERY_STATES)[number];
+/** Classified screen preparation failures occur before any output upload. */
+export const RECOVERY_PREUPLOAD_FAILURE_CODES = [
+  'RESTITCH_SCREEN_FETCH_FAILED',
+  'RESTITCH_SCREEN_UNAVAILABLE',
+  'RESTITCH_SCREEN_UNSUPPORTED'
+] as const;
 export const RECOVERY_BUDGET = Object.freeze({
   enrollmentMs: 120_000,
   refreshMs: 30 * 24 * 60 * 60_000,

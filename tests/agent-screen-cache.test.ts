@@ -12,6 +12,7 @@ import {
 } from '../apps/agent/src/team-bridge/screen-cache.js';
 import type { DownloadedTeamSource } from '../apps/agent/src/team-bridge/transfer.js';
 import { RESTITCH_FIXTURES, restitchFixturePath } from './fixtures/restitch-images/index.js';
+import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 
 /**
  * Feature 030: the space's pictures on this computer. Cache first, a fetch only for what is
@@ -165,6 +166,7 @@ describe('resolving a job’s screens', () => {
   });
 
   it('refuses bytes that do not match the catalog’s md5', async () => {
+    const record = vi.spyOn(diagnostics, 'record');
     const transfer = transferOf('copy');
     const store = cache(transfer);
     await expect(
@@ -174,6 +176,9 @@ describe('resolving a job’s screens', () => {
         new AbortController().signal
       )
     ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_FETCH_FAILED' });
+    expect(record).toHaveBeenCalledWith('team', 'screen_fetch_failed', {
+      reason: 'checksum_mismatch'
+    });
     expect((await readdir(store.root)).filter(name => !name.startsWith('index'))).toEqual([]);
   });
 

@@ -30,6 +30,7 @@ import type { RestitchScreen, TeamTransferGrant } from '@video-compressor/shared
 import { RESTITCH_SCREEN_MAX_BYTES } from '@video-compressor/shared';
 import { probeImage } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { diagnostics } from '../server/diagnostics-log.js';
 import type { DownloadedTeamSource, TeamSourceDownloadRequest } from './transfer.js';
 
 export const TEAM_SCREENS_DIR = 'TeamScreens';
@@ -39,7 +40,11 @@ export const SCREEN_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const SCREEN_CACHE_MAX_PER_TEAM = 500;
 
 export class ScreenCacheError extends Error {
-  constructor(public readonly code: string) {
+  constructor(
+    public readonly code: string,
+    public readonly reason:
+      'transfer_failed' | 'checksum_mismatch' | 'cache_write_failed' = 'transfer_failed'
+  ) {
     super(code);
   }
 }
@@ -143,6 +148,9 @@ export class TeamScreenCache {
           if (error instanceof ScreenCacheError && error.code === 'RESTITCH_SCREEN_UNSUPPORTED') {
             throw error;
           }
+          diagnostics.record('team', 'screen_fetch_failed', {
+            reason: error instanceof ScreenCacheError ? error.reason : 'transfer_failed'
+          });
           throw error instanceof ScreenCacheError
             ? error
             : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
@@ -229,7 +237,7 @@ export class TeamScreenCache {
       // The catalog's md5 is what the key is made of; bytes that disagree with it would be
       // cached under a name that lies about them, which is worse than no cache at all.
       if (digest !== expected && (downloaded.sourceChecksum ?? '').toLowerCase() !== expected) {
-        throw new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
+        throw new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED', 'checksum_mismatch');
       }
       const image = await (this.#deps.probe ?? probeImage)(downloaded.file, undefined, {
         countFrames: true
@@ -245,7 +253,7 @@ export class TeamScreenCache {
         await unlink(staged).catch(() => {});
         throw error instanceof ScreenCacheError
           ? error
-          : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
+          : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED', 'cache_write_failed');
       }
     } finally {
       await downloaded.cleanup().catch(() => {});

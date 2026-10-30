@@ -767,6 +767,9 @@ function fromCodes(
         files: unique([
           ...spec.agent,
           'apps/agent/src/team-bridge/restitch.ts',
+          'apps/agent/src/team-bridge/recovery-worker.ts',
+          'supabase/functions/team-recovery/handler.ts',
+          'supabase/migrations/20261207100000_recovery_screen_failure_receipt.sql',
           'supabase/migrations/20261206149100_catalog_failed_browser_process.sql'
         ]),
         check:
@@ -802,6 +805,14 @@ function build(): Record<string, CodeLocation> {
     ],
     check:
       'Inspect operationId, last native stage and safe errorCode. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. Missing journal delivery leaves the cause unknown.'
+  };
+  map['journal:team:screen_fetch_failed'] = {
+    files: [
+      'apps/agent/src/team-bridge/screen-cache.ts',
+      'apps/agent/src/team-bridge/recovery-worker.ts'
+    ],
+    check:
+      'Read the closed transfer, checksum or cache-write reason. Historical missing reasons remain unknown; verify the native failure receipt and catalog retry before claiming recovery.'
   };
   map['team:process:LEASE_EXPIRED'] = {
     files: [

@@ -87,6 +87,9 @@ beforeAll(async () => {
   )[0]!.id;
 }, 60_000);
 afterAll(async () => db?.close());
+beforeEach(async () => {
+  await db.root('delete from private.team_recovery_rate_buckets');
+});
 describe('scoped background delegation', () => {
   describe('actor-bound retirement', () => {
     it.each(['redeem', 'claim', 'checkpoint'])(
@@ -277,6 +280,96 @@ describe('scoped background delegation', () => {
     });
   });
 
+  it.each([
+    'RESTITCH_SCREEN_FETCH_FAILED',
+    'RESTITCH_SCREEN_UNAVAILABLE',
+    'RESTITCH_SCREEN_UNSUPPORTED'
+  ])('settles %s only before upload and preserves the execution fence', async failureCode => {
+    const operation = await executionFixture();
+    await beginExecution(operation);
+    await db.root(
+      "update public.team_operations set state='running',stage='awaiting_agent' where id=$1",
+      [operation]
+    );
+    const input = {
+      operationId: operation,
+      jobId: REQUEST,
+      failureCode
+    };
+    expect(await call('report_failure', H(7), input)).toMatchObject({ operationState: 'failed' });
+    expect(await call('report_failure', H(7), input)).toMatchObject({ operationState: 'failed' });
+    expect((await beginExecution(operation)).executionAllowed).toBe(false);
+    expect(
+      (
+        await db.root<{ code: string }>(
+          'select error_code code from public.team_operations where id=$1',
+          [operation]
+        )
+      )[0].code
+    ).toBe(input.failureCode);
+  });
+  it('refuses unclassified reports, wrong credentials and reports without an execution reservation', async () => {
+    const operation = await executionFixture();
+    await db.root("update public.team_operations set stage='awaiting_agent' where id=$1", [
+      operation
+    ]);
+    const input = {
+      operationId: operation,
+      jobId: REQUEST,
+      failureCode: 'RESTITCH_SCREEN_FETCH_FAILED'
+    };
+    await expect(call('report_failure', H(4), input)).rejects.toThrow('AUTH_REQUIRED');
+    await expect(call('report_failure', H(7), { ...input, jobId: ROTATION })).rejects.toThrow(
+      'PERMISSION_DENIED'
+    );
+    await expect(
+      call('report_failure', H(7), { ...input, failureCode: 'DRIVE_UNAVAILABLE' })
+    ).rejects.toThrow('INVALID_INPUT');
+    expect(await call('report_failure', H(7), input)).toMatchObject({ operationState: 'pending' });
+  });
+  it('preserves provider results and terminal success instead of accepting a stale screen report', async () => {
+    const operation = await executionFixture();
+    await beginExecution(operation);
+    await db.root(
+      "update public.team_operations set state='running',stage='awaiting_agent' where id=$1",
+      [operation]
+    );
+    await db.root(
+      "insert into private.team_operation_intents(operation_id,team_id,expected_name,mime_type,expected_size,tool_id,tool_contract_version,provider_result_id) values($1,$2,'out.mp4','video/mp4',16,'restitch',1,'provider-result')",
+      [operation, team]
+    );
+    const input = {
+      operationId: operation,
+      jobId: REQUEST,
+      failureCode: 'RESTITCH_SCREEN_FETCH_FAILED'
+    };
+    expect(await call('report_failure', H(7), input)).toMatchObject({ operationState: 'running' });
+    await db.root(
+      "update public.team_operations set state='succeeded',finished_at=clock_timestamp() where id=$1",
+      [operation]
+    );
+    expect(await call('report_failure', H(7), input)).toMatchObject({
+      operationState: 'succeeded'
+    });
+  });
+  it.each(['uploading', 'reconcile_required'])(
+    'does not accept a screen failure after %s',
+    async stage => {
+      const operation = await executionFixture();
+      await beginExecution(operation);
+      await db.root("update public.team_operations set state='running',stage=$2 where id=$1", [
+        operation,
+        stage
+      ]);
+      expect(
+        await call('report_failure', H(7), {
+          operationId: operation,
+          jobId: REQUEST,
+          failureCode: 'RESTITCH_SCREEN_FETCH_FAILED'
+        })
+      ).toMatchObject({ operationState: 'running' });
+    }
+  );
   it('allows only one execution checkpoint for an operation even after the reply is lost', async () => {
     const operation = await executionFixture();
     const begin = async () =>
