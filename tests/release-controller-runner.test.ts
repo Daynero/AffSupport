@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { it, expect } from 'vitest';
 import { mkdtemp, mkdir, copyFile, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createControllerRunner } from '../scripts/lib/release/controller-runner.mjs';
 import { productionBinding } from '../scripts/lib/release/bindings.mjs';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 async function fixture() {
   const root = await mkdtemp(path.join(tmpdir(), 'controller-binding-'));
   await mkdir(path.join(root, 'scripts'));
@@ -49,7 +50,10 @@ async function fixture() {
   };
   return { runner, bindings, bindingsPath, intent, capture };
 }
-describe('canonical runner binding boundary', () => {
+// The release controller runs on the POSIX maintainer host (020 scope); these
+// cases exercise durable directory fsync, which Windows does not support.
+// Windows agent/build acceptance remains in the cross-platform suites.
+describeRequiring(requirePlatform('darwin', 'linux'), 'canonical runner binding boundary', () => {
   it('pins sandbox destinations and controller-only handoff ownership in worker environment', async () => {
     const f = await fixture();
     await f.runner.validate(f.intent);
