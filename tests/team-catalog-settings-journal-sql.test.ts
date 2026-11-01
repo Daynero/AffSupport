@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { waitFor } from './support/wait.js';
 
 const OWNER = '27000000-0000-4000-8000-000000000001';
 const VIEWER = '27000000-0000-4000-8000-000000000002';
@@ -25,7 +26,10 @@ interface Observation {
 // This serial fixture does not establish native PostgreSQL concurrency coverage.
 async function nextObservationTick() {
   const previous = Date.now();
-  while (Date.now() <= previous) await new Promise(resolve => setTimeout(resolve, 1));
+  await waitFor(() => Date.now() > previous, {
+    intervalMs: 1,
+    describe: 'the next PGlite observation clock tick'
+  });
 }
 const history = async (catalog: string) => {
   const rows = await db.root<Observation>(
