@@ -344,6 +344,27 @@ describe('Overlays', () => {
     expect(screen.queryByRole('button', { name: 'Yes' })).toBeNull();
   });
 
+  it('offers a safe alternative without confirming or cancelling the destructive action', () => {
+    const alternate = vi.fn();
+    const confirm = vi.fn();
+    const cancel = vi.fn();
+    render(
+      <ConfirmDialog
+        title="Unsaved edits"
+        body="Choose whether to save the draft before leaving."
+        confirmLabel="Discard draft"
+        cancelLabel="Keep editing"
+        alternative={{ label: 'Save draft', onSelect: alternate }}
+        onCancel={cancel}
+        onConfirm={confirm}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(alternate).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
   it('walks a menu with the arrow keys and marks a destructive item', () => {
     // A menu hangs from something: React Aria places it against its trigger,
     // so a menu with nothing to hang from has nowhere to be.

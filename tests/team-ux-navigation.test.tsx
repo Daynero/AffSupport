@@ -8,6 +8,9 @@ import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { makeClient, makeTeam } from './team-space-fixtures';
 import { adminAuthStub } from './support/auth-stub';
+// Keep lazy-module transformation outside the navigation interaction deadline.
+import '../apps/web/src/team/workspace/WorkspaceShell';
+import '../apps/web/src/team/explorer/ExplorerShell';
 
 /**
  * US1 — orientation. The claim under test is that a person always knows where

@@ -123,6 +123,22 @@ Release diagnosis uses bounded local CLI outcomes/fingerprints; central analytic
 does not observe DB commit. Record manual critical beta feature checks and missing
 signals explicitly. Implementation is not acceptance evidence or deployment GO.
 
+### Owner-approved Workspace 1.3.0 cutover
+
+For 1.3.0 the owner explicitly requires all Workspace users to use 1.3.0 or newer
+and excludes older Workspace clients from compatibility. The exact approval is
+recorded in `config/workspace-cutover.json`: only migration
+`20261207093000_accounts_destructive_delete.sql`, its SHA-256 and the two named
+internal deletion triggers are accepted. Permanent deletion includes financial
+history, as confirmed by the current UI. No waitlist announcement email is sent.
+
+The backend plan honestly records `compatibleWithPrevious: false` and carries the
+acceptance identity. Planning, plan validation and pre-apply checks revalidate the
+tracked approval against the current release and SQL bytes. Any version, target,
+SQL or finding drift revokes it. This does not exempt other migrations, beta
+rehearsal, source provenance, publication or activation gates. Later releases must
+not reuse this acceptance.
+
 ## Production build environment
 
 Project: `wishly-app`. Canonical production origin: `https://soty.pp.ua`.

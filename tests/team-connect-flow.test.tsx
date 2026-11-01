@@ -154,6 +154,43 @@ describe('one press reaches Google', () => {
 });
 
 describe('ConnectStorageFlow', () => {
+  it.each([
+    ['GOOGLE_ACCOUNT_NOT_APPROVED', /Google account is not approved/i],
+    ['NEEDS_REAUTH', /Renew the Drive connection/i]
+  ] as const)('explains %s from OAuth without opening the chooser', async (code, message) => {
+    const client = makeClient({
+      startDriveOAuth: vi.fn().mockRejectedValue(new TeamApiError(code, false))
+    });
+    const { onConnected } = renderFlow(client);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Connect Google Drive' }));
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(client.pickerToken).not.toHaveBeenCalled();
+    expect(client.chooseRoot).not.toHaveBeenCalled();
+    expect(onConnected).not.toHaveBeenCalled();
+    expect(navigation.assign).not.toHaveBeenCalled();
+    expect(
+      (screen.getByRole('button', { name: 'Connect Google Drive' }) as HTMLButtonElement).disabled
+    ).toBe(false);
+  });
+
+  it('keeps the flow open when a picked folder still requires confirmation', async () => {
+    window.history.replaceState(null, '', `/team/${TEAM}?drive=connected`);
+    const client = makeClient({
+      chooseRoot: vi.fn().mockResolvedValue({
+        state: 'confirmation_required',
+        folder: { id: 'campaigns', name: 'Campaigns', driveKind: 'my_drive', resourceKey: null },
+        account: 'approved@example.test',
+        independentAclWarning: true
+      })
+    });
+    const { onConnected } = renderFlow(client);
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Choose folder in Google Drive' }));
+    expect(await screen.findByText(/Drive unavailable/i)).toBeTruthy();
+    expect(onConnected).not.toHaveBeenCalled();
+  });
+
   it('offers Google first, then the chooser after the callback, and opens the space on a pick', async () => {
     const user = userEvent.setup();
     const pickFolders = vi.fn(picks([{ id: 'campaigns', name: 'Campaigns' }]));

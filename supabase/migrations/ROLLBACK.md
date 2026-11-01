@@ -2184,7 +2184,6 @@ extra-seat compensation during the 3→2 catalog conversion. Never rerun that co
 Google allowlist/quota and the explicit legacy cutover are separate release checks. Repair any
 failed rollout forward after readback; there is no automatic data/provider rollback.
 
-
 Commercial R01–R07 follow-up (same unreleased migration): preserve the populated principal
 reservations, ambiguous-identity review markers, mutation receipts and privacy-safe commercial
 journal. Removing credentials or auth accounts must not remove reservations. Approval now needs
@@ -2193,3 +2192,18 @@ Capacity migration preserves prior sold totals even when already over capacity; 
 observations explicitly, never delete pupils or add free seats as rollback. Browser pending grants
 must be reconciled before clearing storage or switching browsers. The analytics projection is
 read-only evidence of commit/observation, not Google quota, payment or browser delivery proof.
+
+### 20261207111000 — Commercial mutation cleanup reference fence
+
+A UI rollback needs no schema action. Keep `task_cleanup_reference_fence` on
+`private.commercial_tariff_mutations` while its JSON receipts exist. Removing the
+fence makes material-reference coverage unknown and retains cleanup candidates;
+never exempt this table or delete its idempotency receipts to restore cleanup.
+
+### 20261207112000 — Designated no-tariff Drive owner access
+
+Keep the existing legacy designation enabled for the 1.3.0 owner-approved rollout.
+A web rollback needs no schema change. Do not delete approved identity reservations
+or grant global admin rights/a synthetic tariff as rollback. Reverting these Drive
+checks would block an otherwise authorized legacy owner; removing designation remains
+an explicit operator action and must also revoke Drive admission consistently.

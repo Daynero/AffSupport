@@ -1306,11 +1306,12 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   'team:access:GOOGLE_ACCOUNT_NOT_APPROVED': {
     files: [
       'supabase/migrations/20261207110000_commercial_access_guards.sql',
+      'supabase/migrations/20261207112000_designated_space_drive_access.sql',
       'supabase/functions/drive-oauth-callback/handler.ts',
       'apps/web/src/team/storage/ConnectStorageFlow.tsx'
     ],
     check:
-      'Verify the approved identity reservation and the paid owner before retrying; a rejected different account must not invalidate the working connection.'
+      'Verify the approved identity reservation and paid or explicitly designated no-tariff owner access before retrying; a rejected different account must not invalidate the working connection.'
   },
   'launcher:windows:unobserved': {
     files: [

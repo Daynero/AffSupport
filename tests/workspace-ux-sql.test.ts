@@ -153,6 +153,14 @@ it('keeps shared and unknown-origin files and atomically undoes detach before it
   )[0]!.r;
   expect(unknown).toMatchObject({ state: 'retained', reason: 'cleanup_unverified' });
 });
+it('keeps commercial mutation JSON inside the verified cleanup reference fence', async () => {
+  expect(
+    await h.root(
+      "select 1 from private.task_cleanup_reference_tables() where schema_name='private' and table_name='commercial_tariff_mutations'"
+    )
+  ).toHaveLength(1);
+  expect(await h.root('select 1 where private.task_cleanup_coverage_verified()')).toHaveLength(1);
+});
 it('tracks execution reservation references and refuses new ones after cleanup is claimed', async () => {
   const first = await ownedAttachment();
   const detached = await h.asUser<{ r: { id: string } }>(

@@ -81,7 +81,7 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('keeps the entry closed for a user with an unrelated legacy team', async () => {
+  it('shows plans without opening an unrelated legacy team', async () => {
     rpc.mockImplementation(answer(showcaseAccess));
     const legacyTeam = makeTeam({ name: 'A user-created legacy team' });
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([legacyTeam]) });
@@ -94,13 +94,18 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
       </AuthContextOverride>
     );
 
-    expect(await screen.findByRole('heading', { name: 'Workspace in development' })).toBeTruthy();
-    // The pre-announcement entry offers neither plans nor a contact action.
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Write to the administrator' })).toBeNull();
-    expect(screen.queryByRole('radio')).toBeNull();
-    expect(track).toHaveBeenCalledWith('screen_viewed', { screen_identifier: 'space_coming_soon' });
-    expect(track.mock.calls.some(([event]) => event === 'space_showcase_viewed')).toBe(false);
+    expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Workspace in development' })).toBeNull();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(track).toHaveBeenCalledWith('space_showcase_viewed', {
+      screen_identifier: 'space_showcase'
+    });
+    expect(
+      track.mock.calls.some(
+        ([event, properties]) =>
+          event === 'screen_viewed' && properties.screen_identifier === 'space_coming_soon'
+      )
+    ).toBe(false);
     expect(rpc).toHaveBeenCalledWith('get_my_space_access', {});
     expect(screen.queryByRole('heading', { name: 'Your spaces' })).toBeNull();
   });

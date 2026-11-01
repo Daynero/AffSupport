@@ -17,6 +17,7 @@ import {
   TEAM_ACCOUNT_ERROR_CODES,
   TEAM_PROCESS_ERROR_CODES,
   TEAM_RETIREMENT_ERROR_CODES,
+  TEAM_COMMERCIAL_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
@@ -221,11 +222,15 @@ describe('team contract', () => {
       'supabase/migrations/20261207090000_retire_translation.sql',
       'utf8'
     );
+    const commercialDelta = readFileSync(
+      'supabase/migrations/20261207110000_commercial_access_guards.sql',
+      'utf8'
+    );
     const imagePath = 'supabase/migrations/20261206153000_catalog_image_error_codes.sql';
     const imageDelta = readFileSync(imagePath, 'utf8');
     const codes = (sql: string) => {
       const block =
-        /insert into public\.team_error_codes \(code\) values\n([\s\S]*?)(?:;\n|\non conflict)/u.exec(
+        /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)(?:;|on conflict)/iu.exec(
           sql
         )?.[1] ?? '';
       return [...block.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]!);
@@ -237,13 +242,15 @@ describe('team contract', () => {
     expect(codes(processDelta)).toEqual([...TEAM_PROCESS_ERROR_CODES]);
     expect(codes(retirementDelta)).toEqual([...TEAM_RETIREMENT_ERROR_CODES]);
     expect(codes(imageDelta)).toEqual([...CATALOG_IMAGE_ERROR_CODES]);
+    expect(codes(commercialDelta)).toEqual([...TEAM_COMMERCIAL_ERROR_CODES]);
     expect(
       [
         ...codes(base),
         ...codes(delta),
         ...codes(processDelta),
         ...codes(retirementDelta),
-        ...codes(imageDelta)
+        ...codes(imageDelta),
+        ...codes(commercialDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));

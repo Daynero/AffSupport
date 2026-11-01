@@ -15,6 +15,7 @@ import {
   TEAM_ACCOUNT_ERROR_CODES,
   TEAM_PROCESS_ERROR_CODES,
   TEAM_RETIREMENT_ERROR_CODES,
+  TEAM_COMMERCIAL_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
@@ -46,6 +47,7 @@ const extensionCodes = new Set([
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,
+  ...TEAM_COMMERCIAL_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
@@ -58,6 +60,7 @@ if (
     TEAM_ACCOUNT_ERROR_CODES.length +
       TEAM_PROCESS_ERROR_CODES.length +
       TEAM_RETIREMENT_ERROR_CODES.length +
+      TEAM_COMMERCIAL_ERROR_CODES.length +
       CATALOG_IMAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
@@ -251,6 +254,19 @@ const retirementInsert =
 const retirementCodes = [...retirementInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
 if (JSON.stringify(retirementCodes) !== JSON.stringify([...TEAM_RETIREMENT_ERROR_CODES]))
   fail('Retirement error catalog is out of date: ' + retirementPath);
+
+const commercialPath = resolve(
+  root,
+  'supabase/migrations/20261207110000_commercial_access_guards.sql'
+);
+const commercialSql = readFileSync(commercialPath, 'utf8');
+const commercialInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    commercialSql
+  )?.[1] ?? '';
+const commercialCodes = [...commercialInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(commercialCodes) !== JSON.stringify([...TEAM_COMMERCIAL_ERROR_CODES]))
+  fail('Commercial error catalog is out of date: ' + commercialPath);
 
 const next = generatedSql();
 const extension = generatedExtensionSql();

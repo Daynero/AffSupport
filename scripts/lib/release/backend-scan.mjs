@@ -1,3 +1,4 @@
+import { acceptedWorkspaceCutover } from './workspace-cutover.mjs';
 import { incompatibleMigrations } from './migration-compat.mjs';
 
 /**
@@ -53,6 +54,7 @@ export function functionsNeedingDeploy({ changedPaths, functions }) {
  *   digest: string,
  *   targetId: string,
  *   compatibleWithPrevious: boolean,
+ *   compatibilityAcceptance?: string,
  *   position: string,
  *   dependencies: string[],
  *   checks: string[],
@@ -62,7 +64,10 @@ export function functionsNeedingDeploy({ changedPaths, functions }) {
  * @returns {{plan: {changes: BackendChange[]}|null, blockers: string[]}}
  */
 export function buildBackendPlan({ targetId, migrations, functions }) {
-  const blockers = incompatibleMigrations(migrations).map(
+  const accepted = new Set(migrations.filter(migration => acceptedWorkspaceCutover({
+    ...migration, kind: 'migration', targetId, compatibilityAcceptance: 'workspace-1.3.0'
+  })).map(migration => migration.id));
+  const blockers = incompatibleMigrations(migrations).filter(problem => !accepted.has(problem.id)).map(
     problem =>
       `${problem.id} ${problem.reason}, which the currently released client cannot survive — ` +
       `split it into a compatible change now and the removal in a later release`
@@ -76,7 +81,8 @@ export function buildBackendPlan({ targetId, migrations, functions }) {
     kind: 'migration',
     digest: migration.digest,
     targetId,
-    compatibleWithPrevious: true,
+    compatibleWithPrevious: !accepted.has(migration.id),
+    ...(accepted.has(migration.id) ? { compatibilityAcceptance: 'workspace-1.3.0' } : {}),
     position: 'before-web',
     dependencies: [],
     checks: ['history-present', 'postconditions'],

@@ -37,15 +37,17 @@ const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 // Explicit feature 038 allowance: unified finance/runs, archive and library drag
 // interactions are downloaded only upon entering Accounts. This revises route
 // budget accounting; it does not claim the complete application became smaller.
-const ACCOUNTS_INCREMENTAL_ALLOWANCE = 55_000;
+const ACCOUNTS_INCREMENTAL_ALLOWANCE = 56_000;
 const ACCOUNTS_EXCLUSIVE_CEILING = 80_000;
 const LAUNCH_ROOT_CEILING = 20_000;
-// Owner-approved 1.2.10 allowance for current launch assignments and expanded
-// launch workflows. The root chunk and global download ratchets stay fixed.
-const LAUNCH_EXCLUSIVE_CEILING = 48_000;
+// Owner-approved 1.3.0 route allowances. The root chunk and global download
+// ratchets remain unchanged; historical 1.2.10 evidence retains its original cap.
+const LAUNCH_EXCLUSIVE_CEILING = 49_000;
 // Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
 // measured shared growth is 30,145 B against the unchanged clean 045 base.
 const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
+// Owner approved for 1.3.0: relative growth only, without increasing the global cap.
+const RELEASE_130_SHARED_GROWTH_CEILING = 38_000;
 
 /**
  * How far the total may drift before this fails.
@@ -143,7 +145,7 @@ describeRequiring(
       expect(feature045.integration_1_2_10.shared_existing_incremental_allowance).toBe(
         FEATURE_045_INCREMENTAL_ALLOWANCE
       );
-      expect(feature045.authorization.launch_exclusive_ceiling).toBe(LAUNCH_EXCLUSIVE_CEILING);
+      expect(feature045.authorization.launch_exclusive_ceiling).toBe(48_000);
       expect(feature045.base_oxc.launch_exclusive_gzip).toBe(44_680);
       expect(feature045.base_oxc.shared_existing_gzip).toBe(998_034);
       const beforeGraph = exclusiveLazyRouteAssets(before.manifest, ACCOUNT_ROUTE);
@@ -182,8 +184,8 @@ describeRequiring(
       );
       expect(
         feature045Increment,
-        `shared/existing growth from clean 045 base: ${feature045Increment}B; bounded integration allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
-      ).toBeLessThanOrEqual(FEATURE_045_INCREMENTAL_ALLOWANCE);
+        `shared/existing growth from clean 045 base: ${feature045Increment}B; bounded 1.3.0 relative growth ${RELEASE_130_SHARED_GROWTH_CEILING}B`
+      ).toBeLessThanOrEqual(RELEASE_130_SHARED_GROWTH_CEILING);
       expect(
         existingBytes,
         `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`

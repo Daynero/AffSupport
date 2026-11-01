@@ -1,6 +1,6 @@
 begin;
 
-select plan(307);
+select plan(309);
 
 select has_schema('private', 'private integration schema exists');
 select has_table('public', 'teams', 'teams table exists');
@@ -210,7 +210,8 @@ select is_empty(
           -- test repair.
           'list_team_drive_selections', 'add_team_drive_selection',
           'remove_team_drive_selection', 'team_material_kind',
-          'admin_revoke_tariff_invitation'
+          'admin_revoke_tariff_invitation',
+          'admin_preview_drive_account', 'admin_approve_drive_account'
         ))
       )
   $$,
@@ -346,6 +347,15 @@ select set_config(
   'request.jwt.claim.sub',
   '10000000-0000-4000-8000-000000000002',
   true
+);
+
+select throws_ok(
+  $$select public.admin_preview_drive_account('10000000-0000-4000-8000-000000000001','drive-owner@example.test')$$,
+  '42501', 'PERMISSION_DENIED', 'a normal member cannot preview global Google approval scope'
+);
+select throws_ok(
+  $$select public.admin_approve_drive_account('10000000-0000-4000-8000-000000000001','drive-owner@example.test',true,null)$$,
+  '42501', 'PERMISSION_DENIED', 'a normal member cannot approve a global Google identity'
 );
 
 select is(
@@ -786,8 +796,16 @@ select md5('direct-capacity-' || fixture.number::text)::uuid,
        now()
 from generate_series(1, 50) as fixture(number);
 
+-- Internal admin-owned spaces have no tariff cap. Exercise the retained
+-- designated legacy capacity with a non-global owner and an operator who takes no seat.
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+values('10000000-0000-4000-8000-000000000099','authenticated','authenticated','capacity-owner@example.test',now(),'{}','{}',now(),now());
 create temporary table us1_direct_capacity_team as
-select * from public.create_team('Direct capacity team');
+with t as (insert into public.teams(name,owner_id) values('Direct capacity team','10000000-0000-4000-8000-000000000099') returning id),
+m as (insert into public.team_members(team_id,user_id,base_role)
+ select id,'10000000-0000-4000-8000-000000000099'::uuid,'admin' from t union all
+ select id,'10000000-0000-4000-8000-000000000001'::uuid,'admin' from t)
+select id from t;
 
 insert into public.team_members (team_id, user_id, base_role)
 select (select id from pg_temp.us1_direct_capacity_team),
@@ -805,7 +823,7 @@ select throws_ok(
     )
   $$,
   '22023',
-  'TEAM_MEMBER_LIMIT',
+  'SEATS_FULL',
   'test-mode direct add cannot create active member 51'
 );
 
@@ -1067,7 +1085,11 @@ select is(
 );
 
 create temporary table us1_capacity_team as
-select * from public.create_team('US1 Capacity Team');
+with t as (insert into public.teams(name,owner_id) values('US1 Capacity Team','10000000-0000-4000-8000-000000000099') returning id),
+m as (insert into public.team_members(team_id,user_id,base_role)
+ select id,'10000000-0000-4000-8000-000000000099'::uuid,'admin' from t union all
+ select id,'10000000-0000-4000-8000-000000000001'::uuid,'admin' from t)
+select id from t;
 
 create temporary table us1_capacity_users as
 select gen_random_uuid() as id, sequence
@@ -1094,13 +1116,10 @@ from pg_temp.us1_capacity_users as capacity;
 
 select is(
   (
-    select count(*)
-    from public.team_members as member
-    where member.team_id = (select id from pg_temp.us1_capacity_team)
-      and member.status = 'active'
+    select private.team_seats_used((select id from pg_temp.us1_capacity_team))::bigint
   ),
   50::bigint,
-  'the documented team capacity includes the owner'
+  'legacy capacity includes its owner and excludes the global operator'
 );
 
 select throws_ok(
@@ -1113,8 +1132,8 @@ select throws_ok(
     )
   $$,
   '22023',
-  'TEAM_MEMBER_LIMIT',
-  'invitation creation rechecks the 50-member cap under the team lock'
+  'SEATS_FULL',
+  'invitation creation rechecks the legacy seat cap under the team lock'
 );
 
 select lives_ok(
@@ -1164,6 +1183,11 @@ select is(
   'OAuth state replay returns no transaction and causes no credential change'
 );
 
+-- The operator explicitly approves this fixture's Google identity before storage.
+select public.admin_approve_drive_account(
+ '10000000-0000-4000-8000-000000000001','drive-owner@example.test',true,
+ public.admin_preview_drive_account('10000000-0000-4000-8000-000000000001','drive-owner@example.test')->>'revision'
+);
 create temporary table us1_credential as
 select public.service_store_google_drive_credential(
   '10000000-0000-4000-8000-000000000001',
@@ -1920,6 +1944,10 @@ values (
   '10000000-0000-4000-8000-000000000004',
   'admin'
 );
+-- A paid owner can connect while remaining invisible to other team members.
+insert into public.space_tariffs(owner_email,owner_id,team_id,plan_code,ends_on)
+values('hidden-owner@example.test','10000000-0000-4000-8000-000000000004',
+ '20000000-0000-4000-8000-000000000099','lead',private.kyiv_today()+30);
 create temporary table us3_hidden_credential as
 select public.service_store_google_drive_credential(
   '10000000-0000-4000-8000-000000000004',

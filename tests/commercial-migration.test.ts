@@ -116,3 +116,93 @@ it('migrates old over-capacity teams and reserves legacy Google identities befor
     await db.close();
   }
 }, 120_000);
+
+it('preserves designated no-tariff owners and their approved Google identities at the 1.3.0 cutover', async () => {
+  const db = await createTeamTestDb({
+    throughMigration: '20261207111000_commercial_cleanup_reference_fence.sql'
+  });
+  try {
+    const admin = randomUUID();
+    await createUser(db, { id: admin, email: 'operator@test.invalid' });
+    await db.root('insert into public.admin_users(user_id) values($1)', [admin]);
+    const owners = new Map<string, string>();
+    for (const name of ['existing', 'fresh', 'review', 'outside']) {
+      const id = randomUUID();
+      owners.set(name, id);
+      await createUser(db, { id, email: `${name}@test.invalid` });
+      const [{ id: team }] = await db.root<{ id: string }>(
+        `with t as (insert into public.teams(name,owner_id) values('Fixture',$1) returning id),
+         m as (insert into public.team_members(team_id,user_id,base_role) select id,$1,'admin' from t)
+         select id from t`,
+        [id]
+      );
+      if (name !== 'outside')
+        await db.root(
+          "insert into public.team_members(team_id,user_id,base_role) values($1,$2,'admin')",
+          [team, admin]
+        );
+    }
+    await db.root(
+      `insert into private.commercial_google_principals(actor_id,account_email,permission_id,needs_review)
+       values($1,'approved@test.invalid','retained-principal',false),($2,'review@test.invalid',null,true)`,
+      [owners.get('existing'), owners.get('review')]
+    );
+    await db.db.exec(
+      readFileSync('supabase/migrations/20261207112000_designated_space_drive_access.sql', 'utf8')
+    );
+    expect(await db.root('select 1 from public.admin_users')).toHaveLength(1);
+    expect(await db.root('select 1 from public.space_tariffs')).toHaveLength(0);
+    expect(
+      await db.root('select 1 from private.commercial_google_principals where actor_id=$1', [
+        owners.get('outside')
+      ])
+    ).toHaveLength(0);
+    expect(
+      await db.root(
+        'select account_email,permission_id,needs_review from private.commercial_google_principals where actor_id=$1',
+        [owners.get('existing')]
+      )
+    ).toEqual([
+      {
+        account_email: 'approved@test.invalid',
+        permission_id: 'retained-principal',
+        needs_review: false
+      }
+    ]);
+    expect(
+      await db.root(
+        'select needs_review from private.commercial_google_principals where actor_id=$1',
+        [owners.get('review')]
+      )
+    ).toEqual([{ needs_review: true }]);
+    const store = (name: string, permission: string, email: string) =>
+      db.root(
+        `select public.service_store_google_drive_credential($1,$2,$3,'https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-sixteen')`,
+        [owners.get(name), permission, email]
+      );
+    await expect(
+      store('existing', 'retained-principal', 'approved@test.invalid')
+    ).resolves.toHaveLength(1);
+    await expect(
+      store('fresh', 'new-designated-principal', 'fresh@test.invalid')
+    ).resolves.toHaveLength(1);
+    await expect(store('review', 'review-principal', 'review@test.invalid')).rejects.toThrow(
+      'GOOGLE_ACCOUNT_NOT_APPROVED'
+    );
+    await expect(store('outside', 'outsider-principal', 'outside@test.invalid')).rejects.toThrow(
+      'PERMISSION_DENIED'
+    );
+    setQueryExecutor(async (sql, params) => db.root(sql, [...params]));
+    const evidence = await getCommercialAccessEvidence(
+      owners.get('fresh')!,
+      null,
+      new Date().toISOString()
+    );
+    expect(evidence.supported).toBe(true);
+    expect(evidence.records.some(record => record.kind === 'google_approval')).toBe(true);
+    expect(JSON.stringify(evidence)).not.toContain('@test.invalid');
+  } finally {
+    setQueryExecutor(null);
+    await db.close();
+  }
+});

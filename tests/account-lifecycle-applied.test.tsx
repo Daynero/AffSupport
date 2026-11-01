@@ -166,8 +166,8 @@ function snapshot(archived: boolean, explicit: boolean): FinanceSnapshot {
     }
   };
 }
-function configure() {
-  vi.mocked(accountsWorkspaceApi.overview).mockResolvedValue(overview(false));
+function configure(initialArchived = false) {
+  vi.mocked(accountsWorkspaceApi.overview).mockResolvedValue(overview(initialArchived));
   vi.mocked(accountsWorkspaceApi.preflight).mockResolvedValue({
     entityId: 'social',
     entityKind: 'social',
@@ -191,7 +191,7 @@ function configure() {
       operationId: crypto.randomUUID()
     };
   });
-  vi.mocked(teamFinanceApi.snapshot).mockResolvedValue(snapshot(false, false));
+  vi.mocked(teamFinanceApi.snapshot).mockResolvedValue(snapshot(initialArchived, initialArchived));
   return render(
     <ToastProvider>
       <AccountSpace teamId="team" />
@@ -227,6 +227,108 @@ function applied() {
     .mocked(emitAccountSignal)
     .mock.calls.filter(([action, stage]) => action === 'lifecycle' && stage === 'applied');
 }
+async function restoreHistoricalRow() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions: Social' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore' }));
+}
+
+it('restores a historical account using fresh preflight and proves the canonical lifecycle', async () => {
+  configure(true);
+  vi.mocked(accountsWorkspaceApi.preflight).mockResolvedValue({
+    entityId: 'social',
+    entityKind: 'social',
+    lifecycleVersion: '2',
+    token: 'archived-token',
+    archivedAt: timestamp,
+    effectiveArchived: true,
+    childCount: 1
+  });
+  vi.mocked(accountsWorkspaceApi.archive).mockImplementationOnce(async () => {
+    const restored = overview(false);
+    restored.accounts[0].lifecycleVersion = '3';
+    vi.mocked(accountsWorkspaceApi.overview).mockResolvedValue(restored);
+    const finance = snapshot(false, true);
+    if (!finance.lifecycle) throw new Error('Lifecycle fixture required');
+    finance.lifecycle.accounts[0].version = '3';
+    vi.mocked(teamFinanceApi.snapshot).mockResolvedValue(finance);
+    return {
+      entityId: 'social',
+      entityKind: 'social',
+      lifecycleVersion: '3',
+      token: 'restored-token',
+      archivedAt: null,
+      effectiveArchived: false,
+      childCount: 1,
+      requestId: crypto.randomUUID(),
+      operationId: crypto.randomUUID()
+    };
+  });
+  await restoreHistoricalRow();
+  await waitFor(() =>
+    expect(accountsWorkspaceApi.archive).toHaveBeenCalledWith(
+      'team',
+      'social',
+      'social',
+      false,
+      '2',
+      'archived-token',
+      expect.any(String)
+    )
+  );
+  await waitFor(() => expect(applied()).toHaveLength(1));
+  expect(applied()[0][2]).toMatchObject({ result: 'retained_period_data', outcome: 'success' });
+  expect(
+    vi
+      .mocked(emitAccountSignal)
+      .mock.calls.find(([action, stage]) => action === 'lifecycle' && stage === 'accepted')?.[2]
+  ).toMatchObject({ result: 'restored', outcome: 'success' });
+  expect(screen.getByRole('button', { name: 'More actions for Social' })).toBeTruthy();
+});
+
+it('surfaces restore preflight conflicts without mutating the archived account', async () => {
+  configure(true);
+  vi.mocked(accountsWorkspaceApi.preflight).mockRejectedValueOnce(
+    new TeamApiError('ACCOUNT_LIFECYCLE_CONFLICT', false)
+  );
+  await restoreHistoricalRow();
+  await screen.findByText(
+    'This account changed in another session. Review the current data and try again.'
+  );
+  expect(accountsWorkspaceApi.archive).not.toHaveBeenCalled();
+  expect(applied()).toHaveLength(0);
+  expect(
+    vi
+      .mocked(emitAccountSignal)
+      .mock.calls.find(([action, stage]) => action === 'lifecycle' && stage === 'terminal')?.[2]
+  ).toMatchObject({ outcome: 'failure', result: 'failed', code: 'ACCOUNT_LIFECYCLE_CONFLICT' });
+});
+
+it('does not restore after a pending preflight outlives the account view', async () => {
+  const view = configure(true);
+  let release!: (value: Awaited<ReturnType<typeof accountsWorkspaceApi.preflight>>) => void;
+  vi.mocked(accountsWorkspaceApi.preflight).mockReturnValueOnce(
+    new Promise(resolve => {
+      release = resolve;
+    })
+  );
+  await restoreHistoricalRow();
+  await waitFor(() => expect(accountsWorkspaceApi.preflight).toHaveBeenCalledOnce());
+  view.unmount();
+  await act(async () => {
+    release({
+      entityId: 'social',
+      entityKind: 'social',
+      lifecycleVersion: '2',
+      token: 'archived-token',
+      archivedAt: timestamp,
+      effectiveArchived: true,
+      childCount: 1
+    });
+  });
+  expect(accountsWorkspaceApi.archive).not.toHaveBeenCalled();
+  expect(applied()).toHaveLength(0);
+});
+
 it.each([false, true])(
   'waits for matching finance lifecycle and classifies actual committed projection (explicit=%s)',
   async explicit => {

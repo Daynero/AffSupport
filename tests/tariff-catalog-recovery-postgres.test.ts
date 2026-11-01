@@ -232,13 +232,14 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     declare actor uuid; member_id uuid; workspace uuid; plan uuid; cred uuid; conn uuid; video uuid; catalog uuid;
       teams uuid[]:='{}'; catalog_count integer; lease_count integer; started timestamptz:=clock_timestamp();
     begin
+      -- Team has two base seats; explicitly grant three more for each five-member fixture.
       for n in 1..10 loop
         actor:=gen_random_uuid();
         insert into auth.users(id,email,email_confirmed_at,last_sign_in_at)
           values(actor,'load-'||actor||'@recovery.test',now(),now());
         insert into public.profiles(id,display_name,account_status) values(actor,'Synthetic load','active') on conflict(id) do nothing;
         perform set_config('request.jwt.claim.sub','${admin}',true);
-        plan:=(public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('load-'||actor||'@recovery.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id')::uuid;
+        plan:=(public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('load-'||actor||'@recovery.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(3)::integer))->>'id')::uuid;
         perform set_config('request.jwt.claim.sub',actor::text,true);
         select id into workspace from public.create_team('Synthetic bounded renewal');
         teams:=array_append(teams,workspace);

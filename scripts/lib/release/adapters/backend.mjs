@@ -1,3 +1,4 @@
+import { acceptedWorkspaceCutover } from '../workspace-cutover.mjs';
 import { preparedReceipt, reconcileReceipt } from '../migration-evidence.mjs';
 
 /**
@@ -106,7 +107,7 @@ export async function applyBackendPlan({ binding, plan, sourceSha, adapter, jour
         'BACKEND_CONTENT_MISMATCH',
         `${change.id} content ${digest} does not match the reviewed ${change.digest}`
       );
-    if (!(await adapter.backwardsCompatible(change)))
+    if (!(await adapter.backwardsCompatible(change)) && !acceptedWorkspaceCutover(change))
       throw new BackendError(
         'BACKEND_INCOMPATIBLE',
         `${change.id} is not compatible with the currently released client`

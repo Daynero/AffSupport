@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "workspace-1.3.0",
+  "version": "1.3.0",
+  "targetId": "production",
+  "migrationId": "20261207093000",
+  "digest": "f4bc3a95f1af8fd28f061a8347cbb63ed671248300dcc67cf13862eaffe9eaae",
+  "ownerDecision": "All Workspace users will be on 1.3.0 or newer; compatibility with older Workspace clients is explicitly out of scope. Permanent deletion includes financial history as confirmed in the current UI.",
+  "acceptedReasons": [
+    "drops trigger account_lifecycle_delete_guard without recreating it",
+    "drops trigger account_assignment_delete_guard without recreating it"
+  ]
+}

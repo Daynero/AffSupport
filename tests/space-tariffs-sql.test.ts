@@ -1877,6 +1877,53 @@ describe('letters (R9)', () => {
 });
 
 describe('commercial boundary regressions', () => {
+  it('keeps the explicitly designated legacy owner on Drive without a tariff or global admin rights', async () => {
+    const owner = await person('legacy-drive-owner');
+    const member = await person('legacy-drive-member');
+    const team = await rawTeam(owner.id, 'Designated legacy space');
+    await addMember(team, STAFF, 'admin');
+    await addMember(team, member.id);
+    expect(await stateOf(team)).toMatchObject({ state: 'legacy', tariff_id: null });
+    const driveAllowed = async (actor: string) =>
+      (
+        await harness.root<{ ok: boolean }>('select private.commercial_drive_allowed($1,$2) ok', [
+          team,
+          actor
+        ])
+      )[0]!.ok;
+    expect(await driveAllowed(owner.id)).toBe(true);
+    expect(await driveAllowed(member.id)).toBe(false);
+    expect(
+      await harness.root('select 1 from public.admin_users where user_id=$1', [owner.id])
+    ).toHaveLength(0);
+    expect((await access(owner.id)).mode).toBe('workspace');
+    const oauth = await harness.root<{ ok: boolean }>(
+      `select public.service_create_drive_oauth_transaction($1,$2,decode(repeat('ab',32),'hex'),repeat('v',43),'https://example.test',now()+interval '5 minutes') ok`,
+      [team, owner.id]
+    );
+    expect(oauth[0]!.ok).toBe(true);
+    await asAdmin(
+      "public.admin_approve_drive_account($1,$2,true,public.admin_preview_drive_account($1,$2)->>'revision')",
+      [owner.id, owner.email]
+    );
+    const store = (permission: string, email = owner.email) =>
+      harness.root<{ id: string }>(
+        `select public.service_store_google_drive_credential($1,$2,$3,'https://www.googleapis.com/auth/drive.file','refresh-token-at-least-sixteen-characters') id`,
+        [owner.id, permission, email]
+      );
+    expect(await store('legacy-approved-google')).toHaveLength(1);
+    await expect(store('legacy-other-google', 'other@example.test')).rejects.toThrow(
+      'GOOGLE_ACCOUNT_NOT_APPROVED'
+    );
+    await setLegacy(false);
+    try {
+      expect(await driveAllowed(owner.id)).toBe(false);
+      await expect(store('legacy-approved-google')).rejects.toThrow('PERMISSION_DENIED');
+    } finally {
+      await setLegacy(true);
+    }
+  });
+
   it('refuses OAuth for an actor without membership', async () => {
     const owner = await person('oauth-owner');
     const outsider = await person('oauth-outsider');
@@ -1902,9 +1949,11 @@ describe('commercial boundary regressions', () => {
 
   it('refuses restoring capacity below active members', async () => {
     const owner = await person('capacity-owner');
-    const { team, tariff } = await tariffSpace(owner, 'solo', 30, 1);
+    const { team, tariff } = await tariffSpace(owner, 'lead', 30, 1);
     const guest = await person('capacity-guest');
+    const extraGuest = await person('capacity-extra-guest');
     await addMember(team, guest.id);
+    await addMember(team, extraGuest.id);
     await expect(setTariff(tariff, 'extra_seats = 0')).rejects.toThrow('SEATS_IN_USE');
   });
 });

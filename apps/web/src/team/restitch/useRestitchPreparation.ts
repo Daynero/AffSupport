@@ -74,7 +74,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 /** Every video in the space, with the version each preparation will be keyed to. */
 async function listVideos(teamId: string, signal: AbortSignal): Promise<TeamMaterialRow[]> {
   const folders = await teamApi.listFolderTree(teamId);
-  const parents: (string | null)[] = [null, ...folders.map(folder => folder.id)];
+  const parents: (string | null)[] = [null, ...folders.map(folder => folder.driveFileId)];
   const rows: TeamMaterialRow[] = [];
   for (const parentFolderId of parents) {
     let after = null as Parameters<typeof teamApi.listFolderPage>[1]['after'];

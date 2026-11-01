@@ -35,6 +35,9 @@ export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
 /** 046 additive retirement catalog, installed by the cutover migration. */
 export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 
+/** Installed with the commercial access boundary; keep the historical seed immutable. */
+export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
+
 export const TEAM_ERROR_CODES = [
   ...CATALOG_IMAGE_ERROR_CODES,
   ...TEAM_ACCOUNT_ERROR_CODES,
@@ -83,7 +86,7 @@ export const TEAM_ERROR_CODES = [
   'RATE_LIMITED',
   'DRIVE_UNAVAILABLE',
   'NEEDS_REAUTH',
-  'GOOGLE_ACCOUNT_NOT_APPROVED',
+  ...TEAM_COMMERCIAL_ERROR_CODES,
   'DELIVERY_UNAVAILABLE',
   'OAUTH_APPROVAL_REQUIRED',
   'ROOT_ESCAPE',
