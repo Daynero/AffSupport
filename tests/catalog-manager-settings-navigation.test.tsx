@@ -72,12 +72,24 @@ it.each([
         <TeamSpace client={api} directAddMode="disabled" />
       </TeamProvider>
     );
+    const waitForPrice = async (dialog: HTMLElement, summary: string) => {
+      // Other catalog sections can say "Not saved yet" before the price read
+      // completes. Inspect the price itself before exercising its leave guard.
+      await user.click(
+        await within(dialog).findByRole('button', {
+          name: name => name.startsWith('Price') && name.endsWith(summary)
+        })
+      );
+      await waitFor(() =>
+        expect(within(dialog).getByLabelText('From')).toHaveProperty('readOnly', false)
+      );
+    };
     const search = await screen.findByRole('textbox', { name: 'Manager search' });
     await user.type(search, 'EG 75');
     await user.click(screen.getByRole('button', { name: 'Open catalog defaults' }));
     const settings = await screen.findByRole('dialog', { name: 'Space settings' });
     const priceSummary = persisted ? '9–30 USD' : 'Not saved yet';
-    await within(settings).findByText(priceSummary, { selector: '.ui-accordion-aside' });
+    await waitForPrice(settings, priceSummary);
     expect(settings.closest('.modal-backdrop-nested')).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
     await user.click(within(settings).getByRole('tab', { name: 'General' }));
@@ -92,7 +104,7 @@ it.each([
     expect(new URLSearchParams(window.location.search).get('updater')).toBe('1');
     await user.click(screen.getByRole('button', { name: 'Open catalog defaults' }));
     const reopened = await screen.findByRole('dialog', { name: 'Space settings' });
-    await within(reopened).findByText(priceSummary, { selector: '.ui-accordion-aside' });
+    await waitForPrice(reopened, priceSummary);
     await user.keyboard('{Escape}');
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull()
