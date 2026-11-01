@@ -1,7 +1,10 @@
+// Release-host integration requires POSIX durable directory fsync (020/043 scope).
+import { describeRequiring, requirePlatform } from './support/requires.js';
+const describePosix = describeRequiring.bind(null, requirePlatform('darwin', 'linux'));
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import {
   withLegacyBackendWriter,
@@ -44,7 +47,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await removeTemporaryDirectory(root);
 });
 
-describe('one canonical writer for legacy and mini backend changes', () => {
+describePosix('one canonical writer for legacy and mini backend changes', () => {
   it.each(['mini-db', 'legacy-backend'])(
     'blocks inherited web upload authority while a %s database write is unresolved',
     async kind => {
@@ -112,7 +115,10 @@ describe('one canonical writer for legacy and mini backend changes', () => {
         throw new Error('secret connectionString');
       })
     ).rejects.toMatchObject({ code: 'BACKEND_WRITE_UNRESOLVED' });
-    expect(await pending(options.root)).toMatchObject({ kind: 'legacy-backend', runId: 'fixture' });
+    expect(await pending(options.root)).toMatchObject({
+      kind: 'legacy-backend',
+      runId: 'fixture'
+    });
     await expect(
       readFile(await webReleaseStateFile(options.root, 'web-release.lock'))
     ).rejects.toMatchObject({ code: 'ENOENT' });

@@ -1,3 +1,5 @@
+import { itRequiring, requirePlatform } from './support/requires.js';
+const itPosix = itRequiring.bind(null, requirePlatform('darwin', 'linux'));
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, symlink } from 'node:fs/promises';
@@ -269,7 +271,7 @@ describe('historical packaged-beta payload seal', () => {
 });
 
 describe('response-lost publication history reconciliation', () => {
-  it('repairs history once and preserves an independent live-smoke failure', async () => {
+  itPosix('repairs history once and preserves an independent live-smoke failure', async () => {
     const root = await temporary();
     const directory = path.join(root, 'release/automation');
     await mkdir(directory, { recursive: true });

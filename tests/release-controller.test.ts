@@ -1,4 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+// Release-host integration requires POSIX durable directory fsync (020/043 scope).
+import { describeRequiring, requirePlatform } from './support/requires.js';
+const describePosix = describeRequiring.bind(null, requirePlatform('darwin', 'linux'));
+import { it, expect, vi } from 'vitest';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -53,7 +56,7 @@ async function controllerFixture() {
   return { store, observed, runner, repair, controller, intent };
 }
 
-describe('deterministic release lifecycle', () => {
+describePosix('deterministic release lifecycle', () => {
   it('invalidates old candidate progress without resetting the repair budget', async () => {
     const f = await controllerFixture();
     const task = await f.controller.accept(f.intent);
@@ -271,7 +274,7 @@ describe('deterministic release lifecycle', () => {
   });
 });
 
-describe('durable automation ownership', () => {
+describePosix('durable automation ownership', () => {
   it('fences revisions and rejects path traversal', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'release-controller-test-'));
     const store = new TaskStore(root);

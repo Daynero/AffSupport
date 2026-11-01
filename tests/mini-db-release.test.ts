@@ -1,8 +1,11 @@
+// Release-host integration requires POSIX durable directory fsync (020/043 scope).
+import { describeRequiring, requirePlatform } from './support/requires.js';
+const describePosix = describeRequiring.bind(null, requirePlatform('darwin', 'linux'));
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const boundary = vi.hoisted(() => ({
@@ -214,7 +217,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await removeTemporaryDirectory(root);
 });
 
-describe('mini DB coordinator uncertainty boundary', () => {
+describePosix('mini DB coordinator uncertainty boundary', () => {
   it('refuses a cached prepared proof at the publish boundary even when its beta and rehearsal evidence are valid', async () => {
     const { root, betaProof } = await fixture();
     await expect(
