@@ -63,7 +63,7 @@ it('creates a synthetic tariff workspace using the domain date', async () => {
   await db.root('insert into public.admin_users(user_id) values($1)', [ADMIN]);
   await db.asUser(
     ADMIN,
-    `select public.admin_grant_space_tariff($1,'lead','2026-03-28'::date,0,null,null,null,false)`,
+    `select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',($1)::text,'plan',('lead')::text,'endsOn',('2026-03-28'::date)::date,'extraSeats',(0)::integer,'teamId',(null)::uuid,'note',(null)::text,'externalRef',(null)::text,'notify',(false)::boolean))`,
     ['clock-owner@soty.invalid']
   );
   team = (

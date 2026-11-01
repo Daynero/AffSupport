@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-11-01T12:48:16.088512+00:00",
+  "scope": "Synthetic disposable PGlite; current working-tree migrations; no production or Google provider calls; sequential service-call interleavings, not a two-session concurrency test",
+  "source_sha256": {
+    "supabase/migrations/20261207110000_commercial_access_guards.sql": "6ccc86f0d0d6205a9de8ffa6d39cc239e5e175008d135dd193cc35e6c6426734",
+    "apps/web/src/api/team.ts": "b060e2cda955ceafc5370952b704a74990f13958dcf5f9cbf7a04debde5e483f"
+  },
+  "checks": [
+    {
+      "case": "stale credential after new Google approval",
+      "bound": [
+        {
+          "allowed": true
+        }
+      ],
+      "confirmed": 1
+    },
+    {
+      "case": "legacy credential deletion loses original identity",
+      "secondIdentityStored": true
+    },
+    {
+      "case": "grant retry with lost in-memory operation ID after binding",
+      "first": "45cbf3f7-591a-4239-87d2-0940967ec3d1",
+      "second": "ae770467-9281-4576-b247-0dc2d6807789",
+      "duplicate": true
+    },
+    {
+      "case": "Google approval in one tariff editor affects other paid spaces",
+      "states": [
+        {
+          "state": "detached",
+          "n": 2
+        }
+      ]
+    },
+    {
+      "case": "paid capacity exceeds hard member limit",
+      "paidSeats": 51,
+      "invited": false,
+      "error": "error: TEAM_MEMBER_LIMIT"
+    },
+    {
+      "case": "migration with existing over-cap tariff",
+      "applied": false,
+      "error": "error: SEATS_IN_USE"
+    }
+  ],
+  "existing_suite": {
+    "command": "nice -n 15 npx vitest run tests/recovery-retention.test.ts --maxWorkers=1",
+    "result": "FAIL in beforeAll: WRONG_STATE at legacy admin_grant_space_tariff; all 5 test bodies skipped"
+  }
+}

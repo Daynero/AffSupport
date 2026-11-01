@@ -1,6 +1,6 @@
 import type { LaunchGeneration, LaunchStage } from '@video-compressor/shared';
-import { useEffect, useRef, type ReactNode } from 'react';
-import { CircleAlert } from 'lucide-react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { CircleAlert, Clock3 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Alert, Button, Card, StageProgress } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -9,11 +9,13 @@ import { useOptionalTeam } from '../TeamContext';
 import { teamErrorMessage } from '../errors';
 import {
   launchProgressStages,
+  launchProgressDisplayStage,
   launchStageLabels,
   newLaunchProgressMemory,
   rememberLaunchProgress
 } from './progress';
-import { restitchSettingsError } from './recovery';
+import { restitchSettingsError, restitchMediaError } from './recovery';
+import { useLaunchElapsed } from './useLaunchElapsed';
 import { useLaunchProgressWatch } from './useLaunchProgressWatch';
 
 export function LaunchGenerationProgress({
@@ -30,10 +32,14 @@ export function LaunchGenerationProgress({
   requestError,
   onRefresh,
   onOpenRestitchSettings,
+  onUseOriginalVideo,
+  launchId,
   requestErrorCode,
   retryActions
 }: {
   onOpenRestitchSettings?: () => void;
+  onUseOriginalVideo?: () => void;
+  launchId?: string;
   requestErrorCode?: string | null;
   retryActions?: ReactNode;
   generation: LaunchGeneration | null;
@@ -57,7 +63,7 @@ export function LaunchGenerationProgress({
     workflowId: generation?.id
   });
   const current = pendingStage ? null : generation;
-  const stage = pendingStage ?? current?.stage ?? 'validation';
+  const requestedStage = pendingStage ?? current?.stage ?? 'validation';
   const cancelling =
     pendingStage === 'cancel' ||
     current?.state === 'cancel_requested' ||
@@ -72,6 +78,21 @@ export function LaunchGenerationProgress({
       : (child.localState ?? child.operation?.state);
   const childFailed = observingRestitch && (childState === 'failed' || childState === 'canceled');
   const childSucceeded = observingRestitch && childState === 'succeeded';
+  const stage = launchProgressDisplayStage({
+    generation: current,
+    stage: requestedStage,
+    restitch: restitchEnabled,
+    childSucceeded
+  });
+  const reconciling = Boolean(
+    current &&
+    ['accepted', 'running', 'waiting_dependency'].includes(current.state) &&
+    requestError &&
+    requestErrorCode &&
+    ['LEASE_MISMATCH', 'LEASE_EXPIRED', 'LAUNCH_BUSY', 'LAUNCH_RESULT_UNCERTAIN'].includes(
+      requestErrorCode
+    )
+  );
   const failedChildId =
     childFailed && !child.streamDisconnected ? (generation?.restitchOperationId ?? null) : null;
   useEffect(() => {
@@ -79,7 +100,7 @@ export function LaunchGenerationProgress({
     return () => onFailedRestitch?.(null);
   }, [failedChildId, onFailedRestitch]);
   const code =
-    requestErrorCode ??
+    (reconciling ? null : requestErrorCode) ??
     current?.errorCode ??
     (childFailed
       ? (child.localErrorCode ??
@@ -88,7 +109,7 @@ export function LaunchGenerationProgress({
       : null);
   const needsAttention = Boolean(
     code ||
-    requestError ||
+    (!reconciling && requestError) ||
     childFailed ||
     (terminal && current?.state !== 'succeeded' && current?.state !== 'canceled')
   );
@@ -115,8 +136,21 @@ export function LaunchGenerationProgress({
     childState
   ]);
   const watching = !terminal && (cancelling || !needsAttention);
-  const watch = useLaunchProgressWatch(watching, evidence, onRefresh);
-  const uncertain = watch.quiet || disconnected || watch.readFailed;
+  const refreshChild = child.refetch;
+  const refresh = useCallback(
+    async (signal: AbortSignal) => {
+      await Promise.all([onRefresh?.(signal), observingRestitch ? refreshChild?.() : undefined]);
+    },
+    [onRefresh, observingRestitch, refreshChild]
+  );
+  const watch = useLaunchProgressWatch(watching, evidence, refresh);
+  const uncertain = disconnected || watch.readFailed;
+  const elapsedLabel = useLaunchElapsed(
+    `${teamId ?? ''}:${launchId ?? 'new'}`,
+    generation,
+    Boolean(pendingStage && pendingStage !== 'cancel'),
+    watching
+  );
   const localLabels: Record<string, TranslationKey> = {
     downloading: 'teamOperationDownloading',
     processing: 'launchesStageRestitchProcessing',
@@ -135,6 +169,7 @@ export function LaunchGenerationProgress({
       );
   const measured = current?.progress;
   const validMeasured =
+    stage === requestedStage &&
     !observingRestitch &&
     measured &&
     Number.isFinite(measured.completed) &&
@@ -216,12 +251,23 @@ export function LaunchGenerationProgress({
   const unconfirmed =
     showError && !failed && Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
   const showNotice =
-    cleanupPending || (!showError && uncertain) || Boolean(current?.stepsTruncated);
+    cleanupPending || reconciling || (!showError && uncertain) || Boolean(current?.stepsTruncated);
   return (
     <Card
       role="section"
       className={`launch-generation-progress${showError ? ' is-error' : uncertain ? ' is-unconfirmed' : ''}`}
       title={t('launchesProgressTitle')}
+      aside={
+        elapsedLabel && (
+          <span
+            className="inline-flex items-center gap-2 rounded-control bg-surface px-3 py-2 text-caption text-muted tabular-nums"
+            aria-label={t('launchesProgressElapsed', { time: elapsedLabel })}
+          >
+            <Clock3 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <span>{elapsedLabel}</span>
+          </span>
+        )
+      }
     >
       {showError && (
         <Alert
@@ -236,7 +282,8 @@ export function LaunchGenerationProgress({
                 : 'launchesProgressActionRequired'
           )}
         >
-          {requestError || (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
+          {(!reconciling && requestError) ||
+            (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
           {unconfirmed && (
             <span className="launch-progress-error-hint">
               {t('launchesProgressUnconfirmedHint')}
@@ -254,7 +301,9 @@ export function LaunchGenerationProgress({
       />
       {showNotice && (
         <div className="launch-progress-notice">
-          {cleanupPending ? (
+          {reconciling && !showError ? (
+            <p role="status">{t('launchesProgressReconciling')}</p>
+          ) : cleanupPending ? (
             <p role="status">{t('launchesCleanupPending')}</p>
           ) : uncertain && !showError ? (
             <Alert color="warning" title={t('launchesProgressUnconfirmed')}>
@@ -270,21 +319,24 @@ export function LaunchGenerationProgress({
           {current?.stepsTruncated && <p>{t('launchesStepsTruncated')}</p>}
         </div>
       )}
+      {showError && restitchEnabled && restitchMediaError(code) && onUseOriginalVideo && (
+        <div className="flex flex-col items-start gap-3 rounded-control bg-surface p-3">
+          <p className="m-0 text-caption text-muted">{t('launchesOriginalVideoHint')}</p>
+          <Button disabled={disabled} onClick={onUseOriginalVideo}>
+            {t('launchesUseOriginalVideo')}
+          </Button>
+        </div>
+      )}
       <div className="launch-progress-actions flex flex-wrap items-center gap-2">
         {onOpenRestitchSettings && restitchSettingsError(code) && (
           <Button onClick={onOpenRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
-        )}
-        {onRefresh && !terminal && (
-          <Button variant="ghost" loading={watch.checking} onClick={() => void watch.refresh()}>
-            {t('launchesProgressRefresh')}
-          </Button>
         )}
         {!cancelling && current?.state !== 'succeeded' && current?.state !== 'canceled' && (
           <Button disabled={disabled} onClick={onCancel}>
             {t('launchesCancel')}
           </Button>
         )}
-        {retryActions}
+        {(needsAttention || uncertain || terminal) && retryActions}
       </div>
     </Card>
   );

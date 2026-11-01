@@ -463,6 +463,17 @@ await persistTranscriptionState();
 await estimator.init();
 
 const teamOperationEvents = new TeamOperationEvents();
+// The bounded diagnostic journal survives a restart; the SSE snapshot must not
+// leave a known failed child looking active forever after that restart.
+let teamHistoryCursor = 0;
+const teamHistory = [];
+for (;;) {
+  const records = diagnosticsLog.since(teamHistoryCursor, 500);
+  if (!records.length) break;
+  teamHistory.push(...records);
+  teamHistoryCursor = records[records.length - 1]!.seq;
+}
+teamOperationEvents.restoreFailures(teamHistory);
 const teamEvents = new EventChannel<TeamOperationEvent>(allowedOrigins, () =>
   teamOperationEvents.snapshot()
 );

@@ -384,11 +384,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       : access === null
         ? null
         : access.mode === 'workspace' || pausedSpaces.length > 0;
-  /* Above the tools while it is somewhere to go, below them while it is only news. */
-  const spacesFirst = spacesOpen !== false;
-  /* Nothing at all until the answer is in: a create tile that turns into a waiting list a moment
-     later is worse than a row that arrives a moment late. */
-  const spacesKnown = teamsLoading || teams.length > 0 || spacesOpen !== null;
+  /* Keep the workspace entry in the same place before and after joining. */
+  const spacesFirst = true;
+  /* Reserve the workspace row while access refreshes, including return navigation. */
+  const spacesKnown = true;
 
   /* Read once: the provider rewrites the stored id as spaces are entered, and
      a row that reshuffled itself while being looked at would be worse than one
@@ -566,6 +565,14 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
             onFollow={() => navigate(spacesOpen ? createSpaceHref : allSpacesHref)}
             icon={
               spacesOpen ? <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} /> : <LayoutDashboard />
+            }
+            artwork={
+              <>
+                <span className="home-tile-boxes-frame">
+                  <img className="home-tile-boxes" src="/workspace-banner.png" alt="" />
+                </span>
+                <img className="home-tile-bee" src="/workspace-bee.png" alt="" />
+              </>
             }
             title={t(
               spacesOpen

@@ -410,6 +410,50 @@ describe('the space folder', () => {
     expect(client.createFolder).not.toHaveBeenCalled();
   });
 
+  it('does not reuse an old marked folder outside the connected root', async () => {
+    const old = folder({ id: 'old-folder', parents: ['old-root'] });
+    const client = drive({
+      getFile: vi.fn(async (id: string) =>
+        id === 'old-folder' ? old : folder({ id, parents: [] })
+      ),
+      findFolderByAppProperty: vi.fn(async (query: { parentId?: string }) =>
+        query.parentId ? null : old
+      )
+    });
+    const result = await resolveWorkspaceFolder({
+      teamId: 'team-1',
+      rootFolderId: 'cache',
+      connectedRootFolderId: 'root',
+      drive: client,
+      cachedFolderId: 'old-folder'
+    });
+    expect(result).toMatchObject({ folderId: 'folder-new', created: true });
+    expect(client.createFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ parentId: 'cache' })
+    );
+  });
+
+  it('finds the current cache folder before an older global mark', async () => {
+    const current = folder({ id: 'current', parents: ['root'] });
+    const client = drive({
+      getFile: vi.fn(async () => current),
+      findFolderByAppProperty: vi.fn(async () => current)
+    });
+    const result = await resolveWorkspaceFolder({
+      teamId: 'team-1',
+      rootFolderId: 'cache',
+      connectedRootFolderId: 'root',
+      drive: client,
+      cachedFolderId: null
+    });
+    expect(result.folderId).toBe('current');
+    expect(client.findFolderByAppProperty).toHaveBeenCalledTimes(1);
+    expect(client.findFolderByAppProperty).toHaveBeenCalledWith(
+      expect.objectContaining({ parentId: 'cache' })
+    );
+    expect(client.createFolder).not.toHaveBeenCalled();
+  });
+
   it('ignores a folder carrying another space’s mark', async () => {
     const client = drive({
       getFile: vi.fn(async () => folder({ appProperties: { [WORKSPACE_FOLDER_MARK]: 'team-2' } }))

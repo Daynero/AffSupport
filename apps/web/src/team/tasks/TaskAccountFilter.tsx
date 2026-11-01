@@ -15,6 +15,7 @@ import {
   teamAgentLabel,
   type TeamAccountSummary
 } from '@video-compressor/shared';
+import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { useI18n } from '../../i18n';
 import type { TaskAccountScope } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
@@ -186,8 +187,11 @@ export function TaskAccountFilter({
                   onClick={() => choose({ kind: 'agent', agentRowId: agent.id })}
                 >
                   <span className="team-task-agent-chip-dot" aria-hidden="true" />
-                  <span className="task-account-filter-tail">
-                    {teamAgentLabel(account.name, agent.agentId)}
+                  <span className="min-w-0 flex-1">
+                    <AccountPickerLabel
+                      name={teamAgentLabel(account.name, agent.agentId)}
+                      labels={agent.labels}
+                    />
                   </span>
                   <span className="task-account-filter-note">
                     {isTeamAgentFree(agent) ? t('teamAgentFree') : teamAgentRunsSummary(agent)}

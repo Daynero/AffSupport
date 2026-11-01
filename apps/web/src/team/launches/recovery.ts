@@ -15,3 +15,17 @@ export function restitchSettingsError(code: string | null | undefined): boolean 
     ].includes(code)
   );
 }
+
+/** Source incompatibility can be bypassed explicitly by keeping the original video. */
+export function restitchMediaError(code: string | null | undefined): boolean {
+  return Boolean(
+    code &&
+    [
+      'UNSUPPORTED_MEDIA',
+      'STITCH_PLAN_VIDEO_CODEC',
+      'STITCH_PLAN_AUDIO_CODEC',
+      'STITCH_PLAN_VARIABLE_FRAME_RATE',
+      'STITCH_PLAN_CONTAINER'
+    ].includes(code)
+  );
+}

@@ -290,6 +290,14 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressCatalog: 'Каталог',
   launchesProgressResult: 'Результат',
   launchesProgressRetryCancel: 'Повторити скасування',
+  launchesProgressReconciling: 'Оновлюємо стан генерації. Підтверджені етапи збережено.',
+  launchesProgressElapsed: 'Тривалість генерації: {time}',
+  launchesOriginalVideoHint:
+    'Або створіть каталог з оригінальним відео без перезашивки. Під час наступних оновлень каталогу відео також не перезашиватиметься.',
+  launchesUseOriginalVideo: 'Створити з оригінальним відео',
+  launchesOriginalVideoTitle: 'Створити каталог без перезашивки?',
+  launchesOriginalVideoConfirm:
+    'Поточну спробу буде скасовано. Новий каталог використовуватиме оригінальне відео. Перезашивку буде вимкнено і для наступних оновлень цього каталогу.',
   launchesProgressRefresh: 'Перевірити стан',
   launchesProgressChecking: 'Перевіряємо поточний стан…',
   launchesProgressStopped: 'Генерацію зупинено',
@@ -2044,6 +2052,7 @@ export const uk: Record<keyof typeof en, string> = {
   loginBetaError:
     'Не вдалося ввійти в локальний beta-акаунт. Перевірте, що бета запущена, і спробуйте ще раз.',
   loginBetaOwner: 'Бета: власник простору',
+  loginBetaVisitor: 'Бета: новий користувач без простору',
   loginBetaMember: 'Бета: учасник',
   teamMemberBaseRole: 'Роль',
   teamMemberOverrides: 'Дозволені дії',
@@ -4035,7 +4044,10 @@ export const uk: Record<keyof typeof en, string> = {
     'Файл не вдалося прочитати — можливо, він пошкоджений або захищений.',
   teamErrorRateLimited: 'Забагато запитів. Зачекайте мить і спробуйте ще раз.',
   teamErrorDriveUnavailable: 'Google Drive не відповідає. Спробуйте трохи згодом.',
-  teamErrorNeedsReauth: 'Підключення до Drive треба поновити в налаштуваннях простору.',
+  teamErrorGoogleAccountNotApproved:
+    'Цей Google-акаунт не схвалений для підключення. Оберіть раніше підключений акаунт або пошту, на яку видано тариф. Для заміни зверніться до адміністратора.',
+  teamErrorNeedsReauth:
+    'Підключення до Drive треба поновити в налаштуваннях простору. Оберіть той самий Google-акаунт; для його заміни напишіть адміністратору.',
   teamErrorDeliveryUnavailable: 'Повідомлення не вдалося доставити.',
   teamErrorOAuthApprovalRequired:
     'Google має схвалити цей доступ, перш ніж ним можна користуватися.',
@@ -4045,7 +4057,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamErrorAgentUpdateRequired: 'Оновіть Soty на цьому компʼютері, щоб це запустити.',
   teamErrorNoWork: 'Обробляти більше нічого.',
   teamErrorLeaseExpired: 'Це завдання перехопив інший пристрій.',
-  teamErrorLeaseMismatch: 'Це завдання виконується на іншому пристрої.',
+  teamErrorLeaseMismatch: 'Стан виконання операції змінився. Перевірте її поточний стан.',
   teamErrorAlreadyCompleted: 'Це вже зроблено.',
   teamErrorStaleResult: 'Результат застарів і не був збережений.',
   teamErrorGroupReconciling: 'Група ще звіряється. Спробуйте трохи згодом.',
@@ -4161,6 +4173,7 @@ export const uk: Record<keyof typeof en, string> = {
   tariffShowcaseFeatureFinance: 'РК і фінанси',
   tariffShowcaseFeatureUpdater: 'Каталоги',
   tariffShowcasePlans: 'Оберіть свій формат',
+  tariffShowcaseBonus: 'Перший місяць +{days} днів безкоштовно',
   tariffShowcaseFeatureExplorerDescription: 'На вашому Google Диску',
   tariffShowcaseFeatureTasksDescription: 'Організація поточної роботи',
   tariffShowcaseFeatureFinanceDescription: 'Кабінети й витрати по днях',
@@ -4178,7 +4191,7 @@ export const uk: Record<keyof typeof en, string> = {
   tariffShowcaseExtraSeat: 'Кожен наступний учасник —',
   tariffShowcaseContactNote: 'Дізнайтеся подробиці та умови підключення.',
   tariffShowcaseMessage:
-    'Привіт! Мене цікавить тариф „{plan}“ за {price} для простору Soty. Хочу дізнатися подробиці підключення.',
+    'Привіт! Мене цікавить тариф „{plan}“ за {price} для простору Soty з {days} бонусними днями до першого місяця. Хочу дізнатися подробиці підключення.',
   tariffShowcaseFeaturePeople: 'Люди: ви + 2, можна більше',
   tariffPlanSeats: 'Місць: {count} разом із вами',
   tariffShowcaseOpensOn: 'Адміністратор відкриє простір на {email}',
@@ -4258,8 +4271,8 @@ export const uk: Record<keyof typeof en, string> = {
   tariffSettingsContact: 'Продовжити чи додати місця — написати адміністратору',
   spaceComingSoonTitle: 'Простір у розробці',
   spaceComingSoonBody: 'Готуємо простір до відкриття. Повідомимо, коли він стане доступним.',
-  tariffHomeTitle: 'Простір для спільної роботи',
-  tariffHomeCaption: 'Креативи на вашому Диску, завдання, РК і каталоги — разом',
+  tariffHomeTitle: 'Ваш робочий простір',
+  tariffHomeCaption: 'Креативи на вашому Диску, завдання, РК і каталоги — усе для вашої роботи',
   tariffHomeHow: 'Як підключити',
   tariffHomeUntil: 'до {date}',
   tariffStateActive: 'Діє',
@@ -4301,6 +4314,21 @@ export const uk: Record<keyof typeof en, string> = {
   adminTariffTerm1: '1 міс',
   adminTariffTerm3: '3 міс',
   adminTariffTermDate: 'Дата',
+  adminTariffGoogleScope:
+    'Зміна Google-акаунта діє для всього власника. Буде від’єднано просторів: {count}. Після зміни їх потрібно підключити до схваленого акаунта.',
+  adminTariffGoogleConfirm:
+    'Підтверджую зміну для всіх перелічених просторів і оплату нового Google-допуску',
+  adminTariffGrantPending:
+    'Є видача з непідтвердженим результатом. Спочатку перевірте її — повтор не створить другого тарифу.',
+  adminTariffGrantResume: 'Перевірити попередню видачу',
+  adminTariffGrantStorage:
+    'Не вдалося зберегти захист від повторної видачі. Дозвольте локальне сховище та відкрийте адмінку в актуальному браузері.',
+  adminTariffGoogleAccount: 'Дозволити Google-акаунт',
+  adminTariffGoogleAccountHint:
+    'Залиште порожнім, щоб нічого не змінювати. Інша адреса змінює Google-допуск власника для всіх його просторів; переконайтеся, що його оплачено та додано до Google allowlist.',
+  adminTariffSaveGoogle: 'Зберегти й дозволити Google-акаунт',
+  adminTariffBonusDays: 'Бонусні дні',
+  adminTariffBonusHint: 'Лише до першого періоду. Можна змінити або поставити 0 — без бонусу.',
   adminTariffEndsOn: 'Останній день',
   adminTariffPickDate: 'Вибрати дату',
   adminTariffUntilInclusive: 'до {date} включно',

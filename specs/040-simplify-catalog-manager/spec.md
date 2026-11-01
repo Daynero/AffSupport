@@ -196,3 +196,9 @@ unchanged cadence preserves it. Due work retains workspace entitlement and
 reconciliation guards. Attempt snapshots retain the schedule used at dispatch.
 The read-only catalog diagnosis reports the current schedule separately from the
 attempt's frozen schedule, plus existing next-run, delivery and failure evidence.
+
+### Bounded calendar validation repair (2026-10-30)
+
+Schedule shape validation retains the exact three-field contract and 1–7 weekday/HH:MM limits. Migration 20261207103000 resolves only the selected UTC/IANA timezone through PostgreSQL after a bounded name-shape check; it never materializes pg_timezone_names on the save/constraint/scheduler path. Abbreviations, offsets, POSIX rules, path-like and unknown timezone inputs are refused. Valid IANA aliases such as Europe/Kiev remain accepted, and DST behavior stays in PostgreSQL.
+
+Source-beta reproduction: the full daily 09:00 profile save took 7982 ms under an 8-second statement budget; repeated tzdata enumeration consumed that budget. The identical transaction after the repair took 633 ms and was rolled back for measurement. team-catalog-updater-sql covers direct validation, invalid names, daily/weekly DST transitions and atomic profile writes. Existing correlated profile flow, readback and authoritative schedule journal remain the diagnostic seams; the fix emits no timezone content or new telemetry. Missing write replies stay unknown until readback; it does not manufacture success.

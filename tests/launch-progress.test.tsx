@@ -28,6 +28,7 @@ afterEach(() => {
   child.streamDisconnected = false;
   workspace.realtimeState = 'connected';
   workspace.realtimeConnectionState = 'connected';
+  sessionStorage.clear();
   vi.useRealTimers();
 });
 const generation = {
@@ -126,10 +127,8 @@ it('shows indeterminate progress without inventing a percentage', () => {
   expect(screen.getByRole('progressbar').hasAttribute('aria-valuenow')).toBe(false);
   expect(screen.queryByText(/\d+%/u)).toBeNull();
   const cancelButton = screen.getByRole('button', { name: 'Cancel' });
-  const retryButton = screen.getByRole('button', { name: 'Repeat' });
-  expect(retryButton.previousElementSibling).toBe(cancelButton);
-  fireEvent.click(retryButton);
-  expect(retry).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Repeat' })).toBeNull();
+  expect(retry).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
   fireEvent.click(cancelButton);
   expect(cancel).toHaveBeenCalledTimes(1);
@@ -401,10 +400,10 @@ it('labels disconnected progress as unconfirmed and leaves an explicit status re
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(screen.getByText(/Live progress is unavailable/u)).toBeTruthy();
   expect(screen.queryByText('90%')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(screen.queryByRole('button', { name: 'Check status' })).toBeNull();
 });
 
-it('shows the last confirmed action after quiet time without announcing a fabricated failure', async () => {
+it('keeps long processing active, displays a timer and automatically refreshes', async () => {
   vi.useFakeTimers();
   const refresh = vi.fn().mockResolvedValue(undefined);
   render(
@@ -418,11 +417,11 @@ it('shows the last confirmed action after quiet time without announcing a fabric
   await act(async () => {
     await vi.advanceTimersByTimeAsync(45_000);
   });
-  expect(refresh).toHaveBeenCalledOnce();
-  expect(screen.getByText('Last confirmed: Creating catalog')).toBeTruthy();
-  expect(screen.getByText(/No new confirmation yet/u)).toBeTruthy();
+  expect(refresh).toHaveBeenCalledTimes(3);
+  expect(screen.getByText('Creating catalog')).toBeTruthy();
+  expect(screen.getByLabelText('Generation duration: 00:45')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
-  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(screen.getByRole('progressbar')).toBeTruthy();
 });
 
 it('fills catalog cells from measured work and keeps encoding completion below video delivery', () => {
@@ -593,4 +592,94 @@ it('keeps completed segment colors and the active stage coherent through partial
     />
   );
   expect(states()).toEqual(['complete', 'complete', 'complete', 'active']);
+});
+
+it('shows the specific media cause and usable cancel/repeat actions for a failed native child', () => {
+  child.localState = 'failed';
+  child.localErrorCode = 'STITCH_PLAN_VIDEO_CODEC';
+  const retry = vi.fn();
+  const cancel = vi.fn();
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'waiting_dependency',
+        stage: 'restitch_processing',
+        restitchOperationId: 'child'
+      }}
+      teamId="team"
+      onCancel={cancel}
+      disabled={false}
+      retryActions={<button onClick={retry}>Repeat</button>}
+    />
+  );
+  expect(screen.getByRole('alert').textContent).toContain('not H.264');
+  expect(screen.queryByLabelText(/Generation duration/u)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(retry).toHaveBeenCalledOnce();
+});
+
+it('offers the original video alternative and warns about future updates for an incompatible source', () => {
+  child.localState = 'failed';
+  child.localErrorCode = 'STITCH_PLAN_VIDEO_CODEC';
+  const original = vi.fn();
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'waiting_dependency',
+        stage: 'restitch_processing',
+        restitchOperationId: 'child'
+      }}
+      teamId="team"
+      restitchEnabled
+      onUseOriginalVideo={original}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(
+    screen.getByText(/Future catalog updates will also keep the video unstitched/u)
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Create with original video' }));
+  expect(original).toHaveBeenCalledOnce();
+});
+
+it('keeps reconciling an active generation after a coordinator lease rejection instead of declaring it stopped', async () => {
+  vi.useFakeTimers();
+  const refresh = vi.fn().mockResolvedValue(undefined);
+  render(
+    <LaunchGenerationProgress
+      generation={generation}
+      onCancel={vi.fn()}
+      disabled={false}
+      requestError="This job is running on another device."
+      requestErrorCode="LEASE_MISMATCH"
+      onRefresh={refresh}
+    />
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText(/another device/u)).toBeNull();
+  expect(screen.getByRole('progressbar')).toBeTruthy();
+  expect(screen.getByText(/Updating generation status/u)).toBeTruthy();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(refresh).toHaveBeenCalledOnce();
+});
+
+it('does not turn an authoritative failed generation into an active reconciliation', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{ ...generation, state: 'failed', errorCode: 'LEASE_MISMATCH' }}
+      onCancel={vi.fn()}
+      disabled={false}
+      requestError="lease"
+      requestErrorCode="LEASE_MISMATCH"
+    />
+  );
+  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.queryByRole('progressbar')).toBeNull();
 });

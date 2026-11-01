@@ -1,3 +1,8 @@
+import {
+  executeTariffGrant,
+  pendingTariffGrant,
+  TariffGrantIntentError
+} from '../pages/admin/tariffGrantIntent';
 import { catalogImageClient } from './team-catalog-images';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
@@ -5623,6 +5628,9 @@ export interface AdminGrantTariffInput {
 }
 
 export interface AdminUpdateTariffInput {
+  approvedGoogleEmail?: string;
+  googleApprovalRevision?: string;
+  expectedUpdatedAt?: string;
   id: string;
   plan: string;
   endsOn: string;
@@ -5631,7 +5639,61 @@ export interface AdminUpdateTariffInput {
   externalRef: string | null;
 }
 
+const tariffMutationIds = new Map<string, string>();
+async function mutateTariff(
+  id: string,
+  expected: string,
+  action: string,
+  input: Record<string, unknown>
+) {
+  const signature = JSON.stringify([id, expected, action, input]);
+  const operation = tariffMutationIds.get(signature) ?? crypto.randomUUID();
+  if (tariffMutationIds.size >= 256 && !tariffMutationIds.has(signature)) {
+    tariffMutationIds.delete(tariffMutationIds.keys().next().value!);
+  }
+  tariffMutationIds.set(signature, operation);
+  return tariffRpc('admin_mutate_space_tariff', {
+    p_id: id,
+    p_operation: operation,
+    p_expected: expected,
+    p_action: action,
+    p_input: input
+  });
+}
+
+export interface DriveApprovalPreview {
+  revision: string;
+  accountEmail: string | null;
+  spaces: Array<{ id: string; name: string }>;
+}
+
 export const adminTariffApi = {
+  async previewDriveApproval(ownerId: string, email: string): Promise<DriveApprovalPreview> {
+    const value = asRecord(
+      single(
+        await tariffRpc('admin_preview_drive_account', {
+          p_owner: ownerId,
+          p_email: email
+        })
+      )
+    );
+    if (
+      !value ||
+      typeof value.revision !== 'string' ||
+      !Array.isArray(value.spaces) ||
+      !value.spaces.every(item => {
+        const row = asRecord(item);
+        return row && typeof row.id === 'string' && typeof row.name === 'string';
+      })
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return {
+      revision: value.revision,
+      accountEmail: typeof value.accountEmail === 'string' ? value.accountEmail : null,
+      spaces: value.spaces as DriveApprovalPreview['spaces']
+    };
+  },
+
   async listTariffs(): Promise<AdminTariffRow[]> {
     return parsedOrThrow(parseAdminTariffRows((await tariffRpc('admin_list_space_tariffs')) ?? []));
   },
@@ -5654,22 +5716,43 @@ export const adminTariffApi = {
     );
   },
 
+  async pendingGrant(): Promise<AdminGrantTariffInput | null> {
+    const { data } = await requireSupabaseClient().auth.getSession();
+    return data.session ? (pendingTariffGrant(data.session.user.id)?.input ?? null) : null;
+  },
+
   async grant(input: AdminGrantTariffInput): Promise<AdminTariffRow> {
-    return parsedOrThrow(
-      parseAdminTariffRow(
-        single(
-          await tariffRpc('admin_grant_space_tariff', {
-            p_email: input.email,
-            p_plan: input.plan,
-            p_ends_on: input.endsOn,
-            p_extra_seats: input.extraSeats,
-            p_team: input.teamId,
-            p_note: input.note,
-            p_external_ref: input.externalRef,
-            p_notify: input.notify,
-            p_source: input.source ?? 'manual'
-          })
-        )
+    const { data } = await requireSupabaseClient().auth.getSession();
+    if (!data.session) throw new TeamApiError('PERMISSION_DENIED', false);
+    if (!navigator.locks) throw new TariffGrantIntentError('storage');
+    const actor = data.session.user.id;
+    return navigator.locks.request(`soty.tariff-grant:${actor}`, () =>
+      executeTariffGrant(
+        actor,
+        { ...input, source: input.source ?? 'manual' },
+        async (operation, savedInput) =>
+          parsedOrThrow(
+            parseAdminTariffRow(
+              single(
+                await tariffRpc('admin_grant_space_tariff_once', {
+                  p_operation: operation,
+                  p_input: savedInput
+                })
+              )
+            )
+          ),
+        error =>
+          error instanceof TeamApiError &&
+          [
+            'INVALID_INPUT',
+            'PERMISSION_DENIED',
+            'SEATS_IN_USE',
+            'TARIFF_BOUND',
+            'TARIFF_DATE_INVALID',
+            'WRONG_STATE',
+            'NOT_FOUND',
+            'NAME_CONFLICT'
+          ].includes(error.code)
       )
     );
   },
@@ -5678,39 +5761,60 @@ export const adminTariffApi = {
     return parsedOrThrow(
       parseAdminTariffRow(
         single(
-          await tariffRpc('admin_update_space_tariff', {
-            p_id: input.id,
-            p_plan: input.plan,
-            p_ends_on: input.endsOn,
-            p_extra_seats: input.extraSeats,
-            p_note: input.note,
-            p_external_ref: input.externalRef
-          })
+          await (input.expectedUpdatedAt
+            ? mutateTariff(input.id, input.expectedUpdatedAt, 'update', {
+                plan: input.plan,
+                endsOn: input.endsOn,
+                extraSeats: input.extraSeats,
+                approvedGoogleEmail: input.approvedGoogleEmail,
+                googleApprovalRevision: input.googleApprovalRevision,
+                note: input.note,
+                externalRef: input.externalRef
+              })
+            : tariffRpc('admin_update_space_tariff', {
+                p_id: input.id,
+                p_plan: input.plan,
+                p_ends_on: input.endsOn,
+                p_extra_seats: input.extraSeats,
+                p_note: input.note,
+                p_external_ref: input.externalRef
+              }))
         )
       )
     );
   },
 
   /** The returned row carries `eventId`, which is what the toast's Undo takes back. */
-  async extend(id: string, months: number, notify = false): Promise<AdminTariffRow> {
+  async extend(
+    id: string,
+    months: number,
+    notify = false,
+    expectedUpdatedAt?: string
+  ): Promise<AdminTariffRow> {
     return parsedOrThrow(
       parseAdminTariffRow(
         single(
-          await tariffRpc('admin_extend_space_tariff', {
-            p_id: id,
-            p_months: months,
-            p_notify: notify
-          })
+          await (expectedUpdatedAt
+            ? mutateTariff(id, expectedUpdatedAt, 'extend', { months, notify })
+            : tariffRpc('admin_extend_space_tariff', {
+                p_id: id,
+                p_months: months,
+                p_notify: notify
+              }))
         )
       )
     );
   },
 
   /** `now=false` ends the term today (three more days follow); `true` closes the space at once. */
-  async end(id: string, now: boolean): Promise<AdminTariffRow> {
+  async end(id: string, now: boolean, expectedUpdatedAt?: string): Promise<AdminTariffRow> {
     return parsedOrThrow(
       parseAdminTariffRow(
-        single(await tariffRpc('admin_end_space_tariff', { p_id: id, p_now: now }))
+        single(
+          await (expectedUpdatedAt
+            ? mutateTariff(id, expectedUpdatedAt, 'end', { now })
+            : tariffRpc('admin_end_space_tariff', { p_id: id, p_now: now }))
+        )
       )
     );
   },

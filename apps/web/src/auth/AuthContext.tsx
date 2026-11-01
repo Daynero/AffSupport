@@ -78,7 +78,7 @@ export type AuthSnapshot = {
 export type AuthContextValue = AuthSnapshot & {
   loading: boolean;
   signInWithGoogle: (returnPath?: string | null) => Promise<void>;
-  signInWithBetaFixture: (fixture?: 'owner' | 'member') => Promise<void>;
+  signInWithBetaFixture: (fixture?: 'owner' | 'member' | 'visitor') => Promise<void>;
   completeOAuthCallback: (code: string, state?: string | null) => Promise<void>;
   adoptHandedOverSession: (accessToken: string, refreshToken: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -497,23 +497,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // The local beta stack has no Google provider credentials. Its fixture is
   // deliberately a password account so real Supabase authentication, session
   // handling, and entitlement checks remain testable without leaving localhost.
-  const signInWithBetaFixture = useCallback(async (fixture: 'owner' | 'member' = 'owner') => {
-    if (!BETA_AUTH || LOCAL_DEV_AUTH) return;
-    signInGeneration.current += 1;
-    const supabase = getSupabaseClient();
-    if (!supabase || !publicConfig.ok) {
-      setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
-      return;
-    }
-    setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
-    const { error } = await mutateSession(() =>
-      supabase.auth.signInWithPassword({
-        email: fixture === 'member' ? 'member@soty.local' : 'beta@soty.local',
-        password: fixture === 'member' ? 'beta-member-password' : 'beta-password'
-      })
-    );
-    if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'beta_auth' });
-  }, []);
+  const signInWithBetaFixture = useCallback(
+    async (fixture: 'owner' | 'member' | 'visitor' = 'owner') => {
+      if (!BETA_AUTH || LOCAL_DEV_AUTH) return;
+      signInGeneration.current += 1;
+      const supabase = getSupabaseClient();
+      if (!supabase || !publicConfig.ok) {
+        setSnapshot(current => ({ ...current, status: 'error', error: 'configuration' }));
+        return;
+      }
+      setSnapshot(current => ({ ...current, status: 'authenticating', error: null }));
+      const { error } = await mutateSession(() =>
+        supabase.auth.signInWithPassword({
+          email:
+            fixture === 'visitor'
+              ? 'visitor@soty.local'
+              : fixture === 'member'
+                ? 'member@soty.local'
+                : 'beta@soty.local',
+          password:
+            fixture === 'visitor'
+              ? 'beta-visitor-password'
+              : fixture === 'member'
+                ? 'beta-member-password'
+                : 'beta-password'
+        })
+      );
+      if (error) setSnapshot({ ...initialSnapshot, status: 'error', error: 'beta_auth' });
+    },
+    []
+  );
 
   /**
    * Installs a session the website handed over (see auth/session-handoff).

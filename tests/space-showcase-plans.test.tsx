@@ -32,6 +32,7 @@ it('defaults to Solo, switches exclusively and prepares the selected price witho
     </ToastProvider>
   );
   const radios = screen.getAllByRole('radio') as HTMLInputElement[];
+  expect(screen.getByText('Перший місяць +7 днів безкоштовно')).toBeTruthy();
   expect(radios.map(r => r.checked)).toEqual([true, false]);
   const open = vi.spyOn(window, 'open').mockImplementation(() => null);
   expect(client.joinWaitlist).not.toHaveBeenCalled();
@@ -39,12 +40,14 @@ it('defaults to Solo, switches exclusively and prepares the selected price witho
   const soloUrl = new URL(String(open.mock.calls[0][0]));
   expect(soloUrl.origin + soloUrl.pathname).toBe('https://t.me/Roma_mbuyer');
   expect(soloUrl.searchParams.get('text')).toContain('„Соло“ за $20/місяць');
+  expect(soloUrl.searchParams.get('text')).toContain('7 бонусними днями до першого місяця');
   expect(client.joinWaitlist).toHaveBeenLastCalledWith('solo', 'telegram');
   fireEvent.click(radios[1]);
   expect(radios.map(r => r.checked)).toEqual([false, true]);
   fireEvent.click(screen.getByRole('button', { name: 'Написати адміністратору' }));
   const teamUrl = new URL(String(open.mock.calls[1][0]));
   expect(teamUrl.searchParams.get('text')).toContain('„Команда“ за від $30/місяць');
+  expect(teamUrl.searchParams.get('text')).toContain('7 бонусними днями до першого місяця');
   expect(client.joinWaitlist).toHaveBeenLastCalledWith('lead', 'telegram');
   expect(open).toHaveBeenLastCalledWith(expect.any(String), '_blank', 'noopener,noreferrer');
   open.mockRestore();

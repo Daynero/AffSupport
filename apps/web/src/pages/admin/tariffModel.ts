@@ -125,6 +125,13 @@ export function kyivToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date());
 }
 
+/** Calendar days after the purchased term, independent of the browser's timezone or DST. */
+export function grantEndsOn(day: string, months: number, bonusDays: number): string {
+  const end = new Date(`${addMonthsPreview(day, months)}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + bonusDays);
+  return end.toISOString().slice(0, 10);
+}
+
 export function extendBase(
   row: Pick<AdminTariffRow, 'state' | 'revokedAt' | 'endsOn' | 'tariffToday'>
 ): string {

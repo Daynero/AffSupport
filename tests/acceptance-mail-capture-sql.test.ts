@@ -50,7 +50,7 @@ beforeAll(async () => {
   ]) {
     await db.asUser(
       fixture.actors.S.id,
-      "select public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,0)",
+      "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',($1)::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))",
       [`${namespace}-${owner.toLowerCase()}@soty.invalid`]
     );
     fixture.teams[alias] = (
@@ -118,7 +118,7 @@ it.each([false, true])(
     const tariff = (
       await db.asUser<{ id: string }>(
         fixture.actors.S.id,
-        "select public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,0)->>'id' id",
+        "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',($1)::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id' id",
         [email]
       )
     )[0].id;

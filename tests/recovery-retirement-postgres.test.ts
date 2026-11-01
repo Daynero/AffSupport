@@ -103,7 +103,7 @@ describe.skipIf(!container)(
       insert into public.admin_users(user_id) values('${owner}');
       do $$ begin
         perform set_config('request.jwt.claim.sub','${owner}',true);
-        perform public.admin_grant_space_tariff('${owner}@retirement.test.invalid','lead',private.kyiv_today()+30,0);
+        perform public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('${owner}@retirement.test.invalid')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer));
         perform public.create_team('Synthetic retirement concurrency');
       end $$;
       select id from public.teams where owner_id='${owner}' and name='Synthetic retirement concurrency';`);

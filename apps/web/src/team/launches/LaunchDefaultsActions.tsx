@@ -47,7 +47,8 @@ export function LaunchDefaultsActions({
   const id = useId();
   const info = useRef<HTMLButtonElement>(null);
   const [infoOpen, setInfoOpen] = useState(false);
-  const proposal = proposalSource && proposalSource !== 'builtin' && !loading && !loadError;
+  const proposal =
+    proposalSource && proposalSource !== 'builtin' && !loading && !loadError && !disabled;
   if (!manage && !proposal && !loading && !loadError && !buyerMissing && !primaryAction)
     return null;
   return (
@@ -91,7 +92,6 @@ export function LaunchDefaultsActions({
           )}
           confirmLabel={t('launchesDefaultsApplyYes')}
           cancelLabel={t('launchesDefaultsApplyNo')}
-          busy={disabled}
           onConfirm={onApply}
           onCancel={onKeep}
         />

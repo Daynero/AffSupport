@@ -13,7 +13,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('reconciles a quiet stage once without advancing it or starting recurring polling', async () => {
+it('automatically reconciles unchanged stages without inventing progress', async () => {
   vi.useFakeTimers();
   const read = vi.fn().mockResolvedValue(undefined);
   const { result, rerender } = renderHook(
@@ -23,12 +23,12 @@ it('reconciles a quiet stage once without advancing it or starting recurring pol
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LAUNCH_PROGRESS_QUIET_MS);
   });
-  expect(read).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledTimes(3);
   expect(result.current.quiet).toBe(true);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LAUNCH_PROGRESS_QUIET_MS * 3);
   });
-  expect(read).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledTimes(12);
   rerender({ evidence: 'new-authoritative-stage' });
   expect(result.current.quiet).toBe(false);
 });
@@ -111,4 +111,34 @@ it('does not let a late preflight read start generation after timeout or cancell
   canceled.abort();
   await stopped;
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it('pauses automatic reads while hidden and stops them when the operation finishes', async () => {
+  vi.useFakeTimers();
+  const read = vi.fn().mockResolvedValue(undefined);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get');
+  visibility.mockReturnValue('hidden');
+  const { rerender, unmount } = renderHook(
+    ({ active }) => useLaunchProgressWatch(active, 'stage', read),
+    { initialProps: { active: true } }
+  );
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(read).not.toHaveBeenCalled();
+    visibility.mockReturnValue('visible');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(read).toHaveBeenCalledOnce();
+    rerender({ active: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(read).toHaveBeenCalledOnce();
+  } finally {
+    visibility.mockRestore();
+    unmount();
+  }
 });

@@ -8,6 +8,7 @@ import {
   type TeamAccountSummary,
   type TeamAccountOccupancyFilter
 } from '@video-compressor/shared';
+import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { analytics } from '../../analytics/service';
 import { Modal } from '../../components/Modal';
 import { Button, EmptyState, Input } from '../../components/ui';
@@ -195,9 +196,10 @@ export function LaunchAccountBrowser({
                           }}
                         >
                           <span className="team-task-picker-item-copy">
-                            <strong>
-                              {account.name} · {agent.agentId.slice(-3)}
-                            </strong>
+                            <AccountPickerLabel
+                              name={`${account.name} · ${agent.agentId.slice(-3)}`}
+                              labels={agent.labels}
+                            />
                             <small className="font-mono">ID {agent.agentId}</small>
                             <small className={free ? 'text-success-text' : 'text-warning-text'}>
                               {t(

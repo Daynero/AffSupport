@@ -134,9 +134,7 @@ export function MemberList({
           ? t('teamMemberLoading')
           : error
             ? null
-            : count >= 40
-              ? t('teamMembersLimit', { count })
-              : t(memberCountKey(language, count), { count })
+            : t(memberCountKey(language, count), { count })
       }
       className="team-member-section"
     >

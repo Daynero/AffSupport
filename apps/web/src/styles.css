@@ -12203,7 +12203,10 @@ button.team-landing-tile:hover {
   z-index: var(--layer-modal);
   inset: 50% auto auto 50%;
   margin: 0;
-  color: var(--color-on-accent);
+  color: var(--color-text);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   transform: translate(-50%, -50%);
 }
 
@@ -14707,6 +14710,9 @@ button.team-landing-tile:hover {
 }
 .team-process-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
+  min-width: 0;
   gap: var(--space-2);
   width: min(340px, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-3);
@@ -14726,16 +14732,17 @@ button.team-landing-tile:hover {
 }
 .team-process-panel-head {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 .team-process-panel-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .team-process-panel-toggle {
+  flex-shrink: 0;
   color: var(--color-text-muted);
 }
 .team-process-panel-detail,
@@ -14744,10 +14751,10 @@ button.team-landing-tile:hover {
   color: var(--color-text-muted);
   font-size: 0.9em;
 }
-.team-process-panel-detail {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.team-process-panel-detail,
+.team-process-panel-phase {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* One row that wraps as a row. `margin-left: auto` on the last action used to push it onto a
    line of its own the moment the others needed two, which read as three unrelated controls

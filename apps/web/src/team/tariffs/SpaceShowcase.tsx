@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Hexagon, FolderOpen, ListChecks, RefreshCw, UserPlus, Wallet } from 'lucide-react';
+import { Check, FolderOpen, ListChecks, RefreshCw, UserPlus, Wallet } from 'lucide-react';
 import type {
   SpaceAccess,
   SpaceAccessInvitation,
@@ -13,6 +13,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { supportConfig } from '../../lib/support';
 import { ContactAdminButton } from './ContactAdminButton';
+import { FIRST_PERIOD_BONUS_DAYS } from './offer';
 
 export interface SpaceShowcaseClient {
   joinWaitlist: (plan: string | null, channel: TariffContactChannel | null) => Promise<boolean>;
@@ -59,7 +60,8 @@ export function SpaceShowcase({
 
   const message = t('tariffShowcaseMessage', {
     plan: t(isSolo ? 'tariffShowcaseSolo' : 'tariffShowcaseTeam'),
-    price: t(isSolo ? 'tariffShowcaseSoloPrice' : 'tariffShowcaseTeamPrice')
+    price: t(isSolo ? 'tariffShowcaseSoloPrice' : 'tariffShowcaseTeamPrice'),
+    days: FIRST_PERIOD_BONUS_DAYS
   });
 
   const contacted = (channel: TariffContactChannel) => {
@@ -155,10 +157,6 @@ export function SpaceShowcase({
 
       <Card role="surface" className="tariff-showcase-card">
         <div className="tariff-showcase-intro">
-          <div className="tariff-showcase-brand">
-            <Hexagon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            <span>SOTY</span>
-          </div>
           <h1 id="tariff-showcase-title" className="tariff-showcase-title">
             {t('tariffShowcaseTitle')}
           </h1>
@@ -178,6 +176,9 @@ export function SpaceShowcase({
               </li>
             ))}
           </ul>
+          <p className="tariff-showcase-bonus">
+            {t('tariffShowcaseBonus', { days: FIRST_PERIOD_BONUS_DAYS })}
+          </p>
         </div>
         <div className="tariff-showcase-offer">
           <h2>{t('tariffShowcasePlans')}</h2>

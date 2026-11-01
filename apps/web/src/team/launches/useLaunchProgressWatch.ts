@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const LAUNCH_PROGRESS_QUIET_MS = 45_000;
 export const LAUNCH_STATUS_READ_MS = 15_000;
+export const LAUNCH_STATUS_POLL_MS = 15_000;
 
-/** A quiet operation is not a failed operation. Reconcile once, then offer an explicit read. */
+/** Reconcile automatically without overlapping reads or inventing progress. */
 export function useLaunchProgressWatch(
   active: boolean,
   evidence: string,
@@ -59,12 +60,12 @@ export function useLaunchProgressWatch(
     const quietTimer = active
       ? setTimeout(() => {
           setQuiet(true);
-          void refresh();
         }, LAUNCH_PROGRESS_QUIET_MS)
       : null;
     const reconcile = () => {
       if (document.visibilityState !== 'hidden') void refresh();
     };
+    const poll = active ? setInterval(reconcile, LAUNCH_STATUS_POLL_MS) : null;
     if (active) {
       window.addEventListener('online', reconcile);
       document.addEventListener('visibilitychange', reconcile);
@@ -73,6 +74,7 @@ export function useLaunchProgressWatch(
       epoch.current++;
       controller.current?.abort();
       if (quietTimer) clearTimeout(quietTimer);
+      if (poll) clearInterval(poll);
       if (readTimer.current) clearTimeout(readTimer.current);
       window.removeEventListener('online', reconcile);
       document.removeEventListener('visibilitychange', reconcile);

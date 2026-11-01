@@ -6,7 +6,7 @@ import type {
   AdminTariffRow,
   TariffPlan
 } from '@video-compressor/shared';
-import type { AdminTariffClient, AdminUserMatch } from '../../api/team';
+import type { AdminGrantTariffInput, AdminTariffClient, AdminUserMatch } from '../../api/team';
 import {
   Alert,
   Button,
@@ -24,8 +24,10 @@ import {
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../../team/errors';
 import { formatTariffDay } from '../../team/tariffs/format';
+import { FIRST_PERIOD_BONUS_DAYS } from '../../team/tariffs/offer';
+import { TariffGrantIntentError } from './tariffGrantIntent';
 import { TariffDateField } from './TariffDateField';
-import { addMonthsPreview, kyivToday } from './tariffModel';
+import { grantEndsOn, kyivToday } from './tariffModel';
 
 /**
  * Granting a tariff (034, US1) — at most three presses from a request:
@@ -73,6 +75,7 @@ export function TariffGrantDialog({
   const noteId = useId();
   const refId = useId();
   const seatsId = useId();
+  const bonusId = useId();
   const spaceId = useId();
   const [email, setEmail] = useState(prefill.email ?? '');
   const [details, setDetails] = useState(false);
@@ -85,6 +88,7 @@ export function TariffGrantDialog({
   );
   const [term, setTerm] = useState<Term>('1');
   const [date, setDate] = useState<string | null>(null);
+  const [bonusDays, setBonusDays] = useState(FIRST_PERIOD_BONUS_DAYS);
   const [extraSeats, setExtraSeats] = useState(0);
   const seatsTouched = useRef(false);
   const [teamId, setTeamId] = useState<string | null>(prefill.teamId ?? null);
@@ -96,12 +100,44 @@ export function TariffGrantDialog({
   const [matches, setMatches] = useState<AdminUserMatch[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingGrant, setPendingGrant] = useState<AdminGrantTariffInput | null>(null);
+  useEffect(() => {
+    let active = true;
+    void client.pendingGrant().then(
+      value => {
+        if (active) setPendingGrant(value);
+      },
+      () => undefined
+    );
+    return () => {
+      active = false;
+    };
+  }, [client]);
+
+  const resumePending = async () => {
+    if (!pendingGrant) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const row = await client.grant(pendingGrant);
+      onGranted(row, { email: pendingGrant.email, source: 'manual' });
+    } catch (cause) {
+      setError(
+        cause instanceof TariffGrantIntentError
+          ? t('adminTariffGrantStorage')
+          : teamErrorMessageFor(cause, t)
+      );
+      setPendingGrant(await client.pendingGrant().catch(() => pendingGrant));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const normalized = email.trim().toLocaleLowerCase('en-US');
   const valid = EMAIL.test(normalized);
   const selected = plans.find(item => item.code === plan) ?? null;
   const endsOn =
-    term === 'date' ? date : addMonthsPreview(tariffToday ?? kyivToday(), Number(term));
+    term === 'date' ? date : grantEndsOn(tariffToday ?? kyivToday(), Number(term), bonusDays);
 
   /* Suggestions as the address is typed: accounts, then requests. */
   useEffect(() => {
@@ -199,7 +235,7 @@ export function TariffGrantDialog({
   }, [neededSeats]);
 
   const submit = async () => {
-    if (!valid || !plan || !endsOn) return;
+    if (!valid || !plan || !endsOn || pendingGrant) return;
     setBusy(true);
     setError(null);
     try {
@@ -207,7 +243,7 @@ export function TariffGrantDialog({
         email: normalized,
         plan,
         endsOn,
-        extraSeats,
+        extraSeats: plan === 'solo' ? 0 : extraSeats,
         teamId,
         note: note.trim() || null,
         externalRef: externalRef.trim() || null,
@@ -216,7 +252,12 @@ export function TariffGrantDialog({
       });
       onGranted(row, prefill);
     } catch (cause) {
-      setError(teamErrorMessageFor(cause, t));
+      setError(
+        cause instanceof TariffGrantIntentError
+          ? t(cause.reason === 'pending' ? 'adminTariffGrantPending' : 'adminTariffGrantStorage')
+          : teamErrorMessageFor(cause, t)
+      );
+      setPendingGrant(await client.pendingGrant().catch(() => null));
     } finally {
       setBusy(false);
     }
@@ -243,7 +284,7 @@ export function TariffGrantDialog({
           <Button
             color="primary"
             loading={busy}
-            disabled={!valid || !plan || !endsOn}
+            disabled={!valid || !plan || !endsOn || Boolean(pendingGrant)}
             onClick={() => void submit()}
           >
             {endsOn
@@ -256,6 +297,18 @@ export function TariffGrantDialog({
       }
     >
       <div className="flex flex-col gap-4">
+        {pendingGrant && (
+          <Alert
+            color="warning"
+            action={
+              <Button disabled={busy} onClick={() => void resumePending()}>
+                {t('adminTariffGrantResume')}
+              </Button>
+            }
+          >
+            {t('adminTariffGrantPending')} {pendingGrant.email} · {pendingGrant.endsOn}
+          </Alert>
+        )}
         <FormField label={t('adminTariffEmail')} htmlFor={emailId}>
           <Input
             id={emailId}
@@ -304,7 +357,10 @@ export function TariffGrantDialog({
             label={t('adminTariffPlan')}
             value={plan}
             options={planOptions}
-            onChange={setPlan}
+            onChange={next => {
+              setPlan(next);
+              if (next === 'solo') setExtraSeats(0);
+            }}
           />
         )}
 
@@ -317,7 +373,10 @@ export function TariffGrantDialog({
               { value: '3', label: t('adminTariffTerm3') },
               { value: 'date', label: t('adminTariffTermDate') }
             ]}
-            onChange={setTerm}
+            onChange={next => {
+              if (next === 'date' && date === null) setDate(endsOn);
+              setTerm(next);
+            }}
           />
           {term === 'date' ? (
             <TariffDateField
@@ -337,13 +396,32 @@ export function TariffGrantDialog({
           )}
         </div>
 
-        {(selected?.extraSeatsAllowed ?? true) && (
+        {term !== 'date' && (
+          <FormField label={t('adminTariffBonusDays')} htmlFor={bonusId}>
+            <InputNumber
+              id={bonusId}
+              aria-label={t('adminTariffBonusDays')}
+              value={bonusDays}
+              min={0}
+              max={365}
+              step={1}
+              onChange={value =>
+                setBonusDays(
+                  Number.isFinite(value) ? Math.min(365, Math.max(0, Math.trunc(value))) : 0
+                )
+              }
+            />
+            <p className="text-caption text-ink-muted">{t('adminTariffBonusHint')}</p>
+          </FormField>
+        )}
+
+        {plan !== 'solo' && (selected?.extraSeatsAllowed ?? true) && (
           <FormField label={t('adminTariffExtraSeats')} htmlFor={seatsId}>
             <InputNumber
               id={seatsId}
               value={extraSeats}
               min={0}
-              max={selected?.maxExtraSeats ?? 500}
+              max={Math.min(selected?.maxExtraSeats ?? 1999, 2000 - (selected?.baseSeats ?? 1))}
               steppers
               onChange={value => {
                 seatsTouched.current = true;

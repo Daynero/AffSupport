@@ -92,6 +92,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RATE_LIMITED: 'teamErrorRateLimited',
   DRIVE_UNAVAILABLE: 'teamErrorDriveUnavailable',
   NEEDS_REAUTH: 'teamErrorNeedsReauth',
+  GOOGLE_ACCOUNT_NOT_APPROVED: 'teamErrorGoogleAccountNotApproved',
   DELIVERY_UNAVAILABLE: 'teamErrorDeliveryUnavailable',
   OAUTH_APPROVAL_REQUIRED: 'teamErrorOAuthApprovalRequired',
   ROOT_ESCAPE: 'teamErrorRootEscape',
@@ -131,6 +132,11 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
 const SYNC_COPY: Record<string, TranslationKey> = {
+  STITCH_PLAN_VIDEO_CODEC: 'stitcherUnsupportedVideoCodec',
+  STITCH_PLAN_AUDIO_CODEC: 'stitcherUnsupportedAudioCodec',
+  STITCH_PLAN_VARIABLE_FRAME_RATE: 'stitcherUnsupportedVariableFrameRate',
+  STITCH_PLAN_CONTAINER: 'stitcherUnsupportedContainer',
+  STITCH_PLAN_UNREADABLE: 'stitcherUnsupportedUnreadable',
   RESTITCH_IMAGE_UNAVAILABLE: 'teamRestitchImageUnavailable',
   RESTITCH_AGENT_UNAVAILABLE: 'teamRestitchImageAgentUnavailable',
   RESTITCH_LOCAL_IMAGE_MISSING: 'teamRestitchLocalImageMissing',

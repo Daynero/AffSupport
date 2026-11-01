@@ -8,6 +8,10 @@ import {
   type LaunchDefaultsActionsProps
 } from '../apps/web/src/team/launches/LaunchDefaultsActions';
 afterEach(cleanup);
+it('never traps a locked generation behind a disabled defaults confirmation', () => {
+  setup({ proposalSource: 'offer', disabled: true });
+  expect(screen.queryByRole('dialog', { name: 'Apply saved settings?' })).toBeNull();
+});
 function setup(overrides: Partial<LaunchDefaultsActionsProps> = {}) {
   const props: LaunchDefaultsActionsProps = {
     manage: true,

@@ -233,13 +233,16 @@ export async function provisionLocalVariants(target) {
         state.tariffs[key] = rows.rows[0].id;
       } else {
         if (binding !== null) throw new Error('ACCEPTANCE_VARIANT_STATE_CHANGED');
-        const result = await baseline.actors.S.rpc('admin_grant_space_tariff', {
-          p_email: actor.email,
-          p_plan: 'solo',
-          p_ends_on: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-          p_extra_seats: 0,
-          p_notify: false,
-          p_note: target.namespace
+        const result = await baseline.actors.S.rpc('admin_grant_space_tariff_once', {
+          p_operation: randomUUID(),
+          p_input: {
+            email: actor.email,
+            plan: 'solo',
+            endsOn: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+            extraSeats: 0,
+            notify: false,
+            note: target.namespace
+          }
         });
         if (!result.ok) throw new Error('ACCEPTANCE_TARIFF_GRANT_FAILED');
         const current = await db.query(

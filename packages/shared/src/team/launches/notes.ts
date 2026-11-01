@@ -1,10 +1,12 @@
 import { isRecord } from '../contract.js';
+import { isTeamMaterialTagColor, type TeamMaterialTagColor } from '../transport.js';
 export const LAUNCH_NOTE_TITLE_MAX = 160;
 export const LAUNCH_NOTE_TEXT_MAX = 8192;
 export interface LaunchNote {
   id: string;
   title: string;
   text: string;
+  color?: TeamMaterialTagColor | null;
 }
 /** No note-count limit; the existing protected draft payload budget still applies. */
 export function parseLaunchNotes(value: unknown): LaunchNote[] | null {
@@ -14,7 +16,8 @@ export function parseLaunchNotes(value: unknown): LaunchNote[] | null {
   for (const row of value) {
     if (
       !isRecord(row) ||
-      Object.keys(row).some(key => !['id', 'title', 'text'].includes(key)) ||
+      Object.keys(row).some(key => !['id', 'title', 'text', 'color'].includes(key)) ||
+      (row.color !== undefined && row.color !== null && !isTeamMaterialTagColor(row.color)) ||
       typeof row.id !== 'string' ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(row.id) ||
       ids.has(row.id) ||
@@ -26,7 +29,12 @@ export function parseLaunchNotes(value: unknown): LaunchNote[] | null {
     )
       return null;
     ids.add(row.id);
-    notes.push({ id: row.id, title: row.title, text: row.text });
+    notes.push({
+      id: row.id,
+      title: row.title,
+      text: row.text,
+      ...(row.color !== undefined ? { color: row.color as TeamMaterialTagColor | null } : {})
+    });
   }
   return notes;
 }

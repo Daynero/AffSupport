@@ -170,7 +170,7 @@ describe.skipIf(!container || !connection)(
       let launchTeam: string;
       try {
         await admin.query(
-          "select public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,0,null,null,null,false)",
+          "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',($1)::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer,'teamId',(null)::uuid,'note',(null)::text,'externalRef',(null)::text,'notify',(false)::boolean))",
           [email]
         );
         launchTeam = (

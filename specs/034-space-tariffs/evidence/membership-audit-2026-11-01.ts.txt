@@ -1,0 +1,161 @@
+import { randomBytes, randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { createTeamTestDb, createUser } from '../../../tests/support/team-db.ts';
+
+async function main() {
+  const h = await createTeamTestDb();
+  const admin = randomUUID();
+  await createUser(h, { id: admin, email: 'audit-admin@example.test' });
+  await h.root('insert into public.admin_users(user_id) values($1)', [admin]);
+  const observations: Array<Record<string, unknown>> = [];
+  const person = async () => {
+    const id = randomUUID(); const email = `${id}@example.test`;
+    await createUser(h, { id, email }); return { id, email };
+  };
+  const rpc = async (actor: string, sql: string, params: unknown[] = []) =>
+    (await h.asUser<{r: any}>(actor, `select ${sql} as r`, params))[0]!.r;
+  const seats = async (team: string) => (await h.root<{used:number; cap:number; allowed:boolean}>(
+    'select private.team_seats_used($1) used, private.team_seat_limit($1) cap, private.team_workspace_allowed($1) allowed', [team]))[0]!;
+  const setup = async (extra = 0) => {
+    const owner = await person();
+    const tariff = await rpc(admin, "public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,$2)", [owner.email, extra]);
+    const team = (await h.asUser<{id:string}>(owner.id,'select id from public.create_team($1)',[randomUUID()]))[0]!.id;
+    return {owner,tariff:tariff.id,team};
+  };
+  const invite = async (actor: string, team: string, email: string, role='editor') =>
+    (await h.asUser<{id:string}>(actor,'select id from public.create_invitation($1,$2,$3,$4)',[team,email,role,randomBytes(32)]))[0]!.id;
+  const accept = (actor:string,id:string) => h.asUser(actor,'select * from public.accept_invitation($1)',[id]);
+  const reject = async (action:()=>Promise<unknown>, pattern:RegExp) => {
+    try { await action(); return 'UNEXPECTEDLY_ALLOWED'; } catch (e) {
+      const message = String(e); if (!pattern.test(message)) throw e; return message.replace(/^error: /,'');
+    }
+  };
+  const observe = async (id:string, kind:string, run:()=>Promise<unknown>) => {
+    try { observations.push({id,kind,result:await run()}); }
+    catch(e) { observations.push({id,kind,error:String(e)}); }
+  };
+  // Each scenario uses unique fixtures in one disposable database; no network calls or real identities.
+  await observe('A01_unpaid_create','guard',async()=>{
+    const p=await person(); return reject(()=>h.asUser(p.id,"select * from public.create_team('Unpaid')"),/PERMISSION_DENIED/);
+  });
+  await observe('A02_mass_invites_role_rotation','guard',async()=>{
+    const s=await setup(), manager=await person(), pending=await person(), over=await person();
+    await accept(manager.id,await invite(s.owner.id,s.team,manager.email,'admin'));
+    await invite(manager.id,s.team,pending.email);
+    const ownerDenied=await reject(()=>invite(s.owner.id,s.team,over.email),/SEATS_FULL/);
+    await h.asUser(s.owner.id,"select * from public.update_membership($1,$2,'editor',null)",[s.team,manager.id]);
+    await h.asUser(s.owner.id,"select * from public.update_membership($1,$2,'admin',null)",[s.team,manager.id]);
+    return {ownerDenied,newAdminDenied:await reject(()=>invite(manager.id,s.team,over.email),/SEATS_FULL/),...await seats(s.team)};
+  });
+  await observe('A03_paid_transfer','guard',async()=>{
+    const s=await setup(), next=await person(); await accept(next.id,await invite(s.owner.id,s.team,next.email));
+    return reject(()=>h.asUser(s.owner.id,"select * from public.transfer_ownership($1,$2,'admin')",[s.team,next.id]),/TARIFF_BOUND/);
+  });
+  await observe('A04_wrong_invitee','guard',async()=>{
+    const s=await setup(), guest=await person(), stranger=await person();const id=await invite(s.owner.id,s.team,guest.email);
+    return reject(()=>accept(stranger.id,id),/PERMISSION_DENIED/);
+  });
+  await observe('A05_revoked_invite','guard',async()=>{
+    const s=await setup(), guest=await person();const id=await invite(s.owner.id,s.team,guest.email);
+    await rpc(admin,'public.admin_revoke_tariff_invitation($1)',[id]);
+    return reject(()=>accept(guest.id,id),/EXPIRED/);
+  });
+  await observe('A06_owner_cannot_grant_self','guard',async()=>{
+    const p=await person();return reject(()=>rpc(p.id,"public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,100)",[p.email]),/PERMISSION_DENIED/);
+  });
+  await observe('A07_direct_writes_and_service_acl','guard',async()=>h.root(`select
+    has_table_privilege('authenticated','public.team_members','INSERT') member_insert,
+    has_table_privilege('authenticated','public.team_invitations','INSERT') invitation_insert,
+    has_table_privilege('authenticated','public.space_tariffs','UPDATE') tariff_update,
+    has_function_privilege('authenticated','public.service_direct_add_registered_member(uuid,uuid,text,text)','EXECUTE') service_add`));
+  await observe('A08_guest_without_personal_tariff','policy',async()=>{
+    const s=await setup(), guest=await person();await accept(guest.id,await invite(s.owner.id,s.team,guest.email));
+    return h.root("select private.team_role($1,$2) role, private.can($1,'view',$2) can_view, exists(select 1 from public.space_tariffs where owner_id=$2) personal_tariff",[s.team,guest.id]);
+  });
+  await observe('A09_suspended_accept','guard',async()=>{
+    const s=await setup(), guest=await person();const id=await invite(s.owner.id,s.team,guest.email);
+    await rpc(admin,'public.admin_end_space_tariff($1,true)',[s.tariff]);
+    return reject(()=>accept(guest.id,id),/SPACE_BLOCKED/);
+  });
+  await observe('A10_undo_seats_after_acceptance','gap',async()=>{
+    const s=await setup(); await rpc(admin,'public.admin_update_space_tariff($1,null,null,1,null,null)',[s.tariff]);
+    const event=(await h.root<{id:string}>("select id from public.space_tariff_events where tariff_id=$1 and kind='updated' order by created_at desc limit 1",[s.tariff]))[0]!.id;
+    for(let n=0;n<3;n++){const p=await person();await accept(p.id,await invite(s.owner.id,s.team,p.email));}
+    await rpc(admin,'public.admin_undo_space_tariff_event($1)',[event]);return seats(s.team);
+  });
+  await observe('A11_legacy_growth_then_renew','gap',async()=>{
+    const s=await setup(); await h.root("insert into public.team_members(team_id,user_id,base_role) values($1,$2,'admin')",[s.team,admin]);
+    await h.root('update public.space_tariffs set ends_on=private.kyiv_today()-10 where id=$1',[s.tariff]);
+    for(let n=0;n<4;n++){const p=await person();await accept(p.id,await invite(s.owner.id,s.team,p.email));}
+    await rpc(admin,'public.admin_extend_space_tariff($1,1,false)',[s.tariff]);return seats(s.team);
+  });
+  await observe('A12_invitation_outlives_removed_manager','policy',async()=>{
+    const s=await setup(), manager=await person(), guest=await person();await accept(manager.id,await invite(s.owner.id,s.team,manager.email,'admin'));
+    const id=await invite(manager.id,s.team,guest.email);
+    await h.asUser(s.owner.id,'select * from public.remove_member($1,$2)',[s.team,manager.id]);
+    await accept(guest.id,id);return seats(s.team);
+  });
+  await observe('A13_legacy_immediate_revoke','policy',async()=>{
+    const s=await setup();await h.root("insert into public.team_members(team_id,user_id,base_role) values($1,$2,'admin')",[s.team,admin]);
+    await rpc(admin,'public.admin_end_space_tariff($1,true)',[s.tariff]);return seats(s.team);
+  });
+  await observe('A14_renew_after_ownership_transfer','gap',async()=>{
+    const s=await setup(), next=await person();await accept(next.id,await invite(s.owner.id,s.team,next.email));
+    await rpc(admin,'public.admin_end_space_tariff($1,true)',[s.tariff]);
+    await h.asUser(s.owner.id,"select * from public.transfer_ownership($1,$2,'admin')",[s.team,next.id]);
+    await rpc(admin,'public.admin_extend_space_tariff($1,1,false)',[s.tariff]);
+    return h.root('select t.owner_id=st.owner_id owner_matches_tariff,private.team_workspace_allowed(t.id) allowed from public.teams t join public.space_tariffs st on st.team_id=t.id where t.id=$1',[s.team]);
+  });
+  await observe('A15_google_initial_binding_not_payment_identity','gap',async()=>{
+    const s=await setup();const c=await rpc(s.owner.id,"public.service_store_google_drive_credential($1,'google-person-A','different-google@example.test','https://www.googleapis.com/auth/drive', 'synthetic-refresh-token-aaaaaaaa',null)",[s.owner.id]);
+    await rpc(s.owner.id,'public.service_bind_drive_credential($1,$2,$3)',[s.team,s.owner.id,c]);
+    return h.root('select google_account_email,connected_by=$2 same_soty_actor from private.google_drive_credentials where id=$1',[c,s.owner.id]);
+  });
+  await observe('A16_google_second_initial_credential','gap',async()=>{
+    const s=await setup();
+    for(const suffix of ['A','B']) {const c=await rpc(s.owner.id,'public.service_store_google_drive_credential($1,$2,$3,$4,$5,null)',[s.owner.id,`google-person-${suffix}`,`google-${suffix}@example.test`,'https://www.googleapis.com/auth/drive','synthetic-refresh-token-aaaaaaaa']);await rpc(s.owner.id,'public.service_bind_drive_credential($1,$2,$3)',[s.team,s.owner.id,c]);}
+    return h.root('select count(*)::int credentials from private.google_drive_credentials where connected_by=$1',[s.owner.id]);
+  });
+  await observe('A17_existing_credential_different_google','guard',async()=>{
+    const s=await setup();const c=await rpc(s.owner.id,"public.service_store_google_drive_credential($1,'google-A','google-A@example.test','https://www.googleapis.com/auth/drive','synthetic-refresh-token-aaaaaaaa',null)",[s.owner.id]);
+    return reject(()=>rpc(s.owner.id,"public.service_store_google_drive_credential($1,'google-B','google-B@example.test','https://www.googleapis.com/auth/drive','synthetic-refresh-token-bbbbbbbb',$2)",[s.owner.id,c]),/NEEDS_REAUTH/);
+  });
+  await observe('A18_admin_member_cannot_start_google','guard',async()=>{
+    const s=await setup(), manager=await person();await accept(manager.id,await invite(s.owner.id,s.team,manager.email,'admin'));
+    return reject(()=>rpc(manager.id,"public.service_create_drive_oauth_transaction($1,$2,$3,$4,'http://127.0.0.1:5173',now()+interval '5 minutes')",[s.team,manager.id,randomBytes(32),'a'.repeat(64)]),/PERMISSION_DENIED/);
+  });
+  await observe('A19_outsider_can_start_oauth_null_role','gap',async()=>{
+    const s=await setup(), outsider=await person();
+    return rpc(outsider.id,"public.service_create_drive_oauth_transaction($1,$2,$3,$4,'http://127.0.0.1:5173',now()+interval '5 minutes')",[s.team,outsider.id,randomBytes(32),'a'.repeat(64)]);
+  });
+  await observe('A20_revoked_tariff_can_bind_google_null_role','gap',async()=>{
+    const s=await setup();await rpc(admin,'public.admin_end_space_tariff($1,true)',[s.tariff]);
+    const c=await rpc(s.owner.id,"public.service_store_google_drive_credential($1,'google-revoked','google-revoked@example.test','https://www.googleapis.com/auth/drive','synthetic-refresh-token-aaaaaaaa',null)",[s.owner.id]);
+    return rpc(s.owner.id,'public.service_bind_drive_credential($1,$2,$3)',[s.team,s.owner.id,c]);
+  });
+  await observe('A21_transfer_preserves_old_google_connection','policy',async()=>{
+    const s=await setup(), next=await person();await accept(next.id,await invite(s.owner.id,s.team,next.email));
+    const c=await rpc(s.owner.id,"public.service_store_google_drive_credential($1,'google-original','google-original@example.test','https://www.googleapis.com/auth/drive','synthetic-refresh-token-aaaaaaaa',null)",[s.owner.id]);
+    await h.root("insert into public.team_drive_connections(team_id,credential_id,root_folder_id,root_folder_name,drive_kind,state,connected_at) values($1,$2,'synthetic-root','Synthetic','my_drive','connected',now())",[s.team,c]);
+    await rpc(admin,'public.admin_end_space_tariff($1,true)',[s.tariff]);
+    await h.asUser(s.owner.id,"select * from public.transfer_ownership($1,$2,'admin')",[s.team,next.id]);
+    return h.root("select c.credential_id=$2 same_credential,g.connected_by=t.owner_id google_connector_is_new_owner,c.state from public.team_drive_connections c join public.teams t on t.id=c.team_id join private.google_drive_credentials g on g.id=c.credential_id where t.id=$1",[s.team,c]);
+  });
+  await observe('A22_one_grant_cannot_create_two_spaces','guard',async()=>{
+    const s=await setup();return reject(()=>h.asUser(s.owner.id,"select * from public.create_team('Second space')"),/PERMISSION_DENIED/);
+  });
+  await observe('A23_expired_invite_cannot_accept','guard',async()=>{
+    const s=await setup(), guest=await person();const id=await invite(s.owner.id,s.team,guest.email);
+    await h.root("update public.team_invitations set created_at=now()-interval '15 days',expires_at=now()-interval '1 day' where id=$1",[id]);
+    return reject(()=>accept(guest.id,id),/EXPIRED/);
+  });
+  await observe('A24_direct_add_counts_pending_seats','guard',async()=>{
+    const s=await setup(), direct=await person();for(let i=0;i<2;i++){const p=await person();await invite(s.owner.id,s.team,p.email);}
+    return reject(()=>rpc(s.owner.id,"public.service_direct_add_registered_member($1,$2,$3,'admin')",[s.owner.id,s.team,direct.email]),/SEATS_FULL/);
+  });
+  await h.close();
+  const out={scope:'Synthetic PGlite, full working-tree migrations, sequential scenarios; service wrappers invoked as trusted server fixtures, not proof of public reachability; no Google network authorization or concurrency proof',observations};
+  writeFileSync('/tmp/soty-tariff-membership-audit.json',JSON.stringify(out,null,2)+'\n');
+  console.log(JSON.stringify(out,null,2));
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -286,6 +286,14 @@ export const en = {
   launchesProgressCatalog: 'Catalog',
   launchesProgressResult: 'Result',
   launchesProgressRetryCancel: 'Retry cancellation',
+  launchesProgressReconciling: 'Updating generation status. Confirmed stages are preserved.',
+  launchesProgressElapsed: 'Generation duration: {time}',
+  launchesOriginalVideoHint:
+    'Or create the catalog using the original video without stitching. Future catalog updates will also keep the video unstitched.',
+  launchesUseOriginalVideo: 'Create with original video',
+  launchesOriginalVideoTitle: 'Create catalog without stitching?',
+  launchesOriginalVideoConfirm:
+    'The current attempt will be canceled. The new catalog will use the original video. Stitching will also be disabled for future updates of this catalog.',
   launchesProgressRefresh: 'Check status',
   launchesProgressChecking: 'Checking current status…',
   launchesProgressStopped: 'Generation stopped',
@@ -2050,6 +2058,7 @@ export const en = {
   loginBetaError:
     'Could not sign in to the local beta account. Check that beta is running, then try again.',
   loginBetaOwner: 'Beta: space owner',
+  loginBetaVisitor: 'Beta: new user without a space',
   loginBetaMember: 'Beta: member',
   teamMemberBaseRole: 'Role',
   teamMemberOverrides: 'Allowed actions',
@@ -4050,7 +4059,10 @@ export const en = {
   teamErrorCorruptOrProtected: 'That file could not be read — it may be damaged or protected.',
   teamErrorRateLimited: 'Too many requests. Wait a moment and try again.',
   teamErrorDriveUnavailable: 'Google Drive is not responding. Try again shortly.',
-  teamErrorNeedsReauth: 'The Drive connection needs to be renewed in space settings.',
+  teamErrorGoogleAccountNotApproved:
+    'This Google account is not approved for this connection. Choose the previously connected account or the email granted the plan. Contact the administrator to replace it.',
+  teamErrorNeedsReauth:
+    'Renew the Drive connection in space settings using the same Google account. To replace the account, contact the administrator.',
   teamErrorDeliveryUnavailable: 'The message could not be delivered.',
   teamErrorOAuthApprovalRequired: 'Google needs to approve this access before it can be used.',
   teamErrorRootEscape: 'That destination is outside this space’s folder.',
@@ -4058,7 +4070,7 @@ export const en = {
   teamErrorAgentUpdateRequired: 'Update Soty on this computer to run this.',
   teamErrorNoWork: 'Nothing left to process.',
   teamErrorLeaseExpired: 'This job was taken over by another device.',
-  teamErrorLeaseMismatch: 'This job is running on another device.',
+  teamErrorLeaseMismatch: 'Execution state changed. Check the operation’s current status.',
   teamErrorAlreadyCompleted: 'That is already done.',
   teamErrorStaleResult: 'That result is out of date and was not saved.',
   teamErrorGroupReconciling: 'This group is still being reconciled. Try again shortly.',
@@ -4176,6 +4188,7 @@ export const en = {
   tariffShowcaseFeatureFinance: 'Ad accounts and finances',
   tariffShowcaseFeatureUpdater: 'Catalogs',
   tariffShowcasePlans: 'Choose your format',
+  tariffShowcaseBonus: 'First month +{days} days free',
   tariffShowcaseFeatureExplorerDescription: 'On your Google Drive',
   tariffShowcaseFeatureTasksDescription: 'Organize your daily work',
   tariffShowcaseFeatureFinanceDescription: 'Accounts and expenses by day',
@@ -4193,7 +4206,7 @@ export const en = {
   tariffShowcaseExtraSeat: 'Each additional member —',
   tariffShowcaseContactNote: 'Learn about the details and connection terms.',
   tariffShowcaseMessage:
-    'Hi! I’m interested in the “{plan}” plan at {price} for a Soty space. I’d like to learn about getting connected.',
+    'Hi! I’m interested in the “{plan}” plan at {price} for a Soty space with {days} bonus days for the first month. I’d like to learn about getting connected.',
   tariffShowcaseFeaturePeople: 'People: you + 2, more on request',
   tariffPlanSeats: 'Seats: {count}, you included',
   tariffShowcaseOpensOn: 'The administrator will open the space for {email}',
@@ -4273,8 +4286,9 @@ export const en = {
   spaceComingSoonTitle: 'Workspace in development',
   spaceComingSoonBody:
     'We’re preparing the workspace for launch. We’ll announce when it becomes available.',
-  tariffHomeTitle: 'A space to work together',
-  tariffHomeCaption: 'Creatives on your Drive, tasks, ad accounts and catalogs — together',
+  tariffHomeTitle: 'Your workspace',
+  tariffHomeCaption:
+    'Creatives on your Drive, tasks, ad accounts and catalogs — all for your workflow',
   tariffHomeHow: 'How to get one',
   tariffHomeUntil: 'until {date}',
   tariffStateActive: 'Active',
@@ -4317,6 +4331,21 @@ export const en = {
   adminTariffTerm1: '1 mo',
   adminTariffTerm3: '3 mo',
   adminTariffTermDate: 'Date',
+  adminTariffGoogleScope:
+    'This Google account change applies to the owner across all spaces. Spaces to disconnect: {count}. Reconnect them using the approved account afterwards.',
+  adminTariffGoogleConfirm:
+    'I confirm the change for every listed space and payment for the new Google access',
+  adminTariffGrantPending:
+    'A previous grant has an unconfirmed result. Resolve it first; retrying will not create a second tariff.',
+  adminTariffGrantResume: 'Check previous grant',
+  adminTariffGrantStorage:
+    'Could not save duplicate-grant protection. Allow local storage and open the admin page in a current browser.',
+  adminTariffGoogleAccount: 'Approve Google account',
+  adminTariffGoogleAccountHint:
+    'Leave empty to keep the current approval. A different email changes the owner’s Google access across all their spaces; confirm payment and the Google allowlist first.',
+  adminTariffSaveGoogle: 'Save and approve Google account',
+  adminTariffBonusDays: 'Bonus days',
+  adminTariffBonusHint: 'First period only. Change the number or enter 0 for no bonus.',
   adminTariffEndsOn: 'Last day',
   adminTariffPickDate: 'Choose a date',
   adminTariffUntilInclusive: 'until {date} inclusive',

@@ -4274,7 +4274,21 @@ it('binds the exact reserved catalog version without changing the child request,
       })
     ]
   );
+  // A team default may have seeded restitch=true. The Launch's explicit
+  // original-video policy must reach the updater before the result publishes.
+  await db.root(
+    'update public.team_catalog_update_profiles set restitch=true where catalog_material_id=$1',
+    [cat]
+  );
   await db.root('select public.service_attach_launch_catalog($1,$2,$3,$4,$5)', authority);
+  expect(
+    (
+      await db.root<{ restitch: boolean }>(
+        'select restitch from public.team_catalog_update_profiles where catalog_material_id=$1',
+        [cat]
+      )
+    )[0].restitch
+  ).toBe(false);
   const baseline = (
     await db.root<{ url: string; sub: string }>(
       "select generated_url url,sub_values->>'sub1' sub from public.team_launch_revisions where id=$1",
@@ -4318,7 +4332,12 @@ it('binds the exact reserved catalog version without changing the child request,
 
 it('persists Launch notes in drafts and immutable history while rejecting malformed payloads', async () => {
   const notes = [
-    { id: '80000000-0000-4000-8000-000000000001', title: 'Audience', text: 'Line one\nLine two' },
+    {
+      id: '80000000-0000-4000-8000-000000000001',
+      title: 'Audience',
+      text: 'Line one\nLine two',
+      color: 'purple' as const
+    },
     { id: '80000000-0000-4000-8000-000000000002', title: '', text: 'Another' }
   ];
   const p = await prepare({ notes });
@@ -4369,6 +4388,8 @@ it('persists Launch notes in drafts and immutable history while rejecting malfor
   ).toEqual(notes);
   for (const invalid of [
     { notes: [{ ...notes[0], text: 12 }] },
+    { notes: [{ ...notes[0], color: 'pink' }] },
+    { notes: [{ ...notes[0], color: 1 }] },
     { notes: [notes[0], notes[0]] },
     { notes: null }
   ]) {

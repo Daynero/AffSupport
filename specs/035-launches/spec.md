@@ -867,3 +867,58 @@ browser interruption remain explicit unknown outcomes.
 - `analytics_launch_cleanup` exposes only generation/operation correlation, upload phase, operation state and booleans for quiescence, provider receipt and registered output. `inspect`/`investigate` consume this projection through the existing read-only CLI; older servers explicitly report its absence. Regression coverage includes lost acknowledgments, retained cataloged outputs and refusal of incomplete/stale proof.
 
 - Progress strip correction: each phase retains its proved completion and measured high-water mark within the same generation. Missing/older receipts, a reconnect, native stream teardown and coordinator re-entry must not turn a completed green phase active or pending. Step attempt counters are phase-specific; a catalog retry must not discard a finalized video receipt. The protected detail exposes the accepted parent `attemptNo` separately, so a genuine catalog retry resets catalog/result evidence while a replacement native child resets video and downstream work. A new generation resets the full strip. Progress fractions alone never prove completion. Replacement-operation observation must not expose the previous child terminal state for even its first render. Existing generation/receipt IDs and analytics remain authoritative; retained UI state is not a new success event or proof of delivery. Covered by launch-progress-memory, launch-progress, launch-operation-observation and the real SQL detail projection regression.
+- Note colors reuse the seven file-marker colors (red, orange, yellow, green,
+  blue, purple, grey) and an explicit clear action. A note's full editor surface
+  and its result copy control use the same tinted background. Old notes without
+  a color retain the neutral surface. Copy feedback must preserve this color.
+- Optional `notes[].color` is validated in typed draft/config readers and the
+  protected database validator, and preserved through defaults, draft saves,
+  copying and immutable revision snapshots. Unsupported values fail with
+  `INVALID_INPUT`; changing a color never alters the note ID, body or copy receipt.
+- Diagnostic coverage reuses correlated `save_draft`/profile/generation receipts
+  and protected readback; unsaved palette choices and visual color perception are
+  intentionally unobserved. Color values and note content do not enter analytics.
+  Acceptance covers legacy notes, palette selection/clear, invalid colors, disabled
+  editing, result tint and persisted historical colors through real SQL.
+- Source-beta validation (2026-10-30): note UI/contract and real-SQL persistence
+  regressions passed, as did all static gates. The disposable PostgreSQL chain
+  replayed, but its full DB gate was interrupted when the shared Colima runtime
+  stopped responding; that gate is not green and must be repeated with measured
+  headroom before release. No packaged-promotion proof is claimed by source-beta
+  testing, and no heavy DB suite should run alongside the owner's beta session.
+- Critical retry isolation: reading an existing offer profile, including React
+  StrictMode effect replay, is not an offer-selection action and must not propose
+  resetting the draft. A generation/retry lock immediately hides and discards a
+  pending defaults decision. Responses spanning a lock/unlock cycle cannot reopen
+  it. A disabled editor must never be represented as a busy confirmation dialog.
+  Actual offer changes while editable retain the explicit Yes/No decision.
+  Regression coverage: launch-offer-defaults-ui, launch-defaults-actions and the
+  existing generation/workspace suites. Existing correlated defaults reads and
+  generation attempts remain authoritative; suppressing an obsolete decision
+  emits no apply-success signal and never changes configuration or starts work.
+
+### Active generation feedback and restart recovery (2026-10-30)
+
+- Active generation automatically reads parent and restitch child every 15 seconds while the page is visible; reads cannot overlap and expire after 15 seconds. Evidence replacement/unmount aborts obsolete parent reads. A quiet encoding stage alone is not a warning or a failure.
+- The compact header clock measures the current generation attempt from its first observed start, independently of stages, child creation and progress observations. It survives reopening within the same browser session and freezes at a confirmed terminal; only an explicit new attempt resets it. A historical start that was never observed is unknown, and no duration is invented for an old terminal without a saved clock. It does not estimate remaining duration or prove that FFmpeg is alive. Measured progress stays independent of the clock. The manual status button is removed.
+- Real connection/read failures remain explicit; confirmed native failures show the safe cause with Cancel/Repeat. Restart seeds the initial native SSE snapshot only with proven failed/canceled terminal facts from the bounded diagnostic journal. Missing/evicted records remain unknown; no automatic restart or cloud success is inferred.
+- Media refusal reasons retain the existing closed STITCH_PLAN_* codes through local progress and process_terminal diagnostics, with actionable translated copy. Old generic UNSUPPORTED_MEDIA records remain generic rather than acquiring an invented codec cause.
+- Diagnostic acceptance: launch-progress-watch, launch-progress, launch-operation-observation, team-operation-recovery, team-bridge and analytics-code-map cover automatic reads, bounded hung requests, attempt scoping, honest quiet stages, persisted failures, safe reason handling and code lookup. No per-second telemetry is emitted. Journal retention and missing native evidence remain diagnostic blind spots.
+
+### Original video recovery (2026-10-30)
+
+For a confirmed incompatible-video restitch failure in catalog mode, show the existing codec explanation plus “Create with original video”. Both the inline alternative and confirmation explicitly warn that subsequent catalog updates will also skip stitching. Confirmation retires the old generation through the normal cancel intent, waits up to one minute for protected canceled readback, resolves sources under restitchEnabled=false and submits a new generation through the existing save/generate idempotency seam. No new generation starts over running/unknown cleanup, replacement generation or concurrently changed draft. The material identity is unchanged. Stored revision/catalog configuration, not a temporary UI override, carries this choice to future updates. Migration 20261207102000 binds the exact catalog update profile to restitch=false after the existing attach authority checks and before publication, even when its team default seeded true; other update flags and defaults are retained. launch-state exercises that override through the real migration chain. Interrupted readback remains unknown and must never authorize another output.
+
+Diagnostic acceptance: reuse correlated cancel/generate actions, saved config and generation/child terminal evidence. launch-original-video verifies cancellation ordering, source policy, cleanup waiting/deadline and conflicts; launch-elapsed verifies uninterrupted phases, pending-to-accepted adoption, retries, terminal freeze and reopen. No elapsed tick or source content enters analytics. Browser-only recovery selection without delivered save remains a blind spot; inspect can establish the new policy only from committed generation evidence.
+
+Source-beta acceptance: Chrome followed the incompatible H.264 path to the explicit original-video alternative, confirmed the warning and displayed a generated catalog result. The accepted generation reached succeeded/result_committed; the protected local readback confirmed the original material identity, active published revision, restitchEnabled=false, updater profile restitch=false and no stitched-copy binding. The failed attempt clock froze at 00:11; the alternative kept one clock through cancellation and acceptance. This is source-beta acceptance, not packaged-beta promotion or full pgTAP proof.
+
+### Read-only RK labels in selectors (2026-10-30)
+
+Launch browsing/search, task RK selection and task RK filtering show the existing agent labels beside the RK name using the shared TaskLabelChip colors and natural label order. Labels wrap within the row; they expose no nested editing/removal controls and do not change the selected RK identity. No extra API/data writes or telemetry content is introduced: existing picker intent/completion/cancellation and ID correlation remain unchanged. launch-account-selector verifies label color, absence of nested actions and selection through a label; team-task-accounts covers the analogous task surface.
+
+### Retry frontier and coordinator observation (2026-10-30)
+
+An accepted catalog retry with a finalized video receipt displays preparation and video complete and the catalog phase active, including after remount; the latest per-video attempt still invalidates older video receipts. Earlier coordinator preparation/planning reads cannot rewind a later confirmed catalog substage. Display normalization does not change the server stage or infer a result without a finalized receipt.
+
+LEASE_MISMATCH/LEASE_EXPIRED/LAUNCH_BUSY/LAUNCH_RESULT_UNCERTAIN from a browser request while the authoritative generation remains active are reconciliation evidence, not a terminal failure or proof of a different device. Continue bounded automatic reads and preserve proved work. Explicit server failure remains an error. Repeat is offered for attention/uncertainty/terminal states, not normal active work. Existing original codes and correlated lifecycle evidence remain intact; no new success or failure is emitted merely from display normalization. launch-progress-memory and launch-progress cover retained-video retries, stale phases, transient lease rejection and real failure.

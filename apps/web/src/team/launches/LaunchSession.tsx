@@ -17,7 +17,15 @@ import {
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
-import { Button, Card, Checkbox, IconButton, Switch, Tabs } from '../../components/ui/index';
+import {
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  IconButton,
+  Switch,
+  Tabs
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -33,6 +41,7 @@ import { observeLaunchDefaults } from '../../analytics/launch-defaults';
 import { LaunchDefaultsReview } from './LaunchDefaultsReview';
 import { LaunchDefaultsActions } from './LaunchDefaultsActions';
 import { LaunchConflictReview } from './LaunchConflictReview';
+import { prepareOriginalVideo } from './originalVideo';
 import { restitchSettingsError } from './recovery';
 import { LaunchGenerationProgress } from './LaunchGenerationProgress';
 import { useLaunchProgressScroll } from './useLaunchProgressScroll';
@@ -168,6 +177,10 @@ export function LaunchSession({
     key: string;
     impact: ReturnType<typeof launchRevisionImpact> | null;
   };
+  const [originalVideoReview, setOriginalVideoReview] = useState(false);
+  const [originalVideoPreparing, setOriginalVideoPreparing] = useState(false);
+  const originalVideoAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => originalVideoAbort.current?.abort(), []);
   const [changeReview, setChangeReview] = useState<GenerationRequest | null>(null);
   const ownedKey = useRef<string | null>(null);
   const pendingGeneration = useRef<string | null>(null);
@@ -845,6 +858,44 @@ export function LaunchSession({
       generationClick.current = false;
     }
   };
+  const createWithOriginalVideo = () => {
+    if (!detail || workingRef.current || generation.busy || generation.hasUnresolvedRequest) return;
+    setOriginalVideoReview(false);
+    const controller = new AbortController();
+    originalVideoAbort.current = controller;
+    setOriginalVideoPreparing(true);
+    void run(async () => {
+      try {
+        const prepared = await prepareOriginalVideo({
+          detail,
+          cancel: generation.cancel,
+          read: () => launchApi.detail(teamId, detail.id),
+          selection: config => launchApi.selection(teamId, config),
+          signal: controller.signal,
+          onWaiting: next => {
+            if (inputAuthority.current.mounted) onChange(next);
+          }
+        });
+        if (!inputAuthority.current.mounted) return;
+        draft.setConfig(prepared.config);
+        draft.setSources(prepared.sources);
+        const key = generation.intent('catalog', prepared.detail.id);
+        ownedKey.current = key;
+        approvedOutputs.current = overrides;
+        approvedConfig.current = { config: prepared.config, sources: prepared.sources };
+        setOriginalVideoPreparing(false);
+        await generation.generate(
+          prepared.detail,
+          prepared.config,
+          prepared.sources,
+          prepared.detail.version
+        );
+      } finally {
+        if (originalVideoAbort.current === controller) originalVideoAbort.current = null;
+        if (inputAuthority.current.mounted) setOriginalVideoPreparing(false);
+      }
+    });
+  };
   const saveAndLeave = (leave: () => void) => {
     if (workingRef.current || autosaving) return;
     if (!draft.dirty && !manual.dirty) {
@@ -1032,6 +1083,7 @@ export function LaunchSession({
       })
     );
   const showProgress =
+    originalVideoPreparing ||
     preflighting ||
     generation.busy ||
     generation.hasUnresolvedRequest ||
@@ -1425,13 +1477,35 @@ export function LaunchSession({
           </Button>
         </Card>
       )}
+      {originalVideoReview && (
+        <ConfirmDialog
+          nested
+          tone="neutral"
+          title={t('launchesOriginalVideoTitle')}
+          body={t('launchesOriginalVideoConfirm')}
+          confirmLabel={t('launchesUseOriginalVideo')}
+          cancelLabel={t('launchesCancel')}
+          onConfirm={createWithOriginalVideo}
+          onCancel={() => setOriginalVideoReview(false)}
+        />
+      )}
       {showProgress && (
         <LaunchGenerationProgress
+          launchId={detail?.id}
+          onUseOriginalVideo={
+            editable && !historical && !generation.busy
+              ? () => setOriginalVideoReview(true)
+              : undefined
+          }
           onFailedRestitch={observeFailedRestitch}
           teamId={teamId}
           method={draft.config.method ?? 'other'}
           restitchEnabled={draft.config.catalog?.restitchEnabled === true}
-          pendingStage={generation.pendingStage ?? (preflighting ? 'validation' : null)}
+          pendingStage={
+            originalVideoPreparing
+              ? 'preparing'
+              : (generation.pendingStage ?? (preflighting ? 'validation' : null))
+          }
           requestError={error}
           requestErrorCode={error ? requestErrorCode : null}
           onOpenRestitchSettings={openRestitchSettings}

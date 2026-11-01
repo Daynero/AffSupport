@@ -34,6 +34,7 @@ export interface AnalyticsSchema {
     analytics_recovery_execution?: boolean;
     analytics_recovery_retirement?: boolean;
     analytics_membership_access_signals?: boolean;
+    analytics_commercial_access?: boolean;
     analytics_translation_retirement?: boolean;
     analytics_catalog_image_journal?: boolean;
     analytics_catalog_text_schedule?: boolean;
@@ -920,6 +921,7 @@ export interface InvestigateData {
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   membership_access?: import('./membership-access.js').MembershipAccessEvidence;
+  commercial_access?: import('./commercial-access.js').CommercialAccessEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   workspace?: import('./workspace.js').WorkspaceEvidenceResult;
   launches?: import('./launches.js').LaunchEvidenceResult;

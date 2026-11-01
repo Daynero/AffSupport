@@ -34,7 +34,7 @@ export function TariffEndDialog({
     setBusy(now ? 'now' : 'today');
     setError(null);
     try {
-      onEnded(await client.end(row.id, now));
+      onEnded(await client.end(row.id, now, row.updatedAt));
     } catch (cause) {
       setError(teamErrorMessageFor(cause, t));
     } finally {

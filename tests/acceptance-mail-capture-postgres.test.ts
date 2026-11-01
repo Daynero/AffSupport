@@ -95,7 +95,7 @@ describe.skipIf(!container && !connection)(
           fixture.actors.S.id
         ]);
         await admin.query(
-          "select public.admin_grant_space_tariff($1,'lead',private.kyiv_today()+30,0)",
+          "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',($1)::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))",
           [`${namespace}-${owner.toLowerCase()}@soty.invalid`]
         );
         await admin.query("select set_config('request.jwt.claim.sub',$1,false)", [

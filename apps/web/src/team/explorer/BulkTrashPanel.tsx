@@ -56,24 +56,30 @@ export function BulkTrashPanel({
         active={group.items.some(item => item.state === 'running' || item.state === 'queued')}
         actions={unresolved && onRetry ? [{ label: t('retry'), run: onRetry }] : []}
       >
-        <ul className="max-h-64 overflow-y-auto">
+        <ul className="m-0 grid max-h-64 min-w-0 list-none gap-2 overflow-y-auto p-0">
           {group.items.map((item, index) => (
-            <li key={item.materialId}>
-              {rows.find(row => row.id === item.materialId)?.name ??
-                t('teamBulkTrashFile', { number: index + 1 })}{' '}
-              ·{' '}
-              {t(
-                item.state === 'confirmed'
-                  ? 'teamBulkTrashConfirmed'
-                  : item.state === 'running'
-                    ? 'teamBulkTrashRunning'
-                    : item.state === 'queued'
-                      ? 'teamBulkTrashQueued'
-                      : item.state === 'failed'
-                        ? 'teamBulkTrashFailed'
-                        : 'teamBulkTrashUnknown'
-              )}
-              {item.errorCode ? ` · ${teamErrorMessageFor({ code: item.errorCode }, t)}` : ''}
+            <li key={item.materialId} className="min-w-0">
+              <span
+                className="block min-w-0 truncate"
+                title={rows.find(row => row.id === item.materialId)?.name}
+              >
+                {rows.find(row => row.id === item.materialId)?.name ??
+                  t('teamBulkTrashFile', { number: index + 1 })}
+              </span>
+              <span className="block break-words text-caption text-muted">
+                {t(
+                  item.state === 'confirmed'
+                    ? 'teamBulkTrashConfirmed'
+                    : item.state === 'running'
+                      ? 'teamBulkTrashRunning'
+                      : item.state === 'queued'
+                        ? 'teamBulkTrashQueued'
+                        : item.state === 'failed'
+                          ? 'teamBulkTrashFailed'
+                          : 'teamBulkTrashUnknown'
+                )}
+                {item.errorCode ? ` · ${teamErrorMessageFor({ code: item.errorCode }, t)}` : ''}
+              </span>
             </li>
           ))}
         </ul>

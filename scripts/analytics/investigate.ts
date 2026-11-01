@@ -1,3 +1,4 @@
+import { getCommercialAccessEvidence } from './commercial-access.js';
 import { getTranslationRetirementEvidence } from './library-retirement.js';
 import { getCatalogImageDiagnosis } from './catalog-images.js';
 import { getRecoveryRetirementEvidence } from './recovery-retirement.js';
@@ -1791,6 +1792,31 @@ export async function getInvestigation(
         'Inspect the image attempt and confirm publication and dictionary receipts before retrying. Normal random-mode pictures require no matching fix.'
     });
   }
+  const commercial_access = await getCommercialAccessEvidence(
+    scope.userId,
+    period.start,
+    period.end
+  );
+  for (const detail of commercial_access.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const record of commercial_access.records.filter(
+    record => record.needs_review || record.kind === 'migration_capacity_review'
+  )) {
+    const fingerprint = 'tariff:commercial:review_required';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['commercial_access', record.id]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'commercial_access_review_observed',
+      title: `Commercial access review was required at ${record.observed_at}: ${record.kind}. Later resolution must be checked separately.`,
+      evidence: [`commercial:${record.id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Review the latest approval evidence and protected tariff/member snapshot. Do not delete members or allocate another Google identity automatically.'
+    });
+  }
   const membership_access = await getMembershipAccessEvidence(
     scope.userId,
     period.start,
@@ -1937,6 +1963,7 @@ export async function getInvestigation(
     recovery_retirement,
     translation_retirement,
     membership_access,
+    commercial_access,
     recovery,
     workspace,
     launches,

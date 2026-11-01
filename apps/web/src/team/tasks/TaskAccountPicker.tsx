@@ -22,6 +22,7 @@ import {
   type TeamAccountOccupancyFilter,
   type TeamAccountSummary
 } from '@video-compressor/shared';
+import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -311,7 +312,10 @@ export function TaskAccountPicker({
                             {teamAgentIdSuffix(agent.agentId)}
                           </span>
                           <span className="team-task-picker-item-copy">
-                            <strong>{teamAgentLabel(openAccount.name, agent.agentId)}</strong>
+                            <AccountPickerLabel
+                              name={teamAgentLabel(openAccount.name, agent.agentId)}
+                              labels={agent.labels}
+                            />
                             <small>
                               {attached
                                 ? t('teamTaskAccountAlreadyTagged')

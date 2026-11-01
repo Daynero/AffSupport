@@ -1,3 +1,4 @@
+import { beginDriveAttempt, finishDriveAttempt } from './commercialDiagnostics';
 import { useEffect, useId, useState } from 'react';
 import { HardDrive } from 'lucide-react';
 import type { StorageHealth, TeamDriveSelection } from '@video-compressor/shared';
@@ -107,8 +108,10 @@ export function DriveConnectionPanel({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const callbackCode = new URLSearchParams(window.location.search).get('drive');
+    if (callbackCode) finishDriveAttempt(callbackCode);
     if (callbackCode === 'connected') setAuthorized(true);
     else if (callbackCode === 'OAUTH_APPROVAL_REQUIRED') setError(t('teamDriveApprovalRequired'));
+    else if (callbackCode) setError(teamErrorMessageFor({ code: callbackCode }, t));
     // The callback query is read once for this mounted team panel.
   }, [teamId]);
 
@@ -135,6 +138,7 @@ export function DriveConnectionPanel({
       // Google's redirect cannot say which space this was for, so the press
       // says it: the return reads this instead of guessing (authorizationReturn).
       rememberDriveAuthorization(teamId, 'space');
+      beginDriveAttempt();
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
       // Go where the press was aimed. Asking Google for the address used to
@@ -147,6 +151,9 @@ export function DriveConnectionPanel({
       // leave a link behind rather than a dead end.
       location.assign(started.authorizationUrl);
     } catch (cause) {
+      finishDriveAttempt(
+        cause && typeof cause === 'object' && 'code' in cause ? String(cause.code) : 'unknown'
+      );
       setError(explain(cause));
     } finally {
       setBusy(false);

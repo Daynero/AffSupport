@@ -2157,3 +2157,39 @@ Forward-only recovery correction. To disable the new report action, restore
 Existing operation failures, transfer revocations, audit evidence and execution
 fences must remain. Do not replay native work or clear blocked journals. The
 previous private wrapper may remain inaccessible; it grants no service access.
+
+### 20261207101000 · Launch note colors
+
+Additive optional JSON field; no stored rows are rewritten. Roll back the UI before
+restoring the validator from 20261206143000. Existing colored notes must remain
+readable and editable: keep the additive validator while any such notes exist.
+Never strip user notes or rewrite immutable revisions to perform a rollback.
+
+### 20261207102000 — Launch original-video update policy
+
+Keep the profile policy binding while original-video recovery is exposed. A UI rollback needs no schema change. The wrapper delegates all actor/lease/fence and exact registered catalog checks before changing only that catalog’s restitch flag; unrelated update flags and team defaults are retained. Do not restore inherited team stitching defaults on existing catalogs as rollback. Full removal must first remove the recovery promise and retain committed policy choices. No production application is authorized by this change.
+
+### 20261207103000 — Bounded calendar timezone validation
+
+No user rows or schedule choices are rewritten. Keep the direct PostgreSQL timezone lookup while calendar schedules are enabled; restoring the pg_timezone_names scan can reintroduce statement timeouts in profile saves, constraints and scheduler reads. A UI rollback needs no schema change. Preserve the existing validation shape and DST contract. Applied only to local beta for verification; no production migration is authorized.
+
+### 20261207110000_commercial_access_guards.sql
+
+Forward-only commercial hardening. Do not delete identity reservations or mutation receipts:
+that would permit a second Google identity or replay a paid-period change. Do not restore old
+OAuth guards, ownership transfer, or legacy administrator mutation entry points as a rollback.
+A rollback of the web must retain the revision/idempotency-aware admin client; an older admin
+page receives WRONG_STATE and must be refreshed. Existing Team capacities are preserved by
+extra-seat compensation during the 3→2 catalog conversion. Never rerun that conversion by hand.
+Google allowlist/quota and the explicit legacy cutover are separate release checks. Repair any
+failed rollout forward after readback; there is no automatic data/provider rollback.
+
+
+Commercial R01–R07 follow-up (same unreleased migration): preserve the populated principal
+reservations, ambiguous-identity review markers, mutation receipts and privacy-safe commercial
+journal. Removing credentials or auth accounts must not remove reservations. Approval now needs
+a fresh affected-space preview revision. Old three-argument approval calls fail closed.
+Capacity migration preserves prior sold totals even when already over capacity; resolve those
+observations explicitly, never delete pupils or add free seats as rollback. Browser pending grants
+must be reconciled before clearing storage or switching browsers. The analytics projection is
+read-only evidence of commit/observation, not Google quota, payment or browser delivery proof.

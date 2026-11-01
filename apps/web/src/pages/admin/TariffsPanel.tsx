@@ -158,7 +158,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
   const extend = async (row: AdminTariffRow) => {
     setBusyId(row.id);
     try {
-      const updated = await client.extend(row.id, 1);
+      const updated = await client.extend(row.id, 1, false, row.updatedAt);
       await load();
       push({
         tone: 'info',

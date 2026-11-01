@@ -39,8 +39,48 @@ const day = async (offset: number): Promise<string> =>
     ])
   )[0]!.d;
 
-const asAdmin = async <T = unknown>(sql: string, params: unknown[] = []): Promise<T> =>
-  (await harness.asUser<{ r: T }>(ADMIN, `select ${sql} as r`, params))[0]!.r;
+const asAdmin = async <T = unknown>(sql: string, params: unknown[] = []): Promise<T> => {
+  const grantCall = /^public\.admin_grant_space_tariff\((.*)\)$/.exec(sql);
+  if (grantCall) {
+    const args = grantCall[1]!.split(',').map(value => value.trim());
+    const names = [
+      'email',
+      'plan',
+      'endsOn',
+      'extraSeats',
+      'teamId',
+      'note',
+      'externalRef',
+      'notify',
+      'source'
+    ];
+    const types = ['text', 'text', 'date', 'integer', 'uuid', 'text', 'text', 'boolean', 'text'];
+    const defaults = ['null', 'null', 'null', '0', 'null', 'null', 'null', 'false', "'manual'"];
+    sql = `public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object(${names.map((name, index) => `'${name}',(${args[index] ?? defaults[index]})::${types[index]}`).join(',')}))`;
+  }
+  // Current browser mutations use a revision-checked, idempotent envelope.
+  const legacy = /^public\.admin_(update|extend|end)_space_tariff\((.*)\)$/.exec(sql);
+  if (legacy) {
+    const args = legacy[2]!.split(',').map(value => value.trim());
+    const action = legacy[1]!;
+    const keys =
+      action === 'update'
+        ? ['plan', 'endsOn', 'extraSeats', 'note', 'externalRef']
+        : action === 'extend'
+          ? ['months', 'notify']
+          : ['now'];
+    const input = keys.map((key, index) => `'${key}',${args[index + 1] ?? 'false'}`).join(',');
+    const version = (
+      await harness.root<{ v: string }>(
+        'select updated_at::text as v from public.space_tariffs where id=$1',
+        [params[0]]
+      )
+    )[0]?.v;
+    params = [...params, version];
+    sql = `public.admin_mutate_space_tariff(${args[0]},gen_random_uuid(),$${params.length}::timestamptz,'${action}',jsonb_build_object(${input}))`;
+  }
+  return (await harness.asUser<{ r: T }>(ADMIN, `select ${sql} as r`, params))[0]!.r;
+};
 
 interface Row {
   id: string;
@@ -427,7 +467,7 @@ describe('the gate (R2)', () => {
     await setLegacy(false);
     try {
       expect(await allowed(team)).toBe(true);
-      expect(await stateOf(team)).toMatchObject({ state: 'internal', seats_total: 50 });
+      expect(await stateOf(team)).toMatchObject({ state: 'internal', seats_total: null });
     } finally {
       await setLegacy(true);
     }
@@ -564,7 +604,7 @@ describe('seats (R5)', () => {
     const first = await person('seats-first');
     const second = await person('seats-second');
     const third = await person('seats-third');
-    const { team } = await tariffSpace(owner, 'lead');
+    const { team } = await tariffSpace(owner, 'lead', 30, 1);
 
     const one = (await invite(owner.id, team, first.email))[0]!.id;
     await invite(owner.id, team, second.email);
@@ -617,7 +657,7 @@ describe('seats (R5)', () => {
     expect(view.invitations.find(entry => entry.invitationId === invitation)?.blocked).toBe(true);
   });
 
-  it('keeps Solo to its owner, and lets extra seats in', async () => {
+  it('keeps Solo to one seat and requires Team for another member', async () => {
     const owner = await person('solo');
     const guest = await person('solo-guest');
     const { team, tariff } = await tariffSpace(owner, 'solo');
@@ -631,7 +671,10 @@ describe('seats (R5)', () => {
     )[0]!.r;
     expect(tariffJson).toMatchObject({ canInvite: false, seatsTotal: 1 });
 
-    await asAdmin('public.admin_update_space_tariff($1, null, null, 1, null, null)', [tariff]);
+    await expect(
+      asAdmin('public.admin_update_space_tariff($1, null, null, 1, null, null)', [tariff])
+    ).rejects.toThrow('INVALID_INPUT');
+    await asAdmin("public.admin_update_space_tariff($1, 'lead', null, 0, null, null)", [tariff]);
     await invite(owner.id, team, guest.email);
     expect(
       (
@@ -668,12 +711,12 @@ describe('seats (R5)', () => {
       suggestedExtraSeats: number;
       occupants: Array<{ kind: string }>;
     }>('public.admin_preview_space_tariff($1, $2)', [owner.email, team]);
-    expect(preview).toMatchObject({ seatsUsed: 4, suggestedExtraSeats: 1 });
+    expect(preview).toMatchObject({ seatsUsed: 4, suggestedExtraSeats: 2 });
     expect(preview.occupants).toHaveLength(5); // the admin member is listed but takes no seat
     await expect(grant(owner.email, 'lead', await day(30), { team })).rejects.toThrow(
       /SEATS_IN_USE/
     );
-    const row = await grant(owner.email, 'lead', await day(30), { team, extra: 1 });
+    const row = await grant(owner.email, 'lead', await day(30), { team, extra: 2 });
     expect(row).toMatchObject({ seatsTotal: 4, seatsUsed: 4 });
     await expect(
       asAdmin('public.admin_update_space_tariff($1, null, null, 0, null, null)', [row.id])
@@ -724,7 +767,7 @@ describe('admin RPCs (FR-005)', () => {
     >('public.admin_list_tariff_plans()');
     expect(plans.map(plan => [plan.code, plan.baseSeats, plan.invitesAllowed])).toEqual([
       ['solo', 1, false],
-      ['lead', 3, true]
+      ['lead', 2, true]
     ]);
   });
 
@@ -824,7 +867,7 @@ describe('admin RPCs (FR-005)', () => {
   it('lists seats, removes a member (never the owner) and revokes an invitation', async () => {
     const owner = await person('seat-admin');
     const member = await person('seat-admin-member');
-    const { team, tariff } = await tariffSpace(owner, 'lead');
+    const { team, tariff } = await tariffSpace(owner, 'lead', 30, 1);
     await addMember(team, member.id);
     const invitation = (await invite(owner.id, team, 'invitee@tariffs.test'))[0]!.id;
     const seats = await asAdmin<Array<{ kind: string; isOwner: boolean }>>(
@@ -1755,8 +1798,8 @@ describe('letters (R9)', () => {
       recipientEmail: owner.email,
       recipientName: expect.any(String),
       locale: 'en',
-      planNameUk: 'Лід',
-      planNameEn: 'Lead',
+      planNameUk: 'Команда',
+      planNameEn: 'Team',
       endsOn: await day(2),
       graceUntil: await day(5),
       updaterRunning: false,
@@ -1831,4 +1874,307 @@ describe('letters (R9)', () => {
       locale: 'uk'
     });
   });
+});
+
+describe('commercial boundary regressions', () => {
+  it('refuses OAuth for an actor without membership', async () => {
+    const owner = await person('oauth-owner');
+    const outsider = await person('oauth-outsider');
+    const { team } = await tariffSpace(owner);
+    await expect(
+      harness.root(
+        `select public.service_create_drive_oauth_transaction(
+      $1,$2,decode('aabb','hex'),'verifier','https://example.test',now()+interval '5 minutes')`,
+        [team, outsider.id]
+      )
+    ).rejects.toThrow('PERMISSION_DENIED');
+  });
+
+  it('refuses ownership transfer even after revoking the bound tariff', async () => {
+    const owner = await person('bound-owner');
+    const next = await person('bound-next');
+    const { team, tariff } = await tariffSpace(owner);
+    await setTariff(tariff, 'revoked_at = now()');
+    await expect(
+      harness.root('update public.teams set owner_id=$2 where id=$1', [team, next.id])
+    ).rejects.toThrow('TARIFF_BOUND');
+  });
+
+  it('refuses restoring capacity below active members', async () => {
+    const owner = await person('capacity-owner');
+    const { team, tariff } = await tariffSpace(owner, 'solo', 30, 1);
+    const guest = await person('capacity-guest');
+    await addMember(team, guest.id);
+    await expect(setTariff(tariff, 'extra_seats = 0')).rejects.toThrow('SEATS_IN_USE');
+  });
+});
+
+it('keeps a Google identity reservation after deleting its credential', async () => {
+  const owner = await person('google-reservation');
+  await tariffSpace(owner);
+  const store = (principal: string, email = owner.email) =>
+    harness.root<{ id: string }>(
+      `select public.service_store_google_drive_credential($1,$2,$3,
+     'https://www.googleapis.com/auth/drive.file','refresh-token-at-least-sixteen-characters') as id`,
+      [owner.id, principal, email]
+    );
+  await expect(store('wrong', 'unapproved@example.test')).rejects.toThrow(
+    'GOOGLE_ACCOUNT_NOT_APPROVED'
+  );
+  const credential = (await store('reserved-google'))[0]!.id;
+  await harness.root('select public.service_delete_google_drive_credential($1)', [credential]);
+  await expect(store('second-google')).rejects.toThrow('GOOGLE_ACCOUNT_NOT_APPROVED');
+  expect(await store('reserved-google')).toHaveLength(1);
+});
+
+it('replays one administrative renewal and rejects a stale new operation', async () => {
+  const owner = await person('mutation');
+  const { tariff } = await tariffSpace(owner);
+  const version = (
+    await harness.root<{ v: string }>(
+      'select updated_at::text as v from public.space_tariffs where id=$1',
+      [tariff]
+    )
+  )[0]!.v;
+  const operation = '34000000-0000-4000-8000-999999999991';
+  const mutate = (op: string) =>
+    asAdmin<Row>(
+      `public.admin_mutate_space_tariff($1,$2,$3::timestamptz,'extend','{"months":1}')`,
+      [tariff, op, version]
+    );
+  const first = await mutate(operation);
+  expect(await mutate(operation)).toEqual(first);
+  await expect(mutate('34000000-0000-4000-8000-999999999992')).rejects.toThrow('WRONG_STATE');
+});
+
+it('lets only the global operator reassign an existing paid period deliberately', async () => {
+  const owner = await person('correction-owner');
+  const next = await person('correction-next');
+  const { team, tariff } = await tariffSpace(owner);
+  await addMember(team, next.id);
+  await expect(
+    harness.asUser(owner.id, 'select public.admin_reassign_space_tariff($1,$2,true)', [
+      tariff,
+      next.id
+    ])
+  ).rejects.toThrow('PERMISSION_DENIED');
+  const before = (
+    await harness.root<{ r: Row }>('select private.admin_tariff_row($1) as r', [tariff])
+  )[0]!.r;
+  const result = await asAdmin<Row>('public.admin_reassign_space_tariff($1,$2,true)', [
+    tariff,
+    next.id
+  ]);
+  expect(result.ownerId).toBe(next.id);
+  expect(result.endsOn).toBe(before.endsOn);
+  expect(result.seatsTotal).toBe(before.seatsTotal);
+});
+
+it('requires global approval before replacing the paid Google identity', async () => {
+  const owner = await person('google-replacement');
+  const { team } = await tariffSpace(owner);
+  await expect(
+    harness.asUser(owner.id, 'select public.admin_approve_drive_account($1,$2,true)', [
+      owner.id,
+      'replacement@example.test'
+    ])
+  ).rejects.toThrow('PERMISSION_DENIED');
+  await asAdmin(
+    "public.admin_approve_drive_account($1,$2,true,public.admin_preview_drive_account($1,$2)->>'revision')",
+    [owner.id, 'replacement@example.test']
+  );
+  const approved = await harness.root<{ email: string }>(
+    'select public.service_get_approved_drive_account($1,$2) as email',
+    [team, owner.id]
+  );
+  expect(approved[0]!.email).toBe('replacement@example.test');
+  await expect(
+    harness.root(
+      `select public.service_store_google_drive_credential($1,'approved-replacement',$2,'https://www.googleapis.com/auth/drive.file','refresh-token-sixteen-characters')`,
+      [owner.id, 'replacement@example.test']
+    )
+  ).resolves.toHaveLength(1);
+});
+
+it('revokes a departed team administrator’s unused invitation and frees its seat', async () => {
+  const owner = await person('inviter-owner');
+  const manager = await person('inviter-manager');
+  const pupil = await person('inviter-pupil');
+  const { team } = await tariffSpace(owner, 'lead', 30, 1);
+  await addMember(team, manager.id, 'admin');
+  const link = (await invite(manager.id, team, pupil.email))[0]!.id;
+  await harness.root('delete from public.team_members where team_id=$1 and user_id=$2', [
+    team,
+    manager.id
+  ]);
+  await expect(
+    harness.asUser(pupil.id, 'select * from public.accept_invitation($1)', [link])
+  ).rejects.toThrow('EXPIRED');
+  expect((await stateOf(team)).pending_invites).toBe(0);
+  expect(await invite(owner.id, team, pupil.email)).toHaveLength(1);
+});
+
+it('refuses a legacy administrator renewal without an operation identity', async () => {
+  const owner = await person('legacy-mutation');
+  const { tariff } = await tariffSpace(owner);
+  await expect(
+    harness.asUser(ADMIN, 'select public.admin_extend_space_tariff($1,1,false)', [tariff])
+  ).rejects.toThrow('WRONG_STATE');
+});
+
+it('replays a grant after its tariff has already been bound without granting a second space', async () => {
+  const owner = await person('grant-replay');
+  const payload = {
+    email: owner.email,
+    plan: 'solo',
+    endsOn: await day(30),
+    extraSeats: 0,
+    teamId: null,
+    notify: false
+  };
+  const args = ['34000000-0000-4000-8000-999999999993', JSON.stringify(payload)];
+  const first = await asAdmin<Row>('public.admin_grant_space_tariff_once($1,$2::jsonb)', args);
+  await harness.asUser(owner.id, 'select id from public.create_team($1)', ['Bound before retry']);
+  expect(await asAdmin<Row>('public.admin_grant_space_tariff_once($1,$2::jsonb)', args)).toEqual(
+    first
+  );
+  expect(
+    (
+      await harness.root<{ n: number }>(
+        'select count(*)::integer as n from public.space_tariffs where owner_id=$1',
+        [owner.id]
+      )
+    )[0]!.n
+  ).toBe(1);
+});
+
+it('rejects stale bind, confirm and replace after a new Google approval', async () => {
+  const owner = await person('late-google');
+  const { team } = await tariffSpace(owner);
+  const [{ id }] = await harness.root<{ id: string }>(
+    "select public.service_store_google_drive_credential($1,'late-principal',$2,'https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-sixteen') id",
+    [owner.id, owner.email]
+  );
+  await asAdmin(
+    "public.admin_approve_drive_account($1,$2,true,public.admin_preview_drive_account($1,$2)->>'revision')",
+    [owner.id, 'new-google@example.test']
+  );
+  await expect(
+    harness.root('select public.service_bind_drive_credential($1,$2,$3)', [team, owner.id, id])
+  ).rejects.toThrow('GOOGLE_ACCOUNT_NOT_APPROVED');
+  for (const action of ['confirm', 'replace']) {
+    await expect(
+      harness.root(
+        `select * from public.service_${action}_drive_connection($1,$2,$3,'folder','Folder',null,'my_drive','{}')`,
+        [team, owner.id, id]
+      )
+    ).rejects.toThrow('GOOGLE_ACCOUNT_NOT_APPROVED');
+  }
+});
+
+it('freezes the approved sale email independently of later sign-in email changes', async () => {
+  const owner = await person('frozen-email');
+  const { team } = await tariffSpace(owner);
+  await harness.root('update auth.users set email=$2 where id=$1', [
+    owner.id,
+    'changed-login@example.test'
+  ]);
+  expect(
+    (
+      await harness.root<{ email: string }>(
+        'select public.service_get_approved_drive_account($1,$2) email',
+        [team, owner.id]
+      )
+    )[0].email
+  ).toBe(owner.email);
+  await expect(
+    harness.root(
+      "select public.service_store_google_drive_credential($1,'changed-login','changed-login@example.test','https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-sixteen')",
+      [owner.id]
+    )
+  ).rejects.toThrow('GOOGLE_ACCOUNT_NOT_APPROVED');
+});
+
+it('requires a current preview of every affected space before changing an owner Google account', async () => {
+  const owner = await person('google-scope');
+  const first = await tariffSpace(owner);
+  const second = await tariffSpace(owner);
+  const [{ id }] = await harness.root<{ id: string }>(
+    "select public.service_store_google_drive_credential($1,'scope-principal',$2,'https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-sixteen') id",
+    [owner.id, owner.email]
+  );
+  const connect = (team: string) =>
+    harness.root(
+      "select * from public.service_confirm_drive_connection($1,$2,$3,'folder','Folder',null,'my_drive','{}')",
+      [team, owner.id, id]
+    );
+  await connect(first.team);
+  const preview = await asAdmin<{ revision: string; spaces: { id: string }[] }>(
+    'public.admin_preview_drive_account($1,$2)',
+    [owner.id, 'next-scope@example.test']
+  );
+  expect(preview.spaces.map(space => space.id)).toEqual([first.team]);
+  await connect(second.team);
+  await expect(
+    asAdmin('public.admin_approve_drive_account($1,$2,true,$3)', [
+      owner.id,
+      'next-scope@example.test',
+      preview.revision
+    ])
+  ).rejects.toThrow('WRONG_STATE');
+  expect(
+    (
+      await harness.root<{ n: number }>(
+        "select count(*)::int n from public.team_drive_connections where team_id=any($1::uuid[]) and state='connected'",
+        [[first.team, second.team]]
+      )
+    )[0].n
+  ).toBe(2);
+  const current = await asAdmin<{ revision: string; spaces: { id: string }[] }>(
+    'public.admin_preview_drive_account($1,$2)',
+    [owner.id, 'next-scope@example.test']
+  );
+  expect(current.spaces).toHaveLength(2);
+  await asAdmin('public.admin_approve_drive_account($1,$2,true,$3)', [
+    owner.id,
+    'next-scope@example.test',
+    current.revision
+  ]);
+  expect(
+    (
+      await harness.root<{ n: number }>(
+        "select count(*)::int n from public.team_drive_connections where team_id=any($1::uuid[]) and state='detached'",
+        [[first.team, second.team]]
+      )
+    )[0].n
+  ).toBe(2);
+});
+
+it('lets a paid 51st member join while still refusing a 52nd unpaid seat', async () => {
+  const owner = await person('paid-51');
+  const { team } = await tariffSpace(owner, 'lead', 30, 49);
+  for (let index = 0; index < 49; index++) await addMember(team, (await person('paid-pupil')).id);
+  const pupil = await person('paid-last');
+  const link = (await invite(owner.id, team, pupil.email))[0].id;
+  await harness.asUser(pupil.id, 'select * from public.accept_invitation($1)', [link]);
+  await expect(invite(owner.id, team, 'unpaid-seat@example.test')).rejects.toThrow('SEATS_FULL');
+  const extra = await person('unpaid-direct');
+  await expect(
+    harness.root("select * from public.service_direct_add_registered_member($1,$2,$3,'editor')", [
+      owner.id,
+      team,
+      extra.email
+    ])
+  ).rejects.toThrow('SEATS_FULL');
+  await harness.root('delete from public.team_members where team_id=$1 and user_id=$2', [
+    team,
+    pupil.id
+  ]);
+  await expect(
+    harness.root("select * from public.service_direct_add_registered_member($1,$2,$3,'editor')", [
+      owner.id,
+      team,
+      extra.email
+    ])
+  ).resolves.toHaveLength(1);
 });

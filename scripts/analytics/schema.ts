@@ -34,6 +34,7 @@ const TABLES = [
   'analytics_recovery_execution',
   'analytics_recovery_retirement',
   'analytics_membership_access_signals',
+  'analytics_commercial_access',
   'analytics_translation_retirement',
   'analytics_catalog_image_journal',
   'analytics_catalog_text_schedule',
@@ -66,6 +67,7 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_commercial_access') ? { analytics_commercial_access: true } : {}),
       ...(has('table', 'analytics_launch_cleanup') ? { analytics_launch_cleanup: true } : {}),
       ...(has('table', 'analytics_launch_assignments')
         ? { analytics_launch_assignments: true }
@@ -150,6 +152,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_recovery_execution' &&
         table !== 'analytics_recovery_retirement' &&
         table !== 'analytics_membership_access_signals' &&
+        table !== 'analytics_commercial_access' &&
         table !== 'analytics_translation_retirement' &&
         table !== 'analytics_catalog_image_journal' &&
         table !== 'analytics_catalog_text_schedule' &&

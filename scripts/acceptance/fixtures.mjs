@@ -143,13 +143,16 @@ async function provisionVerifiedFixtures(target, status) {
           [owner.id]
         );
         if (!pending.rowCount) {
-          const grant = await actors.S.rpc('admin_grant_space_tariff', {
-            p_email: owner.email,
-            p_plan: 'lead',
-            p_ends_on: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-            p_extra_seats: 0,
-            p_notify: false,
-            p_note: target.namespace
+          const grant = await actors.S.rpc('admin_grant_space_tariff_once', {
+            p_operation: randomUUID(),
+            p_input: {
+              email: owner.email,
+              plan: 'lead',
+              endsOn: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+              extraSeats: alias === 'W1' ? 1 : 0,
+              notify: false,
+              note: target.namespace
+            }
           });
           if (!grant.ok) throw new Error('ACCEPTANCE_TARIFF_GRANT_FAILED');
         }

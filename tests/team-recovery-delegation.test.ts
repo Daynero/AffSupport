@@ -76,7 +76,7 @@ beforeAll(async () => {
   tariff = (
     await db.asUser<{ id: string }>(
       ADMIN,
-      "select public.admin_grant_space_tariff('owner@recovery.test','lead',private.kyiv_today()+30,0)->>'id' id"
+      "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('owner@recovery.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id' id"
     )
   )[0]!.id;
   team = (
@@ -515,11 +515,19 @@ describe('scoped background delegation', () => {
     await expect(call('claim', H(4), { requestId: ROTATION })).rejects.toThrow(/RATE_LIMITED/);
   });
   it('refuses current work after tariff closure and only permits a bounded read-only probe', async () => {
-    await db.asUser(ADMIN, 'select public.admin_end_space_tariff($1,true)', [tariff]);
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'end',jsonb_build_object('now',(true)::boolean))`,
+      [tariff]
+    );
     await expect(call('authorize_claim', H(4))).rejects.toThrow(/SPACE_BLOCKED/);
     expect((await call('probe', H(3))).allowed).toBe(false);
     await expect(call('probe', H(3))).rejects.toThrow(/RATE_LIMITED/);
-    await db.asUser(ADMIN, 'select public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean))`,
+      [tariff]
+    );
   });
   it('fences operation credentials to the exact operation, job and pause epoch', async () => {
     await enroll();
@@ -550,8 +558,16 @@ describe('scoped background delegation', () => {
       call('authorize_execute', H(7), { operationId: operation, jobId: ROTATION })
     ).rejects.toThrow(/PERMISSION_DENIED/);
     await expect(call('claim', H(7), { requestId: ROTATION })).rejects.toThrow(/AUTH_REQUIRED/);
-    await db.asUser(ADMIN, 'select public.admin_end_space_tariff($1,true)', [tariff]);
-    await db.asUser(ADMIN, 'select public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'end',jsonb_build_object('now',(true)::boolean))`,
+      [tariff]
+    );
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean))`,
+      [tariff]
+    );
     await expect(
       call('authorize_execute', H(7), { operationId: operation, jobId: REQUEST })
     ).rejects.toThrow(/AUTH_REQUIRED/);
@@ -600,7 +616,11 @@ describe('scoped background delegation', () => {
       refresh: 'm'.repeat(43),
       refreshHash: H(11)
     });
-    await db.asUser(ADMIN, 'select public.admin_end_space_tariff($1,true)', [tariff]);
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'end',jsonb_build_object('now',(true)::boolean))`,
+      [tariff]
+    );
     expect((await call('probe', H(11))).allowed).toBe(false);
     await db.root(
       "update public.team_members set status='removed',removed_at=clock_timestamp() where team_id=$1 and user_id=$2",
@@ -610,7 +630,11 @@ describe('scoped background delegation', () => {
       "update public.team_members set status='active',removed_at=null where team_id=$1 and user_id=$2",
       [team, member]
     );
-    await db.asUser(ADMIN, 'select public.admin_extend_space_tariff($1,1,false)', [tariff]);
+    await db.asUser(
+      ADMIN,
+      `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean))`,
+      [tariff]
+    );
     await expect(call('probe', H(11))).rejects.toThrow(/AUTH_REQUIRED/);
     const next = await call('delegate', H(12), {
       actorId: member,

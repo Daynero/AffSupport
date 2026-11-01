@@ -1,3 +1,5 @@
+import { beginDriveAttempt, finishDriveAttempt } from '../drive/commercialDiagnostics';
+import { teamErrorMessageFor } from '../errors';
 import { useEffect, useState } from 'react';
 import { TeamApiError, type DriveRootResult } from '../../api/team';
 import { useI18n } from '../../i18n';
@@ -54,8 +56,10 @@ export function ConnectStorageFlow({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const callback = new URLSearchParams(window.location.search).get('drive');
+    if (callback) finishDriveAttempt(callback);
     if (callback === 'connected') setAuthorized(true);
     else if (callback === 'OAUTH_APPROVAL_REQUIRED') setError(t('teamDriveApprovalRequired'));
+    else if (callback) setError(teamErrorMessageFor({ code: callback }, t));
     // The OAuth callback is read once for this team's connect step.
   }, [teamId]);
 
@@ -65,7 +69,9 @@ export function ConnectStorageFlow({
       if (cause.code === 'RESTRICTED_SCOPE_NOT_APPROVED') {
         return t('teamErrorRestrictedScopeNotApproved');
       }
-      if (cause.code === 'NEEDS_REAUTH') return t('teamDriveNeedsReauth');
+      if (cause.code === 'NEEDS_REAUTH') return t('teamErrorNeedsReauth');
+      if (cause.code === 'GOOGLE_ACCOUNT_NOT_APPROVED')
+        return t('teamErrorGoogleAccountNotApproved');
     }
     if (cause && typeof cause === 'object' && 'code' in cause) {
       if ((cause as { code: unknown }).code === 'PICKER_UNAVAILABLE') {
@@ -86,6 +92,7 @@ export function ConnectStorageFlow({
       // Google's redirect cannot say which space this was for, so the press
       // says it: the return reads this instead of guessing (authorizationReturn).
       rememberDriveAuthorization(teamId, 'wizard');
+      beginDriveAttempt();
       const started = await client.startDriveOAuth(teamId);
       setAuthorizationUrl(started.authorizationUrl);
       // Go where the press was aimed. Asking Google for the address used to
@@ -98,6 +105,9 @@ export function ConnectStorageFlow({
       // leave a link behind rather than a dead end.
       location.assign(started.authorizationUrl);
     } catch (cause) {
+      finishDriveAttempt(
+        cause && typeof cause === 'object' && 'code' in cause ? String(cause.code) : 'unknown'
+      );
       setError(explain(cause));
     } finally {
       setBusy(false);

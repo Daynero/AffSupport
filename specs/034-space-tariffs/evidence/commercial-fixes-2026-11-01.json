@@ -1,0 +1,114 @@
+{
+  "generated_at": "2026-11-01T13:49:43.956253+00:00",
+  "scope": "Local fixes R01–R07; synthetic data, no production writes or Google calls",
+  "fixed": [
+    "R01",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07"
+  ],
+  "verification": [
+    {
+      "suite": "space-tariffs-sql",
+      "passed": 61,
+      "note": "Full suite passed; after final ownership-lock/profile changes the six relevant Google/scope/member scenarios passed again."
+    },
+    {
+      "suite": "commercial-migration",
+      "passed": 1,
+      "note": "Old over-capacity preserved; no unpaid new seat; legacy Google identity survives token deletion; ambiguous identities flagged; CLI reads privacy-safe history with as-of and authenticated ACL denial."
+    },
+    {
+      "suite": "recovery-retention",
+      "passed": 5,
+      "note": "Previously failed legacy grant bootstrap now succeeds on guarded RPCs."
+    },
+    {
+      "suite": "tariff-grant-bonus",
+      "passed": 11
+    },
+    {
+      "suite": "tariff-grant-intent",
+      "passed": 3,
+      "note": "Reload after unknown response reuses operation; completed sale permits another intentional grant; pending mismatch/storage failure never send."
+    },
+    {
+      "suite": "tariff-commercial-admin",
+      "passed": 2,
+      "note": "Scope confirmation and recovery of exact saved grant; final rerun has no nested-paragraph warning."
+    },
+    {
+      "suite": "analytics-code-map",
+      "passed": 15
+    },
+    {
+      "suite": "analytics-schema-compat",
+      "passed": 31
+    },
+    {
+      "suite": "analytics-investigate-command",
+      "passed": 28,
+      "note": "27 passed in main run; new expected commercial blind spot added to no-events case and affected case rerun passed."
+    },
+    {
+      "suite": "acceptance-fixtures",
+      "passed": 2
+    },
+    {
+      "suite": "acceptance-variants",
+      "passed": 5
+    },
+    {
+      "check": "typecheck:projects",
+      "result": "PASS earlier in this fix iteration"
+    },
+    {
+      "check": "typecheck:scripts",
+      "result": "PASS"
+    },
+    {
+      "check": "typecheck:tests",
+      "result": "PASS on final rerun after fixing schemaSummary"
+    },
+    {
+      "check": "targeted ESLint",
+      "result": "PASS"
+    },
+    {
+      "check": "targeted Prettier",
+      "result": "PASS"
+    },
+    {
+      "check": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "execution_notes": [
+    "An intermediate combined PGlite run hit the retention beforeAll time limit under local resource contention; an isolated subsequent run passed all five tests. No user applications were stopped.",
+    "Historical direct RPC remains intentionally in the pre-migration reproduction and explicit rejection tests; current release fixture callers use intent/version envelopes.",
+    "No full verify, builds, packaged beta or production release was run. This is not exact-SHA promotion evidence.",
+    "Google allowlist/quota, production grants (Sancho 10 years/6 total seats; iamdaynero sole global admin/internal access), legacy cutoff and genuine two-session concurrency remain release checks."
+  ],
+  "sha256": {
+    "supabase/migrations/20261207110000_commercial_access_guards.sql": "35a30c07939dbd3a334fe980bf74f0212ce1dc7a70b0e07215b21df578411038",
+    "apps/web/src/api/team.ts": "2aeb8eff049bdb79ce232222b3213664caa5d8c156068d2c0e4e07565fa66d4f",
+    "apps/web/src/pages/admin/TariffEditDialog.tsx": "a787a2c73b1ff7a7c77186bc6e357035300ad6e61cfd46ded639707fabd628c7",
+    "apps/web/src/pages/admin/TariffGrantDialog.tsx": "2a249f72e71fc89f34f472a64532e0307f59e8939743081e8b2eaab1db7bf4ca",
+    "apps/web/src/pages/admin/tariffGrantIntent.ts": "43a68a97c819b09c74fe21d19678a982b8f20b8512d7f64b50a95ce45d7d5024",
+    "scripts/acceptance/fixtures.mjs": "538482e829131e7e007fa0d049dc33b3c3d22847e89e66352b30f3f98bcf4c3b",
+    "scripts/acceptance/variants.mjs": "7688b44a2a1dd011fd79b99df8c4777ece04dde884ecde3cc5dc0410e28c06d9",
+    "scripts/acceptance/tariff-smoke.mjs": "ba58efd44d991e944ce7aa5abf5a2634a97f9a6cc802c0e2ec932be7f0ed7f3c",
+    "scripts/analytics/commercial-access.ts": "917e793f9294cffca233a37d14271230e25169bd84cba6cce3b2ec1fed57eac0",
+    "scripts/analytics/investigate.ts": "e07322af097759342c9617e0c21063d814df76950101c2b07503165bd279a25b",
+    "scripts/analytics/schema.ts": "97f1ab37651ced45716bad313b0a4be2f5d7f158592cf70c76fe45db24d7bb1c",
+    "tests/space-tariffs-sql.test.ts": "c727b26d454c07605aba11ff5dce9d8c07f68c0e660272eb29a7e55df761378e",
+    "tests/commercial-migration.test.ts": "06d8faa116fdebec52d74ffa2ebcd267afabfb1ff8fca24c01a21fae619bfca6",
+    "tests/tariff-commercial-admin.test.tsx": "61d9edf15cd0e1e4903a0b7ceebd2b852974957fe139402709e64b8c0c207093",
+    "tests/tariff-grant-intent.test.ts": "00e7ab7ca67d33d6b3f92df401fa5709120d9ff9f21f6d6e3ef618873761c086",
+    "tests/recovery-retention.test.ts": "797e215ba728a7a731805379fa5c46f44b9279f530831964ea61fd15b7cfb111",
+    "tests/analytics-investigate-command.test.ts": "b996054266eda2ef2b39504f0a0664aa3a25b1e423675d2a40c2e7b9ae1d8a91"
+  }
+}

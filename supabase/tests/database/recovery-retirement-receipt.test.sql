@@ -31,7 +31,7 @@ select ok(not has_table_privilege('service_role','public.analytics_recovery_reti
 insert into public.admin_users(user_id) values('e1670000-0000-4000-8000-000000000001');
 select set_config('request.jwt.claim.sub','e1670000-0000-4000-8000-000000000001',true);
 do $setup$ begin
- perform public.admin_grant_space_tariff('receipt-a@acceptance.test.invalid','lead',private.kyiv_today()+30,0);
+ perform public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('receipt-a@acceptance.test.invalid')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer));
  perform public.create_team('Receipt replay synthetic');
 end $setup$;
 insert into private.team_recovery_delegations(team_id,actor_id,installation_id,refresh_hash)

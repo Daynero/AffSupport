@@ -818,6 +818,17 @@ const PROCESS_FAILURE_CODES = new Set<string>([
 ]);
 function safeErrorCode(error: unknown) {
   const message = error instanceof Error ? error.message : '';
+  if (message === 'UNSUPPORTED_MEDIA' && error && typeof error === 'object' && 'reason' in error) {
+    const reasons: Record<string, string> = {
+      'video-codec': 'STITCH_PLAN_VIDEO_CODEC',
+      'audio-codec': 'STITCH_PLAN_AUDIO_CODEC',
+      'variable-frame-rate': 'STITCH_PLAN_VARIABLE_FRAME_RATE',
+      container: 'STITCH_PLAN_CONTAINER',
+      unreadable: 'STITCH_PLAN_UNREADABLE'
+    };
+    if (typeof error.reason === 'string' && Object.hasOwn(reasons, error.reason))
+      return reasons[error.reason]!;
+  }
   return PROCESS_FAILURE_CODES.has(message) ? message : 'PROCESS_FAILED';
 }
 

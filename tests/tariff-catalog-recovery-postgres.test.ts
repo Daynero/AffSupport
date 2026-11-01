@@ -128,7 +128,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
       insert into public.admin_users(user_id) values('${admin}');`);
     tariff = (
       await asAdmin(
-        `select public.admin_grant_space_tariff('owner@tariff-concurrency.test','lead',private.kyiv_today()+30,0)->>'id';`
+        `select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('owner@tariff-concurrency.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id';`
       )
     )
       .split('\n')
@@ -175,7 +175,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     const renewal =
       asAdmin(`begin;select 1 from public.space_tariffs where id='${tariff}' for update;
       select pg_sleep(4) /* tariff_renew_lock */;
-      select public.admin_extend_space_tariff('${tariff}',1,false);commit;`);
+      select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));commit;`);
     await waitForTransaction('tariff_renew_lock');
     expect(await sql(`select private.apply_tariff_pauses('${team}')`)).toBe('0');
     await renewal;
@@ -184,7 +184,9 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
   }, 20_000);
 
   it('a manual stop committed while renewal waits wins over the old pause snapshot', async () => {
-    await asAdmin(`select public.admin_end_space_tariff('${tariff}',true);`);
+    await asAdmin(
+      `select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'end',jsonb_build_object('now',(true)::boolean));`
+    );
     // Synthetic admin fixture models the interval writer under the updater lock;
     // it cannot call the user RPC while access is closed.
     const stop =
@@ -192,7 +194,9 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
       update public.team_catalog_updater_items set paused_interval=null,update_interval=null,next_run_at=null
       where catalog_material_id='${sheet}';select pg_sleep(4) /* tariff_stop_lock */;commit;`);
     await waitForTransaction('tariff_stop_lock');
-    const renewal = asAdmin(`select public.admin_extend_space_tariff('${tariff}',1,false);`);
+    const renewal = asAdmin(
+      `select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));`
+    );
     await stop;
     await renewal;
     expect(await state()).toBe('');
@@ -201,17 +205,23 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     await sql(
       `select set_config('request.jwt.claim.sub','${owner}',false); select public.set_team_catalog_update_interval('${team}',array['${sheet}']::uuid[],'1d');`
     );
-    await asAdmin(`select public.admin_end_space_tariff('${tariff}',true);`);
+    await asAdmin(
+      `select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'end',jsonb_build_object('now',(true)::boolean));`
+    );
     await expect(
       sql(
         `update public.team_catalog_updater_items set lease_owner='stale-worker',lease_expires_at=clock_timestamp()+interval '2 minutes' where catalog_material_id='${sheet}';`
       )
     ).rejects.toThrow(/SPACE_BLOCKED/u);
-    await asAdmin(`select public.admin_extend_space_tariff('${tariff}',1,false);`);
+    await asAdmin(
+      `select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));`
+    );
     const recoveries = await sql(
       `select count(*) from private.workspace_recoveries where team_id='${team}'`
     );
-    await asAdmin(`select public.admin_extend_space_tariff('${tariff}',1,false);`);
+    await asAdmin(
+      `select public.admin_mutate_space_tariff('${tariff}',gen_random_uuid(),(select updated_at from public.space_tariffs where id='${tariff}'),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));`
+    );
     expect(
       await sql(`select count(*) from private.workspace_recoveries where team_id='${team}'`)
     ).toBe(recoveries);
@@ -228,7 +238,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
           values(actor,'load-'||actor||'@recovery.test',now(),now());
         insert into public.profiles(id,display_name,account_status) values(actor,'Synthetic load','active') on conflict(id) do nothing;
         perform set_config('request.jwt.claim.sub','${admin}',true);
-        plan:=(public.admin_grant_space_tariff('load-'||actor||'@recovery.test','lead',private.kyiv_today()+30,0)->>'id')::uuid;
+        plan:=(public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('load-'||actor||'@recovery.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id')::uuid;
         perform set_config('request.jwt.claim.sub',actor::text,true);
         select id into workspace from public.create_team('Synthetic bounded renewal');
         teams:=array_append(teams,workspace);
@@ -254,9 +264,9 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
           perform public.set_team_catalog_update_interval(workspace,array[catalog],'1d');
         end loop;
         perform set_config('request.jwt.claim.sub','${admin}',true);
-        perform public.admin_end_space_tariff(plan,true);
-        perform public.admin_extend_space_tariff(plan,1,false);
-        perform public.admin_extend_space_tariff(plan,1,false);
+        perform public.admin_mutate_space_tariff(plan,gen_random_uuid(),(select updated_at from public.space_tariffs where id=plan),'end',jsonb_build_object('now',(true)::boolean));
+        perform public.admin_mutate_space_tariff(plan,gen_random_uuid(),(select updated_at from public.space_tariffs where id=plan),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));
+        perform public.admin_mutate_space_tariff(plan,gen_random_uuid(),(select updated_at from public.space_tariffs where id=plan),'extend',jsonb_build_object('months',(1)::integer,'notify',(false)::boolean));
       end loop;
       select count(*) into catalog_count from public.team_catalog_updater_items where team_id=any(teams) and update_interval='1d';
       if catalog_count<>30 then raise exception 'restored % catalogs instead of 30',catalog_count; end if;

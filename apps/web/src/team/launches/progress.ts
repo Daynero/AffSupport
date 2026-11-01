@@ -42,20 +42,7 @@ const groups = [
   }
 ] as const;
 
-/** Completion comes from receipts, never from a timer or a segment's position. */
-export function launchProgressStages(
-  input: {
-    generation: LaunchGeneration | null;
-    stage: LaunchStage;
-    method: 'catalog' | 'other';
-    restitch: boolean;
-    childSucceeded: boolean;
-    attention: boolean;
-    fraction?: number;
-  },
-  t: (key: TranslationKey) => string
-): ProgressStage[] {
-  const { generation, stage } = input;
+function succeededStages(generation: LaunchGeneration | null): Set<string> {
   // Attempts belong to individual steps. A retried catalog must not hide a
   // finalized video receipt from an earlier native attempt.
   const latest = new Map<string, NonNullable<LaunchGeneration['steps']>[number]>();
@@ -77,6 +64,42 @@ export function launchProgressStages(
     for (const step of receipts)
       if (step.attemptNo === attempt && step.state === 'succeeded') succeeded.add(step.stage);
   }
+  return succeeded;
+}
+
+/** A retained finalized video puts an accepted retry past initial preparation. */
+export function launchProgressDisplayStage(input: {
+  generation: LaunchGeneration | null;
+  stage: LaunchStage;
+  restitch: boolean;
+  childSucceeded: boolean;
+}): LaunchStage {
+  const succeeded = succeededStages(input.generation);
+  return input.generation &&
+    input.restitch &&
+    (groups[0].stages as readonly string[]).includes(input.stage) &&
+    (input.childSucceeded ||
+      succeeded.has('restitch_processing') ||
+      succeeded.has('restitch_uploading'))
+    ? 'catalog_planning'
+    : input.stage;
+}
+
+/** Completion comes from receipts, never from a timer or a segment's position. */
+export function launchProgressStages(
+  input: {
+    generation: LaunchGeneration | null;
+    stage: LaunchStage;
+    method: 'catalog' | 'other';
+    restitch: boolean;
+    childSucceeded: boolean;
+    attention: boolean;
+    fraction?: number;
+  },
+  t: (key: TranslationKey) => string
+): ProgressStage[] {
+  const { generation, stage } = input;
+  const succeeded = succeededStages(generation);
   const complete = {
     prepare: generation !== null,
     video:
@@ -100,7 +123,9 @@ export function launchProgressStages(
   // Catalog planning also performs preflight before the optional video child.
   // That receipt must not put the strip past video work that has not happened.
   const groupStage =
-    stage === 'catalog_planning' && input.restitch && !complete.video ? 'preparing' : stage;
+    stage === 'catalog_planning' && input.restitch && !complete.video
+      ? 'preparing'
+      : launchProgressDisplayStage(input);
   return groups
     .filter(
       group =>
@@ -122,7 +147,7 @@ export function launchProgressStages(
       const measuredFraction =
         group.id === 'video'
           ? input.fraction
-          : input.fraction === undefined
+          : input.fraction === undefined || groupStage !== stage
             ? undefined
             : Math.min(1, confirmedFraction + input.fraction / group.stages.length);
       return {
@@ -248,7 +273,11 @@ export function rememberLaunchProgress(
     ) {
       const index = groups.findIndex(group => group.id === entry.id);
       const known = groups.findIndex(group => group.id === memory.active);
-      if (index >= known) {
+      const phase = groups[index]?.stages as readonly string[] | undefined;
+      const advancesWithinPhase =
+        !memory.stage ||
+        (phase?.indexOf(input.stage) ?? -1) >= (phase?.indexOf(memory.stage) ?? -1);
+      if (index > known || (index === known && advancesWithinPhase)) {
         memory.active = entry.id;
         memory.stage = input.stage;
       }

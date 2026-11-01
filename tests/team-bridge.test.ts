@@ -994,6 +994,29 @@ describe('team processing orchestration and SSE state', () => {
     record.mockRestore();
   });
 
+  it.each([
+    ['video-codec', 'STITCH_PLAN_VIDEO_CODEC'],
+    ['audio-codec', 'STITCH_PLAN_AUDIO_CODEC'],
+    ['variable-frame-rate', 'STITCH_PLAN_VARIABLE_FRAME_RATE'],
+    ['container', 'STITCH_PLAN_CONTAINER'],
+    ['unreadable', 'STITCH_PLAN_UNREADABLE'],
+    ['/private/source', 'UNSUPPORTED_MEDIA']
+  ])('retains the safe media refusal reason %s', async (reason, code) => {
+    const events = new TeamOperationEvents();
+    const bridge = new TeamProcessBridge({
+      events,
+      transfer: {
+        downloadSource: async () => {
+          throw Object.assign(new Error('UNSUPPORTED_MEDIA'), { reason });
+        },
+        uploadResult: vi.fn()
+      },
+      delegates: { compressor: vi.fn() }
+    });
+    await expect(bridge.process(processRequest())).rejects.toThrow(code);
+    expect(events.snapshot().operations[0]).toMatchObject({ state: 'failed', errorCode: code });
+  });
+
   it.each(['provider token=secret https://example.invalid/ /private/path', 'PRIVATE_CAPI_SECRET'])(
     'logs only a closed failure code, excluding provider content (%s)',
     async message => {

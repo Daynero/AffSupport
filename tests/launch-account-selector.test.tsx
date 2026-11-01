@@ -176,3 +176,25 @@ it('searches inside the browser without changing selection and cancels safely', 
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(changed).not.toHaveBeenCalled();
 });
+
+it('shows the RK labels beside its name as read-only chips and preserves selection', async () => {
+  const accounts = rows();
+  accounts[0].agents[0].labels = [
+    { id: 'label-blue', name: 'Ready', color: 'blue' },
+    { id: 'label-green', name: 'Checked', color: 'green' }
+  ];
+  const { user, trigger, changed } = setup(accounts);
+  await user.click(trigger);
+  await user.type(screen.getByRole('textbox', { name: 'Social name or account ID' }), '1234567892');
+  const option = screen.getByRole('button', { name: /ID 1234567892/ });
+  expect(
+    within(option).getByText('Ready').closest('[data-color]')?.getAttribute('data-color')
+  ).toBe('blue');
+  expect(
+    within(option).getByText('Checked').closest('[data-color]')?.getAttribute('data-color')
+  ).toBe('green');
+  expect(within(option).queryByRole('button')).toBeNull();
+  expect(within(option).queryByRole('textbox')).toBeNull();
+  await user.click(within(option).getByText('Ready'));
+  expect(changed).toHaveBeenCalledWith(accounts[0].agents[0].id);
+});

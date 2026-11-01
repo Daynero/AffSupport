@@ -30,7 +30,13 @@ export async function runTariffSmoke(target) {
   if (!history.ok || !Array.isArray(history.data))
     throw new Error('ACCEPTANCE_TARIFF_PAUSE_FAILED');
   const existingIds = new Set(history.data.map(row => row.id));
-  const suspended = await actors.S.rpc('admin_end_space_tariff', { p_id: tariff.id, p_now: true });
+  const suspended = await actors.S.rpc('admin_mutate_space_tariff', {
+    p_id: tariff.id,
+    p_operation: randomUUID(),
+    p_expected: tariff.updatedAt,
+    p_action: 'end',
+    p_input: { now: true }
+  });
   add('admin-immediate-pause', suspended.ok && suspended.data?.state === 'blocked', suspended);
   const attemptedNames = [];
   let runError;

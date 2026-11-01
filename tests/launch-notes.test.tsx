@@ -15,6 +15,7 @@ import {
 import { LaunchNotesEditor, LaunchNotesResult } from '../apps/web/src/team/launches/LaunchNotes';
 import { launchConfig } from './fixtures/launches';
 import { analytics } from '../apps/web/src/analytics/service';
+import { TEAM_MATERIAL_TAG_COLORS } from '../packages/shared/src/team/transport';
 const note: LaunchNote = {
   id: '80000000-0000-4000-8000-000000000001',
   title: 'Audience',
@@ -42,6 +43,60 @@ it('retains multiline note content across parsing and profiles, and clears absen
   expect(parseLaunchNotes([note, note])).toBeNull();
   expect(parseLaunchNotes([{ ...note, text: 1 }])).toBeNull();
   expect(parseLaunchNotes([{ ...note, text: 'a'.repeat(8193) }])).toBeNull();
+  expect(parseLaunchNotes([{ ...note, color: 'purple' }])).toEqual([{ ...note, color: 'purple' }]);
+  for (const color of TEAM_MATERIAL_TAG_COLORS)
+    expect(parseLaunchNotes([{ ...note, color }])?.[0].color).toBe(color);
+  expect(parseLaunchNotes([{ ...note, color: null }])?.[0].color).toBeNull();
+  expect(
+    parseLaunchDraft(launchConfig({ notes: [{ ...note, color: 'red' }] }))?.notes?.[0].color
+  ).toBe('red');
+  expect(
+    launchDefaultValues(launchConfig({ notes: [{ ...note, color: 'green' }] })).notes?.[0].color
+  ).toBe('green');
+  for (const color of ['pink', '', 4, {}, []])
+    expect(parseLaunchNotes([{ ...note, color }])).toBeNull();
+});
+it('preserves a colored note while editing is disabled without exposing a palette action', async () => {
+  const onChange = vi.fn();
+  render(<LaunchNotesEditor notes={[{ ...note, color: 'blue' }]} onChange={onChange} disabled />);
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Notes' }));
+  expect(screen.getByRole('textbox', { name: 'Note 1 text' })).toHaveProperty('disabled', true);
+  expect(
+    screen
+      .getByRole('textbox', { name: 'Note 1 text' })
+      .closest('.launch-note-editor')
+      ?.getAttribute('data-color')
+  ).toBe('blue');
+  expect(screen.queryByRole('button', { name: /Tag of Note 1 title/ })).toBeNull();
+  expect(onChange).not.toHaveBeenCalled();
+});
+it('uses file marker colors for editing, clearing and the corresponding result', async () => {
+  function Host() {
+    const [notes, setNotes] = useState<LaunchNote[]>([note]);
+    return (
+      <>
+        <LaunchNotesEditor notes={notes} onChange={setNotes} disabled={false} />
+        <LaunchNotesResult notes={notes} disabled={false} />
+      </>
+    );
+  }
+  render(<Host />);
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole('button', { name: 'Notes' })[0]);
+  await user.click(screen.getByRole('button', { name: /Tag of Note 1 title/i }));
+  await user.click(screen.getByRole('menuitemradio', { name: 'Purple' }));
+  expect(
+    screen
+      .getByRole('textbox', { name: 'Note 1 text' })
+      .closest('.launch-note-editor')
+      ?.getAttribute('data-color')
+  ).toBe('purple');
+  expect(screen.getByRole('button', { name: 'Audience' }).getAttribute('data-color')).toBe(
+    'purple'
+  );
+  await user.click(screen.getByRole('button', { name: /Tag of Note 1 title/i }));
+  await user.click(screen.getByRole('menuitem', { name: 'Remove tag' }));
+  expect(screen.getByRole('button', { name: 'Audience' }).hasAttribute('data-color')).toBe(false);
 });
 it('adds named cells, edits content, removes one and preserves the other', async () => {
   function Host() {

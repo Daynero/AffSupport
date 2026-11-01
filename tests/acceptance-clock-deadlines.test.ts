@@ -35,7 +35,7 @@ beforeAll(async () => {
   await db.root('insert into public.admin_users(user_id) values($1)', [admin]);
   await db.asUser(
     admin,
-    "select public.admin_grant_space_tariff('deadlines-owner@soty.invalid','lead',(now()+interval '20 years')::date,8)"
+    "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('deadlines-owner@soty.invalid')::text,'plan',('lead')::text,'endsOn',((now()+interval '20 years')::date)::date,'extraSeats',(8)::integer))"
   );
   team = (
     await db.asUser<{ id: string }>(

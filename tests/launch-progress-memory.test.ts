@@ -168,3 +168,12 @@ it('resets measured catalog work on the actual parent retry even when all step c
   expect(entries.map(entry => entry.state)).toEqual(['complete', 'complete', 'active', 'pending']);
   expect(entries.find(entry => entry.id === 'catalog')?.fraction).toBe(0.0625);
 });
+
+it('starts a catalog retry after the retained video instead of returning to preparation, including after remount', () => {
+  const entries = observe(newLaunchProgressMemory(), {
+    stage: 'preparing',
+    attemptNo: 2,
+    steps: [step('restitch_processing'), step('preparing', 'running', 2)]
+  });
+  expect(entries.map(entry => entry.state)).toEqual(['complete', 'complete', 'active', 'pending']);
+});

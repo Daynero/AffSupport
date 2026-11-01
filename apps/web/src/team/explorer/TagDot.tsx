@@ -16,6 +16,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { Palette } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { TEAM_MATERIAL_TAG_COLORS, type TeamMaterialTagColor } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { Popover } from '../../components/ui/index';
@@ -34,9 +36,11 @@ export function TagDot({
   color,
   name,
   canTag,
-  onChange
+  onChange,
+  appearance = 'dot'
 }: {
   color: TeamMaterialTagColor | null;
+  appearance?: 'dot' | 'palette';
   /** The file the tag belongs to, for the control's accessible name. */
   name: string;
   /** Only the space's owner may change a tag; everyone else reads it. */
@@ -146,7 +150,8 @@ export function TagDot({
       <button
         ref={trigger}
         type="button"
-        className={`team-tag-dot is-button${color ? ` is-${color}` : ' is-none'}`}
+        className={`team-tag-dot is-button${appearance === 'palette' ? ' is-palette' : ''}${color ? ` is-${color}` : ' is-none'}`}
+        title={appearance === 'palette' ? t('teamTagPick') : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('teamTagOf', { name, tag: label })}
@@ -170,7 +175,11 @@ export function TagDot({
           }
           setOpen(value => !value);
         }}
-      />
+      >
+        {appearance === 'palette' && (
+          <Palette size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        )}
+      </button>
       <Popover
         open={open}
         onClose={() => {

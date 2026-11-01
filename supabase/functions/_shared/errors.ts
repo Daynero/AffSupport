@@ -107,6 +107,7 @@ const STATUS_BY_CODE: Readonly<Record<TeamErrorCode, number>> = {
   RATE_LIMITED: 429,
   DRIVE_UNAVAILABLE: 503,
   NEEDS_REAUTH: 503,
+  GOOGLE_ACCOUNT_NOT_APPROVED: 403,
   DELIVERY_UNAVAILABLE: 503,
   OAUTH_APPROVAL_REQUIRED: 503,
   // 011 — storage selections, the folder tree, thumbnail sessions, scope gate.

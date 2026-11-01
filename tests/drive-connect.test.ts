@@ -566,3 +566,36 @@ describe('typed Drive failures', () => {
     );
   });
 });
+
+it('keeps a working credential healthy when another Google account is rejected', async () => {
+  const markNeedsReauth = vi.fn();
+  const bindCredential = vi.fn();
+  await expect(
+    completeDriveOAuthCallback(
+      { code: 'code', state: 'state', oauthMode: 'testing', signals: localSignals },
+      {
+        peekTransaction: vi.fn().mockResolvedValue({ origin: localSignals.siteUrl }),
+        consumeTransaction: vi.fn().mockResolvedValue({
+          teamId: 'team',
+          actorId: 'owner',
+          origin: localSignals.siteUrl,
+          codeVerifier: 'verifier',
+          credentialId: 'working'
+        }),
+        exchangeCode: vi.fn().mockResolvedValue({ accessToken: 'token', refreshToken: 'refresh' }),
+        verifyPrincipal: vi
+          .fn()
+          .mockResolvedValue({ permissionId: 'wrong-account', email: 'wrong@example.test' }),
+        storeCredential: vi
+          .fn()
+          .mockRejectedValue(
+            new TeamFunctionError('GOOGLE_ACCOUNT_NOT_APPROVED', { retryable: false })
+          ),
+        bindCredential,
+        markNeedsReauth
+      }
+    )
+  ).rejects.toMatchObject({ code: 'GOOGLE_ACCOUNT_NOT_APPROVED' });
+  expect(markNeedsReauth).not.toHaveBeenCalled();
+  expect(bindCredential).not.toHaveBeenCalled();
+});

@@ -307,27 +307,52 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
   },
   STITCH_PLAN_VIDEO_CODEC: {
     stage: 'input_probe',
-    agent: [AGENT_STITCH_QUEUE, AGENT_STITCH_PLAN],
+    agent: [
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_QUEUE,
+      AGENT_STITCH_PLAN
+    ],
     check: PLAN_CHECK('its video codec')
   },
   STITCH_PLAN_AUDIO_CODEC: {
     stage: 'input_probe',
-    agent: [AGENT_STITCH_QUEUE, AGENT_STITCH_PLAN],
+    agent: [
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_QUEUE,
+      AGENT_STITCH_PLAN
+    ],
     check: PLAN_CHECK('its audio codec')
   },
   STITCH_PLAN_VARIABLE_FRAME_RATE: {
     stage: 'input_probe',
-    agent: [AGENT_STITCH_QUEUE, AGENT_STITCH_PLAN],
+    agent: [
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_QUEUE,
+      AGENT_STITCH_PLAN
+    ],
     check: PLAN_CHECK('a variable frame rate')
   },
   STITCH_PLAN_CONTAINER: {
     stage: 'input_probe',
-    agent: [AGENT_STITCH_QUEUE, AGENT_STITCH_PLAN],
+    agent: [
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_QUEUE,
+      AGENT_STITCH_PLAN
+    ],
     check: PLAN_CHECK('its container')
   },
   STITCH_PLAN_UNREADABLE: {
     stage: 'input_probe',
-    agent: [AGENT_STITCH_QUEUE, AGENT_STITCH_PROBE],
+    agent: [
+      'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/restitch.ts',
+      AGENT_STITCH_QUEUE,
+      AGENT_STITCH_PROBE
+    ],
     check: 'Why the probe could not read the source (stat, spawn or exit failure).'
   },
   STITCH_PLAN_NOTHING_TO_REMOVE: {
@@ -1260,6 +1285,33 @@ function build(): Record<string, CodeLocation> {
 
 export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   ...build(),
+  'tariff:commercial:review_required': {
+    files: [
+      'supabase/migrations/20261207110000_commercial_access_guards.sql',
+      'apps/web/src/pages/admin/TariffEditDialog.tsx'
+    ],
+    check:
+      'Compare the approval journal and migration capacity observation with the latest protected admin snapshot before changing Google access or seats.'
+  },
+  'team:access:*': {
+    files: [
+      'supabase/migrations/20261207110000_commercial_access_guards.sql',
+      'apps/web/src/team/drive/commercialDiagnostics.ts',
+      'supabase/functions/drive-connect/index.ts',
+      'apps/web/src/team/drive/DriveConnectionPanel.tsx'
+    ],
+    check:
+      'Inspect the last proven authorization stage and current owner, tariff and identity reservation; absent callback delivery does not prove that Google consent failed.'
+  },
+  'team:access:GOOGLE_ACCOUNT_NOT_APPROVED': {
+    files: [
+      'supabase/migrations/20261207110000_commercial_access_guards.sql',
+      'supabase/functions/drive-oauth-callback/handler.ts',
+      'apps/web/src/team/storage/ConnectStorageFlow.tsx'
+    ],
+    check:
+      'Verify the approved identity reservation and the paid owner before retrying; a rejected different account must not invalidate the working connection.'
+  },
   'launcher:windows:unobserved': {
     files: [
       'packaging/windows/SotyAgentHost/AgentHealthClient.cs',

@@ -24,7 +24,7 @@ insert into public.admin_users(user_id) values('e0360000-0000-4000-8000-00000000
 create temporary table clock_fixture(team_id uuid,tariff_id uuid);
 do $setup$ declare tariff uuid; team uuid; begin
  perform set_config('request.jwt.claim.sub','e0360000-0000-4000-8000-000000000001',true);
- tariff:=(public.admin_grant_space_tariff('native-clock-owner@soty.invalid','lead','2030-10-14',0,null,null,null,false)->>'id')::uuid;
+ tariff:=(public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('native-clock-owner@soty.invalid')::text,'plan',('lead')::text,'endsOn',('2030-10-14')::date,'extraSeats',(0)::integer,'teamId',(null)::uuid,'note',(null)::text,'externalRef',(null)::text,'notify',(false)::boolean))->>'id')::uuid;
  perform set_config('request.jwt.claim.sub','e0360000-0000-4000-8000-000000000002',true);
  select id into team from public.create_team('Native clock synthetic');
  insert into clock_fixture values(team,tariff);

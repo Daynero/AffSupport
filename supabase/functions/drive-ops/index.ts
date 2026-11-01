@@ -2592,6 +2592,7 @@ async function handleEnsureWorkspaceFolder(
   const resolved = await resolveWorkspaceFolder({
     teamId,
     rootFolderId: cacheId,
+    connectedRootFolderId: root.rootFolderId,
     drive: client,
     cachedFolderId: cached ? stringValue(cached, 'drive_folder_id') : null
   });

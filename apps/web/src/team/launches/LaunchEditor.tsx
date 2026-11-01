@@ -331,7 +331,7 @@ export function LaunchEditor({
               </Button>
             </div>
             <div className="launch-editor-source-grid">
-              <div className="min-w-0">
+              <div className="flex min-w-0 flex-col gap-3">
                 {field(
                   'agentRowId',
                   'launchesAccount',

@@ -13,7 +13,12 @@
  * request, a caller or an OAuth token.
  */
 
-import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
+import {
+  proveLiveAncestry,
+  type DriveFileMetadata,
+  type GoogleDriveClient
+} from '../_shared/drive.ts';
+import { TeamFunctionError } from '../_shared/errors.ts';
 
 export const WORKSPACE_FOLDER_MARK = 'soty.workspace';
 export const WORKSPACE_FOLDER_NAME = 'Soty';
@@ -50,26 +55,55 @@ export async function resolveWorkspaceFolder(input: {
   drive: WorkspaceFolderDrive;
   /** What was recorded last time, if anything. */
   cachedFolderId: string | null;
+  /** The connected root, when the destination is its nested cache folder. */
+  connectedRootFolderId?: string;
 }): Promise<WorkspaceFolderResolution> {
   const marker = workspaceFolderMarker(input.teamId);
+  const insideConnection = async (folder: DriveFileMetadata): Promise<boolean> => {
+    if (!input.connectedRootFolderId) return true;
+    try {
+      await proveLiveAncestry({
+        client: input.drive,
+        fileId: folder.id,
+        rootFolderId: input.connectedRootFolderId
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof TeamFunctionError && error.code === 'ROOT_ESCAPE') return false;
+      throw error;
+    }
+  };
 
   if (input.cachedFolderId) {
     // A folder that was renamed or dragged elsewhere keeps its id and its mark, so this is
     // still the answer — which is why neither costs anything.
     const live = await input.drive.getFile(input.cachedFolderId).catch(() => null);
-    if (usable(live, marker) && live) {
+    if (usable(live, marker) && live && (await insideConnection(live))) {
       return { folderId: live.id, created: false, name: live.name, marker };
     }
   }
 
   // The id was stale — trashed, or replaced. The mark still finds the real one wherever the
   // member has since put it.
+  // Prefer the current cache: the same local beta team id can have an older marked
+  // folder in a different connected root. That folder must stay untouched.
+  if (input.connectedRootFolderId) {
+    const local = await input.drive.findFolderByAppProperty({
+      key: WORKSPACE_FOLDER_MARK,
+      value: marker,
+      parentId: input.rootFolderId
+    });
+    if (local && usable(local, marker) && (await insideConnection(local))) {
+      return { folderId: local.id, created: false, name: local.name, marker };
+    }
+  }
   const found = await input.drive.findFolderByAppProperty({
     key: WORKSPACE_FOLDER_MARK,
     value: marker,
     driveId: null
   });
-  if (found) return { folderId: found.id, created: false, name: found.name, marker };
+  if (found && usable(found, marker) && (await insideConnection(found)))
+    return { folderId: found.id, created: false, name: found.name, marker };
 
   const created = await input.drive.createFolder({
     name: WORKSPACE_FOLDER_NAME,

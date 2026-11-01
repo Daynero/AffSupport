@@ -40,6 +40,9 @@ export function useOfferDefaults({
   onApply: (next: LaunchDraft) => void;
 }) {
   const openedExisting = useRef(existing);
+  const lastSelection = useRef({ teamId, offerId: config.offerId });
+  const selectionChanged = useRef(false);
+  const proposalEpoch = useRef(0);
   const readFlow = useRef<{ offerId?: string; id: string } | null>(null);
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<{
@@ -89,11 +92,23 @@ export function useOfferDefaults({
     }
   }, [config]);
   useEffect(() => () => applied.current?.finish('cancelled'), []);
+  useEffect(() => {
+    if (disabled) {
+      proposalEpoch.current++;
+      setProposal(null);
+    }
+  }, [disabled]);
   const first = useRef(true);
   useEffect(() => {
     const initial = first.current;
     first.current = false;
     const offerId = config.offerId;
+    if (lastSelection.current.teamId !== teamId || lastSelection.current.offerId !== offerId) {
+      selectionChanged.current = true;
+      lastSelection.current = { teamId, offerId };
+    }
+    const epoch = proposalEpoch.current;
+    const allowProposal = !latest.current.disabled;
     let active = true;
     if (!readFlow.current || readFlow.current.offerId !== offerId)
       readFlow.current = { offerId, id: crypto.randomUUID() };
@@ -127,8 +142,12 @@ export function useOfferDefaults({
             : null;
         observation.finish('success');
         // Reopening a saved launch is not an offer-selection action.
-        if (initial && openedExisting.current) return;
+        // Effect replay in StrictMode is still the same initial selection.
+        if (openedExisting.current && !selectionChanged.current) return;
         if (initial && !offerId) return;
+        // A retry/operation can lock and unlock while this read is in flight.
+        // It must never resurrect an obsolete reset decision over generation.
+        if (!allowProposal || latest.current.disabled || epoch !== proposalEpoch.current) return;
         // Every actual selection uses the same explicit decision, including
         // fresh drafts that autosave has already assigned an ID.
         setProposal(available);
@@ -149,7 +168,7 @@ export function useOfferDefaults({
     source: !launchValuesEqual(launchDefaultValues(config), baseline.current)
       ? ('current' as const)
       : source,
-    proposal: state.offerId === config.offerId ? proposal : null,
+    proposal: !disabled && state.offerId === config.offerId ? proposal : null,
     buyerMissing,
     apply: () => {
       if (proposal && proposal.offerId === latest.current.config.offerId)

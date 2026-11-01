@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { LaunchDraft } from '@video-compressor/shared';
@@ -25,7 +25,7 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
-function mount(initial = newLaunchDraft(), existing = false) {
+function mount(initial = newLaunchDraft(), existing = false, strict = false) {
   const useHarness = ({
     persisted = existing,
     disabled = false
@@ -46,6 +46,7 @@ function mount(initial = newLaunchDraft(), existing = false) {
     return { config, setConfig, defaults };
   };
   return renderHook(useHarness, {
+    wrapper: strict ? StrictMode : undefined,
     initialProps: { persisted: existing, disabled: false } as {
       persisted?: boolean;
       disabled?: boolean;
@@ -57,6 +58,50 @@ beforeEach(() => {
   api.track.mockReset();
 });
 afterEach(cleanup);
+it('never proposes resetting an existing launch when StrictMode replays its initial read', async () => {
+  api.defaults.mockResolvedValue(profile(8));
+  const { result } = mount({ ...newLaunchDraft(), offerId: 'A', campaignCount: 7 }, true, true);
+  await waitFor(() => expect(result.current.defaults.loading).toBe(false));
+  expect(result.current.defaults.proposal).toBeNull();
+  expect(result.current.config.campaignCount).toBe(7);
+});
+it('discards a late profile decision when generation locks the editor and never reopens it on unlock', async () => {
+  const response = deferred<ReturnType<typeof profile>>();
+  api.defaults.mockReturnValue(response.promise);
+  const { result, rerender } = mount();
+  await waitFor(() => expect(result.current.defaults.loading).toBe(false));
+  act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
+  rerender({ disabled: true });
+  await act(async () => response.resolve(profile(8)));
+  expect(result.current.defaults.proposal).toBeNull();
+  rerender({ disabled: false });
+  expect(result.current.defaults.proposal).toBeNull();
+  expect(result.current.config.campaignCount).toBe(3);
+});
+it('dismisses an existing proposal when retry locks the editor without applying saved values', async () => {
+  api.defaults.mockResolvedValue(profile(8));
+  const { result, rerender } = mount();
+  await waitFor(() => expect(result.current.defaults.loading).toBe(false));
+  act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
+  await waitFor(() => expect(result.current.defaults.proposal).toBeTruthy());
+  rerender({ disabled: true });
+  expect(result.current.defaults.proposal).toBeNull();
+  rerender({ disabled: false });
+  expect(result.current.defaults.proposal).toBeNull();
+  expect(result.current.config.campaignCount).toBe(3);
+});
+it('does not revive a late decision after generation has already locked and unlocked', async () => {
+  const response = deferred<ReturnType<typeof profile>>();
+  api.defaults.mockReturnValue(response.promise);
+  const { result, rerender } = mount();
+  await waitFor(() => expect(result.current.defaults.loading).toBe(false));
+  act(() => result.current.setConfig(old => ({ ...old, offerId: 'A' })));
+  rerender({ disabled: true });
+  rerender({ disabled: false });
+  await act(async () => response.resolve(profile(8)));
+  expect(result.current.defaults.proposal).toBeNull();
+  expect(result.current.config.campaignCount).toBe(3);
+});
 it('does not ask to reset a populated draft when no saved profile exists', async () => {
   const { result } = mount({ ...newLaunchDraft(), offerId: 'A', campaignCount: 7 }, true);
   await waitFor(() => expect(result.current.defaults.loading).toBe(false));

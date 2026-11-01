@@ -467,6 +467,7 @@
 
 /* The row the spaces will take, held while they load, so nothing below jumps. */
 .home-spaces-loading {
+  min-height: var(--home-tile-height);
   max-width: 100%;
 }
 

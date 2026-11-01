@@ -706,6 +706,41 @@ describe('each catalog on its own schedule (024)', () => {
       await harness.root('drop table private.test_catalog_dispatch_calls');
     }
   }, 60_000);
+  it('validates the chosen IANA timezone directly without enumerating tzdata for every save', async () => {
+    const validate = async (timeZone: string) =>
+      (
+        await harness.root<{ valid: boolean }>(
+          'select private.valid_catalog_schedule($1::jsonb) valid',
+          [JSON.stringify({ timeZone, weekday: 1, time: '09:00' })]
+        )
+      )[0].valid;
+    for (const zone of [
+      'UTC',
+      'Europe/Kyiv',
+      'Europe/Kiev',
+      'America/Argentina/Buenos_Aires',
+      'Etc/GMT+5'
+    ])
+      expect(await validate(zone)).toBe(true);
+    for (const zone of [
+      'Europe/NotAZone',
+      'GMT',
+      '+03:00',
+      'EST5EDT',
+      '../Europe/Kyiv',
+      'Europe/Kyiv invalid',
+      ''
+    ])
+      expect(await validate(zone)).toBe(false);
+    const definition = (
+      await harness.root<{ body: string }>(
+        "select pg_get_functiondef('private.valid_catalog_schedule(jsonb)'::regprocedure) body"
+      )
+    )[0].body;
+    expect(definition).toContain('pg_catalog.timezone(');
+    expect(definition).not.toContain('from pg_catalog.pg_timezone_names');
+  });
+
   it('computes weekly and daily civil schedules across DST without elapsed-time drift', async () => {
     const next = async (
       interval: string,

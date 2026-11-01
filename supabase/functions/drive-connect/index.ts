@@ -148,6 +148,10 @@ async function startOAuth(
   if (!clientId || !supabaseUrl) {
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: false });
   }
+  const approvedAccount = await rpcValue(service, 'service_get_approved_drive_account', {
+    p_team: command.teamId,
+    p_actor: userId
+  });
   const state = randomBase64Url(32);
   const verifier = randomBase64Url(64);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -177,6 +181,8 @@ async function startOAuth(
   }
   authorizationUrl.searchParams.set('scope', scopes.join(' '));
   authorizationUrl.searchParams.set('access_type', 'offline');
+  if (typeof approvedAccount === 'string')
+    authorizationUrl.searchParams.set('login_hint', approvedAccount);
   // Do not carry an earlier broad Drive grant into a drive.file-only consent.
   authorizationUrl.searchParams.set('prompt', 'consent');
   authorizationUrl.searchParams.set('state', state);

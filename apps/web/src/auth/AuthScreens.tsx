@@ -60,7 +60,7 @@ function queryErrorMessage(t: ReturnType<typeof useI18n>['t']) {
 
 export function LoginPage() {
   const { status, error, signInWithGoogle, signInWithBetaFixture } = useAuth();
-  const [betaFixture, setBetaFixture] = useState<'owner' | 'member' | null>(null);
+  const [betaFixture, setBetaFixture] = useState<'owner' | 'member' | 'visitor' | null>(null);
   const { t } = useI18n();
   const returnPath = safeReturnPath(new URLSearchParams(location.search).get('returnTo'));
   const queryError = queryErrorMessage(t);
@@ -131,7 +131,7 @@ export function LoginPage() {
         </button>
         {beta && (
           <div className="flex flex-col gap-2">
-            {(['owner', 'member'] as const).map(fixture => (
+            {(['owner', 'member', 'visitor'] as const).map(fixture => (
               <Button
                 key={fixture}
                 color="neutral"
@@ -145,7 +145,13 @@ export function LoginPage() {
                   void signInWithBetaFixture(fixture);
                 }}
               >
-                {t(fixture === 'owner' ? 'loginBetaOwner' : 'loginBetaMember')}
+                {t(
+                  fixture === 'visitor'
+                    ? 'loginBetaVisitor'
+                    : fixture === 'owner'
+                      ? 'loginBetaOwner'
+                      : 'loginBetaMember'
+                )}
               </Button>
             ))}
           </div>

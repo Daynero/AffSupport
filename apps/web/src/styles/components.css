@@ -3730,14 +3730,18 @@
   background: var(--color-neutral-surface);
 }
 .finance-matrix {
-  min-width: calc(
+  box-sizing: border-box;
+  width: calc(
     var(--finance-date-column-width) + var(--finance-agent-column-width) *
       var(--finance-agent-count, 1) + var(--space-px) * 2
   );
+  min-width: 100%;
   border: var(--space-px) solid var(--color-neutral-border);
 }
 .finance-matrix .ui-table-header,
 .finance-matrix .ui-table-row {
+  box-sizing: border-box;
+  width: 100%;
   gap: 0;
   align-items: stretch;
 }
@@ -4495,6 +4499,52 @@
   color: var(--color-neutral-text-muted);
   border-color: var(--color-neutral-border);
 }
+.launch-note-editor .team-tag-dot.is-button.is-palette {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-lg);
+  min-width: var(--control-height-lg);
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-soft);
+  color: var(--team-tag-color, var(--color-secondary-text));
+  opacity: 1;
+}
+.launch-note-editor .team-tag-dot.is-button.is-palette:hover {
+  background: var(--color-secondary-softer);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='red'] {
+  --launch-note-color: var(--team-tag-red);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='orange'] {
+  --launch-note-color: var(--team-tag-orange);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='yellow'] {
+  --launch-note-color: var(--team-tag-yellow);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='green'] {
+  --launch-note-color: var(--team-tag-green);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='blue'] {
+  --launch-note-color: var(--team-tag-blue);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='purple'] {
+  --launch-note-color: var(--team-tag-purple);
+}
+:is(.launch-note-editor, .launch-note-copy)[data-color='grey'] {
+  --launch-note-color: var(--team-tag-grey);
+}
+.launch-note-editor[data-color],
+.ui-button.launch-note-copy[data-color] {
+  background: color-mix(in srgb, var(--launch-note-color) 18%, var(--color-neutral-surface-subtle));
+  border-color: color-mix(in srgb, var(--launch-note-color) 45%, var(--color-neutral-border));
+}
+.launch-note-editor[data-color] :is(.ui-input, .ui-textarea) {
+  background: transparent;
+}
 .launch-copy-progress {
   display: flex;
   min-width: 0;
@@ -4522,6 +4572,9 @@
   flex-shrink: 0;
 }
 .modal-search .modal-search-results {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   flex: 1 1 0;
   min-block-size: 0;
   min-inline-size: 0;
@@ -4532,15 +4585,17 @@
 }
 .modal-search-results > .team-task-picker-results,
 .modal-search-results > .team-add-to-task-list {
+  flex: 0 0 auto;
   max-block-size: none;
   overflow: visible;
   align-content: start;
+  align-items: start;
 }
 .modal-search .workspace-palette-list {
   align-content: start;
 }
 .modal-search .team-task-picker-path[data-search-active='true'] {
-  visibility: hidden;
+  display: none;
 }
 @media (max-height: 480px) {
   .modal.modal-search {
@@ -4575,6 +4630,9 @@
   min-inline-size: 0;
 }
 .ui-modal.is-search .modal-search-results {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   flex: 1 1 0;
   min-block-size: 0;
   overflow: auto;

@@ -1,0 +1,183 @@
+{
+  "scope": "Synthetic PGlite, full working-tree migrations, sequential scenarios; service wrappers invoked as trusted server fixtures, not proof of public reachability; no Google network authorization or concurrency proof",
+  "observations": [
+    {
+      "id": "A01_unpaid_create",
+      "kind": "guard",
+      "result": "PERMISSION_DENIED"
+    },
+    {
+      "id": "A02_mass_invites_role_rotation",
+      "kind": "guard",
+      "result": {
+        "ownerDenied": "SEATS_FULL",
+        "newAdminDenied": "SEATS_FULL",
+        "used": 3,
+        "cap": 3,
+        "allowed": true
+      }
+    },
+    {
+      "id": "A03_paid_transfer",
+      "kind": "guard",
+      "result": "TARIFF_BOUND"
+    },
+    {
+      "id": "A04_wrong_invitee",
+      "kind": "guard",
+      "result": "PERMISSION_DENIED"
+    },
+    {
+      "id": "A05_revoked_invite",
+      "kind": "guard",
+      "result": "EXPIRED"
+    },
+    {
+      "id": "A06_owner_cannot_grant_self",
+      "kind": "guard",
+      "result": "PERMISSION_DENIED"
+    },
+    {
+      "id": "A07_direct_writes_and_service_acl",
+      "kind": "guard",
+      "result": [
+        {
+          "member_insert": false,
+          "invitation_insert": false,
+          "tariff_update": false,
+          "service_add": false
+        }
+      ]
+    },
+    {
+      "id": "A08_guest_without_personal_tariff",
+      "kind": "policy",
+      "result": [
+        {
+          "role": "editor",
+          "can_view": true,
+          "personal_tariff": false
+        }
+      ]
+    },
+    {
+      "id": "A09_suspended_accept",
+      "kind": "guard",
+      "result": "SPACE_BLOCKED"
+    },
+    {
+      "id": "A10_undo_seats_after_acceptance",
+      "kind": "gap",
+      "result": {
+        "used": 4,
+        "cap": 3,
+        "allowed": true
+      }
+    },
+    {
+      "id": "A11_legacy_growth_then_renew",
+      "kind": "gap",
+      "result": {
+        "used": 5,
+        "cap": 3,
+        "allowed": true
+      }
+    },
+    {
+      "id": "A12_invitation_outlives_removed_manager",
+      "kind": "policy",
+      "result": {
+        "used": 2,
+        "cap": 3,
+        "allowed": true
+      }
+    },
+    {
+      "id": "A13_legacy_immediate_revoke",
+      "kind": "policy",
+      "result": {
+        "used": 1,
+        "cap": null,
+        "allowed": true
+      }
+    },
+    {
+      "id": "A14_renew_after_ownership_transfer",
+      "kind": "gap",
+      "result": [
+        {
+          "owner_matches_tariff": false,
+          "allowed": true
+        }
+      ]
+    },
+    {
+      "id": "A15_google_initial_binding_not_payment_identity",
+      "kind": "gap",
+      "result": [
+        {
+          "google_account_email": "different-google@example.test",
+          "same_soty_actor": true
+        }
+      ]
+    },
+    {
+      "id": "A16_google_second_initial_credential",
+      "kind": "gap",
+      "result": [
+        {
+          "credentials": 2
+        }
+      ]
+    },
+    {
+      "id": "A17_existing_credential_different_google",
+      "kind": "guard",
+      "result": "NEEDS_REAUTH"
+    },
+    {
+      "id": "A18_admin_member_cannot_start_google",
+      "kind": "guard",
+      "result": "PERMISSION_DENIED"
+    },
+    {
+      "id": "A19_outsider_can_start_oauth_null_role",
+      "kind": "gap",
+      "result": true
+    },
+    {
+      "id": "A20_revoked_tariff_can_bind_google_null_role",
+      "kind": "gap",
+      "result": true
+    },
+    {
+      "id": "A21_transfer_preserves_old_google_connection",
+      "kind": "policy",
+      "result": [
+        {
+          "same_credential": true,
+          "google_connector_is_new_owner": false,
+          "state": "connected"
+        }
+      ]
+    },
+    {
+      "id": "A22_one_grant_cannot_create_two_spaces",
+      "kind": "guard",
+      "result": "PERMISSION_DENIED"
+    },
+    {
+      "id": "A23_expired_invite_cannot_accept",
+      "kind": "guard",
+      "result": "EXPIRED"
+    },
+    {
+      "id": "A24_direct_add_counts_pending_seats",
+      "kind": "guard",
+      "result": "SEATS_FULL"
+    }
+  ],
+  "source_head": "b0d42f54",
+  "production_modified": false,
+  "google_authorizations_performed": 0
+}

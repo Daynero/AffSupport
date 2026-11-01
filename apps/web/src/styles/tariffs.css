@@ -182,24 +182,9 @@
   background: var(--color-neutral-surface-subtle);
   box-shadow: none;
 }
-.tariff-showcase-brand {
-  display: flex;
-  align-items: center;
-  gap: calc(24 * var(--showcase-unit));
-  height: calc(32 * var(--showcase-unit));
-  color: var(--color-secondary-text);
-  font-size: var(--text-showcase-small);
-  letter-spacing: 0.25em;
-  font-weight: var(--weight-heading);
-}
-.tariff-showcase-brand svg {
-  width: calc(32 * var(--showcase-unit));
-  height: calc(32 * var(--showcase-unit));
-  color: var(--color-primary-solid);
-}
 .tariff-showcase .tariff-showcase-title {
   max-width: 9em;
-  margin: calc(24 * var(--showcase-unit)) 0 calc(16 * var(--showcase-unit));
+  margin: 0 0 calc(16 * var(--showcase-unit));
   font-size: var(--text-showcase-title);
   line-height: 0.9;
   letter-spacing: -0.025em;
@@ -370,4 +355,8 @@
   .tariff-plan-choice .ui-radio {
     padding: var(--space-4);
   }
+}
+
+.tariff-showcase-bonus {
+  margin: var(--space-6) 0 0;
 }

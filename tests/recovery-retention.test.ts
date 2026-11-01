@@ -12,7 +12,7 @@ beforeAll(async () => {
   await db.root('insert into public.admin_users(user_id) values($1)', [ADMIN]);
   const tariffs = await db.asUser<{ id: string }>(
     ADMIN,
-    "select public.admin_grant_space_tariff('owner@retention.test','lead',private.kyiv_today()+30,0)->>'id' id"
+    "select public.admin_grant_space_tariff_once(gen_random_uuid(),jsonb_build_object('email',('owner@retention.test')::text,'plan',('lead')::text,'endsOn',(private.kyiv_today()+30)::date,'extraSeats',(0)::integer))->>'id' id"
   );
   const tariff = tariffs[0]!.id;
   team = (
@@ -22,7 +22,11 @@ beforeAll(async () => {
     )
   )[0]!.id;
   // Keep recovery dispatch from starting fixture work. Only retention is exercised here.
-  await db.asUser(ADMIN, 'select public.admin_end_space_tariff($1,true)', [tariff]);
+  await db.asUser(
+    ADMIN,
+    `select public.admin_mutate_space_tariff($1,gen_random_uuid(),(select updated_at from public.space_tariffs where id=$1),'end',jsonb_build_object('now',(true)::boolean))`,
+    [tariff]
+  );
 }, 60_000);
 afterAll(async () => db?.close());
 async function history(days: number, parent: string, child: string) {

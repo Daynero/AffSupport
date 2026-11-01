@@ -1,9 +1,10 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { AdminTariffRow, TariffPlan } from '@video-compressor/shared';
-import type { AdminTariffClient } from '../../api/team';
+import type { AdminTariffClient, DriveApprovalPreview } from '../../api/team';
 import {
   Alert,
   Button,
+  Checkbox,
   FormField,
   Input,
   InputNumber,
@@ -41,6 +42,32 @@ export function TariffEditDialog({
   const seatsId = useId();
   const noteId = useId();
   const refId = useId();
+  const googleId = useId();
+  const [googleEmail, setGoogleEmail] = useState('');
+  const [googlePreview, setGooglePreview] = useState<DriveApprovalPreview | null>(null);
+  const [googleConfirmed, setGoogleConfirmed] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setGooglePreview(null);
+    setGoogleConfirmed(false);
+    setPreviewError(null);
+    if (!row.ownerId || !googleEmail.trim()) return;
+    const timer = window.setTimeout(() => {
+      void client.previewDriveApproval(row.ownerId!, googleEmail.trim()).then(
+        value => {
+          if (active) setGooglePreview(value);
+        },
+        cause => {
+          if (active) setPreviewError(teamErrorMessageFor(cause, t));
+        }
+      );
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [client, row.ownerId, googleEmail, t]);
   const [plan, setPlan] = useState(row.planCode);
   const [endsOn, setEndsOn] = useState(row.endsOn);
   const [extraSeats, setExtraSeats] = useState(row.extraSeats);
@@ -52,6 +79,7 @@ export function TariffEditDialog({
   const selected = plans.find(item => item.code === plan) ?? null;
 
   const save = async () => {
+    if (googleEmail.trim() && (!googlePreview || !googleConfirmed)) return;
     setBusy(true);
     setError(null);
     setSeatsInUse(false);
@@ -59,14 +87,27 @@ export function TariffEditDialog({
       onSaved(
         await client.update({
           id: row.id,
+          expectedUpdatedAt: row.updatedAt,
           plan,
           endsOn,
-          extraSeats,
+          extraSeats: plan === 'solo' ? 0 : extraSeats,
           note: note.trim() || null,
-          externalRef: externalRef.trim() || null
+          externalRef: externalRef.trim() || null,
+          ...(googleEmail.trim() && googlePreview && googleConfirmed
+            ? {
+                approvedGoogleEmail: googleEmail.trim(),
+                googleApprovalRevision: googlePreview.revision
+              }
+            : {})
         })
       );
     } catch (cause) {
+      if (googleEmail.trim()) {
+        setGoogleConfirmed(false);
+        void client
+          .previewDriveApproval(row.ownerId!, googleEmail.trim())
+          .then(setGooglePreview, () => setGooglePreview(null));
+      }
       setSeatsInUse(teamErrorCodeOf(cause) === 'SEATS_IN_USE');
       setError(teamErrorMessageFor(cause, t));
     } finally {
@@ -85,8 +126,13 @@ export function TariffEditDialog({
           <Button color="neutral" variant="outline" disabled={busy} onClick={onClose}>
             {t('teamCancel')}
           </Button>
-          <Button color="primary" loading={busy} onClick={() => void save()}>
-            {t('adminTariffSave')}
+          <Button
+            color="primary"
+            loading={busy}
+            disabled={Boolean(googleEmail.trim()) && (!googlePreview || !googleConfirmed)}
+            onClick={() => void save()}
+          >
+            {t(googleEmail.trim() ? 'adminTariffSaveGoogle' : 'adminTariffSave')}
           </Button>
         </>
       }
@@ -100,7 +146,10 @@ export function TariffEditDialog({
               value: item.code,
               label: language === 'uk' ? item.nameUk : item.nameEn
             }))}
-            onChange={setPlan}
+            onChange={next => {
+              setPlan(next);
+              if (next === 'solo') setExtraSeats(0);
+            }}
           />
         </FormField>
         <FormField label={t('adminTariffEndsOn')}>
@@ -111,13 +160,13 @@ export function TariffEditDialog({
             label={t('adminTariffEndsOn')}
           />
         </FormField>
-        {(selected?.extraSeatsAllowed ?? true) && (
+        {plan !== 'solo' && (selected?.extraSeatsAllowed ?? true) && (
           <FormField label={t('adminTariffExtraSeats')} htmlFor={seatsId}>
             <InputNumber
               id={seatsId}
               value={extraSeats}
               min={0}
-              max={selected?.maxExtraSeats ?? 500}
+              max={Math.min(selected?.maxExtraSeats ?? 1999, 2000 - (selected?.baseSeats ?? 1))}
               steppers
               onChange={value =>
                 setExtraSeats(Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0)
@@ -142,6 +191,43 @@ export function TariffEditDialog({
             onChange={event => setExternalRef(event.target.value)}
           />
         </FormField>
+        {row.ownerId && (
+          <FormField label={t('adminTariffGoogleAccount')} htmlFor={googleId}>
+            <Input
+              id={googleId}
+              disabled={busy}
+              type="email"
+              value={googleEmail}
+              maxLength={320}
+              onChange={event => {
+                setGoogleEmail(event.target.value);
+                setGoogleConfirmed(false);
+                setGooglePreview(null);
+              }}
+            />
+            <p className="text-caption text-ink-muted">{t('adminTariffGoogleAccountHint')}</p>
+            {googlePreview && (
+              <>
+                <Alert color="warning">
+                  {t('adminTariffGoogleScope', { count: googlePreview.spaces.length })}
+                </Alert>
+                {googlePreview.spaces.length > 0 && (
+                  <ul>
+                    {googlePreview.spaces.map(space => (
+                      <li key={space.id}>{space.name}</li>
+                    ))}
+                  </ul>
+                )}
+                <Checkbox
+                  checked={googleConfirmed}
+                  onChange={setGoogleConfirmed}
+                  label={t('adminTariffGoogleConfirm')}
+                />
+              </>
+            )}
+            {previewError && <Alert color="error">{previewError}</Alert>}
+          </FormField>
+        )}
         {error && (
           <Alert
             color="error"

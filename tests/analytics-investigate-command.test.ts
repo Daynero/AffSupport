@@ -548,12 +548,14 @@ describe('investigate · (e) a user with no events', () => {
       'workspace_evidence_gap',
       'workspace_evidence_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
     ]);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
     expect(
       data.coverage.blind_spots.find(spot => spot.kind === 'recovery_retirement_gap')?.detail
     ).toContain('unavailable');
+    expect(data.commercial_access).toMatchObject({ supported: false, records: [] });
     expect(data.membership_access).toMatchObject({ supported: false, signals: [] });
     expect(data.catalog_images).toMatchObject({ supported: false, evidence: [] });
     expect(
@@ -578,6 +580,9 @@ describe('investigate · (e) a user with no events', () => {
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Missing or expired stage evidence')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Commercial access journal is unavailable')
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Membership access signal projection is unavailable')

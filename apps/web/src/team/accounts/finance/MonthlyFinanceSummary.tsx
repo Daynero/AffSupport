@@ -144,7 +144,7 @@ export function MonthlyFinanceSummary({
                       : 'financeSpend'
                 )}
                 stickyHeader
-                className="finance-matrix w-full"
+                className="finance-matrix"
                 columns={`var(--finance-date-column-width) repeat(${Math.max(1, report.columns.length)}, minmax(var(--finance-agent-column-width), 1fr))`}
               >
                 <TableHeader>

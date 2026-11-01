@@ -1,0 +1,51 @@
+import {createTeamTestDb,createUser} from '/Users/daynero/RiderProjects/AffSupport/tests/support/team-db.ts';
+import {randomUUID} from 'node:crypto';
+import {readFileSync,writeFileSync} from 'node:fs';
+async function main(){
+ const results: unknown[]=[];
+ const h=await createTeamTestDb();
+ const admin=randomUUID(); await createUser(h,{id:admin,email:'review-admin@example.test',displayName:'Review admin'});
+ await h.root('insert into public.admin_users(user_id) values($1)',[admin]);
+ const ends=(await h.root<{d:string}>('select (private.kyiv_today()+30)::text d'))[0]!.d;
+ const person=async(label:string)=>{const id=randomUUID(),email=label+'@example.test';await createUser(h,{id,email,displayName:label});return{id,email}};
+ const grant=async(o:{id:string,email:string},operation=randomUUID(),extra=0)=> (await h.asUser<{r:any}>(admin,'select public.admin_grant_space_tariff_once($1,$2::jsonb) r',[operation,JSON.stringify({email:o.email,plan:'lead',endsOn:ends,extraSeats:extra,notify:false})]))[0]!.r;
+ const team=async(o:{id:string,email:string})=>{const tariff=await grant(o);const id=(await h.asUser<{id:string}>(o.id,'select id from public.create_team($1)',['Review space '+randomUUID()]))[0]!.id;return{id,tariff}};
+ const store=async(o:any,principal:string,email=o.email)=> (await h.root<{id:string}>("select public.service_store_google_drive_credential($1,$2,$3,'https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-at-least-16') id",[o.id,principal,email]))[0]!.id;
+ const approve=async(o:any,email:string)=>h.asUser(admin,'select public.admin_approve_drive_account($1,$2,true)',[o.id,email]);
+ const a=await person('late-callback'); const ta=await team(a); const ca=await store(a,'late-old');
+ await approve(a,'late-new@example.test');
+ const bound=await h.root('select public.service_bind_drive_credential($1,$2,$3) allowed',[ta.id,a.id,ca]);
+ const confirmed=await h.root("select * from public.service_confirm_drive_connection($1,$2,$3,'synthetic-folder','Folder',null,'my_drive','{}'::jsonb)",[ta.id,a.id,ca]);
+ results.push({case:'stale credential after new Google approval',bound,confirmed:confirmed.length});
+ const b=await person('legacy-payer');await team(b);
+ const cb=(await h.root<{id:string}>("select private.upsert_google_drive_credential($1,'legacy-original','legacy-drive@example.test','https://www.googleapis.com/auth/drive.file','synthetic-refresh-token-at-least-16') id",[b.id]))[0]!.id;
+ await h.root('select public.service_delete_google_drive_credential($1)',[cb]);
+ results.push({case:'legacy credential deletion loses original identity',secondIdentityStored:!!await store(b,'legacy-replacement')});
+ const c=await person('reload-grant'); const tc=await team(c); const second=await grant(c);
+ results.push({case:'grant retry with lost in-memory operation ID after binding',first:tc.tariff.id,second:second.id,duplicate:second.id!==tc.tariff.id});
+ const d=await person('approval-scope');const td1=await team(d),td2=await team(d);const cd=await store(d,'shared-owner');
+ for(const t of [td1,td2]) await h.root("select * from public.service_confirm_drive_connection($1,$2,$3,'synthetic-folder','Folder',null,'my_drive','{}'::jsonb)",[t.id,d.id,cd]);
+ const version=(await h.root<{v:string}>('select updated_at::text v from public.space_tariffs where id=$1',[td1.tariff.id]))[0]!.v;
+ await h.asUser(admin,"select public.admin_mutate_space_tariff($1,$2,$3::timestamptz,'update',$4::jsonb)",[td1.tariff.id,randomUUID(),version,JSON.stringify({plan:'lead',endsOn:ends,extraSeats:0,note:null,externalRef:null,approvedGoogleEmail:'another-approved@example.test'})]);
+ results.push({case:'Google approval in one tariff editor affects other paid spaces',states:await h.root('select state,count(*)::int n from public.team_drive_connections where team_id=any($1::uuid[]) group by state',[[td1.id,td2.id]])});
+ const e=await person('paid-cap');const paid=await grant(e,randomUUID(),49);
+ const et=(await h.asUser<{id:string}>(e.id,'select id from public.create_team($1)',['Paid capacity 51']))[0]!.id;
+ for(let i=0;i<49;i++){const pupil=await person('paid-cap-pupil-'+i);await h.root("insert into public.team_members(team_id,user_id,base_role) values($1,$2,'editor')",[et,pupil.id]);}
+ try{await h.asUser(e.id,"select id from public.create_invitation($1,'last-paid-pupil@example.test','editor',decode(repeat('ab',32),'hex'))",[et]);results.push({case:'paid capacity exceeds hard member limit',paidSeats:paid.seatsTotal,invited:true});}
+ catch(error){results.push({case:'paid capacity exceeds hard member limit',paidSeats:paid.seatsTotal,invited:false,error:String(error)});}
+ await h.close();
+ const pre=await createTeamTestDb({throughMigration:'20261207103000_catalog_schedule_timezone_lookup.sql'});
+ const padmin=randomUUID(),owner=randomUUID();
+ await createUser(pre,{id:padmin,email:'pre-admin@example.test',displayName:'Pre admin'});
+ await createUser(pre,{id:owner,email:'pre-owner@example.test',displayName:'Pre owner'});
+ await pre.root('insert into public.admin_users(user_id) values($1)',[padmin]);
+ await pre.asUser(padmin,"select public.admin_grant_space_tariff('pre-owner@example.test','lead',private.kyiv_today()+30,0)");
+ const pt=(await pre.asUser<{id:string}>(owner,"select id from public.create_team('Legacy over-cap')"))[0]!.id;
+ for(let i=0;i<3;i++){const id=randomUUID();await createUser(pre,{id,email:`pre-pupil-${i}@example.test`,displayName:'Pupil'});await pre.root("insert into public.team_members(team_id,user_id,base_role) values($1,$2,'editor')",[pt,id]);}
+ await pre.db.exec('begin');
+ try{await pre.db.exec(readFileSync('supabase/migrations/20261207110000_commercial_access_guards.sql','utf8'));results.push({case:'migration with existing over-cap tariff',applied:true});}
+ catch(e){results.push({case:'migration with existing over-cap tariff',applied:false,error:String(e)});}
+ finally{await pre.db.exec('rollback');await pre.close();}
+ writeFileSync('/tmp/soty-commercial-review.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));
+}
+main().catch(e=>{console.error(e);process.exitCode=1});
