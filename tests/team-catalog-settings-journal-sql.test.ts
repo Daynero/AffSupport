@@ -20,11 +20,21 @@ interface Observation {
   after_state: Record<string, unknown>;
   profile_version: number;
 }
-const history = (catalog: string) =>
-  db.root<Observation>(
+// PGlite's clock has millisecond precision. Separate serial fixture writes
+// across ticks so random UUIDs cannot reorder observations sharing a timestamp.
+// This serial fixture does not establish native PostgreSQL concurrency coverage.
+async function nextObservationTick() {
+  const previous = Date.now();
+  while (Date.now() <= previous) await new Promise(resolve => setTimeout(resolve, 1));
+}
+const history = async (catalog: string) => {
+  const rows = await db.root<Observation>(
     'select * from public.analytics_catalog_settings_history where catalog_material_id = $1 order by observed_at,event_id',
     [catalog]
   );
+  await nextObservationTick();
+  return rows;
+};
 async function catalog() {
   seq += 1;
   const material = async (name: string, mime: string, category: string) =>
@@ -59,6 +69,7 @@ async function catalog() {
       }
     })
   ]);
+  await nextObservationTick();
   return { sheet, video };
 }
 const patch = async (id: string, changes: object, actor = OWNER) => {
