@@ -250,17 +250,15 @@ export function useFolderPage(input: {
     [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );
 
-  const strictPending = useRef(false);
   const refreshRef = useRef(performRefresh);
   refreshRef.current = performRefresh;
-  const coordinator = useRef<ReturnType<typeof createReadCoordinator> | null>(null);
+  const coordinator = useRef<ReturnType<typeof createReadCoordinator<void>> | null>(null);
   const refreshWindow = useCallback(
     async (strict = false) => {
       if (activeScope.current !== scopeKey) {
         if (strict) throw new Error('CATALOG_REFRESH_SUPERSEDED');
         return;
       }
-      strictPending.current ||= strict;
       const owner = coordinator.current;
       await appendRead.current;
       if (owner !== coordinator.current) {
@@ -268,20 +266,34 @@ export function useFolderPage(input: {
         return;
       }
       try {
-        await owner?.request();
+        await (strict ? owner?.requestFresh() : owner?.request());
         if (strict && owner !== coordinator.current) throw new Error('CATALOG_REFRESH_SUPERSEDED');
-      } finally {
-        if (owner === coordinator.current && !owner?.isRunning()) strictPending.current = false;
+      } catch (cause) {
+        // A background caller can share a strict owner's read. Only the caller
+        // waiting for confirmation should reject; automatic invalidations have
+        // no rejection handler and already expose failure through hook state.
+        if (strict) throw cause;
       }
     },
     [scopeKey]
   );
 
   useEffect(() => {
-    const owner = createReadCoordinator(async () => {
-      const strict = strictPending.current;
-      await refreshRef.current(strict);
-    });
+    const owner: ReturnType<typeof createReadCoordinator<void>> = createReadCoordinator(
+      async () => {
+        try {
+          await refreshRef.current(owner.hasFreshRequests());
+        } catch (cause) {
+          if (
+            owner === coordinator.current &&
+            cause instanceof Error &&
+            cause.message === 'CATALOG_REFRESH_SUPERSEDED'
+          )
+            owner.deferFresh();
+          else throw cause;
+        }
+      }
+    );
     coordinator.current = owner;
     setRows([]);
     setTotal(null);
@@ -298,7 +310,6 @@ export function useFolderPage(input: {
       if (coordinator.current === owner) coordinator.current = null;
       generation.current += 1;
       appendRead.current = null;
-      strictPending.current = false;
       for (const controller of controllers.current) controller.abort();
       controllers.current.clear();
     };

@@ -370,7 +370,7 @@ it('does not start a session writer if its shared intent cannot be durably recor
   );
   expect(run).not.toHaveBeenCalled();
 });
-it('stores only one opaque intent revision and never persists the captured owner session', async () => {
+it('stores opaque intent revisions under one key and never persists the captured owner session', async () => {
   const values = new Map<string, string>();
   const writes = vi.fn((key: string, value: string) => {
     values.set(key, value);
@@ -386,7 +386,7 @@ it('stores only one opaque intent revision and never persists the captured owner
   );
   expect(owner.session?.user.id).toBe(A);
   expect(values.size).toBe(1);
-  expect(writes).toHaveBeenCalledTimes(1);
+  expect(writes).toHaveBeenCalledTimes(2);
   expect([...values.values()][0]).toMatch(/^[a-f0-9-]{36}$/u);
   expect(JSON.stringify(writes.mock.calls)).not.toMatch(
     /access_token|refresh_token|synthetic-public-key|synthetic-code|eyJ/u
@@ -411,4 +411,43 @@ it('shares one delayed SDK refresh across a burst and leaves session reads usabl
     expect(result.data.session?.user.id).toBe(A);
   }
   expect((await f.client.auth.getSession()).data.session?.user.id).toBe(A);
+});
+
+it('retires ownership captured while an interactive mutation was still awaiting its commit', async () => {
+  const locks = createTestAuthLocks(),
+    storage = createTestAuthMutationStorage();
+  const entered = gate(),
+    reply = gate();
+  const mutation = runAuthSessionMutation(
+    SCOPE,
+    async () => {
+      entered.resolve();
+      await reply.promise;
+    },
+    locks,
+    storage
+  );
+  await entered.promise;
+  const during = captureAuthSessionOwner(SCOPE, null, storage).intentRevision;
+  reply.resolve();
+  await mutation;
+  expect(captureAuthSessionOwner(SCOPE, null, storage).intentRevision).not.toBe(during);
+});
+
+it('leaves a pending marker and rejects if completion ownership cannot be durably recorded', async () => {
+  const values = new Map<string, string>();
+  let count = 0;
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      if (++count > 1) throw new Error('synthetic-storage-failure');
+      values.set(key, value);
+    }
+  };
+  const run = vi.fn(async () => 'SDK-committed');
+  await expect(runAuthSessionMutation(SCOPE, run, createTestAuthLocks(), storage)).rejects.toThrow(
+    'AUTH_SESSION_STATE_UNAVAILABLE'
+  );
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(captureAuthSessionOwner(SCOPE, null, storage).intentRevision).toMatch(/^pending:/);
 });

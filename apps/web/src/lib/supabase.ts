@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { captureAuthSessionOwner, sameAuthSession } from '../auth/session-mutations';
+import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { publicConfig } from './config';
 import { createMockSupabaseClient } from '../dev/mock-supabase';
 import type { Database } from './database.types';
@@ -62,14 +63,59 @@ export function isRejectedApiToken(error: unknown): boolean {
 
 export async function withFreshSession<T extends { error: unknown }>(
   run: () => PromiseLike<T>,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; retryWithToken?: (token: string) => PromiseLike<T> } = {}
 ): Promise<T> {
-  const first = await run();
+  // A rejected old request must never be replayed using a replacement login.
+  // The shared intent changes before interactive session commits, including sibling tabs.
+  const intent = () => {
+    try {
+      return publicConfig.ok
+        ? captureAuthSessionOwner(publicConfig.value.supabaseUrl, null).intentRevision
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const owner = intent();
+  const stillOwned = () =>
+    owner !== null &&
+    !owner.startsWith('pending:') &&
+    intent() === owner &&
+    !options.signal?.aborted;
+  const supabase = getSupabaseClient();
+  let initialSession: Session | null = null;
+  try {
+    const snapshot = await supabase?.auth.getSession();
+    if (!snapshot?.error) initialSession = snapshot?.data.session ?? null;
+  } catch {
+    // A first request may still succeed; unknown ownership never authorizes replay.
+  }
+  if (options.signal?.aborted) throw new DOMException('Read cancelled', 'AbortError');
+  const request = run();
+  const first = await request;
   if (!isRejectedApiToken(first.error)) return first;
   // An aborted call is the caller's decision, never a reason to refresh.
-  if (options.signal?.aborted) return first;
-  const supabase = getSupabaseClient();
+  if (!stillOwned() || !initialSession) return first;
+  // Only the original lazy PostgREST builder can bind replay credentials.
+  // An opaque Promise may already own a transport; never invoke its factory again.
+  const bindable = request as PromiseLike<T> & {
+    setHeader?: (name: string, value: string) => PromiseLike<T>;
+  };
+  if (typeof bindable.setHeader !== 'function' && !options.retryWithToken) return first;
   const refreshed = await supabase?.auth.refreshSession();
-  if (!refreshed || refreshed.error || !refreshed.data.session) return first;
-  return run();
+  if (
+    !refreshed ||
+    refreshed.error ||
+    !refreshed.data.session ||
+    !stillOwned() ||
+    !sameAuthSession(initialSession, refreshed.data.session)
+  )
+    return first;
+  const token = refreshed.data.session.access_token;
+  const retried = options.retryWithToken
+    ? await options.retryWithToken(token)
+    : typeof bindable.setHeader === 'function'
+      ? await bindable.setHeader('Authorization', `Bearer ${token}`)
+      : first;
+  return stillOwned() ? retried : first;
 }

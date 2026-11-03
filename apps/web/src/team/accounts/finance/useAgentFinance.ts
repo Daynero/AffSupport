@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FinanceField, FinanceSnapshot } from '@video-compressor/shared';
+import { withReadDeadline } from '../../readCoordinator';
 import { teamFinanceApi } from '../../../api/team-finance';
 
 /** One snapshot per period; realtime is owned by useAccounts, never another channel. */
@@ -17,6 +18,25 @@ export function useAgentFinance(
   const lifetime = useRef({ scope, epoch: 0, generation: 0, mounted: true, revision });
   const cache = useRef(new Map<string, FinanceSnapshot>());
   const reads = useRef(new Map<string, Promise<FinanceSnapshot | null>>());
+  const controllers = useRef(new Set<AbortController>());
+  const readSnapshot = useCallback(
+    (nextFrom: string, nextTo: string, version2: boolean) => {
+      const controller = new AbortController();
+      controllers.current.add(controller);
+      return withReadDeadline(
+        signal => teamFinanceApi.snapshot(teamId, nextFrom, nextTo, timezone, version2, { signal }),
+        controller.signal
+      ).finally(() => controllers.current.delete(controller));
+    },
+    [teamId, timezone]
+  );
+  useEffect(
+    () => () => {
+      controllers.current.forEach(controller => controller.abort());
+      controllers.current.clear();
+    },
+    [scope]
+  );
   const [stored, setStored] = useState<{
     scope: string;
     epoch: number;
@@ -79,29 +99,33 @@ export function useAgentFinance(
       const pending = reads.current.get(key);
       if (pending) return pending;
       const generation = lifetime.current.generation;
-      const request = teamFinanceApi
-        .snapshot(teamId, nextFrom, nextTo, timezone, true)
-        .then(result => {
-          if (
-            !lifetime.current.mounted ||
-            lifetime.current.scope !== scope ||
-            lifetime.current.generation !== generation
-          )
-            return null;
-          if (
-            result.teamId !== teamId ||
-            result.from !== nextFrom ||
-            result.to !== nextTo ||
-            (result.timezone !== undefined && result.timezone !== timezone)
-          )
-            throw new Error('INVALID_RESPONSE');
-          remember(result);
-          return result;
-        });
+      const request = readSnapshot(nextFrom, nextTo, true).then(result => {
+        if (
+          !lifetime.current.mounted ||
+          lifetime.current.scope !== scope ||
+          lifetime.current.generation !== generation
+        )
+          return null;
+        if (
+          result.teamId !== teamId ||
+          result.from !== nextFrom ||
+          result.to !== nextTo ||
+          (result.timezone !== undefined && result.timezone !== timezone)
+        )
+          throw new Error('INVALID_RESPONSE');
+        remember(result);
+        return result;
+      });
       reads.current.set(key, request);
       try {
         return await request;
       } catch (cause) {
+        if (
+          !lifetime.current.mounted ||
+          lifetime.current.scope !== scope ||
+          lifetime.current.generation !== generation
+        )
+          return null;
         if (
           lifetime.current.scope === scope &&
           lifetime.current.generation === generation &&
@@ -120,7 +144,7 @@ export function useAgentFinance(
         if (reads.current.get(key) === request) reads.current.delete(key);
       }
     },
-    [enabled, v2, scope, teamId, timezone, remember, setSnapshot]
+    [enabled, v2, scope, teamId, timezone, readSnapshot, remember, setSnapshot]
   );
   const presentPrepared = useCallback(
     (result: FinanceSnapshot): boolean => {
@@ -171,16 +195,15 @@ export function useAgentFinance(
     setError(null);
     const read = async () => {
       if (!isCurrent()) return;
-      if (running) {
+      if (document.visibilityState === 'hidden' || running) {
         dirty = true;
         return;
       }
+      dirty = false;
       running = true;
       const generation = mutations.current;
       try {
-        const result = v2
-          ? await preparePeriod(from, to)
-          : await teamFinanceApi.snapshot(teamId, from, to, timezone, false);
+        const result = v2 ? await preparePeriod(from, to) : await readSnapshot(from, to, false);
         if (isCurrent() && result && generation === mutations.current) {
           setSnapshot(result);
           setError(null);
@@ -219,7 +242,7 @@ export function useAgentFinance(
         cache.current.clear();
         reads.current.clear();
       }
-      if (running) {
+      if (document.visibilityState === 'hidden' || running) {
         dirty = true;
         return;
       }
@@ -250,7 +273,7 @@ export function useAgentFinance(
       window.removeEventListener('focus', foreground);
       document.removeEventListener('visibilitychange', foreground);
     };
-  }, [teamId, from, to, timezone, enabled, v2, scope, preparePeriod, setSnapshot]);
+  }, [teamId, from, to, timezone, enabled, v2, scope, preparePeriod, readSnapshot, setSnapshot]);
   // A space revision invalidates the data, not the period or its editors.
   // Resetting snapshot here unmounted every field and silently lost drafts.
   useEffect(() => {

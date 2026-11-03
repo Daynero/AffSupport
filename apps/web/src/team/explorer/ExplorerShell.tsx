@@ -2352,11 +2352,20 @@ function ExplorerBody({
 
 /** Browsers expose a dropped directory through DataTransferItem entries, not files. */
 function sourcesFromDrop(dataTransfer: DataTransfer): LocalManifestSource[] {
-  const entries = Array.from(dataTransfer.items)
-    .map(item => item.webkitGetAsEntry?.() as LocalDropEntry | null | undefined)
-    .filter((entry): entry is LocalDropEntry => Boolean(entry));
-  if (entries.length > 0) return entries.map(entry => ({ kind: 'drop_entry', entry }));
-  return Array.from(dataTransfer.files).map(file => ({ kind: 'file', file }));
+  const sources: LocalManifestSource[] = [];
+  for (const item of Array.from(dataTransfer.items)) {
+    const entry = item.webkitGetAsEntry?.() as LocalDropEntry | null | undefined;
+    if (entry) sources.push({ kind: 'drop_entry', entry });
+    else {
+      // Entry support can differ between items in one drop. Preserve any
+      // readable loose file alongside directory entries rather than dropping it.
+      const file = item.getAsFile?.();
+      if (file) sources.push({ kind: 'file', file });
+    }
+  }
+  return sources.length > 0
+    ? sources
+    : Array.from(dataTransfer.files).map(file => ({ kind: 'file', file }));
 }
 
 async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> {
@@ -2401,6 +2410,10 @@ async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> 
       item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null }
     ).webkitGetAsEntry?.() ?? null) as DropEntry | null;
     if (entry) await visit(entry, '');
+    else {
+      const file = item.getAsFile?.();
+      if (file) files.push({ file, relativePath: file.name });
+    }
   }
   return files.length > 0
     ? files

@@ -6,6 +6,7 @@ import {
   type CatalogDrawnImage,
   type CatalogImageDrawOptions
 } from '../_shared/catalog-image-rows.ts';
+import { classifyMaterial } from '../../../packages/shared/dist/team/material-category.js';
 import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError, mapUnknownError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
@@ -281,6 +282,23 @@ async function trashQuietly(
   }
 }
 
+/** Use the same MIME/extension rules as indexing, against the proven live file. */
+function assertLiveVideo(file: DriveFileMetadata) {
+  const dot = file.name.lastIndexOf('.');
+  const classification = classifyMaterial({
+    kind: file.shortcutTargetId
+      ? 'shortcut'
+      : file.mimeType === 'application/vnd.google-apps.folder'
+        ? 'folder'
+        : 'file',
+    mimeType: file.mimeType,
+    fileExtension: dot > 0 && dot < file.name.length - 1 ? file.name.slice(dot + 1) : null,
+    sourceVersion: file.version
+  });
+  if (classification.category !== 'video')
+    throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+}
+
 export async function createProductCatalog(
   deps: ProductCatalogDeps,
   body: unknown,
@@ -321,11 +339,19 @@ export async function createProductCatalog(
 
   const drive = await deps.driveFor(video.credentialId);
   const liveVideo = await deps.proveVideo(video, drive);
+  assertLiveVideo(liveVideo);
+  // The selected file can move before the index catches up. Do not publish
+  // beside its stale parent or redirect a durable operation's frozen target.
+  if (!video.parentFolderId || !liveVideo.parents.includes(video.parentFolderId))
+    throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
   const destination = await deps.destination({
     teamId,
     actorId,
     folderId: video.parentFolderId
   });
+  const copyDrive = restitched ? await deps.driveFor(restitched.credentialId) : null;
+  const liveCopy = restitched && copyDrive ? await deps.proveVideo(restitched, copyDrive) : null;
+  if (liveCopy) assertLiveVideo(liveCopy);
 
   let videoShared = false;
   if ((await drive.listAnyonePermissions(liveVideo.id)).length === 0) {
@@ -341,9 +367,7 @@ export async function createProductCatalog(
     liveVideo.resourceKey ?? video.resourceKey
   );
   let videoLink = originalVideoLink;
-  if (restitched) {
-    const copyDrive = await deps.driveFor(restitched.credentialId);
-    const liveCopy = await deps.proveVideo(restitched, copyDrive);
+  if (restitched && copyDrive && liveCopy) {
     if ((await copyDrive.listAnyonePermissions(liveCopy.id)).length === 0) {
       await deps.loadVideo({ teamId, videoId: restitched.id, actorId, permission: 'edit' });
       if (liveCopy.capabilities.canShare !== true) {

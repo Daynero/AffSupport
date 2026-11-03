@@ -2,6 +2,7 @@
 // @ts-nocheck
 import { describe, expect, it, vi } from 'vitest';
 import type { DriveFileMetadata } from '../supabase/functions/_shared/drive.js';
+import { GoogleDriveClient, proveLiveAncestry } from '../supabase/functions/_shared/drive.js';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors.js';
 import {
   createProductCatalog,
@@ -204,6 +205,128 @@ async function refusal(promise: Promise<unknown>) {
   }
   throw new Error('expected a refusal');
 }
+
+it('refuses a stale indexed parent before publishing a catalog into the old folder', async () => {
+  const f = setup();
+  vi.mocked(f.deps.proveVideo).mockResolvedValue(metadata({ parents: ['moved-folder'] }));
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).rejects.toMatchObject({
+    code: 'SOURCE_CHANGED'
+  });
+  expect(f.deps.destination).not.toHaveBeenCalled();
+  expect(f.deps.drawTexts).not.toHaveBeenCalled();
+  expect(f.deps.drawImages).not.toHaveBeenCalled();
+  expect(f.drive.createAnyoneReaderPermission).not.toHaveBeenCalled();
+  expect(f.drive.createConvertedFile).not.toHaveBeenCalled();
+});
+
+it('requests live parents from Google and retains them through the real ancestry proof', async () => {
+  const request = vi.fn(async input => {
+    const url = new URL(String(input));
+    expect(url.searchParams.get('fields')?.split(',')).toContain('parents');
+    return Response.json({
+      id: 'video-drive',
+      name: 'video.mp4',
+      mimeType: 'video/mp4',
+      parents: ['root-folder'],
+      trashed: false,
+      capabilities: {}
+    });
+  });
+  const client = new GoogleDriveClient('synthetic-access-token', request as typeof fetch);
+  const live = await proveLiveAncestry({
+    client,
+    fileId: 'video-drive',
+    rootFolderId: 'root-folder'
+  });
+  expect(live.parents).toEqual(['root-folder']);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it.each(['image/png', 'application/vnd.google-apps.folder'])(
+  'refuses an indexed video whose proven live category is now %s',
+  async mimeType => {
+    const f = setup();
+    const request = vi.fn(async input => {
+      const fields = new URL(String(input)).searchParams.get('fields')?.split(',');
+      expect(fields).toEqual(expect.arrayContaining(['name', 'mimeType', 'parents']));
+      return Response.json({
+        id: 'drive-video',
+        name: 'clip.mp4',
+        mimeType,
+        parents: ['folder'],
+        trashed: false,
+        capabilities: { canShare: true }
+      });
+    });
+    const client = new GoogleDriveClient('synthetic-access-token', request as typeof fetch);
+    vi.mocked(f.deps.proveVideo).mockImplementation(async () =>
+      proveLiveAncestry({ client, fileId: 'drive-video', rootFolderId: 'folder' })
+    );
+    await expect(createProductCatalog(f.deps, body(), ACTOR)).rejects.toMatchObject({
+      code: 'SOURCE_CHANGED'
+    });
+    expect(f.deps.destination).not.toHaveBeenCalled();
+    expect(f.deps.drawTexts).not.toHaveBeenCalled();
+    expect(f.deps.drawImages).not.toHaveBeenCalled();
+    expect(f.drive.createAnyoneReaderPermission).not.toHaveBeenCalled();
+    expect(f.drive.createConvertedFile).not.toHaveBeenCalled();
+  }
+);
+
+it.each(['video/mp4', 'application/octet-stream', 'application/x-unrecognized'])(
+  'retains supported live video classification for %s',
+  async mimeType => {
+    const f = setup();
+    vi.mocked(f.deps.proveVideo).mockResolvedValue(metadata({ name: 'CLIP.MP4', mimeType }));
+    await expect(createProductCatalog(f.deps, body(), ACTOR)).resolves.toMatchObject({
+      outcome: 'created'
+    });
+    expect(f.drive.createConvertedFile).toHaveBeenCalledTimes(1);
+  }
+);
+
+it('also refuses a re-stitched copy whose live file became an image', async () => {
+  const f = setup();
+  vi.mocked(f.deps.proveVideo).mockImplementation(async video =>
+    metadata({
+      id: video.id === COPY ? 'drive-copy' : 'drive-video',
+      mimeType: video.id === COPY ? 'image/png' : 'video/mp4'
+    })
+  );
+  await expect(
+    createProductCatalog(f.deps, body({ restitchOperationId: RESTITCH_OPERATION }), ACTOR)
+  ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+  expect(f.deps.drawTexts).not.toHaveBeenCalled();
+  expect(f.deps.drawImages).not.toHaveBeenCalled();
+  expect(f.drive.createAnyoneReaderPermission).not.toHaveBeenCalled();
+  expect(f.drive.createConvertedFile).not.toHaveBeenCalled();
+});
+
+it('allows the selected source again once its indexed parent catches up', async () => {
+  const f = setup();
+  vi.mocked(f.deps.proveVideo).mockResolvedValue(metadata({ parents: ['moved-folder'] }));
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).rejects.toMatchObject({
+    code: 'SOURCE_CHANGED'
+  });
+  const original = await f.deps.loadVideo({
+    teamId: TEAM,
+    videoId: VIDEO,
+    actorId: ACTOR,
+    permission: 'view'
+  });
+  vi.mocked(f.deps.loadVideo).mockResolvedValue({ ...original, parentFolderId: 'moved-folder' });
+  vi.mocked(f.deps.destination).mockResolvedValue({
+    materialId: null,
+    live: metadata({ id: 'moved-folder', mimeType: 'application/vnd.google-apps.folder' })
+  });
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).resolves.toMatchObject({
+    outcome: 'created'
+  });
+  expect(f.drive.createConvertedFile).toHaveBeenCalledTimes(1);
+  expect(f.drive.createConvertedFile).toHaveBeenCalledWith(
+    expect.objectContaining({ parentId: 'moved-folder' })
+  );
+});
 
 describe('reading the request', () => {
   it('defaults link variation on and accepts an explicit opt-out', () => {

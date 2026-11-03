@@ -31,6 +31,12 @@ beforeAll(async () => {
   await db.exec(
     readFileSync('supabase/migrations/20261207113000_catalog_generation_diagnostics.sql', 'utf8')
   );
+  await db.exec(
+    readFileSync(
+      'supabase/migrations/20261207115000_catalog_generation_failure_diagnostics.sql',
+      'utf8'
+    )
+  );
 }, 30_000);
 afterAll(async () => {
   await db.close();
@@ -59,6 +65,17 @@ it('projects actual SQL checkpoint evidence through investigate without private 
     ]
   });
   expect(investigatePrivacyFailure(data)).toBeNull();
+  expect(data.findings).toContainEqual(
+    expect.objectContaining({
+      rule: 'catalog_generation_interrupted',
+      kind: 'fact',
+      fingerprint: 'catalog:generation:NEEDS_REAUTH'
+    })
+  );
+  expect(
+    data.findings.find(item => item.rule === 'catalog_generation_interrupted')?.code_locations[0]
+      ?.files
+  ).toContain('supabase/functions/drive-ops/product-catalog.ts');
   expect(JSON.stringify(data)).not.toMatch(
     /private-content|private-provider-id|private\.invalid|Bearer private|secret-request/
   );
@@ -105,9 +122,46 @@ it('normalizes unknown stored states and codes without exposing them', async () 
   const evidence = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
   expect(evidence).toMatchObject({
     unknown_projection: true,
-    records: [{ state: 'unknown', safe_error_code: 'UNKNOWN' }]
+    records: [{ state: 'unknown', safe_error_code: null }]
   });
   expect(JSON.stringify(evidence)).not.toMatch(/private provider message|Bearer private-secret/);
+});
+
+it('reports legacy missing interruption causes explicitly and locates captured source refusals', async () => {
+  await db.exec(
+    "update private.catalog_generation_intents set state='interrupted',safe_error_code=null"
+  );
+  const missing = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(missing).toMatchObject({ unknown_projection: true, records: [{ safe_error_code: null }] });
+  const unknown = (
+    await executeCommand(parseArgs(['investigate', 'fixture@example.test', '--period', 'all']))
+  ).data as InvestigateData;
+  expect(unknown.findings).toContainEqual(
+    expect.objectContaining({
+      rule: 'catalog_generation_interrupted',
+      kind: 'insufficient',
+      fingerprint: 'catalog:generation:UNKNOWN'
+    })
+  );
+  await db.exec(
+    'update private.catalog_generation_intents set checkpoint=checkpoint||\'{"safeErrorCode":"SOURCE_CHANGED"}\'::jsonb'
+  );
+  const recorded = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(recorded).toMatchObject({
+    unknown_projection: false,
+    records: [{ safe_error_code: 'SOURCE_CHANGED' }]
+  });
+  const diagnosis = (
+    await executeCommand(parseArgs(['investigate', 'fixture@example.test', '--period', 'all']))
+  ).data as InvestigateData;
+  expect(diagnosis.findings).toContainEqual(
+    expect.objectContaining({
+      kind: 'fact',
+      fingerprint: 'catalog:generation:SOURCE_CHANGED',
+      code_locations: [expect.objectContaining({ matched: 'catalog:generation:SOURCE_CHANGED' })]
+    })
+  );
+  expect(investigatePrivacyFailure(recorded)).toBeNull();
 });
 
 it('keeps missing migration or inaccessible view explicit', async () => {

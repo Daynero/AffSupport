@@ -1,5 +1,6 @@
 import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
+import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 import { parseCatalogRowRecipe } from '../_shared/product-catalog.ts';
 import type { XlsxCell } from '../_shared/xlsx.ts';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
@@ -592,8 +593,13 @@ export async function createDurableProductCatalog(
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;
   } catch (error) {
+    const failure = launchFailure(error);
     await deps.finalizeImageUses?.(request.teamId, intent.id, false).catch(() => undefined);
-    await store.checkpoint(intent, owner, 'interrupted', {}).catch(() => undefined);
+    await store
+      .checkpoint(intent, owner, 'interrupted', {
+        safeErrorCode: TEAM_ERROR_CODES.includes(failure.code) ? failure.code : 'UNKNOWN'
+      })
+      .catch(() => undefined);
     // The standalone form uses these closed reasons to explain how to repair
     // its input. Keep only the known enum, never arbitrary provider details.
     if (
@@ -607,6 +613,6 @@ export async function createDurableProductCatalog(
         details: { reason: error.details.reason }
       });
     }
-    throw launchFailure(error);
+    throw failure;
   }
 }

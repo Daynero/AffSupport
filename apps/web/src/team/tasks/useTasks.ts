@@ -1,4 +1,4 @@
-import { useScopedRows } from '../useScopedRows';
+import { isOlderRowVersion, useScopedRows } from '../useScopedRows';
 import { withReadDeadline } from '../readCoordinator';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { useOptionalAuth } from '../../auth/AuthContext';
@@ -162,7 +162,10 @@ export function taskFilterBounds(filter: TaskDateFilter) {
 
 function mergeTasks(current: TeamTaskSummary[], incoming: TeamTaskSummary[], sort: TeamTaskSort) {
   const byId = new Map(current.map(task => [task.id, task]));
-  for (const task of incoming) byId.set(task.id, task);
+  for (const task of incoming) {
+    const existing = byId.get(task.id);
+    if (!existing || !isOlderRowVersion(task, existing)) byId.set(task.id, task);
+  }
   // The same order the server pages in: by the date the task is for, or by
   // tag when that is what the board is ordered by.
   return [...byId.values()].sort(teamTaskComparator(sort));
@@ -277,7 +280,7 @@ export function useTasks({
   }, [identityScope, cacheKey]);
 
   const read = useCallback(
-    async (signal: AbortSignal) => {
+    async (signal: AbortSignal, deferFresh: () => void) => {
       pageRead.current?.abort();
       pageRead.current = null;
       setLoadingMore(false);
@@ -310,8 +313,15 @@ export function useTasks({
           signal.aborted ||
           requestGeneration !== generation.current ||
           writesBefore !== writes.current
-        )
+        ) {
+          if (
+            !signal.aborted &&
+            requestGeneration === generation.current &&
+            writesBefore !== writes.current
+          )
+            deferFresh();
           return;
+        }
         setTasks(next);
         setHasMore(next.length === PAGE_SIZE);
         setError(null);
@@ -542,7 +552,19 @@ export function useTasks({
           const stillShown = status === null || next.status === status;
           setTasks(current =>
             current
-              .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
+              .flatMap(item => {
+                if (item.id !== next.id || isOlderRowVersion(next, item)) return [item];
+                return stillShown
+                  ? [
+                      {
+                        ...next,
+                        attachmentCount: item.attachmentCount,
+                        agents: item.agents,
+                        labels: item.labels
+                      }
+                    ]
+                  : [];
+              })
               .sort(teamTaskComparator(sort))
           );
         },

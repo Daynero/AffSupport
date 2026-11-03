@@ -90,7 +90,7 @@ export function compactLocaleSources(english, ukrainian) {
   if (en.length !== uk.length || en.some(([key], index) => key !== uk[index][0])) invalid();
   const keys = en.map(([key]) => key);
   const module = (name, entries) =>
-    `import{keys}from${JSON.stringify(REQUEST)};const values=${JSON.stringify(entries.map(([, value]) => value))};export const ${name}={};for(let i=0;i<keys.length;i++)${name}[keys[i]]=values[i];`;
+    `import{keys}from${JSON.stringify(REQUEST)};const values=${JSON.stringify(entries.map(([, value]) => value))};export const ${name}={};for(let i=0;i<keys.length;i++)Object.defineProperty(${name},keys[i],{value:values[i],enumerable:true,configurable:true,writable:true});`;
   return {
     keys: `export const keys=${JSON.stringify(keys)};`,
     en: module('en', en),

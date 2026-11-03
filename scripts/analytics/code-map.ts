@@ -1001,6 +1001,23 @@ function build(): Record<string, CodeLocation> {
   for (const [reason, spec] of Object.entries(LINK_REASON_CHECKS)) {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
   }
+  const catalogGenerationFiles = [
+    'supabase/functions/drive-ops/product-catalog.ts',
+    'supabase/functions/drive-ops/catalog-durable.ts',
+    'supabase/functions/_shared/drive.ts',
+    'packages/shared/src/team/material-category.ts',
+    'apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx'
+  ];
+  map['catalog:generation:SOURCE_CHANGED'] = {
+    files: catalogGenerationFiles,
+    check:
+      'Compare the selected live parent and media category with the indexed source before retrying. Keep the same intent while a provider result remains uncertain; this refusal does not require completion of the whole scan.'
+  };
+  map['catalog:generation:*'] = {
+    files: catalogGenerationFiles,
+    check:
+      'Read the closed failure and last observed checkpoint, then verify the selected dependency before retrying the same intent. Missing cause or provider acknowledgement remains unknown.'
+  };
   for (const code of [
     'INVALID_INPUT',
     'INVALID_RESPONSE',
@@ -1152,6 +1169,9 @@ function build(): Record<string, CodeLocation> {
       files: [
         'apps/web/src/team/accounts/analytics.ts',
         'apps/web/src/team/accounts/AccountSpace.tsx',
+        'apps/web/src/team/accounts/useAccounts.ts',
+        'apps/web/src/api/team-accounts-workspace.ts',
+        'supabase/migrations/20261207114000_workspace_read_analytics_guard.sql',
         'apps/web/src/api/team.ts'
       ],
       check:
@@ -1346,12 +1366,15 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'supabase/migrations/20261205122000_task_attachment_cleanup.sql',
       'supabase/migrations/20261206140500_launch_offer_defaults_reference_fence.sql',
       'supabase/migrations/20261205121000_bulk_trash_receipts.sql',
+      'supabase/migrations/20261207120000_drive_mutation_preflight_receipts.sql',
+      'supabase/functions/drive-ops/mutation-preflight.ts',
+      'supabase/functions/drive-ops/index.ts',
       'supabase/functions/drive-ops/task-cleanup.ts',
       'apps/web/src/team/tasks/TaskEditor.tsx',
       'apps/web/src/team/explorer/useBulkTrash.ts'
     ],
     check:
-      'Reconcile the durable receipt, current rights and known references before retrying. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
+      'Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals become failed only while the operation remains pending without a lifecycle intent. An advanced or previously unknown write retains reconciliation. A refusal before Soty authorization has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
   },
   ...Object.fromEntries(
     RECOVERY_REASONS.map(reason => [

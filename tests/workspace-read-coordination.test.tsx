@@ -112,3 +112,61 @@ it('foreground catch-up bypasses an old failure backoff exactly once', async () 
   expect(load).toHaveBeenCalledTimes(2);
   expect(view.result.current.value).toBe('recovered');
 });
+
+it('returns the final canonical value of a coalesced batch and no value after retirement', async () => {
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const read = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const owner = createReadCoordinator<string>(read);
+  const pending = owner.request();
+  void owner.request();
+  first.resolve('older');
+  await Promise.resolve();
+  second.resolve('canonical');
+  expect(await pending).toBe('canonical');
+  owner.stop();
+  expect(await owner.request()).toBeUndefined();
+});
+
+it('confirms its post-invocation read without waiting for future continuous signals', async () => {
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const third = deferred<string>();
+  const reads = [first, second, third];
+  let index = 0;
+  const strictReads: boolean[] = [];
+  const owner: ReturnType<typeof createReadCoordinator<string>> = createReadCoordinator(
+    async () => {
+      strictReads.push(owner.hasFreshRequests());
+      return reads[index++]!.promise;
+    }
+  );
+  const draining = owner.request();
+  const confirmed = owner.requestFresh();
+  first.resolve('before invocation');
+  await vi.waitFor(() => expect(index).toBe(2));
+  void owner.request();
+  second.resolve('confirmed');
+  expect(await confirmed).toBe('confirmed');
+  expect(index).toBe(3);
+  expect(strictReads).toEqual([false, true, false]);
+  const laterFailure = new Error('later background failure');
+  third.reject(laterFailure);
+  await expect(draining).rejects.toBe(laterFailure);
+  expect(await confirmed).toBe('confirmed');
+});
+
+it('does not hide a failed confirmation behind a later successful background read', async () => {
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const failure = new Error('confirmation failed');
+  const read = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const owner = createReadCoordinator<string>(read);
+  const confirmed = owner.requestFresh();
+  const rejected = expect(confirmed).rejects.toBe(failure);
+  const later = owner.request();
+  first.reject(failure);
+  await rejected;
+  second.resolve('later recovery');
+  expect(await later).toBe('later recovery');
+});

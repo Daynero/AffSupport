@@ -26,6 +26,7 @@ const pending = new Map<
   { revision: number; promise: Promise<void>; controller: AbortController }
 >();
 const versions = new Map<string, object>();
+const writes = new Map<string, { version: object; promise: Promise<string | null> }>();
 let generation = 0;
 const keyOf = (teamId: string, materialId: string, client: MaterialNoteClient) =>
   JSON.stringify([privateCacheEpoch(), privateClientId(client), teamId, materialId]);
@@ -51,11 +52,23 @@ export function saveMaterialNote(
   versions.set(key, version);
   pending.get(key)?.controller.abort();
   pending.delete(key);
-  return client.setMaterialNote(teamId, materialId, note).then(saved => {
-    if (epoch !== privateCacheEpoch() || current !== generation) throw privateCacheSuperseded();
-    if (versions.get(key) === version) put(key, { state: 'ready', note: saved });
-    return saved;
-  });
+  const precedingWrite = writes.get(key)?.promise;
+  const promise = Promise.resolve()
+    .then(async () => {
+      if (precedingWrite) await precedingWrite.catch(() => {});
+      if (epoch !== privateCacheEpoch() || current !== generation) throw privateCacheSuperseded();
+      return client.setMaterialNote(teamId, materialId, note);
+    })
+    .then(saved => {
+      if (epoch !== privateCacheEpoch() || current !== generation) throw privateCacheSuperseded();
+      if (writes.get(key)?.version === version) put(key, { state: 'ready', note: saved });
+      return saved;
+    })
+    .finally(() => {
+      if (writes.get(key)?.version === version) writes.delete(key);
+    });
+  writes.set(key, { version, promise });
+  return promise;
 }
 export function resetMaterialNotes() {
   generation += 1;
@@ -63,6 +76,7 @@ export function resetMaterialNotes() {
   for (const entry of pending.values()) entry.controller.abort();
   pending.clear();
   versions.clear();
+  writes.clear();
 }
 registerPrivateCache(resetMaterialNotes);
 export function useMaterialNote(
@@ -105,7 +119,9 @@ export function useMaterialNote(
     const owns = () =>
       epoch === privateCacheEpoch() && current === generation && versions.get(key) === version;
     const controller = new AbortController();
-    const promise = withReadDeadline(signal => {
+    const write = writes.get(key)?.promise;
+    const promise = withReadDeadline(async signal => {
+      if (write) await write.catch(() => {});
       if (!owns()) throw privateCacheSuperseded();
       return client.getMaterialNote(teamId, materialId, { signal });
     }, controller.signal)

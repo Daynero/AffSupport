@@ -276,6 +276,15 @@ export async function executeCommand(
   options: ExecuteOptions = {}
 ): Promise<CommandResult> {
   const command = args.command;
+  if (
+    args.asOf !== undefined &&
+    ['database-performance', 'database-health', 'database-tables', 'database-retention'].includes(
+      command
+    )
+  )
+    throw new CommandError(
+      '--as-of is unavailable for current database snapshots; historical database state is not recorded by these commands.'
+    );
   if (args.cursor && command !== 'catalog-images')
     throw new CommandError('--cursor is supported only by catalog-images.');
   if (args.html && command !== 'catalog-trends')

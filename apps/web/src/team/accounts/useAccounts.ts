@@ -1,5 +1,7 @@
+import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { accountFlowId, emitAccountSignal, type AccountSignal } from './analytics';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { withReadDeadline } from '../readCoordinator';
 import {
   sortTeamAccounts,
   financeToday,
@@ -18,7 +20,7 @@ import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
  * API and nothing more, so a test can hand it a stub and a preview a fixture.
  */
 export interface AccountsClient {
-  listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
+  listAccounts(teamId: string, options?: { signal?: AbortSignal }): Promise<TeamAccountSummary[]>;
   createAccount(input: {
     teamId: string;
     name: string;
@@ -79,6 +81,20 @@ export interface AccountsClient {
     labelId: string;
   }): Promise<TeamAccountAgentSummary>;
 }
+
+type AgentWriteOperation =
+  | 'updateAccountAgent'
+  | 'addAgentRun'
+  | 'updateAgentRun'
+  | 'deleteAgentRun'
+  | 'setAgentRunMarker'
+  | 'clearAgentRuns'
+  | 'attachAgentLabel'
+  | 'detachAgentLabel';
+type AgentWriteInput<K extends AgentWriteOperation> = Omit<
+  Parameters<AccountsClient[K]>[0],
+  'teamId'
+>;
 
 const defaultClient: AccountsClient = teamApi;
 
@@ -227,76 +243,99 @@ export function useAccounts({
     }
   }, [accounts]);
 
-  const refetch = useCallback(async (): Promise<TeamAccountSummary[] | null> => {
-    const flowId = accountFlowId();
-    emitAccountSignal('overview', 'requested', { flowId, coverage: 'accounts_only' });
-    const requestGeneration = ++generation.current;
-    const writesBefore = writes.current;
-    try {
-      const overview =
-        client === defaultClient && from && to && timezone
-          ? await accountsWorkspaceApi.overview(teamId, from, to, timezone)
-          : null;
-      const next = overview?.accounts ?? (await client.listAccounts(teamId));
-      if (requestGeneration !== generation.current || writes.current !== writesBefore) {
+  const readAccounts = useCallback(
+    async (signal: AbortSignal, deferFresh: () => void): Promise<TeamAccountSummary[] | null> => {
+      const flowId = accountFlowId();
+      emitAccountSignal('overview', 'requested', { flowId, coverage: 'accounts_only' });
+      const requestGeneration = ++generation.current;
+      const writesBefore = writes.current;
+      setLoading(true);
+      try {
+        const { overview, next } = await withReadDeadline(async child => {
+          const overview =
+            client === defaultClient && from && to && timezone
+              ? await accountsWorkspaceApi.overview(teamId, from, to, timezone, { signal: child })
+              : null;
+          const next = overview?.accounts ?? (await client.listAccounts(teamId, { signal: child }));
+          return { overview, next };
+        }, signal);
+        if (
+          signal.aborted ||
+          requestGeneration !== generation.current ||
+          writes.current !== writesBefore
+        ) {
+          if (!signal.aborted && requestGeneration === generation.current) deferFresh();
+          emitAccountSignal('overview', 'terminal', {
+            flowId,
+            result: 'cancelled',
+            outcome: 'cancelled',
+            coverage: 'accounts_only'
+          });
+          return null;
+        }
+        const canonical = sortTeamAccounts(next);
+        emitAccountSignal('overview', 'accepted', {
+          flowId,
+          result: 'partial',
+          outcome: 'success',
+          coverage: 'accounts_only',
+          count: canonical.length
+        });
+        overviewApplied.current.push(flowId);
+        setAccounts(canonical);
+        if (overview) {
+          setLaunchSummaries(overview.launchSummaries ?? []);
+          setLaunchAssignments(overview.launchAssignments ?? []);
+          setAssignmentCoverage(overview.assignmentCoverage ?? 'partial');
+          setLaunchCoverage(overview.launchCoverage ?? 'partial');
+        }
+        if (overview)
+          setOrderVersions({
+            socials: overview.socialOrderVersion,
+            agents: overview.agentOrderVersions
+          });
+        setError(null);
+        return canonical;
+      } catch (cause) {
+        const cancelled = signal.aborted || requestGeneration !== generation.current;
         emitAccountSignal('overview', 'terminal', {
           flowId,
-          result: 'cancelled',
-          outcome: 'cancelled',
+          result: cancelled ? 'cancelled' : 'failed',
+          outcome: cancelled ? 'cancelled' : 'failure',
+          code: cancelled
+            ? undefined
+            : cause !== null && typeof cause === 'object' && 'code' in cause
+              ? cause.code
+              : 'UNKNOWN',
           coverage: 'accounts_only'
         });
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+        }
         return null;
+      } finally {
+        if (!signal.aborted && requestGeneration === generation.current) setLoading(false);
       }
-      const canonical = sortTeamAccounts(next);
-      emitAccountSignal('overview', 'accepted', {
-        flowId,
-        result: 'partial',
-        outcome: 'success',
-        coverage: 'accounts_only',
-        count: canonical.length
-      });
-      overviewApplied.current.push(flowId);
-      setAccounts(canonical);
-      if (overview) {
-        setLaunchSummaries(overview.launchSummaries ?? []);
-        setLaunchAssignments(overview.launchAssignments ?? []);
-        setAssignmentCoverage(overview.assignmentCoverage ?? 'partial');
-        setLaunchCoverage(overview.launchCoverage ?? 'partial');
-      }
-      if (overview)
-        setOrderVersions({
-          socials: overview.socialOrderVersion,
-          agents: overview.agentOrderVersions
-        });
-      setError(null);
-      return canonical;
-    } catch (cause) {
-      emitAccountSignal('overview', 'terminal', {
-        flowId,
-        result: 'failed',
-        outcome: 'failure',
-        code:
-          cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : 'UNKNOWN',
-        coverage: 'accounts_only'
-      });
-      if (requestGeneration === generation.current) {
-        setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
-      }
-      return null;
-    } finally {
-      if (requestGeneration === generation.current) setLoading(false);
-    }
-  }, [client, teamId, from, to, timezone]);
+    },
+    [client, teamId, from, to, timezone]
+  );
 
-  useEffect(() => {
-    // A cached list stays on screen while it is re-read; only a space never
-    // seen before shows the loading line.
-    setLoading(true);
-    void refetch();
-    return () => {
+  const read = useVisibleSerialRead({
+    scopeKey: JSON.stringify([teamId, from, to, timezone]),
+    client,
+    revision,
+    manualWhenHidden: true,
+    bindScope: true,
+    immediate: true,
+    read: readAccounts
+  });
+  const refetch = useCallback(async () => (await read()) ?? null, [read]);
+  useEffect(
+    () => () => {
       generation.current += 1;
-    };
-  }, [client, refetch, revision, teamId]);
+    },
+    [refetch]
+  );
 
   // TeamContext owns the only workspace realtime channel. A local mutation
   // still applies its canonical response immediately; revision refreshes peers.
@@ -308,7 +347,11 @@ export function useAccounts({
         creationDay(startsOn, timezone)
       );
       writes.current += 1;
-      setAccounts(current => sortTeamAccounts([...current, created]));
+      setAccounts(current =>
+        sortTeamAccounts(
+          current.some(item => item.id === created.id) ? current : [...current, created]
+        )
+      );
       return created;
     },
     [client, retained, teamId, timezone]
@@ -381,7 +424,9 @@ export function useAccounts({
           ...(account.startsOn && created.startsOn && created.startsOn < account.startsOn
             ? { startsOn: created.startsOn }
             : {}),
-          agents: [...account.agents.filter(agent => agent.id !== created.id), created]
+          agents: account.agents.some(agent => agent.id === created.id)
+            ? account.agents
+            : [...account.agents, created]
         }))
       );
       return created;
@@ -403,49 +448,41 @@ export function useAccounts({
     return updated;
   }, []);
 
+  const writeAgent = useCallback(
+    async <K extends AgentWriteOperation>(operation: K, input: AgentWriteInput<NoInfer<K>>) => {
+      // The closed operation/input pair is checked at every caller; dispatch is
+      // the only assertion needed for TypeScript's union of method signatures.
+      const invoke = client[operation] as (
+        this: AccountsClient,
+        input: AgentWriteInput<K> & { teamId: string }
+      ) => Promise<TeamAccountAgentSummary>;
+      return putAgent(await retained(operation, () => invoke.call(client, { ...input, teamId })));
+    },
+    [client, putAgent, retained, teamId]
+  );
   const updateAgent = useCallback(
-    async (agent: TeamAccountAgentSummary, agentId: string) =>
-      putAgent(
-        await retained('updateAccountAgent', () =>
-          client.updateAccountAgent({ teamId, agentRowId: agent.id, agentId })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (agent: TeamAccountAgentSummary, agentId: string) =>
+      writeAgent('updateAccountAgent', { agentRowId: agent.id, agentId }),
+    [writeAgent]
   );
-
   const addRun = useCallback(
-    async (agent: TeamAccountAgentSummary, note: string) =>
-      putAgent(
-        await retained('addAgentRun', () =>
-          client.addAgentRun({ teamId, agentRowId: agent.id, note })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (agent: TeamAccountAgentSummary, note: string) =>
+      writeAgent('addAgentRun', { agentRowId: agent.id, note }),
+    [writeAgent]
   );
-
   const updateRun = useCallback(
-    async (runId: string, note: string) =>
-      putAgent(
-        await retained('updateAgentRun', () => client.updateAgentRun({ teamId, runId, note }))
-      ),
-    [client, putAgent, retained, teamId]
+    (runId: string, note: string) => writeAgent('updateAgentRun', { runId, note }),
+    [writeAgent]
   );
-
   const deleteRun = useCallback(
-    async (runId: string) =>
-      putAgent(await retained('deleteAgentRun', () => client.deleteAgentRun({ teamId, runId }))),
-    [client, putAgent, retained, teamId]
+    (runId: string) => writeAgent('deleteAgentRun', { runId }),
+    [writeAgent]
   );
-
   /** The colour a press on the run landed on; null clears it. */
   const setRunMarker = useCallback(
-    async (runId: string, marker: TeamAgentRunMarker | null) =>
-      putAgent(
-        await retained('setAgentRunMarker', () =>
-          client.setAgentRunMarker({ teamId, runId, marker })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (runId: string, marker: TeamAgentRunMarker | null) =>
+      writeAgent('setAgentRunMarker', { runId, marker }),
+    [writeAgent]
   );
 
   /**
@@ -471,33 +508,18 @@ export function useAccounts({
 
   /** Frees the agent: every run goes at once. */
   const clearRuns = useCallback(
-    async (agent: TeamAccountAgentSummary) =>
-      putAgent(
-        await retained('clearAgentRuns', () =>
-          client.clearAgentRuns({ teamId, agentRowId: agent.id })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (agent: TeamAccountAgentSummary) => writeAgent('clearAgentRuns', { agentRowId: agent.id }),
+    [writeAgent]
   );
-
   const attachLabel = useCallback(
-    async (agent: TeamAccountAgentSummary, labelId: string) =>
-      putAgent(
-        await retained('attachAgentLabel', () =>
-          client.attachAgentLabel({ teamId, agentRowId: agent.id, labelId })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (agent: TeamAccountAgentSummary, labelId: string) =>
+      writeAgent('attachAgentLabel', { agentRowId: agent.id, labelId }),
+    [writeAgent]
   );
-
   const detachLabel = useCallback(
-    async (agent: TeamAccountAgentSummary, labelId: string) =>
-      putAgent(
-        await retained('detachAgentLabel', () =>
-          client.detachAgentLabel({ teamId, agentRowId: agent.id, labelId })
-        )
-      ),
-    [client, putAgent, retained, teamId]
+    (agent: TeamAccountAgentSummary, labelId: string) =>
+      writeAgent('detachAgentLabel', { agentRowId: agent.id, labelId }),
+    [writeAgent]
   );
 
   const deleteAgent = useCallback(

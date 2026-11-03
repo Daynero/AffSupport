@@ -75,32 +75,6 @@ export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
 const OCCUPANCY: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy', 'unknown'];
 
-/**
- * Which accounts are folded, remembered per space in this browser. A
- * convenience, not state: a missing or unreadable value means "all open".
- */
-function collapsedKey(teamId: string): string {
-  return `soty.team-accounts.collapsed:${teamId}`;
-}
-
-function readCollapsed(teamId: string): Set<string> {
-  try {
-    const raw = window.localStorage.getItem(collapsedKey(teamId));
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function writeCollapsed(teamId: string, collapsed: Set<string>): void {
-  try {
-    window.localStorage.setItem(collapsedKey(teamId), JSON.stringify([...collapsed]));
-  } catch {
-    // Nothing to do: the fold is a convenience and the page works without it.
-  }
-}
-
 /** Which editor is open: the new-account row, or one row inside one account. */
 type Editor = { kind: 'create' } | { kind: 'account'; accountId: string; state: AgentEditing };
 
@@ -505,10 +479,14 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     }),
     [accounts.accounts, teamId]
   );
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => readCollapsed(teamId));
+  const [collapsed, setCollapsed] = usePersistedState<Set<string>>(
+    `soty.team-accounts.collapsed:${teamId}`,
+    new Set(),
+    value => new Set(Array.isArray(value) ? value.filter(id => typeof id === 'string') : []),
+    value => [...value]
+  );
 
   useEffect(() => {
-    setCollapsed(readCollapsed(teamId));
     setEditor(null);
     setHold(false);
   }, [teamId]);
@@ -533,19 +511,6 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     setEditor(next);
   }, []);
 
-  const setAccountCollapsed = useCallback(
-    (accountId: string, value: boolean) => {
-      setCollapsed(current => {
-        const next = new Set(current);
-        if (value) next.add(accountId);
-        else next.delete(accountId);
-        writeCollapsed(teamId, next);
-        return next;
-      });
-    },
-    [teamId]
-  );
-
   /**
    * One press for the whole list. Folded is the exception, so the button says
    * "Collapse all" until every account on screen is already folded — reading
@@ -560,11 +525,14 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
           if (fold) next.add(id);
           else next.delete(id);
         }
-        writeCollapsed(teamId, next);
         return next;
       });
     },
-    [teamId]
+    [setCollapsed]
+  );
+  const setAccountCollapsed = useCallback(
+    (accountId: string, value: boolean) => toggleAll([accountId], value),
+    [toggleAll]
   );
 
   /**

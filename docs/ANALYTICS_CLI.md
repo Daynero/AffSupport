@@ -663,3 +663,13 @@ closed states/codes and checkpoint-presence flags only. Missing projection or
 grant is explicit; current checkpoints do not reconstruct historical as-of
 stages or prove browser delivery. No request, checkpoint or provider payload is
 returned.
+
+`database-performance`, `database-health`, `database-tables` and
+`database-retention` report current observations, not recorded historical
+snapshots. They reject `--as-of` before making any request. Performance statement
+counters are cumulative and cron/log aggregates cover the most recent hour;
+these sources cannot reconstruct an earlier incident from a pinned date.
+
+Browser token recovery retries a rejected request only while the same settled authentication intent still owns it. Interactive sign-in writes `pending:<opaque UUID>` before SDK work and a fresh opaque UUID after completion under the same cross-tab lock. A request captured during the pending phase, a changed intent, unavailable intent storage, or a canceled caller receives its original API failure without replay. A failed completion write leaves the pending marker and fails closed; ordinary token rotation does not change this intent. This marker contains no account identity or credential. The regression suite covers requests begun before and during a pending login, cancellation during refresh, and completion-storage failure. This protects automatic replay; it does not establish browser delivery of an earlier result.
+
+Authentication recovery binds a PostgREST replay to the refreshed owner's token on the original lazy request builder before SDK token acquisition can await another login. A native HTTP caller must supply an explicit token-bound retry (finance XLSX export does); opaque Promises are never automatically invoked again. A retry result observed after ownership changes is withheld in favor of the original failure. The real SDK regression checks HTTP credentials across a delayed token read, cancellation during refresh, and binary export recovery. Note saves within one mounted actor/client/material scope run in invocation order; later local saves wait for an earlier server outcome, and rereads wait for the pending save. This does not serialize writes from other browsers or reconstruct uncertain server outcomes.

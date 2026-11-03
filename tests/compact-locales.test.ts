@@ -60,6 +60,28 @@ it('evaluates only static string concatenation and preserves escaped and Unicode
   expect(reconstruct(compact, 'uk')).toEqual({ first: 'б\u2028', second: '' });
 });
 
+it('creates own data properties without invoking inherited setters', () => {
+  const key = '__localeInheritedSetterFixture';
+  const setter = vi.fn();
+  Object.defineProperty(Object.prototype, key, { set: setter, configurable: true });
+  try {
+    const compact = compactLocaleSources(
+      `export const en = {${key}:"english"};`,
+      `export const uk = {${key}:"українська"};`
+    );
+    const rebuilt = reconstruct(compact, 'en');
+    expect(setter).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(rebuilt, key)).toEqual({
+      value: 'english',
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } finally {
+    Reflect.deleteProperty(Object.prototype, key);
+  }
+});
+
 it.each([
   'export const en = {a: sideEffect()};',
   'export const en = {a: `${sideEffect()}`};',

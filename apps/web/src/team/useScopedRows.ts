@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/** Postgres versions include microseconds; Date.parse alone drops their last three digits. */
+export function isOlderRowVersion(next: { updatedAt?: string }, current: { updatedAt?: string }) {
+  const incoming = Date.parse(next.updatedAt ?? '');
+  const existing = Date.parse(current.updatedAt ?? '');
+  if (!Number.isFinite(incoming) || !Number.isFinite(existing)) return false;
+  if (incoming !== existing) return incoming < existing;
+  const micros = (value: string) =>
+    (value.match(/T\d{2}:\d{2}:\d{2}\.(\d+)/)?.[1] ?? '').padEnd(6, '0').slice(3, 6);
+  return micros(next.updatedAt!) < micros(current.updatedAt!);
+}
+
 /** A bounded, identity-owned view cache and lifetime for protected row readers. */
 export function useScopedRows<T>(
   identity: string,

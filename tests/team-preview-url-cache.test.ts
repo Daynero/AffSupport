@@ -56,6 +56,7 @@ describe('preview URL cache', () => {
       cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media'),
       cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media')
     ];
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     release(media(10 * 60_000));
     const results = await Promise.all(pending);
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -95,4 +96,26 @@ describe('preview URL cache', () => {
     });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+});
+
+it('settles synchronous provider failures as rejected requests and lets them retry', async () => {
+  const fetcher = vi
+    .fn()
+    .mockImplementationOnce(() => {
+      throw new Error('synchronous-provider-failure');
+    })
+    .mockResolvedValueOnce(media(600_000));
+  await expect(cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media')).rejects.toThrow(
+    'synchronous-provider-failure'
+  );
+  await expect(cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media')).resolves.toMatchObject({
+    kind: 'media'
+  });
+});
+
+it('handles an immediately rejected transport without an orphan rejection', async () => {
+  const fetcher = vi.fn(() => Promise.reject(new Error('immediate-provider-rejection')));
+  await expect(cachedPreview(fetcher, TEAM_ID, MATERIAL_ID, 'media')).rejects.toThrow(
+    'immediate-provider-rejection'
+  );
 });

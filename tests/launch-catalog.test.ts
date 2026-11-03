@@ -582,6 +582,61 @@ it('rejects changed binary contents before reconciling an unregistered catalog',
   expect(f.create).toHaveBeenCalledTimes(1);
 });
 
+it('does not create another Sheet when the selected parent becomes stale during lost-reply recovery', async () => {
+  const f = fixture(true);
+  await expect(
+    createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+  ).rejects.toMatchObject({ code: 'LAUNCH_INTERNAL_ERROR' });
+  vi.mocked(f.deps.proveVideo).mockResolvedValue({
+    ...metadata(),
+    id: 'video-drive',
+    mimeType: 'video/mp4',
+    parents: ['moved-folder']
+  });
+  await expect(
+    createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+  ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+  expect(f.create).toHaveBeenCalledTimes(1);
+  expect(f.deps.finalize).not.toHaveBeenCalled();
+  expect(f.state.state).toBe('interrupted');
+  expect(f.state.checkpoint.createStarted).toBe(true);
+});
+
+it('reuses the accepted intent after the selected parent index catches up', async () => {
+  const f = fixture(false);
+  vi.mocked(f.deps.proveVideo).mockResolvedValue({
+    ...metadata(),
+    id: 'video-drive',
+    mimeType: 'video/mp4',
+    parents: ['moved-folder']
+  });
+  const run = () => createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+  await expect(run()).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+  expect(f.create).not.toHaveBeenCalled();
+  const original = await f.deps.loadVideo({
+    teamId: TEAM,
+    videoId: VIDEO,
+    actorId: ACTOR,
+    permission: 'view'
+  });
+  vi.mocked(f.deps.loadVideo).mockResolvedValue({ ...original, parentFolderId: 'moved-folder' });
+  vi.mocked(f.deps.destination).mockResolvedValue({
+    materialId: null,
+    live: { ...metadata(), id: 'moved-folder', mimeType: 'application/vnd.google-apps.folder' }
+  });
+  f.create.mockImplementation(async input => ({
+    ...metadata(),
+    parents: [input.parentId],
+    appProperties: input.appProperties ?? {}
+  }));
+  await expect(run()).resolves.toMatchObject({ outcome: 'created' });
+  await expect(run()).resolves.toMatchObject({ outcome: 'created' });
+  expect(f.state.id).toBe('intent');
+  expect(f.state.attempt).toBe(1);
+  expect(f.create).toHaveBeenCalledTimes(1);
+  expect(f.deps.finalize).toHaveBeenCalledTimes(1);
+});
+
 it('retries a definitive create refusal using the same reserved variation and recipe', async () => {
   const f = fixture(false);
   f.create.mockRejectedValueOnce(new TeamFunctionError('RATE_LIMITED', { retryable: true }));

@@ -1856,6 +1856,27 @@ export async function getInvestigation(
   }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
+  for (const detail of catalog_generations.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const record of catalog_generations.records.filter(
+    record =>
+      record.origin === 'standalone' && ['interrupted', 'cleanup_pending'].includes(record.state)
+  )) {
+    const code = record.safe_error_code ?? 'UNKNOWN';
+    const location = lookupCodeLocations(`catalog:generation:${code}`);
+    findings.push({
+      id: hashId(['catalog_generation', record.intent_id, String(record.attempt), code]),
+      kind: code === 'UNKNOWN' ? 'insufficient' : 'fact',
+      severity: code === 'UNKNOWN' ? 'low' : 'medium',
+      rule: 'catalog_generation_interrupted',
+      title: `Standalone catalog checkpoint: ${record.state}; recorded cause: ${code}.`,
+      evidence: [`catalog:${record.intent_id}:${record.attempt}`],
+      fingerprint: `catalog:generation:${code}`,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Reconcile the existing intent and selected dependency before retrying. An uncertain provider outcome never authorizes another catalog file.'
+    });
+  }
   if (!launches.supported)
     blindSpots.push({
       kind: 'launch_diagnostics_unavailable',

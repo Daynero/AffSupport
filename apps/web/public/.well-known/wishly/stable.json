@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.3.0",
-  "buildNumber": "76",
-  "buildId": "1.3.0+76",
+  "version": "1.3.1",
+  "buildNumber": "77",
+  "buildId": "1.3.1+77",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-01T15:41:48.259Z",
+  "publishedAt": "2026-11-03T22:53:17.328Z",
   "summary": {
-    "uk": "Зустрічайте простір!",
-    "en": "Meet your workspace!"
+    "uk": "Виправлено помилки та покращено продуктивність.",
+    "en": "Bug fixes and performance improvements."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.0/Soty-v1.3.0-macOS-arm64.dmg",
-      "sha256": "27a287106b07e7be7c0441729e977a1156f7b998ac3529c8c46f2137db5f0cae"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.1/Soty-v1.3.1-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.0/Soty-v1.3.0-Windows-x64.exe",
-      "sha256": "fb2b3a236c1997e509db721613bc82c9edd6445a1d4c8100a8afa725177ccfab"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.1/Soty-v1.3.1-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "g7fx8w0BHf0XgbBTA8ZI92DmHmYAzRdN97uft_4BRUqBUIVteCyr2eDpHegS-gzn0gZ3OKWmPtAxrt3w0owGpQ"
+  "signature": "LEdCEGpBqzbmGOG5ILOG33Odm4faq3mjvZ1tT6eNPCg1vtnnkry0Yq5-Fs4VNnoQDZnfYbJEZdJaBaGyHp8s3g"
 }

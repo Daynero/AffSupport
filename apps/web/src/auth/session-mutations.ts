@@ -34,15 +34,20 @@ function readIntent(origin: string, storage?: AuthSessionMutationStorage): strin
   try {
     const value = intentStorage(storage).getItem(`soty.auth.session-intent.v1:${origin}`);
     if (value === null) return 'initial';
-    if (!UUID.test(value)) throw new Error();
+    if (!UUID.test(value) && !(value.startsWith('pending:') && UUID.test(value.slice(8))))
+      throw new Error();
     return value;
   } catch (error) {
     throw new Error('AUTH_SESSION_STATE_UNAVAILABLE', { cause: error });
   }
 }
-function advanceIntent(origin: string, storage?: AuthSessionMutationStorage): void {
+function advanceIntent(
+  origin: string,
+  storage?: AuthSessionMutationStorage,
+  pending = false
+): void {
   try {
-    const revision = crypto.randomUUID();
+    const revision = `${pending ? 'pending:' : ''}${crypto.randomUUID()}`;
     intentStorage(storage).setItem(`soty.auth.session-intent.v1:${origin}`, revision);
     if (readIntent(origin, storage) !== revision) throw new Error();
   } catch (error) {
@@ -91,8 +96,14 @@ async function withAuthSessionLane<T>(
         clearTimeout(timer);
         // One opaque revision per project, no actor or credential. This also
         // protects OAuth preparation which has not committed a new session yet.
-        if (markIntent) advanceIntent(origin, storage);
-        return run();
+        if (markIntent) advanceIntent(origin, storage, true);
+        try {
+          return await run();
+        } finally {
+          // Retire requests captured after intent began but before its commit.
+          // Keep this inside the exclusive lane, including rejected mutations.
+          if (markIntent) advanceIntent(origin, storage);
+        }
       }
     );
   } catch (error) {
@@ -120,7 +131,8 @@ function sessionId(session: Session): string | null {
   }
 }
 
-function sameSession(expected: Session, current: Session): boolean {
+/** Stable owner equality across ordinary token rotation; legacy sessions fail closed. */
+export function sameAuthSession(expected: Session, current: Session): boolean {
   if (expected.user.id !== current.user.id) return false;
   const expectedId = sessionId(expected),
     currentId = sessionId(current);
@@ -151,7 +163,7 @@ export async function signOutExpectedSession(
       const current = data.session;
       if (
         readIntent(projectOrigin(scope), storage) !== expected.intentRevision ||
-        (current && (!expected.session || !sameSession(expected.session, current)))
+        (current && (!expected.session || !sameAuthSession(expected.session, current)))
       )
         return { error: null, superseded: true, session: current };
       if (!current) return { error: null, superseded: false, session: null };

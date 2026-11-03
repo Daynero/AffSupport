@@ -2220,3 +2220,27 @@ re-enabling the view, reset inherited defaults for every consumer and grant only
 SELECT to service/analytics roles; no INSERT, UPDATE or DELETE privilege belongs
 on this projection. Never apply rollback SQL automatically or against an unknown
 release outcome.
+
+### 20261207115000 — Catalog generation failure diagnosis
+
+Additive restricted projection over the existing fenced private checkpoint; no
+RPC signature, lease, idempotency receipt or provider file is changed. A web
+rollback needs no schema action. Retain the normalized checkpoint code as
+diagnostic evidence. If explicitly authorized removal is needed, restoring only
+the view definition from 20261207113000 makes newer checkpoint-only causes
+unknown; it must not delete or rewrite intents/checkpoints. Preserve SELECT-only
+ACLs for service/analytics and deny writes to every consumer. Do not claim a
+nonfailed current snapshot still has the earlier interrupted failure. Never run
+rollback SQL automatically or while a release outcome is unknown.
+
+### 20261207120000 — Drive mutation preflight refusal receipts
+
+The new service-only RPC fails only a still-pending trash/restore operation with
+no material-group intent, under the same operation row lock as the existing
+running transition. A reused/advanced or unknown write must retain its receipt
+and reconciliation path. Roll back the Edge caller before explicitly removing
+this RPC; never substitute an unconditional failed transition or classify
+client-reported permission errors as proof that no write occurred. Preserve all
+bulk items, operation keys and material-group checkpoints. A missing/newer RPC
+leaves the operation nonterminal rather than asserting a false failure. No
+automatic rollback or production repair is authorized.

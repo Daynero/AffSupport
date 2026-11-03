@@ -375,6 +375,43 @@ describe('folder intake in Explorer', () => {
     expect(uploadTeamFile).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])(
+    'keeps a loose video when a mixed directory drop has no entry for that file (coordinated=%s)',
+    async coordinated => {
+      testClient = client();
+      render(shell(null, coordinated));
+      const video = new File(['video'], 'loose.mp4', { type: 'video/mp4' });
+      const empty = {
+        name: 'empty',
+        isFile: false,
+        isDirectory: true,
+        createReader: () => ({
+          readEntries: (success: (entries: unknown[]) => void) => success([])
+        })
+      };
+      fireEvent.drop(document.querySelector('.team-explorer-dropzone')!, {
+        dataTransfer: {
+          types: ['Files'],
+          files: [video],
+          items: [
+            { kind: 'file', webkitGetAsEntry: () => empty, getAsFile: () => null },
+            { kind: 'file', webkitGetAsEntry: () => null, getAsFile: () => video }
+          ]
+        }
+      });
+      await waitFor(() =>
+        expect(uploadTeamFile).toHaveBeenCalledWith(
+          expect.objectContaining({ file: video, destinationFolderId: null })
+        )
+      );
+      if (coordinated)
+        expect(teamApi.ensureUploadFolder).toHaveBeenCalledWith(
+          team.id,
+          expect.objectContaining({ name: 'empty', parentMaterialId: null })
+        );
+    }
+  );
+
   it('freezes the drop destination before asynchronous file enumeration', async () => {
     testClient = client();
     let deliver!: (file: File) => void;

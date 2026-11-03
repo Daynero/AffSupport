@@ -2,44 +2,82 @@ import { WORKSPACE_READ_CODES } from '@video-compressor/shared';
 import { analytics } from '../analytics/service';
 
 /** One read owner per mounted scope. Signals during a read request one fresh follow-up. */
-export function createReadCoordinator(read: (signal: AbortSignal) => Promise<void>) {
-  let pending: Promise<void> | null = null;
+export function createReadCoordinator<T = void>(read: (signal: AbortSignal) => Promise<T>) {
+  let pending: Promise<T | undefined> | null = null;
   let dirty = false;
   let stopped = false;
   let controller: AbortController | null = null;
+  let started = 0;
+  let confirmations: Array<{
+    after: number;
+    resolve: (value: T | undefined) => void;
+    reject: (cause: unknown) => void;
+  }> = [];
+  const request = (): Promise<T | undefined> => {
+    if (stopped) return Promise.resolve(undefined);
+    dirty = true;
+    if (pending) return pending;
+    pending = (async () => {
+      let failure: unknown;
+      let result: T | undefined;
+      try {
+        while (dirty && !stopped) {
+          dirty = false;
+          const readId = ++started;
+          controller = new AbortController();
+          let failed = false;
+          try {
+            result = await read(controller.signal);
+            failure = undefined;
+          } catch (error) {
+            failure = error;
+            failed = true;
+          }
+          const ready = confirmations.filter(waiter => waiter.after <= readId);
+          confirmations = confirmations.filter(waiter => waiter.after > readId);
+          for (const waiter of ready) {
+            if (failed) waiter.reject(failure);
+            else waiter.resolve(stopped ? undefined : result);
+          }
+        }
+        if (failure !== undefined && !stopped) throw failure;
+        return stopped ? undefined : result;
+      } finally {
+        pending = null;
+        controller = null;
+      }
+    })();
+    return pending;
+  };
   return {
     isRunning: () => pending !== null,
     start() {
       stopped = false;
     },
-    request(): Promise<void> {
-      if (stopped) return Promise.resolve();
+    request,
+    /** Confirm the first read begun after this call, without waiting for later signals. */
+    requestFresh(): Promise<T | undefined> {
+      if (stopped) return Promise.resolve(undefined);
+      const confirmed = new Promise<T | undefined>((resolve, reject) => {
+        confirmations.push({ after: started + 1, resolve, reject });
+      });
+      void request().catch(() => {});
+      return confirmed;
+    },
+    hasFreshRequests: () => confirmations.some(waiter => waiter.after <= started),
+    /** A same-scope mutation invalidated this read before it could paint. */
+    deferFresh() {
+      if (stopped) return;
+      for (const waiter of confirmations) {
+        if (waiter.after <= started) waiter.after = started + 1;
+      }
       dirty = true;
-      if (pending) return pending;
-      pending = (async () => {
-        let failure: unknown;
-        try {
-          while (dirty && !stopped) {
-            dirty = false;
-            controller = new AbortController();
-            try {
-              await read(controller.signal);
-              failure = undefined;
-            } catch (error) {
-              failure = error;
-            }
-          }
-          if (failure !== undefined && !stopped) throw failure;
-        } finally {
-          pending = null;
-          controller = null;
-        }
-      })();
-      return pending;
     },
     stop() {
       stopped = true;
       dirty = false;
+      for (const waiter of confirmations) waiter.resolve(undefined);
+      confirmations = [];
       controller?.abort();
     }
   };

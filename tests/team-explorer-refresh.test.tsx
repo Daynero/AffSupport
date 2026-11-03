@@ -130,7 +130,7 @@ describe('useFolderPage.reloadStrict', () => {
     next: null
   });
 
-  it('a superseded strict reload resolves once the newer window has painted', async () => {
+  it('confirms its own painted snapshot while a later background window remains pending', async () => {
     const first = deferred<FolderPage>();
     const strict = deferred<FolderPage>();
     const background = deferred<FolderPage>();
@@ -162,7 +162,9 @@ describe('useFolderPage.reloadStrict', () => {
     expect(listFolderPage).toHaveBeenCalledTimes(2);
     await act(async () => strict.resolve(page(['one'])));
     expect(listFolderPage).toHaveBeenCalledTimes(3);
-    expect(settled).toBeNull();
+    expect(settled).toBe('ok');
+    expect(hook.result.current.rows.map(row => row.name)).toEqual(['one']);
+    await act(async () => pending);
     await act(async () => background.resolve(page(['one', 'two'])));
     await act(async () => pending);
     expect(settled).toBe('ok');

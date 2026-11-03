@@ -214,7 +214,8 @@ it('shows one unified view and retains its finance draft across social collapse'
     date,
     date,
     expect.any(String),
-    true
+    true,
+    expect.objectContaining({ signal: expect.any(AbortSignal) })
   );
   expect(screen.queryByRole('button', { name: 'Daily finances' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Ad accounts and runs' })).toBeNull();

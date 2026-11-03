@@ -4,36 +4,13 @@ import {
   parseTeamAccountArchivePreflight,
   parseTeamAccountLifecycleResult,
   parseTeamAccountNameColorResult,
-  TEAM_ERROR_CODES,
   financeRecord,
   type TeamAccountEntityKind,
   type TeamAccountOrderScope,
   type TeamAccountNameColor
 } from '@video-compressor/shared';
-import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
-import { TeamApiError } from './team';
-import type { Database } from '../lib/database.types';
+import { TeamApiError, invokeTeamRpc as rpc } from './team';
 
-type WorkspaceFunction =
-  | 'list_team_account_two_factor_seeds'
-  | 'get_team_accounts_overview'
-  | 'reorder_team_accounts'
-  | 'get_team_account_archive_preflight'
-  | 'set_team_account_archived'
-  | 'set_team_account_name_color'
-  | 'list_team_account_archive';
-async function rpc(
-  name: WorkspaceFunction,
-  args: Database['public']['Functions'][WorkspaceFunction]['Args']
-): Promise<unknown> {
-  const { data, error } = await withFreshSession(() => requireSupabaseClient().rpc(name, args));
-  if (error)
-    throw new TeamApiError(
-      TEAM_ERROR_CODES.find(code => error.message.includes(code)) ?? 'INVALID_RESPONSE',
-      false
-    );
-  return data;
-}
 function parsed<T>(value: T | null): T {
   if (!value) throw new TeamApiError('INVALID_RESPONSE', false);
   return value;
@@ -83,18 +60,28 @@ export const accountsWorkspaceApi = {
     }
     return { items, next: value.next };
   },
-  async overview(teamId: string, from: string, to: string, timezone: string) {
+  async overview(
+    teamId: string,
+    from: string,
+    to: string,
+    timezone: string,
+    options: { signal?: AbortSignal } = {}
+  ) {
     const result = parsed(
       parseTeamAccountsOverview(
-        await rpc('get_team_accounts_overview', {
-          p_team: teamId,
-          p_from: from,
-          p_to: to,
-          p_timezone: timezone
-        })
+        await rpc(
+          'get_team_accounts_overview',
+          {
+            p_team: teamId,
+            p_from: from,
+            p_to: to,
+            p_timezone: timezone
+          },
+          options
+        )
       )
     );
-    const seedRows = await rpc('list_team_account_two_factor_seeds', { p_team: teamId });
+    const seedRows = await rpc('list_team_account_two_factor_seeds', { p_team: teamId }, options);
     if (!Array.isArray(seedRows)) throw new TeamApiError('INVALID_RESPONSE', false);
     const seeds = new Map<string, string>();
     for (const row of seedRows) {

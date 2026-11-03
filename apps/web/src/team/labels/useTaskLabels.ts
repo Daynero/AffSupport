@@ -1,4 +1,4 @@
-import { useScopedRows } from '../useScopedRows';
+import { isOlderRowVersion, useScopedRows } from '../useScopedRows';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { useOptionalTeam } from '../TeamContext';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
@@ -84,7 +84,7 @@ export function useTaskLabels({
     lifetimeKey
   } = useScopedRows<TeamTaskLabel>(identity, scope, client, client === defaultClient);
   const read = useCallback(
-    async (signal: AbortSignal) => {
+    async (signal: AbortSignal, deferFresh: () => void) => {
       const requestGeneration = ++generation.current;
       const writesBefore = writes.current;
       reading.current = true;
@@ -97,8 +97,15 @@ export function useTaskLabels({
           signal.aborted ||
           requestGeneration !== generation.current ||
           writesBefore !== writes.current
-        )
+        ) {
+          if (
+            !signal.aborted &&
+            requestGeneration === generation.current &&
+            writesBefore !== writes.current
+          )
+            deferFresh();
           return;
+        }
         setLabels(sortTeamTaskLabels(next));
         setError(null);
       } catch (cause) {
@@ -169,7 +176,12 @@ export function useTaskLabels({
     (name: string, color: TeamTaskLabelColor) =>
       commit(
         () => client.createTaskLabel({ teamId, name, color, scope }),
-        created => setLabels(current => sortTeamTaskLabels([...current, created])),
+        created =>
+          setLabels(current =>
+            current.some(label => label.id === created.id)
+              ? current
+              : sortTeamTaskLabels([...current, created])
+          ),
         refetch
       ),
     [client, commit, refetch, scope, teamId]
@@ -182,7 +194,9 @@ export function useTaskLabels({
           setLabels(current =>
             sortTeamTaskLabels(
               current.map(label =>
-                label.id === labelId ? { ...updated, taskCount: label.taskCount } : label
+                label.id === labelId && !isOlderRowVersion(updated, label)
+                  ? { ...updated, taskCount: label.taskCount }
+                  : label
               )
             )
           ),

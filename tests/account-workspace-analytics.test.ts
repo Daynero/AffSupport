@@ -33,6 +33,36 @@ afterAll(async () => {
 });
 
 describe('account diagnostics typed producer → actual ingestion guard → persisted CLI evidence', () => {
+  it('retains the classified overview deadline through the actual ingestion guard and CLI diagnosis', async () => {
+    const track = vi.fn();
+    emitAccountSignal(
+      'overview',
+      'terminal',
+      {
+        flowId: FLOW,
+        outcome: 'failure',
+        result: 'failed',
+        code: 'WORKSPACE_READ_TIMEOUT',
+        coverage: 'accounts_only'
+      },
+      { track }
+    );
+    const properties = sanitizeTeamAnalyticsProperties(track.mock.calls[0][1]);
+    const guarded = await store.db.query<{ safe: boolean }>(
+      'select public.analytics_properties_are_safe_v2($1::jsonb) safe',
+      [JSON.stringify(properties)]
+    );
+    expect(guarded.rows[0].safe).toBe(true);
+    expect(sanitizeEventProperties(properties)).toMatchObject({
+      account_code: 'WORKSPACE_READ_TIMEOUT'
+    });
+    expect(
+      diagnoseAccountEvents([
+        { event_id: 'deadline', event_name: 'team_account_terminal', flow_id: FLOW, properties }
+      ])[0]
+    ).toMatchObject({ state: 'failed', kind: 'fact' });
+  });
+
   it.each([
     'deleteAccount',
     'deleteAccountAgent',

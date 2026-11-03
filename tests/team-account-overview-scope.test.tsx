@@ -40,6 +40,7 @@ it('ignores an old team overview arriving after the new team canonical commit', 
     ({ teamId }) => useAccounts({ teamId, from: '2026-10-17', to: '2026-10-18', timezone: 'UTC' }),
     { initialProps: { teamId: 'old-team' } }
   );
+  await waitFor(() => expect(accountsWorkspaceApi.overview).toHaveBeenCalledTimes(1));
   const oldFlow = vi
     .mocked(emitAccountSignal)
     .mock.calls.find(
@@ -80,6 +81,7 @@ it('does not turn a late old-team read failure into the new team error', async (
     ({ teamId }) => useAccounts({ teamId, from: '2026-10-17', to: '2026-10-18', timezone: 'UTC' }),
     { initialProps: { teamId: 'old-team' } }
   );
+  await waitFor(() => expect(accountsWorkspaceApi.overview).toHaveBeenCalledTimes(1));
   hook.rerender({ teamId: 'new-team' });
   await waitFor(() => expect(hook.result.current.orderVersions.socials).toBe('7'));
   await act(async () => {

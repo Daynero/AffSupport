@@ -52,6 +52,8 @@ it('coalesces a burst during an in-flight read into one follow-up and accepts la
     )
     .mockResolvedValue(snapshot('a'));
   const view = renderHook(() => useAgentFinance('a', '2026-09-01', '2026-09-30', 'UTC', 0));
+  await act(async () => {});
+  expect(read).toHaveBeenCalledOnce();
   for (let n = 0; n < 20; n++)
     act(() => window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: 'a' })));
   await act(async () => resolve(snapshot('a')));

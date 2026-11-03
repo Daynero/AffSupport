@@ -6,27 +6,23 @@ import {
 } from '@video-compressor/shared';
 import type { FinanceMetric } from '@video-compressor/shared';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
-import { TeamApiError } from './team';
+import { TeamApiError, invokeTeamRpc } from './team';
 import { publicConfig } from '../lib/config';
 
-function check(error: { message: string } | null) {
-  if (error)
-    throw new TeamApiError(
-      TEAM_ERROR_CODES.find(code => error.message.includes(code)) ?? 'INVALID_RESPONSE',
-      false
-    );
-}
 export const teamFinanceApi = {
-  async snapshot(team: string, from: string, to: string, timezone: string, v2 = false) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc(v2 ? 'get_team_agent_finance_v2' : 'get_team_agent_finance', {
-        p_team: team,
-        p_from: from,
-        p_to: to,
-        p_timezone: timezone
-      })
+  async snapshot(
+    team: string,
+    from: string,
+    to: string,
+    timezone: string,
+    v2 = false,
+    options: { signal?: AbortSignal } = {}
+  ) {
+    const data = await invokeTeamRpc(
+      v2 ? 'get_team_agent_finance_v2' : 'get_team_agent_finance',
+      { p_team: team, p_from: from, p_to: to, p_timezone: timezone },
+      options
     );
-    check(error);
     const result = parseFinanceSnapshot(data);
     if (
       !result ||
@@ -50,21 +46,18 @@ export const teamFinanceApi = {
     placementId: string,
     intent: 'normal' | 'historical_correction' = 'normal'
   ) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_agent_finance_value', {
-        p_team: team,
-        p_agent: agent,
-        p_date: date,
-        p_metric: metric,
-        p_value: value,
-        p_expected_version: version,
-        p_timezone: timezone,
-        p_request_id: requestId,
-        p_expected_placement_id: placementId,
-        p_intent: intent
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('set_team_agent_finance_value', {
+      p_team: team,
+      p_agent: agent,
+      p_date: date,
+      p_metric: metric,
+      p_value: value,
+      p_expected_version: version,
+      p_timezone: timezone,
+      p_request_id: requestId,
+      p_expected_placement_id: placementId,
+      p_intent: intent
+    });
     const result = parseFinanceMutation(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
@@ -75,28 +68,22 @@ export const teamFinanceApi = {
     requestId: string,
     intent: 'normal' | 'historical_correction' = 'normal'
   ) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('undo_team_agent_finance_clear', {
-        p_team: team,
-        p_original_request_id: original,
-        p_request_id: requestId,
-        p_intent: intent
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('undo_team_agent_finance_clear', {
+      p_team: team,
+      p_original_request_id: original,
+      p_request_id: requestId,
+      p_intent: intent
+    });
     const result = parseFinanceMutation(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
   },
   async transferEligibility(team: string, agent: string, timezone: string) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_agent_transfer_eligibility', {
-        p_team: team,
-        p_agent: agent,
-        p_timezone: timezone
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('get_team_agent_transfer_eligibility', {
+      p_team: team,
+      p_agent: agent,
+      p_timezone: timezone
+    });
     if (
       !financeRecord(data) ||
       typeof data.placementId !== 'string' ||
@@ -138,19 +125,16 @@ export const teamFinanceApi = {
     timezone: string,
     requestId: string
   ) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('move_team_account_agent', {
-        p_team: team,
-        p_agent: agent,
-        p_target_account: target,
-        p_effective_on: date,
-        p_expected_placement_id: placementId,
-        p_expected_placement_version: version,
-        p_timezone: timezone,
-        p_request_id: requestId
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('move_team_account_agent', {
+      p_team: team,
+      p_agent: agent,
+      p_target_account: target,
+      p_effective_on: date,
+      p_expected_placement_id: placementId,
+      p_expected_placement_version: version,
+      p_timezone: timezone,
+      p_request_id: requestId
+    });
     if (!financeRecord(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
   },
@@ -159,27 +143,21 @@ export const teamFinanceApi = {
     agent: string,
     cursor?: { time: string; id: string }
   ): Promise<Record<string, unknown>> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_agent_finance_history', {
-        p_team: team,
-        p_agent: agent,
-        p_cursor: cursor,
-        p_limit: 50
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('list_team_agent_finance_history', {
+      p_team: team,
+      p_agent: agent,
+      p_cursor: cursor,
+      p_limit: 50
+    });
     if (!financeRecord(data) || !Array.isArray(data.events) || !Array.isArray(data.transfers))
       throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
   },
   async legacy(team: string, agent: string): Promise<Record<string, unknown>[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_agent_finance_legacy', {
-        p_team: team,
-        p_agent: agent
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('list_team_agent_finance_legacy', {
+      p_team: team,
+      p_agent: agent
+    });
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     const rows: Record<string, unknown>[] = [];
     for (const row of data) {
@@ -198,20 +176,17 @@ export const teamFinanceApi = {
     request: string,
     intent: 'normal' | 'historical_correction' = 'normal'
   ) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('import_team_agent_finance_legacy', {
-        p_team: team,
-        p_legacy: id,
-        p_metric: metric,
-        p_date: date,
-        p_value: value,
-        p_currency: 'USD',
-        p_timezone: timezone,
-        p_request_id: request,
-        p_intent: intent
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('import_team_agent_finance_legacy', {
+      p_team: team,
+      p_legacy: id,
+      p_metric: metric,
+      p_date: date,
+      p_value: value,
+      p_currency: 'USD',
+      p_timezone: timezone,
+      p_request_id: request,
+      p_intent: intent
+    });
     const result = parseFinanceMutation(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
@@ -225,18 +200,15 @@ export const teamFinanceApi = {
     requestId: string,
     intent: 'normal' | 'historical_correction' = 'normal'
   ) {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('clear_team_agent_finance_values', {
-        p_team: team,
-        p_date: date,
-        p_metric: metric,
-        p_fields: fields,
-        p_timezone: timezone,
-        p_request_id: requestId,
-        p_intent: intent
-      })
-    );
-    check(error);
+    const data = await invokeTeamRpc('clear_team_agent_finance_values', {
+      p_team: team,
+      p_date: date,
+      p_metric: metric,
+      p_fields: fields,
+      p_timezone: timezone,
+      p_request_id: requestId,
+      p_intent: intent
+    });
     const result = parseFinanceMutation(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
@@ -253,10 +225,7 @@ export const teamFinanceApi = {
         : `${config.supabaseUrl}/functions/v1/team-finance-export`;
     // functions.invoke parses an XLSX MIME as text in the installed SDK. Fetch
     // the binary directly with the same session and one bounded auth retry.
-    const { response, error } = await withFreshSession(async () => {
-      const session = await requireSupabaseClient().auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) throw new TeamApiError('AUTH_REQUIRED', false);
+    const requestWithToken = async (token: string) => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -267,7 +236,16 @@ export const teamFinanceApi = {
         body: JSON.stringify({ teamId: team, from, to, timezone })
       });
       return { response, error: response.ok ? null : { status: response.status } };
-    });
+    };
+    const { response, error } = await withFreshSession(
+      async () => {
+        const session = await requireSupabaseClient().auth.getSession();
+        const token = session.data.session?.access_token;
+        if (!token) throw new TeamApiError('AUTH_REQUIRED', false);
+        return requestWithToken(token);
+      },
+      { retryWithToken: requestWithToken }
+    );
     if (error) {
       let payload: unknown;
       try {

@@ -1378,6 +1378,18 @@ function throwRpc(error: { message: string; code?: string } | null): void {
   if (code === 'PERMISSION_DENIED' || code === 'SPACE_BLOCKED') requestSpaceAccessRecheck();
   throw new TeamApiError(code ?? 'INVALID_RESPONSE', false);
 }
+/** One authenticated, abortable RPC seam; each consumer still validates its own payload. */
+export async function invokeTeamRpc<
+  Name extends keyof Database['public']['Functions'],
+  Args extends Database['public']['Functions'][NoInfer<Name>]['Args']
+>(name: Name, args: Args, options: { signal?: AbortSignal } = {}): Promise<unknown> {
+  const { data, error } = await withFreshSession(
+    () => abortable(requireSupabaseClient().rpc(name, args), options),
+    options
+  );
+  throwRpc(error);
+  return data;
+}
 
 /**
  * 034 — a refusal may mean the space was just paused (or opened). The access
@@ -1825,11 +1837,9 @@ export type RestitchDefaultsInput = Pick<
 export const teamApi = {
   catalogImages: catalogImageClient,
   async listTeams(options: { signal?: AbortSignal } = {}): Promise<TeamContextSnapshot[]> {
-    const { data, error } = await withFreshSession(() =>
-      abortable(requireSupabaseClient().rpc('list_my_teams'), options)
-    );
-    throwRpc(error);
-    const teams = (data ?? []).map(mapTeamContext);
+    const data = (await invokeTeamRpc('list_my_teams', {}, options)) ?? [];
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const teams = data.map(mapTeamContext);
     if (teams.some(team => team === null)) throw new TeamApiError('INVALID_RESPONSE', false);
     return teams.filter((team): team is TeamContextSnapshot => team !== null);
   },
@@ -4208,16 +4218,16 @@ export const teamApi = {
     if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
   },
-  async listBulkTrash(teamId: string): Promise<BulkTrashGroup[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_bulk_trash', { p_team: teamId })
-    );
-    throwRpc(error);
-    const candidate: unknown = data;
+  async listBulkTrash(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<BulkTrashGroup[]> {
+    const candidate = await invokeTeamRpc('list_team_bulk_trash', { p_team: teamId }, options);
     if (!Array.isArray(candidate) || !candidate.every(isBulkTrashGroup))
       throw new TeamApiError('INVALID_RESPONSE', false);
     return candidate;
   },
+
   async markBulkTrashRequest(
     teamId: string,
     groupId: string,

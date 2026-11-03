@@ -1149,6 +1149,7 @@ describe('a stale list read', () => {
     const view = renderHook(props => useAccounts(props), {
       initialProps: { teamId: TEAM_ID, revision: 0, client: api }
     });
+    await act(async () => {});
     // The first read lands: the list is on screen.
     await act(async () => {
       settle!(structuredClone(accounts));
@@ -1157,6 +1158,7 @@ describe('a stale list read', () => {
 
     // A second read starts (a teammate's change, say) and does not land yet.
     view.rerender({ teamId: TEAM_ID, revision: 1, client: api });
+    await act(async () => {});
     const stale = view.result.current.accounts[0]!.agents[0]!;
     // What that read will answer with: the rows as they are *now*, before the
     // write below. Snapshotted here, because the stub writes into the array.

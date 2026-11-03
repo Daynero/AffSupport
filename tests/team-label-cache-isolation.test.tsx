@@ -83,3 +83,91 @@ it('retains task counts on an update receipt and drops a late receipt from a pre
   });
   expect(view.result.current.labels).toEqual([]);
 });
+
+it('does not duplicate a created label already delivered by a concurrent authoritative read', async () => {
+  fixture.listTaskLabels.mockResolvedValueOnce([]).mockResolvedValue([label]);
+  let finish!: (value: TeamTaskLabel) => void;
+  fixture.createTaskLabel.mockImplementation(
+    () =>
+      new Promise<TeamTaskLabel>(done => {
+        finish = done;
+      })
+  );
+  const view = renderHook(() => useTaskLabels({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  let pending!: Promise<TeamTaskLabel>;
+  act(() => {
+    pending = view.result.current.create(label.name, label.color);
+  });
+  await act(async () => {
+    await view.result.current.refetch();
+  });
+  expect(view.result.current.labels).toEqual([label]);
+  await act(async () => {
+    finish(label);
+    await pending;
+  });
+  expect(view.result.current.labels).toEqual([label]);
+});
+
+it('does not revert a newer label when an older update receipt arrives last', async () => {
+  const initial = { ...label, updatedAt: '2026-11-03T10:00:00.000Z' };
+  fixture.listTaskLabels.mockResolvedValue([initial]);
+  const completions: Array<(value: TeamTaskLabel) => void> = [];
+  fixture.updateTaskLabel.mockImplementation(
+    () => new Promise<TeamTaskLabel>(done => completions.push(done))
+  );
+  const view = renderHook(() => useTaskLabels({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.labels).toEqual([initial]));
+  let older!: Promise<TeamTaskLabel>;
+  let newer!: Promise<TeamTaskLabel>;
+  act(() => {
+    older = view.result.current.update(label.id, 'Earlier', label.color);
+    newer = view.result.current.update(label.id, 'Latest', label.color);
+  });
+  await act(async () => {
+    completions[1]!({ ...initial, name: 'Latest', updatedAt: '2026-11-03T10:00:02.000Z' });
+    await newer;
+  });
+  await act(async () => {
+    completions[0]!({ ...initial, name: 'Earlier', updatedAt: '2026-11-03T10:00:01.000Z' });
+    await older;
+  });
+  expect(view.result.current.labels[0]).toMatchObject({
+    name: 'Latest',
+    updatedAt: '2026-11-03T10:00:02.000Z',
+    taskCount: 7
+  });
+});
+
+it('keeps manual refresh pending when a label write supersedes its snapshot', async () => {
+  const pending: Array<(rows: TeamTaskLabel[]) => void> = [];
+  fixture.listTaskLabels
+    .mockResolvedValueOnce([])
+    .mockImplementation(() => new Promise<TeamTaskLabel[]>(resolve => pending.push(resolve)));
+  fixture.createTaskLabel.mockResolvedValue(label);
+  const view = renderHook(() => useTaskLabels({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  let settled = false;
+  let refresh!: Promise<void | undefined>;
+  act(() => {
+    refresh = view.result.current.refetch().then(() => {
+      settled = true;
+    });
+  });
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => {
+    await view.result.current.create(label.name, label.color);
+  });
+  await act(async () => {
+    pending[0]!([]);
+  });
+  expect(pending).toHaveLength(2);
+  expect(settled).toBe(false);
+  await act(async () => {
+    pending[1]!([label]);
+    await refresh;
+  });
+  expect(settled).toBe(true);
+  expect(view.result.current.labels).toEqual([label]);
+});

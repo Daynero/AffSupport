@@ -35,7 +35,7 @@ export function useScopedRefresh<T>(input: {
     setSnapshot(null);
     setFailure(null);
   }
-  const owner = useRef<ReturnType<typeof createReadCoordinator> | null>(null);
+  const owner = useRef<ReturnType<typeof createReadCoordinator<void>> | null>(null);
   const request = useCallback((force = false) => {
     if (document.visibilityState === 'hidden' || (!force && Date.now() < retryAfter.current))
       return Promise.resolve();

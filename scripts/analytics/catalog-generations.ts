@@ -129,6 +129,7 @@ export async function getCatalogGenerationEvidence(
     if (
       state === 'unknown' ||
       code === 'UNKNOWN' ||
+      (state === 'interrupted' && code === null) ||
       origin === 'unknown' ||
       FLAGS.some(flag => typeof row[flag] !== 'boolean')
     )
@@ -152,7 +153,7 @@ export async function getCatalogGenerationEvidence(
   }
   if (result.unknown_projection)
     result.blind_spots.push(
-      'An unrecognized generation projection was withheld or normalized to unknown.'
+      'A generation projection contains missing or unrecognized diagnostic evidence.'
     );
   return result;
 }

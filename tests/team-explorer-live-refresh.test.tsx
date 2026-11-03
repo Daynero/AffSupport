@@ -36,6 +36,80 @@ const row = (index: number): TeamMaterialRow => ({
 });
 
 describe('visible explorer window refresh', () => {
+  it('settles a strict reload after its fresh read while indexing continues', async () => {
+    const pending: Array<(page: FolderPage) => void> = [];
+    const client = {
+      listFolderPage: vi.fn(() => new Promise<FolderPage>(resolve => pending.push(resolve)))
+    };
+    const view = renderHook(
+      ({ revision }) =>
+        useFolderPage({ teamId, client, parentFolderId: 'root', revision, preserveOnEmpty: true }),
+      { initialProps: { revision: 0 } }
+    );
+    await waitFor(() => expect(pending).toHaveLength(1));
+    let settled = false;
+    let strict!: Promise<void>;
+    act(() => {
+      strict = view.result.current.reloadStrict().then(() => {
+        settled = true;
+      });
+      void strict.catch(() => {});
+    });
+    await act(async () => {
+      pending[0]!({ rows: [row(1)], total: 1, next: null });
+    });
+    expect(pending).toHaveLength(2);
+    view.rerender({ revision: 1 });
+    await act(async () => {
+      pending[1]!({ rows: [row(2)], total: 1, next: null });
+    });
+    expect(pending).toHaveLength(3);
+    expect(view.result.current.rows[0]?.id).toBe('id-2');
+    expect(settled).toBe(true);
+    await strict;
+    await act(async () => {
+      pending[2]!({ rows: [], total: 0, next: null });
+    });
+    expect(view.result.current.rows[0]?.id).toBe('id-2');
+  });
+
+  it('reports a shared read failure only to strict callers, while background reloads settle safely', async () => {
+    let fail!: (cause: Error) => void;
+    const client = {
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [row(1)], total: 1, next: null })
+        .mockImplementationOnce(
+          () =>
+            new Promise<FolderPage>((_resolve, reject) => {
+              fail = reject;
+            })
+        )
+        .mockRejectedValue(new Error('temporary'))
+    };
+    const view = renderHook(() => useFolderPage({ teamId, client, parentFolderId: 'root' }));
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    let strict!: Promise<string | void>;
+    act(() => {
+      strict = view.result.current.reloadStrict().catch(error => error.message);
+    });
+    await waitFor(() => expect(client.listFolderPage).toHaveBeenCalledTimes(2));
+    let background!: Promise<string>;
+    act(() => {
+      background = view.result.current.reload().then(
+        () => 'resolved',
+        () => 'rejected'
+      );
+    });
+    await act(async () => {
+      fail(new Error('temporary'));
+      expect(await strict).toBe('FOLDER_PAGE_REFRESH_FAILED');
+      expect(await background).toBe('resolved');
+    });
+    expect(view.result.current.error).toBe(true);
+    expect(view.result.current.rows[0]?.id).toBe('id-1');
+  });
+
   it('settles a superseded strict refresh with the newer successful read', async () => {
     let release!: (value: FolderPage) => void;
     const client = {
@@ -69,6 +143,44 @@ describe('visible explorer window refresh', () => {
     });
     expect(view.result.current.rows[0]?.id).toBe('id-3');
   });
+  it('waits for a replacement paint when a local patch supersedes the confirming read', async () => {
+    const pending: Array<(page: FolderPage) => void> = [];
+    const client = {
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [row(1)], total: 1, next: null })
+        .mockImplementation(() => new Promise<FolderPage>(resolve => pending.push(resolve)))
+    };
+    const view = renderHook(() => useFolderPage({ teamId, client, parentFolderId: 'root' }));
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    let outcome: string | undefined;
+    let strict!: Promise<void>;
+    act(() => {
+      strict = view.result.current.reloadStrict();
+      void strict.then(
+        () => {
+          outcome = 'ok';
+        },
+        error => {
+          outcome = error.message;
+        }
+      );
+    });
+    await waitFor(() => expect(pending).toHaveLength(1));
+    act(() => view.result.current.patchRow('id-1', { name: 'confirmed local patch' }));
+    await act(async () => {
+      pending[0]!({ rows: [row(2)], total: 1, next: null });
+    });
+    expect(pending).toHaveLength(2);
+    expect(outcome).toBeUndefined();
+    await act(async () => {
+      pending[1]!({ rows: [row(3)], total: 1, next: null });
+      await strict;
+    });
+    expect(outcome).toBe('ok');
+    expect(view.result.current.rows[0]?.id).toBe('id-3');
+  });
+
   it('keeps strict empty confirmation across a queued background refresh', async () => {
     let release!: (value: FolderPage) => void;
     const client = {

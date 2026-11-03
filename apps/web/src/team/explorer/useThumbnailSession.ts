@@ -19,6 +19,7 @@ export interface ThumbnailSessionClient {
   thumbnailUrl: (session: ThumbnailSession, materialId: string) => string;
 }
 
+const controllers = new Map<string, AbortController>();
 const REFRESH_MARGIN_MS = 60_000;
 const sessions = new Map<string, { promise: Promise<ThumbnailSession>; expiresAt: number }>();
 
@@ -43,31 +44,40 @@ export function getThumbnailSession(
     return cached.promise;
   // A client without a mint (an older shell, a partial test double) is an
   // absent session, never a thrown effect.
+  const controller = new AbortController();
+  controllers.set(key, controller);
   const promise = Promise.resolve()
     .then(() => {
       if (epoch !== privateCacheEpoch()) throw privateCacheSuperseded();
-      return withReadDeadline(
-        () => client.mintThumbnailSession(teamId),
-        new AbortController().signal
-      );
+      return withReadDeadline(() => client.mintThumbnailSession(teamId), controller.signal);
     })
     .then(session => {
       if (epoch !== privateCacheEpoch() || sessions.get(key)?.promise !== promise)
         throw privateCacheSuperseded();
       sessions.set(key, { promise: Promise.resolve(session), expiresAt: expiryOf(session) });
-      while (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
+
       return session;
     })
     .catch(error => {
       if (sessions.get(key)?.promise === promise) sessions.delete(key);
       throw error;
+    })
+    .finally(() => {
+      if (controllers.get(key) === controller) controllers.delete(key);
     });
   sessions.set(key, { promise, expiresAt: Infinity });
-  while (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
+  while (sessions.size > 20) {
+    const oldest = sessions.keys().next().value!;
+    controllers.get(oldest)?.abort();
+    controllers.delete(oldest);
+    sessions.delete(oldest);
+  }
   return promise;
 }
 
 export function clearThumbnailSessions(): void {
+  for (const controller of controllers.values()) controller.abort();
+  controllers.clear();
   sessions.clear();
 }
 

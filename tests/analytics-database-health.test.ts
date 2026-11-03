@@ -8,6 +8,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each(['database-performance', 'database-health', 'database-tables', 'database-retention'])(
+  'refuses historical %s snapshots before making any live request',
+  async command => {
+    vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-token');
+    const fetcher = vi.fn(async () => {
+      throw new Error('Unexpected live read');
+    });
+    const reader = vi.fn(async () => {
+      throw new Error('Unexpected live read');
+    });
+    vi.stubGlobal('fetch', fetcher);
+    setQueryExecutor(reader);
+    await expect(
+      executeCommand(parseArgs([command, '--as-of', '2020-01-01T00:00:00Z', '--json']))
+    ).rejects.toThrow('--as-of is unavailable for current database snapshots');
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(reader).not.toHaveBeenCalled();
+  }
+);
+
 it('reports bounded performance aggregates without exposing SQL text or cron messages', async () => {
   vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-token');
   const statements: string[] = [];

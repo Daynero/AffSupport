@@ -3,6 +3,204 @@
 Дата: 3 листопада 2026. Це локальні докази для поточних змін, не сертифікація
 місткості production і не exact-SHA beta promotion record.
 
+## Інцидент із кошиком і неповною видимістю файлів, 4 листопада
+
+Read-only `investigate`, `journey` та `sync` для повідомленого акаунта:
+
+- Hosted bulk-trash receipt: 10 елементів, 0 підтверджених, `unknown`.
+  Події містять повторні `PERMISSION_DENIED`; це не доказ відсутності
+  попереднього запису в Drive і не підстава автоматично повторювати видалення.
+- Індексація завершувалася: initial scan 21:50–21:55 UTC, 44 перелічені
+  файли / 35 папок; пізніший discovered-subtree scan перелічив 61 файл і
+  завершив change replay о 22:17 UTC. Ці лічильники мають різні області
+  сканування, тому їх не можна складати або трактувати як кількість відео.
+  Incremental job на момент перевірки продовжував підтверджувати зміни без
+  помилки, без втрати lease і без no-progress runs. `pending` між запусками
+  такого job сам по собі не означає зависання.
+- Немає correlated upload/import подій, які доводять повний склад саме
+  перетягнутої папки та доставку кожного її файлу. Завершена індексація не
+  доводить ані повноту локального upload manifest, ані отримання результату
+  браузером. Втрату файлів або точну причину порожньої папки не встановлено.
+- Frontend bulk-trash path не приховує рядки оптимістично. Порожня папка
+  на скриншоті не пояснюється самим перемиканням цієї панелі в `unknown`.
+
+Відтворений кодовий дефект: Drive preflight міг відмовити до створення
+operation receipt, тоді як bulk item уже мав `requested_at`. Відсутній
+operation receipt відображався як невизначений результат. Виправлення має
+записувати відмову лише для свіжої операції до будь-якого provider write;
+попередній невизначений результат мусить зберігати reconciliation fence.
+Історичні `unknown` не можна перетлумачувати як `failed` лише за кодом
+дозволу. Production data під час розслідування не змінювалися.
+Soty authorization лишається перед прийняттям операції: відкликання доступу
+між bulk start і запитом не дає права створювати новий receipt від імені
+користувача. Такий випадок потребує окремого доказу, а не класифікації всіх
+`PERMISSION_DENIED` як доведеної відмови Drive до запису.
+
+Локальні зміни для цього інциденту:
+
+- Trash/restore створює operation receipt після Soty authorization, перед
+  Drive preflight. Нова service-only функція
+  `service_fail_drive_mutation_preflight` у міграції
+  `20261207120000_drive_mutation_preflight_receipts.sql` може завершити лише
+  pending trash/restore без lifecycle intent. Вона блокує operation row так
+  само, як чинний перехід у running: пізня відмова не перезаписує операцію,
+  що вже почалася; підтверджена відмова блокує наступний dispatch цього ключа.
+  Повтор попереднього uncertain attempt зберігає reconciliation, а не
+  отримує новий ключ лише через зміну дозволів.
+- Bulk-trash diagnostics бере стан і код із hosted receipts. Однакові
+  спостереження не створюють повторних stage events; нова авторитетна відмова
+  лишається видимим переходом. Це не змінює історичні події чи квитанції.
+- Читання bulk receipts має одного власника й один follow-up для накопичених
+  revision. Automatic reads прихованої вкладки чекають повернення; явна
+  перевірка receipt доступна й чекає читання, розпочатого після її запиту.
+  Deadline 15 секунд і AbortSignal обмежують token acquisition та transport;
+  скасування браузером не доводить серверне скасування. Scope lifetime
+  відокремлює також повернення A → B → A: пізня відповідь старої операції
+  не звільняє блокування нового запуску того самого group.
+- Mixed drop папки та окремих файлів використовує fallback `getAsFile()`
+  для кожного елемента з відсутнім `webkitGetAsEntry()`. Це виправляє
+  відтворену втрату loose file на intake, але не доводить причину зникнення
+  вкладених відео в конкретному повідомленні користувача.
+
+Після додавання preflight migration повторно пройшов повний isolated migration
+chain: **44 pgTAP files / 1054 assertions + 2 Auth + 35 native PostgreSQL
+tests**. Disposable container видалений; початкові дев'ять контейнерів
+локальних stacks збережені. Це локальні database checks, не доказ зміни
+стану історичної операції користувача в production.
+
+Фінальний спільний запуск після цих змін: **506/506** цільових тестів у
+49 files, без пропусків; додатково **4/4** performance budget checks.
+Нові frontend assertions після виправлення їхньої типізації повторно пройшли
+окремо (**11/11**). Static runner **13/13**, build/contract runner **5/5**,
+ліміти bundle не змінено. Повний восьмишардовий unit suite для цього стану
+не запускався; цільовий запуск не підміняє його. Зміни локальні, не release
+і не підтвердження покращення в користувача після production deployment.
+
+## Повторний аудит після `371e331d`
+
+Додаткові відтворені сценарії та локальні виправлення:
+
+- Account overview: десять revision під час незавершеного читання запускали
+  одинадцять одночасних запитів. Тепер один запит і один follow-up; прихована
+  вкладка відкладає автоматичні читання до повернення. Deadline 15 секунд
+  охоплює overview та private-seed RPC, AbortSignal доходить до обох transport
+  builders. Явний refetch чекає актуального follow-up і повертає `null` після
+  завершення lifetime. Snapshot, відкинутий через підтверджений локальний запис,
+  планує повторне читання. Timeout має закритий account code, cancellation не
+  доводить серверне скасування. Докази: `team-account-read-coordination`,
+  `team-account-overview-abort`, `account-overview-analytics`. Окремий regression
+  пройшов typed producer → actual SQL ingestion guard → CLI diagnosis: новий
+  код потребує additive migration `20261207114000_workspace_read_analytics_guard.sql`
+  разом із release. Інакше попередній guard відхилив би класифікований timeout.
+  Allowlist приватності та попередні міграції збережені.
+- Finance snapshots теж читали дані під час hidden mount/revision і могли
+  утримувати pending period назавжди. Automatic reads тепер відкладаються,
+  foreground запускає одне catch-up, явна підготовка періоду лишається доступною
+  й має deadline/AbortSignal. Scope cancellation повертає `null`, поточний
+  timeout лишається явною помилкою. `team-finance-read-visibility` перевіряє
+  обидві версії snapshot, timeout і повторну підготовку.
+- Tasks/labels: пізній базовий task update затирав уже змінені labels/agents;
+  старіші mutation replies відкотували новіші рядки; create reply міг
+  продублювати label або перезаписати свіжішу задачу. Злиття з поточним рядком,
+  ID deduplication та серверний `updatedAt` із мікросекундами закривають ці
+  сценарії. Докази: task/label cache isolation і `team-row-server-version`.
+- Прев'ю: незавершений Promise утримував ключ назавжди. Тепер його lifetime
+  обмежений; очищення/витіснення preview і thumbnail scope скасовує власний
+  deadline. Пізня відповідь не наповнює новий кеш. Синхронна помилка й одразу
+  rejected Promise також звільняють власника. Transport, що не приймає signal,
+  може завершитися пізніше: deadline не є доказом його зупинки.
+- Auth retry: старий відхилений API-запит міг повторитися після входу іншого
+  користувача або після скасування під час token refresh. Shared intent fence
+  та перевірка signal перед повтором закривають ці випадки. Interactive writer
+  публікує `pending:<opaque UUID>` перед SDK commit і нову revision після нього
+  всередині тієї самої exclusive lane. Це також захищає запити, розпочаті вже
+  під час іншого входу. Pending/unavailable storage забороняє автоматичний retry;
+  звичайний token refresh того самого користувача працює як раніше. Тести:
+  `team-session-recovery`, `auth-session-mutations`. Це fence повтору, а не доказ
+  actor binding кожного початкового RPC.
+- Notes: revision read, розпочате після старту save, могло зайняти його version
+  token і приховати успішне збереження. Окрема ownership pending write та
+  відкладене читання зберігають підтверджений результат; private-cache isolation
+  відтворює порядок read-before-commit/write-receipt.
+- Folder reload: фоновий caller, об'єднаний зі strict confirmation, успадковував
+  його rejection. Для automatic invalidation без rejection handler це могло
+  стати unhandled Promise. Тепер лише strict caller отримує exception, а
+  звичайне оновлення лишає помилку в hook state. Regression у
+  `team-explorer-live-refresh` спершу отримала `rejected` замість `resolved`.
+- Locale build: присвоєння властивостей могло викликати успадкований setter
+  замість створення перекладу. `defineProperty` відновлює власні data properties
+  з такими самими descriptors, як у вихідному object literal.
+- CLI: поточні database snapshot commands приймали історичний `--as-of`, але
+  читали сучасні метрики. Тепер вони відхиляють цей параметр до I/O й прямо
+  пояснюють відсутність історичних snapshots.
+- RPC: окремі handlers акаунтів/фінансів втрачали `23505`/abort і могли
+  помилково впізнати відомий код усередині іншого токена. Спільний
+  `invokeTeamRpc` використовує наявний канонічний handler, auth retry та signal;
+  декодери й HTTP export `retryable` збережені. Два регресійні тести впали на
+  попередньому коді й пройшли після об'єднання.
+
+Підсумок локальної перевірки першого додаткового проходу:
+
+- **291/291**, 34 пов'язані test files, без пропусків; включно з auth retry,
+  read coordination, cache isolation, фінансовими чернетками й bundle budgets.
+- Статичний runner **13/13**, build/contract runner **5/5**; після останніх
+  змін повторно зібраний web, перевірені типи тестів та ESLint/форматування
+  змінених файлів. Повний попередній unit suite не підмінює цей цільовий запуск.
+- Повний migration chain у disposable PostgreSQL: **44 pgTAP files,
+  1054 assertions**, **2 Auth + 35 native PostgreSQL tests**. Тимчасові
+  контейнери видалені; наявні локальні stacks збережені.
+- Accounts exclusive graph: **79 960 B gzip** при чинному ліміті **80 000 B**.
+  Жоден ceiling не змінено. Повторно використані read coordinator, RPC seam,
+  typed agent-write dispatch та persistence fold state; legacy storage key
+  і decoder лишилися сумісними.
+
+Це нові зміни після зазначеного коміту. Результат повного попереднього verify
+нижче належить попередньому стану; він не підміняє перевірку цих змін.
+
+## Наступний прохід: безперервна індексація та паралельні операції
+
+- Strict confirmation раніше чекала весь нескінченно продовжуваний read drain.
+  Новий `requestFresh` підтверджує власне читання, розпочате після виклику;
+  наступні index-події не продовжують його очікування. Якщо локальна mutation
+  знецінила snapshot, confirmation переходить до замінного читання, яке справді
+  застосувало дані. Окремі тести перевіряють незавершене третє читання, реальну
+  помилку, порожній результат, patchRow, mutation skip і unmount. Звичайний
+  `request` зберіг drain-контракт.
+- Реальний встановлений SDK відтворив ще одну гонку: друге очікування сесії
+  могло замінити Authorization вже після перевірки intent. Повтор використовує
+  початковий lazy builder із зафіксованим refreshed token; відповідь після зміни
+  власника не повертається. HTTP finance export має явний `retryWithToken`.
+  `auth-retry-transport-owner` перевіряє фактичні fake-HTTP заголовки, binary
+  download і відсутність другого HTTP після скасування. Початкові довільні RPC
+  поза автоматичним повтором не отримують вигаданої гарантії actor binding.
+- Два saves однієї нотатки тепер послідовні: старіший запит не завершується
+  після новішого через паралельний dispatch. Різні нотатки лишаються незалежними.
+  Це локальна черга actor/client/material; інші браузери та невідомий віддалений
+  результат після втрати відповіді не мають гарантії глобального порядку.
+- Create account/agent receipt, що прийшла після актуального realtime read,
+  більше не дублює акаунт і не затирає новіший agent row. Canonical state
+  зберігається; create confirmation усе одно проходить React commit і існуючий
+  typed visible signal.
+- Generation перевіряє parent і MIME/category вибраного live-файлу за тим
+  самим classifier, що й індексатор. Застарілий parent або image/folder замість
+  відео дають `SOURCE_CHANGED` до sharing, pool draws і створення Sheet. Звичайне
+  відео та підтримуваний unknown-MIME extension fallback працюють. Перевірка
+  restitch copy теж передує sharing original. Це selected-dependency fence,
+  не вимога завершити весь scan і не транзакція проти майбутніх Drive moves.
+- Виявлено й виправлено реальну прогалину producer coverage: `interrupted`
+  раніше зберігалося без причини. Закритий код тепер проходить існуючий fenced
+  checkpoint RPC; additive migration `20261207115000_catalog_generation_failure_diagnostics.sql`
+  відкриває тільки allowlisted поточну причину. Producer → canonical SQL →
+  restricted view → CLI перевірений без ручного підставляння failure code.
+  `investigate.findings` містить fact/code locations або insufficient для
+  відсутньої причини. Історія transitions і доставка в браузер лишаються unknown.
+
+Фінальна перевірка цього проходу: **409 пов'язаних тестів + 4 bundle-budget
+tests**, без пропусків; **13/13 static gates**, **5/5 build/contract gates**.
+Новий migration chain також пройшов disposable PostgreSQL: **1054 pgTAP
+assertions + 2 Auth + 35 native PostgreSQL tests**. Зміни не опубліковані;
+цей цільовий запуск не є повтором повного попереднього unit suite.
+
 ## Що перевірено
 
 `tests/workspace-synthetic-sessions.test.tsx` запускає справжні `TeamProvider`,
@@ -175,10 +373,10 @@ target workload після зменшення fan-out. Локальні regressi
   owner звільняється, UI може повторити читання; пізня відповідь не застосовується.
   `WORKSPACE_READ_TIMEOUT` — закритий діагностичний код із code-map. Він не
   доводить скасування SQL на сервері й сам по собі не визначає домен запиту.
-- Strict folder reload зберігає strict intent через queued follow-up, очищає
+- Strict folder reload зберігає strict intent через необхідне замінне читання, очищає
   підтверджено порожню папку та відхиляє підтвердження після unmount/scope change.
   Звичайні sync сигнали не відкидають кожне проміжне читання нескінченно: список
-  лишається прогресивним, а остаточний refresh чекає останній dirty follow-up.
+  лишається прогресивним, а власна confirmation не чекає майбутні незалежні ticks.
 - Actor, team та підтверджені permissions задають lifetime workspace subtree.
   Звичайний membership сигнал менеджеру не закриває всі його чернетки.
   Access revision окремо інвалідовує захищені read caches. Невдала перевірка

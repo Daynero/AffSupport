@@ -1,4 +1,5 @@
 import { finalizeProcessOutput } from './process-finalize.ts';
+import { acceptMutationPreflight } from './mutation-preflight.ts';
 import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
 import {
   requireProcessUploadProducer,
@@ -1572,37 +1573,54 @@ async function handleTrashRestore(
     permission: 'delete',
     allowTrashed: action === 'restore'
   });
-  const client = await driveClient(service, source.credentialId, request);
-  const live = await proveContext(source, client, action === 'restore');
-  validateLiveMutationTarget({
-    action,
-    target: liveTarget(live),
-    rootFolderId: source.rootFolderId,
-    ancestryProven: true
+  const destinationFolderId =
+    action === 'restore' && body.destinationFolderId !== undefined
+      ? requireUuid(body.destinationFolderId)
+      : null;
+  const prepared = await acceptMutationPreflight({
+    accept: () =>
+      startSimpleOperation({
+        service,
+        teamId: common.teamId,
+        actorId,
+        kind: action,
+        idempotencyKey: common.idempotencyKey,
+        sourceMaterialId: common.materialId,
+        destinationFolderId
+      }),
+    preflight: async () => {
+      const client = await driveClient(service, source.credentialId, request);
+      const live = await proveContext(source, client, action === 'restore');
+      validateLiveMutationTarget({
+        action,
+        target: liveTarget(live),
+        rootFolderId: source.rootFolderId,
+        ancestryProven: true
+      });
+      const destination = destinationFolderId
+        ? await destinationWithClient({
+            request,
+            service,
+            teamId: common.teamId,
+            destinationFolderId,
+            actorId,
+            permission: 'delete'
+          })
+        : null;
+      return { client, destination };
+    },
+    fail: async (authority, error) => {
+      await rpcValue(service, 'service_fail_drive_mutation_preflight', {
+        p_operation: authority.operationId,
+        p_actor: actorId,
+        p_error_code: error.code,
+        p_retryable: error.retryable
+      });
+    }
   });
-  let destinationFolderId: string | null = null;
-  let destination: Awaited<ReturnType<typeof destinationWithClient>> | null = null;
-  if (action === 'restore' && body.destinationFolderId !== undefined) {
-    destinationFolderId = requireUuid(body.destinationFolderId);
-    destination = await destinationWithClient({
-      request,
-      service,
-      teamId: common.teamId,
-      destinationFolderId,
-      actorId,
-      permission: 'delete'
-    });
-  }
-  const authority = await startSimpleOperation({
-    service,
-    teamId: common.teamId,
-    actorId,
-    kind: action,
-    idempotencyKey: common.idempotencyKey,
-    sourceMaterialId: common.materialId,
-    destinationFolderId
-  });
-  if (authority.reused && authority.state === 'succeeded') return operationRecord(authority);
+  const { authority } = prepared;
+  if (prepared.replayed) return operationRecord(authority);
+  const { client, destination } = prepared.value;
   await transitionOperation({
     service,
     operationId: authority.operationId,

@@ -40,6 +40,7 @@ function expiryOf(result: TeamPreviewResult): number {
  * grid from firing fifty identical ones as it paints.
  */
 const inFlight = new Map<string, Promise<TeamPreviewResult>>();
+const controllers = new Map<string, AbortController>();
 
 export function cachedPreview(
   fetcher: (teamId: string, materialId: string, mode: PreviewMode) => Promise<TeamPreviewResult>,
@@ -58,7 +59,16 @@ export function cachedPreview(
   const pending = inFlight.get(id);
   if (pending) return pending;
 
-  const request = fetcher(teamId, materialId, mode)
+  const controller = new AbortController();
+  controllers.set(id, controller);
+  const request = import('./readCoordinator')
+    .then(({ withReadDeadline }) =>
+      withReadDeadline(() => {
+        if (epoch !== privateCacheEpoch() || controller.signal.aborted)
+          throw privateCacheSuperseded();
+        return fetcher(teamId, materialId, mode);
+      }, controller.signal)
+    )
     .then(result => {
       if (epoch !== privateCacheEpoch() || inFlight.get(id) !== request)
         throw privateCacheSuperseded();
@@ -67,16 +77,26 @@ export function cachedPreview(
       return result;
     })
     .finally(() => {
-      if (inFlight.get(id) === request) inFlight.delete(id);
+      if (inFlight.get(id) === request) {
+        inFlight.delete(id);
+        controllers.delete(id);
+      }
     });
   inFlight.set(id, request);
-  while (inFlight.size > 200) inFlight.delete(inFlight.keys().next().value!);
+  while (inFlight.size > 200) {
+    const oldest = inFlight.keys().next().value!;
+    controllers.get(oldest)?.abort();
+    controllers.delete(oldest);
+    inFlight.delete(oldest);
+  }
   return request;
 }
 
 /** Drops everything. Used by tests, and after a material changes on the server. */
 export function clearPreviewUrlCache(): void {
   cache.clear();
+  for (const controller of controllers.values()) controller.abort();
+  controllers.clear();
   inFlight.clear();
 }
 

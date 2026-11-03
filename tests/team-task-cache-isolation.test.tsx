@@ -221,3 +221,134 @@ it.each(['actor', 'team'])(
     expect(view.result.current.tasks).toEqual([replacement]);
   }
 );
+
+it('keeps independently confirmed labels and agents while a bare task update is in flight', async () => {
+  const initial = { ...row, labels: [], agents: [], attachmentCount: 3 };
+  let finish!: (value: TeamTaskSummary) => void;
+  fixture.listTasks.mockResolvedValue([initial]);
+  fixture.updateTask.mockImplementation(
+    () =>
+      new Promise<TeamTaskSummary>(done => {
+        finish = done;
+      })
+  );
+  const view = renderHook(() => useTasks({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.tasks).toEqual([initial]));
+  let pending!: Promise<TeamTaskSummary>;
+  act(() => {
+    pending = view.result.current.update(
+      initial,
+      { title: 'Updated title' },
+      { checkVersion: false }
+    );
+  });
+  const labels = [{ id: 'confirmed-label', name: 'Confirmed' } as never];
+  const agents = [{ id: 'confirmed-agent' } as never];
+  act(() => {
+    view.result.current.setTaskLabels(initial.id, labels);
+    view.result.current.setTaskAgents(initial.id, agents);
+  });
+  await act(async () => {
+    finish({ ...initial, title: 'Updated title', attachmentCount: 0 });
+    await pending;
+  });
+  expect(view.result.current.tasks[0]).toMatchObject({
+    title: 'Updated title',
+    labels,
+    agents,
+    attachmentCount: 3
+  });
+});
+
+it('does not roll a task back when concurrent write replies arrive out of server-version order', async () => {
+  const initial = { ...row, labels: [], agents: [], updatedAt: '2026-11-03T10:00:00.000Z' };
+  fixture.listTasks.mockResolvedValue([initial]);
+  const completions: Array<(value: TeamTaskSummary) => void> = [];
+  fixture.updateTask.mockImplementation(
+    () => new Promise<TeamTaskSummary>(done => completions.push(done))
+  );
+  const view = renderHook(() => useTasks({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.tasks).toEqual([initial]));
+  let older!: Promise<TeamTaskSummary>;
+  let newer!: Promise<TeamTaskSummary>;
+  act(() => {
+    older = view.result.current.update(initial, { title: 'Earlier save' }, { checkVersion: false });
+    newer = view.result.current.update(initial, { title: 'Latest save' }, { checkVersion: false });
+  });
+  await act(async () => {
+    completions[1]!({ ...initial, title: 'Latest save', updatedAt: '2026-11-03T10:00:02.000Z' });
+    await newer;
+  });
+  await act(async () => {
+    completions[0]!({ ...initial, title: 'Earlier save', updatedAt: '2026-11-03T10:00:01.000Z' });
+    await older;
+  });
+  expect(view.result.current.tasks[0]).toMatchObject({
+    title: 'Latest save',
+    updatedAt: '2026-11-03T10:00:02.000Z'
+  });
+});
+
+it('does not replace a newer authoritative row with a delayed create receipt', async () => {
+  const created = { ...row, labels: [], agents: [], updatedAt: '2026-11-03T10:00:01.000Z' };
+  const latest = {
+    ...created,
+    title: 'Edited after creation',
+    updatedAt: '2026-11-03T10:00:02.000Z'
+  };
+  fixture.listTasks.mockResolvedValueOnce([]).mockResolvedValue([latest]);
+  let finish!: (value: TeamTaskSummary) => void;
+  fixture.createTask.mockImplementation(
+    () =>
+      new Promise<TeamTaskSummary>(done => {
+        finish = done;
+      })
+  );
+  const view = renderHook(() => useTasks({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  let pending!: Promise<TeamTaskSummary>;
+  act(() => {
+    pending = view.result.current.create({ title: created.title });
+  });
+  await act(async () => {
+    await view.result.current.refetch();
+  });
+  expect(view.result.current.tasks).toEqual([latest]);
+  await act(async () => {
+    finish(created);
+    await pending;
+  });
+  expect(view.result.current.tasks).toEqual([latest]);
+});
+
+it('keeps manual refresh pending when a write requires a replacement snapshot', async () => {
+  const pending: Array<(rows: TeamTaskSummary[]) => void> = [];
+  fixture.listTasks
+    .mockResolvedValueOnce([])
+    .mockImplementation(() => new Promise<TeamTaskSummary[]>(resolve => pending.push(resolve)));
+  fixture.createTask.mockResolvedValue(row);
+  const view = renderHook(() => useTasks({ teamId: 'team' }));
+  await waitFor(() => expect(view.result.current.loading).toBe(false));
+  let settled = false;
+  let refresh!: Promise<void | undefined>;
+  act(() => {
+    refresh = view.result.current.refetch().then(() => {
+      settled = true;
+    });
+  });
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => {
+    await view.result.current.create({ title: row.title });
+  });
+  await act(async () => {
+    pending[0]!([]);
+  });
+  expect(pending).toHaveLength(2);
+  expect(settled).toBe(false);
+  await act(async () => {
+    pending[1]!([row]);
+    await refresh;
+  });
+  expect(settled).toBe(true);
+  expect(view.result.current.tasks).toEqual([row]);
+});

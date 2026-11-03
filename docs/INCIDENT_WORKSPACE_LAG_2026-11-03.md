@@ -149,3 +149,11 @@ Validation: the focused database diagnostics and existing realtime tests passed
 (23 tests). The full fast verification run was deliberately interrupted during
 its eight-shard suite to prioritise this investigation; it is not a complete
 suite pass. All 13 static gates passed separately for the final diagnostic changes.
+
+### Folder-drop follow-up: evidence limits and reproduced intake omission
+
+The read-only report for the affected user contains index activity but no upload or import events. The browser folder-upload coordinator and manifest enumerator currently do not emit a correlated remote lifecycle; their local journal is not available to the analytics CLI. Therefore this absence does not establish that the user never tried an upload. Index file counts and cumulative removals cannot identify a particular missing video or attribute its disappearance to trash.
+
+A local regression reproduced a separate intake omission: a drop containing a directory entry and a loose video whose `webkitGetAsEntry()` returned null silently omitted that readable video, even though `getAsFile()` returned it. Intake now falls back per item in both coordinator and legacy paths, retaining directory entries and readable loose files together. The regression tests both paths. This is not evidence that the affected user's missing descendants followed this scenario. Directory descendants use the manifest walker, which already exhausts every `readEntries()` batch until empty; its regression remains green. Upload success requires a completed material receipt and independent unfiltered catalog confirmation, while unreadable, skipped and failed items produce partial or failed groups.
+
+The coverage inventory now explicitly lists `team.browser_folder_upload` as unsupported by its producer. Future diagnostic work must add a privacy-safe correlated intake/group lifecycle with bounded counts and closed outcomes; file names, relative paths, selected content and provider payloads must remain excluded. Until then, the safe fallback is the local group outcome and protected operation receipts, rather than an inference from absent events or current index totals.
