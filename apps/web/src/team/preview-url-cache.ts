@@ -1,3 +1,9 @@
+import {
+  privateCacheEpoch,
+  privateClientId,
+  privateCacheSuperseded,
+  registerPrivateCache
+} from './private-cache-scope';
 import type { TeamPreviewResult } from '@video-compressor/shared';
 
 type PreviewMode = 'media' | 'transcript' | 'archive' | 'landing';
@@ -39,9 +45,12 @@ export function cachedPreview(
   fetcher: (teamId: string, materialId: string, mode: PreviewMode) => Promise<TeamPreviewResult>,
   teamId: string,
   materialId: string,
-  mode: PreviewMode
+  mode: PreviewMode,
+  source: object = fetcher
 ): Promise<TeamPreviewResult> {
-  const id = key(teamId, materialId, mode);
+  const epoch = privateCacheEpoch();
+  const id = `${epoch}:${privateClientId(source)}:${key(teamId, materialId, mode)}`;
+  for (const [entryKey, entry] of cache) if (entry.expiresAt <= Date.now()) cache.delete(entryKey);
   const cached = cache.get(id);
   if (cached && cached.expiresAt - SAFETY_MARGIN_MS > Date.now()) {
     return Promise.resolve(cached.result);
@@ -51,13 +60,17 @@ export function cachedPreview(
 
   const request = fetcher(teamId, materialId, mode)
     .then(result => {
+      if (epoch !== privateCacheEpoch() || inFlight.get(id) !== request)
+        throw privateCacheSuperseded();
       cache.set(id, { result, expiresAt: expiryOf(result) });
+      while (cache.size > 200) cache.delete(cache.keys().next().value!);
       return result;
     })
     .finally(() => {
-      inFlight.delete(id);
+      if (inFlight.get(id) === request) inFlight.delete(id);
     });
   inFlight.set(id, request);
+  while (inFlight.size > 200) inFlight.delete(inFlight.keys().next().value!);
   return request;
 }
 
@@ -66,3 +79,5 @@ export function clearPreviewUrlCache(): void {
   cache.clear();
   inFlight.clear();
 }
+
+registerPrivateCache(clearPreviewUrlCache);

@@ -20,6 +20,7 @@ import { Modal } from '../../components/Modal';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { thumbnailRelayUrl } from '../library/thumbnailRelay';
 import { cachedPreview } from '../preview-url-cache';
+import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { getThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { MaterialPreview } from '../preview/MaterialPreview';
 import { KindIcon } from '../explorer/KindIcon';
@@ -177,6 +178,7 @@ export function TaskAttachmentTile({
   const [copied, setCopied] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
 
+  const cacheEpoch = usePrivateCacheEpoch();
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
@@ -303,7 +305,11 @@ export function TaskAttachmentTile({
        */
       const { mintThumbnailSession, thumbnailUrl: thumbnailFor } = client;
       if (mintThumbnailSession && thumbnailFor) {
-        void getThumbnailSession({ mintThumbnailSession, thumbnailUrl: thumbnailFor }, teamId)
+        void getThumbnailSession(
+          { mintThumbnailSession, thumbnailUrl: thumbnailFor },
+          teamId,
+          client
+        )
           .then(session => {
             if (active) setThumbnailUrl(thumbnailFor(session, attachment.materialId));
           })
@@ -332,6 +338,7 @@ export function TaskAttachmentTile({
       active = false;
     };
   }, [
+    cacheEpoch,
     attachment.availability,
     attachment.category,
     attachment.materialId,
@@ -350,7 +357,8 @@ export function TaskAttachmentTile({
       (id, materialId, mode) => client.previewMaterial(id, materialId, mode),
       teamId,
       attachment.materialId,
-      'media'
+      'media',
+      client
     )
       .then(result => {
         if (!active) return;
@@ -368,6 +376,7 @@ export function TaskAttachmentTile({
       active = false;
     };
   }, [
+    cacheEpoch,
     attachment.category,
     attachment.materialId,
     client,

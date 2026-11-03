@@ -1,7 +1,8 @@
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
-  PROFILE_SYNC_CODES
+  PROFILE_SYNC_CODES,
+  WORKSPACE_READ_CODES
 } from '../../packages/shared/src/types.js';
 import { RECOVERY_REASONS } from '../../packages/shared/src/team/recovery.js';
 import { ACCOUNT_ANALYTICS_CODES } from '../../packages/shared/src/team/analytics.js';
@@ -1396,6 +1397,33 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
           'Inspect the bounded profile refresh or update attempt and actor ownership. A failed refresh retains the last known profile and retries on activation; state publication does not prove sibling receipt or browser paint.'
       }
     ])
+  ),
+  ...Object.fromEntries(
+    WORKSPACE_READ_CODES.flatMap(code =>
+      [
+        'team:read',
+        'members:members_list',
+        'members:assignees_list',
+        'members:member_access_refresh',
+        'tasks:task_list',
+        'tasks:task_read'
+      ].map(prefix => [
+        `${prefix}:${code}`,
+        {
+          files: [
+            'apps/web/src/team/readCoordinator.ts',
+            'apps/web/src/team/useScopedRefresh.ts',
+            'apps/web/src/team/catalog/useVisibleSerialRead.ts',
+            'apps/web/src/team/members/diagnostics.ts',
+            'apps/web/src/team/tasks/diagnostics.ts',
+            'apps/web/src/api/team.ts',
+            'packages/shared/src/types.ts'
+          ],
+          check:
+            'A bounded browser read exceeded its deadline. Check session readiness and transport separately; the abort does not prove server cancellation or a failed write. The generic deadline alone does not identify the affected domain.'
+        }
+      ])
+    )
   ),
   'team:library:RECOVERY_RETIREMENT_UNCONFIRMED': {
     files: [

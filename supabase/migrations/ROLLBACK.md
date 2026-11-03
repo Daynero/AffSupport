@@ -2207,3 +2207,16 @@ A web rollback needs no schema change. Do not delete approved identity reservati
 or grant global admin rights/a synthetic tariff as rollback. Reverting these Drive
 checks would block an otherwise authorized legacy owner; removing designation remains
 an explicit operator action and must also revoke Drive admission consistently.
+
+### 20261207113000 — Catalog generation diagnostic projection
+
+Additive read-only evidence; no application rows, generation fences or provider
+files are changed. A web rollback needs no schema action. Prefer retaining this
+restricted projection for diagnosis. If removal is explicitly authorized through
+the release runbook, remove only `public.analytics_catalog_generations`; never
+drop or rewrite `private.catalog_generation_intents` or its checkpoint receipts.
+The CLI detects a missing/inaccessible view and reports unknown evidence. Before
+re-enabling the view, reset inherited defaults for every consumer and grant only
+SELECT to service/analytics roles; no INSERT, UPDATE or DELETE privilege belongs
+on this projection. Never apply rollback SQL automatically or against an unknown
+release outcome.

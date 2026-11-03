@@ -23,7 +23,8 @@ function fixture() {
   const refreshEntered = gate(),
     refreshReply = gate();
   let holdLogout = false,
-    logoutRequests = 0;
+    logoutRequests = 0,
+    refreshRequests = 0;
   const token = (id: string, sid: string) =>
     `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: id, session_id: sid, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.c3ludGhldGlj`;
   const user = (id: string) => ({
@@ -69,6 +70,7 @@ function fixture() {
           if (url.includes('/token?grant_type=pkce') || url.includes('/token?grant_type=id_token'))
             return Response.json(session(B));
           if (url.includes('/token?grant_type=refresh_token')) {
+            refreshRequests++;
             refreshEntered.resolve();
             await refreshReply.promise;
             return Response.json(session(A));
@@ -121,6 +123,7 @@ function fixture() {
     credentials: () => session(B),
     refreshEntered,
     refreshReply,
+    refreshRequests: () => refreshRequests,
     seedVerifier: () =>
       memory.set(`t169-${storageId}-code-verifier`, JSON.stringify('synthetic-code-verifier')),
     hasVerifier: () => memory.has(`t169-${storageId}-code-verifier`)
@@ -388,4 +391,24 @@ it('stores only one opaque intent revision and never persists the captured owner
   expect(JSON.stringify(writes.mock.calls)).not.toMatch(
     /access_token|refresh_token|synthetic-public-key|synthetic-code|eyJ/u
   );
+});
+
+// Exercise the installed SDK itself: the provider unit tests mock this boundary.
+it('shares one delayed SDK refresh across a burst and leaves session reads usable afterwards', async () => {
+  const f = fixture();
+  await f.signIn('a');
+  const first = f.client.auth.refreshSession();
+  await f.refreshEntered.promise;
+  const burst = Array.from({ length: 12 }, () => f.client.auth.refreshSession());
+  const reads = Array.from({ length: 12 }, () => f.client.auth.getSession());
+  await Promise.resolve();
+  expect(f.refreshRequests()).toBe(1);
+  f.refreshReply.resolve();
+  const results = await Promise.all([first, ...burst, ...reads]);
+  expect(f.refreshRequests()).toBe(1);
+  for (const result of results) {
+    expect(result.error).toBeNull();
+    expect(result.data.session?.user.id).toBe(A);
+  }
+  expect((await f.client.auth.getSession()).data.session?.user.id).toBe(A);
 });

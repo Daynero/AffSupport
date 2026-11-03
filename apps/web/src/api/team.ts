@@ -1824,9 +1824,9 @@ export type RestitchDefaultsInput = Pick<
 
 export const teamApi = {
   catalogImages: catalogImageClient,
-  async listTeams(): Promise<TeamContextSnapshot[]> {
+  async listTeams(options: { signal?: AbortSignal } = {}): Promise<TeamContextSnapshot[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_my_teams')
+      abortable(requireSupabaseClient().rpc('list_my_teams'), options)
     );
     throwRpc(error);
     const teams = (data ?? []).map(mapTeamContext);
@@ -1854,13 +1854,17 @@ export const teamApi = {
     return data;
   },
 
-  async listAssignees(teamId: string): Promise<TeamAssigneeSummary[]> {
+  async listAssignees(
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<TeamAssigneeSummary[]> {
     const attempt = memberAttempt('assignees_list', crypto.randomUUID());
     try {
       // The existing projection is view-gated and shared with Launches.
-      const { data, error } = await withFreshSession(() =>
-        requireSupabaseClient().rpc('list_launch_assignees', { p_team: teamId })
-      );
+      const { data, error } = await withFreshSession(() => {
+        const query = requireSupabaseClient().rpc('list_launch_assignees', { p_team: teamId });
+        return options?.signal ? query.abortSignal(options.signal) : query;
+      });
       throwRpc(error);
       if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
       const result = data.map(value => {
@@ -1876,17 +1880,21 @@ export const teamApi = {
       attempt.finish('success');
       return result;
     } catch (cause) {
-      attempt.finish('failure', cause);
+      attempt.finish(isRequestAborted(cause) ? 'cancelled' : 'failure', cause);
       throw cause;
     }
   },
 
-  async listMembers(teamId: string): Promise<TeamMemberSummary[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_members', {
+  async listMembers(
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<TeamMemberSummary[]> {
+    const { data, error } = await withFreshSession(() => {
+      const query = requireSupabaseClient().rpc('list_team_members', {
         p_team: teamId
-      })
-    );
+      });
+      return options?.signal ? query.abortSignal(options.signal) : query;
+    });
     throwRpc(error);
     const members = (data ?? []).map(mapMember);
     if (members.some(member => member === null)) {
@@ -2294,9 +2302,15 @@ export const teamApi = {
     });
   },
 
-  async listTeamProductCatalogs(teamId: string): Promise<CatalogRegistryRow[]> {
+  async listTeamProductCatalogs(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogRegistryRow[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId })
+      abortable(
+        requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId }),
+        options
+      )
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2306,9 +2320,15 @@ export const teamApi = {
     });
   },
 
-  async listCatalogUpdateProfiles(teamId: string): Promise<CatalogUpdateProfile[]> {
+  async listCatalogUpdateProfiles(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogUpdateProfile[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_catalog_update_profiles', { p_team: teamId })
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_update_profiles', { p_team: teamId }),
+        options
+      )
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2445,9 +2465,15 @@ export const teamApi = {
     return parsed;
   },
 
-  async getCatalogUpdater(teamId: string): Promise<CatalogUpdaterState> {
+  async getCatalogUpdater(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogUpdaterState> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId })
+      abortable(
+        requireSupabaseClient().rpc('get_team_catalog_updater', { p_team: teamId }),
+        options
+      )
     );
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);
@@ -3235,18 +3261,22 @@ export const teamApi = {
       kinds?: TeamMaterialRowKind[];
       after?: FolderPageCursor | null;
       limit?: number;
+      signal?: AbortSignal;
     }
   ): Promise<FolderPage> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_folder_page', {
-        p_team: teamId,
-        ...(input.parentFolderId ? { p_parent_folder_id: input.parentFolderId } : {}),
-        ...(input.kinds && input.kinds.length > 0 ? { p_kind: input.kinds } : {}),
-        ...(input.after
-          ? { p_after_sort_key: input.after.sortKey, p_after_id: input.after.id }
-          : {}),
-        p_limit: input.limit ?? 100
-      })
+      abortable(
+        requireSupabaseClient().rpc('list_team_folder_page', {
+          p_team: teamId,
+          ...(input.parentFolderId ? { p_parent_folder_id: input.parentFolderId } : {}),
+          ...(input.kinds && input.kinds.length > 0 ? { p_kind: input.kinds } : {}),
+          ...(input.after
+            ? { p_after_sort_key: input.after.sortKey, p_after_id: input.after.id }
+            : {}),
+          p_limit: input.limit ?? 100
+        }),
+        input
+      )
     );
     throwRpc(error);
     if (!isFolderPage(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -3365,11 +3395,17 @@ export const teamApi = {
     throwRpc(error);
   },
 
-  async getStorageHealth(teamId: string): Promise<StorageHealth> {
+  async getStorageHealth(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<StorageHealth> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_storage_health_v2', {
-        p_team: teamId
-      })
+      abortable(
+        requireSupabaseClient().rpc('get_team_storage_health_v2', {
+          p_team: teamId
+        }),
+        options
+      )
     );
     throwRpc(error);
     if (!isStorageHealth(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -3412,7 +3448,8 @@ export const teamApi = {
   async searchCatalog(
     teamId: string,
     request: CatalogSearchRequestInput,
-    scope?: CatalogSearchScope
+    scope?: CatalogSearchScope,
+    options?: { signal?: AbortSignal }
   ): Promise<CatalogSearchResponse> {
     const normalized = normalizeCatalogSearchRequest(request);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
@@ -3430,14 +3467,15 @@ export const teamApi = {
     const recursive =
       Boolean(scope?.recursive && scope.parentFolderId) && searchTakesRecursive !== false;
     const call = (withRecursive: boolean) =>
-      withFreshSession(() =>
-        requireSupabaseClient().rpc(
+      withFreshSession(() => {
+        const query = requireSupabaseClient().rpc(
           'search_materials',
           // Asserted, not declared: the generated types learn the parameter
           // when the migration that adds it is applied.
           (withRecursive ? { ...base, p_recursive: true } : base) as SearchArgs
-        )
-      );
+        );
+        return options?.signal ? query.abortSignal(options.signal) : query;
+      });
     let { data, error } = await call(recursive);
     if (recursive && error?.code === 'PGRST202') {
       searchTakesRecursive = false;
@@ -3451,12 +3489,16 @@ export const teamApi = {
     return result;
   },
 
-  async getCatalogVocabulary(teamId: string): Promise<CatalogVocabulary> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_vocab_and_facets', {
+  async getCatalogVocabulary(
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogVocabulary> {
+    const { data, error } = await withFreshSession(() => {
+      const query = requireSupabaseClient().rpc('get_team_vocab_and_facets', {
         p_team: teamId
-      })
-    );
+      });
+      return options?.signal ? query.abortSignal(options.signal) : query;
+    });
     throwRpc(error);
     const row = asRecord(data);
     if (
@@ -3681,12 +3723,19 @@ export const teamApi = {
   },
 
   /** A file's note (024), or null when it has none. Soty's own metadata; Drive never sees it. */
-  async getMaterialNote(teamId: string, materialId: string): Promise<string | null> {
+  async getMaterialNote(
+    teamId: string,
+    materialId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<string | null> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_material_note', {
-        p_team: teamId,
-        p_material: materialId
-      })
+      abortable(
+        requireSupabaseClient().rpc('get_team_material_note', {
+          p_team: teamId,
+          p_material: materialId
+        }),
+        options
+      )
     );
     throwRpc(error);
     if (data !== null && typeof data !== 'string')
@@ -4252,6 +4301,7 @@ export const teamApi = {
     sort?: TeamTaskSort | null;
     cursor?: string | null;
     pageSize?: number;
+    signal?: AbortSignal;
   }): Promise<TeamTaskSummary[]> {
     return taskRpc('task_list', async () => {
       const labelIds = input.labelIds?.length ? [...input.labelIds] : undefined;
@@ -4260,8 +4310,8 @@ export const teamApi = {
       }
       const sort = input.sort ?? 'date';
       if (!isTeamTaskSort(sort)) throw new TeamApiError('INVALID_INPUT', false);
-      const { data, error } = await withFreshSession(() =>
-        requireSupabaseClient().rpc('list_team_tasks', {
+      const { data, error } = await withFreshSession(() => {
+        const query = requireSupabaseClient().rpc('list_team_tasks', {
           p_team: input.teamId,
           p_created_from: input.createdFrom ?? undefined,
           p_created_to: input.createdTo ?? undefined,
@@ -4274,8 +4324,9 @@ export const teamApi = {
           p_sort: sort,
           p_cursor: input.cursor ?? undefined,
           p_page_size: input.pageSize ?? 50
-        })
-      );
+        });
+        return input.signal ? query.abortSignal(input.signal) : query;
+      });
       throwRpc(error);
       if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
       const tasks = data.map(mapTeamTask);
@@ -4801,13 +4852,18 @@ export const teamApi = {
   // ---------------------------------------------------------------------------
 
   /** Every tag of one set with how many things carry it — one round trip. */
-  async listTaskLabels(teamId: string, scope: TeamLabelScope = 'task'): Promise<TeamTaskLabel[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_labels', {
+  async listTaskLabels(
+    teamId: string,
+    scope: TeamLabelScope = 'task',
+    options?: { signal?: AbortSignal }
+  ): Promise<TeamTaskLabel[]> {
+    const { data, error } = await withFreshSession(() => {
+      const query = requireSupabaseClient().rpc('list_team_labels', {
         p_team: teamId,
         p_scope: scope
-      })
-    );
+      });
+      return options?.signal ? query.abortSignal(options.signal) : query;
+    });
     throwRpc(error);
     const labels = (data ?? []).map(parseTeamTaskLabel);
     if (labels.some(label => label === null)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -4918,11 +4974,17 @@ export const teamApi = {
   // ---------------------------------------------------------------------------
 
   /** Every account of a space with its agents nested — one round trip, no paging. */
-  async listAccounts(teamId: string): Promise<TeamAccountSummary[]> {
+  async listAccounts(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<TeamAccountSummary[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_accounts', {
-        p_team: teamId
-      })
+      abortable(
+        requireSupabaseClient().rpc('list_team_accounts', {
+          p_team: teamId
+        }),
+        options
+      )
     );
     throwRpc(error);
     const accounts = (data ?? []).map(parseTeamAccount);
@@ -4933,7 +4995,10 @@ export const teamApi = {
       (account): account is TeamAccountSummary => account !== null
     );
     const { data: seedRows, error: seedError } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_account_two_factor_seeds', { p_team: teamId })
+      abortable(
+        requireSupabaseClient().rpc('list_team_account_two_factor_seeds', { p_team: teamId }),
+        options
+      )
     );
     throwRpc(seedError);
     if (!Array.isArray(seedRows)) throw new TeamApiError('INVALID_RESPONSE', false);

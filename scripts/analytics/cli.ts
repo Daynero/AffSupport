@@ -11,7 +11,12 @@ import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalo
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { getDatabaseHealth, getDatabaseRetention, getDatabaseTables } from './database-health.js';
+import {
+  getDatabaseHealth,
+  getDatabasePerformance,
+  getDatabaseRetention,
+  getDatabaseTables
+} from './database-health.js';
 import { getCatalogUpdateDiagnosis, getTeamCatalogUpdateDiagnosis } from './catalog-updates.js';
 import { getCatalogScheduleTrends } from './catalog-schedule-trends.js';
 import { renderCatalogScheduleReport } from './catalog-schedule-report.js';
@@ -71,7 +76,7 @@ import {
 } from './queries.js';
 import {
   NO_AGENT_CONTEXT_NOTE,
-  investigateOutputIsPrivate,
+  investigatePrivacyFailure,
   syncOutputIsPrivate,
   teamWorkspaceOutputIsPrivate,
   type AuditArtifact,
@@ -130,6 +135,7 @@ Commands:
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
   connection          Browser ↔ Agent link: losses, recovery time, reasons, coverage
   database-health     Database sizes, churn and grant expiry (read-only)
+  database-performance Bounded SQL timings, waits and cron durations (read-only management API)
   database-tables     Exact counts and index inventory via read-only management API
   database-retention  Lightweight checks of cleanup jobs and retained tenant key
   audit               Coverage registry vs observed events: blind spots, orphans, losses
@@ -284,6 +290,10 @@ export async function executeCommand(
   });
 
   switch (command) {
+    case 'database-performance': {
+      const data = await getDatabasePerformance();
+      return done(data, JSON.stringify(data, null, 2));
+    }
     case 'database-retention': {
       const data = await getDatabaseRetention();
       return done(data, JSON.stringify(data, null, 2));
@@ -381,11 +391,11 @@ export async function executeCommand(
         getDeliveryLag(journeyPeriod),
         getCatalogImageUserDiagnosis(email, journeyPeriod, args.limit ?? 100)
       ]);
-      const full = { events, delivery_lag_ms, catalog_images };
+      const full = { window_basis: 'created_at' as const, events, delivery_lag_ms, catalog_images };
       return {
         period: journeyPeriod,
         data: full,
-        human: formatJourney(`Journey · ${email}`, events, journeyPeriod, delivery_lag_ms),
+        human: `${formatJourney(`Journey · ${email}`, events, journeyPeriod, delivery_lag_ms)}\nWindow basis: server receipt time (created_at); events ordered by occurred_at.`,
         written: []
       };
     }
@@ -499,8 +509,12 @@ export async function executeCommand(
       const data = await subjectCommand(() =>
         getJournal(subject, journalPeriod, args.limit ?? 200)
       );
-      if (!investigateOutputIsPrivate(data)) {
-        throw new CommandError('Journal output failed its privacy guard.');
+      const privacyFailure = investigatePrivacyFailure(data);
+      if (privacyFailure) {
+        throw new CommandError(
+          'Journal output failed its privacy guard.',
+          `Privacy category: ${privacyFailure}.`
+        );
       }
       return {
         period: journalPeriod,
@@ -519,8 +533,12 @@ export async function executeCommand(
       const data = await subjectCommand(() =>
         getInvestigation(subject, investigatePeriod, args.limit ?? 10)
       );
-      if (!investigateOutputIsPrivate(data)) {
-        throw new CommandError('Investigation output failed its privacy guard.');
+      const privacyFailure = investigatePrivacyFailure(data);
+      if (privacyFailure) {
+        throw new CommandError(
+          'Investigation output failed its privacy guard.',
+          `Privacy category: ${privacyFailure}.`
+        );
       }
       return {
         period: investigatePeriod,

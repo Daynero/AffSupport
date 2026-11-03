@@ -46,7 +46,7 @@ export async function getCommercialAccessEvidence(
     supported: true,
     records: rows.slice(0, 100),
     blind_spots: [
-      'Journal records prove committed server state at their observed time, not current capacity, external payment, Google quota, consent completion or browser receipt. Rejected transactions leave no committed journal record; correlate the OAuth failure events separately.',
+      'Journal records prove committed server state at their observed time, not current capacity, external payment, Google quota, consent completion or browser receipt. Rejected transactions leave no committed journal record; correlate the Google consent failure events separately.',
       ...(rows.length > 100 ? ['Commercial access journal truncated at 100 records.'] : [])
     ]
   };

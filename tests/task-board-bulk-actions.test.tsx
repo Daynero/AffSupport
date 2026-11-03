@@ -207,7 +207,12 @@ it('reads the safe assignee directory for an editor instead of private member ma
   const user = userEvent.setup();
   board(api);
   await screen.findByText('Task a');
-  await waitFor(() => expect(listAssignees).toHaveBeenCalledWith(TEAM_ID));
+  await waitFor(() =>
+    expect(listAssignees).toHaveBeenCalledWith(
+      TEAM_ID,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  );
   expect(listMembers).not.toHaveBeenCalled();
   await user.click(screen.getByText('Task a'));
   const assignee = await screen.findByLabelText('Assignee');

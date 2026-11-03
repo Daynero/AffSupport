@@ -1,8 +1,11 @@
+import { withReadDeadline } from '../readCoordinator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { useI18n } from '../../i18n';
 import { Empty, Input, Switch } from '../../components/ui/index';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { useTeam } from '../TeamContext';
 import { attachTaskMaterialsInChunks } from './TaskAttachmentPicker';
 import { TaskCard } from './TaskCard';
@@ -30,10 +33,13 @@ export type TaskSpaceClient = TaskCopyClient &
   TasksClient &
   TaskEditorClient &
   TaskLabelsClient & {
-    listMembers(teamId: string): Promise<TeamMemberSummary[]>;
-    listAssignees?: (teamId: string) => Promise<TeamAssigneeSummary[]>;
+    listMembers(teamId: string, options?: { signal?: AbortSignal }): Promise<TeamMemberSummary[]>;
+    listAssignees?: (
+      teamId: string,
+      options?: { signal?: AbortSignal }
+    ) => Promise<TeamAssigneeSummary[]>;
     deleteTask(input: { teamId: string; taskId: string }): Promise<true>;
-    listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
+    listAccounts(teamId: string, options?: { signal?: AbortSignal }): Promise<TeamAccountSummary[]>;
   };
 
 export interface TaskSourceAsset {
@@ -89,7 +95,18 @@ export function TaskSpace({
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const { can, revision } = useTeam();
+  const {
+    can,
+    revision: generalRevision,
+    tasksRevision,
+    membersRevision,
+    accountsRevision,
+    accessRevision,
+    permissions
+  } = useTeam();
+  const auth = useOptionalAuth();
+  const accessScope = JSON.stringify([teamId, auth?.user?.id, accessRevision, permissions]);
+  const revision = tasksRevision ?? generalRevision;
   /**
    * The account scope is the address's when the shell supplies it, so a link
    * from the Accounts tab lands narrowed and Back widens it again; mounted on
@@ -200,41 +217,46 @@ export function TaskSpace({
     else setLocalOpenId(task?.id ?? null);
   };
 
-  useEffect(() => {
-    let active = true;
-    const directory = client.listAssignees
-      ? client.listAssignees(teamId)
-      : client.listMembers(teamId);
-    void directory
-      .then(value => {
-        if (active) setMembers(value);
-      })
-      .catch(() => {
-        if (active) setMembers([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [client, revision, teamId]);
+  useVisibleSerialRead({
+    client,
+    scopeKey: `${accessScope}:directory`,
+    revision: membersRevision ?? generalRevision,
+    read: async signal => {
+      try {
+        const value = await withReadDeadline(
+          readSignal =>
+            client.listAssignees
+              ? client.listAssignees(teamId, { signal: readSignal })
+              : client.listMembers(teamId, { signal: readSignal }),
+          signal
+        );
+        if (!signal.aborted) setMembers(value);
+      } catch {
+        if (!signal.aborted) setMembers([]);
+      }
+    }
+  });
 
   // The accounts feed the filter pill. Re-read when the space changes and when
   // this editor wrote a tag or a run — not on every task refetch, which would
   // be a second round trip per realtime tick for a list that rarely moves.
   const [accountsVersion, setAccountsVersion] = useState(0);
-  useEffect(() => {
-    let active = true;
-    void client
-      .listAccounts(teamId)
-      .then(value => {
-        if (active) setAccounts(value);
-      })
-      .catch(() => {
-        if (active) setAccounts([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [accountsVersion, client, revision, teamId]);
+  useVisibleSerialRead({
+    client,
+    scopeKey: `${accessScope}:accounts:${accountsVersion}`,
+    revision: accountsRevision ?? generalRevision,
+    read: async signal => {
+      try {
+        const value = await withReadDeadline(
+          readSignal => client.listAccounts(teamId, { signal: readSignal }),
+          signal
+        );
+        if (!signal.aborted) setAccounts(value);
+      } catch {
+        if (!signal.aborted) setAccounts([]);
+      }
+    }
+  });
 
   /** True when a filter is what is hiding the tasks, rather than there being none. */
   const filtered =

@@ -5,6 +5,10 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import optimizeLocales from '@react-aria/optimize-locales-plugin';
+import {
+  compactLocalesPlugin,
+  COMPACT_LOCALE_KEYS_ID
+} from '../../scripts/lib/compact-locales.mjs';
 import { PRODUCTION_SITE_ORIGIN } from '../../packages/shared/src/release';
 import { supportEmail } from './src/lib/support';
 import { staticPublicPages } from './src/static-public-pages';
@@ -53,6 +57,7 @@ export default defineConfig(({ mode }) => ({
     // Root's I18nProvider supports uk-UA and en-GB. React Aria uses en-US as
     // the English dictionary fallback; other bundled languages are unused.
     optimizeLocales.vite({ locales: ['en-US', 'en-GB', 'uk-UA'] }),
+    compactLocalesPlugin(),
     react(),
     tailwindcss(),
     siteOriginPlugin(),
@@ -101,7 +106,8 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id: string) {
           // Dictionaries have no runtime dependencies. Keep their data separate
           // so UI component edits can reuse the unchanged dictionary chunk.
-          if (/[\\/]src[\\/]locales[\\/](?:en|uk)\.ts$/u.test(id)) return 'locales';
+          if (id === COMPACT_LOCALE_KEYS_ID || /[\\/]src[\\/]locales[\\/](?:en|uk)\.ts$/u.test(id))
+            return 'locales';
           if (!id.includes('node_modules')) return undefined;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id)) return 'react';
           if (id.includes('@supabase')) return 'supabase';

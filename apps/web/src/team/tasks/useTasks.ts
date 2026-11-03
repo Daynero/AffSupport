@@ -1,3 +1,8 @@
+import { useScopedRows } from '../useScopedRows';
+import { withReadDeadline } from '../readCoordinator';
+import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { useOptionalTeam } from '../TeamContext';
 import { realtimeTopic } from '../../lib/realtimeTopic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -115,6 +120,7 @@ export interface TasksClient {
     sort?: TeamTaskSort | null;
     cursor?: string | null;
     pageSize?: number;
+    signal?: AbortSignal;
   }): Promise<TeamTaskSummary[]>;
   createTask(input: {
     teamId: string;
@@ -128,14 +134,6 @@ export interface TasksClient {
 
 const defaultClient: TasksClient = teamApi;
 const PAGE_SIZE = 50;
-
-/**
- * The last first page each (space, filters) pair showed, for the life of the
- * page. The Tasks section unmounts on every trip to another tab; without this
- * every return began with "Loading…". Realtime re-reads on anyone's change,
- * so the cached page is at most a moment old. Production client only.
- */
-const cache = new Map<string, { tasks: TeamTaskSummary[]; hasMore: boolean }>();
 
 export function localDateValue(date: Date): string {
   const year = date.getFullYear();
@@ -181,6 +179,14 @@ export function useTasks({
   scope?: TaskAccountScope;
   client?: TasksClient;
 }) {
+  const auth = useOptionalAuth();
+  const team = useOptionalTeam();
+  const identityScope = JSON.stringify([
+    auth?.user?.id ?? null,
+    teamId,
+    team?.permissions ?? null,
+    team?.accessRevision ?? 0
+  ]);
   // Every choice below is the space's and outlives a reload (persistedView).
   const [filter, setFilter] = usePersistedState<TaskDateFilter>(
     persistedViewKey(teamId, 'tasks.date'),
@@ -237,77 +243,109 @@ export function useTasks({
     labelKey,
     sort
   ].join('|');
-  const cached = client === defaultClient ? cache.get(cacheKey) : undefined;
-  const [tasks, setTasks] = useState<TeamTaskSummary[]>(cached?.tasks ?? []);
-  const [loading, setLoading] = useState(cached === undefined);
+  const {
+    commit,
+    rows: tasks,
+    setRows: setTasks,
+    hasMore,
+    setHasMore,
+    loading,
+    setLoading,
+    error,
+    setError,
+    generation,
+    writes,
+    reading: readingFirstPage,
+    lifetime: scopeLifetime,
+    lifetimeKey,
+    cached
+  } = useScopedRows<TeamTaskSummary>(identityScope, cacheKey, client, client === defaultClient);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(cached?.hasMore ?? false);
-  const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
-
-  const refetch = useCallback(async () => {
-    const requestGeneration = ++generation.current;
-    // A cached page stays on screen while it is re-read; the loading line is
-    // for a view never seen before, or one whose filters just changed.
-    if (!(client === defaultClient && cache.has(cacheKey))) setLoading(true);
-    try {
-      const next = await client.listTasks({
-        teamId,
-        createdFrom: bounds?.from,
-        createdTo: bounds?.to,
-        dayFrom: bounds?.dayFrom,
-        dayTo: bounds?.dayTo,
-        status,
-        agentRowId,
-        accountId,
-        labelIds: labelFilter,
-        sort,
-        pageSize: PAGE_SIZE
-      });
-      if (requestGeneration !== generation.current) return;
-      setTasks(next);
-      setHasMore(next.length === PAGE_SIZE);
-      setError(null);
-    } catch (cause) {
-      if (requestGeneration === generation.current) {
-        setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
-      }
-    } finally {
-      if (requestGeneration === generation.current) setLoading(false);
-    }
-  }, [
-    accountId,
-    agentRowId,
-    bounds?.from,
-    bounds?.to,
-    cacheKey,
-    client,
-    labelFilter,
-    sort,
-    status,
-    teamId
-  ]);
-
+  const pageRead = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      pageRead.current?.abort();
+    },
+    []
+  );
   useEffect(() => {
-    void refetch();
+    setLoadingMore(false);
     return () => {
-      generation.current += 1;
+      pageRead.current?.abort();
+      pageRead.current = null;
     };
-  }, [refetch, revision]);
+  }, [identityScope, cacheKey]);
 
-  // Filters changed: show that view's last page at once if there is one.
-  useEffect(() => {
-    if (client !== defaultClient) return;
-    const entry = cache.get(cacheKey);
-    if (entry) {
-      setTasks(entry.tasks);
-      setHasMore(entry.hasMore);
-    }
-  }, [cacheKey, client]);
+  const read = useCallback(
+    async (signal: AbortSignal) => {
+      pageRead.current?.abort();
+      pageRead.current = null;
+      setLoadingMore(false);
+      readingFirstPage.current = true;
+      const requestGeneration = ++generation.current;
+      const writesBefore = writes.current;
+      // A cached page stays on screen while it is re-read; the loading line is
+      // for a view never seen before, or one whose filters just changed.
+      if (!cached) setLoading(true);
+      try {
+        const next = await withReadDeadline(
+          readSignal =>
+            client.listTasks({
+              teamId,
+              createdFrom: bounds?.from,
+              createdTo: bounds?.to,
+              dayFrom: bounds?.dayFrom,
+              dayTo: bounds?.dayTo,
+              status,
+              agentRowId,
+              accountId,
+              labelIds: labelFilter,
+              sort,
+              pageSize: PAGE_SIZE,
+              signal: readSignal
+            }),
+          signal
+        );
+        if (
+          signal.aborted ||
+          requestGeneration !== generation.current ||
+          writesBefore !== writes.current
+        )
+          return;
+        setTasks(next);
+        setHasMore(next.length === PAGE_SIZE);
+        setError(null);
+      } catch (cause) {
+        if (!signal.aborted && requestGeneration === generation.current) {
+          setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+        }
+      } finally {
+        if (requestGeneration === generation.current) readingFirstPage.current = false;
+        if (!signal.aborted && requestGeneration === generation.current) setLoading(false);
+      }
+    },
+    [
+      accountId,
+      agentRowId,
+      bounds?.from,
+      bounds?.to,
+      cacheKey,
+      cached,
+      identityScope,
+      client,
+      labelFilter,
+      sort,
+      status,
+      teamId
+    ]
+  );
 
-  useEffect(() => {
-    if (client === defaultClient && !loading) cache.set(cacheKey, { tasks, hasMore });
-  }, [cacheKey, client, hasMore, loading, tasks]);
+  const refetch = useVisibleSerialRead({
+    client,
+    scopeKey: identityScope + cacheKey,
+    revision,
+    read
+  });
 
   // Live sync: refetch whenever any team member creates, edits, or (de)attaches
   // a task. The team_tasks / team_task_attachments tables are published over
@@ -400,31 +438,57 @@ export function useTasks({
   }, [client, teamId]);
 
   const loadMore = useCallback(async () => {
+    if (!scopeLifetime.current.active || scopeLifetime.current.key !== lifetimeKey) return;
     const cursor = tasks.at(-1)?.id;
-    if (!cursor || !hasMore || loading || loadingMore) return;
+    if (
+      !cursor ||
+      !hasMore ||
+      loading ||
+      loadingMore ||
+      pageRead.current ||
+      readingFirstPage.current
+    )
+      return;
+    const lifetime = lifetimeKey;
+    const writesBefore = writes.current;
+    const controller = new AbortController();
+    pageRead.current = controller;
+    const current = () =>
+      !controller.signal.aborted &&
+      scopeLifetime.current.active &&
+      scopeLifetime.current.key === lifetime &&
+      writesBefore === writes.current;
     setLoadingMore(true);
     try {
-      const next = await client.listTasks({
-        teamId,
-        createdFrom: bounds?.from,
-        createdTo: bounds?.to,
-        dayFrom: bounds?.dayFrom,
-        dayTo: bounds?.dayTo,
-        status,
-        agentRowId,
-        accountId,
-        labelIds: labelFilter,
-        sort,
-        cursor,
-        pageSize: PAGE_SIZE
-      });
+      const next = await withReadDeadline(
+        readSignal =>
+          client.listTasks({
+            teamId,
+            createdFrom: bounds?.from,
+            createdTo: bounds?.to,
+            dayFrom: bounds?.dayFrom,
+            dayTo: bounds?.dayTo,
+            status,
+            agentRowId,
+            accountId,
+            labelIds: labelFilter,
+            sort,
+            cursor,
+            pageSize: PAGE_SIZE,
+            signal: readSignal
+          }),
+        controller.signal
+      );
+      if (!current()) return;
       setTasks(current => mergeTasks(current, next, sort));
       setHasMore(next.length === PAGE_SIZE);
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+      if (current()) setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
     } finally {
-      setLoadingMore(false);
+      if (pageRead.current === controller) pageRead.current = null;
+      if (!controller.signal.aborted && scopeLifetime.current.key === lifetime)
+        setLoadingMore(false);
     }
   }, [
     accountId,
@@ -436,6 +500,7 @@ export function useTasks({
     labelFilter,
     loading,
     loadingMore,
+    lifetimeKey,
     sort,
     status,
     tasks,
@@ -443,62 +508,54 @@ export function useTasks({
   ]);
 
   const create = useCallback(
-    async (input: {
+    (input: {
       title: string;
       note?: string | null;
       assigneeId?: string | null;
       initialMaterialId?: string | null;
-    }) => {
-      const created = await client.createTask({ teamId, ...input });
-      setTasks(current => mergeTasks(current, [created], sort));
-      return created;
-    },
-    [client, sort, teamId]
+    }) =>
+      commit(
+        () => client.createTask({ teamId, ...input }),
+        created => setTasks(current => mergeTasks(current, [created], sort)),
+        refetch
+      ),
+    [client, commit, refetch, sort, teamId]
   );
 
   const update = useCallback(
-    async (
-      task: TeamTaskSummary,
-      patch: TeamTaskPatch,
-      options: { checkVersion?: boolean } = {}
-    ) => {
-      /*
-       * A one-field edit from a card (progress, status) is last-writer-wins: it cannot clobber
-       * another field, and holding it to the card's copy of `updatedAt` refused it whenever the task
-       * had changed anywhere else — tags, attachments, another tab — and the progress was lost.
-       */
-      const updated = await client.updateTask(teamId, task.id, {
-        ...patch,
-        ...(options.checkVersion === false ? {} : { expectedUpdatedAt: task.updatedAt })
-      });
-      // update_team_task returns a team_tasks row, which deliberately does not
-      // include the derived attachment count. A quick status/progress edit must
-      // not make an otherwise attached card briefly look empty.
-      const next = {
-        ...updated,
-        attachmentCount: task.attachmentCount,
-        agents: task.agents,
-        labels: task.labels
-      };
-      // An edit can move a task's date, and the board is ordered by that date:
-      // re-place the card instead of leaving it where it used to belong.
-      // And a task the edit takes out of the filters in force leaves the board
-      // now, not at the next reload: a card set to "Done" under "In progress"
-      // stayed there, answering to a filter it no longer passed.
-      const stillShown = status === null || next.status === status;
-      setTasks(current =>
-        current
-          .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
-          .sort(teamTaskComparator(sort))
-      );
-      return next;
-    },
-    [client, sort, status, teamId]
+    (task: TeamTaskSummary, patch: TeamTaskPatch, options: { checkVersion?: boolean } = {}) =>
+      commit(
+        async () => {
+          const updated = await client.updateTask(teamId, task.id, {
+            ...patch,
+            ...(options.checkVersion === false ? {} : { expectedUpdatedAt: task.updatedAt })
+          });
+          // The bare write row does not include derived counts, agents or labels.
+          return {
+            ...updated,
+            attachmentCount: task.attachmentCount,
+            agents: task.agents,
+            labels: task.labels
+          };
+        },
+        next => {
+          const stillShown = status === null || next.status === status;
+          setTasks(current =>
+            current
+              .flatMap(item => (item.id === next.id ? (stillShown ? [next] : []) : [item]))
+              .sort(teamTaskComparator(sort))
+          );
+        },
+        refetch
+      ),
+    [client, commit, refetch, sort, status, teamId]
   );
 
   /** The editor hung or removed a tag (018); the card follows at once. */
   const setTaskLabels = useCallback(
     (taskId: string, labels: TeamTaskLabelRef[]) => {
+      if (!scopeLifetime.current.active || scopeLifetime.current.key !== lifetimeKey) return;
+      writes.current += 1;
       setTasks(current =>
         current
           .map(item => (item.id === taskId ? { ...item, labels } : item))
@@ -506,14 +563,21 @@ export function useTasks({
           // it was would put it under a tag it no longer carries.
           .sort(teamTaskComparator(sort))
       );
+      if (readingFirstPage.current) void refetch();
     },
-    [sort]
+    [lifetimeKey, refetch, sort]
   );
 
   /** The editor tagged or untagged a task; the card follows without a round trip. */
-  const setTaskAgents = useCallback((taskId: string, agents: TeamTaskSummary['agents']) => {
-    setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
-  }, []);
+  const setTaskAgents = useCallback(
+    (taskId: string, agents: TeamTaskSummary['agents']) => {
+      if (!scopeLifetime.current.active || scopeLifetime.current.key !== lifetimeKey) return;
+      writes.current += 1;
+      setTasks(current => current.map(item => (item.id === taskId ? { ...item, agents } : item)));
+      if (readingFirstPage.current) void refetch();
+    },
+    [lifetimeKey, refetch]
+  );
 
   const term = query.normalize('NFC').trim();
   /*

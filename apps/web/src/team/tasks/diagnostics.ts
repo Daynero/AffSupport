@@ -1,4 +1,4 @@
-import { TEAM_ERROR_CODES } from '@video-compressor/shared';
+import { TEAM_ERROR_CODES, WORKSPACE_READ_CODES } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 import type { AnalyticsEventName, AnalyticsProperties } from '../../analytics/events';
 
@@ -51,7 +51,9 @@ export function taskAttempt(step: TaskDiagnosticStep, flowId: string = crypto.ra
       if (ended) return;
       ended = true;
       const candidate = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
-      const code = TEAM_ERROR_CODES.find(value => value === candidate) ?? 'unknown';
+      const code =
+        [...TEAM_ERROR_CODES, ...WORKSPACE_READ_CODES].find(value => value === candidate) ??
+        'unknown';
       if (outcome === 'failure')
         emit('error_occurred', {
           ...properties,
@@ -108,7 +110,9 @@ export async function taskRpc<T>(
     attempt.finish('success');
     return result;
   } catch (cause) {
-    attempt.finish('failure', cause);
+    const cancelled =
+      cause !== null && typeof cause === 'object' && 'name' in cause && cause.name === 'AbortError';
+    attempt.finish(cancelled ? 'cancelled' : 'failure', cause);
     throw cause;
   }
 }

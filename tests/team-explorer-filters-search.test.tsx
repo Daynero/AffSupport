@@ -123,7 +123,8 @@ describe('search scope', () => {
       expect(searchCatalog).toHaveBeenCalledWith(
         'team-1',
         expect.objectContaining({ query: 'ban' }),
-        { parentFolderId: 'f-1', kinds: ['image'] }
+        { parentFolderId: 'f-1', kinds: ['image'] },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
     rerender(
@@ -132,10 +133,15 @@ describe('search scope', () => {
       </TeamProvider>
     );
     await waitFor(() =>
-      expect(searchCatalog).toHaveBeenLastCalledWith('team-1', expect.anything(), {
-        parentFolderId: null,
-        kinds: ['image']
-      })
+      expect(searchCatalog).toHaveBeenLastCalledWith(
+        'team-1',
+        expect.anything(),
+        {
+          parentFolderId: null,
+          kinds: ['image']
+        },
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
     );
   });
 });

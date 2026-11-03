@@ -122,7 +122,9 @@ describe('team catalog search UI', () => {
         expect.objectContaining({
           query: 'launch',
           filters: expect.objectContaining({ geo: ['UA'], category: ['video'] })
-        })
+        }),
+        undefined,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
     expect(screen.getByRole('button', { name: 'Remove GEO: Ukraine filter' })).toBeTruthy();
@@ -187,7 +189,9 @@ describe('team catalog search UI', () => {
     await waitFor(() =>
       expect(api.searchCatalog).toHaveBeenLastCalledWith(
         TEAM_ID,
-        expect.objectContaining({ query: 'hook' })
+        expect.objectContaining({ query: 'hook' }),
+        undefined,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
   });

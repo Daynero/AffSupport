@@ -159,8 +159,9 @@ describe('useFolderPage.reloadStrict', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(listFolderPage).toHaveBeenCalledTimes(3);
+    expect(listFolderPage).toHaveBeenCalledTimes(2);
     await act(async () => strict.resolve(page(['one'])));
+    expect(listFolderPage).toHaveBeenCalledTimes(3);
     expect(settled).toBeNull();
     await act(async () => background.resolve(page(['one', 'two'])));
     await act(async () => pending);

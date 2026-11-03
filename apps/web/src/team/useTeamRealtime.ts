@@ -1,14 +1,18 @@
+import { catalogEventDomains } from './catalogEventDomains';
 import { memberAttempt } from './members/diagnostics';
 import { realtimeTopic } from '../lib/realtimeTopic';
 import { useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../lib/supabase';
 
+export type TeamRealtimeDomain =
+  'catalog' | 'storage' | 'updater' | 'teams' | 'accounts' | 'launches' | 'membership' | 'all';
+
 export type TeamRealtimeState = 'disabled' | 'connecting' | 'connected' | 'reconnecting';
 
 export function useTeamRealtime(input: {
   teamId: string | null;
-  onRefetch: () => void | Promise<void>;
+  onRefetch: (domains?: readonly TeamRealtimeDomain[]) => void | Promise<void>;
   enabled?: boolean;
   retryNonce?: number;
 }): TeamRealtimeState {
@@ -26,6 +30,7 @@ export function useTeamRealtime(input: {
     let active = true;
     let subscribed = false;
     let dirty = false;
+    const domains = new Set<TeamRealtimeDomain>();
     let urgentDirty = false;
     let membershipDirty = false;
     let membershipFlowId: string | null = null;
@@ -36,6 +41,8 @@ export function useTeamRealtime(input: {
       refetchTimer = null;
       if (!active || refreshing || !dirty) return;
       dirty = false;
+      const requestedDomains = [...domains];
+      domains.clear();
       urgentDirty = false;
       refreshing = true;
       const attempt = membershipDirty
@@ -43,7 +50,7 @@ export function useTeamRealtime(input: {
         : null;
       membershipDirty = false;
       try {
-        await onRefetch();
+        await onRefetch(requestedDomains);
         if (!active) return;
         attempt?.finish('success');
         if (!membershipDirty) membershipFlowId = null;
@@ -55,6 +62,7 @@ export function useTeamRealtime(input: {
         failedReads += 1;
         if (failedReads <= 2) {
           dirty = true;
+          requestedDomains.forEach(domain => domains.add(domain));
           if (attempt) membershipDirty = true;
         }
         setState('reconnecting');
@@ -73,9 +81,11 @@ export function useTeamRealtime(input: {
       if (!active || refetchTimer !== null) return;
       refetchTimer = window.setTimeout(() => void flush(), urgent ? 0 : 1_000);
     };
-    const refetch = () => {
+    const refetch = (domain: TeamRealtimeDomain | readonly TeamRealtimeDomain[] = 'all') => {
       if (!active) return;
       dirty = true;
+      if (typeof domain === 'string') domains.add(domain);
+      else domain.forEach(value => domains.add(value));
       if (!refreshing) schedule();
     };
     const channel: RealtimeChannel = supabase
@@ -83,7 +93,7 @@ export function useTeamRealtime(input: {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'team_operations', filter: `team_id=eq.${teamId}` },
-        refetch
+        () => refetch(catalogEventDomains(undefined))
       )
       .on(
         'postgres_changes',
@@ -102,9 +112,15 @@ export function useTeamRealtime(input: {
             payload.new.event_kind === 'bulk_trash_changed'
           ) {
             dirty = true;
+            catalogEventDomains('bulk_trash_changed').forEach(domain => domains.add(domain));
             urgentDirty = true;
             if (!refreshing) schedule(true);
-          } else refetch();
+          } else
+            refetch(
+              catalogEventDomains(
+                payload?.new && 'event_kind' in payload.new ? payload.new.event_kind : undefined
+              )
+            );
         }
       )
       .on(
@@ -115,7 +131,7 @@ export function useTeamRealtime(input: {
           table: 'team_catalog_image_imports',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        () => refetch(catalogEventDomains(undefined))
       )
       .on(
         'postgres_changes',
@@ -125,7 +141,7 @@ export function useTeamRealtime(input: {
           table: 'team_catalog_image_storage_signals',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        () => refetch(catalogEventDomains(undefined))
       )
       .on(
         'postgres_changes',
@@ -135,7 +151,7 @@ export function useTeamRealtime(input: {
           table: 'team_launch_signals',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        () => refetch('launches')
       )
       .on(
         'postgres_changes',
@@ -145,7 +161,7 @@ export function useTeamRealtime(input: {
           table: 'team_launch_workspace_signals',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        () => refetch('launches')
       )
       .on(
         'postgres_changes',
@@ -155,7 +171,7 @@ export function useTeamRealtime(input: {
           table: 'team_account_workspace_signals',
           filter: `team_id=eq.${teamId}`
         },
-        refetch
+        () => refetch('accounts')
       )
       .on(
         'postgres_changes',
@@ -169,6 +185,7 @@ export function useTeamRealtime(input: {
           if (!active) return;
           membershipFlowId ??= crypto.randomUUID();
           membershipDirty = true;
+          domains.add('membership');
           dirty = true;
           urgentDirty = true;
           if (!refreshing) schedule(true);

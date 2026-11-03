@@ -162,6 +162,39 @@ describe('journey', () => {
     expect(await getJourney('alice@example.com')).toHaveLength(6);
   });
 
+  it('identifies receipt-time selection when an old occurrence arrives inside the window', async () => {
+    await db.exec(`insert into analytics_events (user_id,event_name,occurred_at,created_at)
+      values ('${ALICE}','delayed_fixture','2026-06-02T00:00:00Z','2026-10-01T11:00:00Z')`);
+    try {
+      const result = await executeCommand(
+        parseArgs(['journey', 'alice@example.com', '--period', 'today', '--as-of', SNAPSHOT])
+      );
+      const data = result.data as JourneyData;
+      expect(data.window_basis).toBe('created_at');
+      expect(
+        data.events.find(event => event.event_name === 'delayed_fixture')?.occurred_at
+      ).toContain('2026-06-02');
+      expect(result.human).toContain('server receipt time (created_at)');
+      const beforeReceipt = await executeCommand(
+        parseArgs([
+          'journey',
+          'alice@example.com',
+          '--period',
+          'all',
+          '--as-of',
+          '2026-10-01T10:59:59Z'
+        ])
+      );
+      expect(
+        (beforeReceipt.data as JourneyData).events.some(
+          event => event.event_name === 'delayed_fixture'
+        )
+      ).toBe(false);
+    } finally {
+      await db.exec("delete from analytics_events where event_name='delayed_fixture'");
+    }
+  });
+
   it('sanitizes properties through the client allowlist', async () => {
     const events = await getJourney('alice@example.com');
     const completed = events.find(row => row.event_name === 'compression_completed');

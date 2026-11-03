@@ -1,3 +1,11 @@
+import { withReadDeadline } from '../readCoordinator';
+import {
+  privateCacheEpoch,
+  privateClientId,
+  privateCacheSuperseded,
+  registerPrivateCache,
+  usePrivateCacheEpoch
+} from '../private-cache-scope';
 import { useEffect, useState } from 'react';
 import type { ThumbnailSession } from '@video-compressor/shared';
 
@@ -22,23 +30,40 @@ function expiryOf(session: ThumbnailSession): number {
 /** Shared across components: the same space never mints twice at once. */
 export function getThumbnailSession(
   client: ThumbnailSessionClient,
-  teamId: string
+  teamId: string,
+  source: object = client
 ): Promise<ThumbnailSession> {
-  const cached = sessions.get(teamId);
-  if (cached && cached.expiresAt - REFRESH_MARGIN_MS > Date.now()) return cached.promise;
+  const epoch = privateCacheEpoch();
+  const key = `${epoch}:${privateClientId(source)}:${teamId}`;
+  const cached = sessions.get(key);
+  if (
+    cached &&
+    (cached.expiresAt === Infinity || cached.expiresAt - REFRESH_MARGIN_MS > Date.now())
+  )
+    return cached.promise;
   // A client without a mint (an older shell, a partial test double) is an
   // absent session, never a thrown effect.
   const promise = Promise.resolve()
-    .then(() => client.mintThumbnailSession(teamId))
+    .then(() => {
+      if (epoch !== privateCacheEpoch()) throw privateCacheSuperseded();
+      return withReadDeadline(
+        () => client.mintThumbnailSession(teamId),
+        new AbortController().signal
+      );
+    })
     .then(session => {
-      sessions.set(teamId, { promise: Promise.resolve(session), expiresAt: expiryOf(session) });
+      if (epoch !== privateCacheEpoch() || sessions.get(key)?.promise !== promise)
+        throw privateCacheSuperseded();
+      sessions.set(key, { promise: Promise.resolve(session), expiresAt: expiryOf(session) });
+      while (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
       return session;
     })
     .catch(error => {
-      sessions.delete(teamId);
+      if (sessions.get(key)?.promise === promise) sessions.delete(key);
       throw error;
     });
-  sessions.set(teamId, { promise, expiresAt: Date.now() + 30_000 });
+  sessions.set(key, { promise, expiresAt: Infinity });
+  while (sessions.size > 20) sessions.delete(sessions.keys().next().value!);
   return promise;
 }
 
@@ -52,11 +77,15 @@ export function useThumbnailSession(input: {
   enabled?: boolean;
 }): ThumbnailSession | null {
   const { teamId, client, enabled = true } = input;
-  const [session, setSession] = useState<ThumbnailSession | null>(null);
+  const epoch = usePrivateCacheEpoch();
+  const scope = `${epoch}:${privateClientId(client)}:${teamId}`;
+  const [snapshot, setSnapshot] = useState<{ scope: string; session: ThumbnailSession } | null>(
+    null
+  );
 
   useEffect(() => {
     if (!enabled) {
-      setSession(null);
+      setSnapshot(null);
       return;
     }
     let active = true;
@@ -65,13 +94,13 @@ export function useThumbnailSession(input: {
       void getThumbnailSession(client, teamId)
         .then(value => {
           if (!active) return;
-          setSession(value);
+          setSnapshot({ scope, session: value });
           const wait = Math.max(5_000, expiryOf(value) - REFRESH_MARGIN_MS - Date.now());
           timer = window.setTimeout(refresh, wait);
         })
         .catch(() => {
           if (!active) return;
-          setSession(null);
+          setSnapshot(null);
           timer = window.setTimeout(refresh, 30_000);
         });
     };
@@ -80,7 +109,9 @@ export function useThumbnailSession(input: {
       active = false;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [client, enabled, teamId]);
+  }, [client, enabled, teamId, scope]);
 
-  return session;
+  return enabled && snapshot?.scope === scope ? snapshot.session : null;
 }
+
+registerPrivateCache(clearThumbnailSessions);

@@ -9,11 +9,18 @@ import {
   useSyncExternalStore,
   type ReactNode
 } from 'react';
+import { useOptionalAuth } from '../auth/AuthContext';
+import { createReadCoordinator, withReadDeadline } from './readCoordinator';
+import { privateCacheEpoch, privateClientId, setPrivateCacheScope } from './private-cache-scope';
 import type { TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
 import { requestSpaceAccessRecheck, type TeamContextSnapshot } from '../api/team';
 import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from './routes';
-import { useTeamRealtime, type TeamRealtimeState } from './useTeamRealtime';
+import {
+  useTeamRealtime,
+  type TeamRealtimeDomain,
+  type TeamRealtimeState
+} from './useTeamRealtime';
 import { CatalogFreshness, CatalogFreshnessContext } from './catalog/CatalogFreshness';
 
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
@@ -26,6 +33,12 @@ export interface TeamContextValue {
   loading: boolean;
   error: string | null;
   revision: number;
+  accessRevision?: number;
+  tasksRevision?: number;
+  membersRevision?: number;
+  accountsRevision?: number;
+  updaterRevision?: number;
+  storageRevision?: number;
   realtimeState: TeamRealtimeState;
   /** Channel/read health, independent of an ordinary catalog cache invalidation. */
   realtimeConnectionState: TeamRealtimeState;
@@ -79,7 +92,7 @@ export function TeamProvider({
   initialTeams?: TeamContextSnapshot[];
   loading?: boolean;
   client?: {
-    listTeams: () => Promise<TeamContextSnapshot[]>;
+    listTeams: (options?: { signal?: AbortSignal }) => Promise<TeamContextSnapshot[]>;
     /**
      * 034 — whether a space that just left the list is paused rather than
      * left. A paused space is still this person's (US6.2): it must never be
@@ -89,12 +102,43 @@ export function TeamProvider({
   };
   realtime?: boolean;
 }) {
+  const auth = useOptionalAuth();
+  const actor = auth?.user?.id ?? null;
+  const actorRef = useRef(actor);
+  const teamsReadGeneration = useRef(0);
   const [teams, setTeams] = useState<TeamContextSnapshot[]>(initialTeams);
   const teamsRef = useRef(teams);
   teamsRef.current = teams;
   const [loadingTeams, setLoadingTeams] = useState(Boolean(client));
+  if (actorRef.current !== actor) {
+    actorRef.current = actor;
+    teamsReadGeneration.current += 1;
+    setTeams([]);
+    setLoadingTeams(Boolean(client));
+  }
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [accessRevision, setAccessRevision] = useState(0);
+  const [tasksRevision, setTasksRevision] = useState(0);
+  const [membersRevision, setMembersRevision] = useState(0);
+  const [accountsRevision, setAccountsRevision] = useState(0);
+  const [updaterRevision, setUpdaterRevision] = useState(0);
+  const [storageRevision, setStorageRevision] = useState(0);
+  const privateAccessScope = JSON.stringify([
+    client ? privateClientId(client) : null,
+    accessRevision,
+    teams
+      .map(team => [team.id, team.permissions])
+      .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
+  ]);
+  setPrivateCacheScope(actor, privateAccessScope);
+  useEffect(() => {
+    setPrivateCacheScope(actor, privateAccessScope);
+    const epoch = privateCacheEpoch();
+    return () => {
+      if (privateCacheEpoch() === epoch) setPrivateCacheScope(null, '');
+    };
+  }, [actor, privateAccessScope]);
   const catalogFreshness = useMemo(() => new CatalogFreshness(), []);
   const catalogRevision = useSyncExternalStore(
     catalogFreshness.subscribe,
@@ -149,61 +193,109 @@ export function TeamProvider({
   }, []);
 
   const [membershipLostTeamId, setMembershipLostTeamId] = useState<string | null>(null);
-  const refreshTeams = useCallback(
-    async (strict = false) => {
+  const readTeams = useCallback(
+    async (signal: AbortSignal) => {
       if (!client) return;
+      const generation = ++teamsReadGeneration.current;
       setLoadingTeams(true);
       try {
-        const nextTeams = await client.listTeams();
+        const nextTeams = await withReadDeadline(
+          child => client.listTeams({ signal: child }),
+          signal
+        );
+        if (signal.aborted || generation !== teamsReadGeneration.current) return;
         const selected = activeTeamIdRef.current;
+        const previousTeams = teamsRef.current;
+        setTeams(nextTeams);
         if (
           selected &&
-          teamsRef.current.some(team => team.id === selected) &&
+          previousTeams.some(team => team.id === selected) &&
           !nextTeams.some(team => team.id === selected)
         ) {
           const paused = client.isTeamPaused
-            ? await client.isTeamPaused(selected).catch(() => false)
-            : false;
+            ? await withReadDeadline(() => client.isTeamPaused!(selected), signal).catch(() => null)
+            : null;
+          if (signal.aborted || generation !== teamsReadGeneration.current) return;
           if (paused) requestSpaceAccessRecheck();
-          else setMembershipLostTeamId(selected);
+          else if (paused === false) setMembershipLostTeamId(selected);
         }
         setTeams(nextTeams);
         setError(null);
       } catch (cause) {
+        if (signal.aborted || generation !== teamsReadGeneration.current) return;
         setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
-        if (strict) throw cause;
+        throw cause;
       } finally {
-        setLoadingTeams(false);
+        if (!signal.aborted && generation === teamsReadGeneration.current) setLoadingTeams(false);
       }
     },
-    [client]
+    [client, actor]
+  );
+
+  const teamsOwner = useMemo(() => createReadCoordinator(readTeams), [readTeams]);
+  const refreshTeams = useCallback(
+    async (strict = false) => {
+      try {
+        await teamsOwner.request();
+      } catch (cause) {
+        if (strict) throw cause;
+      }
+    },
+    [teamsOwner]
   );
 
   useEffect(() => {
+    teamsOwner.start();
     if (client) void refreshTeams();
-  }, [client, refreshTeams]);
+    return () => {
+      teamsReadGeneration.current += 1;
+      teamsOwner.stop();
+    };
+  }, [client, refreshTeams, teamsOwner]);
 
   const notifyStateChanged = useCallback(() => {
     setRevision(value => value + 1);
+    setTasksRevision(value => value + 1);
+    setMembersRevision(value => value + 1);
+    setAccountsRevision(value => value + 1);
+    setUpdaterRevision(value => value + 1);
+    setStorageRevision(value => value + 1);
   }, []);
   const retryRealtime = useCallback(() => {
     setRealtimeRetryNonce(value => value + 1);
   }, []);
 
-  const handleRealtimeRefetch = useCallback(async () => {
-    const selected = activeTeamIdRef.current;
-    if (selected) {
-      catalogFreshness.invalidate(selected);
-      // All account/finance observers share the workspace owner's coalesced read.
-      window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: selected }));
-    }
-    // The catalog moves first (028): a membership read that hangs or fails
-    // must not hold back files that are already written. Losing the
-    // membership still surfaces through refreshTeams; it is just not the
-    // gate the list waits behind.
-    setRevision(value => value + 1);
-    await refreshTeams(true);
-  }, [refreshTeams, catalogFreshness]);
+  const handleRealtimeRefetch = useCallback(
+    async (domains: readonly TeamRealtimeDomain[] = ['all']) => {
+      if (domains.includes('membership')) {
+        setAccessRevision(value => value + 1);
+        requestSpaceAccessRecheck();
+      }
+      const broad = domains.includes('all') || domains.includes('membership');
+      const catalog = broad || domains.includes('catalog') || domains.includes('launches');
+      const accounts = broad || domains.includes('accounts') || domains.includes('launches');
+      if (broad || domains.includes('updater') || domains.includes('launches'))
+        setUpdaterRevision(value => value + 1);
+      if (broad || domains.includes('storage') || domains.includes('launches'))
+        setStorageRevision(value => value + 1);
+      const selected = activeTeamIdRef.current;
+      if (catalog) {
+        if (selected) catalogFreshness.invalidate(selected);
+        setRevision(value => value + 1);
+      }
+      if (accounts) {
+        setAccountsRevision(value => value + 1);
+        if (selected)
+          window.dispatchEvent(new CustomEvent('soty:accounts-finance', { detail: selected }));
+      }
+      if (broad) {
+        setTasksRevision(value => value + 1);
+        setMembersRevision(value => value + 1);
+      }
+      if (broad || domains.includes('teams')) await refreshTeams(true);
+    },
+    [refreshTeams, catalogFreshness]
+  );
   const acknowledgeMembershipLoss = useCallback(() => setMembershipLostTeamId(null), []);
 
   /*
@@ -242,6 +334,12 @@ export function TeamProvider({
       loading: loading || loadingTeams,
       error,
       revision,
+      accessRevision,
+      tasksRevision,
+      membersRevision,
+      accountsRevision,
+      updaterRevision,
+      storageRevision,
       realtimeState,
       realtimeConnectionState: channelState,
       membershipLostTeamId,
@@ -273,6 +371,12 @@ export function TeamProvider({
       refreshTeams,
       replaceTeams,
       revision,
+      accessRevision,
+      tasksRevision,
+      membersRevision,
+      accountsRevision,
+      updaterRevision,
+      storageRevision,
       setActiveTeamId,
       teams
     ]

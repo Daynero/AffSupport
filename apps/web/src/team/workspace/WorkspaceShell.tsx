@@ -250,11 +250,11 @@ export function WorkspaceShell({
   useEffect(() => {
     if (health?.kind !== 'indexing') return;
     const timer = window.setInterval(() => {
-      setBrowserRevision(current => current + 1);
-      void refreshHealth();
+      if (document.visibilityState === 'hidden') return;
+      if (section === 'explorer') setBrowserRevision(current => current + 1);
     }, INDEXING_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [health?.kind, refreshHealth]);
+  }, [health?.kind, section]);
   const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);

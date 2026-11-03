@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -198,7 +198,8 @@ it('never reports zero members while loading and offers retry after a failed rea
   renderMembers(client);
   expect(screen.queryByText('0 members')).toBeNull();
   expect(screen.getAllByText('Loading members…').length).toBeGreaterThan(0);
-  reject(new Error('unavailable'));
+  await waitFor(() => expect(client.listMembers).toHaveBeenCalledOnce());
+  await act(async () => reject(new Error('unavailable')));
   await user.click(await screen.findByRole('button', { name: 'Repeat' }));
   expect(await screen.findByText('Alex Editor')).toBeTruthy();
   expect(screen.getByText('2 members')).toBeTruthy();

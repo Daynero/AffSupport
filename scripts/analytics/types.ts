@@ -24,6 +24,7 @@ export interface AnalyticsSchema {
     analytics_daily_events: boolean;
     analytics_daily_tool_outcomes: boolean;
     analytics_catalog_sync_jobs: boolean;
+    analytics_catalog_generations?: boolean;
     analytics_launch_generations?: boolean;
     analytics_launch_cleanup?: boolean;
     analytics_launch_assignments?: boolean;
@@ -125,6 +126,8 @@ export interface CohortsData {
   delivery_lag_ms: DeliveryLag;
 }
 export interface JourneyData {
+  /** Period selects server receipt time; events remain ordered by occurrence. */
+  window_basis: 'created_at';
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   events: JourneyEvent[];
   delivery_lag_ms: DeliveryLag;
@@ -917,6 +920,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
@@ -962,25 +966,43 @@ const CREDENTIAL = /bearer|oauth|token=|authorization/i;
  * no string that is an address, a URL, a credential or a path. The only path allowed is a
  * repo-relative source file inside a `files` array.
  */
-export function investigateOutputIsPrivate(value: unknown, key = ''): boolean {
-  if (Array.isArray(value)) return value.every(item => investigateOutputIsPrivate(item, key));
-  if (value && typeof value === 'object') {
-    return Object.entries(value).every(
-      ([entryKey, entry]) =>
-        !INVESTIGATE_FORBIDDEN_KEYS.has(entryKey.toLowerCase()) &&
-        investigateOutputIsPrivate(entry, entryKey)
-    );
+export type InvestigatePrivacyFailure =
+  'forbidden_key' | 'invalid_source_file' | 'address' | 'url' | 'path' | 'credential';
+
+/** A closed category only: never expose the rejected field name, value or key path. */
+export function investigatePrivacyFailure(
+  value: unknown,
+  key = ''
+): InvestigatePrivacyFailure | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const failure = investigatePrivacyFailure(item, key);
+      if (failure) return failure;
+    }
+    return null;
   }
-  if (typeof value !== 'string') return true;
+  if (value && typeof value === 'object') {
+    for (const [entryKey, entry] of Object.entries(value)) {
+      if (INVESTIGATE_FORBIDDEN_KEYS.has(entryKey.toLowerCase())) return 'forbidden_key';
+      const failure = investigatePrivacyFailure(entry, entryKey);
+      if (failure) return failure;
+    }
+    return null;
+  }
+  if (typeof value !== 'string') return null;
   if (key === 'files')
-    return (
-      (REPO_FILE.test(value) || /^packaging\/windows\/SotyAgentHost\/[A-Za-z]+\.cs$/.test(value)) &&
+    return (REPO_FILE.test(value) ||
+      /^packaging\/windows\/SotyAgentHost\/[A-Za-z]+\.cs$/.test(value)) &&
       !value.includes('..')
-    );
-  return (
-    !value.includes('@') &&
-    !value.includes('://') &&
-    !/[/\\]/.test(value) &&
-    !CREDENTIAL.test(value)
-  );
+      ? null
+      : 'invalid_source_file';
+  if (value.includes('@')) return 'address';
+  if (value.includes('://')) return 'url';
+  if (/[/\\]/.test(value)) return 'path';
+  if (CREDENTIAL.test(value)) return 'credential';
+  return null;
+}
+
+export function investigateOutputIsPrivate(value: unknown, key = ''): boolean {
+  return investigatePrivacyFailure(value, key) === null;
 }

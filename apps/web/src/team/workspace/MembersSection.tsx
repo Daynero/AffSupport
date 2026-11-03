@@ -26,7 +26,15 @@ export function MembersSection({
   directAddMode?: 'disabled' | 'testing';
 }) {
   const { t } = useI18n();
-  const { activeTeam, can, notifyStateChanged, refreshTeams, revision } = useTeam();
+  const {
+    activeTeam,
+    can,
+    notifyStateChanged,
+    refreshTeams,
+    revision: generalRevision,
+    membersRevision
+  } = useTeam();
+  const revision = membersRevision ?? generalRevision;
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const changed = () => {
     notifyStateChanged();

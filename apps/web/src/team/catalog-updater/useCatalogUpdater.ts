@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useScopedRefresh } from '../useScopedRefresh';
 import { teamApi, type CatalogRegistryRow, type CatalogUpdaterState } from '../../api/team';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
@@ -13,12 +14,20 @@ import { useTeam } from '../TeamContext';
 
 const FALLBACK_POLL_MS = 60_000;
 const ACTIVE_UPDATE_POLL_MS = 5_000;
-const REVISION_DEBOUNCE_MS = 500;
 
 export interface CatalogUpdaterClient {
-  getCatalogUpdater: (teamId: string) => Promise<CatalogUpdaterState>;
-  listTeamProductCatalogs: (teamId: string) => Promise<CatalogRegistryRow[]>;
-  listCatalogUpdateProfiles?: (teamId: string) => Promise<CatalogUpdateProfile[]>;
+  getCatalogUpdater: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogUpdaterState>;
+  listTeamProductCatalogs: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogRegistryRow[]>;
+  listCatalogUpdateProfiles?: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogUpdateProfile[]>;
   patchCatalogUpdateProfile?: (
     teamId: string,
     catalogId: string,
@@ -30,60 +39,36 @@ export interface CatalogUpdaterClient {
 const defaultClient: CatalogUpdaterClient = teamApi;
 
 function useRefreshing<T>(
-  load: () => Promise<T>,
-  enabled: boolean
-): { value: T | null; error: boolean; lastLoadedAt: string | null; reload: () => void } {
-  const { revision } = useTeam();
-  const [value, setValue] = useState<T | null>(null);
-  const [error, setError] = useState(false);
-  const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  const loadRef = useRef(load);
-  const hasStarted = useRef(false);
-  loadRef.current = load;
-
-  useEffect(() => {
-    if (!enabled) return;
-    let active = true;
-    const delay = hasStarted.current ? REVISION_DEBOUNCE_MS : 0;
-    const timer = window.setTimeout(() => {
-      hasStarted.current = true;
-      void loadRef
-        .current()
-        .then(next => {
-          if (!active) return;
-          setValue(next);
-          setError(false);
-          setLastLoadedAt(new Date().toISOString());
-        })
-        .catch(() => {
-          if (active) setError(true);
-        });
-    }, delay);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [enabled, revision, tick]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    const timer = window.setInterval(() => setTick(value => value + 1), FALLBACK_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [enabled]);
-
-  const reload = useCallback(() => setTick(value => value + 1), []);
-  return { value, error, lastLoadedAt, reload };
+  scope: string,
+  load: (signal: AbortSignal) => Promise<T>,
+  enabled: boolean,
+  source: CatalogUpdaterClient
+) {
+  const { revision: generalRevision, updaterRevision, accessRevision, activeTeam } = useTeam();
+  const revision = updaterRevision ?? generalRevision;
+  return useScopedRefresh({
+    scope: JSON.stringify([scope, accessRevision, activeTeam?.permissions]),
+    load,
+    source,
+    enabled,
+    revision,
+    intervalMs: FALLBACK_POLL_MS
+  });
 }
 
 export function useCatalogUpdater(teamId: string, client: CatalogUpdaterClient = defaultClient) {
-  const { value, error, reload } = useRefreshing(() => client.getCatalogUpdater(teamId), true);
+  const { value, error, reload, poll } = useRefreshing(
+    teamId,
+    signal => client.getCatalogUpdater(teamId, { signal }),
+    true,
+    client
+  );
   // Server time minus local time when the state was read; applied to every countdown tick.
   useEffect(() => {
     if (!value?.activeCount) return;
-    const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);
+    const timer = window.setInterval(poll, ACTIVE_UPDATE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [value?.activeCount, reload]);
+  }, [value?.activeCount, poll]);
   const offsetMs = useMemo(
     () => (value ? Date.parse(value.serverNow) - Date.now() : 0),
     // Recomputed per read: a state object is a new read.
@@ -97,14 +82,19 @@ export function useCatalogRegistry(
   enabled: boolean,
   client: CatalogUpdaterClient = defaultClient
 ) {
-  const { value, error, lastLoadedAt, reload } = useRefreshing(async () => {
-    const [rows, profiles] = await Promise.all([
-      client.listTeamProductCatalogs(teamId),
-      client.listCatalogUpdateProfiles?.(teamId) ?? Promise.resolve([])
-    ]);
-    const byId = new Map(profiles.map(profile => [profile.catalogId, profile]));
-    return rows.map(row => ({ ...row, profile: byId.get(row.catalogId) ?? row.profile }));
-  }, enabled);
+  const { value, error, lastLoadedAt, reload, poll } = useRefreshing(
+    teamId,
+    async signal => {
+      const [rows, profiles] = await Promise.all([
+        client.listTeamProductCatalogs(teamId, { signal }),
+        client.listCatalogUpdateProfiles?.(teamId, { signal }) ?? Promise.resolve([])
+      ]);
+      const byId = new Map(profiles.map(profile => [profile.catalogId, profile]));
+      return rows.map(row => ({ ...row, profile: byId.get(row.catalogId) ?? row.profile }));
+    },
+    enabled,
+    client
+  );
   const hasPendingUpdate =
     value?.some(
       row =>
@@ -112,9 +102,9 @@ export function useCatalogRegistry(
     ) ?? false;
   useEffect(() => {
     if (!enabled || !hasPendingUpdate) return;
-    const timer = window.setInterval(reload, ACTIVE_UPDATE_POLL_MS);
+    const timer = window.setInterval(poll, ACTIVE_UPDATE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [enabled, hasPendingUpdate, reload]);
+  }, [enabled, hasPendingUpdate, poll]);
   return { rows: value, error, lastLoadedAt, reload };
 }
 

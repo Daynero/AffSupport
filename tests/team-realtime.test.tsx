@@ -7,6 +7,7 @@ import { useTeamRealtime } from '../apps/web/src/team/useTeamRealtime';
 import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import type { TeamContextSnapshot } from '../apps/web/src/api/team';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { useTasks } from '../apps/web/src/team/tasks/useTasks';
 import { useFolderPage } from '../apps/web/src/team/explorer/useFolderPage';
 
 vi.mock('../apps/web/src/lib/supabase', () => ({ getSupabaseClient: vi.fn() }));
@@ -43,6 +44,106 @@ afterEach(() => {
 });
 
 describe('team Realtime invalidation', () => {
+  it('keeps catalog bursts out of task, member, account and team-list reads', async () => {
+    const team: TeamContextSnapshot = {
+      id: '21000000-0000-4000-8000-000000000001',
+      name: 'Team',
+      role: 'owner',
+      permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+      connectionState: 'connected'
+    };
+    window.history.replaceState(null, '', `/team/${team.id}`);
+    localStorage.setItem('wishly.active-team.v1', team.id);
+    const client = { listTeams: vi.fn(async () => [team]), listTasks: vi.fn(async () => []) };
+    const view = renderHook(
+      () => {
+        const context = useTeam();
+        useTasks({ teamId: team.id, revision: context.tasksRevision, client: client as never });
+        return context;
+      },
+      {
+        wrapper: ({ children }) => (
+          <TeamProvider initialTeams={[team]} client={client}>
+            {children}
+          </TeamProvider>
+        )
+      }
+    );
+    await act(async () => {});
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1001));
+    const before = {
+      catalog: view.result.current.revision,
+      tasks: view.result.current.tasksRevision,
+      members: view.result.current.membersRevision,
+      accounts: view.result.current.accountsRevision,
+      taskReads: client.listTasks.mock.calls.length,
+      reads: client.listTeams.mock.calls.length
+    };
+    for (let i = 0; i < 10; i++) {
+      act(() => events.get('team_catalog_events')?.());
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+    }
+    expect(view.result.current.revision).toBe(before.catalog + 10);
+    expect(view.result.current.tasksRevision).toBe(before.tasks);
+    expect(view.result.current.membersRevision).toBe(before.members);
+    expect(view.result.current.accountsRevision).toBe(before.accounts);
+    expect(client.listTeams).toHaveBeenCalledTimes(before.reads);
+    expect(client.listTasks).toHaveBeenCalledTimes(before.taskReads);
+    act(() => events.get('team_membership_access_signals')?.());
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.membersRevision).toBe(before.members! + 1);
+    expect(client.listTeams).toHaveBeenCalledTimes(before.reads + 1);
+  });
+
+  it('isolates file completion from updater reads and refreshes connection metadata separately', async () => {
+    const team: TeamContextSnapshot = {
+      id: '21000000-0000-4000-8000-000000000001',
+      name: 'Team',
+      role: 'owner',
+      permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+      connectionState: 'connected'
+    };
+    window.history.replaceState(null, '', `/team/${team.id}`);
+    localStorage.setItem('wishly.active-team.v1', team.id);
+    const client = { listTeams: vi.fn(async () => [team]) };
+    const view = renderHook(() => useTeam(), {
+      wrapper: ({ children }) => (
+        <TeamProvider initialTeams={[team]} client={client}>
+          {children}
+        </TeamProvider>
+      )
+    });
+    await act(async () => {});
+    act(() => status('SUBSCRIBED'));
+    await act(async () => vi.advanceTimersByTimeAsync(1001));
+    const before = {
+      updater: view.result.current.updaterRevision!,
+      storage: view.result.current.storageRevision!,
+      tasks: view.result.current.tasksRevision,
+      members: view.result.current.membersRevision,
+      reads: client.listTeams.mock.calls.length
+    };
+    for (const event_kind of ['folder_indexed', 'thumbnail_ready']) {
+      act(() => events.get('team_catalog_events')?.({ new: { event_kind } }));
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+    }
+    expect(view.result.current.storageRevision).toBe(before.storage + 2);
+    expect(view.result.current.updaterRevision).toBe(before.updater);
+    expect(client.listTeams).toHaveBeenCalledTimes(before.reads);
+    act(() => events.get('team_catalog_events')?.({ new: { event_kind: 'storage_state' } }));
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(client.listTeams).toHaveBeenCalledTimes(before.reads + 1);
+    expect(view.result.current.updaterRevision).toBe(before.updater);
+    expect(view.result.current.tasksRevision).toBe(before.tasks);
+    expect(view.result.current.membersRevision).toBe(before.members);
+    for (const event_kind of ['sync_state', 'upserted', 'future_kind']) {
+      act(() => events.get('team_catalog_events')?.({ new: { event_kind } }));
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+    }
+    expect(view.result.current.updaterRevision).toBe(before.updater + 3);
+  });
+
   it('urgently rereads current permissions from an own-row signal without catalog traffic', async () => {
     const onRefetch = vi.fn().mockResolvedValue(undefined);
     renderHook(() => useTeamRealtime({ teamId: 'team-1', onRefetch }));
@@ -312,7 +413,10 @@ describe('team Realtime invalidation', () => {
       connectionState: 'connected'
     };
     localStorage.setItem('wishly.active-team.v1', team.id);
-    const client = { listTeams: vi.fn().mockResolvedValueOnce([team]).mockResolvedValueOnce([]) };
+    const client = {
+      listTeams: vi.fn().mockResolvedValueOnce([team]).mockResolvedValueOnce([]),
+      isTeamPaused: vi.fn().mockResolvedValue(false)
+    };
     const { result } = renderHook(() => useTeam(), {
       wrapper: ({ children }) => (
         <TeamProvider initialTeams={[team]} client={client} realtime={false}>
@@ -329,6 +433,32 @@ describe('team Realtime invalidation', () => {
     expect(result.current.membershipLostTeamId).toBe(team.id);
     expect(result.current.activeTeam).toBeNull();
   });
+});
+
+it('does not label unavailable access as removal when the pause probe fails', async () => {
+  const team: TeamContextSnapshot = {
+    id: '21000000-0000-4000-8000-000000000009',
+    name: 'Team',
+    role: 'owner',
+    permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+    connectionState: 'connected'
+  };
+  localStorage.setItem('wishly.active-team.v1', team.id);
+  const client = {
+    listTeams: vi.fn().mockResolvedValueOnce([team]).mockResolvedValueOnce([]),
+    isTeamPaused: vi.fn().mockRejectedValue(new Error('unavailable'))
+  };
+  const { result } = renderHook(() => useTeam(), {
+    wrapper: ({ children }) => (
+      <TeamProvider initialTeams={[team]} client={client} realtime={false}>
+        {children}
+      </TeamProvider>
+    )
+  });
+  await act(async () => {});
+  await act(async () => result.current.refreshTeams());
+  expect(result.current.activeTeam).toBeNull();
+  expect(result.current.membershipLostTeamId).toBeNull();
 });
 
 describe('delivery does not wait for membership (028, release C)', () => {

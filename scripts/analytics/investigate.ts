@@ -7,6 +7,7 @@ import { getRecoveryEvidence } from './tariff-recovery.js';
 import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
+import { getCatalogGenerationEvidence } from './catalog-generations.js';
 /**
  * 033 — `journal` and `investigate`: everything the database knows about one user's problem,
  * in one read-only call (FR-005, FR-006).
@@ -1814,7 +1815,7 @@ export async function getInvestigation(
       fingerprint,
       code_locations: location ? [location] : [],
       next_step:
-        'Review the latest approval evidence and protected tariff/member snapshot. Do not delete members or allocate another Google identity automatically.'
+        'Review the latest approval evidence and protected tariff and member snapshot. Do not delete members or allocate another Google identity automatically.'
     });
   }
   const membership_access = await getMembershipAccessEvidence(
@@ -1854,6 +1855,7 @@ export async function getInvestigation(
     });
   }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
+  const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
   if (!launches.supported)
     blindSpots.push({
       kind: 'launch_diagnostics_unavailable',
@@ -1967,6 +1969,7 @@ export async function getInvestigation(
     recovery,
     workspace,
     launches,
+    catalog_generations,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,

@@ -2065,6 +2065,10 @@ export const AUTH_SESSION_MUTATION_CODES = [
 ] as const;
 export type AuthSessionMutationCode = (typeof AUTH_SESSION_MUTATION_CODES)[number];
 
+/** Bounded browser workspace reads; no user content or provider error payloads. */
+export const WORKSPACE_READ_CODES = ['WORKSPACE_READ_TIMEOUT'] as const;
+export type WorkspaceReadCode = (typeof WORKSPACE_READ_CODES)[number];
+
 /** Profile synchronization has no user content or provider error payload in diagnostics. */
 export const PROFILE_SYNC_CODES = [
   'PROFILE_REFRESH_FAILED',

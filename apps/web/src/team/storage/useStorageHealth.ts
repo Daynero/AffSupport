@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useScopedRefresh } from '../useScopedRefresh';
 import type { StorageHealth } from '@video-compressor/shared';
 import { trackTeamPreviewsReady, trackTeamStorageAttention } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
@@ -11,11 +12,8 @@ import { useTeam } from '../TeamContext';
  * previews-ready event when preparing finishes.
  */
 export interface StorageHealthClient {
-  getStorageHealth?: (teamId: string) => Promise<StorageHealth>;
+  getStorageHealth?: (teamId: string, options?: { signal?: AbortSignal }) => Promise<StorageHealth>;
 }
-
-const FALLBACK_INTERVAL_MS = 60_000;
-const REVISION_DEBOUNCE_MS = 500;
 
 export function useStorageHealth(input: {
   teamId: string;
@@ -23,13 +21,8 @@ export function useStorageHealth(input: {
   enabled?: boolean;
 }): { health: StorageHealth | null; refresh: () => Promise<void>; staleSince: number | null } {
   const { teamId, client, enabled = true } = input;
-  const { revision } = useTeam();
-  const [snapshot, setSnapshot] = useState<{ teamId: string; health: StorageHealth } | null>(null);
-  /** When the last successful read happened, once a later read has failed (028). */
-  const [staleSince, setStaleSince] = useState<number | null>(null);
-  const lastSuccess = useRef<number | null>(null);
-  const activeRef = useRef(true);
-  const requestId = useRef(0);
+  const { revision: generalRevision, storageRevision, accessRevision, activeTeam } = useTeam();
+  const revision = storageRevision ?? generalRevision;
   const previous = useRef<StorageHealth | null>(null);
   const preparingSince = useRef<number | null>(null);
   const lastAttention = useRef<string | null>(null);
@@ -63,49 +56,26 @@ export function useStorageHealth(input: {
     previous.current = next;
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (!client.getStorageHealth) return;
-    const currentRequest = ++requestId.current;
-    try {
-      const next = await client.getStorageHealth(teamId);
-      if (!activeRef.current || currentRequest !== requestId.current) return;
-      observe(next);
-      setSnapshot({ teamId, health: next });
-      lastSuccess.current = Date.now();
-      setStaleSince(null);
-    } catch {
-      // A failed read is not proof that the last confirmed state vanished.
-      // Keep that snapshot while a later authoritative read retries — and say
-      // how old it is, so a stale chip is not read as the present (028).
-      if (!activeRef.current || currentRequest !== requestId.current) return;
-      setStaleSince(value => value ?? lastSuccess.current ?? Date.now());
+  const {
+    value: health,
+    error,
+    lastLoadedAt,
+    reload: refresh
+  } = useScopedRefresh({
+    scope: JSON.stringify([teamId, accessRevision, activeTeam?.permissions]),
+    source: client,
+    enabled: enabled && Boolean(client.getStorageHealth),
+    revision,
+    intervalMs: previous.current?.kind === 'indexing' ? 5_000 : 60_000,
+    load: async signal => {
+      const next = await client.getStorageHealth!(teamId, { signal });
+      if (!signal.aborted) observe(next);
+      return next;
     }
-  }, [client, observe, teamId]);
-
-  useEffect(() => {
-    if (!enabled) {
-      setSnapshot(null);
-      return;
-    }
-    activeRef.current = true;
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), FALLBACK_INTERVAL_MS);
-    return () => {
-      activeRef.current = false;
-      requestId.current += 1;
-      window.clearInterval(timer);
-    };
-  }, [enabled, refresh]);
-
-  useEffect(() => {
-    if (!enabled || revision === 0) return;
-    const timer = window.setTimeout(() => void refresh(), REVISION_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [enabled, refresh, revision]);
-
+  });
   return {
-    health: snapshot?.teamId === teamId ? snapshot.health : null,
+    health,
     refresh,
-    staleSince: snapshot?.teamId === teamId ? staleSince : null
+    staleSince: error ? (lastLoadedAt ? Date.parse(lastLoadedAt) : Date.now()) : null
   };
 }

@@ -2,6 +2,213 @@ import { readFileSync } from 'node:fs';
 import { activeBinding } from '../lib/release/bindings.mjs';
 import { assertReadOnlySql, query } from './db.js';
 
+/** Bounded performance evidence. Never return query text, parameters or job messages. */
+export async function getDatabasePerformance() {
+  const support = await managementQuery<{ available: boolean }>(`
+    select to_regclass('extensions.pg_stat_statements') is not null as available
+  `);
+  const statements = support[0]?.available
+    ? await managementQuery(`
+      select queryid::text as query_id,
+        query = '<insufficient privilege>' as query_hidden,
+        length(query) as query_length,
+        array(select distinct p.proname from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname in ('public', 'private', 'auth', 'net', 'cron')
+            and length(p.proname) > 5 and strpos(query, p.proname) > 0
+          order by p.proname limit 8) as routines,
+        calls, total_exec_time, mean_exec_time,
+        max_exec_time, rows, shared_blks_hit, shared_blks_read, temp_blks_written,
+        case
+          when query ilike '%list_team_tasks%' then 'task_list'
+          when query ilike '%list_launch_assignees%' then 'assignees_list'
+          when query ilike '%list_team_members%' then 'members_list'
+          when query ilike '%profiles%' then 'profile'
+          when query ilike '%catalog%sync%' then 'catalog_sync'
+          when query ilike '%catalog%image%' then 'catalog_images'
+          when query ilike '%team_transfer_grants%' then 'transfer_grants'
+          else 'other' end as operation
+      from extensions.pg_stat_statements
+      where dbid = (select oid from pg_database where datname = current_database())
+      order by total_exec_time desc limit 30
+    `)
+    : { status: 'unavailable' };
+  const interactive = support[0]?.available
+    ? await managementQuery(`
+      select queryid::text as query_id, calls, mean_exec_time, max_exec_time,
+        total_exec_time,
+        case when query ilike '%list_team_tasks%' then 'task_list'
+          when query ilike '%list_launch_assignees%' then 'assignees_list'
+          when query ilike '%list_team_members%' then 'members_list'
+          else 'profiles' end as operation
+      from extensions.pg_stat_statements
+      where dbid = (select oid from pg_database where datname = current_database())
+        and (query ilike '%list_team_tasks%' or query ilike '%list_launch_assignees%'
+          or query ilike '%list_team_members%' or query ilike '%profiles%')
+      order by total_exec_time desc limit 20
+    `)
+    : { status: 'unavailable' };
+  const activity = await managementQuery(`
+    select state, wait_event_type, wait_event, count(*) as connections,
+      max(extract(epoch from clock_timestamp() - query_start)) as oldest_query_seconds,
+      count(*) filter (where cardinality(pg_blocking_pids(pid)) > 0) as blocked
+    from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()
+    group by state, wait_event_type, wait_event
+  `);
+  const jobs = await managementQuery(`
+    select j.jobname, d.status, count(*) as runs,
+      min(d.start_time) as first_started, max(d.start_time) as last_started,
+      max(extract(epoch from d.end_time - d.start_time)) as max_seconds,
+      avg(extract(epoch from d.end_time - d.start_time)) as mean_seconds,
+      count(*) filter (where d.return_message ilike '%timeout%') as timeouts,
+      count(*) filter (where d.return_message ilike '%job startup timeout%') as startup_timeouts,
+      count(*) filter (where d.return_message ilike '%statement timeout%') as statement_timeouts,
+      count(*) filter (where d.return_message ilike '%connection%') as connection_errors,
+      count(*) filter (where d.return_message ilike '%deadlock%') as deadlocks
+    from cron.job j join cron.job_run_details d on d.jobid = j.jobid
+    where d.start_time > clock_timestamp() - interval '1 hour'
+    group by j.jobname, d.status order by j.jobname, d.status
+  `);
+  const failures = await managementQuery(`
+    select j.jobname, d.start_time, d.end_time,
+      case when d.return_message ilike '%job startup timeout%' then 'startup_timeout'
+        when d.return_message ilike '%statement timeout%' then 'statement_timeout'
+        when d.return_message ilike '%connection%' then 'connection'
+        when d.return_message ilike '%deadlock%' then 'deadlock'
+        when d.return_message ilike '%timeout%' then 'other_timeout'
+        else 'unknown' end as reason
+    from cron.job j join cron.job_run_details d on d.jobid = j.jobid
+    where d.status = 'failed' and d.start_time > clock_timestamp() - interval '1 hour'
+    order by d.start_time desc limit 60
+  `);
+  const maintenanceRuns = await managementQuery(`
+    select d.start_time, d.end_time, d.status,
+      extract(epoch from d.end_time - d.start_time) as seconds
+    from cron.job j join cron.job_run_details d on d.jobid = j.jobid
+    where j.jobname = 'soty-cron-history-retention'
+      and d.start_time > clock_timestamp() - interval '1 hour'
+    order by d.start_time desc limit 15
+  `);
+  const settings = await managementQuery(`
+    select name, setting, unit from pg_settings
+    where name in ('max_connections', 'shared_buffers', 'work_mem', 'maintenance_work_mem',
+      'max_worker_processes', 'max_parallel_workers', 'cron.use_background_workers',
+      'cron.max_running_jobs') order by name
+  `);
+  const platform = await platformPerformance();
+  return {
+    statements,
+    interactive,
+    activity,
+    jobs,
+    failures,
+    maintenance_runs: maintenanceRuns,
+    settings,
+    platform,
+    note: 'Statement counters are cumulative; compare snapshots by query_id. Job aggregates cover the last hour. Query text and provider messages are withheld. Missing statements do not rule out browser, network or auth-lock waits.'
+  };
+}
+
+async function platformPerformance() {
+  const { token, ref } = managementCredentials();
+  const end = new Date();
+  const start = new Date(end.getTime() - 60 * 60 * 1000);
+  const sql = `select toStartOfMinute(timestamp) as minute, source,
+    multiIf(positionCaseInsensitive(event_message, 'out of memory') > 0, 'out_of_memory',
+      positionCaseInsensitive(event_message, 'could not fork') > 0, 'process_start_failed',
+      positionCaseInsensitive(event_message, 'statement timeout') > 0, 'statement_timeout',
+      positionCaseInsensitive(event_message, 'job startup timeout') > 0, 'job_startup_timeout',
+      positionCaseInsensitive(event_message, 'connection pool') > 0, 'connection_pool',
+      positionCaseInsensitive(event_message, 'schema cache') > 0, 'schema_cache',
+      positionCaseInsensitive(event_message, 'too many clients') > 0, 'connection_limit',
+      positionCaseInsensitive(event_message, 'remaining connection slots') > 0, 'connection_limit',
+      positionCaseInsensitive(event_message, 'timeout') > 0, 'timeout',
+      positionCaseInsensitive(event_message, 'deadlock') > 0, 'deadlock', 'other') as reason,
+    count() as events,
+    max(toFloat64OrNull(log_attributes['response.headers.x_kong_upstream_latency'])) as max_upstream_ms
+    from logs where source in ('postgres_logs', 'postgrest_logs', 'edge_logs')
+      and (severity_text in ('ERROR', 'FATAL', 'PANIC', 'WARN', 'WARNING')
+        or toInt32OrZero(log_attributes['response.status_code']) >= 500)
+    group by minute, source, reason order by minute desc limit 120`;
+  const url = new URL(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/logs`);
+  url.searchParams.set('sql', sql);
+  url.searchParams.set('iso_timestamp_start', start.toISOString());
+  url.searchParams.set('iso_timestamp_end', end.toISOString());
+  const logsResponse = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000)
+  });
+  const payload = logsResponse.ok
+    ? ((await logsResponse.json()) as { result?: unknown; error?: unknown })
+    : null;
+  const logs =
+    logsResponse.ok && payload && !payload.error && Array.isArray(payload.result)
+      ? {
+          status: 'observed',
+          start: start.toISOString(),
+          end: end.toISOString(),
+          aggregates: payload.result
+        }
+      : { status: 'unavailable', http_status: logsResponse.status };
+  const gatewaySql = `select
+    multiIf(match(log_attributes['request.path'], '^/rest/v1/rpc/[a-z_]{3,80}$'),
+        extract(log_attributes['request.path'], '^/rest/v1/rpc/([a-z_]{3,80})$'),
+      position(log_attributes['request.path'], 'profiles') > 0, 'profiles',
+      position(log_attributes['request.path'], '/rest/') > 0, 'other_rest',
+      position(log_attributes['request.path'], '/functions/') > 0, 'functions', 'other') as operation,
+    toInt32OrZero(log_attributes['response.status_code']) as status,
+    count() as requests, min(timestamp) as first_observed, max(timestamp) as last_observed
+    from logs where source = 'edge_logs'
+    group by operation, status order by requests desc limit 100`;
+  const gatewayUrl = new URL(url);
+  gatewayUrl.searchParams.set('sql', gatewaySql);
+  const gatewayResponse = await fetch(gatewayUrl.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000)
+  });
+  const gatewayBody = gatewayResponse.ok
+    ? ((await gatewayResponse.json()) as { result?: unknown; error?: unknown })
+    : null;
+  const gateway =
+    gatewayBody && !gatewayBody.error && Array.isArray(gatewayBody.result)
+      ? { status: 'observed', aggregates: gatewayBody.result }
+      : { status: 'unavailable', http_status: gatewayResponse.status };
+  const metricsResponse = await fetch(
+    `https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/metrics`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000)
+    }
+  );
+  const metrics: Record<string, number> = {};
+  if (metricsResponse.ok) {
+    const body = await metricsResponse.text();
+    for (const line of body.split('\n')) {
+      const match =
+        /^(node_time_seconds|node_load[15]|node_memory_(?:MemAvailable|MemTotal|SwapFree|SwapTotal)_bytes|node_vmstat_pswpin|node_vmstat_pswpout|node_cpu_seconds_total|node_pressure_(?:cpu|memory)_(?:waiting|stalled)_seconds_total)(?:\{([^}]*)\})?\s+([\d.eE+-]+)$/.exec(
+          line
+        );
+      if (!match) continue;
+      const mode =
+        match[1] === 'node_cpu_seconds_total' ? /mode="([a-z]+)"/.exec(match[2] ?? '')?.[1] : null;
+      if (match[1] === 'node_cpu_seconds_total' && !mode) continue;
+      const value = Number(match[3]);
+      if (!Number.isFinite(value)) continue;
+      const key = mode ? `${match[1]}_${mode}` : match[1];
+      metrics[key] = (metrics[key] ?? 0) + value;
+    }
+  }
+  return {
+    logs,
+    gateway,
+    metrics: {
+      status: metricsResponse.ok ? 'observed' : 'unavailable',
+      http_status: metricsResponse.status,
+      values: metrics
+    }
+  };
+}
+
 function managementCredentials() {
   const token =
     process.env.SUPABASE_ACCESS_TOKEN?.trim() ||

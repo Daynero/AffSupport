@@ -614,7 +614,7 @@ export function TeamSpace({
     }
     return wrap(
       <WorkspaceShell
-        key={`shell:${entry.teamId}`}
+        key={JSON.stringify(['shell', auth?.user?.id, entry.teamId, activeTeam.permissions])}
         teamId={entry.teamId}
         client={client}
         directAddMode={directAddMode}

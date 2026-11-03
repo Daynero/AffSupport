@@ -8,6 +8,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it('reports bounded performance aggregates without exposing SQL text or cron messages', async () => {
+  vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-token');
+  const statements: string[] = [];
+  vi.stubGlobal('fetch', async (_url: string, input: RequestInit) => {
+    if (_url.includes('/analytics/endpoints/logs')) {
+      const sql = new URL(_url).searchParams.get('sql') ?? '';
+      assertReadOnlySql(sql);
+      expect(sql).toContain('group by');
+      expect(sql).not.toMatch(/select\s+event_message/i);
+      return { ok: true, status: 200, json: async () => ({ result: [] }) };
+    }
+    if (_url.includes('/analytics/endpoints/metrics'))
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          'node_load1 0.5\nnode_cpu_seconds_total{cpu="0",mode="idle"} 123\nnode_vmstat_pswpin 17\nnode_vmstat_pswpout 23\nnode_pressure_memory_stalled_seconds_total 2\nsecret_metric{email="private"} 1'
+      };
+    const body = JSON.parse(String(input.body)) as { query: string; read_only: boolean };
+    expect(body.read_only).toBe(true);
+    assertReadOnlySql(body.query);
+    statements.push(body.query);
+    return { ok: true, json: async () => (statements.length === 1 ? [{ available: true }] : []) };
+  });
+  const result = await executeCommand(parseArgs(['database-performance', '--json']));
+  expect(result.data).toMatchObject({ statements: [], activity: [], jobs: [] });
+  expect(result.data).toMatchObject({
+    platform: {
+      metrics: {
+        values: {
+          node_load1: 0.5,
+          node_cpu_seconds_total_idle: 123,
+          node_vmstat_pswpin: 17,
+          node_vmstat_pswpout: 23,
+          node_pressure_memory_stalled_seconds_total: 2
+        }
+      }
+    }
+  });
+  expect(JSON.stringify(result.data)).not.toContain('private');
+  expect(statements).toHaveLength(8);
+  expect(statements[1]).toContain('limit 30');
+  expect(statements[1]).not.toMatch(/select\s+query\s*[,\n]/i);
+  expect(statements[4]).toContain("interval '1 hour'");
+  expect(statements[4]).not.toMatch(/select\s+.*return_message/);
+});
+
+it('keeps absent SQL timing support explicit while still reporting waits and jobs', async () => {
+  vi.stubEnv('SUPABASE_ACCESS_TOKEN', 'test-token');
+  let requests = 0;
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (url.includes('/analytics/endpoints/')) return { ok: false, status: 403 };
+    requests += 1;
+    return { ok: true, json: async () => (requests === 1 ? [{ available: false }] : []) };
+  });
+  const result = await executeCommand(parseArgs(['database-performance', '--json']));
+  expect(result.data).toMatchObject({ statements: { status: 'unavailable' } });
+  expect(requests).toBe(6);
+});
+
 it('returns database metadata and explicit missing permissions without scanning private grants', async () => {
   const statements: string[] = [];
   setQueryExecutor(async sql => {

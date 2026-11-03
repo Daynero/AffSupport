@@ -5,6 +5,7 @@ import { CATALOG_IMAGE_ERROR_CODES } from '../packages/shared/src/team/catalog-i
 import {
   AUTH_SESSION_MUTATION_CODES,
   PROFILE_SYNC_CODES,
+  WORKSPACE_READ_CODES,
   COMPRESSION_ERROR_CODES,
   DIAGNOSTIC_CATEGORIES,
   ESTIMATE_ERROR_CODES,
@@ -35,6 +36,16 @@ it('maps an abandoned catalog video handoff to its lease recovery and browser ow
   expect(lookupCodeLocations(fingerprint)?.files).toContain(
     'supabase/migrations/20261206146000_catalog_expired_browser_handoff.sql'
   );
+});
+it('maps every bounded workspace read failure', () => {
+  for (const code of WORKSPACE_READ_CODES) {
+    expect(lookupCodeLocations(`team:read:${code}`)?.files).toContain(
+      'apps/web/src/team/readCoordinator.ts'
+    );
+    expect(lookupCodeLocations(`members:members_list:${code}`)?.matched).toBe(
+      `members:members_list:${code}`
+    );
+  }
 });
 it('maps every closed profile synchronization failure', () => {
   for (const code of PROFILE_SYNC_CODES)

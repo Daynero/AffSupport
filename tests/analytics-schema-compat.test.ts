@@ -114,6 +114,12 @@ describe.each([
   it('investigate names the missing sources only when they are missing', async () => {
     const data = (await run('investigate', EMAIL, '--period', '30d')).data as InvestigateData;
     const kinds = data.coverage.blind_spots.map(spot => spot.kind);
+    // Standalone catalog evidence is optional like Launch generations. Its absence
+    // remains explicit without changing the legacy core-schema contract.
+    expect(data.catalog_generations?.supported).toBe(false);
+    expect(data.catalog_generations?.blind_spots).toContain(
+      'Restricted catalog generation view is unavailable to this role.'
+    );
     expect(data.coverage.events).toBe(4);
     expect(data.operations.map(op => op.id)).toContain(RUN);
     expect(data.findings.some(f => f.fingerprint === 'transcription:model:MODEL_MISSING')).toBe(

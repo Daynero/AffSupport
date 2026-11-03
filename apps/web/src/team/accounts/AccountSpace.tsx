@@ -117,7 +117,8 @@ type AppliedProof =
   | { action: 'reorder'; flowId: string; request: ReorderRequest; version: string; view: string };
 
 export function AccountSpace({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
-  const { can, revision } = useTeam();
+  const { can, accountsRevision, revision: generalRevision } = useTeam();
+  const revision = accountsRevision ?? generalRevision;
   const auth = useOptionalAuth();
   return (
     <UnifiedFinanceProvider
@@ -136,7 +137,8 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
 function AccountSpaceContent({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const { can, revision } = useTeam();
+  const { can, accountsRevision, revision: generalRevision } = useTeam();
+  const revision = accountsRevision ?? generalRevision;
   const canEdit = can('edit');
   const assignmentScope = useRef({ teamId, canEdit, alive: true });
   assignmentScope.current = { teamId, canEdit, alive: true };

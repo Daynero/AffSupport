@@ -31,6 +31,18 @@ for the built-in reference.
 
 ## Commands
 
+`npm run analytics -- database-performance --json` reads bounded SQL timing
+statistics, current database waits, last-hour cron failures, aggregate platform
+errors and HTTP route counts, and a current CPU/memory metric sample. It uses
+the existing management credential in read-only mode. It returns routine names
+and numeric aggregates, never SQL text, parameters, raw request paths or log
+messages. Missing provider access remains `unavailable`. SQL counters are
+cumulative, current activity is not a historical snapshot, and provider logs
+and cron aggregates cover the last hour regardless of `--period`/`--as-of`.
+Compare snapshots by `query_id`; do not treat a current healthy sample as proof
+that the server was healthy during an earlier incident. Historical CPU/RAM and
+browser-to-server queue time are not reconstructed by this command.
+
 `npm run analytics -- database-retention --json` checks the seven-day history cleanup
 jobs, expired-grant retention, reuse/expiry/tenant indexes, cumulative grant writes
 and current Auth/REST health using read-only management metadata.
@@ -114,6 +126,8 @@ Every aggregating command (`overview`, `compressor`, `tools`, `events`, `funnel`
 `created_at − occurred_at` in milliseconds across the period's events. A p95 of
 minutes says the client buffered offline; `samples: 0` gives `null`s, never
 zeros. `inspect` computes the same statistic over the one attempt's rows.
+
+`journey.data.window_basis` is `created_at`: the requested period selects server receipt time, while the timeline is ordered by `occurred_at`. A delayed event can therefore describe an action from before the requested period. A pinned `--as-of` excludes events received after that instant, even when they occurred earlier.
 
 Because `delivery_lag_ms` needs a home, the commands that used to return a bare
 array now return an object: `tools → data.tools`, `events → data.events`,
@@ -425,6 +439,8 @@ installation or instance id is returned.
   credential or path in the output, except repo-relative source files in
   `code_locations[].files`; both commands fail closed when it does.
 
+Privacy rejection reports only a closed `Privacy category` in the error hint (forbidden key, source file, address, URL, path or credential). It never prints the rejected value, field name or key path. Producer prose must pass the same strict guard as observed evidence.
+
 ### Schema detection (databases before the 031/033 migrations)
 
 The CLI can run ahead of the migrations it reads. Once per process,
@@ -640,3 +656,10 @@ projections, inactive capture and pre-installation history remain explicit.
 `investigate` reports `native_launcher_unobserved` even when the agent journal contains successful boot and listening records: those records do not prove that the native launcher accepted readiness, nor explain a readiness error followed by child termination. `audit` keeps `onboarding.windows_launcher` uncovered until the native producer and delivery chain are verified (platform analytics tasks T027–T030). Do not infer that a proxy caused a user's incident from the reproduced proxy failure alone.
 
 A reconnect has a new attempt ID. The reader accepts a later `link_recovered` in the same non-null browser session and installation even when its flow differs from `link_lost`; another session or installation does not resolve that loss. Browser recovery still does not prove that a native startup dialog disappeared or that the user's media operation completed.
+
+`investigate.catalog_generations` reads the restricted durable catalog snapshot
+when its migration is installed. It exposes opaque intent/operation correlation,
+closed states/codes and checkpoint-presence flags only. Missing projection or
+grant is explicit; current checkpoints do not reconstruct historical as-of
+stages or prove browser delivery. No request, checkpoint or provider payload is
+returned.

@@ -60,7 +60,7 @@ describe('catalog registry first read', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
@@ -86,12 +86,12 @@ describe('catalog registry first read', () => {
     expect(list).toHaveBeenCalledTimes(1);
     expect(result.current.rows?.[0]?.profile).toEqual(profile);
     await act(async () => {
-      result.current.reload();
+      await result.current.reload();
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(499);
     });
-    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(2);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });

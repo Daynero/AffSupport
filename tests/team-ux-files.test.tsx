@@ -267,7 +267,8 @@ describe('search results past the first fifty', () => {
       expect(searchCatalog).toHaveBeenCalledWith(
         TEAM.id,
         expect.objectContaining({ page: 2 }),
-        expect.anything()
+        expect.anything(),
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
     expect(await screen.findByText('page-2.mp4')).toBeTruthy();

@@ -1,3 +1,6 @@
+import { withReadDeadline } from '../readCoordinator';
+import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
+import { useOptionalAuth } from '../../auth/AuthContext';
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal, Users } from 'lucide-react';
 import {
@@ -31,7 +34,7 @@ import { SettingsSection } from '../workspace/SettingsSection';
 import { memberAttempt } from './diagnostics';
 
 export interface MemberManagementClient {
-  listMembers: (teamId: string) => Promise<TeamMemberSummary[]>;
+  listMembers: (teamId: string, options?: { signal?: AbortSignal }) => Promise<TeamMemberSummary[]>;
   updateMembership: (input: {
     teamId: string;
     userId: string;
@@ -71,7 +74,14 @@ export function MemberList({
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
-  const { activeTeam } = useTeam();
+  const { activeTeam, accessRevision } = useTeam();
+  const auth = useOptionalAuth();
+  const accessScope = JSON.stringify([
+    teamId,
+    auth?.user?.id,
+    activeTeam?.permissions,
+    accessRevision
+  ]);
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);
   const [editing, setEditing] = useState<TeamMemberSummary | null>(null);
   const [removing, setRemoving] = useState<TeamMemberSummary | null>(null);
@@ -88,37 +98,38 @@ export function MemberList({
     delivered?.finish('success');
   }, [delivered]);
 
-  useEffect(() => {
-    if (!teamId || !client) return;
-    let active = true;
-    const attempt = memberAttempt('members_list', flowId);
-    setLoading(true);
-    setError(null);
-    void client
-      .listMembers(teamId)
-      .then(value => {
-        if (active) {
-          setMembers(value);
-          setLoading(false);
-          setError(null);
-          onLoaded?.(value);
-          setDelivered(attempt);
-        }
-      })
-      .catch((cause: unknown) => {
+  useVisibleSerialRead({
+    client,
+    scopeKey: `${accessScope}:${retry}:${flowId}`,
+    revision,
+    read: async signal => {
+      if (!teamId || !client) return;
+      const attempt = memberAttempt('members_list', flowId);
+      const cancel = () => attempt.finish('cancelled');
+      signal.addEventListener('abort', cancel, { once: true });
+      setLoading(true);
+      setError(null);
+      try {
+        const value = await withReadDeadline(
+          readSignal => client.listMembers(teamId, { signal: readSignal }),
+          signal
+        );
+        if (signal.aborted) return;
+        setMembers(value);
+        setLoading(false);
+        setError(null);
+        onLoaded?.(value);
+        setDelivered(attempt);
+      } catch (cause) {
+        if (signal.aborted) return;
         attempt.finish('failure', cause);
-        if (active) {
-          setError(t('teamLoadFailed'));
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-      attempt.finish('cancelled');
-    };
-    // `onLoaded` is left out on purpose: a caller's inline callback would re-read
-    // the list on every render.
-  }, [client, revision, retry, t, teamId, flowId]);
+        setError(t('teamLoadFailed'));
+        setLoading(false);
+      } finally {
+        signal.removeEventListener('abort', cancel);
+      }
+    }
+  });
 
   const count = client && teamId ? members.length : activeCount;
   const canManage = activeTeam?.permissions.manage_members === true;

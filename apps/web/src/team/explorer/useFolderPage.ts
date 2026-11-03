@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { settleRead, type ReadResult } from './readSettle';
+import { useOptionalTeam } from '../TeamContext';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { createReadCoordinator, withReadDeadline } from '../readCoordinator';
 import { isHousekeepingFile } from '../catalog/housekeeping';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
 import type {
@@ -23,6 +26,7 @@ export interface FolderPageClient {
       kinds?: TeamMaterialRowKind[];
       after?: FolderPageCursor | null;
       limit?: number;
+      signal?: AbortSignal;
     }
   ) => Promise<FolderPage>;
 }
@@ -30,17 +34,6 @@ export interface FolderPageClient {
 const PAGE_SIZE = 100;
 const FOLDER_PAGE_TIMEOUT_MS = 12_000;
 const EMPTY_ROWS: TeamMaterialRow[] = [];
-
-function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
-  let timer: number | undefined;
-  return Promise.race([
-    promise,
-    new Promise<T>(
-      (_, reject) =>
-        (timer = window.setTimeout(() => reject(new Error('FOLDER_PAGE_TIMEOUT')), milliseconds))
-    )
-  ]).finally(() => window.clearTimeout(timer));
-}
 
 export interface FolderPageState {
   rows: TeamMaterialRow[];
@@ -79,7 +72,18 @@ export function useFolderPage(input: {
     beforeRowsReplace
   } = input;
   const kindsKey = (kinds ?? []).join(',');
-  const scopeKey = JSON.stringify([teamId, parentFolderId, kindsKey]);
+  const actor = useOptionalAuth()?.user?.id ?? null;
+  const access = useOptionalTeam();
+  const scopeKey = JSON.stringify([
+    actor,
+    teamId,
+    access?.accessRevision,
+    access?.activeTeam?.permissions,
+    parentFolderId,
+    kindsKey
+  ]);
+  const activeScope = useRef(scopeKey);
+  activeScope.current = scopeKey;
   const beginRead = useCatalogRead(teamId);
   const [rows, setRows] = useState<TeamMaterialRow[]>([]);
   const rowsRef = useRef(rows);
@@ -96,6 +100,8 @@ export function useFolderPage(input: {
   const generation = useRef(0);
   const latestRefresh = useRef<Promise<ReadResult> | null>(null);
   const loadedPages = useRef(1);
+  const appendRead = useRef<Promise<void> | null>(null);
+  const controllers = useRef(new Set<AbortController>());
   const beforeRowsReplaceRef = useRef(beforeRowsReplace);
   beforeRowsReplaceRef.current = beforeRowsReplace;
 
@@ -104,19 +110,25 @@ export function useFolderPage(input: {
 
   const fetchPage = useCallback(
     async (after: FolderPageCursor | null, replace: boolean, reportFailure = false) => {
+      if (activeScope.current !== scopeKey) return;
       const read = beginRead();
       const token = ++generation.current;
       setLoading(true);
       try {
-        const page = await withTimeout(
-          client.listFolderPage(teamId, {
-            parentFolderId,
-            ...(kinds && kinds.length > 0 ? { kinds } : {}),
-            after,
-            limit: PAGE_SIZE
-          }),
+        const controller = new AbortController();
+        controllers.current.add(controller);
+        const page = await withReadDeadline(
+          signal =>
+            client.listFolderPage(teamId, {
+              parentFolderId,
+              ...(kinds && kinds.length > 0 ? { kinds } : {}),
+              after,
+              limit: PAGE_SIZE,
+              signal
+            }),
+          controller.signal,
           FOLDER_PAGE_TIMEOUT_MS
-        );
+        ).finally(() => controllers.current.delete(controller));
         if (token !== generation.current) return;
         const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
         /*
@@ -149,7 +161,7 @@ export function useFolderPage(input: {
     [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );
 
-  const refreshWindow = useCallback(
+  const performRefresh = useCallback(
     async (reportFailure = false) => {
       const read = beginRead();
       const token = ++generation.current;
@@ -160,7 +172,7 @@ export function useFolderPage(input: {
           // A transient catalog read must not replace a previously loaded
           // window with an empty first page. Retry the whole window, not only the
           // failed page, so every committed render comes from one fresh walk.
-          for (let attempt = 0; attempt < 3; attempt += 1) {
+          for (let attempt = 0; attempt < 2; attempt += 1) {
             try {
               let cursor: FolderPageCursor | null = null;
               let totalRows = 0;
@@ -168,15 +180,20 @@ export function useFolderPage(input: {
               let pagesRead = 0;
               const visible: TeamMaterialRow[] = [];
               for (let index = 0; index < targetPages; index += 1) {
-                const page: FolderPage = await withTimeout(
-                  client.listFolderPage(teamId, {
-                    parentFolderId,
-                    ...(kinds && kinds.length > 0 ? { kinds } : {}),
-                    after: cursor,
-                    limit: PAGE_SIZE
-                  }),
+                const controller = new AbortController();
+                controllers.current.add(controller);
+                const page: FolderPage = await withReadDeadline(
+                  signal =>
+                    client.listFolderPage(teamId, {
+                      parentFolderId,
+                      ...(kinds && kinds.length > 0 ? { kinds } : {}),
+                      after: cursor,
+                      limit: PAGE_SIZE,
+                      signal
+                    }),
+                  controller.signal,
                   FOLDER_PAGE_TIMEOUT_MS
-                );
+                ).finally(() => controllers.current.delete(controller));
                 if (token !== generation.current) return 'superseded';
                 const kept = page.rows.filter(row => !isHousekeepingFile(row.name));
                 visible.push(...kept);
@@ -209,11 +226,13 @@ export function useFolderPage(input: {
               return 'ok';
             } catch {
               if (token !== generation.current) return 'superseded';
-              if (attempt === 2) {
+              if (attempt === 1) {
                 read.fail();
                 setError(true);
                 return 'failed';
               }
+              await new Promise(resolve => window.setTimeout(resolve, 250));
+              if (token !== generation.current) return 'superseded';
             }
           }
           return 'failed';
@@ -231,22 +250,76 @@ export function useFolderPage(input: {
     [client, teamId, parentFolderId, kindsKey, scopeKey, beginRead]
   );
 
+  const strictPending = useRef(false);
+  const refreshRef = useRef(performRefresh);
+  refreshRef.current = performRefresh;
+  const coordinator = useRef<ReturnType<typeof createReadCoordinator> | null>(null);
+  const refreshWindow = useCallback(
+    async (strict = false) => {
+      if (activeScope.current !== scopeKey) {
+        if (strict) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+        return;
+      }
+      strictPending.current ||= strict;
+      const owner = coordinator.current;
+      await appendRead.current;
+      if (owner !== coordinator.current) {
+        if (strict) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+        return;
+      }
+      try {
+        await owner?.request();
+        if (strict && owner !== coordinator.current) throw new Error('CATALOG_REFRESH_SUPERSEDED');
+      } finally {
+        if (owner === coordinator.current && !owner?.isRunning()) strictPending.current = false;
+      }
+    },
+    [scopeKey]
+  );
+
   useEffect(() => {
+    const owner = createReadCoordinator(async () => {
+      const strict = strictPending.current;
+      await refreshRef.current(strict);
+    });
+    coordinator.current = owner;
     setRows([]);
     setTotal(null);
     setNext(null);
     loadedPages.current = 1;
-    void refreshWindow();
-  }, [refreshWindow]);
+    const visible = () => {
+      if (document.visibilityState !== 'hidden') void refreshWindow();
+    };
+    if (document.visibilityState !== 'hidden') void refreshWindow();
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      document.removeEventListener('visibilitychange', visible);
+      owner.stop();
+      if (coordinator.current === owner) coordinator.current = null;
+      generation.current += 1;
+      appendRead.current = null;
+      strictPending.current = false;
+      for (const controller of controllers.current) controller.abort();
+      controllers.current.clear();
+    };
+  }, [performRefresh, refreshWindow]);
 
   useEffect(() => {
-    if (revision === 0) return;
+    if (revision === 0 || document.visibilityState === 'hidden') return;
     void refreshWindow();
   }, [refreshWindow, revision]);
 
-  const patchRow = useCallback((id: string, patch: Partial<TeamMaterialRow>) => {
-    setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)));
-  }, []);
+  const patchRow = useCallback(
+    (id: string, patch: Partial<TeamMaterialRow>) => {
+      if (activeScope.current !== scopeKey) return;
+      setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)));
+      if (coordinator.current?.isRunning()) {
+        generation.current += 1;
+        void refreshWindow();
+      }
+    },
+    [scopeKey, refreshWindow]
+  );
 
   return {
     rows: dataScope === scopeKey ? rows : EMPTY_ROWS,
@@ -254,7 +327,16 @@ export function useFolderPage(input: {
     loading: loading || dataScope !== scopeKey,
     error: dataScope === scopeKey && error,
     hasMore: dataScope === scopeKey && next !== null,
-    loadMore: () => (dataScope === scopeKey && next ? fetchPage(next, false) : Promise.resolve()),
+    loadMore: () => {
+      if (appendRead.current) return appendRead.current;
+      if (dataScope !== scopeKey || !next || loading || coordinator.current?.isRunning())
+        return Promise.resolve();
+      const pending = fetchPage(next, false).finally(() => {
+        if (appendRead.current === pending) appendRead.current = null;
+      });
+      appendRead.current = pending;
+      return pending;
+    },
     reload: () => refreshWindow(),
     reloadStrict: () => refreshWindow(true),
     patchRow

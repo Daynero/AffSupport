@@ -1,3 +1,4 @@
+import { withReadDeadline } from '../readCoordinator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   convertKeyboardLayout,
@@ -9,6 +10,8 @@ import {
   type CatalogVocabulary,
   type TeamMaterialRowKind
 } from '@video-compressor/shared';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { useVisibleSerialRead } from './useVisibleSerialRead';
 import { useTeam } from '../TeamContext';
 import { isHousekeepingFile } from './housekeeping';
 import { useCatalogRead } from './CatalogFreshness';
@@ -64,9 +67,13 @@ export interface CatalogSearchClient {
   searchCatalog: (
     teamId: string,
     request: CatalogSearchRequestInput,
-    scope?: CatalogSearchScope
+    scope?: CatalogSearchScope,
+    options?: { signal?: AbortSignal }
   ) => Promise<CatalogSearchResponse>;
-  getCatalogVocabulary: (teamId: string) => Promise<CatalogVocabulary>;
+  getCatalogVocabulary: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogVocabulary>;
 }
 
 export function useCatalogSearch(input: {
@@ -97,7 +104,9 @@ export function useCatalogSearch(input: {
     scope
   } = input;
   const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}|${scope?.recursive ? 'r' : ''}`;
-  const { revision } = useTeam();
+  const { revision, accessRevision, permissions } = useTeam();
+  const auth = useOptionalAuth();
+  const accessScope = JSON.stringify([teamId, auth?.user?.id ?? null, permissions, accessRevision]);
   const [query, setQuery] = useState(initialQuery);
   const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -116,6 +125,15 @@ export function useCatalogSearch(input: {
   /** A query the person asked to see as typed, even though it finds nothing. */
   const [literalQuery, setLiteralQuery] = useState<string | null>(null);
   const requestSequence = useRef(0);
+  const [retainedAccess, setRetainedAccess] = useState(accessScope);
+  if (retainedAccess !== accessScope) {
+    requestSequence.current += 1;
+    setRetainedAccess(accessScope);
+    setResult(null);
+    setVocabulary({ geo: [], languages: [], offers: [], tags: [] });
+    setLayoutSwap(null);
+    setLoading(true);
+  }
   // Held in a ref, not a dependency: an inline callback would change identity
   // every render and restart the debounced fetch forever.
   const onSearchedRef = useRef(onSearched);
@@ -140,20 +158,22 @@ export function useCatalogSearch(input: {
     // query, so the fields start empty rather than inheriting the old one's.
   }, [teamId]);
 
-  useEffect(() => {
-    let active = true;
-    void client
-      .getCatalogVocabulary(teamId)
-      .then(value => {
-        if (active) setVocabulary(value);
-      })
-      .catch(() => {
-        if (active) setVocabulary({ geo: [], languages: [], offers: [], tags: [] });
-      });
-    return () => {
-      active = false;
-    };
-  }, [client, revision, teamId]);
+  useVisibleSerialRead({
+    client,
+    scopeKey: accessScope,
+    revision,
+    read: async signal => {
+      try {
+        const value = await withReadDeadline(
+          readSignal => client.getCatalogVocabulary(teamId, { signal: readSignal }),
+          signal
+        );
+        if (!signal.aborted) setVocabulary(value);
+      } catch {
+        if (!signal.aborted) setVocabulary({ geo: [], languages: [], offers: [], tags: [] });
+      }
+    }
+  });
 
   const request = useMemo(
     () =>
@@ -167,87 +187,96 @@ export function useCatalogSearch(input: {
   );
   const beginRead = useCatalogRead(teamId, request !== null);
 
-  const refetch = useCallback(async () => {
-    if (!request) return;
-    const status = beginRead();
-    const sequence = ++requestSequence.current;
-    const cue = (['geo', 'offer', 'language', 'category'] as const).find(
-      key => request.filters[key].length > 0
-    );
-    if (cue) findFlow.current = startTeamFindFlow(cue);
-    setLoading(true);
-    try {
-      // Only pass a scope that exists: callers asserting on the call see two arguments as before.
-      const ask = (asked: typeof request) =>
-        scope ? client.searchCatalog(teamId, asked, scope) : client.searchCatalog(teamId, asked);
-      let next = await ask(request);
-      if (sequence !== requestSequence.current) return;
-      /* Nothing for the words as typed, and they read as the other keyboard
+  const read = useCallback(
+    async (signal: AbortSignal) => {
+      if (!request) return;
+      const status = beginRead();
+      const sequence = ++requestSequence.current;
+      const cue = (['geo', 'offer', 'language', 'category'] as const).find(
+        key => request.filters[key].length > 0
+      );
+      if (cue) findFlow.current = startTeamFindFlow(cue);
+      setLoading(true);
+      try {
+        const ask = (asked: typeof request) =>
+          withReadDeadline(
+            readSignal => client.searchCatalog(teamId, asked, scope, { signal: readSignal }),
+            signal
+          );
+        let next = await ask(request);
+        if (signal.aborted || sequence !== requestSequence.current) return;
+        /* Nothing for the words as typed, and they read as the other keyboard
          layout: ask once more for those, and say so above the results. */
-      let swap: CatalogLayoutSwap | null = null;
-      const swapped =
-        next.items.length === 0 &&
-        countSearchLetters(request.query) >= 3 &&
-        literalQuery !== request.query
-          ? convertKeyboardLayout(request.query)
-          : null;
-      if (swapped) {
-        const second = normalizeCatalogSearchRequest({ ...request, query: swapped });
-        const retried = second ? await ask(second).catch(() => null) : null;
-        if (sequence !== requestSequence.current) return;
-        if (retried && retried.items.length > 0) {
-          next = retried;
-          swap = { original: request.query, shown: second!.query };
+        let swap: CatalogLayoutSwap | null = null;
+        const swapped =
+          next.items.length === 0 &&
+          countSearchLetters(request.query) >= 3 &&
+          literalQuery !== request.query
+            ? convertKeyboardLayout(request.query)
+            : null;
+        if (swapped) {
+          const second = normalizeCatalogSearchRequest({ ...request, query: swapped });
+          const retried = second ? await ask(second).catch(() => null) : null;
+          if (signal.aborted || sequence !== requestSequence.current) return;
+          if (retried && retried.items.length > 0) {
+            next = retried;
+            swap = { original: request.query, shown: second!.query };
+          }
         }
-      }
-      // Reports the *user's* filters, not the merged request: a surface with
-      // fixed filters (landings, library) must not write them into the address.
-      onSearchedRef.current?.({ query: request.query, filters });
-      // The shared decoder normally enforces this at the API boundary. Keep a
-      // second UI boundary so injected test clients cannot render foreign rows.
-      if (next.items.some(material => material.teamId !== teamId))
-        throw new Error('INVALID_RESPONSE');
-      /* The listing hides an operating system's leftovers; search must hide
+        // Reports the *user's* filters, not the merged request: a surface with
+        // fixed filters (landings, library) must not write them into the address.
+        onSearchedRef.current?.({ query: request.query, filters });
+        // The shared decoder normally enforces this at the API boundary. Keep a
+        // second UI boundary so injected test clients cannot render foreign rows.
+        if (next.items.some(material => material.teamId !== teamId))
+          throw new Error('INVALID_RESPONSE');
+        /* The listing hides an operating system's leftovers; search must hide
          the same ones, or `.DS_Store` comes back the moment somebody types. */
-      const items = next.items.filter(material => !isHousekeepingFile(material.name));
-      setResult({
-        ...next,
-        items,
-        /* A server that already leaves them out of its count loses nothing
+        const items = next.items.filter(material => !isHousekeepingFile(material.name));
+        setResult({
+          ...next,
+          items,
+          /* A server that already leaves them out of its count loses nothing
            here; an older one counted the leftovers this page just hid. */
-        total: Math.max(items.length, next.total - (next.items.length - items.length))
-      });
-      setAnsweredQuery(swap ? swap.shown : request.query);
-      setLayoutSwap(swap);
-      setError(false);
-      status.succeed();
-      if (findFlow.current) {
-        completeTeamFindFlow(findFlow.current, {
-          outcome: next.items.length > 0 ? 'success' : 'failure',
-          assisted: false
+          total: Math.max(items.length, next.total - (next.items.length - items.length))
         });
-        findFlow.current = null;
+        setAnsweredQuery(swap ? swap.shown : request.query);
+        setLayoutSwap(swap);
+        setError(false);
+        status.succeed();
+        if (findFlow.current) {
+          completeTeamFindFlow(findFlow.current, {
+            outcome: next.items.length > 0 ? 'success' : 'failure',
+            assisted: false
+          });
+          findFlow.current = null;
+        }
+      } catch {
+        if (signal.aborted) return;
+        status.fail();
+        if (signal.aborted || sequence !== requestSequence.current) return;
+        setResult(null);
+        setLayoutSwap(null);
+        setError(true);
+        if (findFlow.current) {
+          completeTeamFindFlow(findFlow.current, { outcome: 'failure', assisted: false });
+          findFlow.current = null;
+        }
+      } finally {
+        if (sequence === requestSequence.current) setLoading(false);
       }
-    } catch {
-      status.fail();
-      if (sequence !== requestSequence.current) return;
-      setResult(null);
-      setLayoutSwap(null);
-      setError(true);
-      if (findFlow.current) {
-        completeTeamFindFlow(findFlow.current, { outcome: 'failure', assisted: false });
-        findFlow.current = null;
-      }
-    } finally {
-      if (sequence === requestSequence.current) setLoading(false);
-    }
-    // scopeKey stands in for the scope object's identity.
-  }, [client, filters, request, teamId, scopeKey, beginRead, literalQuery]);
+      // scopeKey stands in for the scope object's identity.
+    },
+    [client, filters, request, teamId, scopeKey, beginRead, literalQuery]
+  );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => void refetch(), debounceMs);
-    return () => window.clearTimeout(timer);
-  }, [debounceMs, refetch, revision]);
+  const refetch = useVisibleSerialRead({
+    client,
+    scopeKey: JSON.stringify([accessScope, scopeKey, request, literalQuery, filters]),
+    revision,
+    debounceMs,
+    read
+  });
 
   const setFacet = useCallback((key: keyof CatalogSearchFilters, value: string | null) => {
     setPage(1);

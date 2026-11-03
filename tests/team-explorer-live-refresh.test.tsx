@@ -56,15 +56,74 @@ describe('visible explorer window refresh', () => {
     act(() => {
       strict = view.result.current.reloadStrict();
     });
-    await act(async () => {
-      await view.result.current.reload();
+    await waitFor(() => expect(client.listFolderPage).toHaveBeenCalledTimes(2));
+    let background!: Promise<void>;
+    act(() => {
+      background = view.result.current.reload();
     });
     await act(async () => {
+      await Promise.resolve();
       release({ rows: [row(2)], total: 1, next: null });
       await expect(strict).resolves.toBeUndefined();
+      await background;
     });
     expect(view.result.current.rows[0]?.id).toBe('id-3');
   });
+  it('keeps strict empty confirmation across a queued background refresh', async () => {
+    let release!: (value: FolderPage) => void;
+    const client = {
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [row(1)], total: 1, next: null })
+        .mockImplementationOnce(
+          () =>
+            new Promise<FolderPage>(resolve => {
+              release = resolve;
+            })
+        )
+        .mockResolvedValue({ rows: [], total: 0, next: null })
+    };
+    const view = renderHook(() =>
+      useFolderPage({ teamId, client, parentFolderId: 'root', preserveOnEmpty: true })
+    );
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    let strict!: Promise<void>;
+    act(() => {
+      strict = view.result.current.reloadStrict();
+    });
+    await waitFor(() => expect(client.listFolderPage).toHaveBeenCalledTimes(2));
+    let background!: Promise<void>;
+    act(() => {
+      background = view.result.current.reload();
+    });
+    await act(async () => {
+      await Promise.resolve();
+      release({ rows: [], total: 0, next: null });
+      await strict;
+      await background;
+    });
+    expect(view.result.current.rows).toEqual([]);
+    expect(view.result.current.total).toBe(0);
+  });
+
+  it('rejects strict confirmation on unmount even if transport ignores abort', async () => {
+    const client = {
+      listFolderPage: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [row(1)], total: 1, next: null })
+        .mockImplementationOnce(() => new Promise<FolderPage>(() => {}))
+    };
+    const view = renderHook(() => useFolderPage({ teamId, client, parentFolderId: 'root' }));
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(1));
+    let pending!: Promise<unknown>;
+    act(() => {
+      pending = view.result.current.reloadStrict().catch(error => error.message);
+    });
+    await waitFor(() => expect(client.listFolderPage).toHaveBeenCalledTimes(2));
+    view.unmount();
+    expect(await pending).toBe('CATALOG_REFRESH_SUPERSEDED');
+  });
+
   it('ignores a search response from the previous team', async () => {
     let releaseOld!: (value: CatalogSearchResponse) => void;
     const old = new Promise<CatalogSearchResponse>(resolve => {
@@ -93,7 +152,12 @@ describe('visible explorer window refresh', () => {
       wrapper: ({ children }) => <TeamProvider realtime={false}>{children}</TeamProvider>
     });
     await waitFor(() =>
-      expect(client.searchCatalog).toHaveBeenCalledWith('team-old', expect.anything())
+      expect(client.searchCatalog).toHaveBeenCalledWith(
+        'team-old',
+        expect.anything(),
+        undefined,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
     );
     view.rerender({ id: 'team-new' });
     await waitFor(() => expect(view.result.current.result?.total).toBe(2));
@@ -144,8 +208,9 @@ describe('visible explorer window refresh', () => {
     rerender({ revision: 1 });
     await waitFor(() => expect(listFolderPage).toHaveBeenCalledTimes(2));
     rerender({ revision: 2 });
-    await waitFor(() => expect(result.current.rows[0]?.id).toBe('id-3'));
+    expect(listFolderPage).toHaveBeenCalledTimes(2);
     await act(async () => releaseOld({ rows: [row(2)], total: 1, next: null }));
+    await waitFor(() => expect(result.current.rows[0]?.id).toBe('id-3'));
     expect(result.current.rows[0]?.id).toBe('id-3');
   });
 
@@ -235,7 +300,9 @@ describe('visible explorer window refresh', () => {
     await waitFor(() =>
       expect(client.searchCatalog).toHaveBeenLastCalledWith(
         activeTeam,
-        expect.objectContaining({ page: 3 })
+        expect.objectContaining({ page: 3 }),
+        undefined,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
     const reads = client.searchCatalog.mock.calls.length;
@@ -243,7 +310,9 @@ describe('visible explorer window refresh', () => {
     await waitFor(() => expect(client.searchCatalog).toHaveBeenCalledTimes(reads + 1));
     expect(client.searchCatalog).toHaveBeenLastCalledWith(
       activeTeam,
-      expect.objectContaining({ page: 3 })
+      expect.objectContaining({ page: 3 }),
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
     expect(result.current.search.page).toBe(3);
   });

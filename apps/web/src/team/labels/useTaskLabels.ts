@@ -1,5 +1,10 @@
+import { useScopedRows } from '../useScopedRows';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { useOptionalTeam } from '../TeamContext';
+import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
+import { withReadDeadline } from '../readCoordinator';
 import { realtimeTopic } from '../../lib/realtimeTopic';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   sortTeamTaskLabels,
@@ -15,7 +20,11 @@ import { getSupabaseClient } from '../../lib/supabase';
  * task pickers need of the API and nothing more, so a test can hand it a stub.
  */
 export interface TaskLabelsClient {
-  listTaskLabels(teamId: string, scope?: TeamLabelScope): Promise<TeamTaskLabel[]>;
+  listTaskLabels(
+    teamId: string,
+    scope?: TeamLabelScope,
+    options?: { signal?: AbortSignal }
+  ): Promise<TeamTaskLabel[]>;
   createTaskLabel(input: {
     teamId: string;
     name: string;
@@ -32,14 +41,6 @@ export interface TaskLabelsClient {
 }
 
 const defaultClient: TaskLabelsClient = teamApi;
-
-/**
- * The last dictionary each space showed, for the life of the page. The tags
- * are read by three surfaces that mount and unmount constantly — the settings
- * tab, the editor's picker, the board's filter — and none of them should
- * begin with "Loading…" over a list that has not changed in a week.
- */
-const cache = new Map<string, TeamTaskLabel[]>();
 
 /**
  * The tags of a space, kept live.
@@ -61,41 +62,58 @@ export function useTaskLabels({
   scope?: TeamLabelScope;
   client?: TaskLabelsClient;
 }) {
-  const cacheKey = `${teamId}:${scope}`;
-  const cached = client === defaultClient ? cache.get(cacheKey) : undefined;
-  const [labels, setLabels] = useState<TeamTaskLabel[]>(cached ?? []);
-  const [loading, setLoading] = useState(cached === undefined);
-  const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
-
-  const refetch = useCallback(async () => {
-    const requestGeneration = ++generation.current;
-    try {
-      const next = await client.listTaskLabels(teamId, scope);
-      if (requestGeneration !== generation.current) return;
-      setLabels(sortTeamTaskLabels(next));
-      setError(null);
-    } catch (cause) {
-      if (requestGeneration === generation.current) {
-        setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+  const auth = useOptionalAuth();
+  const team = useOptionalTeam();
+  const identity = JSON.stringify([
+    auth?.user?.id ?? null,
+    teamId,
+    team?.permissions,
+    team?.accessRevision
+  ]);
+  const {
+    commit,
+    rows: labels,
+    setRows: setLabels,
+    loading,
+    setLoading,
+    error,
+    setError,
+    generation,
+    writes,
+    reading,
+    lifetimeKey
+  } = useScopedRows<TeamTaskLabel>(identity, scope, client, client === defaultClient);
+  const read = useCallback(
+    async (signal: AbortSignal) => {
+      const requestGeneration = ++generation.current;
+      const writesBefore = writes.current;
+      reading.current = true;
+      try {
+        const next = await withReadDeadline(
+          readSignal => client.listTaskLabels(teamId, scope, { signal: readSignal }),
+          signal
+        );
+        if (
+          signal.aborted ||
+          requestGeneration !== generation.current ||
+          writesBefore !== writes.current
+        )
+          return;
+        setLabels(sortTeamTaskLabels(next));
+        setError(null);
+      } catch (cause) {
+        if (!signal.aborted && requestGeneration === generation.current)
+          setError(cause instanceof Error ? cause.message : 'INVALID_RESPONSE');
+      } finally {
+        if (requestGeneration === generation.current) {
+          reading.current = false;
+          if (!signal.aborted) setLoading(false);
+        }
       }
-    } finally {
-      if (requestGeneration === generation.current) setLoading(false);
-    }
-  }, [client, scope, teamId]);
-
-  useEffect(() => {
-    if (!(client === defaultClient && cache.has(cacheKey))) setLoading(true);
-    void refetch();
-    return () => {
-      generation.current += 1;
-    };
-  }, [cacheKey, client, refetch, revision]);
-
-  useEffect(() => {
-    if (client === defaultClient && !loading) cache.set(cacheKey, labels);
-  }, [cacheKey, client, labels, loading]);
-
+    },
+    [client, lifetimeKey, scope, teamId]
+  );
+  const refetch = useVisibleSerialRead({ client, scopeKey: lifetimeKey, revision, read });
   const refetchRef = useRef(refetch);
   useEffect(() => {
     refetchRef.current = refetch;
@@ -148,37 +166,39 @@ export function useTaskLabels({
   }, [client, scope, teamId]);
 
   const create = useCallback(
-    async (name: string, color: TeamTaskLabelColor) => {
-      const created = await client.createTaskLabel({ teamId, name, color, scope });
-      setLabels(current => sortTeamTaskLabels([...current, created]));
-      return created;
-    },
-    [client, scope, teamId]
+    (name: string, color: TeamTaskLabelColor) =>
+      commit(
+        () => client.createTaskLabel({ teamId, name, color, scope }),
+        created => setLabels(current => sortTeamTaskLabels([...current, created])),
+        refetch
+      ),
+    [client, commit, refetch, scope, teamId]
   );
-
   const update = useCallback(
-    async (labelId: string, name: string, color: TeamTaskLabelColor) => {
-      const updated = await client.updateTaskLabel({ teamId, labelId, name, color });
-      setLabels(current =>
-        sortTeamTaskLabels(
-          // The write returns the bare row, which carries no count: the tag
-          // kept the tasks it had, so the count on screen is still the truth.
-          current.map(label =>
-            label.id === labelId ? { ...updated, taskCount: label.taskCount } : label
-          )
-        )
-      );
-      return updated;
-    },
-    [client, teamId]
+    (labelId: string, name: string, color: TeamTaskLabelColor) =>
+      commit(
+        () => client.updateTaskLabel({ teamId, labelId, name, color }),
+        updated =>
+          setLabels(current =>
+            sortTeamTaskLabels(
+              current.map(label =>
+                label.id === labelId ? { ...updated, taskCount: label.taskCount } : label
+              )
+            )
+          ),
+        refetch
+      ),
+    [client, commit, refetch, teamId]
   );
-
   const remove = useCallback(
     async (labelId: string) => {
-      await client.deleteTaskLabel({ teamId, labelId });
-      setLabels(current => current.filter(label => label.id !== labelId));
+      await commit(
+        () => client.deleteTaskLabel({ teamId, labelId }),
+        () => setLabels(current => current.filter(label => label.id !== labelId)),
+        refetch
+      );
     },
-    [client, teamId]
+    [client, commit, refetch, teamId]
   );
 
   return { labels, loading, error, refetch, create, update, remove };

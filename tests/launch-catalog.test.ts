@@ -211,6 +211,66 @@ function fixture(lostReply: boolean) {
   };
   return { store, deps, drive, state, create };
 }
+
+// This exercises the real durable generator with recording provider/store seams.
+// It is a concurrency regression, not a database, browser or server capacity benchmark.
+describe.each([3, 10])('%i concurrent catalog attempts', count => {
+  it('isolates dependency refusal and uncertain delivery, then replays without duplicate Sheets', async () => {
+    const fixtures = Array.from({ length: count }, (_, index) => fixture(index === 1));
+    const blocked = fixtures[0];
+    vi.mocked(blocked.deps.proveVideo).mockRejectedValueOnce(
+      new TeamFunctionError('NEEDS_REAUTH', { retryable: true })
+    );
+    // Yield at a real dependency boundary so the attempts overlap instead of
+    // completing each recording fake synchronously before the next one starts.
+    let release!: () => void;
+    let arrivals = 0;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    for (const f of fixtures) {
+      const readSettings = f.deps.readSettings;
+      f.deps.readSettings = vi.fn(async team => {
+        arrivals += 1;
+        if (arrivals === count) release();
+        await gate;
+        return readSettings(team);
+      });
+    }
+    const run = (index: number) => {
+      const f = fixtures[index];
+      return createDurableProductCatalog(
+        f.deps,
+        f.store,
+        async () => f.drive,
+        { ...body, idempotencyKey: `mixed-workload-${index}` },
+        ACTOR
+      );
+    };
+    const first = await Promise.allSettled(fixtures.map((_, index) => run(index)));
+    expect(first[0]).toMatchObject({ status: 'rejected', reason: { code: 'NEEDS_REAUTH' } });
+    expect(first[1]).toMatchObject({ status: 'rejected' });
+    expect(first.slice(2).every(result => result.status === 'fulfilled')).toBe(true);
+    expect(blocked.create).not.toHaveBeenCalled();
+    expect(blocked.deps.drawTexts).not.toHaveBeenCalled();
+    expect(blocked.deps.drawImages).not.toHaveBeenCalled();
+    expect(fixtures[1].state.checkpoint.createStarted).toBe(true);
+
+    const recovered = await Promise.all(fixtures.map((_, index) => run(index)));
+    expect(recovered).toHaveLength(count);
+    for (const f of fixtures) {
+      expect(f.create).toHaveBeenCalledTimes(1);
+      expect(f.state.state).toBe('registered');
+      expect(f.deps.finalize).toHaveBeenCalledTimes(1);
+    }
+    await Promise.all(fixtures.map((_, index) => run(index)));
+    for (const f of fixtures) {
+      expect(f.create).toHaveBeenCalledTimes(1);
+      expect(f.deps.finalize).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
 describe('durable reuse of existing catalog generator', () => {
   it('keeps the bounded missing-settings reason so the form can offer the settings repair', async () => {
     const f = fixture(false);
