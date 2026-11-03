@@ -41,11 +41,11 @@ async function workspace() {
   return dir;
 }
 
-async function sampleTree(root: string) {
+async function sampleTree(root: string, filename = 'відео.txt') {
   const payload = path.join(root, 'payload');
   await mkdir(path.join(payload, 'nested'), { recursive: true });
   await writeFile(path.join(payload, 'index.html'), '<!doctype html><h1>Soty</h1>');
-  await writeFile(path.join(payload, 'nested', 'відео.txt'), 'unicode name');
+  await writeFile(path.join(payload, 'nested', filename), 'unicode name');
   return payload;
 }
 
@@ -92,7 +92,7 @@ describe('zip round trip on the Windows branch', () => {
 describe('tar.gz handling, shared by both platforms', () => {
   it('lists and extracts a gzipped tarball', async () => {
     const root = await workspace();
-    const payload = await sampleTree(root);
+    const payload = await sampleTree(root, 'runtime-file.txt');
     const archive = path.join(root, 'payload.tar.gz');
     execFileSync(bsdtar, ['-czf', archive, '-C', path.dirname(payload), 'payload']);
 
@@ -105,6 +105,27 @@ describe('tar.gz handling, shared by both platforms', () => {
     expect(existsSync(path.join(destination, 'payload', 'index.html'))).toBe(true);
   });
 });
+
+// The Windows system tar crashes on Unicode creation even under an explicit UTF-8
+// locale. TAR helpers cover ASCII runtime inputs; user ZIP names use our Node
+// reader/writer above. Keep the broader native-TAR check visible on UTF-8 hosts.
+itRequiring(
+  requirePlatform('darwin', 'linux'),
+  'round trips Unicode TAR names on UTF-8 tar hosts',
+  async () => {
+    const root = await workspace();
+    const payload = await sampleTree(root);
+    const archive = path.join(root, 'unicode.tar.gz');
+    execFileSync(bsdtar, ['-czf', archive, '-C', path.dirname(payload), 'payload']);
+    expect(await listTarGzEntries(archive)).toContain('payload/nested/відео.txt');
+    const destination = path.join(root, 'unicode-out');
+    await mkdir(destination);
+    await extractTarGz(archive, destination);
+    expect(await readFile(path.join(destination, 'payload/nested/відео.txt'), 'utf8')).toBe(
+      'unicode name'
+    );
+  }
+);
 
 describe('zipDirectory on the current platform', () => {
   it('produces an archive the matching reader can list', async () => {

@@ -156,7 +156,8 @@ try {
   const result = spawnSync(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     [
-      'supabase',
+      '--yes',
+      'supabase@2.117.0',
       'test',
       'db',
       '--db-url',

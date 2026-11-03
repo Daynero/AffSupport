@@ -100,27 +100,6 @@ jobs:
       - run: npm ci
       - name: Install media test dependencies
         run: choco install ffmpeg --yes --no-progress
-      - name: Diagnose native tar Unicode locale
-        shell: pwsh
-        run: |
-          @'
-          import fs from 'node:fs';
-          import os from 'node:os';
-          import path from 'node:path';
-          import { spawnSync } from 'node:child_process';
-          const root = fs.mkdtempSync(path.join(os.tmpdir(), 'soty-tar-locale-'));
-          fs.mkdirSync(path.join(root, 'payload'));
-          fs.writeFileSync(path.join(root, 'payload', '\u0432\u0456\u0434\u0435\u043e.txt'), 'unicode');
-          const tar = path.join(process.env.SystemRoot, 'System32', 'tar.exe');
-          for (const locale of ['', 'C.UTF-8', 'en_US.UTF-8', '.UTF-8']) {
-            const env = { ...process.env, ...(locale ? { LANG: locale, LC_ALL: locale } : {}) };
-            const archive = path.join(root, 'test.tar.gz');
-            const created = spawnSync(tar, ['-czf', archive, '-C', root, 'payload'], { env, encoding: 'utf8' });
-            const listed = created.status === 0 ? spawnSync(tar, ['-tzf', archive], { env, encoding: 'utf8' }) : null;
-            console.log(JSON.stringify({locale, created: created.status, stderr: created.stderr, listed: listed?.status, names: listed?.stdout}));
-          }
-          fs.rmSync(root, {recursive: true, force: true, maxRetries: 8, retryDelay: 40});
-          '@ | node --input-type=module
       - name: Diagnose native archive and release policy failures
         run: |
           npm run build -w @video-compressor/shared

@@ -285,7 +285,7 @@ export async function extractTarGz(archivePath: string, destination: string): Pr
 export async function listZipEntries(zipPath: string): Promise<string[]> {
   if (process.platform === 'win32') {
     const { entries } = await inspectZip(zipPath);
-    return entries.map(entry => entry.directory ? `${entry.path}/` : entry.path);
+    return entries.map(entry => (entry.directory ? `${entry.path}/` : entry.path));
   }
   const { stdout } = await promisify(execFile)(tarExecutable(), ['-tf', zipPath], {
     maxBuffer: 4 * 1024 * 1024

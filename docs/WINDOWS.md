@@ -216,3 +216,18 @@ Windows-комп'ютером. Станом на 2026-10-10 вони **не ви
 ### Результати пре-релізу
 
 _Ще не проводився._
+
+### Native archive verification (1.3.1)
+
+ZIP listing now uses the same bounded UTF-8 Node inspector as extraction, so
+Ukrainian filenames do not depend on the Windows system tar code page. The
+Windows round-trip regression checks these names explicitly. System tar is
+resolved from System32 rather than from a potentially Git-owned PATH entry.
+
+The native TAR helpers currently have no application callers. Their Windows
+verification covers ASCII runtime archives. On the Windows 2025 CI image,
+creating a TAR containing a Ukrainian filename crashes the system executable
+with exit status 3221225477 under the default locale and each tested UTF-8
+locale. Unicode TAR round trips remain an explicit POSIX-only requirement,
+not a claimed Windows pass. Do not connect user TAR uploads to these helpers
+without implementing and verifying a Unicode-safe Windows reader first.

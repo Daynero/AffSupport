@@ -43,10 +43,12 @@ beforeEach(() => {
   processMock.unref.mockReset();
   processMock.spawn.mockReset().mockReturnValue({ unref: processMock.unref });
   processMock.execFile.mockReset();
-  processMock.inspectZip.mockReset().mockResolvedValue({ entries: [
-    { path: 'llama-server.exe', directory: false },
-    { path: 'ggml.dll', directory: false }
-  ] });
+  processMock.inspectZip.mockReset().mockResolvedValue({
+    entries: [
+      { path: 'llama-server.exe', directory: false },
+      { path: 'ggml.dll', directory: false }
+    ]
+  });
 });
 
 afterEach(() => {
@@ -219,7 +221,8 @@ describe('listZipEntries', () => {
     processMock.execFile.mockClear();
     setPlatform('win32');
     await expect(listZipEntries('windows-fixture.zip')).resolves.toEqual([
-      'llama-server.exe', 'ggml.dll'
+      'llama-server.exe',
+      'ggml.dll'
     ]);
     expect(processMock.inspectZip).toHaveBeenCalledWith('windows-fixture.zip');
     expect(processMock.execFile).not.toHaveBeenCalled();
