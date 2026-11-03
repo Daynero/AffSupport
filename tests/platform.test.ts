@@ -207,12 +207,13 @@ describe('listZipEntries', () => {
     );
 
     setPlatform('win32');
+    vi.stubEnv('SystemRoot', 'C:\\Windows');
     await expect(listZipEntries('C:\\downloads\\llama.zip')).resolves.toEqual([
       'llama-server.exe',
       'ggml.dll'
     ]);
     expect(processMock.execFile).toHaveBeenLastCalledWith(
-      'tar.exe',
+      'C:\\Windows\\System32\\tar.exe',
       ['-tf', 'C:\\downloads\\llama.zip'],
       expect.objectContaining({ maxBuffer: expect.any(Number) }),
       expect.any(Function)

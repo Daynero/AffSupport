@@ -254,12 +254,13 @@ function openPath(target: string): void {
 
 /**
  * System tar: the absolute macOS path the agent always used, `tar.exe`
- * (bsdtar, bundled since Windows 10 1803) on PATH elsewhere.
+ * (bsdtar, bundled since Windows 10 1803) from System32 on Windows.
+ * A Git-provided GNU tar on PATH treats drive letters as remote host names.
  */
 function tarExecutable(): string {
   if (process.platform === 'darwin') return '/usr/bin/tar';
   if (process.platform === 'linux') return 'bsdtar';
-  return executableName('tar');
+  return path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
 }
 
 /** Lists the entry names of a gzipped tarball (used for layout validation). */

@@ -21,7 +21,11 @@ import { itRequiring, requirePlatform } from './support/requires.js';
  * bsdtar remains the shared system reader for listing ZIP and tar.gz entries.
  */
 const bsdtar =
-  process.platform === 'darwin' ? '/usr/bin/tar' : process.platform === 'linux' ? 'bsdtar' : 'tar';
+  process.platform === 'darwin'
+    ? '/usr/bin/tar'
+    : process.platform === 'linux'
+      ? 'bsdtar'
+      : path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
 const realPlatform = process.platform;
 
 const temporary: string[] = [];

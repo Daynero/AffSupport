@@ -146,19 +146,22 @@ describe('web-only exact beta UI and live readback', () => {
 });
 
 describe('one local web release writer', () => {
-  it('rejects a second writer, permits only the owning child, and releases in order', async () => {
-    const dir = await temporary();
-    const lock = await acquireWebReleaseLock({ root: dir, owner: 'test' });
-    try {
-      await expect(acquireWebReleaseLock({ root: dir, owner: 'second' })).rejects.toThrow('BUSY');
-      await expect(assertWebReleaseUnlocked(dir)).rejects.toThrow('BUSY');
-      await expect(assertWebReleaseUnlocked(dir, 'not-the-token')).rejects.toThrow('BUSY');
-      await expect(assertWebReleaseUnlocked(dir, lock.token)).resolves.toBeUndefined();
-    } finally {
-      await lock.release();
+  itPosix(
+    'rejects a second writer, permits only the owning child, and releases in order',
+    async () => {
+      const dir = await temporary();
+      const lock = await acquireWebReleaseLock({ root: dir, owner: 'test' });
+      try {
+        await expect(acquireWebReleaseLock({ root: dir, owner: 'second' })).rejects.toThrow('BUSY');
+        await expect(assertWebReleaseUnlocked(dir)).rejects.toThrow('BUSY');
+        await expect(assertWebReleaseUnlocked(dir, 'not-the-token')).rejects.toThrow('BUSY');
+        await expect(assertWebReleaseUnlocked(dir, lock.token)).resolves.toBeUndefined();
+      } finally {
+        await lock.release();
+      }
+      await expect(assertWebReleaseUnlocked(dir)).resolves.toBeUndefined();
     }
-    await expect(assertWebReleaseUnlocked(dir)).resolves.toBeUndefined();
-  });
+  );
 });
 
 describe('packaged runtime process ownership', () => {
@@ -214,7 +217,7 @@ describe('production candidate configuration', () => {
 });
 
 describe('shared unresolved-publication fence', () => {
-  it('blocks full deployment and rollback writers until explicit reconciliation', async () => {
+  itPosix('blocks full deployment and rollback writers until explicit reconciliation', async () => {
     const root = await temporary();
     const owner = await acquireWebReleaseLock({ root, owner: 'publisher' });
     await writeFile(

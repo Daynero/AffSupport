@@ -1,3 +1,4 @@
+import './support/native-stub-spawn.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import os from 'node:os';

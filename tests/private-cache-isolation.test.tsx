@@ -234,3 +234,57 @@ it('continues a note write lane after failure and does not serialize unrelated n
   expect(await second).toBe('second');
   expect(client.setMaterialNote).toHaveBeenCalledTimes(3);
 });
+
+it('bounds pending note reads and ignores a transport result from an evicted note', async () => {
+  setPrivateCacheScope('bounded-note-reads', 'view');
+  const reads = new Map<string, ReturnType<typeof deferred<string | null>>>();
+  const signals = new Map<string, AbortSignal>();
+  const client = {
+    getMaterialNote: vi.fn((_team: string, file: string, options?: { signal?: AbortSignal }) => {
+      const read = deferred<string | null>();
+      reads.set(file, read);
+      if (options?.signal) signals.set(file, options.signal);
+      return read.promise;
+    }),
+    setMaterialNote: vi.fn(async (_team: string, _file: string, note: string) => note)
+  };
+  const first = renderHook(() => useMaterialNote('team', 'bounded-0', { client }));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(signals.has('bounded-0')).toBe(true);
+  const views = [
+    first,
+    ...Array.from({ length: 200 }, (_, index) =>
+      renderHook(() => useMaterialNote('team', `bounded-${index + 1}`, { client }))
+    )
+  ];
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(signals.get('bounded-0')?.aborted).toBe(true);
+  await act(async () => {
+    for (const [file, read] of reads) read.resolve(file === 'bounded-0' ? 'obsolete' : 'current');
+    await Promise.resolve();
+  });
+  expect(views[0].result.current).toEqual({ state: 'loading' });
+  expect(views[200].result.current).toEqual({ state: 'ready', note: 'current' });
+  for (const view of views) view.unmount();
+});
+
+it('evicts old confirmed notes and reads their current server value when revisited', async () => {
+  setPrivateCacheScope('bounded-confirmed-notes', 'view');
+  const client = {
+    getMaterialNote: vi.fn(async () => 'server-current'),
+    setMaterialNote: vi.fn(async (_team: string, _file: string, note: string) => note)
+  };
+  for (let index = 0; index < 201; index += 1)
+    await saveMaterialNote('team', `confirmed-${index}`, 'cached', client);
+  const view = renderHook(() => useMaterialNote('team', 'confirmed-0', { client }));
+  expect(view.result.current.state).toBe('loading');
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(view.result.current).toEqual({ state: 'ready', note: 'server-current' });
+  expect(client.getMaterialNote).toHaveBeenCalledTimes(1);
+});

@@ -31,7 +31,7 @@ it('prefers the writable VAD model over the bundled copy', () => {
 });
 
 it('falls back to bundled VAD and explicitly reports absence when neither file exists', () => {
-  filesystem.exists.mockImplementation(file => String(file).includes('/runtime/models/'));
+  filesystem.exists.mockImplementation(file => /[/\\]runtime[/\\]models[/\\]/u.test(String(file)));
   expect(whisperVadModelPathOrNull()).toMatch(/runtime[/\\]models[/\\]ggml-silero-v5\.1\.2\.bin$/);
   filesystem.exists.mockReturnValue(false);
   expect(whisperVadModelPathOrNull()).toBeNull();

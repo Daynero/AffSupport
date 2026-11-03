@@ -119,3 +119,28 @@ it('handles an immediately rejected transport without an orphan rejection', asyn
     'immediate-provider-rejection'
   );
 });
+
+it('evicts the oldest pending tile without allowing its late grant to replace a retry', async () => {
+  let finish: (value: TeamPreviewResult) => void = () => {};
+  const fetcher = vi.fn(
+    () =>
+      new Promise<TeamPreviewResult>(resolve => {
+        finish = resolve;
+      })
+  );
+  const oldest = cachedPreview(fetcher, TEAM_ID, 'oldest', 'media');
+  const oldResult = oldest.catch(error => error);
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+  const newer = Array.from({ length: 200 }, (_, index) =>
+    cachedPreview(async () => media(600_000), TEAM_ID, `new-${index}`, 'media')
+  );
+  const result = await oldResult;
+  expect(result.name).toBe('AbortError');
+  finish(media(600_000, 'https://example.test/obsolete'));
+  await Promise.all(newer);
+  const fresh = vi.fn(async () => media(600_000, 'https://example.test/current'));
+  await expect(cachedPreview(fresh, TEAM_ID, 'oldest', 'media', fetcher)).resolves.toMatchObject({
+    rangeUrl: 'https://example.test/current'
+  });
+  expect(fresh).toHaveBeenCalledTimes(1);
+});
