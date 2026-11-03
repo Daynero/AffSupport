@@ -7,12 +7,18 @@ import type { ChildProcess } from 'node:child_process';
 const processMock = vi.hoisted(() => ({
   unref: vi.fn(),
   spawn: vi.fn(),
-  execFile: vi.fn()
+  execFile: vi.fn(),
+  inspectZip: vi.fn()
 }));
 
 vi.mock('node:child_process', () => ({
   spawn: processMock.spawn,
   execFile: processMock.execFile
+}));
+
+vi.mock('../apps/agent/src/platform/zip.js', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apps/agent/src/platform/zip.js')>()),
+  inspectZip: processMock.inspectZip
 }));
 
 import {
@@ -37,6 +43,10 @@ beforeEach(() => {
   processMock.unref.mockReset();
   processMock.spawn.mockReset().mockReturnValue({ unref: processMock.unref });
   processMock.execFile.mockReset();
+  processMock.inspectZip.mockReset().mockResolvedValue({ entries: [
+    { path: 'llama-server.exe', directory: false },
+    { path: 'ggml.dll', directory: false }
+  ] });
 });
 
 afterEach(() => {
@@ -206,18 +216,13 @@ describe('listZipEntries', () => {
       expect.any(Function)
     );
 
+    processMock.execFile.mockClear();
     setPlatform('win32');
-    vi.stubEnv('SystemRoot', 'C:\\Windows');
-    await expect(listZipEntries('C:\\downloads\\llama.zip')).resolves.toEqual([
-      'llama-server.exe',
-      'ggml.dll'
+    await expect(listZipEntries('windows-fixture.zip')).resolves.toEqual([
+      'llama-server.exe', 'ggml.dll'
     ]);
-    expect(processMock.execFile).toHaveBeenLastCalledWith(
-      'C:\\Windows\\System32\\tar.exe',
-      ['-tf', 'C:\\downloads\\llama.zip'],
-      expect.objectContaining({ maxBuffer: expect.any(Number) }),
-      expect.any(Function)
-    );
+    expect(processMock.inspectZip).toHaveBeenCalledWith('windows-fixture.zip');
+    expect(processMock.execFile).not.toHaveBeenCalled();
   });
 });
 

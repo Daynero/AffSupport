@@ -3,7 +3,7 @@ import { existsSync, statSync, type Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { extractZipSafely, writeZipDirectory } from './zip.js';
+import { extractZipSafely, inspectZip, writeZipDirectory } from './zip.js';
 import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /**
@@ -279,9 +279,14 @@ export async function extractTarGz(archivePath: string, destination: string): Pr
 /**
  * Lists the entry names of a ZIP archive (used for layout validation before
  * unzipArchive). bsdtar reads zip natively, and both supported desktop
- * platforms ship bsdtar: /usr/bin/tar on macOS, tar.exe on Windows 10 1803+.
+ * Windows reuses the validated UTF-8 ZIP reader rather than a code-page-dependent
+ * system tool. macOS and Linux retain their existing bsdtar reader.
  */
 export async function listZipEntries(zipPath: string): Promise<string[]> {
+  if (process.platform === 'win32') {
+    const { entries } = await inspectZip(zipPath);
+    return entries.map(entry => entry.directory ? `${entry.path}/` : entry.path);
+  }
   const { stdout } = await promisify(execFile)(tarExecutable(), ['-tf', zipPath], {
     maxBuffer: 4 * 1024 * 1024
   });

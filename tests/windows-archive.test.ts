@@ -63,6 +63,7 @@ describe('zip round trip on the Windows branch', () => {
     expect(entries.length).toBeGreaterThan(0);
     for (const entry of entries) expect(entry.startsWith('payload')).toBe(true);
     expect(entries.some(entry => entry.includes('index.html'))).toBe(true);
+    expect(entries.some(entry => entry.includes('відео.txt'))).toBe(true);
   });
 
   it('extracts the archive back to identical contents, unicode names included', async () => {

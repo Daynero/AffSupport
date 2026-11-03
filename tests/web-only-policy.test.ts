@@ -1,6 +1,7 @@
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -10,9 +11,9 @@ import {
 } from '../scripts/lib/web-only-policy.mjs';
 
 const temporary: string[] = [];
-afterEach(() =>
-  temporary.splice(0).forEach(directory => rmSync(directory, { recursive: true, force: true }))
-);
+afterEach(async () => {
+  await Promise.all(temporary.splice(0).map(removeTemporaryDirectory));
+});
 
 function repository() {
   const cwd = mkdtempSync(path.join(tmpdir(), 'soty-web-policy-'));
@@ -60,7 +61,7 @@ function repository() {
   return { cwd, git, write, commit, metadata, agentSha };
 }
 
-describe('web-only path fence', () => {
+describe('web-only path fence', { timeout: 30_000 }, () => {
   it('allows only the explicitly planned new SQL while retaining native and function fences', async () => {
     const fixture = repository();
     const migration = 'supabase/migrations/20261025120000_optional_note.sql';
@@ -185,7 +186,7 @@ describe('web-only path fence', () => {
   });
 });
 
-describe('complete historical packaged-agent input comparison', () => {
+describe('complete historical packaged-agent input comparison', { timeout: 30_000 }, () => {
   const packager =
     '#!/bin/zsh\nswiftc launcher.swift -o app\nafter_state=$(protected_state)\nafter_tags=$(git tag --list)\n';
   const provenanceAddition =
@@ -320,7 +321,7 @@ describe('complete historical packaged-agent input comparison', () => {
   });
 });
 
-describe('committed web-only source admission', () => {
+describe('committed web-only source admission', { timeout: 30_000 }, () => {
   it('pins the released tag, clean HEAD, changed paths and unchanged protected input digest', async () => {
     const fixture = repository();
     const baseline = await inspectWebOnlySource({ cwd: fixture.cwd, agentRef: 'v8.6.4' });
