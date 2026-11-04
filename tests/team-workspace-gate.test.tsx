@@ -97,9 +97,11 @@ describe('team workspace access (034 — the showcase replaces the waiting-list 
     expect(await screen.findByRole('heading', { name: 'Your workspace' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Workspace in development' })).toBeNull();
     expect(screen.getAllByRole('radio')).toHaveLength(2);
-    expect(track).toHaveBeenCalledWith('space_showcase_viewed', {
-      screen_identifier: 'space_showcase'
-    });
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith('space_showcase_viewed', {
+        screen_identifier: 'space_showcase'
+      })
+    );
     expect(
       track.mock.calls.some(
         ([event, properties]) =>

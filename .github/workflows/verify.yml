@@ -102,7 +102,7 @@ jobs:
       - name: Verify native Windows contracts
         run: |
           npm run build -w @video-compressor/shared
-          npx vitest run tests/directory-intake.test.ts tests/directory-intake-canonical-path.test.ts tests/path-grants.test.ts tests/windows-picker.test.ts tests/analytics-coverage-registry.test.ts tests/release-runner-cli.test.ts tests/agent-diagnostics-log.test.ts tests/auth-session-mutation-contract.test.ts tests/team-explorer-grid.test.tsx tests/acceptance-fault-worker.test.ts tests/web-rollback-safety.test.ts tests/landing-workspace-output.test.ts --maxWorkers=1 --no-file-parallelism --reporter=verbose --reporter=json --outputFile.json=directory-targeted.json
+          npx vitest run tests/directory-intake.test.ts tests/directory-intake-canonical-path.test.ts tests/path-grants.test.ts tests/windows-picker.test.ts tests/analytics-coverage-registry.test.ts tests/release-runner-cli.test.ts tests/agent-diagnostics-log.test.ts tests/auth-session-mutation-contract.test.ts tests/team-explorer-grid.test.tsx tests/acceptance-fault-worker.test.ts tests/web-rollback-safety.test.ts tests/landing-workspace-output.test.ts tests/team-workspace-gate.test.tsx --maxWorkers=1 --no-file-parallelism --reporter=verbose --reporter=json --outputFile.json=directory-targeted.json
       - name: Install media test dependencies
         run: choco install ffmpeg --yes --no-progress
       # The whole suite, not a hand-maintained list of files. Tests that cannot
