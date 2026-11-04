@@ -18,6 +18,7 @@ import { outputDigest, readWebFile } from '../scripts/release-web-meta.mjs';
 import { rollbackWeb } from '../scripts/rollback-web.mjs';
 import { acquireWebReleaseLock } from '../scripts/lib/web-only-lock.mjs';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 const directories: string[] = [];
 async function temporaryBundle() {
@@ -184,7 +185,9 @@ async function rollbackFixture() {
   };
 }
 
-describe('explicit rollback orchestration', () => {
+// Release-host orchestration uses POSIX directory fsync in its durable lock.
+// Signature, archive and path guards above remain exercised on every platform.
+describeRequiring(requirePlatform('darwin', 'linux'), 'explicit rollback orchestration', () => {
   it('does not upload or change deployment history during a dry run', async () => {
     const fixture = await rollbackFixture();
     const result = await rollbackWeb(fixture);
