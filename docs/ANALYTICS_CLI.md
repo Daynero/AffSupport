@@ -680,3 +680,22 @@ attempts recorded after the catalog performance migration. It contains `attempt`
 one boundary contains another, and exclude the final checkpoint acknowledgement.
 Missing or mismatched-attempt receipts return null, never zero. Pre-acceptance work,
 transition history and browser delivery remain unobserved. No URL/content is projected.
+
+### Bulk trash failure sources
+
+For `journey <email> --json` and `inspect <flow-id> --json`, workspace bulk-trash
+stage events with `action_identifier=diagnostic` carry a closed `source_kind`:
+`trash_refresh` (initial receipt read), `trash_prepare` (hosted retry preparation),
+`trash_mark_request` (request marker), `trash_request` (file-operation call),
+`trash_reconcile` (receipt readback), `trash_overlap` (selection already in flight),
+and `trash_start` (group acceptance). `error_code` is sanitized and
+`error_fingerprint=workspace:receipt` supplies the code locations. These signals
+retain group flow/attempt correlation, not file names or provider payloads.
+
+A diagnostic has unknown outcome and does not close the group. A repeated click
+rejected with WRONG_STATE can coexist with an earlier accepted partial deletion;
+inspect both flows. NOT_FOUND or PERMISSION_DENIED on a call does not prove no
+provider mutation occurred. Inspect authoritative receipts before retrying.
+Historical signals without source_kind cannot reconstruct the failure source;
+trash_request does not distinguish internal Drive substeps or swallowed companion
+cleanup errors. Beta analytics remains disabled.

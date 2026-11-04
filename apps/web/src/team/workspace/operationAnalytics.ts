@@ -2,6 +2,14 @@ import type { TeamErrorCode } from '@video-compressor/shared';
 import { teamErrorCodeOf } from '../errors';
 import { analytics } from '../../analytics/service';
 export type WorkspaceAction = 'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash';
+export type WorkspaceDiagnosticSource =
+  | 'trash_refresh'
+  | 'trash_prepare'
+  | 'trash_mark_request'
+  | 'trash_request'
+  | 'trash_reconcile'
+  | 'trash_overlap'
+  | 'trash_start';
 export type WorkspaceStage =
   | 'requested'
   | 'accepted'
@@ -54,6 +62,20 @@ export function beginWorkspaceOperation(
     observing ? 'accepted' : 'requested'
   );
   return {
+    diagnostic(source: WorkspaceDiagnosticSource, cause: unknown) {
+      if (settled) return;
+      try {
+        tracker.track('operation_stage_completed', {
+          ...base,
+          source_kind: source,
+          error_fingerprint: 'workspace:receipt',
+          action_identifier: 'diagnostic',
+          error_code: teamErrorCodeOf(cause) ?? 'UNKNOWN'
+        });
+      } catch {
+        /* Diagnostics cannot change a file operation. */
+      }
+    },
     receipt(id: string) {
       if (!settled && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(id)) {
         receiptId = id;

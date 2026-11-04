@@ -2700,7 +2700,7 @@ function inferCapability(rows: JourneyRow[]): Capability | null {
     // Prefer a tool-specific capability when the rows carry that tool.
     const toolBonus =
       capability.toolColumn && matching.some(row => row.tool === capability.toolColumn) ? 1 : 0;
-    const discriminatorBonus = signals.some(signal => signal.flowStep) ? 2 : 0;
+    const discriminatorBonus = signals.some(signal => signal.flowStep) ? rows.length * 2 + 2 : 0;
     const score = matching.length * 2 + toolBonus + discriminatorBonus;
     if (!best || score > best.score) best = { capability, score };
   }
@@ -2717,6 +2717,12 @@ export function isoUtc(value: string | null | undefined): string | null {
 function outcomeOf(row: JourneyRow): string {
   const props = row.properties ?? {};
   if (typeof props.outcome === 'string') return props.outcome;
+  if (
+    row.event_name === 'operation_stage_completed' &&
+    typeof props.flow_step === 'string' &&
+    props.flow_step.startsWith('workspace_')
+  )
+    return 'unknown';
   if (row.event_name.endsWith('_completed')) return 'success';
   if (row.event_name.endsWith('_failed')) return 'failure';
   if (row.event_name.endsWith('_cancelled')) return 'cancelled';

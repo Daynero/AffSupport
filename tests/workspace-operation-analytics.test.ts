@@ -74,3 +74,22 @@ it('rejects coerced or malformed hosted receipt fields at the shared boundary', 
   expect(isTaskCleanupReceipt({ ...receipt, reason: ['cleanup_pending'] })).toBe(false);
   expect(isTaskCleanupReceipt({ ...receipt, id: '-'.repeat(36) })).toBe(false);
 });
+
+it('records a bounded item failure source without claiming a terminal group outcome', () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const flow = beginWorkspaceOperation('bulk_trash', crypto.randomUUID(), 59);
+  flow.diagnostic('trash_prepare', { code: 'NOT_FOUND' });
+  flow.diagnostic('trash_request', new Error('private provider payload'));
+  flow.visible();
+  expect(track.mock.calls[1]![1]).toMatchObject({
+    source_kind: 'trash_prepare',
+    error_code: 'NOT_FOUND',
+    action_identifier: 'diagnostic'
+  });
+  expect(track.mock.calls[2]![1]).toMatchObject({
+    source_kind: 'trash_request',
+    error_code: 'UNKNOWN'
+  });
+  expect(JSON.stringify(track.mock.calls)).not.toContain('private provider payload');
+  expect(track.mock.calls.at(-1)![0]).toBe('operation_completed');
+});

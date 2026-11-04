@@ -194,3 +194,18 @@ describe('inspect · not found', () => {
     await expect(executeCommand(parseArgs(['inspect']))).rejects.toThrow(/Usage: inspect/);
   });
 });
+
+it('does not misclassify a partial bulk trash flow with many stage events as stitcher input', async () => {
+  const flow = '30000000-0000-4000-8000-000000000059';
+  for (const event of ['operation_started', ...Array(8).fill('operation_stage_completed')]) {
+    await db.exec(
+      `insert into public.analytics_events (user_id,event_name,flow_id,properties,occurred_at,created_at) values ('${ALICE}','${event}','${flow}','{"flow_step":"workspace_bulk_trash","source_kind":"trash_prepare","error_code":"NOT_FOUND","action_identifier":"unknown","item_count":59}','2026-10-06T09:00:00Z','2026-10-06T09:00:01Z')`
+    );
+  }
+  const result = await getInspect(flow);
+  expect(result.found).toBe(true);
+  if (!result.found) throw new Error('Expected the bulk trash flow to exist');
+  expect(result.capability).toBe('team.workspace_bulk_trash');
+  expect(result.terminal?.outcome).not.toBe('success');
+  expect(result.events.some(event => event.properties.source_kind === 'trash_prepare')).toBe(true);
+});

@@ -180,6 +180,15 @@ it.each(['queued', 'unknown'] as const)(
       errorCode: 'PERMISSION_DENIED',
       idempotencyKey: 'unchanged-key'
     });
+    expect(
+      track.mock.calls.some(
+        ([, properties]) =>
+          properties &&
+          'source_kind' in properties &&
+          properties.source_kind === 'trash_request' &&
+          properties.error_code === 'PERMISSION_DENIED'
+      )
+    ).toBe(true);
     expect(tail.trashMaterial).toHaveBeenCalledWith(
       expect.objectContaining({ idempotencyKey: 'unchanged-key' })
     );

@@ -8,7 +8,11 @@ import type {
   TeamMaterialRow,
   TeamErrorCode
 } from '@video-compressor/shared';
-import { beginWorkspaceOperation, type WorkspaceStage } from '../workspace/operationAnalytics';
+import {
+  beginWorkspaceOperation,
+  type WorkspaceStage,
+  type WorkspaceDiagnosticSource
+} from '../workspace/operationAnalytics';
 import { teamApi, TeamApiError } from '../../api/team';
 import { trashMaterialWithTail, type TrashTailClient } from '../materials/tail';
 
@@ -145,6 +149,7 @@ export function useBulkTrash(
               let item: BulkTrashItem | undefined = pending[index++];
               if (!item) continue;
               const row = rows.find(candidate => candidate.id === item?.materialId);
+              let source: WorkspaceDiagnosticSource = 'trash_prepare';
               try {
                 const prepared = await client.prepareBulkTrashItem(
                   teamId,
@@ -153,7 +158,9 @@ export function useBulkTrash(
                 );
                 item = prepared.items.find(candidate => candidate.materialId === item?.materialId);
                 if (!item || item.state === 'confirmed' || item.state === 'running') continue;
+                source = 'trash_mark_request';
                 await client.markBulkTrashRequest(teamId, group.id, item.materialId);
+                source = 'trash_request';
                 await trashMaterialWithTail({
                   teamId,
                   material: {
@@ -166,6 +173,7 @@ export function useBulkTrash(
                 });
               } catch (cause) {
                 if (currentTeam.current !== teamId || current !== generation.current) return;
+                observed.current.get(group.id)?.diagnostic(source, cause);
                 const code = teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE';
                 // A request failure does not establish a server failure. Reconcile its exact receipt.
                 if (item)
@@ -176,11 +184,16 @@ export function useBulkTrash(
               if (currentTeam.current !== teamId || current !== generation.current) return;
               await refresh().catch(cause => {
                 if (currentTeam.current !== teamId || current !== generation.current) return;
+                observed.current.get(group.id)?.diagnostic('trash_reconcile', cause);
                 reportStage(group.id, 'unknown', teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE');
               });
             }
           })
         );
+      } catch (cause) {
+        if (current === generation.current)
+          observed.current.get(group.id)?.diagnostic('trash_refresh', cause);
+        throw cause;
       } finally {
         if (current === generation.current) active.current.delete(group.id);
       }
@@ -197,6 +210,7 @@ export function useBulkTrash(
       const groupId = crypto.randomUUID();
       const flow = beginWorkspaceOperation('bulk_trash', groupId, rows.length);
       observed.current.set(groupId, flow);
+      let source: WorkspaceDiagnosticSource = 'trash_refresh';
       try {
         const existing = await refresh();
         if (current !== generation.current || currentTeam.current !== teamId)
@@ -208,7 +222,9 @@ export function useBulkTrash(
               .map(item => item.materialId)
           )
         );
+        source = 'trash_overlap';
         if (rows.some(row => busy.has(row.id))) throw new TeamApiError('WRONG_STATE', true);
+        source = 'trash_start';
         const group = await client.startBulkTrash(
           teamId,
           groupId,
@@ -217,13 +233,17 @@ export function useBulkTrash(
         if (current !== generation.current || currentTeam.current !== teamId)
           throw new DOMException('Bulk trash scope ended', 'AbortError');
         flow.stage('accepted');
+        source = 'trash_reconcile';
         await refresh();
         void execute(group, rows, tailClient).catch(() => {
           if (current === generation.current) setUncertain(true);
         });
         return group;
       } catch (cause) {
-        if (current === generation.current) flow.fail(cause);
+        if (current === generation.current) {
+          flow.diagnostic(source, cause);
+          flow.fail(cause);
+        }
         throw cause;
       } finally {
         if (current === generation.current && starting.current === teamId) starting.current = null;

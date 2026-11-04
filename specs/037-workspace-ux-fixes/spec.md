@@ -177,3 +177,28 @@ Scope, вимоги й acceptance тепер визначає [038 — Єдин�
 ## Reconciliation 2026-10-20
 
 The workspace model has no timezone field. Task date filtering already contracts browser civil days and sends explicit UTC bounds plus civil dates to SQL. This feature preserves that established contract; introducing a persisted workspace timezone is outside 037. Layout changes, quiet history chips and the catalog label already existed and were reverified rather than reimplemented. Accounts/finance remain in 038. Code completion is distinct from the packaged/macOS/Windows acceptance evidence recorded in quickstart.md.
+
+### Bulk trash incident diagnostics (2026-11-04)
+
+A partial 59-item deletion on web 1.3.1 produced NOT_FOUND, followed by an overlapping
+request rejected with WRONG_STATE and later unknown PERMISSION_DENIED. The retained
+historical group events do not establish the per-item provider cause or how many
+files were actually trashed. Do not interpret NOT_FOUND as deletion success or
+replay an unknown write with a new key.
+
+Acceptance: correlated workspace stage diagnostics use the closed `source_kind`
+values `trash_refresh`, `trash_prepare`, `trash_mark_request`, `trash_request`,
+`trash_reconcile`, `trash_overlap`, and `trash_start`, with closed error codes and
+`action_identifier=diagnostic`. No terminal outcome is emitted; the CLI reports
+these stages as unknown. They retain the group flow and
+attempt IDs without collecting names, paths, credentials or provider payloads.
+A diagnostic is not a terminal group state. Receipt reads and visible completion
+remain independent. `inspect` must prefer explicit workspace flow discriminators
+over generic stage event matches and must not label a partial stage as success.
+
+Limits: `trash_request` identifies the browser's file-operation call, not the
+specific internal server/Drive substep; companion failures historically swallowed
+by the tail helper remain unobserved. Interrupted or disabled analytics and old
+signals without source_kind remain unknown. After release, confirm with a fresh
+investigate/journey and inspect of the affected group; a passing local test does
+not establish user recovery.

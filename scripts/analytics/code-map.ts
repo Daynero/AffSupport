@@ -1374,7 +1374,7 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'apps/web/src/team/explorer/useBulkTrash.ts'
     ],
     check:
-      'Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals become failed only while the operation remains pending without a lifecycle intent. An advanced or previously unknown write retains reconciliation. A refusal before Soty authorization has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
+      'For bulk trash inspect source_kind: trash_prepare (hosted retry preparation), trash_mark_request (request marker), trash_request (file-operation call including companion cleanup), trash_reconcile (receipt read), trash_refresh (initial read), trash_overlap (existing in-flight selection), trash_start (group acceptance). A call error cannot prove provider nonexecution. Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals become failed only while the operation remains pending without a lifecycle intent. An advanced or previously unknown write retains reconciliation. A refusal before Soty authorization has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
   },
   ...Object.fromEntries(
     RECOVERY_REASONS.map(reason => [
