@@ -552,6 +552,7 @@ describe('investigate · (e) a user with no events', () => {
       'workspace_evidence_gap',
       'workspace_evidence_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
     ]);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
@@ -598,6 +599,11 @@ describe('investigate · (e) a user with no events', () => {
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Intermediate transition timings')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining(
+          'Missing native-write acknowledgement is not proof that an uncertain provider write did not apply.'
+        )
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Restricted catalog generation view is unavailable')

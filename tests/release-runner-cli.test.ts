@@ -114,8 +114,14 @@ describe('release runner CLI', () => {
         ],
         {
           cwd: process.cwd(),
-          // No probe and no bridge are configured on this machine.
-          env: { ...process.env, SOTY_RELEASE_RUNNER_DIR: directory },
+          // Exercise an unconfigured installation even on the release host.
+          env: {
+            ...process.env,
+            SOTY_RELEASE_RUNNER_DIR: directory,
+            SOTY_RELEASE_PROBE: '',
+            SOTY_RELEASE_PROBE_DIGEST: '',
+            SOTY_RELEASE_BRIDGE_CONFIG: ''
+          },
           encoding: 'utf8'
         }
       );

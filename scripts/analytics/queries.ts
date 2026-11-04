@@ -225,6 +225,8 @@ export const QUERY_EVENT_NAMES: readonly string[] = Object.freeze(
 
 /** Events `audit` reads to detect emission; they are probes, never metrics. */
 export const AUDIT_PROBE_EVENT_NAMES: readonly string[] = Object.freeze([
+  // Workspace inspection observes partial stages without counting them as terminal outcomes.
+  'operation_stage_completed',
   // Assignment inspection observes explicit intent/acceptance without treating it as generation completion.
   'team_launch_intent',
   'team_launch_action',
