@@ -36,45 +36,49 @@ describe('release runner CLI', () => {
     }
   });
 
-  itPosix('separates accepted, waiting, blocked and cancelled in its exit codes', async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'release-cli-exit-'));
-    const intentPath = path.join(directory, 'intent.json');
-    await writeFile(intentPath, JSON.stringify(sandboxIntent));
-    const env = { ...process.env, SOTY_RELEASE_RUNNER_DIR: directory };
-    const run = (...args: string[]) =>
-      spawnSync(process.execPath, ['scripts/release-runner.mjs', ...args], {
-        cwd: process.cwd(),
-        env,
-        encoding: 'utf8'
-      });
-    try {
-      expect(run('start', '--intent', intentPath).status).toBe(0);
+  itPosix(
+    'separates accepted, waiting, blocked and cancelled in its exit codes',
+    async () => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'release-cli-exit-'));
+      const intentPath = path.join(directory, 'intent.json');
+      await writeFile(intentPath, JSON.stringify(sandboxIntent));
+      const env = { ...process.env, SOTY_RELEASE_RUNNER_DIR: directory };
+      const run = (...args: string[]) =>
+        spawnSync(process.execPath, ['scripts/release-runner.mjs', ...args], {
+          cwd: process.cwd(),
+          env,
+          encoding: 'utf8'
+        });
+      try {
+        expect(run('start', '--intent', intentPath).status).toBe(0);
 
-      // A queued run is active, not finished and not broken.
-      const report = run('report', sandboxIntent.runId, '--json');
-      expect(report.status).toBe(3);
-      expect(JSON.parse(report.stdout)).toMatchObject({
-        ok: true,
-        data: {
-          phase: 'preflight',
-          remainingSteps: expect.arrayContaining(['publish']),
-          publicationState: 'none',
-          metrics: { handoffs: 0, modelTokens: null }
-        }
-      });
-      // status only claims the snapshot is readable.
-      expect(run('status', sandboxIntent.runId).status).toBe(0);
+        // A queued run is active, not finished and not broken.
+        const report = run('report', sandboxIntent.runId, '--json');
+        expect(report.status).toBe(3);
+        expect(JSON.parse(report.stdout)).toMatchObject({
+          ok: true,
+          data: {
+            phase: 'preflight',
+            remainingSteps: expect.arrayContaining(['publish']),
+            publicationState: 'none',
+            metrics: { handoffs: 0, modelTokens: null }
+          }
+        });
+        // status only claims the snapshot is readable.
+        expect(run('status', sandboxIntent.runId).status).toBe(0);
 
-      expect(run('cancel', sandboxIntent.runId).status).toBe(4);
-      expect(run('report', sandboxIntent.runId).status).toBe(4);
+        expect(run('cancel', sandboxIntent.runId).status).toBe(4);
+        expect(run('report', sandboxIntent.runId).status).toBe(4);
 
-      // Invalid input is a category of its own, never a blocked release.
-      expect(run('start', '--intent', path.join(directory, 'absent.json')).status).toBe(2);
-      expect(run('nonsense').status).toBe(2);
-    } finally {
-      await removeTemporaryDirectory(directory);
-    }
-  }, 30_000);
+        // Invalid input is a category of its own, never a blocked release.
+        expect(run('start', '--intent', path.join(directory, 'absent.json')).status).toBe(2);
+        expect(run('nonsense').status).toBe(2);
+      } finally {
+        await removeTemporaryDirectory(directory);
+      }
+    },
+    30_000
+  );
 
   it('reports installed prerequisites in preflight without doing heavy work', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'release-cli-preflight-'));
