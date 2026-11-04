@@ -496,6 +496,8 @@ describe('writers', () => {
   });
 
   it('picker: launch and a categorical exit, never the chosen path', async () => {
+    const windows = process.platform === 'win32';
+    const chosenPath = path.join(directory, 'Movies');
     const child = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
       stderr: EventEmitter;
@@ -504,25 +506,23 @@ describe('writers', () => {
     child.stderr = new EventEmitter();
     spawnControl.fake = () => {
       queueMicrotask(() => {
-        child.stdout.emit('data', '/Users/ada/Movies/\n');
+        child.stdout.emit('data', `${chosenPath}${windows ? '\r\n' : '/\n'}`);
         child.emit('close', 0);
       });
       return child;
     };
-    // The picker's own platform branch is the one exception to the platform rule; this
-    // machine is not Windows, so the osascript runner is what runs.
     const chosen = await selectOutputFolder();
-    expect(chosen).toBe('/Users/ada/Movies');
+    expect(chosen).toBe(chosenPath);
     expect(records('picker').map(record => [record.code, record.props])).toEqual([
-      ['launch', { kind: 'output_folder', platform: 'macos' }],
+      ['launch', { kind: 'output_folder', platform: windows ? 'windows' : 'macos' }],
       ['exit', { kind: 'output_folder', outcome: 'chosen', chosen: 1 }]
     ]);
     expect(JSON.stringify(journal.since(0))).not.toContain('Movies');
 
     spawnControl.fake = () => {
       queueMicrotask(() => {
-        child.stderr.emit('data', 'execution error: User canceled. (-128)');
-        child.emit('close', 1);
+        if (!windows) child.stderr.emit('data', 'execution error: User canceled. (-128)');
+        child.emit('close', windows ? 0 : 1);
       });
       return child;
     };

@@ -19,6 +19,7 @@ const methods = new Set([
   'signInWithSSO',
   'signInWithWeb3'
 ]);
+const sessionMutationModule = join('apps', 'web', 'src', 'auth', 'session-mutations.ts');
 function files(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = join(directory, entry.name);
@@ -42,9 +43,7 @@ it('keeps every interactive SDK session mutation inside the shared session lane'
         if (
           methods.has(method) &&
           ((ts.isPropertyAccessExpression(owner) && owner.name.text === 'auth') ||
-            (file.endsWith('/auth/session-mutations.ts') &&
-              ts.isIdentifier(owner) &&
-              owner.text === 'auth'))
+            (file === sessionMutationModule && ts.isIdentifier(owner) && owner.text === 'auth'))
         ) {
           inspected++;
           let fenced = false;
@@ -53,7 +52,7 @@ it('keeps every interactive SDK session mutation inside the shared session lane'
               ts.isCallExpression(parent) &&
               ts.isIdentifier(parent.expression) &&
               (['mutateSession', 'runAuthSessionMutation'].includes(parent.expression.text) ||
-                (file.endsWith('/auth/session-mutations.ts') &&
+                (file === sessionMutationModule &&
                   parent.expression.text === 'withAuthSessionLane'))
             )
               fenced = true;

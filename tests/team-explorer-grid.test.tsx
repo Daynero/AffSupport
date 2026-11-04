@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FolderPage, TeamMaterialRow, ThumbnailSession } from '@video-compressor/shared';
 import { ExplorerProvider } from '../apps/web/src/team/explorer/ExplorerProvider';
@@ -220,7 +220,7 @@ describe('ContentGrid', () => {
     const client = makeClient([row(1)]);
     const { container } = renderGrid(client);
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy());
-    container.querySelector('img')!.dispatchEvent(new Event('error'));
+    fireEvent.error(container.querySelector('img')!);
     await waitFor(() => expect(container.querySelector('img')).toBeNull());
     expect(container.querySelector('.team-explorer-tile-icon')).toBeTruthy();
   });
