@@ -1,3 +1,5 @@
+import { itRequiring, requirePlatform } from './support/requires.js';
+const itPosix = itRequiring.bind(null, requirePlatform('darwin', 'linux'));
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { spawnSync } from 'node:child_process';
@@ -7,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { sandboxIntent } from './support/release-runner/fixtures';
 
 describe('release runner CLI', () => {
-  it('accepts a start durably and makes it visible to status', async () => {
+  itPosix('accepts a start durably and makes it visible to status', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'release-cli-'));
     const intentPath = path.join(directory, 'intent.json');
     await writeFile(intentPath, JSON.stringify(sandboxIntent));
@@ -34,7 +36,7 @@ describe('release runner CLI', () => {
     }
   });
 
-  it('separates accepted, waiting, blocked and cancelled in its exit codes', async () => {
+  itPosix('separates accepted, waiting, blocked and cancelled in its exit codes', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'release-cli-exit-'));
     const intentPath = path.join(directory, 'intent.json');
     await writeFile(intentPath, JSON.stringify(sandboxIntent));

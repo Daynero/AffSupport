@@ -4,6 +4,7 @@
 // so the dialogs must additionally be checked live on Windows once
 // (docs/WINDOWS.md, "What requires a Windows machine").
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const processMock = vi.hoisted(() => ({
@@ -84,7 +85,7 @@ describe('Windows video picker', () => {
     ]);
 
     const { command, args, options } = lastSpawnCall();
-    expect(command).toBe('powershell.exe');
+    expect(path.win32.basename(command)).toBe('powershell.exe');
     expect(args.slice(0, 4)).toEqual(['-NoProfile', '-NonInteractive', '-STA', '-Command']);
     expect(options).toMatchObject({ shell: false, windowsHide: true });
 

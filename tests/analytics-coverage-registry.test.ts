@@ -45,16 +45,17 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+const PRODUCER_DECLARATION_FILES = new Set([
+  resolve(ROOT, 'apps/web/src/analytics/events.ts'),
+  resolve(ROOT, 'packages/shared/src/team/analytics.ts'),
+  resolve(ROOT, 'apps/web/src/lib/database.types.ts')
+]);
+
 const PRODUCER_SOURCES = [
   ...walk(resolve(ROOT, 'apps/web/src')),
   ...walk(resolve(ROOT, 'packages/shared/src'))
 ]
-  .filter(
-    path =>
-      !path.endsWith('apps/web/src/analytics/events.ts') &&
-      !path.endsWith('packages/shared/src/team/analytics.ts') &&
-      !path.endsWith('apps/web/src/lib/database.types.ts')
-  )
+  .filter(path => !PRODUCER_DECLARATION_FILES.has(path))
   .map(path => readFileSync(path, 'utf8'));
 
 /**
