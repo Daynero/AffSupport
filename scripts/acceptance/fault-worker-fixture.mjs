@@ -48,7 +48,9 @@ process.once('message', async message => {
           }
         ]
       });
-      const file = await open(path.join(process.cwd(), 'recovery.json'), 'r');
+      // Windows FlushFileBuffers requires a writable handle. This is our own
+      // fixture checkpoint; r+ preserves its bytes while allowing the real sync.
+      const file = await open(path.join(process.cwd(), 'recovery.json'), 'r+');
       try {
         await file.sync();
       } finally {
