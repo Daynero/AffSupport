@@ -13,9 +13,13 @@ import type { FastifyInstance } from 'fastify';
 import { hasCapability } from '../server/capabilities.js';
 import { failureCode } from '../server/failure-codes.js';
 import { selectDirectoryIntakeFolder } from './picker.js';
-import { pathGrants, type PathGrantLedger } from './path-grants.js';
+import { normalizeForComparison, pathGrants, type PathGrantLedger } from './path-grants.js';
 
 const INTAKE_TTL_MS = 30 * 60_000;
+
+function isWithinChosenRoot(candidate: string, root: string): boolean {
+  return normalizeForComparison(candidate).startsWith(`${normalizeForComparison(root)}${path.sep}`);
+}
 
 interface IntakeGrant {
   root: string;
@@ -95,8 +99,7 @@ export class DirectoryIntake {
         if (
           this.#closed ||
           !currentInfo.isDirectory() ||
-          (current.absolute !== grant.path &&
-            !currentReal.startsWith(`${grant.path}${path.sep}`)) ||
+          (current.absolute !== grant.path && !isWithinChosenRoot(currentReal, grant.path)) ||
           (current.absolute === grant.path &&
             (currentInfo.dev !== grant.dev || currentInfo.ino !== grant.ino))
         )
@@ -185,7 +188,7 @@ export class DirectoryIntake {
       if (info.isSymbolicLink()) throw new Error('PATH_NOT_GRANTED');
     }
     const resolved = await realpath(absolute);
-    if (!resolved.startsWith(`${scope.root}${path.sep}`)) throw new Error('PATH_NOT_GRANTED');
+    if (!isWithinChosenRoot(resolved, scope.root)) throw new Error('PATH_NOT_GRANTED');
     const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     try {
       const info = await handle.stat();

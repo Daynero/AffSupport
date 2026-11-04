@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { realpathSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { currentPlatform } from '../platform/platform.js';
+import { canonicalRealPathSync, currentPlatform } from '../platform/platform.js';
 
 /**
  * The ledger of paths the user has actually chosen.
@@ -69,7 +69,7 @@ export const IDLE_GRANT_TTL_MS = 24 * 60 * 60_000;
  */
 function resolveBoundary(root: string): string {
   try {
-    return normalizeForComparison(realpathSync(root));
+    return normalizeForComparison(canonicalRealPathSync(root));
   } catch {
     return normalizeForComparison(root);
   }
@@ -161,7 +161,7 @@ export class PathGrantLedger {
     try {
       // realpath first: a symlink chosen by the user is fine, but everything
       // downstream must compare against where it actually leads.
-      resolved = realpathSync(candidate);
+      resolved = canonicalRealPathSync(candidate);
       entry = statSync(resolved);
     } catch {
       return null;
@@ -210,7 +210,7 @@ export class PathGrantLedger {
   authorises(candidate: string, access: GrantAccess): boolean {
     let resolved: string;
     try {
-      resolved = realpathSync(candidate);
+      resolved = canonicalRealPathSync(candidate);
     } catch {
       return false;
     }

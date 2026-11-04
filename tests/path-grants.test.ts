@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, symlink, unlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, symlink, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -31,6 +31,13 @@ async function workspace() {
 }
 
 describe('what a grant authorises', () => {
+  it('uses the same canonical root spelling as async filesystem readers', async () => {
+    const root = await workspace();
+    const ledger = new PathGrantLedger();
+    const grant = ledger.mint(root);
+    expect(grant?.path).toBe(await realpath(root));
+    expect(ledger.authorises(path.join(root, '.'), 'read')).toBe(true);
+  });
   it('authorises the file it was minted for', async () => {
     const root = await workspace();
     const file = path.join(root, 'clip.mov');

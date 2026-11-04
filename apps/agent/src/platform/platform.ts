@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, statSync, type Stats } from 'node:fs';
+import { existsSync, realpathSync, statSync, type Stats } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -274,6 +274,11 @@ export async function listTarGzEntries(archivePath: string): Promise<string[]> {
 /** Extracts a gzipped tarball into an existing destination directory. */
 export async function extractTarGz(archivePath: string, destination: string): Promise<void> {
   await promisify(execFile)(tarExecutable(), ['-xzf', archivePath, '-C', destination]);
+}
+
+/** Match async realpath's kernel spelling, including Windows long/8.3 aliases. */
+export function canonicalRealPathSync(candidate: string): string {
+  return realpathSync.native(candidate);
 }
 
 /**
