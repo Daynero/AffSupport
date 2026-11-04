@@ -1,5 +1,6 @@
-import { mkdtemp, mkdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, mkdir, realpath, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
+import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,7 +35,30 @@ afterEach(async () => {
 describe('native directory intake', () => {
   it('enumerates empty folders and reads only bounded chunks from the chosen tree', async () => {
     const intake = new DirectoryIntake(async () => picked, ledger);
-    const result = await intake.select();
+    const result = await intake.select().catch(async error => {
+      const rootSync = realpathSync(picked);
+      const rootAsync = await realpath(rootSync);
+      const childAsync = await realpath(path.join(rootSync, 'Empty'));
+      const syncInfo = statSync(rootSync);
+      const asyncInfo = await lstat(rootSync);
+      throw new Error(
+        `${String(error)} ${JSON.stringify({
+          rootSpellingMatches: rootSync === rootAsync,
+          rootFoldedMatches: rootSync.toLowerCase() === rootAsync.toLowerCase(),
+          childWithinExact: childAsync.startsWith(`${rootSync}${path.sep}`),
+          childWithinFolded: childAsync
+            .toLowerCase()
+            .startsWith(`${rootSync.toLowerCase()}${path.sep}`),
+          nativeParentMatches:
+            realpathSync.native(path.dirname(childAsync)) === realpathSync.native(rootSync),
+          deviceMatches: syncInfo.dev === asyncInfo.dev,
+          inodeMatches: syncInfo.ino === asyncInfo.ino,
+          inodeSafeInteger:
+            Number.isSafeInteger(syncInfo.ino) && Number.isSafeInteger(asyncInfo.ino)
+        })}`,
+        { cause: error }
+      );
+    });
     expect(result.kind).toBe('selected');
     if (result.kind !== 'selected') throw new Error('selection failed');
     expect(result.entries).toEqual(
