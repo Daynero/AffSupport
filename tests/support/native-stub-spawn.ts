@@ -1,17 +1,19 @@
 import { existsSync } from 'node:fs';
 import { vi } from 'vitest';
 
-// Windows cannot spawn the fixture's .cmd shim with shell:false. Invoke its
-// Node body directly while retaining the real governor registration and cleanup.
-vi.mock('../../apps/agent/src/power/spawn.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../apps/agent/src/power/spawn.js')>();
+// Windows cannot spawn a fixture .cmd with shell:false. Redirect only existing
+// fixture bodies to native Node at the OS boundary: the real governor still
+// registers and terminates the child, and no shell is introduced. Light probes
+// use the same body without changing their production spawn path.
+vi.mock('node:child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
   return {
     ...actual,
-    spawnTracked: (...[command, args, options]: Parameters<typeof actual.spawnTracked>) => {
+    spawn: (...[command, args, options]: Parameters<typeof actual.spawn>) => {
       const body = command.replace(/\.cmd$/iu, '.cjs');
       return process.platform === 'win32' && body !== command && existsSync(body)
-        ? actual.spawnTracked(process.execPath, [body, ...args], options)
-        : actual.spawnTracked(command, args, options);
+        ? actual.spawn(process.execPath, [body, ...(args ?? [])], options)
+        : actual.spawn(command, args, options);
     }
   };
 });

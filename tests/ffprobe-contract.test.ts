@@ -1,3 +1,4 @@
+import './support/native-stub-spawn.js';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';

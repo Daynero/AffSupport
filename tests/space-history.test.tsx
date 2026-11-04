@@ -10,7 +10,8 @@ import { adminAuthStub } from './support/auth-stub';
 /** The space's history, readable (024): days, one line an event, problems only badged. */
 
 const TEAM = '24000000-0000-4000-8000-000000000001';
-const now = Date.now();
+// Keep all events within one day even when CI runs across midnight.
+const now = new Date(2026, 10, 4, 12, 0, 0).getTime();
 const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000).toISOString();
 
 function event(overrides: Partial<TeamAuditEventSummary>): TeamAuditEventSummary {
@@ -28,9 +29,14 @@ function event(overrides: Partial<TeamAuditEventSummary>): TeamAuditEventSummary
   };
 }
 
-beforeEach(() => localStorage.setItem('language', 'en'));
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
+  localStorage.setItem('language', 'en');
+});
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   localStorage.clear();
 });
 

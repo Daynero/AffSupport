@@ -100,10 +100,6 @@ jobs:
       - run: npm ci
       - name: Install media test dependencies
         run: choco install ffmpeg --yes --no-progress
-      - name: Diagnose native archive and release policy failures
-        run: |
-          npm run build -w @video-compressor/shared
-          npx vitest run tests/windows-archive.test.ts tests/web-only-policy.test.ts --maxWorkers=1 --no-file-parallelism --reporter=verbose --reporter=json --outputFile.json=windows-targeted.json
       # The whole suite, not a hand-maintained list of files. Tests that cannot
       # run here are named skips, and an unexplained skip fails the run.
       - run: node scripts/verify-all.mjs --form=fast --gates=suite
@@ -116,7 +112,6 @@ jobs:
             verification-result.json
             verification-suite.json
             verification-progress.log
-            windows-targeted.json
           if-no-files-found: ignore
 
   build:
