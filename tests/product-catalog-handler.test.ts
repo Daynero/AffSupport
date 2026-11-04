@@ -794,3 +794,80 @@ it('refuses a failed catalog SUB binding before catalog creation', async () => {
   expect(drive.createConvertedFile).not.toHaveBeenCalled();
   expect(deps.startOperation).not.toHaveBeenCalled();
 });
+
+it('overlaps name discovery with resource planning and binding with sharing', async () => {
+  const f = setup();
+  let releaseName!: () => void;
+  const nameGate = new Promise<void>(resolve => {
+    releaseName = resolve;
+  });
+  const originalPlan = f.deps.planName;
+  f.deps.planName = vi.fn(async input => {
+    await nameGate;
+    return originalPlan(input);
+  });
+  const originalDraw = f.deps.drawTexts;
+  f.deps.drawTexts = vi.fn(async (...args) => {
+    releaseName();
+    return originalDraw(...args);
+  });
+  let releaseBind!: () => void;
+  const bindGate = new Promise<void>(resolve => {
+    releaseBind = resolve;
+  });
+  f.deps.bindIntent = vi.fn(async () => {
+    await bindGate;
+  });
+  const originalPermissions = f.drive.listAnyonePermissions;
+  f.drive.listAnyonePermissions = vi.fn(async id => {
+    if (id !== 'drive-video') releaseBind();
+    return originalPermissions(id);
+  });
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).resolves.toMatchObject({
+    outcome: 'created'
+  });
+  expect(f.deps.drawTexts).toHaveBeenCalledOnce();
+  expect(f.deps.finalize).toHaveBeenCalledOnce();
+});
+
+it('drains an in-flight sharing failure before cleanup and preserves the binding failure', async () => {
+  const f = setup();
+  const failure = new TeamFunctionError('LEASE_MISMATCH');
+  f.deps.bindIntent = vi.fn(async () => {
+    throw failure;
+  });
+  let sharingSettled = false;
+  const originalPermissions = f.drive.listAnyonePermissions;
+  f.drive.listAnyonePermissions = vi.fn(async id => {
+    if (id === 'drive-video') return originalPermissions(id);
+    await Promise.resolve();
+    sharingSettled = true;
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+  });
+  f.drive.updateFileMetadata = vi.fn(async () => {
+    expect(sharingSettled).toBe(true);
+    return metadata();
+  });
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).rejects.toBe(failure);
+  expect(f.drive.updateFileMetadata).toHaveBeenCalledOnce();
+  expect(f.deps.finalize).not.toHaveBeenCalled();
+});
+
+it('drains both resource draws before reporting the first failure', async () => {
+  const f = setup();
+  const failure = new TeamFunctionError('WRONG_STATE');
+  let imagesSettled = false;
+  f.deps.drawTexts = vi.fn(async () => {
+    throw failure;
+  });
+  f.deps.drawImages = vi.fn(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    imagesSettled = true;
+    return [];
+  });
+  await expect(createProductCatalog(f.deps, body(), ACTOR)).rejects.toBe(failure);
+  expect(imagesSettled).toBe(true);
+  expect(f.deps.startOperation).not.toHaveBeenCalled();
+  expect(f.drive.createConvertedFile).not.toHaveBeenCalled();
+});

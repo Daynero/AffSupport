@@ -164,6 +164,11 @@ function splitExtension(name: string): { stem: string; extension: string } {
   return { stem: name.slice(0, dot), extension: name.slice(dot) };
 }
 
+/** A conservative prefix also covers normalized whitespace and dotted-name suffixes. */
+export function catalogConflictSearchPrefix(name: string): string | undefined {
+  return /^[a-z0-9_-]+/iu.exec(displayDriveName(name))?.[0];
+}
+
 export function buildUploadConflictPlan(
   request: UploadStartRequest,
   existing: ReadonlyArray<{ materialId: string; name: string }>

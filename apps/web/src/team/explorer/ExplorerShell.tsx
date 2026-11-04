@@ -2258,6 +2258,7 @@ function ExplorerBody({
               rows={page.rows}
               uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
               onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}
+              onDismiss={workspaceOperations.bulkTrash!.dismiss}
               onRetry={
                 permissions?.delete && workspaceOperations.bulkTrash?.owns(group)
                   ? () => {

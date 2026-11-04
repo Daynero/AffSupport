@@ -400,3 +400,52 @@ describe.skipIf(!container)(
     }, 15000);
   }
 );
+
+describe.skipIf(!container)(
+  'catalog draw serialization [needs: disposable PostgreSQL container]',
+  () => {
+    it('serializes simultaneous draws without repeats and preserves exact retry receipts', async () => {
+      const actor = randomUUID(),
+        space = randomUUID(),
+        attemptA = randomUUID(),
+        attemptB = randomUUID();
+      await sql(`begin;
+      insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${actor}','authenticated','authenticated','${actor}@draw.test.invalid','{}','{}');
+      insert into public.admin_users(user_id) values('${actor}');
+      insert into public.teams(id,name,owner_id) values('${space}','Concurrent draws','${actor}');
+      insert into public.team_members(team_id,user_id,base_role) values('${space}','${actor}','admin');
+      insert into private.catalog_image_config(team_id,mode,import_enabled) values('${space}','v2',true);
+      with publications as (
+        insert into private.catalog_image_publications(team_id,sha256,size_bytes,mime,width,height,classification,state,public_url)
+        select '${space}',repeat(n::text,64),3,'image/png',1,1,'${classification}','ready','https://media.test/draw/'||n from generate_series(1,4) n returning *)
+      insert into public.team_catalog_image_pool_entries(team_id,publication_id,public_url,classification) select team_id,id,public_url,classification from publications;
+      commit;`);
+      const first = sql(
+        `begin;select public.service_draw_product_catalog_images_v2('${space}',2,'${attemptA}');select pg_sleep(2) /* catalog_draw_hold */;commit;`
+      );
+      await held('catalog_draw_hold');
+      expect(
+        await sql(
+          `select count(*) from (select id from private.catalog_image_publications where team_id='${space}' for update skip locked) unlocked`
+        )
+      ).toBe('2');
+      const second = sql(
+        `select public.service_draw_product_catalog_images_v2('${space}',2,'${attemptB}') /* catalog_draw_wait */;`
+      );
+      await held('catalog_draw_wait', 'Lock');
+      const a = JSON.parse(await first) as Array<{ poolEntryId: string }>;
+      const b = JSON.parse(await second) as Array<{ poolEntryId: string }>;
+      expect(new Set([...a, ...b].map(x => x.poolEntryId)).size).toBe(4);
+      expect(
+        JSON.parse(
+          await sql(
+            `select public.service_draw_product_catalog_images_v2('${space}',2,'${attemptA}');`
+          )
+        )
+      ).toEqual(a);
+      expect(
+        await sql(`select count(*) from private.catalog_image_uses where team_id='${space}'`)
+      ).toBe('4');
+    }, 15000);
+  }
+);

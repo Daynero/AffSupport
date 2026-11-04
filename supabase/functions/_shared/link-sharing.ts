@@ -15,10 +15,11 @@ type SharingClient = Pick<
  */
 export async function ensureAnyoneReader(
   drive: SharingClient,
-  fileId: string
+  fileId: string,
+  observed?: ReadonlyArray<{ id: string; role: string }>
 ): Promise<{ added: boolean }> {
   // Any `anyone` grant lets a link holder view; a commenter or writer link is not narrowed.
-  const current = await drive.listAnyonePermissions(fileId);
+  const current = observed ?? (await drive.listAnyonePermissions(fileId));
   if (current.length > 0) return { added: false };
   await drive.createAnyoneReaderPermission(fileId);
   const verified = await drive.listAnyonePermissions(fileId);

@@ -582,7 +582,7 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
-  it('says which step it is on while the request is out, instead of only spinning (024)', async () => {
+  it('keeps provider progress unknown until the catalog reply arrives', async () => {
     let finish: (value: typeof created) => void = () => undefined;
     const client = dialogClient({
       createProductCatalog: vi.fn().mockReturnValue(
@@ -598,12 +598,8 @@ describe('creating a catalog', () => {
     await user.click(confirm());
 
     const status = await screen.findByRole('status');
-    expect(status.textContent).toContain('Checking the video');
-    expect(status.textContent).toContain('Step 1 of 5');
-    // The next step arrives on its own, with nothing from the server.
-    await waitFor(() => expect(status.textContent).toContain('Picking texts and pictures'), {
-      timeout: 3000
-    });
+    expect(status.textContent).toContain('Creating the catalog');
+    expect(status.textContent).not.toMatch(/Step|Checking|Matching/u);
 
     finish(created);
     expect(await screen.findByText('The catalog is ready')).toBeTruthy();

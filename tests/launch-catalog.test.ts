@@ -653,3 +653,103 @@ it('retries a definitive create refusal using the same reserved variation and re
   expect(f.state.checkpoint.sheetRows).toEqual(rows);
   expect(f.deps.nextVariant).not.toHaveBeenCalled();
 });
+
+it('persists measured successful boundaries in the final attempt receipt', async () => {
+  const f = fixture(false);
+  await createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+  expect(f.state.checkpoint.performance).toMatchObject({
+    attempt: 1,
+    steps: {
+      sheet_upload: { calls: 1 },
+      xlsx_build: { calls: 1 },
+      catalog_finalize: { calls: 1 },
+      catalog_link: { calls: 1 }
+    }
+  });
+});
+
+describe('local beta native Sheets recovery', () => {
+  function nativeFixture(lostCreateReply = false) {
+    const f = fixture(lostCreateReply);
+    f.deps.nativeSpreadsheet = true;
+    f.drive.createNativeSpreadsheet = vi.fn(input =>
+      f.create({
+        ...input,
+        sourceMimeType: 'unused-native',
+        targetMimeType: 'application/vnd.google-apps.spreadsheet',
+        bytes: new Uint8Array()
+      })
+    );
+    f.drive.getNativeSpreadsheetSheets = vi.fn(async () => [
+      { sheetId: 173, title: 'Sheet1', rowCount: 1000, columnCount: 26 }
+    ]);
+    f.drive.writeNativeSpreadsheetRows = vi.fn(async () => undefined);
+    return f;
+  }
+  it('recovers an unknown native file creation by its marker without making a second file', async () => {
+    const f = nativeFixture(true);
+    const run = () =>
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+    await expect(run()).rejects.toBeDefined();
+    expect(f.state.checkpoint.sheetEngine).toBe('native');
+    expect((await f.drive.getFile('sheet')).appProperties).toEqual({
+      'soty.catalog.nativeIntent': 'intent'
+    });
+    expect((await f.drive.getFile('sheet')).appProperties['soty.catalog.intent']).toBeUndefined();
+    f.deps.nativeSpreadsheet = false; // Background recovery must retain the accepted writer.
+    await expect(run()).resolves.toMatchObject({ outcome: 'created' });
+    expect(f.create).toHaveBeenCalledTimes(1);
+    expect(f.drive.createNativeSpreadsheet).toHaveBeenCalledTimes(1);
+    expect(f.drive.writeNativeSpreadsheetRows).toHaveBeenCalledTimes(1);
+    expect(f.state.checkpoint.nativeRowsWritten).toMatchObject({ sheetId: 173 });
+    await run();
+    expect(f.drive.writeNativeSpreadsheetRows).toHaveBeenCalledTimes(1);
+  });
+  it('retries an unknown cell write with the exact frozen range and bound sheet ID', async () => {
+    const f = nativeFixture();
+    vi.mocked(f.drive.writeNativeSpreadsheetRows!).mockRejectedValueOnce(
+      new Error('lost cell write reply')
+    );
+    const run = () =>
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+    await expect(run()).rejects.toBeDefined();
+    expect(f.state.checkpoint.nativeRowsWritten).toBeUndefined();
+    const first = vi.mocked(f.drive.writeNativeSpreadsheetRows!).mock.calls[0]![0];
+    await expect(run()).resolves.toMatchObject({ outcome: 'created' });
+    const second = vi.mocked(f.drive.writeNativeSpreadsheetRows!).mock.calls[1]![0];
+    expect(second.rows).toEqual(first.rows);
+    expect(second.sheet.sheetId).toBe(first.sheet.sheetId);
+    expect(f.create).toHaveBeenCalledTimes(1);
+  });
+  it('does not repeat an acknowledged write when later registration failed', async () => {
+    const f = nativeFixture();
+    vi.mocked(f.deps.finalize).mockRejectedValueOnce(new TeamFunctionError('DRIVE_UNAVAILABLE'));
+    const run = () =>
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+    await expect(run()).rejects.toBeDefined();
+    expect(f.state.checkpoint.nativeRowsWritten).toBeDefined();
+    await expect(run()).resolves.toMatchObject({ outcome: 'created' });
+    expect(f.drive.writeNativeSpreadsheetRows).toHaveBeenCalledTimes(1);
+    expect(f.create).toHaveBeenCalledTimes(1);
+  });
+  it('keeps already-started legacy attempts on XLSX even when the experiment is enabled', async () => {
+    const f = nativeFixture();
+    f.state.state = 'interrupted';
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+    expect(f.drive.createNativeSpreadsheet).not.toHaveBeenCalled();
+    expect(f.drive.createConvertedFile).toHaveBeenCalledTimes(1);
+  });
+  it('refuses to redirect a retry to a replacement sheet when the bound sheet was deleted', async () => {
+    const f = nativeFixture();
+    vi.mocked(f.drive.writeNativeSpreadsheetRows!).mockRejectedValueOnce(new Error('lost reply'));
+    const run = () =>
+      createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+    await expect(run()).rejects.toBeDefined();
+    vi.mocked(f.drive.getNativeSpreadsheetSheets!).mockResolvedValueOnce([
+      { sheetId: 999, title: 'Other', rowCount: 1000, columnCount: 26 }
+    ]);
+    await expect(run()).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+    expect(f.drive.writeNativeSpreadsheetRows).toHaveBeenCalledTimes(1);
+    expect(f.create).toHaveBeenCalledTimes(1);
+  });
+});

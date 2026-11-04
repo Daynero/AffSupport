@@ -1,3 +1,4 @@
+import { nativeCatalogCellRows } from '../_shared/catalog-native-sheet.ts';
 import {
   catalogImageUrl,
   catalogImageName,
@@ -61,7 +62,14 @@ export type CatalogDrive = Pick<
   | 'createAnyoneReaderPermission'
   | 'createConvertedFile'
   | 'updateFileMetadata'
->;
+> & {
+  createNativeSpreadsheet?: GoogleDriveClient['createNativeSpreadsheet'];
+  writeNativeSpreadsheet?: (input: {
+    fileId: string;
+    sheetName: string;
+    rows: XlsxCell[][];
+  }) => Promise<DriveFileMetadata>;
+};
 
 export interface CatalogVideo {
   id: string;
@@ -97,6 +105,9 @@ export type CatalogLinkOutcome =
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
 export interface ProductCatalogDeps {
+  /** Local beta experiment; durable retries freeze the selected writer. */
+  nativeSpreadsheet?: boolean;
+  buildWorkbook?: (rows: XlsxCell[][]) => Promise<Uint8Array<ArrayBuffer>>;
   beforeImageWrite?(): Promise<void>;
   validateImageUses?(teamId: string, attemptId: string): Promise<void>;
   /** Resolve Launch SUBs only after the durable version and final collision-safe name exist. */
@@ -282,6 +293,14 @@ async function trashQuietly(
   }
 }
 
+/** Drain both tasks on failure: no provider mutation may outlive this attempt's cleanup. */
+async function alongside<A, B>(first: Promise<A>, second: Promise<B>): Promise<[A, B]> {
+  const [a, b] = await Promise.allSettled([first, second]);
+  if (a.status === 'rejected') throw a.reason;
+  if (b.status === 'rejected') throw b.reason;
+  return [a.value, b.value];
+}
+
 /** Use the same MIME/extension rules as indexing, against the proven live file. */
 function assertLiveVideo(file: DriveFileMetadata) {
   const dot = file.name.lastIndexOf('.');
@@ -344,23 +363,24 @@ export async function createProductCatalog(
   // beside its stale parent or redirect a durable operation's frozen target.
   if (!video.parentFolderId || !liveVideo.parents.includes(video.parentFolderId))
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
-  const destination = await deps.destination({
-    teamId,
-    actorId,
-    folderId: video.parentFolderId
-  });
+  // Both reads are authorized by the proven source. Keep destination refusals first,
+  // and do not change video permissions until both reads have completed.
+  const [destination, videoPermissions] = await alongside(
+    deps.destination({ teamId, actorId, folderId: video.parentFolderId }),
+    drive.listAnyonePermissions(liveVideo.id)
+  );
   const copyDrive = restitched ? await deps.driveFor(restitched.credentialId) : null;
   const liveCopy = restitched && copyDrive ? await deps.proveVideo(restitched, copyDrive) : null;
   if (liveCopy) assertLiveVideo(liveCopy);
 
   let videoShared = false;
-  if ((await drive.listAnyonePermissions(liveVideo.id)).length === 0) {
+  if (videoPermissions.length === 0) {
     // Opening a video to anyone with the link changes the video, so it needs `edit` on it.
     await deps.loadVideo({ teamId, videoId, actorId, permission: 'edit' });
     if (liveVideo.capabilities.canShare !== true) {
       throw new TeamFunctionError('SHARE_NOT_ALLOWED', { retryable: false });
     }
-    videoShared = (await ensureAnyoneReader(drive, liveVideo.id)).added;
+    videoShared = (await ensureAnyoneReader(drive, liveVideo.id, videoPermissions)).added;
   }
   const originalVideoLink = videoShareLink(
     liveVideo.id,
@@ -368,12 +388,13 @@ export async function createProductCatalog(
   );
   let videoLink = originalVideoLink;
   if (restitched && copyDrive && liveCopy) {
-    if ((await copyDrive.listAnyonePermissions(liveCopy.id)).length === 0) {
+    const copyPermissions = await copyDrive.listAnyonePermissions(liveCopy.id);
+    if (copyPermissions.length === 0) {
       await deps.loadVideo({ teamId, videoId: restitched.id, actorId, permission: 'edit' });
       if (liveCopy.capabilities.canShare !== true) {
         throw new TeamFunctionError('SHARE_NOT_ALLOWED', { retryable: false });
       }
-      await ensureAnyoneReader(copyDrive, liveCopy.id);
+      await ensureAnyoneReader(copyDrive, liveCopy.id, copyPermissions);
     }
     videoLink = videoShareLink(liveCopy.id, liveCopy.resourceKey ?? restitched.resourceKey);
   }
@@ -383,25 +404,40 @@ export async function createProductCatalog(
    * repeats, the settings' single values where a pool is empty. The pictures are shared by link,
    * as the video is, or Meta cannot fetch them.
    */
-  const [texts, images] = await Promise.all([
-    deps.drawTexts(teamId, request.productCount),
-    deps.drawImages(teamId, request.productCount, {
-      contractVersion: request.catalogImageContractVersion
-    })
-  ]);
-  await createCatalogImageSharer(drive)(images.filter(legacyImage));
-  let planned = planCatalogRows({
-    count: request.productCount,
-    settings,
-    texts,
-    images: images.map(image => ({
-      link: catalogImageUrl(image),
-      name: catalogImageName(image),
-      ...(r2Image(image) ? { image } : {})
-    }))
+  const variant = live ? (live.variant ?? 1) : await deps.nextVariant(teamId, videoId);
+  const namePlan = deps.planName({
+    teamId,
+    destinationMaterialId: destination.materialId,
+    live: destination.live,
+    name: productCatalogName(video.name, variant),
+    idempotencyKey: request.idempotencyKey,
+    replacingDriveFileId: live?.driveFileId ?? null
   });
-  if (!planned) wrongState('settings_missing');
-  if (deps.rememberRowRecipe) planned = await deps.rememberRowRecipe(planned);
+  const [planned, plan] = await alongside(
+    (async () => {
+      const [texts, images] = await alongside(
+        deps.drawTexts(teamId, request.productCount),
+        deps.drawImages(teamId, request.productCount, {
+          contractVersion: request.catalogImageContractVersion
+        })
+      );
+      await createCatalogImageSharer(drive)(images.filter(legacyImage));
+      let planned = planCatalogRows({
+        count: request.productCount,
+        settings,
+        texts,
+        images: images.map(image => ({
+          link: catalogImageUrl(image),
+          name: catalogImageName(image),
+          ...(r2Image(image) ? { image } : {})
+        }))
+      });
+      if (!planned) wrongState('settings_missing');
+      if (deps.rememberRowRecipe) planned = await deps.rememberRowRecipe(planned);
+      return planned;
+    })(),
+    namePlan
+  );
   const first = planned[0]!;
   /* Kept for sheets and workers that read one value: the first row's. */
   const snapshot = {
@@ -412,16 +448,6 @@ export async function createProductCatalog(
     randomLinkVariation: request.randomLinkVariation !== false,
     rows: planned
   };
-
-  const variant = live ? (live.variant ?? 1) : await deps.nextVariant(teamId, videoId);
-  const plan = await deps.planName({
-    teamId,
-    destinationMaterialId: destination.materialId,
-    live: destination.live,
-    name: productCatalogName(video.name, variant),
-    idempotencyKey: request.idempotencyKey,
-    replacingDriveFileId: live?.driveFileId ?? null
-  });
   if (deps.resolveSourceLink) {
     const link = parseWebLink(await deps.resolveSourceLink(plan.name), SOURCE_LINK_MAX);
     if (!link.ok) throw new TeamFunctionError('LAUNCH_SUB_INVALID');
@@ -459,29 +485,64 @@ export async function createProductCatalog(
       rows: planned
     });
     if (deps.rememberSheetRows) sheetRows = await deps.rememberSheetRows(sheetRows);
+    if (deps.nativeSpreadsheet) nativeCatalogCellRows(sheetRows);
     await deps.beforeImageWrite?.();
     const recoveredFile = await deps.readCreatedFile?.(destination.live.id, video.credentialId);
     const file =
       recoveredFile ??
-      (await drive.createConvertedFile({
-        name: plan.name,
-        parentId: destination.live.id,
-        sourceMimeType: XLSX_MIME_TYPE,
-        targetMimeType: SPREADSHEET_MIME_TYPE,
-        bytes: await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: sheetRows })
-      }));
+      (deps.nativeSpreadsheet
+        ? await (() => {
+            if (!drive.createNativeSpreadsheet || !drive.writeNativeSpreadsheet)
+              throw new TeamFunctionError('INVALID_RESPONSE');
+            return drive.createNativeSpreadsheet({
+              name: plan.name,
+              parentId: destination.live.id
+            });
+          })()
+        : await drive.createConvertedFile({
+            name: plan.name,
+            parentId: destination.live.id,
+            sourceMimeType: XLSX_MIME_TYPE,
+            targetMimeType: SPREADSHEET_MIME_TYPE,
+            bytes: deps.buildWorkbook
+              ? await deps.buildWorkbook(sheetRows)
+              : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: sheetRows })
+          }));
+    let committedFile = file;
     const created = { driveFileId: file.id, resourceKey: file.resourceKey ?? null };
     try {
-      await deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size });
-      await ensureAnyoneReader(drive, file.id);
-      const sheetUrl = file.webViewLink ?? '';
+      // Both depend on the durable provider-file receipt, not on one another.
+      // Drain sharing even when binding fails before entering recovery/cleanup.
+      if (deps.nativeSpreadsheet) {
+        if (!drive.writeNativeSpreadsheet) throw new TeamFunctionError('INVALID_RESPONSE');
+        [committedFile] = await alongside(
+          drive.writeNativeSpreadsheet({
+            fileId: file.id,
+            sheetName: PRODUCT_CATALOG_SHEET_NAME,
+            rows: sheetRows
+          }),
+          ensureAnyoneReader(drive, file.id)
+        );
+        await deps.bindIntent({
+          authority,
+          actorId,
+          name: committedFile.name,
+          sizeBytes: committedFile.size
+        });
+      } else {
+        await alongside(
+          deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size }),
+          ensureAnyoneReader(drive, file.id)
+        );
+      }
+      const sheetUrl = committedFile.webViewLink ?? '';
       if (!/^https:\/\/[^\s]+$/u.test(sheetUrl)) {
         throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
       }
       const committed = await deps.finalize({
         operationId: authority.operationId,
         actorId,
-        metadata: file
+        metadata: committedFile
       });
       const linked = await deps.link({
         teamId,
@@ -520,7 +581,7 @@ export async function createProductCatalog(
         outcome: replaces ? 'recreated' : 'created',
         catalog: {
           materialId: committed.materialId,
-          name: file.name,
+          name: committedFile.name,
           sheetUrl,
           sourceLink: request.sourceLink,
           productCount: request.productCount,

@@ -241,3 +241,79 @@ it('passes the reserved final name through the coordinator binding before attach
     create.mockRestore();
   }
 });
+
+it('combines parent progress and child checkpoint into one RPC while retaining both fences', async () => {
+  const durable = await import('../supabase/functions/drive-ops/catalog-durable');
+  const create = vi
+    .spyOn(durable, 'createDurableProductCatalog')
+    .mockImplementationOnce(async (_deps, store) => {
+      await store.checkpoint(
+        {
+          id: 'intent',
+          variant: 1,
+          state: 'planned',
+          fence: 'child-fence',
+          attempt: 1,
+          checkpoint: {},
+          result: null,
+          operationId: null
+        },
+        'child-owner',
+        'created',
+        { providerFileId: 'provider' }
+      );
+      return { outcome: 'created', catalog: {} as never, videoShared: false };
+    });
+  const rpc = vi.fn(async (name: string, _params?: Record<string, unknown>) => ({
+    error: null,
+    data:
+      name === 'service_claim_launch_generation'
+        ? {
+            state: 'running',
+            catalogImageContractVersion: 2,
+            fence: 'parent-fence',
+            config: launchConfig({ method: 'catalog' }),
+            sources: launchSources,
+            advertisingUrl: 'https://example.invalid/'
+          }
+        : name === 'service_restore_registered_launch_catalog'
+          ? false
+          : null
+  }));
+  try {
+    await executeLaunchCatalog(
+      {
+        service: { rpc },
+        catalog: {} as never,
+        driveFor: vi.fn(),
+        proveSource: vi.fn(),
+        proveCatalog: vi.fn()
+      },
+      'team',
+      'generation',
+      'actor'
+    );
+    const combined = rpc.mock.calls.find(
+      ([name]) => name === 'service_checkpoint_launch_catalog_intent_v1'
+    );
+    expect(combined?.[1]).toMatchObject({
+      p_generation: 'generation',
+      p_launch_fence: 'parent-fence',
+      p_fence: 'child-fence',
+      p_owner: 'child-owner',
+      p_stage: 'catalog_sharing',
+      p_checkpoint: { providerFileId: 'provider' }
+    });
+    expect(rpc.mock.calls.some(([name]) => name === 'service_checkpoint_catalog_intent')).toBe(
+      false
+    );
+    expect(
+      rpc.mock.calls.filter(
+        ([name, params]) =>
+          name === 'service_touch_launch_generation' && params?.p_stage === 'catalog_sharing'
+      )
+    ).toHaveLength(0);
+  } finally {
+    create.mockRestore();
+  }
+});

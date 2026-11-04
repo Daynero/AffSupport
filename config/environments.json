@@ -371,6 +371,14 @@
       "note": "Read by the web-env gate to decide which deploy command is legal. Must agree with the function secret of the same name."
     },
     {
+      "name": "CATALOG_NATIVE_SHEETS_BETA",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Off by default. Experimental native catalog cells require this opt-in plus testing OAuth and exact beta loopback origins. Never activates for the production site or verified OAuth."
+    },
+    {
       "name": "CATALOG_IMAGES_ENABLED",
       "surface": "functions",
       "required": [],

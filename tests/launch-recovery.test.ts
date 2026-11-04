@@ -401,3 +401,17 @@ it.each(['complete', 'retained', 'unknown'] as const)(
     expect(drive.updateFileMetadata).toHaveBeenCalledTimes(proof === 'complete' ? 1 : 0);
   }
 );
+
+it('cleans a fenced native output using its distinct private marker, without weakening identity checks', async () => {
+  const { d, drive } = deps();
+  const native = { ...file(), appProperties: { 'soty.catalog.nativeIntent': 'intent' } };
+  drive.getFile.mockResolvedValue(native);
+  drive.updateFileMetadata.mockResolvedValue({ ...native, trashed: true });
+  expect(await cleanupLaunchOutputs(d, [output])).toEqual({ cleaned: 1, retained: 0, pending: 0 });
+  drive.getFile.mockResolvedValue({
+    ...native,
+    appProperties: { 'soty.catalog.nativeIntent': 'other-intent' }
+  });
+  expect(await cleanupLaunchOutputs(d, [output])).toEqual({ cleaned: 0, retained: 0, pending: 1 });
+  expect(drive.updateFileMetadata).toHaveBeenCalledTimes(1);
+});

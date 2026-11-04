@@ -83,7 +83,7 @@ function capability(data: AuditData, id: string) {
 }
 
 describe('audit · capability status', () => {
-  it('keeps product catalog latency and standalone lifecycle coverage explicitly unknown', async () => {
+  it('keeps catalog event coverage unknown and distinguishes measured snapshots from unobserved delivery', async () => {
     const data = await getAudit(ALL);
     const catalog = capability(data, 'team.product_catalog');
     expect(catalog).toMatchObject({
@@ -91,9 +91,8 @@ describe('audit · capability status', () => {
       producer_status: 'unsupported_by_producer',
       observed: []
     });
-    expect(catalog.unobservable.join(' ')).toContain(
-      'Per-image sharing and Drive conversion latency'
-    );
+    expect(catalog.unobservable.join(' ')).toContain('bounded per-boundary duration aggregates');
+    expect(catalog.unobservable.join(' ')).toContain('browser delivery remain unobserved');
   });
   it('marks a start that meets its terminal by id as covered and counts the orphan', async () => {
     const data = await getAudit(ALL);

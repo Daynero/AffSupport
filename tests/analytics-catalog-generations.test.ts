@@ -37,6 +37,12 @@ beforeAll(async () => {
       'utf8'
     )
   );
+  await db.exec(
+    readFileSync('supabase/migrations/20261207121000_catalog_creation_performance.sql', 'utf8')
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20261207123000_catalog_native_sheet_timings.sql', 'utf8')
+  );
 }, 30_000);
 afterAll(async () => {
   await db.close();
@@ -162,6 +168,51 @@ it('reports legacy missing interruption causes explicitly and locates captured s
     })
   );
   expect(investigatePrivacyFailure(recorded)).toBeNull();
+});
+
+it('distinguishes native sheet binding and write acknowledgement without exposing IDs or cells', async () => {
+  await db.exec(`update private.catalog_generation_intents set state='created',safe_error_code=null,
+    checkpoint=checkpoint||'{"sheetEngine":"native","nativeSheet":{"fileId":"private-provider-id","sheetId":173},
+    "performance":{"attempt":2,"steps":{"sheet_write":{"calls":1,"total_ms":8,"url":"https://private.invalid"}}}}'::jsonb`);
+  let evidence = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(evidence.records[0]).toMatchObject({
+    native_sheet_mode: true,
+    native_sheet_bound: true,
+    native_write_acknowledged: false,
+    performance: { steps: { sheet_write: { calls: 1, total_ms: 8 } } }
+  });
+  await db.exec(`update private.catalog_generation_intents set checkpoint=checkpoint||
+    '{"nativeRowsWritten":{"fileId":"private-provider-id","sheetId":173}}'::jsonb`);
+  evidence = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(evidence.records[0]).toMatchObject({
+    native_write_acknowledged: true,
+    result_registered: false
+  });
+  expect(JSON.stringify(evidence)).not.toMatch(
+    /private-provider-id|private.invalid|private-content/
+  );
+  expect(evidence.blind_spots.join(' ')).toContain('not proof');
+  await db.exec(`update private.catalog_generation_intents set checkpoint=jsonb_set(checkpoint,
+    '{nativeSheet,fileId}','"another-file"'::jsonb)`);
+  evidence = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(evidence.records[0]).toMatchObject({
+    native_sheet_bound: false,
+    native_write_acknowledged: false
+  });
+});
+
+it('lets the real read-only role execute the timing projection without private-table access', async () => {
+  await db.exec('set role wishly_analytics_ro');
+  try {
+    expect(
+      (await db.db.query('select performance from public.analytics_catalog_generations')).rows
+    ).toHaveLength(1);
+    await expect(
+      db.db.query('select checkpoint from private.catalog_generation_intents')
+    ).rejects.toThrow(/permission denied/u);
+  } finally {
+    await db.exec('reset role');
+  }
 });
 
 it('keeps missing migration or inaccessible view explicit', async () => {

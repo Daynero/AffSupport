@@ -1,3 +1,7 @@
+import {
+  CATALOG_TIMING_STAGES,
+  type CatalogTimingSnapshot
+} from '../../supabase/functions/_shared/catalog-timings.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
 import type { ResolvedPeriod } from './types.js';
@@ -52,6 +56,10 @@ export interface CatalogGenerationSnapshot {
   rows_planned: boolean | null;
   provider_result_observed: boolean | null;
   result_registered: boolean | null;
+  performance: CatalogTimingSnapshot | null;
+  native_sheet_mode: boolean | null;
+  native_sheet_bound: boolean | null;
+  native_write_acknowledged: boolean | null;
 }
 export interface CatalogGenerationEvidence {
   supported: boolean;
@@ -74,7 +82,8 @@ export async function getCatalogGenerationEvidence(
     unknown_projection: false,
     blind_spots: [
       'Checkpoint presence is observation, not current dependency readiness.',
-      'Intermediate transition timings and browser delivery are unobserved.'
+      'Intermediate transition timings and browser delivery are unobserved.',
+      'Missing native-write acknowledgement is not proof that an uncertain provider write did not apply.'
     ]
   };
   const schema = await getSchema();
@@ -92,8 +101,12 @@ export async function getCatalogGenerationEvidence(
   if (!UUID.test(id)) return result;
   const rows = await query<Record<string, unknown>>(
     `select intent_id::text,operation_id::text,attempt,origin,state,safe_error_code,created_at::text,updated_at::text,
-      settings_observed,source_observed,rows_planned,provider_result_observed,result_registered
-     from public.analytics_catalog_generations
+      settings_observed,source_observed,rows_planned,provider_result_observed,result_registered,
+      to_jsonb(g)->'performance' performance,
+      to_jsonb(g)->'native_sheet_mode' native_sheet_mode,
+      to_jsonb(g)->'native_sheet_bound' native_sheet_bound,
+      to_jsonb(g)->'native_write_acknowledged' native_write_acknowledged
+     from public.analytics_catalog_generations g
      where (actor_id=$1::uuid or team_id=$1::uuid or intent_id=$1::uuid or operation_id=$1::uuid)
        and ($2::timestamptz is null or updated_at >= $2) and created_at <= $3::timestamptz
      order by updated_at desc,intent_id desc limit 101`,
@@ -148,12 +161,61 @@ export async function getCatalogGenerationEvidence(
       rows_planned: typeof row.rows_planned === 'boolean' ? row.rows_planned : null,
       provider_result_observed:
         typeof row.provider_result_observed === 'boolean' ? row.provider_result_observed : null,
+      performance: parseCatalogPerformance(row.performance, Number(row.attempt)),
+      native_sheet_mode: typeof row.native_sheet_mode === 'boolean' ? row.native_sheet_mode : null,
+      native_sheet_bound:
+        typeof row.native_sheet_bound === 'boolean' ? row.native_sheet_bound : null,
+      native_write_acknowledged:
+        typeof row.native_write_acknowledged === 'boolean' ? row.native_write_acknowledged : null,
       result_registered: typeof row.result_registered === 'boolean' ? row.result_registered : null
     });
   }
+  if (result.records.some(record => !record.performance))
+    result.blind_spots.push('Per-stage duration aggregates are unavailable for some attempts.');
+  result.blind_spots.push(
+    'Duration aggregates overlap, exclude the final checkpoint acknowledgement, and are not a transition history or browser-delivery proof.'
+  );
   if (result.unknown_projection)
     result.blind_spots.push(
       'A generation projection contains missing or unrecognized diagnostic evidence.'
     );
   return result;
+}
+
+/** Old views/attempts and malformed projections remain explicitly unmeasured. */
+export function parseCatalogPerformance(
+  value: unknown,
+  attempt: number
+): CatalogTimingSnapshot | null {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !('attempt' in value) ||
+    value.attempt !== attempt ||
+    !('steps' in value) ||
+    !value.steps ||
+    typeof value.steps !== 'object' ||
+    Array.isArray(value.steps)
+  )
+    return null;
+  const steps: CatalogTimingSnapshot['steps'] = {};
+  for (const stage of CATALOG_TIMING_STAGES) {
+    const metric: unknown = Reflect.get(value.steps, stage);
+    if (metric === undefined) continue;
+    if (
+      !metric ||
+      typeof metric !== 'object' ||
+      !('calls' in metric) ||
+      !('total_ms' in metric) ||
+      !Number.isSafeInteger(metric.calls) ||
+      Number(metric.calls) < 1 ||
+      Number(metric.calls) > 10000 ||
+      !Number.isSafeInteger(metric.total_ms) ||
+      Number(metric.total_ms) < 0 ||
+      Number(metric.total_ms) > 86400000
+    )
+      return null;
+    steps[stage] = { calls: Number(metric.calls), total_ms: Number(metric.total_ms) };
+  }
+  return Object.keys(steps).length ? { attempt, steps } : null;
 }

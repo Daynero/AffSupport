@@ -182,6 +182,18 @@ actually need to verify Drive-dependent flows.
 6. Recreate the stack with `npm run beta:down && npm run beta:up`. A plain `docker restart` will
    not do: the containers take their environment when they are created, not when they start.
 
+For the native catalog experiment, enable Google Sheets API in the dedicated beta
+Google project and explicitly set `CATALOG_NATIVE_SHEETS_BETA=true` in the local
+function environment, then recreate the beta backend to load it. The default is off.
+The experimental writer requires both testing OAuth and the exact
+beta loopback site/origins; it cannot activate for the production site or verified
+OAuth. It preserves the durable Drive marker and frozen rows, writes typed cells
+without XLSX conversion, and retains legacy XLSX retries. Disabling the opt-in stops fresh native work;
+accepted native attempts keep their writer for recovery. Native files use a separate
+private marker so older code cannot mistake an incomplete native file for a complete XLSX conversion. The catalog diagnostic
+view's native acknowledgement flags distinguish an acknowledged write from an
+unknown outcome; missing acknowledgement is never proof of no write.
+
 Production must stay on `DRIVE_OAUTH_MODE=verified`; the release gate enforces that independently.
 
 For full folder-tree indexing in beta, opt in with `DRIVE_RESTRICTED_SCOPE_APPROVED=true`

@@ -26,6 +26,7 @@ export function useBulkTrash(
   actorId?: string
 ) {
   const [groups, setGroups] = useState<BulkTrashGroup[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [uncertain, setUncertain] = useState(false);
   const active = useRef(new Set<string>());
   const starting = useRef<string | null>(null);
@@ -62,6 +63,7 @@ export function useBulkTrash(
   useEffect(() => {
     generation.current++;
     setGroups([]);
+    setDismissed(new Set());
     active.current.clear();
     starting.current = null;
     observed.current.clear();
@@ -233,8 +235,12 @@ export function useBulkTrash(
     const flow = observed.current.get(id);
     flow?.visible();
   }, []);
+  const dismiss = useCallback((id: string) => {
+    setDismissed(current => new Set([...current, id]));
+  }, []);
   return {
-    groups: groups.filter(group => group.teamId === teamId),
+    dismiss,
+    groups: groups.filter(group => group.teamId === teamId && !dismissed.has(group.id)),
     uncertain,
     start,
     retry: execute,

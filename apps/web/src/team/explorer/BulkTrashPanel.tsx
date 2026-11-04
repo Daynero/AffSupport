@@ -10,13 +10,15 @@ export function BulkTrashPanel({
   rows,
   uncertain,
   onRetry,
-  onVisible
+  onVisible,
+  onDismiss
 }: {
   group: BulkTrashGroup;
   rows: readonly TeamMaterialRow[];
   uncertain: boolean;
   onRetry?: () => void;
   onVisible: (id: string) => void;
+  onDismiss?: (id: string) => void;
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
@@ -24,8 +26,12 @@ export function BulkTrashPanel({
   useEffect(() => {
     const node = root.current;
     if (!node || !complete) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const seen = () => {
-      if (document.visibilityState === 'visible' && !node.closest('[hidden]')) onVisible(group.id);
+      if (document.visibilityState === 'visible' && !node.closest('[hidden]')) {
+        onVisible(group.id);
+        if (onDismiss && timer === undefined) timer = setTimeout(() => onDismiss(group.id), 4000);
+      }
     };
     const observer =
       typeof IntersectionObserver === 'undefined'
@@ -40,10 +46,11 @@ export function BulkTrashPanel({
     };
     document.addEventListener('visibilitychange', foreground);
     return () => {
+      clearTimeout(timer);
       observer?.disconnect();
       document.removeEventListener('visibilitychange', foreground);
     };
-  }, [complete, group.id, onVisible]);
+  }, [complete, group.id, onVisible, onDismiss]);
   const confirmed = group.items.filter(item => item.state === 'confirmed').length;
   const unresolved = group.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state));
   return (
@@ -54,7 +61,13 @@ export function BulkTrashPanel({
         phase={uncertain ? t('teamBulkTrashUnknown') : null}
         progress={group.items.length ? (confirmed / group.items.length) * 100 : 100}
         active={group.items.some(item => item.state === 'running' || item.state === 'queued')}
-        actions={unresolved && onRetry ? [{ label: t('retry'), run: onRetry }] : []}
+        actions={
+          complete && onDismiss
+            ? [{ label: t('teamOperationClose'), run: () => onDismiss(group.id) }]
+            : unresolved && onRetry
+              ? [{ label: t('retry'), run: onRetry }]
+              : []
+        }
       >
         <ul className="m-0 grid max-h-64 min-w-0 list-none gap-2 overflow-y-auto p-0">
           {group.items.map((item, index) => (

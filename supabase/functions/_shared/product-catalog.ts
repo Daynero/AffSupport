@@ -153,6 +153,15 @@ export function planCatalogRows(input: {
   const brand = input.brand ?? inventedBrand(random);
   const rows: ProductCatalogRowValues[] = [];
   const spare = [...input.texts];
+  const factsCache = new Map<string, ReturnType<typeof pictureFacts>>();
+  const readTextFacts = (title: string) => {
+    let facts = factsCache.get(title);
+    if (!facts) {
+      facts = pictureFacts(title);
+      factsCache.set(title, facts);
+    }
+    return facts;
+  };
   for (let index = 0; index < input.count; index += 1) {
     const image: { link: string; name?: string | null; image?: R2CatalogImage } =
       input.images.length > 0
@@ -163,7 +172,7 @@ export function planCatalogRows(input: {
       : image?.name
         ? pictureFacts(image.name)
         : { garment: null, color: null };
-    const text = takeMatchingText(spare, facts);
+    const text = takeMatchingText(spare, facts, readTextFacts);
     const imageLink = image?.link || input.settings.imageLink;
     /* The picture decides the colour: a name in navy over a photo of a black hoodie is the one
        contradiction a reader sees without opening anything (024, US27). */
@@ -212,14 +221,15 @@ export function planCatalogRows(input: {
  */
 export function takeMatchingText(
   spare: Array<{ title: string; description: string }>,
-  facts: { garment: { name: string } | null; color: string | null }
+  facts: { garment: { name: string } | null; color: string | null },
+  readFacts: typeof pictureFacts = pictureFacts
 ): { title: string; description: string } | null {
   if (spare.length === 0) return null;
   const wanted = facts.garment?.name ?? null;
   if (!wanted) return spare.shift() ?? null;
   /* The name is read with the same vocabulary as the file name, so "Nova Cotton Oversized Tee"
      and `tshirt_white_01.jpg` are known to be the same garment. */
-  const reads = spare.map(text => pictureFacts(text.title));
+  const reads = spare.map(text => readFacts(text.title));
   const exact = reads.findIndex(
     read => read.garment?.name === wanted && facts.color !== null && read.color === facts.color
   );

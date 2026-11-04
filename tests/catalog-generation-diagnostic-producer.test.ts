@@ -56,6 +56,12 @@ beforeAll(async () => {
       'utf8'
     )
   );
+  await db.exec(
+    readFileSync('supabase/migrations/20261207121000_catalog_creation_performance.sql', 'utf8')
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20261207123000_catalog_native_sheet_timings.sql', 'utf8')
+  );
 }, 30_000);
 afterAll(async () => {
   await db.close();
@@ -176,6 +182,13 @@ it.each(['parent', 'type'] as const)(
     expect(evidence).toMatchObject({
       supported: true,
       records: [{ intent_id: ID, state: 'interrupted', safe_error_code: 'SOURCE_CHANGED' }]
+    });
+    expect(evidence.records[0]?.performance).toMatchObject({
+      attempt: 1,
+      steps: {
+        video_proof: { calls: 1 },
+        video_context: { calls: 1 }
+      }
     });
     expect(investigatePrivacyFailure(evidence)).toBeNull();
     expect(JSON.stringify(evidence)).not.toMatch(

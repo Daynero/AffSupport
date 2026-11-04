@@ -1,3 +1,5 @@
+import { betaNativeCatalogSheets } from '../_shared/catalog-native-sheet.ts';
+import { catalogDriveScope } from '../_shared/catalog-drive-scope.ts';
 import { finalizeProcessOutput } from './process-finalize.ts';
 import { acceptMutationPreflight } from './mutation-preflight.ts';
 import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
@@ -114,6 +116,7 @@ import {
   assertExpectedProcessSourceIdentity,
   assertTextEditEligibility,
   buildUploadConflictPlan,
+  catalogConflictSearchPrefix,
   displayDriveName,
   normalizeReservedName,
   postconditionForMutation,
@@ -555,14 +558,16 @@ function liveTarget(metadata: DriveFileMetadata): LiveDriveTarget {
 async function proveContext(
   context: MaterialOperationContext,
   client: GoogleDriveClient,
-  allowTrashedTarget = false
+  allowTrashedTarget = false,
+  readAncestor?: (id: string) => Promise<DriveFileMetadata>
 ) {
   return proveLiveAncestry({
     client,
     fileId: context.driveFileId,
     rootFolderId: context.rootFolderId,
     resourceKey: context.resourceKey,
-    allowTrashedTarget
+    allowTrashedTarget,
+    readAncestor
   });
 }
 
@@ -571,7 +576,11 @@ async function proveContext(
  * root against itself is trivially true, so it is fetched directly rather than
  * walked — every other folder is still walked up to the root as before.
  */
-async function proveDestination(destination: DestinationContext, client: GoogleDriveClient) {
+async function proveDestination(
+  destination: DestinationContext,
+  client: GoogleDriveClient,
+  readAncestor?: (id: string) => Promise<DriveFileMetadata>
+) {
   if (destination.materialId === null) {
     return client.getFile(destination.driveFolderId, destination.resourceKey);
   }
@@ -580,7 +589,8 @@ async function proveDestination(destination: DestinationContext, client: GoogleD
     fileId: destination.driveFolderId,
     rootFolderId: destination.rootFolderId,
     resourceKey: destination.resourceKey,
-    allowTrashedTarget: false
+    allowTrashedTarget: false,
+    readAncestor
   });
 }
 
@@ -688,7 +698,8 @@ async function cacheGeneratedTextResult(input: {
 async function nameCandidates(
   client: GoogleDriveClient,
   destination: DriveFileMetadata,
-  maximumPages = 10
+  maximumPages = 10,
+  namePrefix?: string
 ): Promise<Array<{ materialId: string; name: string }>> {
   const output: Array<{ materialId: string; name: string }> = [];
   let pageToken: string | null = null;
@@ -696,8 +707,11 @@ async function nameCandidates(
     const result = await client.listChildren({
       parentId: destination.id,
       pageToken,
-      driveId: destination.driveId
+      driveId: destination.driveId,
+      namePrefix
     });
+    if (result.incompleteSearch || result.invalidEntries > 0)
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
     output.push(...result.files.map(file => ({ materialId: file.id, name: file.name })));
     pageToken = result.nextPageToken;
     if (!pageToken) return output;
@@ -1300,6 +1314,8 @@ async function destinationWithClient(input: {
   destinationFolderId: string | null;
   actorId: string;
   permission: 'edit' | 'upload' | 'process' | 'delete';
+  clientFor?: (credentialId: string) => Promise<GoogleDriveClient>;
+  ancestorFor?: (credentialId: string) => (id: string) => Promise<DriveFileMetadata>;
 }) {
   const context = await loadDestination({
     service: input.service,
@@ -1308,8 +1324,10 @@ async function destinationWithClient(input: {
     permission: input.permission,
     destination: input.destinationFolderId
   });
-  const client = await driveClient(input.service, context.credentialId, input.request);
-  const live = await proveDestination(context, client);
+  const client = input.clientFor
+    ? await input.clientFor(context.credentialId)
+    : await driveClient(input.service, context.credentialId, input.request);
+  const live = await proveDestination(context, client, input.ancestorFor?.(context.credentialId));
   if (live.mimeType !== 'application/vnd.google-apps.folder') {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
@@ -2701,18 +2719,19 @@ async function proveLaunchSource(
 
 function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
   const contexts = new Map<string, MaterialOperationContext>();
-  const drives = new Map<string, GoogleDriveClient>();
   let destinationClient: GoogleDriveClient | null = null;
-  const fullDriveFor = async (credentialId: string): Promise<GoogleDriveClient> => {
-    const known = drives.get(credentialId);
-    if (known) return known;
-    const client = await driveClient(service, credentialId, request);
-    drives.set(credentialId, client);
-    return client;
-  };
+  const { driveFor: fullDriveFor, ancestorFor } = catalogDriveScope(credentialId =>
+    driveClient(service, credentialId, request)
+  );
   const imageRpc = (name: string, params: Record<string, unknown>) =>
     rpcValue(service, name, params);
   const deps: ProductCatalogDeps = {
+    nativeSpreadsheet: betaNativeCatalogSheets({
+      enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
+      oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+      siteUrl: Deno.env.get('WISHLY_SITE_URL'),
+      requestOrigin: request.headers.get('origin')
+    }),
     validateImageUses: async (team, attempt) => {
       await imageRpc('service_catalog_image_validate_uses_v2', {
         p_team: team,
@@ -2825,7 +2844,12 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
     async proveVideo(video, drive) {
       const context = contexts.get(video.id);
       if (!context) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
-      return proveContext(context, drive as GoogleDriveClient);
+      return proveContext(
+        context,
+        drive as GoogleDriveClient,
+        false,
+        ancestorFor(video.credentialId)
+      );
     },
     async destination({ teamId, actorId, folderId }) {
       const found = await destinationWithClient({
@@ -2834,7 +2858,9 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         teamId,
         destinationFolderId: folderId,
         actorId,
-        permission: 'upload'
+        permission: 'upload',
+        clientFor: fullDriveFor,
+        ancestorFor
       });
       destinationClient = found.client;
       return { materialId: found.context.materialId, live: found.live };
@@ -2849,9 +2875,9 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
     }) {
       if (!destinationClient) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
       // Drive ids, despite the field's name: a re-create keeps the name of the sheet it retires.
-      const names = (await nameCandidates(destinationClient, live)).filter(
-        candidate => candidate.materialId !== replacingDriveFileId
-      );
+      const names = (
+        await nameCandidates(destinationClient, live, 10, catalogConflictSearchPrefix(name))
+      ).filter(candidate => candidate.materialId !== replacingDriveFileId);
       const plan = buildUploadConflictPlan(
         {
           teamId,

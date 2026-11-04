@@ -477,3 +477,44 @@ it('does not let an old start clear a new start lock after a team round trip', a
     await current;
   });
 });
+
+it('dismisses a visible confirmed trash result after acknowledgement, but keeps unfinished work', () => {
+  vi.useFakeTimers();
+  const onVisible = vi.fn();
+  const onDismiss = vi.fn();
+  const group: BulkTrashGroup = {
+    id: 'completed-trash',
+    teamId: team,
+    actorId: actor,
+    items: [{ materialId: rows[0]!.id, idempotencyKey: 'key', state: 'confirmed', errorCode: null }]
+  };
+  try {
+    const view = render(
+      <BulkTrashPanel
+        group={group}
+        rows={rows}
+        uncertain={false}
+        onVisible={onVisible}
+        onDismiss={onDismiss}
+      />
+    );
+    expect(onVisible).toHaveBeenCalledWith(group.id);
+    act(() => vi.advanceTimersByTime(4000));
+    expect(onDismiss).toHaveBeenCalledWith(group.id);
+    onDismiss.mockClear();
+    view.rerender(
+      <BulkTrashPanel
+        group={{ ...group, items: [{ ...group.items[0]!, state: 'unknown' }] }}
+        rows={rows}
+        uncertain={true}
+        onVisible={onVisible}
+        onDismiss={onDismiss}
+      />
+    );
+    act(() => vi.advanceTimersByTime(4000));
+    expect(onDismiss).not.toHaveBeenCalled();
+  } finally {
+    cleanup();
+    vi.useRealTimers();
+  }
+});

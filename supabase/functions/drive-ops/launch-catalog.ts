@@ -150,7 +150,8 @@ export async function executeLaunchCatalog(
       teamId,
       config.materialId,
       actorId,
-      `launch:${generationId}:catalog`
+      `launch:${generationId}:catalog`,
+      { generationId, owner, fence, stage: () => currentStage }
     );
     const resourcePlanner = store.resources;
     const guarded: CatalogIntentStore = {
@@ -160,7 +161,7 @@ export async function executeLaunchCatalog(
         return store.begin(payload, childOwner);
       },
       checkpoint: async (intent, childOwner, state, patch, operationId, result) => {
-        await stage(
+        currentStage =
           state === 'interrupted' || state === 'cleanup_pending'
             ? currentStage
             : state === 'create_started'
@@ -169,8 +170,7 @@ export async function executeLaunchCatalog(
                 ? 'catalog_sharing'
                 : state === 'finalized' || state === 'registered'
                   ? 'catalog_registering'
-                  : 'catalog_planning'
-        );
+                  : 'catalog_planning';
         await store.checkpoint(intent, childOwner, state, patch, operationId, result);
       },
       resources: resourcePlanner

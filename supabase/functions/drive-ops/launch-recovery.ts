@@ -272,7 +272,8 @@ export async function cleanupLaunchOutputs(
       if (
         file.id !== output.fileId ||
         file.mimeType !== 'application/vnd.google-apps.spreadsheet' ||
-        file.appProperties['soty.catalog.intent'] !== output.intentId ||
+        (file.appProperties['soty.catalog.intent'] !== output.intentId &&
+          file.appProperties['soty.catalog.nativeIntent'] !== output.intentId) ||
         !file.parents.includes(output.parentId)
       ) {
         summary.pending++;
@@ -316,7 +317,8 @@ export async function cleanupLaunchOutputs(
         if (
           result.id !== output.fileId ||
           !result.trashed ||
-          result.appProperties['soty.catalog.intent'] !== output.intentId
+          (result.appProperties['soty.catalog.intent'] !== output.intentId &&
+            result.appProperties['soty.catalog.nativeIntent'] !== output.intentId)
         ) {
           summary.pending++;
           continue;

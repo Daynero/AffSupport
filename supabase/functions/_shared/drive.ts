@@ -1,3 +1,5 @@
+import { nativeCatalogCellRows, type NativeCatalogSheet } from './catalog-native-sheet.ts';
+import type { XlsxCell } from './xlsx.ts';
 import { TeamFunctionError, redactForLog } from './errors.ts';
 import { isRecord } from './validation.ts';
 
@@ -412,12 +414,18 @@ export class GoogleDriveClient {
     parentId: string;
     pageToken?: string | null;
     driveId?: string | null;
+    /** Restrict conflict discovery without listing unrelated folder contents. */
+    namePrefix?: string;
   }): Promise<DriveListingPage> {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
       'q',
       `'${input.parentId.replaceAll("'", "\\'")}' in parents and trashed = false`
     );
+    if (input.namePrefix !== undefined) {
+      const prefix = input.namePrefix.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+      url.searchParams.set('q', `${url.searchParams.get('q')} and name contains '${prefix}'`);
+    }
     url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '100');
     url.searchParams.set('supportsAllDrives', 'true');
@@ -619,7 +627,7 @@ export class GoogleDriveClient {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
       'q',
-      `appProperties has { key='soty.catalog.intent' and value='${escape(input.marker)}' } and '${escape(input.parentId)}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`
+      `(appProperties has { key='soty.catalog.intent' and value='${escape(input.marker)}' } or appProperties has { key='soty.catalog.nativeIntent' and value='${escape(input.marker)}' }) and '${escape(input.parentId)}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`
     );
     url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '10');
@@ -674,6 +682,135 @@ export class GoogleDriveClient {
       if (!file) throw new TeamFunctionError('INVALID_RESPONSE');
       return file;
     });
+  }
+
+  /** Atomic Drive marker and parent binding exist before the separate native cell write. */
+  async createNativeSpreadsheet(input: {
+    name: string;
+    parentId: string;
+    appProperties?: Record<string, string>;
+  }): Promise<DriveFileMetadata> {
+    if (
+      !input.name ||
+      input.name.length > 1024 ||
+      !input.parentId ||
+      input.name.includes(String.fromCharCode(0)) ||
+      /[\r\n]/u.test(input.name)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const url = new URL('https://www.googleapis.com/drive/v3/files');
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', FILE_FIELDS);
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        name: input.name,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        parents: [input.parentId],
+        appProperties: input.appProperties ?? {}
+      })
+    });
+    const file = parseMetadata(await response.json().catch(() => null));
+    if (!file || file.mimeType !== 'application/vnd.google-apps.spreadsheet')
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return file;
+  }
+
+  async getNativeSpreadsheetSheets(fileId: string): Promise<NativeCatalogSheet[]> {
+    const url = new URL(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(fileId)}`
+    );
+    url.searchParams.set('fields', 'spreadsheetId,sheets.properties');
+    const response = await this.#request(url);
+    const data: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(data) ||
+      data.spreadsheetId !== fileId ||
+      !Array.isArray(data.sheets) ||
+      !data.sheets.length
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return data.sheets.map(sheet => {
+      const p = isRecord(sheet) && isRecord(sheet.properties) ? sheet.properties : null;
+      const grid = p && isRecord(p.gridProperties) ? p.gridProperties : null;
+      if (
+        !p ||
+        !grid ||
+        p.sheetType !== 'GRID' ||
+        typeof p.title !== 'string' ||
+        typeof p.sheetId !== 'number' ||
+        !Number.isSafeInteger(p.sheetId) ||
+        p.sheetId < 0 ||
+        typeof grid.rowCount !== 'number' ||
+        !Number.isSafeInteger(grid.rowCount) ||
+        grid.rowCount < 1 ||
+        typeof grid.columnCount !== 'number' ||
+        !Number.isSafeInteger(grid.columnCount) ||
+        grid.columnCount < 1
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      return {
+        sheetId: p.sheetId,
+        title: p.title,
+        rowCount: grid.rowCount,
+        columnCount: grid.columnCount
+      };
+    });
+  }
+
+  /** One atomic, idempotent overwrite of the frozen range; never append or shrink the grid. */
+  async writeNativeSpreadsheetRows(input: {
+    fileId: string;
+    sheet: NativeCatalogSheet;
+    sheetName: string;
+    rows: XlsxCell[][];
+  }): Promise<void> {
+    const rows = nativeCatalogCellRows(input.rows);
+    const width = Math.max(...input.rows.map(row => row.length));
+    const payload = JSON.stringify({
+      requests: [
+        {
+          updateSheetProperties: {
+            properties: {
+              sheetId: input.sheet.sheetId,
+              title: input.sheetName,
+              gridProperties: {
+                rowCount: Math.max(input.sheet.rowCount, rows.length),
+                columnCount: Math.max(input.sheet.columnCount, width)
+              }
+            },
+            fields: 'title,gridProperties.rowCount,gridProperties.columnCount'
+          }
+        },
+        {
+          updateCells: {
+            start: { sheetId: input.sheet.sheetId, rowIndex: 0, columnIndex: 0 },
+            rows,
+            fields: 'userEnteredValue,userEnteredFormat.numberFormat'
+          }
+        }
+      ]
+    });
+    if (new TextEncoder().encode(payload).byteLength > 10 * 1024 * 1024)
+      throw new TeamFunctionError('TOO_LARGE');
+    const url = new URL(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(input.fileId)}:batchUpdate`
+    );
+    const response = await this.#request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: payload,
+      signal: AbortSignal.timeout(60_000)
+    });
+    const data: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(data) ||
+      data.spreadsheetId !== input.fileId ||
+      !Array.isArray(data.replies) ||
+      data.replies.length !== 2
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
   }
 
   async createConvertedFile(input: {
@@ -1350,6 +1487,8 @@ export async function proveLiveAncestry(input: {
   rootFolderId: string;
   resourceKey?: string | null;
   maximumDepth?: number;
+  /** Cache only ancestors for one authorized request; the selected target stays fresh. */
+  readAncestor?: (id: string) => Promise<DriveFileMetadata>;
   allowTrashedTarget?: boolean;
   /**
    * The catalog places a shortcut by its own parents, like any other listed
@@ -1374,7 +1513,9 @@ export async function proveLiveAncestry(input: {
       if (parentId === input.rootFolderId) return target;
       if (visited.has(parentId)) continue;
       visited.add(parentId);
-      const parent = await input.client.getFile(parentId);
+      const parent = await (input.readAncestor ?? input.client.getFile.bind(input.client))(
+        parentId
+      );
       if (parent.trashed) continue;
       next.push(...parent.parents);
     }

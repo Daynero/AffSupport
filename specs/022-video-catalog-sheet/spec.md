@@ -371,3 +371,51 @@ Submitting with re-stitching shows an indeterminate preparation bar immediately,
 The catalog stage retains its existing server-request status presentation; its timers do not run while preparing the video. An already completed reusable receipt proceeds without observing an obsolete operation. Observation never cancels, restarts or changes the operation. No transfer grants, links, filenames, provider payloads or user content are passed to the UI notification or added to analytics. Existing protected operation snapshots, agent journal and once-per-operation error reporting remain diagnostic evidence for video stages. Missing UI completion and standalone catalog provider delivery remain explicit blind spots; a completed video is not evidence of a delivered spreadsheet. Observer regressions and the rendered UI are fallback evidence for progress visibility.
 
 Acceptance covers immediate feedback before acceptance, live cloud/local progress, unrelated events, lost observation and reconnect, old attempt replies, failed/canceled children, completed-receipt reuse and ordered transition to catalog creation. Tests: `catalog-restitch-progress`, `product-catalog-dialog`, `catalog-orchestration`, and the shared `launch-operation-observation` regressions. The source-beta preview uses a synthetic pending capability response and creates no provider files; it proves immediate UI visibility, not live FFmpeg or Google delivery.
+
+### Catalog creation performance acceptance
+
+- Reuse OAuth/Drive clients within one request and credential only; join in-flight reads.
+  Memoize ancestors within that request, while fetching every selected target afresh.
+- Restrict name discovery conservatively, retaining normalized collision/suffix behavior,
+  pagination bounds and explicit refusal of incomplete or invalid provider listings.
+- Draw R2 images from one eligible dictionary per transaction. Preserve team serialization,
+  publication readiness locks, exhaustion before repeats, per-row use receipts and exact retries.
+- Commit Launch parent progress/lease validation and child checkpoints atomically with both
+  fences and the exact parent-child binding. Empty heartbeats must not concatenate frozen rows.
+- Record bounded stage call counts and durations for each accepted attempt using existing
+  checkpoints. Restricted analytics exposes only closed stage names/numbers; content, URLs,
+  credentials and provider responses never cross this seam. `investigate` reports missing
+  timings explicitly. Aggregates overlap and exclude final checkpoint acknowledgement;
+  they are not full transition history or proof of browser delivery.
+- Pending UI displays only observed information. Timers cannot claim a provider stage.
+- Regression acceptance includes small/exhausted pools, exact retries, revocation, malformed
+  evidence, lost fences, ambiguous provider results, and read-only diagnosis through SQL.
+  Packaged beta/live provider acceptance remains a release gate; local timings do not prove it.
+
+Catalog latency follow-up (2026-11-04): the 4-second target is an end-to-end
+measurement goal, not a success claim or a client progress deadline. Independent
+name/resource preparation, destination/permission reads, and binding/sharing may
+run concurrently, but every in-flight task must settle before cleanup or recovery.
+Destination and binding failures retain precedence. The image diagnostic journal
+must index the exact text evidence key queried by its per-row daily producer;
+otherwise adding product rows repeatedly scans retained diagnostic history.
+Regression checks must prove the projected query uses that index and diagnostics
+retain the existing privacy projection. Real Google timings and provider API
+availability must be recorded separately from local test timings.
+
+Local-beta native Sheets experiment: activate only with explicit
+`CATALOG_NATIVE_SHEETS_BETA=true`, testing OAuth, site
+http://127.0.0.1:5175 and beta loopback request origins (5175/43140). Production
+and other local profiles retain XLSX. Freeze the writer before creating any file;
+legacy started attempts keep XLSX. Native creation must atomically set the final
+parent and distinct private native-intent marker through Drive (older code must
+refuse an incomplete native file), then bind the actual sheet ID and
+write exact frozen rows with typed string/number values. Sharing and the native
+write may overlap, but both must settle before registration or failure recovery.
+Refresh Drive metadata before binding the result. Unknown native writes overwrite
+the same frozen range, never append or create another file; acknowledged writes
+must not repeat after a later failure. A missing/deleted bound sheet is refused.
+Native sheet binding and write-acknowledgement booleans plus bounded sheet_write
+timings reach the read-only CLI; false acknowledgement remains an unknown provider
+outcome. The write stage includes metadata verification; parallel secondary errors
+and browser delivery remain unobserved. Beta evidence is not production activation.

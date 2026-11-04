@@ -1,8 +1,10 @@
+import { catalogTimings, timeCatalogMethods } from '../_shared/catalog-timings.ts';
 import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 import { parseCatalogRowRecipe } from '../_shared/product-catalog.ts';
-import type { XlsxCell } from '../_shared/xlsx.ts';
+import { buildXlsx, type XlsxCell } from '../_shared/xlsx.ts';
+import { PRODUCT_CATALOG_SHEET_NAME } from '../_shared/product-catalog.ts';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
@@ -11,6 +13,7 @@ import {
   createProductCatalog,
   parseCreateProductCatalogRequest,
   type ProductCatalogDeps,
+  type CatalogDrive,
   type CreateProductCatalogResult
 } from './product-catalog.ts';
 
@@ -22,7 +25,13 @@ export type DurableCatalogDrive = Pick<
   | 'updateFileMetadata'
   | 'getFile'
   | 'findCatalogIntentFiles'
->;
+> &
+  Partial<
+    Pick<
+      GoogleDriveClient,
+      'createNativeSpreadsheet' | 'getNativeSpreadsheetSheets' | 'writeNativeSpreadsheetRows'
+    >
+  >;
 export interface CatalogIntent {
   id: string;
   variant: number;
@@ -65,7 +74,8 @@ export function catalogIntentStore(
   teamId: string,
   videoId: string,
   actorId: string,
-  key: string
+  key: string,
+  launch?: { generationId: string; owner: string; fence: string; stage: () => string }
 ): CatalogIntentStore {
   const call = async (name: string, parameters: Record<string, unknown>) => {
     const { data, error } = await service.rpc(name, parameters);
@@ -176,13 +186,26 @@ export function catalogIntentStore(
       };
     },
     async checkpoint(intent, owner, state, patch, operationId, result) {
-      await call('service_checkpoint_catalog_intent', {
-        ...common(intent, owner),
-        p_state: state,
-        p_checkpoint: patch,
-        p_operation: operationId ?? null,
-        p_result: result ?? null
-      });
+      await call(
+        launch
+          ? 'service_checkpoint_launch_catalog_intent_v1'
+          : 'service_checkpoint_catalog_intent',
+        {
+          ...common(intent, owner),
+          p_state: state,
+          p_checkpoint: patch,
+          p_operation: operationId ?? null,
+          p_result: result ?? null,
+          ...(launch
+            ? {
+                p_generation: launch.generationId,
+                p_launch_owner: launch.owner,
+                p_launch_fence: launch.fence,
+                p_stage: launch.stage()
+              }
+            : {})
+        }
+      );
       intent.state = state;
       intent.checkpoint = { ...intent.checkpoint, ...patch };
       if (operationId) intent.operationId = operationId;
@@ -260,6 +283,53 @@ export async function createDurableProductCatalog(
     if (!result) throw new TeamFunctionError('INVALID_RESPONSE');
     return result;
   }
+  const timings = catalogTimings(intent.attempt);
+  const checkpoint = store.checkpoint.bind(store);
+  store = {
+    ...store,
+    checkpoint: (current, leaseOwner, state, patch, operationId, result) =>
+      timings.measure('checkpoint', () =>
+        checkpoint(
+          current,
+          leaseOwner,
+          state,
+          Object.keys(patch).length || state === 'registered' || state === 'interrupted'
+            ? { ...patch, performance: timings.snapshot(intent.attempt) }
+            : patch,
+          operationId,
+          result
+        )
+      )
+  };
+  deps = timeCatalogMethods(deps, timings, {
+    assertImageContract: 'image_contract',
+    loadVideo: 'video_context',
+    readSettings: 'settings',
+    readLiveCatalogs: 'catalog_lookup',
+    proveVideo: 'video_proof',
+    destination: 'destination',
+    drawTexts: 'resource_selection',
+    drawImages: 'resource_selection',
+    planName: 'name_conflicts',
+    resolveSourceLink: 'source_link',
+    startOperation: 'operation_start',
+    markRunning: 'operation_running',
+    beforeImageWrite: 'image_validation',
+    bindIntent: 'intent_binding',
+    finalize: 'catalog_finalize',
+    link: 'catalog_link',
+    finalizeImageUses: 'image_finalize'
+  });
+  const originalDriveFor = fullDriveFor;
+  fullDriveFor = credentialId =>
+    timings.measure('drive_client', async () =>
+      timeCatalogMethods(await originalDriveFor(credentialId), timings, {
+        createConvertedFile: 'sheet_upload',
+        createNativeSpreadsheet: 'sheet_upload',
+        listAnyonePermissions: 'permission_read',
+        createAnyoneReaderPermission: 'permission_write'
+      })
+    );
   try {
     const recovered = await store.completed?.(intent);
     if (recovered) {
@@ -277,7 +347,7 @@ export async function createDurableProductCatalog(
     let resources: Promise<Record<string, unknown>> | undefined;
     const ensureResources = async () => {
       if (store.resources) {
-        resources ??= store.resources(intent, owner);
+        resources ??= timings.measure('resource_selection', () => store.resources!(intent, owner));
         await resources;
       }
     };
@@ -315,7 +385,11 @@ export async function createDurableProductCatalog(
         file.trashed ||
         file.mimeType !== 'application/vnd.google-apps.spreadsheet' ||
         !file.parents.includes(parentId) ||
-        file.appProperties['soty.catalog.intent'] !== intent.id
+        file.appProperties[
+          intent.checkpoint.sheetEngine === 'native'
+            ? 'soty.catalog.nativeIntent'
+            : 'soty.catalog.intent'
+        ] !== intent.id
       )
         throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
       if (!persisted) {
@@ -330,8 +404,24 @@ export async function createDurableProductCatalog(
       await store.checkpoint(intent, owner, 'created', { providerFileId: file.id });
       return file;
     };
+    const engine = intent.checkpoint.sheetEngine;
+    if (engine !== undefined && engine !== 'native' && engine !== 'xlsx')
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    const nativeSpreadsheet =
+      engine === 'native' ||
+      (engine === undefined &&
+        deps.nativeSpreadsheet === true &&
+        intent.state === 'reserved' &&
+        !intent.operationId &&
+        intent.checkpoint.createStarted !== true &&
+        typeof intent.checkpoint.providerFileId !== 'string');
+    if (nativeSpreadsheet && engine === undefined) {
+      await store.checkpoint(intent, owner, intent.state, { sheetEngine: 'native' });
+      intent.checkpoint.sheetEngine = 'native';
+    }
     const wrapped: ProductCatalogDeps = {
       ...deps,
+      nativeSpreadsheet,
       async beforeImageWrite() {
         await deps.validateImageUses?.(request.teamId, intent.id);
         await deps.beforeImageWrite?.();
@@ -503,7 +593,44 @@ export async function createDurableProductCatalog(
       },
       async driveFor(credentialId) {
         const drive = await fullDriveFor(credentialId);
-        return {
+        const createFile = async (
+          input: { parentId: string },
+          create: () => Promise<DriveFileMetadata>,
+          markerKey = 'soty.catalog.intent'
+        ): Promise<DriveFileMetadata> => {
+          await check();
+          let file: DriveFileMetadata;
+          const recovered = await recoverFile(input.parentId, credentialId);
+          if (recovered) return recovered;
+          await store.checkpoint(intent, owner, 'create_started', {
+            createStarted: true,
+            parentId: input.parentId,
+            credentialId
+          });
+          try {
+            file = await create();
+          } catch (error) {
+            if (
+              error instanceof TeamFunctionError &&
+              ['NEEDS_REAUTH', 'PERMISSION_DENIED', 'RATE_LIMITED'].includes(error.code)
+            )
+              await store.checkpoint(intent, owner, 'planned', {
+                createStarted: false,
+                createRefusedCode: error.code
+              });
+            throw error;
+          }
+          if (
+            file.trashed ||
+            file.mimeType !== 'application/vnd.google-apps.spreadsheet' ||
+            !file.parents.includes(input.parentId) ||
+            file.appProperties[markerKey] !== intent.id
+          )
+            throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
+          await store.checkpoint(intent, owner, 'created', { providerFileId: file.id });
+          return file;
+        };
+        const wrappedDrive: CatalogDrive & Pick<GoogleDriveClient, 'getFile'> = {
           getFile: drive.getFile.bind(drive),
           async listAnyonePermissions(fileId) {
             const permissions = await drive.listAnyonePermissions(fileId);
@@ -525,40 +652,77 @@ export async function createDurableProductCatalog(
             await store.permission(intent, owner, fileId, credentialId, permission.id, 'created');
             return permission;
           },
-          async createConvertedFile(input) {
-            await check();
-            let file: DriveFileMetadata;
-            const recovered = await recoverFile(input.parentId, credentialId);
-            if (recovered) return recovered;
-            await store.checkpoint(intent, owner, 'create_started', {
-              createStarted: true,
-              parentId: input.parentId,
-              credentialId
-            });
-            try {
-              file = await drive.createConvertedFile({
+          createConvertedFile(input) {
+            return createFile(input, () =>
+              drive.createConvertedFile({
                 ...input,
                 appProperties: { ...input.appProperties, 'soty.catalog.intent': intent.id }
-              });
-            } catch (error) {
-              if (
-                error instanceof TeamFunctionError &&
-                ['NEEDS_REAUTH', 'PERMISSION_DENIED', 'RATE_LIMITED'].includes(error.code)
-              )
-                await store.checkpoint(intent, owner, 'planned', {
-                  createStarted: false,
-                  createRefusedCode: error.code
-                });
-              throw error;
-            }
+              })
+            );
+          },
+          createNativeSpreadsheet(input) {
+            if (!drive.createNativeSpreadsheet) throw new TeamFunctionError('INVALID_RESPONSE');
+            return createFile(
+              input,
+              () =>
+                drive.createNativeSpreadsheet!({
+                  ...input,
+                  appProperties: { ...input.appProperties, 'soty.catalog.nativeIntent': intent.id }
+                }),
+              'soty.catalog.nativeIntent'
+            );
+          },
+          async writeNativeSpreadsheet(input) {
+            await check();
+            if (!drive.getNativeSpreadsheetSheets || !drive.writeNativeSpreadsheetRows)
+              throw new TeamFunctionError('INVALID_RESPONSE');
+            const saved = intent.checkpoint.nativeSheet;
+            const written = intent.checkpoint.nativeRowsWritten;
             if (
-              file.trashed ||
-              file.mimeType !== 'application/vnd.google-apps.spreadsheet' ||
-              !file.parents.includes(input.parentId) ||
-              file.appProperties['soty.catalog.intent'] !== intent.id
+              written !== undefined &&
+              (!isRecord(written) ||
+                written.fileId !== input.fileId ||
+                !isRecord(saved) ||
+                saved.fileId !== input.fileId ||
+                written.sheetId !== saved.sheetId)
             )
               throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
-            await store.checkpoint(intent, owner, 'created', { providerFileId: file.id });
+            if (written === undefined) {
+              const sheets = await drive.getNativeSpreadsheetSheets(input.fileId);
+              if (
+                saved !== undefined &&
+                (!isRecord(saved) ||
+                  saved.fileId !== input.fileId ||
+                  typeof saved.sheetId !== 'number' ||
+                  !Number.isSafeInteger(saved.sheetId))
+              )
+                throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
+              const sheet = isRecord(saved)
+                ? sheets.find(s => s.sheetId === saved.sheetId)
+                : sheets.length === 1
+                  ? sheets[0]
+                  : undefined;
+              if (!sheet) throw new TeamFunctionError('SOURCE_CHANGED');
+              const binding = { fileId: input.fileId, sheetId: sheet.sheetId };
+              if (saved === undefined)
+                await store.checkpoint(intent, owner, intent.state, { nativeSheet: binding });
+              // The frozen range is overwritten, never appended. A lost reply retries the same
+              // marked file and bound sheet ID; an acknowledged write is never repeated.
+              await check();
+              await deps.validateImageUses?.(request.teamId, intent.id);
+              await drive.writeNativeSpreadsheetRows({ ...input, sheet });
+              await store.checkpoint(intent, owner, intent.state, { nativeRowsWritten: binding });
+            }
+            const file = await drive.getFile(input.fileId);
+            if (
+              file.id !== input.fileId ||
+              file.trashed ||
+              file.mimeType !== 'application/vnd.google-apps.spreadsheet' ||
+              typeof intent.checkpoint.parentId !== 'string' ||
+              !file.parents.includes(intent.checkpoint.parentId) ||
+              file.appProperties['soty.catalog.nativeIntent'] !== intent.id
+            )
+              throw new TeamFunctionError('LAUNCH_RESULT_UNCERTAIN');
             return file;
           },
           async updateFileMetadata(input) {
@@ -566,6 +730,7 @@ export async function createDurableProductCatalog(
             return drive.updateFileMetadata(input);
           }
         };
+        return timeCatalogMethods(wrappedDrive, timings, { writeNativeSpreadsheet: 'sheet_write' });
       },
       async bindIntent(input) {
         await check();
@@ -588,7 +753,21 @@ export async function createDurableProductCatalog(
         return linked;
       }
     };
-    const result = await createProductCatalog(wrapped, request, actor);
+    const measured = timeCatalogMethods(wrapped, timings, {
+      rememberRowRecipe: 'row_recipe',
+      rememberSheetRows: 'sheet_rows'
+    });
+    const result = await createProductCatalog(
+      {
+        ...measured,
+        buildWorkbook: rows =>
+          timings.measure('xlsx_build', () =>
+            buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows })
+          )
+      },
+      request,
+      actor
+    );
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;

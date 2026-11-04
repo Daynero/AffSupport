@@ -53,6 +53,13 @@ Unknown fields → `INVALID_INPUT`.
 10. Any failure after step 7 → trash the new file (and its row, if committed), mark the operation
     failed, return the error.
 
+Independent reads and preparation may overlap after their authorization prerequisites:
+read video permissions alongside proving the destination, discover the collision-safe name
+alongside resource/row planning, and bind the created file alongside verifying sheet sharing.
+Wait for both tasks on success or failure before finalization, interruption or cleanup; retain
+the earlier logical stage's failure as the primary cause. This does not permit creating a
+sheet before the frozen rows, name reservation and durable create-start receipt exist.
+
 ### Success `200`
 
 ```json
