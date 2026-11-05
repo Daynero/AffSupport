@@ -57,6 +57,8 @@ export function BulkTrashPanel({
     <div ref={root}>
       <ProcessPanel
         title={t('teamBulkTrashTitle')}
+        onDismiss={onDismiss ? () => onDismiss(group.id) : undefined}
+        dismissLabel={t('teamBulkTrashHide')}
         detail={t('teamWorkspaceItemsProgress', { done: confirmed, total: group.items.length })}
         phase={uncertain ? t('teamBulkTrashUnknown') : null}
         progress={group.items.length ? (confirmed / group.items.length) * 100 : 100}

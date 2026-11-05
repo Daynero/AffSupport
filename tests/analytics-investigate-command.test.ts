@@ -553,6 +553,7 @@ describe('investigate · (e) a user with no events', () => {
       'workspace_evidence_gap',
       'workspace_evidence_gap',
       'workspace_evidence_gap',
+      'workspace_evidence_gap',
       'launch_diagnostics_unavailable'
     ]);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
@@ -594,6 +595,7 @@ describe('investigate · (e) a user with no events', () => {
       expect.objectContaining({
         detail: expect.stringContaining('Workspace diagnostic projection is unavailable')
       }),
+      expect.objectContaining({ detail: 'Historical catalog claim eligibility is not retained.' }),
       expect.objectContaining({
         detail: expect.stringContaining('Checkpoint presence is observation')
       }),

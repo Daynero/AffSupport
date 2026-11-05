@@ -376,3 +376,31 @@ it('delivers a safe native process failure through journal ingestion to the read
     setQueryExecutor(null);
   }
 });
+
+it('retains empty native claim evidence through the privacy fence, ingestion and read-only CLI', async () => {
+  const instance = randomUUID();
+  const props = { team_id: randomUUID(), delegation_id: randomUUID(), request_id: randomUUID() };
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  expect(log.record('team', 'recovery_empty_claim', props)).toBe(true);
+  expect(await ingest(log.since(0), { instance })).toEqual({
+    accepted: 1,
+    duplicates: 0,
+    rejected: []
+  });
+  setQueryExecutor((sql, params) => harness.root(sql, params));
+  try {
+    const evidence = await getJournal(instance, {
+      token: 'all',
+      start: null,
+      end: new Date(Date.now() + 1000).toISOString(),
+      label: 'all'
+    });
+    expect(evidence.records[0]).toMatchObject({
+      category: 'team',
+      code: 'recovery_empty_claim',
+      props
+    });
+  } finally {
+    setQueryExecutor(null);
+  }
+});

@@ -73,7 +73,24 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
     [id, Math.min(Math.max(limit, 1), 50)]
   );
   const latest = rows[0] ?? null;
+  // Optional projection: old deployments must report missing coverage explicitly.
+  const available = await query<{ present: boolean }>(
+    `select exists(select 1 from information_schema.views
+      where table_schema='public' and table_name='analytics_catalog_claim_eligibility') as present`
+  );
+  const eligibility =
+    available[0]?.present === true
+      ? await query<Record<string, unknown>>(
+          `select catalog_id, team_id, blockers, open_operations, prior_operations, native_claimants, native_claimants_truncated, observed_at from public.analytics_catalog_claim_eligibility where catalog_id=$1::uuid`,
+          [latest?.catalog_material_id ?? id]
+        )
+      : null;
   return {
+    claim_eligibility: {
+      status: eligibility === null ? 'unavailable' : eligibility.length ? 'observed' : 'not_found',
+      temporal_scope: 'current_snapshot_only',
+      evidence: eligibility?.[0] ?? null
+    },
     subject: latest ? { catalog_id: latest.catalog_material_id, team_id: latest.team_id } : null,
     profile: latest
       ? {
@@ -127,11 +144,63 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
         row.delivery_verified_at !== null && (row.result === 'success' || row.result === 'partial')
     })),
     blind_spots: [
+      ...(eligibility === null
+        ? [
+            'Server claim eligibility is not exposed by this deployment; an empty native claim does not explain why work was withheld.'
+          ]
+        : []),
+      'Claim eligibility describes current predicates, not historical claim decisions or proof of execution.',
       'Video preparation exposes current queue state and failure code; historical preparation stages before a sheet claim are not retained.',
       'This authoritative catalog projection does not prove browser delivery of profile or filter changes; inspect the correlated catalog_manager UI flow. Missing UI completion is unknown.',
       ...(latest?.result === 'unknown'
         ? ['The last attempt has no conclusive delivery evidence.']
         : [])
+    ]
+  };
+}
+
+/** Bounded live evidence for owned teams; never reconstruct history from today's queue. */
+export async function getOwnedCatalogClaimEvidence(userId: string | null, asOf?: string) {
+  const scope = 'owned_teams_current_snapshot_only' as const;
+  if (!userId || asOf)
+    return {
+      scope,
+      status: 'unavailable',
+      records: [],
+      truncated: false,
+      blind_spots: [
+        asOf
+          ? 'Historical catalog claim eligibility is not retained.'
+          : 'Catalog claim owner identity is unresolved.'
+      ]
+    };
+  const available = await query<{ present: boolean }>(
+    `select exists(select 1 from information_schema.views where table_schema='public'
+      and table_name='analytics_catalog_claim_eligibility') as present`
+  );
+  if (available[0]?.present !== true)
+    return {
+      scope,
+      status: 'unavailable',
+      records: [],
+      truncated: false,
+      blind_spots: ['Catalog claim eligibility projection is unavailable on this deployment.']
+    };
+  const records = await query<{ catalog_id: string; blockers: string[]; observed_at: string }>(
+    `select catalog_id, team_id, blockers, open_operations, prior_operations, native_claimants,
+      native_claimants_truncated, observed_at from public.analytics_catalog_claim_eligibility
+      where owner_id=$1::uuid and job_state='queued' order by catalog_id limit 51`,
+    [userId]
+  );
+  return {
+    scope,
+    status: 'observed',
+    records: records
+      .slice(0, 50)
+      .map(record => ({ ...record, observed_at: new Date(record.observed_at).toISOString() })),
+    truncated: records.length > 50,
+    blind_spots: [
+      'Only current queued catalogs in owned teams are included; member-only teams and historical claim decisions are unobserved.'
     ]
   };
 }

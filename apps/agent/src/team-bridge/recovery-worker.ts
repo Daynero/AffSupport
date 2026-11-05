@@ -159,6 +159,7 @@ export class TeamRecoveryWorker {
   #loaded = false;
   #setupRequired = false;
   #installation: string = randomUUID();
+  #emptyClaimRecordedAt = new Map<string, number>();
   #failures = new Map<string, { count: number; since: number }>();
   readonly #secrets: RecoverySecretStore;
   readonly #fetch: typeof fetch;
@@ -480,6 +481,7 @@ export class TeamRecoveryWorker {
       this.#recordRetirement(r, 'server_confirmed');
       await this.#secrets.delete(r.account);
       this.#registrations = this.#registrations.filter(row => row !== r);
+      this.#emptyClaimRecordedAt.delete(r.delegationId);
       this.#episodes.delete(r.delegationId);
       this.#retryNotBefore.delete(r.delegationId);
       this.#serverRetryNotBefore.delete(r.delegationId);
@@ -589,6 +591,17 @@ export class TeamRecoveryWorker {
         : {})
     });
     await this.#save();
+    if (stage === 'settled' && !operationId && !reason) {
+      const last = this.#emptyClaimRecordedAt.get(r.delegationId);
+      if (last === undefined || this.#now() - last >= 300_000) {
+        this.#emptyClaimRecordedAt.set(r.delegationId, this.#now());
+        this.options.record?.('recovery_empty_claim', {
+          team_id: r.teamId,
+          request_id: requestId,
+          delegation_id: r.delegationId
+        });
+      }
+    }
     if (operationId || stage === 'blocked' || reason) {
       this.options.record?.('recovery_state', {
         stage,

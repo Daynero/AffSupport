@@ -517,6 +517,50 @@ it.each([
     }
   }
 );
+it('keeps a frozen video failure visible after restitch is disabled for future runs', async () => {
+  const item = row('1', 'polo.mp4', {
+    updatePending: true,
+    updateStage: 'waiting_video',
+    profile: {
+      ...profileFor(row('1', '').catalogId),
+      restitch: false,
+      restitchStatus: 'blocked',
+      restitchBlockedCode: 'PROCESS_RESULT_UNCERTAIN'
+    }
+  });
+  renderDialog(client([item], running));
+  const identity = await screen.findByLabelText('polo.mp4 catalog');
+  const tableRow = identity.closest('tr')!;
+  const details = within(tableRow).getByRole('button', {
+    name: 'Video preparation failed · details'
+  });
+  expect(within(tableRow).queryByText('Updating…')).toBeNull();
+  await userEvent.click(details);
+  expect(
+    await screen.findByText(
+      /Before retrying|before retrying|could not confirm|could not be confirmed/i
+    )
+  ).toBeTruthy();
+});
+it('does not label an active sheet write as waiting for next-run video', async () => {
+  const item = row('1', 'polo.mp4', {
+    updatePending: true,
+    updateStage: 'building',
+    profile: {
+      ...profileFor(row('1', '').catalogId),
+      restitch: true,
+      restitchStatus: 'blocked',
+      restitchBlockedCode: 'PROCESS_FAILED'
+    }
+  });
+  renderDialog(client([item], running));
+  const identity = await screen.findByLabelText('polo.mp4 catalog');
+  const tableRow = identity.closest('tr')!;
+  expect(within(tableRow).getByText('Updating…')).toBeTruthy();
+  expect(
+    within(tableRow).queryByRole('button', { name: 'Video preparation failed · details' })
+  ).toBeNull();
+});
 it('separates failed next-video preparation from the confirmed successful update', async () => {
   const item = row('1', 'polo.mp4', {
     lastUpdatedAt: '2026-10-18T18:51:05.535Z',

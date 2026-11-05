@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setQueryExecutor } from '../scripts/analytics/db.js';
 import {
   getCatalogUpdateDiagnosis,
-  getTeamCatalogUpdateDiagnosis
+  getTeamCatalogUpdateDiagnosis,
+  getOwnedCatalogClaimEvidence
 } from '../scripts/analytics/catalog-updates.js';
 
 const CATALOG = '23000000-0000-4000-8000-000000000001';
@@ -43,16 +44,14 @@ describe('catalog update diagnosis', () => {
       team_id: ATTEMPT,
       catalogs: [{ subject: null }]
     });
-    expect(calls).toEqual([
-      [ATTEMPT, 50],
-      [CATALOG, 3]
-    ]);
+    expect(calls).toEqual([[ATTEMPT, 50], [CATALOG, 3], []]);
     await expect(getTeamCatalogUpdateDiagnosis('invalid')).rejects.toThrow('Expected a team UUID');
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
   });
   it('uses a bounded read-only query and separates proven delivery from unknown results', async () => {
     let sql = '';
     setQueryExecutor(async (statement, params) => {
+      if (statement.includes('information_schema.views')) return [{ present: false }];
       sql = statement;
       expect(params).toEqual([CATALOG, 10]);
       return [
@@ -106,6 +105,39 @@ describe('catalog update diagnosis', () => {
       'The last attempt has no conclusive delivery evidence.'
     );
     expect(JSON.stringify(diagnosis)).not.toContain('sheet_url');
+  });
+
+  it('keeps missing and historical eligibility unknown rather than claiming an empty queue', async () => {
+    let calls = 0;
+    setQueryExecutor(async () => {
+      calls++;
+      return [{ present: false }];
+    });
+    expect(await getOwnedCatalogClaimEvidence(CATALOG)).toMatchObject({
+      status: 'unavailable',
+      records: []
+    });
+    expect(await getOwnedCatalogClaimEvidence(CATALOG, '2026-11-04T23:49:16Z')).toMatchObject({
+      status: 'unavailable',
+      records: []
+    });
+    expect(calls).toBe(1);
+  });
+  it('bounds live owner evidence and declares truncation without reading content', async () => {
+    setQueryExecutor(async (sql, params) => {
+      if (sql.includes('information_schema.views')) return [{ present: true }];
+      expect(sql).toContain('where owner_id=$1::uuid');
+      expect(sql).toContain('limit 51');
+      expect(params).toEqual([CATALOG]);
+      return Array.from({ length: 51 }, () => ({
+        catalog_id: CATALOG,
+        blockers: ['previous_operation_open'],
+        observed_at: '2026-11-05T00:00:00Z'
+      }));
+    });
+    const result = await getOwnedCatalogClaimEvidence(CATALOG);
+    expect(result).toMatchObject({ status: 'observed', truncated: true });
+    expect(result.records).toHaveLength(50);
   });
 
   it('rejects identifiers before querying', async () => {

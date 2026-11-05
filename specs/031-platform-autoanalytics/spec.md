@@ -323,3 +323,25 @@ identities, file content and provider responses are never collected. Beta disabl
 producer → sanitizer → stored events → CLI inspect/audit regressions cover success, refusal,
 cancellation and missing terminal evidence. UI regressions cover role changes with current overrides,
 explicit role reset, confirmed draft discard, pending lock, help-layer Escape and no-op save.
+
+
+### Catalog empty-claim incident acceptance (2026-11-05)
+
+A null native job response must remain distinguishable from execution success.
+Record a bounded empty-claim sample with team, delegation and request identifiers,
+without credentials or content. The privacy fence, authenticated ingestion and
+read-only journal CLI must retain the sample. Current claim diagnosis must reuse
+the actual eligibility predicates and expose missing coverage and truncation.
+It must not present current state as historical evidence at an as-of instant.
+
+Recovery must preserve renewed handoff authority through Stop, accept only one
+live job per member across authorized installations, and retain output evidence
+after used-copy cleanup. Legacy missing evidence, native execution reservations,
+provider results and upload ownership must not authorize duplicate execution.
+Unknown output receipts must surface the existing result-uncertain UI error.
+Acceptance covers same and different members, multiple native installations,
+live and expired leases, renewal, legacy unknown metadata, receipt deletion,
+client ACLs, diagnostics and missing projections. The real simultaneous-connection regression runs in
+`tests/tariff-catalog-recovery-postgres.test.ts` inside the disposable database
+gate. Packaged-agent acceptance remains a release requirement; database tests
+alone do not prove native execution or user delivery.

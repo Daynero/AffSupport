@@ -1274,6 +1274,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Вкладення відкріплено. Файл збережено: не підтверджено походження або відсутність іншого використання.',
   teamTaskCleanupTrashed: 'Невикористаний файл вкладення перенесено до кошика простору.',
   teamBulkTrashFile: 'Файл {number}',
+  teamBulkTrashHide: 'Прибрати панель',
   teamBulkTrashTitle: 'Перенесення файлів до кошика',
   teamBulkTrashQueued: 'У черзі',
   teamBulkTrashRunning: 'Виконується',

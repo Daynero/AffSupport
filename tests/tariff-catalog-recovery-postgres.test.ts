@@ -168,6 +168,66 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
       });
   }, 30000);
 
+  it('serializes two native installations of one member while another catalog is queued', async () => {
+    const secondSheet = randomUUID(),
+      secondVideo = randomUUID();
+    const firstDelegation = randomUUID(),
+      secondDelegation = randomUUID();
+    const marker = `catalog_claim_${randomUUID().replaceAll('-', '')}`;
+    await sql(`insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type)
+      select '${secondSheet}',team_id,connection_id,'${secondSheet}','root','Synthetic second sheet','file','other','application/vnd.google-apps.spreadsheet'
+      from public.team_materials where id='${sheet}';
+      insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type)
+      select '${secondVideo}',team_id,connection_id,'${secondVideo}','root','Synthetic second video','file','video','video/mp4'
+      from public.team_materials where id='${sheet}';
+      select public.service_link_product_catalog_companion('${team}','${secondVideo}','${secondSheet}',null,
+        jsonb_build_object('sourceLink','https://offer.example.test','productCount',3,
+          'sheetUrl','https://docs.google.com/spreadsheets/d/second/edit','videoLink','https://drive.google.com/file/d/second/view',
+          'createdBy','${owner}','settingsSnapshot',jsonb_build_object('title','Synthetic','description','Synthetic','price',10,'imageLink','https://example.test/image.png')));
+      select set_config('request.jwt.claim.sub','${owner}',true);
+      select public.save_team_catalog_updater('${team}',array['${sheet}','${secondSheet}']::uuid[],'1h',true);
+      select public.patch_team_catalog_update_profile('${team}',catalog_material_id,version,'{"restitch":true}'::jsonb)
+        from public.team_catalog_update_profiles where catalog_material_id in ('${sheet}','${secondSheet}');
+      insert into private.team_recovery_delegations(id,team_id,actor_id,installation_id,refresh_hash) values
+        ('${firstDelegation}','${team}','${owner}',gen_random_uuid(),decode(repeat('91',32),'hex')),
+        ('${secondDelegation}','${team}','${owner}',gen_random_uuid(),decode(repeat('92',32),'hex'));`);
+    const claim = (
+      delegation: string,
+      hash: string
+    ) => `select set_config('soty.background_recovery','${delegation}',true);
+      select public.service_claim_restitch_job('${team}','${owner}',decode(repeat('${hash}',32),'hex'),120)->>'jobId';`;
+    const first = sql(`${claim(firstDelegation, '93')} select pg_sleep(3) /*${marker}*/;`);
+    try {
+      await waitForTransaction(marker);
+      // The first lease is still invisible to this second connection. The member
+      // advisory lock must prevent it from taking the other, unlocked catalog.
+      expect((await sql(claim(secondDelegation, '94'))).split('\n').slice(1).join('')).toBe('');
+      const chosen = (await first).split('\n')[1];
+      expect([sheet, secondSheet]).toContain(chosen);
+      expect((await sql(claim(secondDelegation, '95'))).split('\n').slice(1).join('')).toBe('');
+      expect(
+        await sql(
+          `select count(*) from private.catalog_restitch_jobs where team_id='${team}' and state='leased'`
+        )
+      ).toBe('1');
+      expect(
+        await sql(
+          `select count(*) from private.catalog_restitch_jobs where team_id='${team}' and state='queued'`
+        )
+      ).toBe('1');
+    } finally {
+      await first;
+      await sql(`delete from private.team_recovery_delegations where id in ('${firstDelegation}','${secondDelegation}');
+        select set_config('request.jwt.claim.sub','${owner}',true);
+        select public.stop_team_catalog_updater('${team}');
+        select public.patch_team_catalog_update_profile('${team}',catalog_material_id,version,'{"restitch":false}'::jsonb)
+          from public.team_catalog_update_profiles where catalog_material_id='${sheet}';
+        delete from public.team_materials where id='${secondSheet}';
+        delete from public.team_materials where id='${secondVideo}';
+        select public.set_team_catalog_update_interval('${team}',array['${sheet}']::uuid[],'1d');`);
+    }
+  }, 20_000);
+
   it('a pause sweep skips a locked renewal and cannot pause its committed active tariff', async () => {
     await sql(
       `update public.space_tariffs set ends_on=private.kyiv_today()-10 where id='${tariff}';`

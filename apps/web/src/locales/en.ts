@@ -1280,6 +1280,7 @@ export const en = {
     'Attachment removed. The file was kept because it may be used elsewhere or was not uploaded for a task.',
   teamTaskCleanupTrashed: 'Unused attachment file moved to the space trash.',
   teamBulkTrashFile: 'File {number}',
+  teamBulkTrashHide: 'Hide this panel',
   teamBulkTrashTitle: 'Move files to trash',
   teamBulkTrashQueued: 'Queued',
   teamBulkTrashRunning: 'In progress',

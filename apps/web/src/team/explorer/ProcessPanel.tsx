@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Button, IconButton, Progress } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -14,9 +14,9 @@ import { useI18n } from '../../i18n';
  *
  * Two decisions carry the design:
  *
- * - **It collapses to a strip.** Not a close button: closing would hide work that is still
- *   running, and the panel's whole purpose is that the machine is busy. Collapsed it keeps the
- *   process name and the bar, and gives the screen back.
+ * - **It collapses to a strip.** Collapsed it keeps the process name and progress.
+ *   Receipt-backed surfaces may additionally supply a hide action; hiding the surface
+ *   must not cancel, retry or acknowledge the underlying operation.
  * - **The step is named, not only counted.** "Transferring", "recognising", "saving" answer
  *   "is it stuck?" in a way a percentage never does, which is the question a bar that moves
  *   slowly always provokes.
@@ -35,6 +35,8 @@ export function ProcessPanel({
   progress,
   active,
   actions,
+  onDismiss,
+  dismissLabel,
   children
 }: {
   /** The process, in one or two words. Shown collapsed as well. */
@@ -47,6 +49,8 @@ export function ProcessPanel({
   /** False while held, so the bar stops animating and says so. */
   active: boolean;
   actions: ProcessPanelAction[];
+  onDismiss?: () => void;
+  dismissLabel?: string;
   children?: ReactNode;
 }) {
   const { t } = useI18n();
@@ -77,6 +81,11 @@ export function ProcessPanel({
             <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           )}
         </IconButton>
+        {onDismiss && (
+          <IconButton size="sm" label={dismissLabel ?? t('teamOperationClose')} onClick={onDismiss}>
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        )}
       </div>
 
       {/* Kept mounted while collapsed so the bar is the one thing a strip still

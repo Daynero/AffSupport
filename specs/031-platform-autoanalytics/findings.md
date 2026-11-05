@@ -48,3 +48,115 @@
 | 4      | suite ✗ (1 тест)         | `two-factor-sql` «lists newest first»: сортування `created_at desc, id`, два записи в одну мить упорядковуються випадковим UUID | окремо 1 падіння з 3 без змін 031; відома нестабільність з аудиту релізу 1.2.5; не виправлено в цій гілці |
 
 Усі інші ворота (build, format, lint, три typecheck, design-tokens, tailwind, styles, i18n, env, csp, audit) зелені в кожному прогоні; у прогоні 2 пройшли 4693 тести з 4703. Повністю зеленого `verify` для 031 немає через два нестабільні тести поза обсягом фічі.
+
+## Catalog empty claims — 2026-11-05
+
+The reported attempt remained queued with no operation or lease; the supplied
+native checkpoint later recorded `settled` with a null operation and reason.
+The worker code proves this can represent an empty broker response, not completed
+video processing. Existing production projections do not retain the exact claim
+exclusion predicate. The historical incident cause remains unproven.
+
+Three independent defects were reproduced before their fix: removing a retired
+copy erased the receipt needed to allow the next job; two authorized native
+delegations excluded each other; Stop removed the job pointer needed to expire an
+unexecuted handoff. New durable markers preserve observed output and renewed
+handoff authority. Member claims serialize before eligibility checks. Expired
+handoffs can be recovered by another authorized member only without execution,
+upload or provider-result evidence; unknown metadata remains blocked.
+
+Diagnostics now expose current shared eligibility predicates, not reconstructed
+history. Native empty responses are sampled every five minutes at most and pass
+through the existing privacy and ingestion seams. Missing output evidence uses
+the existing result-uncertain profile error. Production was not changed. Packaged
+beta, simultaneous native acceptance and after-release user delivery remain
+unverified; T035 records those boundaries.
+
+Local PostgreSQL verification: `SOTY_TEST_DB_SOURCE_PROJECT=r2beta045 npm run
+test:db` passed all 1064 pgTAP assertions, two real Auth checks and 37 native
+PostgreSQL tests. The new deterministic concurrent-connection test holds the
+first claim transaction open while a second authorized installation requests a
+different queued catalog; exactly one member lease is issued. The native fixture
+replays the full migration chain, including the catalog-history lookup index.
+Only schema and role definitions were cloned; no production or existing local
+application rows were changed. Packaged two-agent end-to-end execution remains
+separate from this verified SQL concurrency boundary.
+
+Final verification of the local patch (2026-11-05): `npm run verify` passed
+14/14 gates; 8603 tests passed, 50 environment or platform opt-ins were skipped,
+and no tests failed. The final `test:db` rerun with the same local source project
+passed all 1064 pgTAP checks plus 39 native PostgreSQL and Auth tests. The final
+migration includes visible uncertainty for legacy orphaned, reserved, uploading
+and advanced-stage expired operations; those operations remain fenced from replay.
+The disposable test containers were cleaned up. No production release, production
+repair or packaged-beta acceptance was performed.
+
+## Owner report: off → update → on → update workaround
+
+Users report that disabling restitch, updating, enabling restitch and updating
+again sometimes succeeds. Two additional SQL regressions reproduce the relevant
+mechanics: a new attempt with restitch disabled can deliver a catalog without a
+replacement video, and enabling it for the next attempt queues video preparation;
+changing the profile after a manual attempt is accepted does not erase that
+attempt's frozen restitch requirement. The latter continues waiting for a spare.
+`tests/team-catalog-restitch-sql.test.ts`: 41/41 passed after adding both cases.
+These explain distinct possible outcomes of the reported workaround; no new
+user-specific server evidence establishes which branch any affected user hit.
+A catalog update alone is not proof that replacement video was produced, and
+toggling must not clear uncertain execution or provider-output fences. This
+follow-up changes regression coverage only; the previous production-release
+boundary remains unchanged.
+
+## Mixed bulk manual retries — additional confirmed defect
+
+A mixed bulk request reset retry deadlines, attempt counters and the diagnostic
+error of already-pending catalogs whenever at least one selected catalog opened
+a new attempt. The regression fails against the prior function: attempts change
+from 4 to 0 and RESTITCH_POOL_EMPTY disappears. The new migration captures exactly
+the catalog IDs returned by the accepted-attempt UPDATE and resets preparation
+only for those IDs. Already-pending and reconciliation-blocked selections retain
+their state. A repeated request opening zero attempts remains a no-op.
+The catalog restitch suite passes 42 tests with this patch. No assertion is made
+that this independently confirmed bug explains every reported toggle workaround.
+
+## Frozen-attempt UI after toggling restitch
+
+The manager used the mutable next-run restitch flag to decide whether a pending
+video failure needed attention and whether its details were visible. A regression
+fails against the prior UI when the profile is off but the accepted run is still
+in waiting_video with PROCESS_RESULT_UNCERTAIN. The manager now prioritizes the
+authoritative current stage for pending runs, keeping future profile choices
+unchanged. The inverse case is covered too: a building sheet is not relabeled as
+waiting for next-run video merely because the profile has restitch enabled.
+Existing catalog stage/error readback, result-visible and filter-count diagnostic
+seams remain in use; no content or new telemetry fields are collected.
+
+Follow-up validation: 84 focused SQL and manager UI tests passed. The database
+gate passed 1064 pgTAP checks and 39 real PostgreSQL/Auth tests with migration 20261207125000. Full-suite success recorded above predates this follow-up; the
+follow-up uses focused regressions plus the static and isolated database gates.
+Packaged-beta acceptance and production publication remain outstanding.
+
+## Bulk trash panels that cannot be dismissed (2026-11-05)
+
+The owner supplied a panel with zero of ten receipts confirmed and permission
+errors shown alongside unknown outcomes. The UI offered dismissal only when
+every item was confirmed; its header chevron merely collapsed the panel. This
+proves the missing escape action, not the provider outcome of those deletions.
+A permission error alone must not rewrite an unknown receipt as failed.
+
+Bulk trash now supplies an always-accessible, localized header hide action,
+including when collapsed, using the existing receipt-preserving dismissal seam.
+It neither retries nor cancels the mutation, changes receipt state, nor emits
+result-visible acknowledgement. Existing confirmed-result visibility and
+auto-dismiss behavior are retained. Hidden groups remain available internally
+for reconciliation and overlap protection. Dismissal survives receipt refresh
+within the current workspace provider; it is not persisted across reloads.
+Existing workspace-operation diagnostic signals remain authoritative, with no
+new user content or telemetry fields. The affected user's identity and server
+receipts have not been established for this screenshot.
+
+Validation: 38 focused explorer/workspace-operation/analytics tests and all 13
+static gates passed. Coverage includes queued, running, failed, unknown and
+confirmed states, closing while collapsed, no retry or extra acknowledgement,
+and an unknown permission-denied group staying hidden after refresh without
+mutation calls. This change is local; packaged acceptance and release remain.

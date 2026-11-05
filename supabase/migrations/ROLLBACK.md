@@ -2244,3 +2244,26 @@ client-reported permission errors as proof that no write occurred. Preserve all
 bulk items, operation keys and material-group checkpoints. A missing/newer RPC
 leaves the operation nonterminal rather than asserting a false failure. No
 automatic rollback or production repair is authorized.
+
+
+### 20261207124000 — Catalog claim eligibility and retained receipts
+
+Retain the handoff actor, extended expiry and output-observed markers: removing
+them after copy cleanup or Stop destroys independent recovery evidence. Restore
+claim and profile functions only through an explicitly reviewed forward migration;
+never mark uncertain operations failed or replay an upload as rollback. The old
+claim function reintroduces the multi-installation deadlock and cannot interpret
+retained output receipts. Keep view SELECT and helper EXECUTE grants restricted
+to the analytics role; clients and service_role cannot read this diagnostic view.
+The new view is optional for the CLI, which reports unavailable coverage if absent.
+Native empty-claim telemetry requires an agent release. No automatic rollback or
+production data repair is authorized.
+
+
+### 20261207125000 — Scope manual retries to accepted attempts
+
+The RPC signature and authorization are unchanged. Preserve accepted attempt
+snapshots and existing retry diagnostics. Reverting the function to its older
+implementation reintroduces resets for pending selections in mixed bulk requests;
+use an explicitly reviewed forward correction instead. Do not rewrite attempts
+or clear uncertain-operation fences as rollback.

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
 import { setQueryExecutor } from '../scripts/analytics/db';
 import { getCatalogUpdateDiagnosis } from '../scripts/analytics/catalog-updates';
+import { getInvestigation } from '../scripts/analytics/investigate';
 
 /**
  * Feature 023: re-stitched copies behind the catalogs, in the database — the member whose open tab
@@ -217,7 +218,7 @@ const completeRound = async (catalogId: string, count: number, copy: string | nu
   )[0]!.ok;
 
 beforeAll(async () => {
-  harness = await createTeamTestDb();
+  harness = await createTeamTestDb({ supabaseServiceDefaultPrivileges: true });
   await createUser(harness, { id: OWNER, email: 'owner@restitch.test', displayName: 'Owner' });
   await createUser(harness, { id: VIEWER, email: 'viewer@restitch.test', displayName: 'Viewer' });
   await createUser(harness, { id: EDITOR, email: 'editor@restitch.test', displayName: 'Editor' });
@@ -268,6 +269,353 @@ afterAll(async () => {
 });
 
 describe('who prepares', () => {
+  it('preserves a pending catalog retry and error when a bulk request starts another catalog', async () => {
+    const pending = await catalog('pending-retry');
+    const fresh = await catalog('fresh-retry');
+    await save([pending.sheet, fresh.sheet], true);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [pending.sheet]
+    ]);
+    await harness.root(
+      `update private.catalog_restitch_jobs set next_attempt_at=clock_timestamp()+interval '1 hour',attempts=4,last_error_code='RESTITCH_POOL_EMPTY' where catalog_material_id=$1`,
+      [pending.sheet]
+    );
+    const before = await jobs(pending.sheet);
+    const result = await harness.asUser<{ opened: number }>(
+      OWNER,
+      'select public.run_team_catalog_update_now($1,$2) opened',
+      [teamId, [pending.sheet, fresh.sheet]]
+    );
+    expect(result[0]?.opened).toBe(1);
+    expect(await jobs(pending.sheet)).toEqual(before);
+    const repeat = await harness.asUser<{ opened: number }>(
+      OWNER,
+      'select public.run_team_catalog_update_now($1,$2) opened',
+      [teamId, [pending.sheet, fresh.sheet]]
+    );
+    expect(repeat[0]?.opened).toBe(0);
+    expect(await jobs(pending.sheet)).toEqual(before);
+    await stop();
+  });
+
+  it('updates without replacement video, then queues replacement when enabled for a new attempt', async () => {
+    const { sheet } = await catalog('toggle-workaround');
+    await save([sheet], false);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [sheet]
+    ]);
+    const rows = await harness.root<{
+      catalog_material_id: string;
+      update_count: number;
+      spare_material_id: string | null;
+    }>("select * from public.service_claim_catalog_updater_items('worker-r',10,60)");
+    const current = rows.find(row => row.catalog_material_id === sheet)!;
+    expect(current).toBeTruthy();
+    expect(current.spare_material_id).toBeNull();
+    expect(await completeRound(sheet, current.update_count + 1, null)).toBe(true);
+    await setRestitch([sheet], true);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [sheet]
+    ]);
+    expect((await claimJob(enroll(), token()))?.jobId).toBe(sheet);
+    await stop();
+  });
+
+  it('does not remove an already accepted video requirement merely by toggling the profile off', async () => {
+    const { sheet } = await catalog('toggle-frozen-attempt');
+    await save([sheet], true);
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [sheet]
+    ]);
+    await setRestitch([sheet], false);
+    const rows = await harness.root<{ wanted: boolean }>(
+      'select private.catalog_wants_restitch($1) wanted',
+      [sheet]
+    );
+    expect(rows[0]?.wanted).toBe(true);
+    const claims = await harness.root<{ catalog_material_id: string }>(
+      "select * from public.service_claim_catalog_updater_items('worker-r',10,60)"
+    );
+    expect(claims.some(row => row.catalog_material_id === sheet)).toBe(false);
+    await stop();
+  });
+
+  it('allows the analytics role to read eligibility but denies client reads and writes', async () => {
+    const { sheet } = await catalog('analytics-eligibility-acl');
+    await save([sheet], true);
+    await harness.db.exec('set role wishly_analytics_ro');
+    try {
+      const result = await harness.root(
+        'select catalog_id,blockers from public.analytics_catalog_claim_eligibility where catalog_id=$1',
+        [sheet]
+      );
+      expect(result).toHaveLength(1);
+      await expect(
+        harness.root('delete from public.analytics_catalog_claim_eligibility where catalog_id=$1', [
+          sheet
+        ])
+      ).rejects.toThrow();
+    } finally {
+      await harness.db.exec('reset role');
+    }
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      expect(
+        (
+          await harness.root<{ allowed: boolean }>(
+            `select has_table_privilege($1,'public.analytics_catalog_claim_eligibility','select') allowed`,
+            [role]
+          )
+        )[0]?.allowed
+      ).toBe(false);
+    }
+    await stop();
+  });
+
+  it('can prepare again after a proven retired output has been deleted', async () => {
+    const { sheet } = await catalog('deleted-receipt-regression');
+    await save([sheet], true);
+    const lease = token();
+    expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+    const op = (
+      await harness.root<{ id: string }>(
+        `insert into public.team_operations(team_id,actor_id,kind,state,stage,idempotency_key,request_nonce)
+       values($1,$2,'process','running','awaiting_agent',gen_random_uuid()::text,gen_random_uuid()::text) returning id`,
+        [teamId, OWNER]
+      )
+    )[0]!.id;
+    expect(await bind(sheet, lease, op)).toBe(true);
+    const made = await output(op);
+    await harness.root(
+      `update public.team_operations set state='succeeded',stage='completed',finished_at=clock_timestamp(),result_material_id=$2 where id=$1`,
+      [op, made.copy]
+    );
+    await harness.root(
+      `update public.team_catalog_restitch_copies set role='retired',retired_at=clock_timestamp(),next_delete_at=clock_timestamp() where material_id=$1`,
+      [made.copy]
+    );
+    await harness.root('select public.service_forget_restitch_copy($1,true)', [made.copy]);
+    await harness.root('select private.queue_restitch_jobs($1)', [teamId]);
+    // Missing legacy evidence must not be mistaken for a known cleaned result.
+    await harness.root(
+      'update private.catalog_restitch_operations set output_recorded_at=null where operation_id=$1',
+      [op]
+    );
+    expect(await claimJob(enroll(), token())).toBeNull();
+    const profile = await harness.asUser(
+      OWNER,
+      'select restitch_status,restitch_blocked_code from public.list_team_catalog_update_profiles($1) where catalog_material_id=$2',
+      [teamId, sheet]
+    );
+    expect(profile[0]).toEqual({
+      restitch_status: 'blocked',
+      restitch_blocked_code: 'PROCESS_RESULT_UNCERTAIN'
+    });
+    await harness.root(
+      'update private.catalog_restitch_operations set output_recorded_at=clock_timestamp() where operation_id=$1',
+      [op]
+    );
+    expect((await claimJob(enroll(), token()))?.jobId).toBe(sheet);
+    await stop();
+  }, 60_000);
+
+  it.each([
+    'same_actor',
+    'other_actor',
+    'execution_reserved',
+    'provider_result',
+    'upload_owned',
+    'advanced_stage',
+    'legacy_unknown',
+    'renewed_lease'
+  ])(
+    'handles a discarded handoff safely: %s',
+    async scenario => {
+      const { sheet } = await catalog('stop-discarded-handoff');
+      await save([sheet], true);
+      const lease = token();
+      expect((await claimJob(enroll(), lease))?.jobId).toBe(sheet);
+      const op = (
+        await harness.root<{ id: string }>(
+          `insert into public.team_operations(team_id,actor_id,kind,state,stage,idempotency_key,request_nonce)
+       values($1,$2,'process','running','awaiting_agent',gen_random_uuid()::text,gen_random_uuid()::text) returning id`,
+          [teamId, OWNER]
+        )
+      )[0]!.id;
+      expect(await bind(sheet, lease, op)).toBe(true);
+      await stop();
+      await save([sheet], true);
+      setQueryExecutor((sql, params) => harness.root(sql, params));
+      try {
+        expect((await getCatalogUpdateDiagnosis(sheet)).claim_eligibility).toMatchObject({
+          status: 'observed',
+          temporal_scope: 'current_snapshot_only',
+          evidence: {
+            blockers: expect.arrayContaining(['previous_operation_open']),
+            open_operations: 1,
+            prior_operations: {
+              records: [
+                expect.objectContaining({
+                  operation_id: op,
+                  state: 'running',
+                  execution_reserved: false,
+                  upload_owned: false,
+                  provider_result_recorded: false
+                })
+              ],
+              truncated: false
+            }
+          }
+        });
+        if (scenario === 'same_actor') {
+          const investigation = await getInvestigation('owner@restitch.test', {
+            token: 'all',
+            start: null,
+            end: new Date(Date.now() + 1000).toISOString(),
+            label: 'all'
+          });
+          expect(investigation.findings).toContainEqual(
+            expect.objectContaining({
+              rule: 'catalog_claim_currently_blocked',
+              kind: 'fact',
+              fingerprint: 'catalog:claim:previous_operation_open'
+            })
+          );
+          expect(investigation.catalog_claims?.records[0]?.observed_at).toMatch(/Z$/u);
+        }
+      } finally {
+        setQueryExecutor(null);
+      }
+      // Cancellation must not bypass the old handoff's execution authority.
+      expect(await claimJob(enroll(), token())).toBeNull();
+      // Model the passage of the original lease deadline, independently of the new job.
+      await harness.root(
+        `update private.catalog_restitch_operations set created_at=clock_timestamp()-interval '1 day' where operation_id=$1`,
+        [op]
+      );
+      await harness.root(
+        `update private.catalog_restitch_operations set handoff_expires_at=clock_timestamp()-interval '1 minute' where operation_id=$1`,
+        [op]
+      );
+      if (scenario === 'execution_reserved')
+        await harness.root(
+          `insert into private.team_recovery_execution_fences(operation_id,team_id,actor_id,job_id) values($1,$2,$3,$4)`,
+          [op, teamId, OWNER, sheet]
+        );
+      if (scenario === 'provider_result')
+        await harness.root(
+          `insert into private.team_operation_intents(operation_id,team_id,provider_result_id) values($1,$2,'known-result')`,
+          [op, teamId]
+        );
+      if (scenario === 'advanced_stage')
+        await harness.root("update public.team_operations set stage='processing' where id=$1", [
+          op
+        ]);
+      if (scenario === 'upload_owned')
+        await harness.root(
+          `insert into private.process_upload_ownership(operation_id,team_id,actor_id,connection_id,credential_id,
+          root_id,parent_id,file_id,source_file_id,expected_name,mime_type,size_bytes,checksum,handoff_expires_at)
+         select $1,$2,$3,id,credential_id,'root','parent',gen_random_uuid()::text,'source','copy.mp4','video/mp4',10,repeat('a',32),clock_timestamp()+interval '1 hour'
+         from public.team_drive_connections where id=$4`,
+          [op, teamId, OWNER, connectionId]
+        );
+      if (scenario === 'legacy_unknown')
+        await harness.root(
+          `update private.catalog_restitch_operations set handoff_expires_at=null where operation_id=$1`,
+          [op]
+        );
+      if (scenario === 'renewed_lease') {
+        await harness.root(
+          `update private.catalog_restitch_jobs set state='leased',operation_id=$1,lease_owner=$2,lease_token_hash=$4,lease_expires_at=clock_timestamp()+interval '1 hour' where catalog_material_id=$3`,
+          [op, OWNER, sheet, lease]
+        );
+        await stop();
+        await save([sheet], true);
+      }
+      const retry = await claimJob(enroll(scenario === 'other_actor' ? EDITOR : OWNER), token());
+      const protectedWork = [
+        'execution_reserved',
+        'provider_result',
+        'upload_owned',
+        'advanced_stage',
+        'legacy_unknown',
+        'renewed_lease'
+      ].includes(scenario);
+      if (
+        [
+          'legacy_unknown',
+          'execution_reserved',
+          'provider_result',
+          'upload_owned',
+          'advanced_stage'
+        ].includes(scenario)
+      ) {
+        const profile = await harness.asUser(
+          OWNER,
+          'select restitch_status,restitch_blocked_code from public.list_team_catalog_update_profiles($1) where catalog_material_id=$2',
+          [teamId, sheet]
+        );
+        expect(profile[0]).toEqual({
+          restitch_status: 'blocked',
+          restitch_blocked_code: 'PROCESS_RESULT_UNCERTAIN'
+        });
+      }
+      if (protectedWork) expect(retry).toBeNull();
+      else expect(retry?.jobId).toBe(sheet);
+      expect(
+        (
+          await harness.root<{ state: string }>(
+            'select state from public.team_operations where id=$1',
+            [op]
+          )
+        )[0]?.state
+      ).toBe(protectedWork ? 'running' : 'failed');
+      await stop();
+    },
+    60_000
+  );
+
+  it('does not let a second authorized native installation deadlock both claimants', async () => {
+    const { sheet } = await catalog('two-native-installations');
+    const other = await catalog('another-queued-catalog');
+    await save([sheet, other.sheet], true);
+    const delegations = await harness.root<{ id: string }>(
+      `insert into private.team_recovery_delegations(team_id,actor_id,installation_id,refresh_hash)
+       values($1,$2,gen_random_uuid(),$3),($1,$2,gen_random_uuid(),$4) returning id`,
+      [teamId, OWNER, token(), token()]
+    );
+    try {
+      // A browser must still defer to the native registrations.
+      expect(await claimJob(enroll(), token())).toBeNull();
+      const invalid = await harness.root<{ job: Job | null }>(
+        `select public.service_claim_restitch_job($1,$2,$3,120) job
+         from (select set_config('soty.background_recovery',gen_random_uuid()::text,true)) context`,
+        [teamId, OWNER, token()]
+      );
+      expect(invalid[0]?.job).toBeNull();
+      const claimed = await harness.root<{ job: Job | null }>(
+        `select public.service_claim_restitch_job($1,$2,$3,120) job
+         from (select set_config('soty.background_recovery',$4,true)) context`,
+        [teamId, OWNER, token(), delegations[0]!.id]
+      );
+      expect([sheet, other.sheet]).toContain(claimed[0]?.job?.jobId);
+      const second = await harness.root<{ job: Job | null }>(
+        `select public.service_claim_restitch_job($1,$2,$3,120) job
+         from (select set_config('soty.background_recovery',$4,true)) context`,
+        [teamId, OWNER, token(), delegations[1]!.id]
+      );
+      expect(second[0]?.job).toBeNull();
+    } finally {
+      await harness.root('delete from private.team_recovery_delegations where id=any($1::uuid[])', [
+        delegations.map(row => row.id)
+      ]);
+      await stop();
+    }
+  }, 60_000);
+
   it('refuses a member who cannot process, and one who no longer can', async () => {
     await expect(claimJob(enroll(VIEWER), token())).rejects.toThrow(/PERMISSION_DENIED/);
     const editor = enroll(EDITOR);

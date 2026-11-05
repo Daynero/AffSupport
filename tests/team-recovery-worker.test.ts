@@ -239,7 +239,31 @@ describe('background recovery worker', () => {
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(2);
     expect(f.process.process).not.toHaveBeenCalled();
-    expect(f.record).not.toHaveBeenCalled();
+    expect(f.record).toHaveBeenCalledTimes(1);
+    expect(f.record).toHaveBeenCalledWith('recovery_empty_claim', {
+      team_id: TEAM,
+      request_id: expect.any(String),
+      delegation_id: expect.any(String)
+    });
+  });
+  it('samples empty claims at most once per five minutes without credentials', async () => {
+    const f = await fixture();
+    f.setSecrets({
+      ...f.getSecrets(),
+      claimExpiresAt: new Date(Date.now() + 3_600_000).toISOString()
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.record.mock.calls.filter(([code]) => code === 'recovery_empty_claim')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(270_000);
+    await f.worker.idle();
+    expect(f.record.mock.calls.filter(([code]) => code === 'recovery_empty_claim')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await f.worker.idle();
+    expect(f.record.mock.calls.filter(([code]) => code === 'recovery_empty_claim')).toHaveLength(2);
+    expect(JSON.stringify(f.record.mock.calls)).not.toContain('x'.repeat(43));
+    expect(f.process.process).not.toHaveBeenCalled();
   });
   it('does not start a late claim after explicit disable', async () => {
     const f = await fixture();

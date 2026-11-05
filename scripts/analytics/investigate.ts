@@ -1,3 +1,4 @@
+import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
 import { getCommercialAccessEvidence } from './commercial-access.js';
 import { getTranslationRetirementEvidence } from './library-retirement.js';
 import { getCatalogImageDiagnosis } from './catalog-images.js';
@@ -1856,6 +1857,35 @@ export async function getInvestigation(
   }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
+  const catalog_claims = await getOwnedCatalogClaimEvidence(scope.userId, period.as_of);
+  for (const detail of catalog_claims.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const record of catalog_claims.records) {
+    if (!record.blockers.length) continue;
+    const fingerprint = `catalog:claim:${record.blockers[0]}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['catalog_claim', record.catalog_id, ...record.blockers]),
+      kind: 'fact',
+      severity: record.blockers.some(code =>
+        [
+          'previous_operation_open',
+          'output_receipt_missing',
+          'recovery_blocked',
+          'source_link_unavailable'
+        ].includes(code)
+      )
+        ? 'medium'
+        : 'info',
+      rule: 'catalog_claim_currently_blocked',
+      title: `Queued catalog currently excluded from claim: ${record.blockers.join(', ')}.`,
+      evidence: [`catalog:${record.catalog_id}:${record.observed_at}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect current eligibility and native claimant blockers. This snapshot does not prove the cause of a historical empty claim; never replay uncertain execution.'
+    });
+  }
   for (const detail of catalog_generations.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
   for (const record of catalog_generations.records.filter(
@@ -1991,6 +2021,7 @@ export async function getInvestigation(
     workspace,
     launches,
     catalog_generations,
+    catalog_claims,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,

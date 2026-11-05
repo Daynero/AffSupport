@@ -527,3 +527,75 @@ it('dismisses a visible confirmed trash result after acknowledgement, but keeps 
     vi.useRealTimers();
   }
 });
+
+it.each(['unknown', 'failed', 'running', 'queued', 'confirmed'] as const)(
+  'can hide a %s trash panel even when collapsed without retrying or confirming work',
+  state => {
+    const group: BulkTrashGroup = {
+      id: '37000000-0000-4000-8000-000000000099',
+      teamId: team,
+      actorId: actor,
+      items: [
+        {
+          materialId: rows[0]!.id,
+          idempotencyKey: 'same-operation',
+          state,
+          errorCode: state === 'unknown' ? 'PERMISSION_DENIED' : null
+        }
+      ]
+    };
+    const onDismiss = vi.fn(),
+      onRetry = vi.fn(),
+      onVisible = vi.fn();
+    render(
+      <BulkTrashPanel
+        group={group}
+        rows={rows}
+        uncertain={state === 'unknown'}
+        onDismiss={onDismiss}
+        onRetry={onRetry}
+        onVisible={onVisible}
+      />
+    );
+    const before = onVisible.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { expanded: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide this panel' }));
+    expect(onDismiss).toHaveBeenCalledWith(group.id);
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(onVisible).toHaveBeenCalledTimes(before);
+    expect(group.items[0]?.state).toBe(state);
+  }
+);
+
+it('keeps a manually hidden unknown receipt hidden across refresh without mutating it', async () => {
+  const group: BulkTrashGroup = {
+    id: 'hidden-unknown',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'unchanged',
+        state: 'unknown',
+        errorCode: 'PERMISSION_DENIED'
+      }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => [structuredClone(group)]),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn()
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() => expect(view.result.current.groups).toHaveLength(1));
+  act(() => view.result.current.dismiss(group.id));
+  await act(async () => {
+    await view.result.current.refresh();
+  });
+  expect(view.result.current.groups).toHaveLength(0);
+  expect(client.startBulkTrash).not.toHaveBeenCalled();
+  expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
+  expect(client.markBulkTrashRequest).not.toHaveBeenCalled();
+  expect(group.items[0]?.state).toBe('unknown');
+});

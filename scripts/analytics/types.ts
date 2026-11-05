@@ -920,6 +920,9 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  catalog_claims?: Awaited<
+    ReturnType<typeof import('./catalog-updates.js').getOwnedCatalogClaimEvidence>
+  >;
   catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;

@@ -518,6 +518,25 @@ profile version, result, safe error code and Drive readback evidence. `unknown`
 and missing per-stage timing remain explicit blind spots. The command uses the
 same SELECT-only connection as the other analytics commands.
 
+`claim_eligibility` is a current snapshot from the restricted
+`analytics_catalog_claim_eligibility` view. Its blockers use the same predicates as
+job claiming: earlier open operations, missing output receipts, recovery holds,
+retry deadlines, live source linkage and updater selection. Up to 20 blocking
+prior operations include their identifiers, stage, handoff deadline and execution,
+upload and provider-result flags, with explicit truncation. Native claimant
+entries additionally expose permission, delegation and busy-member blockers
+(maximum 20; truncation is explicit). No credentials, filenames or URLs are read.
+Missing deployments report `unavailable`, never an empty healthy queue.
+
+`investigate` includes up to 50 currently queued catalogs in owned teams and
+labels that scope explicitly. With `--as-of`, this live projection is omitted:
+historical eligibility cannot be reconstructed. Member-only teams require the
+explicit `catalog team` command. `recovery_empty_claim` journal records identify
+a successful broker poll returning no job, sampled at most once per five minutes
+per delegation per agent lifetime. They prove neither execution nor the server's
+historical exclusion reason. Forwarding still requires a browser connection;
+missing or delayed journal delivery remains unknown.
+
 ## Catalog schedule trends and visual reports
 
 ```bash

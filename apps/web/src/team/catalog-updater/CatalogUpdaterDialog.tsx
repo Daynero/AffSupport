@@ -86,18 +86,26 @@ function lastSuccess(row: CatalogRegistryRow): string | null {
     : row.profile.lastSuccessfulAt;
 }
 
+// Profile options configure the next run; the current stage belongs to the accepted run.
+function needsVideo(row: CatalogRegistryRow) {
+  if (row.updatePending && row.updateStage) {
+    return row.updateStage === 'waiting_video' || row.updateStage === 'restitching';
+  }
+  return Boolean(row.profile?.restitch);
+}
+
 function needsAttention(row: CatalogRegistryRow) {
   if (row.profile?.reconciliationRequired) return row.profile.lastResult !== 'running';
   if (row.updatePending)
     return Boolean(
-      row.profile?.restitch &&
-      row.profile.restitchStatus === 'blocked' &&
-      row.profile.restitchBlockedCode
+      needsVideo(row) &&
+      row.profile?.restitchStatus === 'blocked' &&
+      row.profile?.restitchBlockedCode
     );
   return Boolean(
     row.lastUpdateError ||
     ['failed', 'partial', 'unknown'].includes(row.profile?.lastResult ?? '') ||
-    (row.profile?.restitch && row.profile.restitchStatus === 'blocked')
+    (needsVideo(row) && row.profile?.restitchStatus === 'blocked')
   );
 }
 
@@ -974,9 +982,9 @@ export function CatalogUpdaterDialog({
                             )}
                           </button>
                         ) : row.updatePending &&
-                          row.profile?.restitch &&
-                          row.profile.restitchStatus === 'blocked' &&
-                          row.profile.restitchBlockedCode ? (
+                          needsVideo(row) &&
+                          row.profile?.restitchStatus === 'blocked' &&
+                          row.profile?.restitchBlockedCode ? (
                           <button
                             type="button"
                             className="catalog-outcome-details"
@@ -986,8 +994,8 @@ export function CatalogUpdaterDialog({
                           </button>
                         ) : row.updatePending ? (
                           t(
-                            row.profile?.restitch && row.profile.restitchStatus !== 'ready'
-                              ? row.profile.restitchStatus === 'preparing'
+                            needsVideo(row) && row.profile?.restitchStatus !== 'ready'
+                              ? row.profile?.restitchStatus === 'preparing'
                                 ? 'catalogRunPreparingVideo'
                                 : 'catalogRunVideoWaiting'
                               : 'catalogUpdaterUpdatingNow'
@@ -1009,7 +1017,7 @@ export function CatalogUpdaterDialog({
                                   : 'catalogRunFailed'
                             )}
                           </button>
-                        ) : row.profile?.restitch && row.profile.restitchStatus === 'blocked' ? (
+                        ) : needsVideo(row) && row.profile?.restitchStatus === 'blocked' ? (
                           <button
                             type="button"
                             className="catalog-outcome-details"
@@ -1333,14 +1341,14 @@ export function CatalogUpdaterDialog({
                         })
                       }
                     />
-                    {row.profile.restitch && row.profile.restitchStatus === 'blocked' && (
+                    {needsVideo(row) && row.profile?.restitchStatus === 'blocked' && (
                       <p className="catalog-result-attention">
                         {t('catalogIconsReadinessWarning')}{' '}
-                        {row.profile.restitchBlockedCode &&
-                          teamErrorMessageFor({ code: row.profile.restitchBlockedCode }, t)}
+                        {row.profile?.restitchBlockedCode &&
+                          teamErrorMessageFor({ code: row.profile?.restitchBlockedCode }, t)}
                       </p>
                     )}
-                    {row.profile.restitch && row.profile.restitchStatus === 'blocked' && (
+                    {needsVideo(row) && row.profile?.restitchStatus === 'blocked' && (
                       <Button
                         size="sm"
                         variant="ghost"

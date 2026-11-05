@@ -1475,6 +1475,22 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
     check:
       'Distinguish durable local retirement, committed server acknowledgement and protected-key cleanup. Reconcile the same delegation across boots; a browser signout or missing native record never proves server revocation. Preserve the last protected handle until acknowledgement and do not replay processing.'
   },
+  'journal:team:recovery_empty_claim': {
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'supabase/functions/team-recovery/handler.ts'
+    ],
+    check:
+      'The broker returned no job. Read current catalog claim eligibility; this sample does not prove why an earlier claim was empty or that video processing completed.'
+  },
+  'catalog:claim:*': {
+    files: [
+      'supabase/migrations/20261207124000_catalog_claim_eligibility.sql',
+      'supabase/functions/team-recovery/handler.ts'
+    ],
+    check:
+      'Inspect shared eligibility predicates, lease deadlines and retained operation receipts. Preserve execution and upload fences; a current snapshot cannot establish a historical rejection.'
+  },
   'journal:team:recovery_state': {
     files: ['apps/agent/src/team-bridge/recovery-worker.ts'],
     check: 'Inspect the persisted recovery checkpoint and current dependency.'
