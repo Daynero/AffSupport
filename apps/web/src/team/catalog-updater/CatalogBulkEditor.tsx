@@ -10,6 +10,7 @@ import { teamErrorMessageFor } from '../errors';
 import type { CatalogUpdaterInterval } from '../../api/team';
 import { beginCatalogUiFlow } from './analytics';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
+import { CatalogBulkUndo, type CatalogBulkUndoReceipt } from './CatalogBulkUndo';
 
 const FIELDS = [
   ['randomLinkVariation', 'catalogRandomLinkVariation'],
@@ -33,6 +34,7 @@ export function CatalogBulkEditor({
   onSaved,
   onDirtyChange,
   onPendingChange,
+  onUncertainChange,
   mode = 'all'
 }: {
   mode?: 'all' | 'restitch' | 'schedule';
@@ -46,6 +48,7 @@ export function CatalogBulkEditor({
   onSaved: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   onPendingChange?: (pending: boolean) => void;
+  onUncertainChange?: (uncertain: boolean) => void;
 }) {
   const mounted = useRef(true);
   useEffect(() => {
@@ -59,8 +62,19 @@ export function CatalogBulkEditor({
   const [pending, setPending] = useState(false);
   const [failures, setFailures] = useState<string[]>([]);
   const [successCount, setSuccessCount] = useState(0);
+  const [undoReceipts, setUndoReceipts] = useState<CatalogBulkUndoReceipt[]>([]);
+  const [undoActivity, setUndoActivity] = useState({ pending: false, uncertain: false });
+  const currentItems = useRef(new Map(items.map(item => [item.catalogId, item])));
+  currentItems.current = new Map(items.map(item => [item.catalogId, item]));
   const [resultsByCatalog, setResultsByCatalog] = useState<
-    Array<{ id: string; name: string; ok: boolean; unknown?: boolean; error?: string }>
+    Array<{
+      id: string;
+      name: string;
+      ok: boolean;
+      restored?: boolean;
+      unknown?: boolean;
+      error?: string;
+    }>
   >([]);
   const flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const bulkFlowId = useRef<string | undefined>(undefined);
@@ -75,17 +89,20 @@ export function CatalogBulkEditor({
     return () => flow.current?.cancel();
   }, []);
   useEffect(() => {
-    onDirtyChange?.(pending || Object.keys(draft).length > 0);
-  }, [draft, pending, onDirtyChange]);
+    onDirtyChange?.(
+      pending || undoActivity.pending || undoActivity.uncertain || Object.keys(draft).length > 0
+    );
+  }, [draft, pending, undoActivity, onDirtyChange]);
   useEffect(() => {
-    if (!pending && !Object.keys(draft).length) return;
+    if (!pending && !undoActivity.pending && !undoActivity.uncertain && !Object.keys(draft).length)
+      return;
     const prevent = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
-  }, [draft, pending]);
+  }, [draft, pending, undoActivity]);
   useEffect(() => {
     if (!delivery) return;
     // Passive effects run after the result list and counts have committed.
@@ -94,8 +111,8 @@ export function CatalogBulkEditor({
     else delivery.flow.complete();
   }, [delivery]);
   useEffect(() => {
-    onPendingChange?.(pending);
-  }, [pending, onPendingChange]);
+    onPendingChange?.(pending || undoActivity.pending);
+  }, [pending, undoActivity.pending, onPendingChange]);
   useEffect(
     () => () => {
       onPendingChange?.(false);
@@ -107,6 +124,11 @@ export function CatalogBulkEditor({
   if (!Object.keys(draft).length && !pending)
     baselineItems.current = new Map(items.map(item => [item.catalogId, item]));
   const unknownIds = useRef(new Set<string>());
+  const uncertain = unknownIds.current.size > 0 || undoActivity.uncertain;
+  useEffect(() => {
+    onUncertainChange?.(uncertain);
+  }, [uncertain, onUncertainChange]);
+  useEffect(() => () => onUncertainChange?.(false), [onUncertainChange]);
   const readControllers = useRef(new Set<AbortController>());
   useEffect(
     () => () => {
@@ -114,9 +136,10 @@ export function CatalogBulkEditor({
     },
     []
   );
-  const locked = pending || unknownIds.current.size > 0;
+  const locked =
+    pending || unknownIds.current.size > 0 || undoActivity.pending || undoActivity.uncertain;
   class UnknownSave extends Error {}
-  const saveItem = async (item: Item): Promise<CatalogUpdateProfile> => {
+  const saveItem = async (item: Item): Promise<CatalogSnapshot> => {
     const controller = new AbortController();
     readControllers.current.add(controller);
     try {
@@ -132,7 +155,14 @@ export function CatalogBulkEditor({
       });
       if (outcome.kind === 'confirmed') {
         unknownIds.current.delete(item.catalogId);
-        return outcome.snapshot.profile;
+        if (
+          (currentItems.current.get(item.catalogId)?.profile.version ?? 0) >
+          outcome.snapshot.profile.version
+        ) {
+          flow.current?.stage('conflict');
+          throw new TeamApiError('STALE_RESULT', false);
+        }
+        return outcome.snapshot;
       }
       if (outcome.kind === 'unknown') {
         unknownIds.current.add(item.catalogId);
@@ -149,6 +179,7 @@ export function CatalogBulkEditor({
   const resetResults = () => {
     baselineItems.current = new Map(items.map(item => [item.catalogId, item]));
     confirmedIds.current.clear();
+    setUndoReceipts([]);
     setResultsByCatalog([]);
     setSuccessCount(0);
     setFailures([]);
@@ -174,7 +205,8 @@ export function CatalogBulkEditor({
   });
   const currentSchedule = mixedSchedule ? null : firstSchedule;
   const apply = async () => {
-    if (!keys.length || !affected || pending) return;
+    if (!keys.length || !affected || pending || undoActivity.pending || undoActivity.uncertain)
+      return;
     // A retry gets its own attempt; completed earlier results remain visible.
     if (!flow.current)
       flow.current = beginCatalogUiFlow('bulk', {
@@ -189,7 +221,8 @@ export function CatalogBulkEditor({
     );
     setPending(true);
     setFailures([]);
-    const results: PromiseSettledResult<CatalogUpdateProfile>[] = new Array(changedItems.length);
+    const appliedPatch = draft;
+    const results: PromiseSettledResult<CatalogSnapshot>[] = new Array(changedItems.length);
     let nextIndex = 0;
     // Keep large selections from opening hundreds of simultaneous writes.
     await Promise.all(
@@ -232,6 +265,21 @@ export function CatalogBulkEditor({
     });
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') confirmedIds.current.add(changedItems[index]!.catalogId);
+    });
+    setUndoReceipts(previous => {
+      const byId = new Map(previous.map(receipt => [receipt.catalogId, receipt]));
+      results.forEach((result, index) => {
+        if (result.status !== 'fulfilled') return;
+        const item = changedItems[index]!;
+        byId.set(item.catalogId, {
+          catalogId: item.catalogId,
+          name: item.name,
+          before: { profile: item.profile, interval: item.interval },
+          after: result.value,
+          patch: appliedPatch
+        });
+      });
+      return [...byId.values()];
     });
     setSuccessCount(confirmedIds.current.size);
     if (results.some(result => result.status === 'fulfilled')) attemptFlow.stage('save_confirmed');
@@ -365,13 +413,37 @@ export function CatalogBulkEditor({
         type="button"
         size="sm"
         variant="secondary"
-        disabled={!keys.length || !affected || pending}
+        disabled={
+          !keys.length || !affected || pending || undoActivity.pending || undoActivity.uncertain
+        }
         onClick={() => void apply()}
       >
         {t(unknownIds.current.size > 0 ? 'catalogIconsCheck' : 'catalogUpdaterSaveProfile')}
       </Button>
       {successCount > 0 && (
         <p role="status">{t('catalogUpdaterBulkSaved', { count: successCount })}</p>
+      )}
+      {read && undoReceipts.length > 0 && (
+        <CatalogBulkUndo
+          receipts={undoReceipts}
+          allowedIds={items.map(item => item.catalogId)}
+          read={read}
+          save={save}
+          disabled={pending || unknownIds.current.size > 0}
+          parentFlowId={bulkFlowId.current}
+          onStart={() => setDraft({})}
+          onConfirmed={receipt => {
+            confirmedIds.current.delete(receipt.catalogId);
+            setSuccessCount(confirmedIds.current.size);
+            setResultsByCatalog(current =>
+              current.map(result =>
+                result.id === receipt.catalogId ? { ...result, restored: true } : result
+              )
+            );
+          }}
+          onSaved={onSaved}
+          onActivityChange={setUndoActivity}
+        />
       )}
       {failures.length > 0 && (
         <div className="team-inline-error" role="alert">
@@ -389,9 +461,11 @@ export function CatalogBulkEditor({
                 {result.name}:{' '}
                 {result.unknown
                   ? t('catalogIconsUnknown')
-                  : result.ok
-                    ? t('catalogUpdaterBulkResultSaved')
-                    : `${t('catalogUpdaterBulkResultFailed')} · ${result.error}`}
+                  : result.restored
+                    ? t('catalogUpdaterBulkResultRestored')
+                    : result.ok
+                      ? t('catalogUpdaterBulkResultSaved')
+                      : `${t('catalogUpdaterBulkResultFailed')} · ${result.error}`}
               </li>
             ))}
           </ol>

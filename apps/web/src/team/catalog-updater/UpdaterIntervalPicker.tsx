@@ -202,6 +202,7 @@ export function UpdaterIntervalPicker({
         disabled={disabled || saving}
         aria-label={`${label}: ${intervalLabel(value, t)}${nextLabel ? ` · ${nextLabel}` : ''}`}
         aria-haspopup="dialog"
+        data-catalog-field="schedule"
         aria-expanded={open}
         className={value === null ? 'is-off' : value === 'mixed' ? undefined : 'is-scheduled'}
         onClick={() => {

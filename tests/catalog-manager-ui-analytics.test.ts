@@ -57,6 +57,18 @@ describe('catalog manager UI evidence', () => {
     );
     expect(() => flow.complete()).not.toThrow();
   });
+  it('keeps the closed cause on a failed undo stage without collecting settings or names', () => {
+    const track = vi.fn();
+    const flow = beginCatalogUiFlow('bulk', { count: 2 }, { track });
+    flow.stage('undo_requested');
+    flow.stage('conflict', 'CONFLICT');
+    expect(track.mock.calls.at(-1)?.[1]).toMatchObject({
+      action_identifier: 'conflict',
+      error_code: 'CONFLICT',
+      item_count: 2
+    });
+    expect(track.mock.calls.at(-1)?.[1]).not.toHaveProperty('settings');
+  });
   it('registers every UI action separately for bounded read-only diagnosis', () => {
     for (const action of ['list', 'filter', 'profile', 'bulk', 'template']) {
       const capability = COVERAGE_REGISTRY.find(

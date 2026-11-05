@@ -14,6 +14,39 @@ const profile: CatalogUpdateProfile = {
 };
 const base = { profile, interval: null };
 describe('shared catalog save authority', () => {
+  it('bounds a stalled write acknowledgement, then checks its exact version without resending it', async () => {
+    vi.useFakeTimers();
+    let finish!: (value: CatalogUpdateProfile) => void;
+    let stored = profile;
+    const write = vi.fn(
+      () =>
+        new Promise<CatalogUpdateProfile>(resolve => {
+          finish = resolve;
+        })
+    );
+    const read = vi.fn(async () => ({ ...base, profile: stored }));
+    const saving = saveCatalogProfile({ base, patch: { restitch: true }, write, read });
+    try {
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(read).toHaveBeenCalledTimes(1);
+      expect((await saving).kind).toBe('unknown');
+      stored = { ...profile, version: 2, restitch: true };
+      finish(stored);
+      const checked = await saveCatalogProfile({
+        base,
+        patch: { restitch: true },
+        write,
+        read,
+        readOnly: true
+      });
+      expect(checked.kind).toBe('confirmed');
+      expect(write).toHaveBeenCalledTimes(1);
+    } finally {
+      finish({ ...profile, version: 2, restitch: true });
+      await saving;
+      vi.useRealTimers();
+    }
+  });
   it('never treats a rejected version write as success when another writer saved the same value', async () => {
     const result = await saveCatalogProfile({
       base,

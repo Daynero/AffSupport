@@ -79,13 +79,13 @@
       truncation, unavailable schema і unsupported producer → явний unknown.
       **Evidence:** ed55a766; reviews/verification-fast-manager-native.json; audit failure isolation, bounded native joins and temporal-cutoff regressions; pinned real CLI audit proves source availability, with coverage gaps kept explicit.
 
-- [ ] T009 [US1] виправити download готових каталогів — `supabase/functions/drive-transfer/handler.ts`. Залежності: T003, T005–T006.
+- [x] T009 [US1] виправити download готових каталогів — `supabase/functions/drive-transfer/handler.ts`. Залежності: T003, T005–T006.
       `drive-transfer/{handler,index}`, `useMaterialActions`, agent download/transfer.
       За доведеним типом файла реалізувати правильний bytes/export contract, grant,
       MIME/filename/size/identity handling; native Sheets тільки в дозволеному режимі.
       Перевірки: A01–A02, малий/agent файл, 403/404/expiry/stream interruption; browser
       handoff не записується як disk_saved. Результуючий beta-файл відкривається.
-      **Evidence:** —
+      **Evidence:** 68709d21 / c9e05c5e; native export, permission/source-version revalidation, byte ceilings, filename and browser/agent delivery regressions in catalog-export-download, drive-transfer, team-bridge and catalog-diagnostics-ingestion. Full verify: 8807 tests / 14 gates; real PostgreSQL: 1064 assertions + 39 Auth/native tests. Manual beta downloaded the same native Sheet from manager and Explorer; both actual .xlsx files pass CRC and workbook XML checks (reviews/manual-beta.md and manual-beta-downloads.json). Browser handoff remains distinct from saved-file telemetry.
 
 - [ ] T010 [US1] виправити share/get-link — `supabase/functions/library-ops/index.ts`. Залежності: T003, T005–T006.
       `library-ops`, `api/team.ts`: missing webViewLink/permission verification
@@ -101,19 +101,19 @@
       меню, довгий URL, keyboard; не повторювати share через clipboard failure.
       **Evidence:** —
 
-- [ ] T012 [US1] строгі API результати та неповні списки — `apps/web/src/api/team.ts`. Залежності: T005.
+- [x] T012 [US1] строгі API результати та неповні списки — `apps/web/src/api/team.ts`. Залежності: T005.
       `api/team.ts` guards для registry/profiles/run/retry/cancel: invalid rows
       позначаються partial, invalid counts/booleans не перетворюються в no-op.
       Моделювати optional legacy fields окремо. Перевірки: A04, valid empty,
       mixed rows, malformed entire response, 0/false проти invalid.
-      **Evidence:** —
+      **Evidence:** c9e05c5e; registry/profile partial rows and optional legacy fields, strict run/retry counts and cancel booleans, history identity/time validation in catalog-profile-outcome-api and manager regressions. reviews/verification-fast-scope-cancel.json: 14/14 gates, 8807 passed tests. Real beta list loaded 38 catalogs; malformed/no-op cases are controlled regression evidence, not claimed manual fault injection.
 
-- [ ] T013 [US1] продемонструвати причину й частковість у менеджері — `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`. Залежності: T012.
+- [x] T013 [US1] продемонструвати причину й частковість у менеджері — `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`. Залежності: T012.
       `useCatalogUpdater`, Dialog, list analytics: valid rows доступні, malformed
       omissions/stale read явно показані, Retry читання не виконує mutation.
       Перевірки: старий список при outage, відсутній профіль, відхилені рядки,
       неповний список не створює хибного порожнього success.
-      **Evidence:** —
+      **Evidence:** ed55a766 / c9e05c5e; valid rows survive malformed omissions, profile absence is explicit, failed refresh retains prior rows and read retry is separate from mutation. Catalog updater dialog, snapshot API, registry-refresh and UI-diagnosis regressions pass. The later complete checkpoint reviews/verification-fast-bulk-undo.json reports 14/14 gates and 8824 passed tests; ordinary beta loaded 38 catalogs. Malformed/outage scenarios remain controlled regression evidence.
 
 - [ ] T014 [US1] наскрізне приймання отримання результату — `tests/catalog-diagnostics-ingestion.test.ts`. Залежності: T007–T013.
       Тести `material-action-surfaces`, `catalog-ui-diagnosis`, `drive-transfer` та
@@ -129,14 +129,14 @@
 
 Незалежне приймання: A07–A08, один click bad+good і bounded failure/cancel.
 
-- [ ] T015 [US2] класифікувати передачу картинки без втрати причини — `apps/agent/src/team-bridge/screen-cache.ts`. Залежності: T005.
+- [x] T015 [US2] класифікувати передачу картинки без втрати причини — `apps/agent/src/team-bridge/screen-cache.ts`. Залежності: T005.
       Agent `transfer.ts` → `screen-cache.ts` → `restitch.ts`: missing/forbidden,
       expired grant, changed identity, checksum/decode/animated, local write, transient
       network та canceled. Preserve causes in closed codes/journal. Регресії на
       transfer_failed, checksum_mismatch, cache_write_failed та abort.
       Bounded full screen decode preflight для fresh/cache, corrupt-cache refetch і
       truncated-but-probeable fixtures; лише ffprobe metadata не приймає screen.
-      **Evidence:** —
+      **Evidence:** ed55a766 / c9e05c5e; screen-cache/transfer/restitch preserve provider, identity, checksum/decode, local-write, tool/deadline and cancellation causes. Fresh/cache strict managed full decode rejects real truncated-but-probeable media; corrupted cache refetch, upstream body cancellation and bounded screen bytes/retries are covered in agent-screen-cache, real decoder and team-bridge suites. Full canonical verification retained in reviews/verification-fast-scope-cancel.json. Same-click reselection and durable aggregate budgets remain T016–T020.
 
 - [ ] T016 [US2] серверний bounded підбір кандидатів — `supabase/functions/drive-ops/updater-restitch.ts`. Залежності: T004, T015.
       Existing draw RPC/`updater-restitch.ts` і shared selection policy: exclusion
@@ -184,7 +184,7 @@
       підключити BulkEditor. CAS, accepted/rejected/conflict/unknown, per-item
       outcomes, максимум 4 writes. A09: втрачена відповідь після commit, failed
       readback, retry не повторює confirmed rows і не перезаписує чужі правки.
-      **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit 68709d21.
+      **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit 68709d21. Follow-up verification-fast-bulk-undo.json: 14/14 gates, 8824 tests, including bounded stalled acknowledgements, unchanged old-version UNKNOWN, read-only recovery of an inverse, direct duplicate-intent fencing and failed Undo preflight.
 
 - [ ] T022 [US3] точний bulk schedule та undo — `apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx`. Залежності: T021.
       BulkEditor + IntervalPicker + server patch: interval/time/day/zone атомарні;
@@ -205,24 +205,26 @@
       A11: дві вкладки, double click, success/cancel race, stale profile/attempt.
       **Evidence:** —
 
-- [ ] T025 [US3] progress із прив’язкою до attempt — `apps/web/src/team/catalog-updater/CatalogProgressRow.tsx`. Залежності: T007, T020, T024.
+- [x] T025 [US3] progress із прив’язкою до attempt — `apps/web/src/team/catalog-updater/CatalogProgressRow.tsx`. Залежності: T007, T020, T024.
       Додати відсутню active-attempt identity у read model; ProgressRow/History
       приймають лише matching signals, нова спроба скидає старий максимум.
       A13: back-to-back без inactive poll, old progress, hover, partial, stale observation.
-      **Evidence:** —
+      **Evidence:** 68709d21 / c9e05c5e; active round/attempt and native child IDs are carried by the authorized snapshot, API and row/history consumers. catalog-row-progress, catalog-updater-dialog and native/runtime regressions cover consecutive attempts without an inactive poll, stale/mismatched signals, completed child gaps and pointer observation. Full checkpoints include reviews/verification-fast-scope-cancel.json and verification-fast-bulk-undo.json (8824 tests / 14 gates). No live native processing acceptance is claimed here.
 
-- [ ] T026 [US3] bounded читання history/readback — `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`. Залежності: T013, T021.
+- [x] T026 [US3] bounded читання history/readback — `apps/web/src/team/catalog-updater/useCatalogUpdater.ts`. Залежності: T013, T021.
       Перевикористати readCoordinator/withReadDeadline, abort, visibility/actor/team
       scope. Не створювати нового polling owner. A12: завислий Promise, hidden/refocus,
       unmount, old response; відновлення читання не повторює запис.
-      **Evidence:** —
+      **Evidence:** c9e05c5e; existing readCoordinator/withReadDeadline and visible serial owners used for manager/history/readback; finite deadline, abort/unmount, same-tick refocus and actor/team scope regressions pass in catalog-editor-history, catalog-inline-changes and catalog-updater-dialog. No new polling owner or mutation on read retry. Full 8807-test verify passed; ordinary real beta history loaded and closed correctly (reviews/manual-beta.md).
 
 - [ ] T027 [US3] consistent profile/runtime snapshot — `apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts`. Залежності: T021, T025–T026.
       Розділити versioned settings і runtime facts; дві відповіді registry/profile
       не створюють вигаданого узгодженого стану. Refresh не підміняє підтверджені
       локальні settings старішими; newer runtime приймається без зміни settings version.
       Перевірки: optimistic/readback/realtime reorder і settings change під час run.
-      **Evidence:** —
+      **Evidence (partial, reopened):** c9e05c5e; stable invoker manager snapshot combines authorized registry/profile reads, with server observed_at separate from settings version. Scoped cache rejects older runtime observations and stale acknowledgements after a newer settings version, while accepting new same-version runtime. SQL/API/reorder regressions and full 1064-assertion PostgreSQL replay passed. Real beta save and Undo were confirmed as versions 2 and 3 with their actual values; reviews/manual-beta.md.
+
+      **Remaining:** inspection of the newer-settings acknowledgement path found that absent runtime metadata can still replace older proven facts. Reopened until the independent settings/runtime merge regression and fix are verified.
 
 - [ ] T028 [US3] очищення scope та навігація — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T021, T026–T027.
       Locks, drafts, selection, undo, visibleFlows належать team/actor/catalog scope.

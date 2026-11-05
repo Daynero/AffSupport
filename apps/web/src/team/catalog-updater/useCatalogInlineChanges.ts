@@ -67,10 +67,24 @@ export function useCatalogInlineChanges({
 }) {
   const generation = useRef(0);
   const snapshotCache = useRef(new Map<string, CatalogSnapshot>());
+  const unknownIntents = useRef(
+    new Map<
+      string,
+      {
+        base: CatalogSnapshot;
+        patch: CatalogUpdateProfilePatch;
+        field: CatalogField;
+        value: Value;
+        before: Value;
+        isUndo: boolean;
+      }
+    >()
+  );
   const previousScope = useRef({ teamId, client });
   if (previousScope.current.teamId !== teamId || previousScope.current.client !== client) {
     generation.current += 1;
     snapshotCache.current.clear();
+    unknownIntents.current.clear();
     previousScope.current = { teamId, client };
   }
   const readControllers = useRef(new Set<AbortController>());
@@ -85,6 +99,7 @@ export function useCatalogInlineChanges({
   useEffect(
     () => () => {
       generation.current += 1;
+      unknownIntents.current.clear();
       for (const controller of readControllers.current) controller.abort();
       for (const flow of visibleFlows.current.values()) flow.cancel();
     },
@@ -194,7 +209,11 @@ export function useCatalogInlineChanges({
       confirmed: false,
       error: new DOMException('Catalog scope changed', 'AbortError')
     });
-    if (locks.current.has(id) || !client.patchCatalogUpdateProfile)
+    if (
+      locks.current.has(id) ||
+      unknownIntents.current.has(id) ||
+      !client.patchCatalogUpdateProfile
+    )
       return { confirmed: false, error: new TeamApiError('WRONG_STATE', false) };
     const base = snapshotFor(id);
     if (!base) return { confirmed: false, error: new TeamApiError('NOT_FOUND', false) };
@@ -210,6 +229,26 @@ export function useCatalogInlineChanges({
     flow.stage(undoEntry ? 'undo_requested' : 'draft_changed');
     const before = readValue(base, field);
     let expected = base;
+    let writeSent = false;
+    const patch = (
+      field === 'schedule'
+        ? {
+            updateInterval: (value as CatalogScheduleSelection).interval,
+            schedule: (value as CatalogScheduleSelection).schedule
+          }
+        : { [field]: value }
+    ) as CatalogUpdateProfilePatch;
+    const controller = new AbortController();
+    readControllers.current.add(controller);
+    const rememberUnknown = () =>
+      unknownIntents.current.set(id, {
+        base: expected,
+        patch,
+        field,
+        value,
+        before,
+        isUndo: Boolean(undoEntry)
+      });
     try {
       if (undoEntry) {
         expected = await read(id);
@@ -234,18 +273,14 @@ export function useCatalogInlineChanges({
         }
       }
       flow.stage('save_requested');
-      const patch = (
-        field === 'schedule'
-          ? {
-              updateInterval: (value as CatalogScheduleSelection).interval,
-              schedule: (value as CatalogScheduleSelection).schedule
-            }
-          : { [field]: value }
-      ) as CatalogUpdateProfilePatch;
       const outcome = await saveCatalogProfile({
         base: expected,
         patch,
-        write: () => client.patchCatalogUpdateProfile!(teamId, id, expected.profile.version, patch),
+        write: () => {
+          writeSent = true;
+          return client.patchCatalogUpdateProfile!(teamId, id, expected.profile.version, patch);
+        },
+        signal: controller.signal,
         read: () => read(id),
         canContinue: active,
         onStage: stage => flow.stage(stage)
@@ -254,6 +289,8 @@ export function useCatalogInlineChanges({
         flow.cancel();
         return obsolete();
       }
+      if (outcome.kind === 'unknown') rememberUnknown();
+      else unknownIntents.current.delete(id);
       if (outcome.kind === 'confirmed') {
         if ((snapshotFor(id)?.profile.version ?? 0) > outcome.snapshot.profile.version) {
           failure = new TeamApiError('STALE_RESULT', false);
@@ -296,12 +333,23 @@ export function useCatalogInlineChanges({
         return obsolete();
       }
       failure = cause;
+      if (writeSent) rememberUnknown();
       setStates(current => ({
         ...current,
-        [id]: { phase: 'unknown', field, intended: value, code: 'UNKNOWN' }
+        [id]: {
+          phase: writeSent ? 'unknown' : 'error',
+          field,
+          intended: value,
+          code: writeSent
+            ? 'UNKNOWN'
+            : cause instanceof TeamApiError
+              ? cause.code
+              : 'DRIVE_UNAVAILABLE'
+        }
       }));
-      flow.fail('UNKNOWN');
+      flow.fail(writeSent ? 'UNKNOWN' : 'READ_FAILED');
     } finally {
+      readControllers.current.delete(controller);
       if (active()) locks.current.delete(id);
     }
     return { confirmed, error: confirmed ? undefined : failure };
@@ -320,6 +368,56 @@ export function useCatalogInlineChanges({
     const flow = beginCatalogUiFlow('profile', { count: 1 });
     flow.stage('readback_requested');
     try {
+      const intent = unknownIntents.current.get(id);
+      if (intent) {
+        const outcome = await saveCatalogProfile({
+          base: intent.base,
+          patch: intent.patch,
+          readOnly: true,
+          read: () => read(id),
+          canContinue: active
+        });
+        if (!active()) {
+          flow.cancel();
+          return;
+        }
+        if (
+          outcome.kind === 'confirmed' &&
+          (snapshotFor(id)?.profile.version ?? 0) <= outcome.snapshot.profile.version
+        ) {
+          unknownIntents.current.delete(id);
+          flow.stage('save_confirmed');
+          settle(
+            id,
+            intent.field,
+            intent.value,
+            intent.before,
+            outcome.snapshot,
+            flow,
+            intent.isUndo
+          );
+        } else {
+          if ('snapshot' in outcome && outcome.snapshot) publish(id, outcome.snapshot);
+          const conflict = outcome.kind === 'conflict' || outcome.kind === 'confirmed';
+          if (conflict) {
+            unknownIntents.current.delete(id);
+            setUndo(current =>
+              current.map(item => (item.catalogId === id ? { ...item, invalid: true } : item))
+            );
+          }
+          setStates(current => ({
+            ...current,
+            [id]: {
+              phase: conflict ? 'conflict' : 'unknown',
+              field: intent.field,
+              intended: intent.value,
+              code: conflict ? 'STALE_RESULT' : 'UNKNOWN'
+            }
+          }));
+          flow.fail(conflict ? 'CONFLICT' : 'UNKNOWN');
+        }
+        return;
+      }
       const latest = await read(id);
       if (!active()) {
         flow.cancel();

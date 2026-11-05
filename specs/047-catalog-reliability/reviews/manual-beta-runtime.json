@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-11-05T20:30:26.156Z",
+  "http_status": 200,
+  "ready": true,
+  "environment": "beta",
+  "channel": "beta",
+  "sourceRevision": "c9e05c5e38583e5c797bd07b4356be67db8e8509",
+  "version": "1.3.3",
+  "buildNumber": "79",
+  "ffmpeg": true,
+  "ffprobe": true,
+  "busy": false
+}

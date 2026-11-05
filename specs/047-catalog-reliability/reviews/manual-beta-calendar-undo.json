@@ -1,0 +1,84 @@
+{
+  "scope": "source beta; working diff after c9e05c5e; manual UI after full 14-gate verification",
+  "before": {
+    "phase": "before",
+    "observed_at": "2026-11-05T22:25:04.961Z",
+    "rows": [
+      {
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "version": 7,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": null,
+        "update_interval": null,
+        "next_run_at": null
+      },
+      {
+        "catalog_material_id": "e78b40a1-2939-469c-9d56-790b4b20d023",
+        "version": 3,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": null,
+        "update_interval": null,
+        "next_run_at": null
+      }
+    ]
+  },
+  "scheduled": {
+    "phase": "scheduled",
+    "observed_at": "2026-11-05T22:27:26.722Z",
+    "rows": [
+      {
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "version": 8,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": {
+          "time": "23:59",
+          "weekday": 1,
+          "timeZone": "Europe/Kyiv"
+        },
+        "update_interval": "1d",
+        "next_run_at": "2026-11-06T21:59:00+00:00"
+      },
+      {
+        "catalog_material_id": "e78b40a1-2939-469c-9d56-790b4b20d023",
+        "version": 4,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": {
+          "time": "23:59",
+          "weekday": 1,
+          "timeZone": "Europe/Kyiv"
+        },
+        "update_interval": "1d",
+        "next_run_at": "2026-11-06T21:59:00+00:00"
+      }
+    ]
+  },
+  "restored": {
+    "phase": "restored",
+    "observed_at": "2026-11-05T22:27:49.676Z",
+    "rows": [
+      {
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "version": 9,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": null,
+        "update_interval": null,
+        "next_run_at": null
+      },
+      {
+        "catalog_material_id": "e78b40a1-2939-469c-9d56-790b4b20d023",
+        "version": 5,
+        "random_link_variation": true,
+        "restitch": false,
+        "schedule": null,
+        "update_interval": null,
+        "next_run_at": null
+      }
+    ]
+  },
+  "assertions": "Two catalog schedule tuples committed atomically and Undo restored both original effective profiles; no scheduled run became due."
+}

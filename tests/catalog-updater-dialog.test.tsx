@@ -218,6 +218,32 @@ it('keeps unsaved bulk changes until explicit discard and never sends cancelled 
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Select first catalog')).toBeTruthy();
 });
+it('explains that closing an unknown bulk result does not discard an accepted write', async () => {
+  const api = client([row('1', 'first')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByLabelText('Select first catalog'));
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Selected catalogs' })).getByRole('button', {
+      name: 'Configure'
+    })
+  );
+  const bulk = screen.getByRole('dialog', { name: 'Edit selected update settings' });
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Images · On' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Off' }));
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Save settings' }));
+  await within(bulk).findByRole('button', { name: 'Check current settings' });
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Close' }));
+  const prompt = screen.getByRole('dialog', { name: 'Result not confirmed' });
+  expect(within(prompt).getByText(/Closing does not cancel it/)).toBeTruthy();
+  expect(within(prompt).queryByRole('button', { name: 'Discard changes' })).toBeNull();
+  await userEvent.click(within(prompt).getByRole('button', { name: 'Close' }));
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'Edit selected update settings' })).toBeNull()
+  );
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
+});
 it('shows all five independent controls, with video first and IDs explained by the legend', async () => {
   renderDialog(client([row('1', 'polo.mp4')], stopped));
   const group = await screen.findByRole('toolbar', { name: 'What to update: polo.mp4 catalog' });
@@ -696,6 +722,35 @@ it('exposes safe undo after a confirmed write', async () => {
   expect(await screen.findByRole('button', { name: 'Undo change' })).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Recent changes (1)' }));
   expect(screen.getByRole('heading', { name: 'Recent changes' })).toBeTruthy();
+});
+it('closes an emptied recent-changes dialog after undo and restores focus to the affected catalog field', async () => {
+  const item = row('1', 'polo.mp4');
+  let stored: CatalogUpdateProfile = profileFor(item.catalogId);
+  const api = client([item], stopped, {
+    listCatalogUpdateProfiles: vi.fn(async () => [stored]),
+    patchCatalogUpdateProfile: vi.fn(async (_team, _id, version, patch) => {
+      if (version !== stored.version) throw new TeamApiError('STALE_RESULT', false);
+      stored = { ...stored, ...patch, version: version + 1 };
+      return stored;
+    })
+  });
+  renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Recent changes (1)' }));
+  const recent = screen.getAllByRole('dialog').at(-1)!;
+  await userEvent.click(within(recent).getByRole('button', { name: 'Undo change' }));
+  await waitFor(
+    () => expect(screen.queryByRole('heading', { name: 'Recent changes' })).toBeNull(),
+    { timeout: 1000 }
+  );
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+    )
+  );
+  expect(stored).toMatchObject({ version: 3, restitch: false });
 });
 it('shows explicit bulk video and schedule choices only after selecting catalogs', async () => {
   renderDialog(client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped));

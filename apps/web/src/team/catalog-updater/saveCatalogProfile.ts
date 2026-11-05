@@ -9,6 +9,43 @@ export type CatalogSaveOutcome =
   | { kind: 'rejected'; error: TeamApiError }
   | { kind: 'conflict' | 'unknown'; snapshot?: CatalogSnapshot; error: unknown };
 
+/** Bound waiting for a reply, without implying that an accepted write was cancelled. */
+function writeAcknowledgement(
+  write: () => Promise<CatalogUpdateProfile>,
+  signal?: AbortSignal
+): Promise<CatalogUpdateProfile> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (success: boolean, value: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+      if (success) resolve(value as CatalogUpdateProfile);
+      else reject(value);
+    };
+    const abort = () => finish(false, new DOMException('Catalog scope changed', 'AbortError'));
+    const timer = setTimeout(
+      () => finish(false, new TeamApiError('PROCESS_RESULT_UNCERTAIN', true)),
+      15_000
+    );
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    try {
+      // Both handlers remain attached: a late reply cannot create an unhandled rejection.
+      write().then(
+        profile => finish(true, profile),
+        error => finish(false, error)
+      );
+    } catch (error) {
+      finish(false, error);
+    }
+  });
+}
+
 /** A lost reply is read back before another write; a rejected CAS is never confirmed by coincidence. */
 export async function saveCatalogProfile(input: {
   base: CatalogSnapshot;
@@ -62,7 +99,7 @@ export async function saveCatalogProfile(input: {
   if (input.readOnly) return readback(new TeamApiError('PROCESS_RESULT_UNCERTAIN', true));
   if (!input.write) return { kind: 'rejected', error: new TeamApiError('INVALID_RESPONSE', false) };
   try {
-    const profile = await input.write();
+    const profile = await writeAcknowledgement(input.write, input.signal);
     if (!active()) return unknown(new DOMException('Catalog scope changed', 'AbortError'));
     const snapshot = { ...input.base, profile, runtimeObservedAt: undefined };
     if (

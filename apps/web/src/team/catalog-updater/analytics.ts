@@ -73,8 +73,8 @@ export function beginCatalogUiFlow(
   emit('operation_started', 'opened');
   return {
     id,
-    stage(stage: CatalogUiStage) {
-      if (!settled) emit('operation_stage_completed', stage);
+    stage(stage: CatalogUiStage, code?: CatalogUiFailure) {
+      if (!settled) emit('operation_stage_completed', stage, code);
     },
     /** Call only after the confirmed result has committed to the visible UI. */
     complete() {

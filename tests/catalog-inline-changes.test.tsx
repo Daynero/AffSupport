@@ -89,6 +89,75 @@ it('keeps an unknown write locked when readback also fails', async () => {
   expect(result.current.states.one?.phase).toBe('unknown');
   expect(result.current.blocked('one')).toBe(true);
 });
+it('does not clear an unknown write after reading its unchanged old version, and recovers its Undo after actual commit', async () => {
+  const patch = vi.fn().mockRejectedValue(new TypeError('reply lost'));
+  const { result, client } = setup(patch);
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  expect(result.current.blocked('one')).toBe(true);
+  expect(patch).toHaveBeenCalledTimes(1);
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, version: 2, restitch: true }]);
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('saved');
+  expect(result.current.undo).toMatchObject([{ before: false, after: true, version: 2 }]);
+  expect(patch).toHaveBeenCalledTimes(1);
+});
+it('blocks another write while the previous result is unknown', async () => {
+  const patch = vi.fn().mockRejectedValue(new TypeError('reply lost'));
+  const { result } = setup(patch);
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  await act(async () => {
+    await result.current.change('one', 'refreshTexts', false);
+  });
+  expect(patch).toHaveBeenCalledTimes(1);
+  expect(result.current.states.one?.phase).toBe('unknown');
+});
+it('rechecks an unknown Undo without sending the inverse twice', async () => {
+  const { result, client } = setup();
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, restitch: true, version: 2 }]);
+  client.patchCatalogUpdateProfile.mockRejectedValue(new TypeError('reply lost'));
+  await act(async () => {
+    await result.current.undoChange(result.current.undo[0]!);
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, version: 3 }]);
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('saved');
+  expect(result.current.undo).toHaveLength(0);
+  expect(client.patchCatalogUpdateProfile).toHaveBeenCalledTimes(2);
+});
+it('keeps a failed Undo preflight retryable because no inverse was sent', async () => {
+  const { result, client } = setup();
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  client.listCatalogUpdateProfiles.mockRejectedValue(new TypeError('offline'));
+  await act(async () => {
+    await result.current.undoChange(result.current.undo[0]!);
+  });
+  expect(result.current.states.one?.phase).toBe('error');
+  expect(result.current.blocked('one')).toBe(false);
+  expect(client.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
+});
 it('loads the actual version after conflict without overwriting it', async () => {
   const patch = vi.fn().mockRejectedValue(new TeamApiError('STALE_RESULT', false));
   const { result, client } = setup(patch);

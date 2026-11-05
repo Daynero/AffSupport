@@ -44,7 +44,7 @@ import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
 import { CatalogIconControls, CatalogIconLegend, CATALOG_FIELDS } from './CatalogIconControls';
-import { useCatalogInlineChanges } from './useCatalogInlineChanges';
+import { useCatalogInlineChanges, type CatalogField } from './useCatalogInlineChanges';
 import { CatalogCreatedFilter } from './CatalogCreatedFilter';
 import { matchesCatalogCreatedAt } from './catalogCreatedDate';
 import { CatalogStatusDetails } from './CatalogStatusDetails';
@@ -195,6 +195,7 @@ function CatalogUpdaterDialogScope({
   });
   const [legendOpen, setLegendOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const recentReturnTarget = useRef<{ catalogId?: string; field?: CatalogField } | null>(null);
   const [excludedRuns, setExcludedRuns] = useState<string[] | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -216,11 +217,12 @@ function CatalogUpdaterDialogScope({
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [editorPending, setEditorPending] = useState(false);
+  const [editorUncertain, setEditorUncertain] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
   const guard = (action: () => void) => {
     if (editorPending || Object.values(inline.states).some(state => state.phase === 'pending'))
       return;
-    if (editorDirty) setDiscardAction(() => action);
+    if (editorDirty || editorUncertain) setDiscardAction(() => action);
     else action();
   };
 
@@ -229,13 +231,16 @@ function CatalogUpdaterDialogScope({
       if (
         editorPending ||
         Object.values(inline.states).some(state => state.phase === 'pending') ||
-        (editorDirty && !window.confirm(t('catalogUpdaterDiscardDraft')))
+        ((editorDirty || editorUncertain) &&
+          !window.confirm(
+            t(editorUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardDraft')
+          ))
       )
         event.preventDefault();
     };
     window.addEventListener(BEFORE_NAVIGATION_EVENT, prevent);
     return () => window.removeEventListener(BEFORE_NAVIGATION_EVENT, prevent);
-  }, [editorDirty, editorPending, inline.hasPending, t]);
+  }, [editorDirty, editorPending, editorUncertain, inline.hasPending, t]);
   const listFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   useEffect(() => {
     const flow = beginCatalogUiFlow('list');
@@ -271,6 +276,28 @@ function CatalogUpdaterDialogScope({
   );
   const heldRows = useRef(new Map<string, CatalogRegistryRow>());
   const listRef = useRef<HTMLTableElement>(null);
+  useEffect(() => {
+    if (!recentOpen || inline.undo.length > 0) return;
+    recentReturnTarget.current ??= {};
+    setRecentOpen(false);
+  }, [recentOpen, inline.undo.length]);
+  useEffect(() => {
+    if (recentOpen || !recentReturnTarget.current) return;
+    const target = recentReturnTarget.current;
+    recentReturnTarget.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (!mounted.current) return;
+      const row = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
+      ).find(element => element.dataset.catalogId === target.catalogId);
+      const field = target.field === 'updateInterval' ? 'schedule' : target.field;
+      const control = field
+        ? row?.querySelector<HTMLElement>(`[data-catalog-field="${field}"]`)
+        : null;
+      (control ?? document.getElementById(searchId))?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [recentOpen, searchId]);
   const [changeNotice, setChangeNotice] = useState('');
   const [heldRevision, setHeldRevision] = useState(0);
   const shown = useMemo(
@@ -1648,6 +1675,7 @@ function CatalogUpdaterDialogScope({
             read={(id, options) => readCatalogSnapshot(client, teamId, id, options?.signal)}
             onDirtyChange={setEditorDirty}
             onPendingChange={setEditorPending}
+            onUncertainChange={setEditorUncertain}
             onSaved={() => {
               registry.reload();
               onChanged?.();
@@ -1669,9 +1697,13 @@ function CatalogUpdaterDialogScope({
       {discardAction && (
         <ConfirmDialog
           nested
-          title={t('catalogUpdaterDiscardTitle')}
-          body={t('catalogUpdaterDiscardBody')}
-          confirmLabel={t('catalogUpdaterDiscard')}
+          title={t(
+            editorUncertain ? 'catalogUpdaterUncertainCloseTitle' : 'catalogUpdaterDiscardTitle'
+          )}
+          body={t(
+            editorUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardBody'
+          )}
+          confirmLabel={t(editorUncertain ? 'catalogUpdaterClose' : 'catalogUpdaterDiscard')}
           cancelLabel={t('catalogUpdaterKeepEditing')}
           onCancel={() => setDiscardAction(null)}
           onConfirm={() => {
@@ -1774,17 +1806,40 @@ function CatalogUpdaterDialogScope({
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={invalid || inline.blocked(entry.catalogId) || !mayRun}
-                    onClick={() => void inline.undoChange(entry)}
+                    disabled={
+                      inline.states[entry.catalogId]?.phase === 'unknown'
+                        ? false
+                        : invalid || inline.blocked(entry.catalogId) || !mayRun
+                    }
+                    onClick={() => {
+                      recentReturnTarget.current = {
+                        catalogId: entry.catalogId,
+                        field: entry.field
+                      };
+                      if (inline.states[entry.catalogId]?.phase === 'unknown')
+                        void inline.reconcile(entry.catalogId);
+                      else void inline.undoChange(entry);
+                    }}
                   >
-                    {t('catalogIconsUndo')}
+                    {t(
+                      inline.states[entry.catalogId]?.phase === 'unknown'
+                        ? 'catalogIconsCheck'
+                        : 'catalogIconsUndo'
+                    )}
                   </Button>
                 </div>
               );
             })}
           </div>
-          <Button size="sm" variant="ghost" onClick={inline.clearUndo}>
-            {t('catalogUpdaterClearSelection')}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              recentReturnTarget.current = {};
+              inline.clearUndo();
+            }}
+          >
+            {t('catalogIconsClearRecent')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setRecentOpen(false)}>
             {t('catalogUpdaterClose')}

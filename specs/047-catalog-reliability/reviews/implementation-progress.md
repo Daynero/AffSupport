@@ -14,7 +14,7 @@ PostgreSQL replay passed 46 pgTAP files / 1064 assertions, 2 Auth clock tests an
 8 native concurrency suites / 37 tests. The completed-command summary and every
 tested migration hash are retained as `verification-db-scope-cancel.json`.
 The disposable clone was removed. The connected acceptance profile was not
-migrated by these checks. Manual beta acceptance remains unperformed.
+migrated by these checks. Ordinary source-beta manual acceptance is now recorded in manual-beta.md; full feature and packaged acceptance remain open.
 
 - T012 portion: run/retry require nonnegative safe integers; cancellation requires
   boolean. Malformed responses no longer masquerade as genuine 0/false no-ops.
@@ -196,3 +196,33 @@ Regression-first follow-ups now cover:
 - Screen transfer enforces its own byte ceiling before reading, cancels rejected upstream bodies, removes partial bytes, and limits transient retries. Cache classification preserves missing/changed source, expiry, permission, network and local-disk causes; only candidate-local defects enter refusal memory.
 
 Focused follow-up suites passed (separate runs): 121 manager/API/SQL tests; 75 inline/manager/bulk tests; 38 history/cache tests; 46 analytics/file/ingestion tests; 62 native bridge/cache tests; 29 cache/real-decoder tests; 52 SQL/code-map tests. Some groups overlap. Earlier full 8769-test proof belongs to commit 68709d21; the current follow-up requires a fresh full verification and real-PostgreSQL rerun of the new migrations. Nothing was published to production.
+
+## Bulk inverse and bounded acknowledgement checkpoint — 2026-11-06 local time
+
+`npm run verify` passed 14/14 gates in 2815s: 8824 passed tests, 57 explicit skips.
+The exact machine report is verification-fast-bulk-undo.json. The preceding static
+run also passed 13 gates. An earlier static failure was a legacy Button import in
+the new inverse component; it was corrected before the successful full run.
+
+- Per-catalog bulk Undo restores only changed fields and the complete calendar
+  tuple, with a fresh CAS/readback, four-write limit, unknown read-only recovery,
+  foreign-version rejection and scope/unmount guards. Calendar source-beta smoke
+  after full checks restored two actual QA profiles and UTC due times correctly.
+- The shared settings controller bounds an unanswered write at 15 seconds, then
+  reads its exact expected version. An unchanged old version remains UNKNOWN.
+  Inline recovery retains the original intent and restores/removes Undo metadata
+  only on confirmed readback; no second inverse is dispatched.
+- Closing an unknown bulk result explains that closing does not cancel an
+  accepted write. An emptied Recent changes dialog closes and restores focus.
+  The workspace chip labels its scheduled subset explicitly.
+- Ordinary native-Sheet downloads from manager and Explorer, visible link/copy/open,
+  profile Undo and bulk boolean/calendar Undo are documented separately from
+  controlled fault tests. No packaged-beta promotion or production action occurred.
+
+T013 and T025 acceptance is recorded against the completed earlier implementations
+and these complete checks. T027 is explicitly reopened for the newer-settings /
+missing-runtime acknowledgement path found during follow-up review. T022 still
+needs server-clock preview wiring. Legacy Stop, restricted-share consent and
+command identities are continuing work, not claimed complete. Independent drafts
+were prepared under ignored scratchpad while the verified application source was
+frozen; they are not included in this passing checkpoint.

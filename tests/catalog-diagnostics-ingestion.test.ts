@@ -10,6 +10,7 @@ import { trackToolError } from '../apps/web/src/analytics/errors';
 import { getInspect } from '../scripts/analytics/queries';
 import { assertReadOnlySql, setQueryExecutor } from '../scripts/analytics/db';
 import { lookupCodeLocations } from '../scripts/analytics/code-map';
+import { beginCatalogUiFlow } from '../apps/web/src/team/catalog-updater/analytics';
 const USER = '47000000-0000-4000-8000-000000000001';
 let db: TeamTestDb;
 let chain: Promise<unknown> = Promise.resolve();
@@ -124,4 +125,54 @@ it('delivers typed file production, browser handoff and exact export cause throu
   expect(JSON.stringify([browserInspect, nativeInspect, failedInspect])).not.toContain(
     'synthetic-catalog@example.invalid'
   );
+});
+
+it('retains bulk undo stages and a conflict cause through the real guard, ingestion and SELECT-only CLI', async () => {
+  const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const conflict = beginCatalogUiFlow('bulk', { count: 2 }, service);
+  conflict.stage('undo_requested');
+  conflict.stage('conflict', 'CONFLICT');
+  conflict.fail('CONFLICT');
+  const restored = beginCatalogUiFlow('bulk', { count: 2 }, service);
+  restored.stage('undo_requested');
+  restored.stage('readback_requested');
+  restored.stage('save_confirmed');
+  restored.complete();
+  await service.flush();
+  expect(ingestions).toHaveLength(9);
+  expect(
+    ingestions.every(row => row.accepted),
+    JSON.stringify(ingestions)
+  ).toBe(true);
+  const asOf = new Date(Date.now() + 1000).toISOString();
+  const failed = await getInspect(conflict.id, asOf);
+  const completed = await getInspect(restored.id, asOf);
+  expect(
+    failed.found && failed.events.some(row => row.properties.action_identifier === 'undo_requested')
+  ).toBe(true);
+  expect(failed.found && failed.events.some(row => row.properties.error_code === 'CONFLICT')).toBe(
+    true
+  );
+  expect(failed.found && failed.events.some(row => row.event_name === 'operation_completed')).toBe(
+    false
+  );
+  expect(
+    completed.found &&
+      completed.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.properties.action_identifier === 'result_visible'
+      )
+  ).toBe(true);
+  expect(JSON.stringify([failed, completed])).not.toContain('synthetic-catalog@example.invalid');
 });
