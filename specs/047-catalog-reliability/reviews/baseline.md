@@ -19,7 +19,7 @@ was changed. `baseline.json` records the current candidate paths without credent
   cancellation and refusal reuse; further scenarios remain open in tasks.md.
 - Beta profile exists locally. The owned candidate Functions environment and packaged
   beta proof are absent. Doctor observed occupied local Supabase ports owned by the
-  existing beta integration checkout. No existing stack, app-support directory or
+  existing `AffSupport-catalog-beta-20261104` checkout (Docker project `r2beta045`; Colima mux forwards the loopback ports). No existing stack, app-support directory or
   pairing state was reset or stopped.
 - The initial implementation increment passed the full fast verify (8678 tests, 60
   explicit skips). Its retained report is verification-fast-initial.json. Later scoped

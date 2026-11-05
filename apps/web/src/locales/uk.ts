@@ -2923,6 +2923,8 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
   teamRestitchAgentTooOldForSources:
     'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  catalogExportTooLarge:
+    'Каталог перевищує ліміт експорту Google (10 МБ). Зменште кількість товарів або відкрийте таблицю в Google Sheets.',
   teamRestitchScreenSelectionLimit:
     'Досягнуто ліміт перевірок картинок. Замініть або зменште набір картинок і спробуйте знову.',
   teamRestitchPoolEmpty:

@@ -366,7 +366,7 @@ function CatalogUpdaterDialogScope({
     });
 
   const busyRef = useRef(new Set<string>());
-  const withBusy = async (ids: string[], work: () => Promise<void>) => {
+  const withBusy = async (ids: string[], work: () => Promise<void>, rethrow = false) => {
     if (ids.some(id => busyRef.current.has(id))) return;
     ids.forEach(id => busyRef.current.add(id));
     setBusyIds(current => new Set([...current, ...ids]));
@@ -378,6 +378,7 @@ function CatalogUpdaterDialogScope({
       onChanged?.();
     } catch (error) {
       if (mounted.current) push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+      if (rethrow) throw error;
     } finally {
       ids.forEach(id => busyRef.current.delete(id));
       if (mounted.current)
@@ -395,7 +396,7 @@ function CatalogUpdaterDialogScope({
       const opened = await client.runCatalogUpdateNow(teamId, ids);
       if (!mounted.current) return;
       push({
-        tone: 'success',
+        tone: opened === 0 ? 'info' : 'success',
         text:
           opened === 0
             ? t('catalogUpdaterNowAlready')
@@ -1553,34 +1554,26 @@ function CatalogUpdaterDialogScope({
                   onRetry={
                     mayRun && client.retryCatalogUpdate
                       ? async sourceAttemptId => {
-                          setBusyIds(current => new Set([...current, row.catalogId]));
-                          try {
-                            const accepted = await client.retryCatalogUpdate!(
-                              teamId,
-                              row.catalogId,
-                              sourceAttemptId
-                            );
-                            if (!mounted.current) return;
-                            push({
-                              tone: 'success',
-                              text:
-                                accepted === 0
-                                  ? t('catalogUpdaterNoWorkAccepted')
-                                  : t('catalogUpdaterNowStarted', { count: accepted })
-                            });
-                            registry.reload();
-                            updater.reload();
-                            onChanged?.();
-                          } catch (error) {
-                            if (!mounted.current) return;
-                            push({ tone: 'error', text: teamErrorMessageFor(error, t) });
-                            throw error;
-                          } finally {
-                            if (mounted.current)
-                              setBusyIds(
-                                current => new Set([...current].filter(id => id !== row.catalogId))
+                          if (inline.blocked(row.catalogId)) return;
+                          await withBusy(
+                            [row.catalogId],
+                            async () => {
+                              const accepted = await client.retryCatalogUpdate!(
+                                teamId,
+                                row.catalogId,
+                                sourceAttemptId
                               );
-                          }
+                              if (!mounted.current) return;
+                              push({
+                                tone: accepted === 0 ? 'info' : 'success',
+                                text:
+                                  accepted === 0
+                                    ? t('catalogUpdaterNoWorkAccepted')
+                                    : t('catalogUpdaterNowStarted', { count: accepted })
+                              });
+                            },
+                            true
+                          );
                         }
                       : undefined
                   }

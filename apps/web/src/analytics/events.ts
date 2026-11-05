@@ -367,6 +367,7 @@ export interface TeamFileAttemptStartedProperties {
 }
 
 export interface TeamFileAttemptCompletedProperties extends TeamFileAttemptStartedProperties {
+  file_delivery?: TeamAnalyticsProperties['file_delivery'];
   duration_ms: number;
   outcome: TeamAnalyticsOutcome;
   retryable: boolean;
@@ -574,6 +575,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
   file_surface: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.file_surface },
+  file_delivery: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.file_delivery },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

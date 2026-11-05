@@ -277,7 +277,8 @@ describe('team file operations', () => {
           size_bucket: 'medium',
           outcome: 'success',
           retryable: false,
-          production_completed: true
+          production_completed: false,
+          file_delivery: 'browser_handoff'
         })
       )
     );

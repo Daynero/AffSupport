@@ -6919,6 +6919,14 @@ export type GeneratedDatabase = {
           title: string;
         }[];
       };
+      service_catalog_export_allowed: {
+        Args: { p_team: string; p_material: string; p_actor: string };
+        Returns: boolean;
+      };
+      list_team_catalog_progress_identity: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       list_team_catalog_manager_snapshot: {
         Args: { p_team: string };
         Returns: Json;

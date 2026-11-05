@@ -909,6 +909,7 @@ export function completeTeamFileAttempt(
   flow: TeamFileAttemptFlow,
   result: {
     outcome: TeamAnalyticsOutcome;
+    delivery?: 'browser_handoff' | 'agent_saved' | 'url_visible';
     retryable: boolean;
     stage?: TeamAnalyticsStage;
   },
@@ -929,7 +930,10 @@ export function completeTeamFileAttempt(
       stage: result.stage ?? stageForFileAction(flow.action),
       outcome: result.outcome,
       retryable: result.retryable,
-      production_completed: result.outcome === 'success'
+      ...(result.delivery ? { file_delivery: result.delivery } : {}),
+      production_completed:
+        result.outcome === 'success' &&
+        (flow.action !== 'download' || result.delivery === 'agent_saved')
     });
   } catch {
     // Diagnostics must not prevent the file operation or hide its result.

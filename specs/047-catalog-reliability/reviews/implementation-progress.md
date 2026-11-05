@@ -151,3 +151,23 @@ live UI, Windows or production-release acceptance.
 The full suite first caught the missing additive error catalog for the new selection
 limit. It is now installed by `20261207132000_catalog_reliability_error_codes.sql`;
 the applied base seed is unchanged and the generator checks the separate batch.
+
+### Export, delivery evidence and shared save increment (uncommitted)
+
+Native catalog downloads now export XLSX rather than requesting native-document media. Grants pin the provider version and catalog identity, enforce view/download rights and live registry membership both before export and after bounded body consumption, and carry a safe .xlsx filename. Export is bounded to 10 MiB. Provider size failures have a closed code and user-facing explanation. Real provider export/public-link evidence is retained in `provider-acceptance.md` and adjacent sanitized JSON receipts.
+
+Browser download handoff is explicitly weaker than an agent-confirmed saved file: analytics records browser_handoff versus agent_saved and does not claim production_completed for an anchor click. URL visibility records url_visible. A regression follows actual producer → sanitizer → public.ingest_analytics_events → SELECT-only CLI diagnosis; seven emitted events are accepted and the native failure code survives the complete path.
+
+Inline and bulk settings use a shared save/readback controller. Only exact next-version acknowledgements can confirm simple profile edits. Calendar changes always read back the authoritative interval/schedule/due time. Typed stale writes remain conflicts even when another writer saved the same value; unknown outcomes can be rechecked without repeating mutations. Scope revocation prevents late delivery. Focused controller/manager/navigation/runtime tests: 73 passed, bulk tests: 8 passed.
+
+The complete migration chain passed isolated PostgreSQL verification after export/delivery changes: 46 pgTAP files, 1064 assertions; 2 real Auth clock checks and 37 native concurrency checks passed. This predates the progress-identity migration. No running beta or production migrations were applied. This increment still needs fresh canonical verify and actual packaged-beta acceptance.
+
+The manager snapshot additionally carries active round/attempt, progress owner and live native child identities, with a separate view-authorized read helper. Cross-attempt/child progress resets, stale worker progress is ignored, and the existing RPC remains a stable security-invoker composition. SQL regression verifies stale timestamp exclusion and cross-team/anonymous denial. Runtime facts merge separately from acknowledged same-version settings; catalog lookups use an indexed map. Run/retry share the synchronous lock and zero accepted work uses an informational result. Focused identity/API/SQL suites passed after the new migration; shared save/manager suites and the real ingestion regression also passed. Canonical verification for the complete increment follows.
+
+### Fresh complete verification of export/save/progress increment
+
+`nice -n 15 npm run verify` passed all 14 gates, 8769 tests, 60 explicitly explained skips, in 1118 seconds. Machine-readable evidence: `verification-fast-export-save.json`. This includes the new export, producer-to-ingestion-to-CLI diagnostic regression, shared save controller, and progress identity changes. Coverage was not measured by the fast form. Packaged-beta and running-UI acceptance remain open.
+
+A follow-up review identified two bounded remaining cases for T012/T025: a present malformed optional pending flag can still become false, and disappearance of a native child can unnecessarily reset the same round's fill. These remain open for the next correction and are not claimed fixed by the passing suite. The passing source is retained as an implementation checkpoint, not completion of all 60 tasks.
+
+The fresh real PostgreSQL rerun including progress identity passed: 46 pgTAP files/1064 assertions, 2 Auth clock tests and 8 native concurrency suites/37 tests. `verification-db-export-progress.json` records the completed-command summary and every tested migration hash. The disposable container was removed by the runner. Running beta and production were not migrated.

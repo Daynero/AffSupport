@@ -22,7 +22,7 @@ as $$
         'queue_wait_ms', 'attempt_number', 'width', 'height', 'mode', 'crf', 'limit_percent',
         'rate_control', 'output_fps', 'target_resolution', 'image_embedding', 'explicit_start_image', 'explicit_end_image', 'has_audio',
         'language', 'marketing_consent',
-        'study_run_id', 'attempt_id', 'workflow_id', 'category', 'cue_category', 'action', 'file_surface',
+        'study_run_id', 'attempt_id', 'workflow_id', 'category', 'cue_category', 'action', 'file_surface', 'file_delivery',
         'storage_kind', 'size_bucket', 'cache_state', 'stage', 'assisted', 'invite_persisted',
         'root_confirmed', 'sync_queued', 'workspace_session', 'discovery_completed',
         'production_completed', 'window_index', 'item_count', 'ready_count', 'tile_state',
@@ -104,6 +104,9 @@ as $$
     and case when payload ? 'action' then
       payload ->> 'action' in ('upload','download','rename','move','trash','share')
       else true end
+    and case when payload ? 'file_delivery' then
+      payload ->> 'file_delivery' in ('browser_handoff','agent_saved','url_visible')
+    else true end
     and case when payload ? 'file_surface' then
       payload ->> 'file_surface' in ('material','catalog_manager')
     else true end

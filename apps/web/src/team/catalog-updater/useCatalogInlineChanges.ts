@@ -1,5 +1,5 @@
 import { readCatalogSnapshot } from './readCatalogSnapshot';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CatalogUpdateProfile,
   CatalogUpdateProfilePatch,
@@ -7,7 +7,7 @@ import type {
 } from '@video-compressor/shared';
 import { TeamApiError, type CatalogRegistryRow, type CatalogUpdaterInterval } from '../../api/team';
 import type { CatalogUpdaterClient } from './useCatalogUpdater';
-import { catalogNextRunPreview } from './catalogSchedulePreview';
+import { saveCatalogProfile } from './saveCatalogProfile';
 import { beginCatalogUiFlow, type CatalogUiFlow } from './analytics';
 
 export type CatalogField = keyof CatalogUpdateProfilePatch;
@@ -48,12 +48,6 @@ const equal = (a: Value, b: Value) =>
       a.schedule?.weekday === b.schedule?.weekday &&
       a.schedule?.timeZone === b.schedule?.timeZone
     : a === b;
-const intervalAfter = (field: CatalogField, value: Value, before: CatalogUpdaterInterval | null) =>
-  field === 'schedule'
-    ? (value as CatalogScheduleSelection).interval
-    : field === 'updateInterval'
-      ? (value as CatalogUpdaterInterval | null)
-      : before;
 
 /** One writer shared by the row and detail surface. No retry until an uncertain write is read back. */
 export function useCatalogInlineChanges({
@@ -61,8 +55,7 @@ export function useCatalogInlineChanges({
   client,
   rows,
   reload,
-  onChanged,
-  clockOffsetMs = 0
+  onChanged
 }: {
   teamId: string;
   client: CatalogUpdaterClient;
@@ -82,8 +75,9 @@ export function useCatalogInlineChanges({
   const [states, setStates] = useState<Record<string, InlineChangeState>>({});
   const [undo, setUndo] = useState<CatalogUndo[]>([]);
   const locks = useRef(new Set<string>());
-  const current = useRef({ rows, snapshots });
-  current.current = { rows, snapshots };
+  const rowById = useMemo(() => new Map(rows.map(row => [row.catalogId, row])), [rows]);
+  const current = useRef({ rowById, snapshots });
+  current.current = { rowById, snapshots };
   const visibleFlows = useRef(new Map<string, CatalogUiFlow>());
   useEffect(
     () => () => {
@@ -100,8 +94,28 @@ export function useCatalogInlineChanges({
     locks.current.clear();
   }, [teamId, client]);
   const snapshotFor = (id: string): CatalogSnapshot | undefined => {
-    const row = current.current.rows.find(row => row.catalogId === id);
+    const row = current.current.rowById.get(id);
     const local = current.current.snapshots[id];
+    if (row?.profile && local && row.profile.version === local.profile.version) {
+      // Runtime changes do not increment settings version. Preserve acknowledged settings
+      // while accepting newly observed runtime facts from the atomic registry snapshot.
+      const settings = local.profile;
+      return {
+        profile: {
+          ...row.profile,
+          refreshImages: settings.refreshImages,
+          refreshTexts: settings.refreshTexts,
+          growProducts: settings.growProducts,
+          randomLinkVariation: settings.randomLinkVariation,
+          restitch: settings.restitch,
+          schedule: settings.schedule,
+          version: settings.version,
+          updatedAt: settings.updatedAt
+        },
+        interval: local.interval,
+        nextRunAt: row.nextRunAt
+      };
+    }
     if (row?.profile && (!local || row.profile.version >= local.profile.version))
       return { profile: row.profile, interval: row.updateInterval, nextRunAt: row.nextRunAt };
     return (
@@ -200,117 +214,60 @@ export function useCatalogInlineChanges({
         }
       }
       flow.stage('save_requested');
-      const profile = await client.patchCatalogUpdateProfile(
-        teamId,
-        id,
-        expected.profile.version,
-        (field === 'schedule'
+      const patch = (
+        field === 'schedule'
           ? {
               updateInterval: (value as CatalogScheduleSelection).interval,
               schedule: (value as CatalogScheduleSelection).schedule
             }
-          : { [field]: value }) as CatalogUpdateProfilePatch
-      );
+          : { [field]: value }
+      ) as CatalogUpdateProfilePatch;
+      const outcome = await saveCatalogProfile({
+        base: expected,
+        patch,
+        write: () => client.patchCatalogUpdateProfile!(teamId, id, expected.profile.version, patch),
+        read: () => read(id),
+        canContinue: active,
+        onStage: stage => flow.stage(stage)
+      });
       if (!active()) {
         flow.cancel();
         return obsolete();
       }
-      if (
-        !equal(
-          readValue(
-            {
-              profile,
-              interval: intervalAfter(field, value, expected.interval)
-            },
-            field
-          ),
-          value
-        )
-      )
-        throw new Error('Unconfirmed mutation');
-      confirmed = true;
-      flow.stage('save_confirmed');
-      settle(
-        id,
-        field,
-        value,
-        before,
-        {
-          profile,
-          interval: intervalAfter(field, value, expected.interval),
-          nextRunAt:
-            field === 'schedule' || field === 'updateInterval'
-              ? catalogNextRunPreview(
-                  intervalAfter(field, value, expected.interval),
-                  profile.schedule,
-                  new Date(Date.now() + clockOffsetMs)
-                )
-              : expected.nextRunAt
-        },
-        flow,
-        Boolean(undoEntry)
-      );
+      if (outcome.kind === 'confirmed') {
+        confirmed = true;
+        flow.stage('save_confirmed');
+        settle(id, field, value, before, outcome.snapshot, flow, Boolean(undoEntry));
+      } else {
+        failure = outcome.error;
+        if ('snapshot' in outcome && outcome.snapshot) publish(id, outcome.snapshot);
+        const phase = outcome.kind === 'rejected' ? 'error' : outcome.kind;
+        const code =
+          outcome.kind === 'rejected'
+            ? outcome.error.code
+            : outcome.kind === 'conflict'
+              ? 'STALE_RESULT'
+              : 'UNKNOWN';
+        setStates(current => ({ ...current, [id]: { phase, field, intended: value, code } }));
+        flow.fail(
+          outcome.kind === 'conflict'
+            ? 'CONFLICT'
+            : outcome.kind === 'rejected'
+              ? outcome.error.code
+              : 'UNKNOWN'
+        );
+      }
     } catch (cause) {
       if (!active()) {
         flow.cancel();
         return obsolete();
       }
-      const conflict = cause instanceof TeamApiError && cause.code === 'STALE_RESULT';
-      if (conflict) failure = cause;
-      // A typed server rejection proves no write. Transport failures require reconciliation.
-      if (
-        cause instanceof TeamApiError &&
-        !conflict &&
-        !cause.retryable &&
-        cause.code !== 'INVALID_RESPONSE'
-      ) {
-        setStates(current => ({
-          ...current,
-          [id]: { phase: 'error', field, intended: value, code: cause.code }
-        }));
-        failure = cause;
-        flow.fail(cause.code);
-      } else {
-        flow.stage(conflict ? 'conflict' : 'readback_requested');
-        try {
-          const latest = await read(id);
-          if (!active()) {
-            flow.cancel();
-            return obsolete();
-          }
-          publish(id, latest);
-          if (
-            !conflict &&
-            latest.profile.version === expected.profile.version + 1 &&
-            equal(readValue(latest, field), value)
-          ) {
-            confirmed = true;
-            flow.stage('save_confirmed');
-            settle(id, field, value, before, latest, flow, Boolean(undoEntry));
-          } else {
-            setStates(current => ({
-              ...current,
-              [id]: {
-                phase: conflict ? 'conflict' : 'unknown',
-                field,
-                intended: value,
-                code: conflict ? 'STALE_RESULT' : 'UNKNOWN'
-              }
-            }));
-            flow.fail(conflict ? 'CONFLICT' : 'UNKNOWN');
-          }
-        } catch {
-          if (!active()) {
-            flow.cancel();
-            return obsolete();
-          }
-          setStates(current => ({
-            ...current,
-            [id]: { phase: 'unknown', field, intended: value, code: 'UNKNOWN' }
-          }));
-          flow.fail('UNKNOWN');
-        }
-      }
+      failure = cause;
+      setStates(current => ({
+        ...current,
+        [id]: { phase: 'unknown', field, intended: value, code: 'UNKNOWN' }
+      }));
+      flow.fail('UNKNOWN');
     } finally {
       if (active()) locks.current.delete(id);
     }

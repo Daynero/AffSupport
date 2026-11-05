@@ -342,6 +342,11 @@ export interface CatalogRegistryRow {
   /** The stage the background worker last confirmed; survives page reloads. */
   updateStage: CatalogUpdateStage | null;
   /** Live progress of the video copy, reported by the member's local app. */
+  /** Missing on older servers; null means the new snapshot observed no active identity. */
+  activeRoundAt?: string | null;
+  activeAttemptId?: string | null;
+  progressAttemptId?: string | null;
+  restitchOperationId?: string | null;
   restitchProgress: number | null;
   restitchStage: 'downloading' | 'processing' | 'uploading' | 'finalizing' | null;
   /** The provider id of the folder the sheet is in; null at the space root. */
@@ -377,7 +382,9 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
     typeof restitch !== 'boolean' ||
     typeof row.version !== 'number' ||
     !Number.isSafeInteger(row.version) ||
-    typeof updatedAt !== 'string'
+    row.version < 1 ||
+    typeof updatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(updatedAt))
   )
     return null;
   const schedule = asRecord(row.schedule);
@@ -552,8 +559,19 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     typeof row.video_id !== 'string' ||
     typeof row.video_name !== 'string' ||
     typeof row.product_count !== 'number' ||
+    !Number.isSafeInteger(row.product_count) ||
+    row.product_count < 0 ||
     typeof row.created_at !== 'string' ||
+    !Number.isFinite(Date.parse(row.created_at)) ||
     typeof row.update_count !== 'number' ||
+    !Number.isSafeInteger(row.update_count) ||
+    row.update_count < 0 ||
+    (row.last_updated_at != null &&
+      (typeof row.last_updated_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.last_updated_at)))) ||
+    (row.next_run_at != null &&
+      (typeof row.next_run_at !== 'string' || !Number.isFinite(Date.parse(row.next_run_at)))) ||
+    (row.update_interval != null && parseUpdaterInterval(row.update_interval) === null) ||
     typeof row.in_updater !== 'boolean'
   ) {
     return null;
@@ -585,6 +603,16 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
       row.update_stage === 'finalizing'
         ? row.update_stage
         : null,
+    ...(Object.prototype.hasOwnProperty.call(row, 'active_round_at')
+      ? {
+          activeRoundAt: typeof row.active_round_at === 'string' ? row.active_round_at : null,
+          activeAttemptId: typeof row.active_attempt_id === 'string' ? row.active_attempt_id : null,
+          progressAttemptId:
+            typeof row.progress_attempt_id === 'string' ? row.progress_attempt_id : null,
+          restitchOperationId:
+            typeof row.restitch_operation_id === 'string' ? row.restitch_operation_id : null
+        }
+      : {}),
     restitchProgress:
       typeof row.restitch_progress === 'number' &&
       Number.isInteger(row.restitch_progress) &&

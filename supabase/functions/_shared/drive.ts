@@ -1103,6 +1103,29 @@ export class GoogleDriveClient {
    * response body and must forward or cancel it. This is intentionally the
    * only streaming primitive exposed by the credential-bearing Drive client.
    */
+  /** Native catalogs have no blob bytes: request a bounded XLSX export instead. */
+  async exportCatalogSpreadsheet(input: {
+    fileId: string;
+    resourceKey?: string | null;
+    signal?: AbortSignal;
+  }): Promise<Response> {
+    const url = new URL(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(input.fileId)}/export`
+    );
+    url.searchParams.set(
+      'mimeType',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    return this.#request(url, {
+      signal: input.signal
+        ? AbortSignal.any([input.signal, AbortSignal.timeout(60_000)])
+        : AbortSignal.timeout(60_000),
+      ...(input.resourceKey
+        ? { headers: { 'x-goog-drive-resource-keys': `${input.fileId}/${input.resourceKey}` } }
+        : {})
+    });
+  }
+
   async fetchFileRange(input: {
     fileId: string;
     resourceKey?: string | null;
@@ -1450,6 +1473,8 @@ export class GoogleDriveClient {
     if (response.status === 412)
       throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
     const reason = await driveErrorReason(response);
+    if (reason.reason === 'exportSizeLimitExceeded')
+      throw new TeamFunctionError('CATALOG_EXPORT_TOO_LARGE', { retryable: false });
     if (response.status === 403 || response.status === 404) {
       // Drive spells "slow down" with the same status as "you may not": only
       // the reason tells them apart, and the first must never retire a job.

@@ -159,8 +159,16 @@ export function useMaterialActions(input: {
       setBusy(true);
       setErrorCode(null);
       try {
-        await work();
-        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false });
+        const delivered = await work();
+        if (attempt)
+          completeTeamFileAttempt(attempt, {
+            outcome: 'success',
+            retryable: false,
+            ...(action === 'download' &&
+            (delivered === 'browser_handoff' || delivered === 'agent_saved')
+              ? { delivery: delivered }
+              : {})
+          });
         onChanged();
         report(action, null, successKey);
         return null;
@@ -255,15 +263,16 @@ export function useMaterialActions(input: {
             await client.downloadWithAgent({
               transferUrl: grant.transferUrl,
               transferGrant: grant.grant,
-              fileName: material.name
+              fileName: grant.fileName ?? material.name
             });
-            return;
+            return 'agent_saved';
           }
           const anchor = document.createElement('a');
           anchor.href = grant.rangeUrl;
-          anchor.download = material.name;
+          anchor.download = grant.fileName ?? material.name;
           anchor.rel = 'noreferrer';
           anchor.click();
+          return 'browser_handoff';
         } catch (caught) {
           // A browser grant can be refused for a file only the local agent can
           // fetch; ask again for the agent path before giving up.
@@ -273,8 +282,9 @@ export function useMaterialActions(input: {
           await client.downloadWithAgent({
             transferUrl: grant.transferUrl,
             transferGrant: grant.grant,
-            fileName: material.name
+            fileName: grant.fileName ?? material.name
           });
+          return 'agent_saved';
         }
       }),
     [client, material.id, material.name, run, teamId]

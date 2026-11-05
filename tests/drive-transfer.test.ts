@@ -629,3 +629,38 @@ describe('download metadata missing from the index', () => {
     ).rejects.toMatchObject({ code: 'UNSUPPORTED_MEDIA' });
   });
 });
+
+it('exports a registered native catalog without inventing its stored byte size', async () => {
+  const source = material({
+    sizeBytes: null,
+    mimeType: 'application/vnd.google-apps.spreadsheet',
+    checksum: null
+  });
+  const result = await resolveDownloadMaterial(
+    source,
+    async () => ({
+      id: source.driveFileId,
+      mimeType: source.mimeType!,
+      size: null,
+      version: '18',
+      checksum: null,
+      canDownload: true
+    }),
+    { allowCatalogExport: true }
+  );
+  expect(result).toMatchObject({ sizeBytes: null, driveVersion: '18', mimeType: source.mimeType });
+  const grant = {
+    ticket: 'opaque-ticket',
+    purpose: 'download_range' as const,
+    expiresAt: '2099-01-01T00:00:00Z',
+    maxRangeBytes: 32 * MiB,
+    maxUses: 5
+  };
+  expect(
+    await buildDownloadGrantResult(
+      { ...result, name: 'Catalog' },
+      { consumer: 'browser', rangeEndpoint: 'https://edge.test/range' },
+      async () => grant
+    )
+  ).toMatchObject({ kind: 'browser', fileName: 'Catalog.xlsx' });
+});

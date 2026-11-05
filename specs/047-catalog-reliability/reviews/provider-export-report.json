@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-11-05T17:48:53.747Z",
+  "local_project": "r2beta045",
+  "source": "xlsx",
+  "target": "native_spreadsheet",
+  "export_method": "v3_xlsx",
+  "success": true,
+  "export_bytes": 7764,
+  "xlsx_structure_valid": true,
+  "file_extension": true,
+  "permission_added": true,
+  "permission_reused": true,
+  "link_available": true,
+  "anonymous_export_verified": true,
+  "fixture_trashed": true,
+  "unknown_mutation": false
+}

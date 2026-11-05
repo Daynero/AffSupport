@@ -220,3 +220,8 @@ it('maps every closed browser session mutation failure to its ownership seam', (
     expect(lookupCodeLocations(`auth:library:${code}`)?.matched).toBe(`auth:library:${code}`);
   }
 });
+
+it('maps native catalog export and selection budgets to their concrete producers', () => {
+  for (const code of ['CATALOG_EXPORT_TOO_LARGE', 'RESTITCH_SCREEN_SELECTION_LIMIT'])
+    expect(lookupCodeLocations(`team:download:${code}`)?.matched).toBe(`team:download:${code}`);
+});

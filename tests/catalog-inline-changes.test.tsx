@@ -182,7 +182,7 @@ it('accepts fresh runtime facts from the registry when the profile version is un
         profile: {
           ...profile,
           version: 2,
-          restitch: true,
+          restitch: false,
           restitchStatus: 'ready',
           lastSuccessfulAt: '2026-10-18T10:00:00Z',
           lastResult: 'success'
@@ -190,6 +190,7 @@ it('accepts fresh runtime facts from the registry when the profile version is un
       }
     ]
   });
+  expect(result.current.snapshotFor('one')?.profile.restitch).toBe(true);
   expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
   expect(result.current.snapshotFor('one')?.profile.lastSuccessfulAt).toBe('2026-10-18T10:00:00Z');
 });
@@ -217,7 +218,7 @@ it('saves schedule atomically and reconciles an uncertain response including its
   expect(result.current.snapshotFor('one')?.profile.schedule).toEqual(schedule);
   expect(result.current.undo[0]?.before).toEqual({ interval: null, schedule: null });
 });
-it('does not confirm a schedule when readback has a different clock', async () => {
+it('reports a conflict when readback has a different clock', async () => {
   const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
   const { result, client } = setup(vi.fn().mockRejectedValue(new TypeError('network')));
   client.listCatalogUpdateProfiles.mockResolvedValue([
@@ -229,49 +230,30 @@ it('does not confirm a schedule when readback has a different clock', async () =
     confirmed = await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
   expect(confirmed).toBe(false);
-  expect(result.current.states.one.phase).toBe('unknown');
+  expect(result.current.states.one.phase).toBe('conflict');
 });
 
-it('retains one immediate schedule forecast until authoritative registry readback replaces it', async () => {
+it('uses the authoritative calendar due time rather than forecasting a confirmed result', async () => {
   const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
-  const oldNext = '2026-10-26T07:00:00Z';
-  let rows = [
-    {
-      ...row,
-      updateInterval: '1w',
-      nextRunAt: oldNext,
-      profile: { ...profile, schedule: { ...schedule, weekday: 1, time: '09:00' } }
-    }
-  ] as CatalogRegistryRow[];
-  const patch = vi.fn().mockResolvedValue({ ...profile, schedule, version: 2 });
+  const nextRunAt = '2026-11-08T16:00:00Z';
+  const saved = { ...profile, schedule, version: 2 };
   const client = {
     getCatalogUpdater: vi.fn(),
-    listTeamProductCatalogs: vi.fn(),
-    patchCatalogUpdateProfile: patch
+    listTeamProductCatalogs: vi
+      .fn()
+      .mockResolvedValue([{ ...row, profile: saved, updateInterval: '1w', nextRunAt }]),
+    listCatalogUpdateProfiles: vi.fn().mockResolvedValue([saved]),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue(saved)
   };
-  const { result, rerender } = renderHook(() =>
-    useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() })
+  const { result } = renderHook(() =>
+    useCatalogInlineChanges({ teamId: 'team', client, rows: [row], reload: vi.fn() })
   );
   await act(async () => {
     await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
-  const forecast = result.current.snapshotFor('one')?.nextRunAt;
-  expect(forecast).toBeTruthy();
-  expect(forecast).not.toBe(oldNext);
-  expect(
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/Kyiv',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23'
-    }).format(new Date(forecast!))
-  ).toBe('18:00');
-  rerender();
-  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(forecast);
-  const authoritative = new Date(Date.parse(forecast!) + 7 * 86400000).toISOString();
-  rows = [{ ...rows[0], profile: { ...profile, schedule, version: 2 }, nextRunAt: authoritative }];
-  rerender();
-  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(authoritative);
+  expect(result.current.states.one.phase).toBe('saved');
+  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(nextRunAt);
+  expect(client.listTeamProductCatalogs).toHaveBeenCalledTimes(1);
 });
 
 it('keeps a typed server refusal in the correlated diagnostic flow and the schedule picker', async () => {
@@ -341,4 +323,15 @@ it('does not refresh or publish a save result after unmount', async () => {
   hook.unmount();
   resolve({ ...profile, version: 2, restitch: true });
   expect(await pending).toBe(false);
+});
+
+it('does not confirm a save acknowledgement with an unexpected settings version', async () => {
+  const hook = setup(vi.fn().mockResolvedValue({ ...profile, restitch: true, version: 1 }));
+  let confirmed = true;
+  await act(async () => {
+    confirmed = await hook.result.current.change('one', 'restitch', true);
+  });
+  expect(confirmed).toBe(false);
+  expect(hook.client.listCatalogUpdateProfiles).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.undo).toHaveLength(0);
 });

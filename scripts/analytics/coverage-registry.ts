@@ -1062,7 +1062,9 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     start: [{ event: 'team_file_attempt_started', correlate: 'attempt_id' }],
     terminal: [{ event: 'team_file_attempt_completed', correlate: 'attempt_id' }],
     platforms: BOTH,
-    unobservable: ['clipboard contents after copying and link use in another application'],
+    unobservable: [
+      'browser save-to-disk after download handoff; clipboard contents after copying and link use in another application'
+    ],
     producerStatus: 'emitted',
     source: 'events',
     note: 'Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery.'

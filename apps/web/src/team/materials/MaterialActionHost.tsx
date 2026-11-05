@@ -99,7 +99,11 @@ export function useMaterialActionHost({
   } | null>(null);
   useEffect(() => {
     if (sharedLink?.scope === scope && sharedLink.attempt)
-      completeTeamFileAttempt(sharedLink.attempt, { outcome: 'success', retryable: false });
+      completeTeamFileAttempt(sharedLink.attempt, {
+        outcome: 'success',
+        retryable: false,
+        delivery: 'url_visible'
+      });
   }, [sharedLink, scope]);
   useEffect(() => {
     if (!shareRequest.current) shareRequest.current = { scope, pending: false, keys: new Map() };

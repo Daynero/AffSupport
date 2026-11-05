@@ -249,6 +249,7 @@ export interface TeamAnalyticsProperties {
   cue_category?: TeamAnalyticsCue;
   action?: TeamAnalyticsAction;
   file_surface?: 'material' | 'catalog_manager';
+  file_delivery?: 'browser_handoff' | 'agent_saved' | 'url_visible';
   storage_kind?: TeamAnalyticsStorage;
   size_bucket?: TeamAnalyticsSizeBucket;
   cache_state?: TeamAnalyticsCacheState;
@@ -338,6 +339,7 @@ export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
   file_surface: { kind: 'enum', values: ['material', 'catalog_manager'] },
+  file_delivery: { kind: 'enum', values: ['browser_handoff', 'agent_saved', 'url_visible'] },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

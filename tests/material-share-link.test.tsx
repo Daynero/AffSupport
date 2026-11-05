@@ -123,7 +123,11 @@ it('records one correlated share lifecycle after the selectable result appears, 
   fireEvent.click(screen.getByText('get-link'));
   await screen.findByDisplayValue(url);
   await waitFor(() =>
-    expect(complete).toHaveBeenCalledWith(attempt, { outcome: 'success', retryable: false })
+    expect(complete).toHaveBeenCalledWith(attempt, {
+      outcome: 'success',
+      retryable: false,
+      delivery: 'url_visible'
+    })
   );
   expect(begin).toHaveBeenCalledWith(
     expect.objectContaining({

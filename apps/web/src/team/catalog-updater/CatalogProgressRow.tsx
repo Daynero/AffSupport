@@ -29,13 +29,22 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
         0.08 +
         Math.max(
           0,
-          Math.min(100, Number.isFinite(row.restitchProgress) ? row.restitchProgress! : 0)
+          Math.min(
+            100,
+            (row.restitchOperationId === undefined || row.restitchOperationId !== null) &&
+              Number.isFinite(row.restitchProgress)
+              ? row.restitchProgress!
+              : 0
+          )
         ) *
           0.0032,
       label: 'catalogRunPreparingVideo'
     };
+  const belongsToAttempt =
+    row.activeRoundAt === undefined ||
+    (row.activeAttemptId != null && row.progressAttemptId === row.activeAttemptId);
   const stage =
-    row.updateStage && row.updateStage in STAGES
+    belongsToAttempt && row.updateStage && row.updateStage in STAGES
       ? STAGES[row.updateStage as keyof typeof STAGES]
       : STAGES.preparing;
   return { active: true, value: stage[0], label: stage[1] };
@@ -50,14 +59,24 @@ export function CatalogProgressRow({
 }: HTMLAttributes<HTMLTableRowElement> & { row: CatalogRegistryRow }) {
   const { t } = useI18n();
   const current = catalogRowProgress(row);
-  const last = useRef({ active: current.active, success: row.profile?.lastSuccessfulAt });
+  const identity = row.activeAttemptId ?? row.activeRoundAt;
+  const child = row.restitchOperationId;
+
+  const last = useRef({
+    active: current.active,
+    success: row.profile?.lastSuccessfulAt,
+    identity,
+    child
+  });
   const [fill, setFill] = useState(current.value);
   const [complete, setComplete] = useState(false);
   const success = row.profile?.lastSuccessfulAt;
   const confirmed = !row.profile?.reconciliationRequired && row.profile?.lastResult === 'success';
   useEffect(() => {
-    const wasActive = last.current.active;
+    const sameAttempt = identity === last.current.identity && child === last.current.child;
+    const wasActive = last.current.active && sameAttempt;
     const finished =
+      !current.active &&
       confirmed &&
       Boolean(success) &&
       success !== last.current.success &&
@@ -69,8 +88,8 @@ export function CatalogProgressRow({
       setFill(previous => (wasActive ? Math.max(previous, current.value) : current.value));
       setComplete(false);
     } else if (!complete) setFill(0);
-    last.current = { active: current.active, success };
-  }, [current.active, current.value, confirmed, success, complete]);
+    last.current = { active: current.active, success, identity, child };
+  }, [current.active, current.value, confirmed, success, complete, identity, child]);
   return (
     <tr
       {...props}

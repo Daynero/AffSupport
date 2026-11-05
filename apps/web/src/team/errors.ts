@@ -117,6 +117,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTITCH_INVALID: 'launchesRestitchInvalid',
   RESTITCH_POOL_EMPTY: 'teamRestitchPoolEmpty',
   RESTITCH_SCREEN_SELECTION_LIMIT: 'teamRestitchScreenSelectionLimit',
+  CATALOG_EXPORT_TOO_LARGE: 'catalogExportTooLarge',
   RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
   RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',
   RESTITCH_SOURCES_TOO_MANY: 'teamRestitchSourcesTooMany',

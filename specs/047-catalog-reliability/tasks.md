@@ -1,6 +1,6 @@
 # Задачі реалізації каталогів
 
-Статус: усі задачі відкриті. Порядок і рішення —
+Статус: реалізація триває в ізольованій beta-гілці; перевірені результати наведені в Evidence. Порядок і рішення —
 [план реалізації](plan.md), інциденти й вихідні вимоги —
 [backlog CM01–CM16](../../docs/POST_RELEASE_PROBLEMS.md). Початок виконання — після поточного
 релізу. Цей список не є дозволом на production publication.
@@ -65,19 +65,19 @@
       і не дублюється; telemetry failure не блокує користувача.
       **Evidence:** —
 
-- [ ] T007 [US1] приєднати native terminal до CLI — `scripts/analytics/investigate.ts`. Залежності: T005–T006.
+- [x] T007 [US1] приєднати native terminal до CLI — `scripts/analytics/investigate.ts`. Залежності: T005–T006.
       `queries.ts`, `investigate.ts`, recovery/catalog projections: journal terminal
       має зв’язок із parent/child operation навіть без browser events. Перевірити
       неправильну зупинку inspect на `team.tariff_recovery` reservation. Регресія
       на дві відомі operation Руслана, late/duplicate/conflicting/missing terminal.
-      **Evidence:** —
+      **Evidence:** ed55a766; reviews/verification-fast-manager-native.json (14/14 gates, 8739 tests); native/inspect/investigate regressions and pinned read-only incident readback described in reviews/implementation-progress.md.
 
-- [ ] T008 [US1] bounded audit і часові межі CLI — `scripts/analytics/coverage-registry.ts`. Залежності: T005, T007.
+- [x] T008 [US1] bounded audit і часові межі CLI — `scripts/analytics/coverage-registry.ts`. Залежності: T005, T007.
       Виявити запит statement timeout; розділити недоступність джерела й решту звіту,
       bounded queries/read-only limits, as-of і current_snapshot. `catalog-updates.ts`
       не видає поточні дані за історичні. Перевірки: query timeout, partial source,
       truncation, unavailable schema і unsupported producer → явний unknown.
-      **Evidence:** —
+      **Evidence:** ed55a766; reviews/verification-fast-manager-native.json; audit failure isolation, bounded native joins and temporal-cutoff regressions; pinned real CLI audit proves source availability, with coverage gaps kept explicit.
 
 - [ ] T009 [US1] виправити download готових каталогів — `supabase/functions/drive-transfer/handler.ts`. Залежності: T003, T005–T006.
       `drive-transfer/{handler,index}`, `useMaterialActions`, agent download/transfer.
@@ -179,12 +179,12 @@
 
 Незалежне приймання: A09–A13, lost reply, partial batch, no-op та progress identity.
 
-- [ ] T021 [US3] спільне збереження одиночних і bulk змін — `apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts`. Залежності: T012–T013.
+- [x] T021 [US3] спільне збереження одиночних і bulk змін — `apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts`. Залежності: T012–T013.
       Виділити мінімальний save/readback controller із `useCatalogInlineChanges`;
       підключити BulkEditor. CAS, accepted/rejected/conflict/unknown, per-item
       outcomes, максимум 4 writes. A09: втрачена відповідь після commit, failed
       readback, retry не повторює confirmed rows і не перезаписує чужі правки.
-      **Evidence:** —
+      **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit recorded with this checkpoint.
 
 - [ ] T022 [US3] точний bulk schedule та undo — `apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx`. Залежності: T021.
       BulkEditor + IntervalPicker + server patch: interval/time/day/zone атомарні;

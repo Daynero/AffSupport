@@ -3,9 +3,10 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatalogUpdateProfile } from '@video-compressor/shared';
+import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 const { track } = vi.hoisted(() => ({ track: vi.fn() }));
 vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track } }));
+import { TeamApiError } from '../apps/web/src/api/team';
 import { CatalogBulkEditor } from '../apps/web/src/team/catalog-updater/CatalogBulkEditor';
 const profile = (id: string): CatalogUpdateProfile => ({
   catalogId: id,
@@ -23,9 +24,15 @@ const items = ['A', 'B'].map(id => ({
   profile: profile(id),
   interval: null
 }));
+const written = new Map<string, CatalogUpdateProfilePatch>();
+const readSaved = async (id: string) => ({
+  profile: { ...profile(id), ...written.get(id), version: 2 },
+  interval: written.get(id)?.updateInterval ?? null
+});
 beforeEach(() => {
   localStorage.setItem('language', 'en');
   track.mockReset();
+  written.clear();
 });
 afterEach(() => {
   cleanup();
@@ -41,10 +48,11 @@ async function setDaily() {
 describe('bulk editor partial results', () => {
   it('retains successful rows while retrying only failed rows and emits delivery after commit', async () => {
     let failedOnce = false;
-    const save = vi.fn(async (id: string) => {
+    const save = vi.fn(async (id: string, _version: number, patch: CatalogUpdateProfilePatch) => {
+      written.set(id, patch);
       if (id === 'B' && !failedOnce) {
         failedOnce = true;
-        throw { code: 'DRIVE_UNAVAILABLE' };
+        throw new TeamApiError('PERMISSION_DENIED', false);
       }
       return { ...profile(id), version: 2 };
     });
@@ -53,7 +61,7 @@ describe('bulk editor partial results', () => {
       if (event === 'operation_failed' || event === 'operation_completed')
         visibleTerminals.push({ event, text: document.body.textContent ?? '' });
     });
-    render(<CatalogBulkEditor items={items} save={save} onSaved={() => {}} />);
+    render(<CatalogBulkEditor items={items} save={save} read={readSaved} onSaved={() => {}} />);
     await setDaily();
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await screen.findByText('Saved 1 catalogs');
@@ -109,7 +117,8 @@ describe('bulk editor partial results', () => {
     let active = 0;
     let maxActive = 0;
     const releases: Array<() => void> = [];
-    const save = vi.fn(async (id: string) => {
+    const save = vi.fn(async (id: string, _version: number, patch: CatalogUpdateProfilePatch) => {
+      written.set(id, patch);
       active++;
       maxActive = Math.max(active, maxActive);
       await new Promise<void>(resolve => releases.push(resolve));
@@ -120,6 +129,7 @@ describe('bulk editor partial results', () => {
     const { unmount } = render(
       <CatalogBulkEditor
         items={many}
+        read={readSaved}
         save={save}
         onSaved={() => {}}
         onPendingChange={onPendingChange}
@@ -146,13 +156,15 @@ describe('bulk editor partial results', () => {
 
   it('guards browser exit while draft or request is pending and releases after confirmed save', async () => {
     let resolve!: (profile: CatalogUpdateProfile) => void;
-    const save = vi.fn(
-      () =>
-        new Promise<CatalogUpdateProfile>(done => {
-          resolve = done;
-        })
+    const save = vi.fn((id: string, _version: number, patch: CatalogUpdateProfilePatch) => {
+      written.set(id, patch);
+      return new Promise<CatalogUpdateProfile>(done => {
+        resolve = done;
+      });
+    });
+    render(
+      <CatalogBulkEditor items={[items[0]]} save={save} read={readSaved} onSaved={() => {}} />
     );
-    render(<CatalogBulkEditor items={[items[0]]} save={save} onSaved={() => {}} />);
     const event = () => new Event('beforeunload', { cancelable: true });
     expect(window.dispatchEvent(event())).toBe(true);
     await setDaily();

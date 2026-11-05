@@ -819,6 +819,28 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['team:download:CATALOG_EXPORT_TOO_LARGE'] = {
+    files: [
+      'supabase/functions/drive-transfer/catalog-export.ts',
+      'supabase/functions/_shared/drive.ts',
+      'supabase/functions/drive-transfer/index.ts',
+      'apps/web/src/team/catalog/useMaterialActions.ts'
+    ],
+    check:
+      'The authorized native catalog export exceeded the provider ceiling; changing the local downloader cannot increase that export limit.'
+  };
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:RESTITCH_SCREEN_SELECTION_LIMIT`] = {
+      files: [
+        'apps/agent/src/team-bridge/screen-decode.ts',
+        'apps/agent/src/team-bridge/screen-cache.ts',
+        'apps/web/src/team/restitch/screens.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts'
+      ],
+      check:
+        'Inspect the consumed selection or scaled decode budget. A resource limit does not prove every image is broken and does not blacklist the source.'
+    };
+
   map['catalog:video:*'] = {
     files: [
       'apps/agent/src/team-bridge/restitch.ts',

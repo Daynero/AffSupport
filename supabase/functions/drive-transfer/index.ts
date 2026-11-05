@@ -1,3 +1,11 @@
+import {
+  CATALOG_SHEET_MIME,
+  CATALOG_XLSX_MIME,
+  CATALOG_EXPORT_MAX_BYTES,
+  catalogExportFileName,
+  catalogExportTool,
+  prepareCatalogExport
+} from './catalog-export.ts';
 import { landingReuseKey, landingTicket } from './landing-ticket.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
@@ -489,7 +497,8 @@ async function issueDownloadGrant(
 ): Promise<TeamTransferGrant> {
   const ticket = randomTicket();
   const expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString();
-  const size = material.sizeBytes;
+  const exporting = material.mimeType === CATALOG_SHEET_MIME;
+  const size = exporting ? CATALOG_EXPORT_MAX_BYTES : material.sizeBytes;
   if (size === null || size < 0 || size > AGENT_INTAKE_MAX_BYTES) {
     throw new TeamFunctionError(
       size !== null && size > AGENT_INTAKE_MAX_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE',
@@ -510,7 +519,7 @@ async function issueDownloadGrant(
     p_purpose: 'download_range',
     p_material: material.materialId,
     p_destination: null,
-    p_tool: `download:${consumer}`,
+    p_tool: exporting ? catalogExportTool(consumer, material.driveVersion) : `download:${consumer}`,
     p_max_range_bytes: MAX_PREVIEW_RANGE_BYTES,
     p_expires_at: expiresAt,
     p_max_uses: maxUses
@@ -645,6 +654,7 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
   const ticket =
     url.searchParams.get('grant') ?? request.headers.get('x-wishly-transfer-grant') ?? '';
   let liveDrive: GoogleDriveClient | null = null;
+  let exportBytes: Uint8Array<ArrayBuffer> | null = null;
   const authorized = await authorizePreviewRange(
     { ticket, rangeHeader: request.headers.get('range') },
     {
@@ -676,6 +686,44 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
           resourceKey: material.resourceKey
         });
         requireDriveCapability(live, 'canDownload');
+        if (live.mimeType === CATALOG_SHEET_MIME) {
+          exportBytes = await prepareCatalogExport({
+            purpose: grant.purpose,
+            toolId: grant.toolId,
+            source: { ...live, canDownload: live.capabilities.canDownload },
+            allowed: async () =>
+              (await rpcValue(service, 'service_catalog_export_allowed', {
+                p_team: grant.teamId,
+                p_material: grant.materialId,
+                p_actor: grant.actorId
+              })) === true,
+            export: () =>
+              liveDrive!.exportCatalogSpreadsheet({
+                fileId: live.id,
+                resourceKey: context.resourceKey,
+                signal: request.signal
+              }),
+            reload: async () => {
+              const after = await proveLiveAncestry({
+                client: liveDrive!,
+                fileId: live.id,
+                rootFolderId: context.rootFolderId,
+                resourceKey: context.resourceKey
+              });
+              return { ...after, canDownload: after.capabilities.canDownload };
+            },
+            signal: request.signal
+          });
+          return {
+            fileId: live.id,
+            resourceKey: live.resourceKey,
+            sizeBytes: exportBytes.length,
+            mimeType: CATALOG_XLSX_MIME,
+            canDownload: true,
+            sourceVersion: live.version,
+            sourceChecksum: null
+          };
+        }
         if (live.mimeType.startsWith('application/vnd.google-apps.')) {
           throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
         }
@@ -695,18 +743,31 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
     }
   );
   if (!liveDrive) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
-  const upstream = await liveDrive.fetchFileRange({
-    fileId: authorized.source.fileId,
-    resourceKey: authorized.source.resourceKey,
-    start: authorized.range.start,
-    end: authorized.range.end,
-    signal: request.signal,
-    // A file Drive has flagged as malware or spam still opens in Soty's own
-    // sandbox and renders on the paired agent — the owner can read it in
-    // Drive with a click-through, and neither consumer runs it as a program.
-    // A download to disk keeps Google's refusal (011, findings J3).
-    acknowledgeAbuse: authorized.grant.purpose === 'preview_range'
-  });
+  const exported = exportBytes as Uint8Array<ArrayBuffer> | null;
+  const upstream = exported
+    ? new Response(exported.slice(authorized.range.start, authorized.range.end + 1), {
+        status: request.headers.has('range') ? 206 : 200,
+        headers: {
+          'content-length': String(authorized.range.end - authorized.range.start + 1),
+          ...(request.headers.has('range')
+            ? {
+                'content-range': `bytes ${authorized.range.start}-${authorized.range.end}/${exported.length}`
+              }
+            : {})
+        }
+      })
+    : await liveDrive.fetchFileRange({
+        fileId: authorized.source.fileId,
+        resourceKey: authorized.source.resourceKey,
+        start: authorized.range.start,
+        end: authorized.range.end,
+        signal: request.signal,
+        // A file Drive has flagged as malware or spam still opens in Soty's own
+        // sandbox and renders on the paired agent — the owner can read it in
+        // Drive with a click-through, and neither consumer runs it as a program.
+        // A download to disk keeps Google's refusal (011, findings J3).
+        acknowledgeAbuse: authorized.grant.purpose === 'preview_range'
+      });
   let contentLength: number;
   try {
     contentLength = validateUpstreamRangeResponse(
@@ -723,7 +784,7 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
     upstream.headers,
     authorized.source.mimeType,
     authorized.grant.purpose === 'preview_range' ? 'inline' : 'attachment',
-    authorized.material.name
+    exported ? catalogExportFileName(authorized.material.name) : authorized.material.name
   );
   if (authorized.source.sourceVersion) {
     headers.set('x-wishly-source-version', authorized.source.sourceVersion);
@@ -1665,25 +1726,36 @@ Deno.serve(async request => {
         })
       );
       if (!material) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
-      const downloadable = await resolveDownloadMaterial(material, async () => {
-        const context = transferContext(
-          await rpcValue(configured.service, 'service_get_material_transfer_context', {
-            p_team: teamId.value,
-            p_material: materialId.value,
-            p_actor: userId
-          })
-        );
-        if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
-        const drive = await driveClient(configured.service, context.credentialId, request);
-        const live = await proveLiveAncestry({
-          client: drive,
-          fileId: context.driveFileId,
-          rootFolderId: context.rootFolderId,
-          resourceKey: context.resourceKey
-        });
-        requireDriveCapability(live, 'canDownload');
-        return { ...live, canDownload: live.capabilities.canDownload === true };
-      });
+      const catalogExportAllowed =
+        (material.sizeBytes === null || material.mimeType === CATALOG_SHEET_MIME) &&
+        (await rpcValue(configured.service, 'service_catalog_export_allowed', {
+          p_team: teamId.value,
+          p_material: materialId.value,
+          p_actor: userId
+        })) === true;
+      const downloadable = await resolveDownloadMaterial(
+        material,
+        async () => {
+          const context = transferContext(
+            await rpcValue(configured.service, 'service_get_material_transfer_context', {
+              p_team: teamId.value,
+              p_material: materialId.value,
+              p_actor: userId
+            })
+          );
+          if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+          const drive = await driveClient(configured.service, context.credentialId, request);
+          const live = await proveLiveAncestry({
+            client: drive,
+            fileId: context.driveFileId,
+            rootFolderId: context.rootFolderId,
+            resourceKey: context.resourceKey
+          });
+          requireDriveCapability(live, 'canDownload');
+          return { ...live, canDownload: live.capabilities.canDownload === true };
+        },
+        { allowCatalogExport: catalogExportAllowed }
+      );
       const result = await buildDownloadGrantResult(
         downloadable,
         { consumer: consumer.value, rangeEndpoint: rangeEndpoint(request) },

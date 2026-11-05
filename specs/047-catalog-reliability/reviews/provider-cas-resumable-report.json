@@ -1,0 +1,14 @@
+{
+  "tested_at": "2026-11-05T17:16:35.146Z",
+  "local_project": "r2beta045",
+  "source": "xlsx",
+  "target": "native_spreadsheet",
+  "conditional_method": "v2_resumable_put",
+  "success": false,
+  "matching_status": 412,
+  "matching_cells_verified": true,
+  "failed_stage": "matching_etag_write",
+  "reason": "MATCHING_WRITE_FAILED",
+  "fixture_trashed": true,
+  "unknown_mutation": false
+}

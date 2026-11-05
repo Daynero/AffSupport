@@ -2930,6 +2930,8 @@ export const en = {
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
   teamRestitchAgentTooOldForSources:
     'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  catalogExportTooLarge:
+    'The catalog exceeds Google’s 10 MB export limit. Reduce the product count or open the spreadsheet in Google Sheets.',
   teamRestitchScreenSelectionLimit:
     'The image check limit was reached. Replace or reduce the image pool and try again.',
   teamRestitchPoolEmpty:

@@ -38,7 +38,10 @@ export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 /** Installed with the commercial access boundary; keep the historical seed immutable. */
 export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
 
-export const TEAM_CATALOG_RELIABILITY_ERROR_CODES = ['RESTITCH_SCREEN_SELECTION_LIMIT'] as const;
+export const TEAM_CATALOG_RELIABILITY_ERROR_CODES = [
+  'RESTITCH_SCREEN_SELECTION_LIMIT',
+  'CATALOG_EXPORT_TOO_LARGE'
+] as const;
 
 export const TEAM_ERROR_CODES = [
   ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
@@ -649,12 +652,14 @@ export interface TeamFileOperationResult {
 export type TeamDownloadGrantResult =
   | {
       kind: 'browser';
+      fileName?: string;
       rangeUrl: string;
       expiresAt: string;
       disposition: 'attachment';
     }
   | {
       kind: 'agent';
+      fileName?: string;
       transferUrl: string;
       grant: TeamTransferGrant;
     };
@@ -1045,6 +1050,15 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
 export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantResult | null {
   if (!isRecord(value)) return null;
   if (
+    value.fileName !== undefined &&
+    (typeof value.fileName !== 'string' ||
+      !value.fileName ||
+      value.fileName.length > 255 ||
+      /[\\/\p{Cc}]/u.test(value.fileName))
+  )
+    return null;
+  const fileName = typeof value.fileName === 'string' ? { fileName: value.fileName } : {};
+  if (
     value.kind === 'browser' &&
     typeof value.rangeUrl === 'string' &&
     /^https?:\/\//u.test(value.rangeUrl) &&
@@ -1054,6 +1068,7 @@ export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantR
   ) {
     return {
       kind: 'browser',
+      ...fileName,
       rangeUrl: value.rangeUrl,
       expiresAt: value.expiresAt,
       disposition: 'attachment'
@@ -1066,7 +1081,7 @@ export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantR
     /^https?:\/\//u.test(value.transferUrl) &&
     grant?.purpose === 'download_range'
   ) {
-    return { kind: 'agent', transferUrl: value.transferUrl, grant };
+    return { kind: 'agent', ...fileName, transferUrl: value.transferUrl, grant };
   }
   return null;
 }

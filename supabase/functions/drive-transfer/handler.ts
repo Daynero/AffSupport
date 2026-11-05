@@ -1,3 +1,4 @@
+import { CATALOG_SHEET_MIME, catalogExportFileName } from './catalog-export.ts';
 import type {
   TeamPreviewResult,
   TeamTransferGrant,
@@ -183,12 +184,14 @@ export interface PreviewBuildOptions {
 export type DownloadGrantResult =
   | {
       kind: 'browser';
+      fileName?: string;
       rangeUrl: string;
       expiresAt: string;
       disposition: 'attachment';
     }
   | {
       kind: 'agent';
+      fileName?: string;
       transferUrl: string;
       grant: TeamTransferGrant;
     };
@@ -203,14 +206,27 @@ export async function resolveDownloadMaterial(
     version: string | null;
     checksum: string | null;
     canDownload: boolean;
-  }>
+  }>,
+  options: { allowCatalogExport?: boolean } = {}
 ): Promise<PreviewMaterialRecord> {
   if (!material.canDownload) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
-  if (material.sizeBytes !== null) return material;
+  if (material.sizeBytes !== null && !material.mimeType?.startsWith('application/vnd.google-apps.'))
+    return material;
   const live = await loadLive();
   if (live.id !== material.driveFileId)
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
   if (!live.canDownload) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  if (live.mimeType === CATALOG_SHEET_MIME && options.allowCatalogExport) {
+    if (!live.version || !/^\d{1,32}$/u.test(live.version))
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      ...material,
+      mimeType: live.mimeType,
+      sizeBytes: null,
+      driveVersion: live.version,
+      checksum: null
+    };
+  }
   if (live.mimeType.startsWith('application/vnd.google-apps.')) {
     throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
   }
@@ -240,10 +256,15 @@ export async function buildDownloadGrantResult(
   if (!material.canDownload) {
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
   }
-  if (material.sizeBytes === null || material.sizeBytes < 0) {
+  const exporting = material.mimeType === CATALOG_SHEET_MIME;
+  if (!exporting && (material.sizeBytes === null || material.sizeBytes < 0)) {
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }
-  if (options.consumer === 'browser' && material.sizeBytes > MAX_BROWSER_DOWNLOAD_BYTES) {
+  if (
+    options.consumer === 'browser' &&
+    material.sizeBytes !== null &&
+    material.sizeBytes > MAX_BROWSER_DOWNLOAD_BYTES
+  ) {
     throw new TeamFunctionError('AGENT_REQUIRED', { retryable: false });
   }
   const endpoint = new URL(options.rangeEndpoint);
@@ -252,11 +273,17 @@ export async function buildDownloadGrantResult(
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }
   if (options.consumer === 'agent') {
-    return { kind: 'agent', transferUrl: endpoint.toString(), grant };
+    return {
+      kind: 'agent',
+      ...(exporting ? { fileName: catalogExportFileName(material.name) } : {}),
+      transferUrl: endpoint.toString(),
+      grant
+    };
   }
   endpoint.searchParams.set('grant', grant.ticket);
   return {
     kind: 'browser',
+    ...(exporting ? { fileName: catalogExportFileName(material.name) } : {}),
     rangeUrl: endpoint.toString(),
     expiresAt: grant.expiresAt,
     disposition: 'attachment'

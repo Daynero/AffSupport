@@ -1139,4 +1139,67 @@ describe('the worker’s address and grants', () => {
       from pg_proc p where p.oid='public.list_team_catalog_manager_snapshot(uuid)'::regprocedure`);
     expect(definition[0]).toEqual({ volatility: 's', definer: false, anonymous: false });
   }, 60000);
+  it('binds manager progress to the active round and hides stale worker progress', async () => {
+    const item = await catalog('progress identity');
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [item.sheet]
+    ]);
+    await claim('identity-worker', 100);
+    await harness.root("select public.service_set_catalog_update_progress($1,$2,'uploading')", [
+      item.sheet,
+      'identity-worker'
+    ]);
+    const identity = async () =>
+      (
+        await harness.asUser<{
+          data: Record<
+            string,
+            {
+              active_round_at: string | null;
+              active_attempt_id: string | null;
+              progress_attempt_id: string | null;
+            }
+          >;
+        }>(OWNER, 'select public.list_team_catalog_progress_identity($1) as data', [teamId])
+      )[0]!.data[item.sheet]!;
+    const first = await identity();
+    expect(first.active_round_at).toBeTruthy();
+    expect(first.active_attempt_id).toBeTruthy();
+    expect(first.progress_attempt_id).toBe(first.active_attempt_id);
+    await harness.root(
+      "update private.catalog_update_progress set updated_at = '2000-01-01' where catalog_material_id=$1",
+      [item.sheet]
+    );
+    expect((await identity()).progress_attempt_id).toBeNull();
+    await expect(
+      harness.asUser(OTHER, 'select public.list_team_catalog_progress_identity($1)', [teamId])
+    ).rejects.toThrow('PERMISSION_DENIED');
+    const acl = await harness.root<{ anonymous: boolean }>(
+      "select has_function_privilege('anon','public.list_team_catalog_progress_identity(uuid)','execute') as anonymous"
+    );
+    expect(acl[0]!.anonymous).toBe(false);
+  }, 60000);
+  it('restricts native export to live catalog identity and actor download access', async () => {
+    const item = await catalog('catalog export');
+    const allowed = async (material: string, actor: string) =>
+      (
+        await harness.root<{ allowed: boolean }>(
+          'select public.service_catalog_export_allowed($1,$2,$3) as allowed',
+          [teamId, material, actor]
+        )
+      )[0]!.allowed;
+    expect(await allowed(item.sheet, OWNER)).toBe(true);
+    expect(await allowed(item.video, OWNER)).toBe(false);
+    expect(await allowed(item.sheet, OTHER)).toBe(false);
+    const grants = await harness.root<{ member: boolean; service: boolean }>(`select
+      has_function_privilege('authenticated','public.service_catalog_export_allowed(uuid,uuid,uuid)','execute') as member,
+      has_function_privilege('service_role','public.service_catalog_export_allowed(uuid,uuid,uuid)','execute') as service`);
+    expect(grants[0]).toEqual({ member: false, service: true });
+    await harness.root(
+      "update public.team_materials set lifecycle='trashed', trashed_at=clock_timestamp() where id=$1",
+      [item.sheet]
+    );
+    expect(await allowed(item.sheet, OWNER)).toBe(false);
+  }, 60000);
 });

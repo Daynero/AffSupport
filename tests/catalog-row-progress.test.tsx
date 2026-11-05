@@ -92,3 +92,65 @@ it('fills and briefly highlights only a newly confirmed success, then clears the
   expect(tr.className).not.toContain('is-update-complete');
   expect(tr.style.getPropertyValue('--catalog-row-progress-visible')).toBe('0');
 });
+
+it('resets progress between consecutive active attempts and native children', () => {
+  const first = {
+    ...row,
+    activeAttemptId: 'attempt-a',
+    progressAttemptId: 'attempt-a',
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    updateStage: 'uploading' as const
+  };
+  const { rerender } = render(view(first));
+  const tr = screen.getByRole('row');
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.82');
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'preparing'
+    })
+  );
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.12');
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'restitching',
+      restitchOperationId: 'child-a',
+      restitchProgress: 90
+    })
+  );
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'restitching',
+      restitchOperationId: 'child-b',
+      restitchProgress: 0
+    })
+  );
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.08');
+});
+it('ignores progress from another attempt and video progress with no live child', () => {
+  expect(
+    catalogRowProgress({
+      ...row,
+      activeRoundAt: '2026-11-05T10:00:00Z',
+      activeAttemptId: 'b',
+      progressAttemptId: 'a',
+      updateStage: 'uploading'
+    }).value
+  ).toBe(0.12);
+  expect(
+    catalogRowProgress({
+      ...row,
+      updateStage: 'restitching',
+      restitchOperationId: null,
+      restitchProgress: 99
+    }).value
+  ).toBe(0.08);
+});

@@ -190,3 +190,32 @@ it('joins only valid catalog/profile rows from a single manager snapshot RPC', a
   expect(data.rows[0].profile?.version).toBe(1);
   expect(data.invalidRowCount).toBe(1);
 });
+
+it.each([
+  { created_at: 'not-a-date' },
+  { product_count: -1 },
+  { product_count: 1.5 },
+  { update_count: -1 },
+  { update_interval: 'not-an-interval' },
+  { next_run_at: 'bad' }
+])(
+  'keeps malformed catalog fields partial instead of crashing the manager or showing a false disabled schedule: %j',
+  async bad => {
+    const row = {
+      catalog_id: 'good',
+      name: 'Catalog',
+      sheet_url: 'https://docs.google.com/spreadsheets/d/good',
+      video_id: 'video',
+      video_name: 'Video',
+      product_count: 1,
+      update_count: 0,
+      created_at: '2026-11-05T12:00:00Z',
+      in_updater: false
+    };
+    rpc.mockResolvedValue({ error: null, data: [row, { ...row, catalog_id: 'bad', ...bad }] });
+    expect(await teamApi.listTeamProductCatalogSnapshot('team')).toMatchObject({
+      rows: [{ catalogId: 'good' }],
+      invalidRowCount: 1
+    });
+  }
+);

@@ -460,3 +460,23 @@ describe('privacy-minimized analytics', () => {
     expect(executableSql).not.toMatch(/on conflict\s*\(\s*event_id\s*\)/i);
   });
 });
+
+it.each(['browser_handoff', 'agent_saved'] as const)(
+  'separates %s from proven file production',
+  delivery => {
+    const track = vi.fn();
+    const flow = startTeamFileAttempt(
+      { action: 'download', storageKind: 'unknown', sizeBucket: 'tiny' },
+      { tracker: { track } }
+    );
+    completeTeamFileAttempt(
+      flow,
+      { outcome: 'success', retryable: false, delivery },
+      { tracker: { track } }
+    );
+    expect(track.mock.calls.at(-1)?.[1]).toMatchObject({
+      file_delivery: delivery,
+      production_completed: delivery === 'agent_saved'
+    });
+  }
+);

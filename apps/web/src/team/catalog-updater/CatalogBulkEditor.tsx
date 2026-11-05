@@ -1,5 +1,5 @@
 import { TeamApiError } from '../../api/team';
-import { withReadDeadline } from '../readCoordinator';
+import { saveCatalogProfile } from './saveCatalogProfile';
 import { profilePatchMatches } from './profilePatchMatches';
 import type { CatalogSnapshot } from './useCatalogInlineChanges';
 import { useEffect, useRef, useState } from 'react';
@@ -116,63 +116,33 @@ export function CatalogBulkEditor({
   );
   const locked = pending || unknownIds.current.size > 0;
   class UnknownSave extends Error {}
-  const readback = async (item: Item, conflict = false): Promise<CatalogUpdateProfile> => {
-    if (!read) throw new UnknownSave();
+  const saveItem = async (item: Item): Promise<CatalogUpdateProfile> => {
     const controller = new AbortController();
     readControllers.current.add(controller);
-    let snapshot: CatalogSnapshot;
     try {
-      snapshot = await withReadDeadline(
-        signal => read(item.catalogId, { signal }),
-        controller.signal
-      );
-    } catch {
-      unknownIds.current.add(item.catalogId);
-      throw new UnknownSave();
+      const outcome = await saveCatalogProfile({
+        base: { profile: item.profile, interval: item.interval },
+        patch: draft,
+        write: () => save(item.catalogId, item.profile.version, draft),
+        read: read ? signal => read(item.catalogId, { signal }) : undefined,
+        readOnly: unknownIds.current.has(item.catalogId),
+        signal: controller.signal,
+        canContinue: () => mounted.current,
+        onStage: stage => flow.current?.stage(stage)
+      });
+      if (outcome.kind === 'confirmed') {
+        unknownIds.current.delete(item.catalogId);
+        return outcome.snapshot.profile;
+      }
+      if (outcome.kind === 'unknown') {
+        unknownIds.current.add(item.catalogId);
+        throw new UnknownSave();
+      }
+      unknownIds.current.delete(item.catalogId);
+      throw outcome.kind === 'conflict' ? new TeamApiError('STALE_RESULT', false) : outcome.error;
     } finally {
       readControllers.current.delete(controller);
     }
-    if (
-      !conflict &&
-      snapshot.profile.version === item.profile.version + 1 &&
-      profilePatchMatches(snapshot, draft)
-    ) {
-      unknownIds.current.delete(item.catalogId);
-      return snapshot.profile;
-    }
-    if (snapshot.profile.version !== item.profile.version) {
-      unknownIds.current.delete(item.catalogId);
-      throw new TeamApiError('STALE_RESULT', false);
-    }
-    unknownIds.current.add(item.catalogId);
-    throw new UnknownSave();
-  };
-  const saveItem = async (item: Item): Promise<CatalogUpdateProfile> => {
-    if (!mounted.current) throw new UnknownSave();
-    if (unknownIds.current.has(item.catalogId)) return readback(item);
-    let saved: CatalogUpdateProfile;
-    try {
-      saved = await save(item.catalogId, item.profile.version, draft);
-      if (!mounted.current) throw new UnknownSave();
-    } catch (cause) {
-      if (!mounted.current) throw cause;
-      if (
-        !read ||
-        (cause instanceof TeamApiError &&
-          !cause.retryable &&
-          !['INVALID_RESPONSE', 'STALE_RESULT'].includes(cause.code))
-      )
-        throw cause;
-      return readback(item, cause instanceof TeamApiError && cause.code === 'STALE_RESULT');
-    }
-    if (
-      read &&
-      (draft.updateInterval !== undefined ||
-        draft.schedule !== undefined ||
-        !profilePatchMatches({ profile: saved, interval: item.interval }, draft))
-    )
-      return readback(item);
-    return saved;
   };
   const errorText = (cause: unknown) =>
     cause instanceof UnknownSave ? t('catalogIconsUnknown') : teamErrorMessageFor(cause, t);
@@ -212,7 +182,11 @@ export function CatalogBulkEditor({
         parentFlowId: bulkFlowId.current
       });
     const attemptFlow = flow.current;
-    attemptFlow.stage('save_requested');
+    attemptFlow.stage(
+      changedItems.every(item => unknownIds.current.has(item.catalogId))
+        ? 'readback_requested'
+        : 'save_requested'
+    );
     setPending(true);
     setFailures([]);
     const results: PromiseSettledResult<CatalogUpdateProfile>[] = new Array(changedItems.length);
