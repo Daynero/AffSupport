@@ -13,18 +13,18 @@
 
 ## Phase 1 — setup: точний післярелізний контекст
 
-- [ ] T001 зафіксувати післярелізну базу — `specs/047-catalog-reliability/reviews/baseline.md`. Залежності: завершення поточного релізу.
+- [x] T001 зафіксувати післярелізну базу — `specs/047-catalog-reliability/reviews/baseline.md`. Залежності: завершення поточного релізу.
       Чистий isolated checkout від визначеного SHA; read-only versions/capabilities,
       migrations і beta provenance; звірка F01–F12 із фактичним кодом. Не переносити
       випадково незавершені зміни іншого релізу. Вихід: baseline у delivery evidence.
-      **Evidence:** —
+      **Evidence:** Isolated beta checkout and release SHA recorded in reviews/baseline.md/json; 68709d21 retains full fast verification and tested migration hashes. Actual connected beta ownership/source mismatch and absent candidate packaged proof remain explicit baseline facts, not claimed acceptance.
 
-- [ ] T002 карта всіх дій і writers — `specs/047-catalog-reliability/reviews/writers.md`. Залежності: T001.
+- [x] T002 карта всіх дій і writers — `specs/047-catalog-reliability/reviews/writers.md`. Залежності: T001.
       Перелік entry points у material action registry, Launch, product-catalog та
       manager; caller → API → RPC/worker → Drive/agent → UI → CLI. Окремо legacy,
       updater, recovery й late provider settlement. Позначити власника кожного
       state/refresh. Вихід: жодна поверхня або writer не лишилися неохопленими.
-      **Evidence:** —
+      **Evidence:** Writer/entry-point/state-owner inventory in reviews/writers.md; source paths reviewed for explorer, manager, create, Launch, scheduled/manual updater and native recovery. Current and proposed writers are separate; failed real provider fencing proof and the pending owner decision are linked.
 
 - [ ] T003 відтворення інцидентів — `tests/catalog-incident-regressions.test.ts`. Залежності: T001–T002.
       `investigate/journal/inspect/catalog` з фіксованим as-of; bounded privacy-safe
@@ -184,7 +184,7 @@
       підключити BulkEditor. CAS, accepted/rejected/conflict/unknown, per-item
       outcomes, максимум 4 writes. A09: втрачена відповідь після commit, failed
       readback, retry не повторює confirmed rows і не перезаписує чужі правки.
-      **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit recorded with this checkpoint.
+      **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit 68709d21.
 
 - [ ] T022 [US3] точний bulk schedule та undo — `apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx`. Залежності: T021.
       BulkEditor + IntervalPicker + server patch: interval/time/day/zone атомарні;

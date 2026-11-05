@@ -1,3 +1,4 @@
+import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { withReadDeadline } from '../readCoordinator';
 import type { TeamAnalyticsStorage } from '@video-compressor/shared';
 import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
@@ -63,7 +64,11 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
     interval: CatalogUpdaterInterval | null
   ) => Promise<CatalogUpdaterState>;
   runCatalogUpdateNow: (teamId: string, catalogIds: string[]) => Promise<number>;
-  cancelCatalogUpdate?: (teamId: string, catalogId: string) => Promise<boolean>;
+  cancelCatalogUpdate?: (
+    teamId: string,
+    catalogId: string,
+    observed?: { roundAt: string; attemptId: string | null }
+  ) => Promise<boolean>;
   listCatalogUpdateAttempts?: (
     teamId: string,
     catalogId: string,
@@ -117,7 +122,8 @@ function needsAttention(row: CatalogRegistryRow) {
 }
 
 export function CatalogUpdaterDialog(props: Parameters<typeof CatalogUpdaterDialogScope>[0]) {
-  return <CatalogUpdaterDialogScope key={props.teamId} {...props} />;
+  const epoch = usePrivateCacheEpoch();
+  return <CatalogUpdaterDialogScope key={`${props.teamId}:${epoch}`} {...props} />;
 }
 
 function CatalogUpdaterDialogScope({
@@ -366,7 +372,11 @@ function CatalogUpdaterDialogScope({
     });
 
   const busyRef = useRef(new Set<string>());
-  const withBusy = async (ids: string[], work: () => Promise<void>, rethrow = false) => {
+  const withBusy = async (
+    ids: string[],
+    work: () => Promise<void>,
+    options: { rethrow?: boolean; refreshOnFailure?: boolean } = {}
+  ) => {
     if (ids.some(id => busyRef.current.has(id))) return;
     ids.forEach(id => busyRef.current.add(id));
     setBusyIds(current => new Set([...current, ...ids]));
@@ -377,8 +387,14 @@ function CatalogUpdaterDialogScope({
       registry.reload();
       onChanged?.();
     } catch (error) {
-      if (mounted.current) push({ tone: 'error', text: teamErrorMessageFor(error, t) });
-      if (rethrow) throw error;
+      if (mounted.current) {
+        push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+        if (options.refreshOnFailure) {
+          updater.reload();
+          registry.reload();
+        }
+      }
+      if (options.rethrow) throw error;
     } finally {
       ids.forEach(id => busyRef.current.delete(id));
       if (mounted.current)
@@ -392,17 +408,21 @@ function CatalogUpdaterDialogScope({
       push({ tone: 'error', text: t('catalogUpdaterReconciliationHold') });
       return;
     }
-    return withBusy(ids, async () => {
-      const opened = await client.runCatalogUpdateNow(teamId, ids);
-      if (!mounted.current) return;
-      push({
-        tone: opened === 0 ? 'info' : 'success',
-        text:
-          opened === 0
-            ? t('catalogUpdaterNowAlready')
-            : t('catalogUpdaterNowStarted', { count: opened })
-      });
-    });
+    return withBusy(
+      ids,
+      async () => {
+        const opened = await client.runCatalogUpdateNow(teamId, ids);
+        if (!mounted.current) return;
+        push({
+          tone: opened === 0 ? 'info' : 'success',
+          text:
+            opened === 0
+              ? t('catalogUpdaterNowAlready')
+              : t('catalogUpdaterNowStarted', { count: opened })
+        });
+      },
+      { refreshOnFailure: true }
+    );
   };
 
   const updateNow = (ids: string[]) => {
@@ -473,10 +493,24 @@ function CatalogUpdaterDialogScope({
     for (const row of shown.slice(0, visibleCount)) inline.delivered(row.catalogId);
   });
 
-  const cancelNow = (id: string) =>
-    withBusy([id], async () => {
-      await client.cancelCatalogUpdate?.(teamId, id);
-    });
+  const cancelNow = (row: CatalogRegistryRow) =>
+    withBusy(
+      [row.catalogId],
+      async () => {
+        const cancelled =
+          row.activeRoundAt === null
+            ? false
+            : row.activeRoundAt === undefined
+              ? await client.cancelCatalogUpdate?.(teamId, row.catalogId)
+              : await client.cancelCatalogUpdate?.(teamId, row.catalogId, {
+                  roundAt: row.activeRoundAt,
+                  attemptId: row.activeAttemptId ?? null
+                });
+        if (mounted.current && cancelled === false)
+          push({ tone: 'info', text: t('catalogUpdaterCancelAlready') });
+      },
+      { refreshOnFailure: true }
+    );
 
   const trashRows = rows.map(row => ({
     id: row.catalogId,
@@ -1238,7 +1272,7 @@ function CatalogUpdaterDialogScope({
                             }
                             onClick={() =>
                               row.updatePending
-                                ? void cancelNow(row.catalogId)
+                                ? void cancelNow(row)
                                 : void updateNow([row.catalogId])
                             }
                           >
@@ -1531,6 +1565,7 @@ function CatalogUpdaterDialogScope({
                   teamId={teamId}
                   catalogId={row.catalogId}
                   currentProfileVersion={row.profile?.version}
+                  activeAttemptId={row.activeAttemptId}
                   checkingDelivery={Boolean(row.profile?.reconciliationRequired)}
                   retryDisabled={
                     inline.blocked(row.catalogId) ||
@@ -1572,7 +1607,7 @@ function CatalogUpdaterDialogScope({
                                     : t('catalogUpdaterNowStarted', { count: accepted })
                               });
                             },
-                            true
+                            { rethrow: true, refreshOnFailure: true }
                           );
                         }
                       : undefined

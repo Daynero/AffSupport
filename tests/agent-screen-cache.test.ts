@@ -199,7 +199,7 @@ describe('resolving a job’s screens', () => {
         [screen('plain.jpg', { materialId: '31000000-0000-4000-8000-000000000002' })],
         new AbortController().signal
       )
-    ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_FETCH_FAILED' });
+    ).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
     await expect(
       flaky.resolve(
         TEAM,
@@ -323,7 +323,7 @@ it('does not blacklist a picture after a network outage', async () => {
   const store = cache(transferOf('fail'));
   await expect(
     store.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings-1')
-  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_FETCH_FAILED' });
+  ).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
   expect(await store.refused(TEAM, 'settings-1')).toEqual([]);
 });
 
@@ -386,4 +386,39 @@ it('bounds actual downloaded file bytes even when transfer metadata underreports
   await expect(
     cache(transfer).resolve(TEAM, [screen('plain.png')], new AbortController().signal)
   ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+});
+
+it.each([
+  ['TOO_LARGE', 'RESTITCH_SCREEN_UNSUPPORTED', true],
+  ['NOT_FOUND', 'RESTITCH_SCREEN_UNAVAILABLE', true],
+  ['SOURCE_CHANGED', 'SOURCE_CHANGED', true],
+  ['EXPIRED', 'EXPIRED', false],
+  ['PERMISSION_DENIED', 'PERMISSION_DENIED', false],
+  ['DRIVE_UNAVAILABLE', 'DRIVE_UNAVAILABLE', false]
+] as const)(
+  'retains the safe transfer cause %s and remembers only a candidate-local defect',
+  async (cause, code, remembered) => {
+    const transfer = transferOf('copy');
+    transfer.downloadSource.mockRejectedValue(new Error(cause));
+    const instance = cache(transfer);
+    await expect(
+      instance.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'scope')
+    ).rejects.toMatchObject({ code });
+    expect(await instance.refused(TEAM, 'scope')).toHaveLength(remembered ? 1 : 0);
+  }
+);
+it('bounds screen transfer before provider I/O and identifies local temporary-disk exhaustion', async () => {
+  const transfer = transferOf('copy');
+  transfer.downloadSource.mockRejectedValue(
+    Object.assign(new Error('private temp path'), { code: 'ENOSPC' })
+  );
+  const instance = cache(transfer);
+  await expect(
+    instance.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'scope')
+  ).rejects.toMatchObject({ code: 'DISK_FULL', reason: 'cache_write_failed' });
+  expect(transfer.downloadSource).toHaveBeenCalledWith(
+    expect.objectContaining({ maxTotalBytes: 50 * 1024 * 1024, maxRetries: 2 }),
+    expect.any(AbortSignal)
+  );
+  expect(await instance.refused(TEAM, 'scope')).toEqual([]);
 });

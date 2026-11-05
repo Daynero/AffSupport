@@ -17,7 +17,8 @@ export function readCatalogSnapshot(
       return {
         profile: catalog.profile,
         interval: catalog.updateInterval,
-        nextRunAt: catalog.nextRunAt
+        nextRunAt: catalog.nextRunAt,
+        runtimeObservedAt: catalog.runtimeObservedAt
       };
     }
     const [profiles, catalogs] = await Promise.all([

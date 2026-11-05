@@ -33,6 +33,12 @@ Read model також розділяє active delivered target/assignment і pen
 Source readiness має текст «Відео доступне/недоступне», не «Створено 1 відео»;
 generated K/N показується лише для video_set. N>1/restitch off лишається невалідним.
 
+The atomic manager RPC also returns `observed_at` from the database statement
+clock. Web snapshots carry it as `runtimeObservedAt`, separately from settings
+version. An older same-version observation cannot replace a newer readback's
+runtime. Missing legacy observation time remains unknown; the client never
+invents a server timestamp from response arrival or a settings update time.
+
 List results: validated rows + bounded invalid-row count/reasons + freshness/completeness.
 Entire invalid response — INVALID_RESPONSE; mixed valid rows — partial. Run/retry
 count=0 і cancel=false валідні no-op; malformed value не перетворюється в no-op.
@@ -63,6 +69,19 @@ conflict. Один catalog-wide reservation для всіх command paths.
 Timeout після відправленої mutation — unknown, далі readback з тією самою identity.
 Нова requestKey не є способом «виправити» unknown. Accepted не дорівнює verified
 або visible. Діалог зберігає recovery link за opaque ID після reload.
+
+### Stop the observed updater round (T024)
+
+The additive authenticated RPC `cancel_team_catalog_update_attempt(p_team uuid,
+p_catalog uuid, p_expected_round timestamptz, p_expected_attempt uuid)` returns a
+strict boolean. It locks the updater item, checks current process permission and
+compares the observed round before calling the existing cancellation boundary.
+No active round returns false; a replacement round/attempt returns STALE_RESULT
+and is left running. A live provider-worker lease retains the existing WRONG_STATE
+refusal: cancellation cannot claim that an in-flight provider write was undone.
+The old two-argument RPC remains for legacy snapshots. New snapshots must use the
+observed-round RPC and never fall back to an unfenced cancel after an error.
+Schedule off remains a separate profile change. No new publication writer is added.
 
 ## C3. Native contract і variants
 

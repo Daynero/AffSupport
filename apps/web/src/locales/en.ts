@@ -2648,11 +2648,11 @@ export const en = {
   catalogUpdaterApply: 'Set',
   catalogUpdaterOff: 'Off',
   catalogUpdaterOffLong: 'Don’t update automatically',
+  catalogUpdaterCancelAlready: 'This update has already finished or stopped.',
   catalogUpdaterCancelUpdate: 'Stop this update',
   catalogUpdaterPartialRead:
     'Some catalog data could not be read ({count} records). Available catalogs are shown. Refresh to try again.',
-  catalogUpdaterNoWorkAccepted:
-    'No new update was accepted. The current status has been refreshed.',
+  catalogUpdaterNoWorkAccepted: 'No new update was accepted. Checking the current status…',
   catalogUpdaterNowAlready: 'Already updating',
   catalogUpdaterNowStarted: 'Updating now: {count}',
   catalogUpdaterStatusScheduled: 'On a schedule: {count} · next in',

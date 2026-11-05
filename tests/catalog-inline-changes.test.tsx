@@ -335,3 +335,87 @@ it('does not confirm a save acknowledgement with an unexpected settings version'
   expect(hook.client.listCatalogUpdateProfiles).toHaveBeenCalledTimes(1);
   expect(hook.result.current.undo).toHaveLength(0);
 });
+
+it('does not replace a newer readback runtime with an older same-version registry response', async () => {
+  const saved = { ...profile, version: 2, restitch: true, restitchStatus: 'ready' as const };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    listCatalogManagerSnapshot: vi.fn().mockResolvedValue({
+      rows: [{ ...row, profile: saved, runtimeObservedAt: '2026-11-05T12:02:00Z' }],
+      invalidRowCount: 0
+    }),
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('lost reply'))
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [row] } }
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'waiting' },
+        runtimeObservedAt: '2026-11-05T12:01:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'blocked' },
+        runtimeObservedAt: '2026-11-05T12:03:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('blocked');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'waiting' },
+        runtimeObservedAt: '2026-11-05T12:01:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('blocked');
+});
+
+it('does not present an older acknowledgement as the visible settings after a newer version was observed', async () => {
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn(
+      () =>
+        new Promise<CatalogUpdateProfile>(resolve => {
+          finish = resolve;
+        })
+    )
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [row] } }
+  );
+  let save!: Promise<boolean>;
+  act(() => {
+    save = result.current.change('one', 'restitch', true);
+  });
+  rerender({ rows: [{ ...row, profile: { ...profile, version: 3, restitch: false } }] });
+  expect(result.current.snapshotFor('one')?.profile.version).toBe(3);
+  let confirmed = true;
+  await act(async () => {
+    finish({ ...profile, version: 2, restitch: true });
+    confirmed = await save;
+  });
+  expect(confirmed).toBe(false);
+  expect(result.current.states.one.phase).toBe('conflict');
+  expect(result.current.snapshotFor('one')?.profile).toMatchObject({ version: 3, restitch: false });
+  expect(result.current.undo).toEqual([]);
+});

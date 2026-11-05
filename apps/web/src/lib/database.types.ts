@@ -6923,6 +6923,15 @@ export type GeneratedDatabase = {
         Args: { p_team: string; p_material: string; p_actor: string };
         Returns: boolean;
       };
+      cancel_team_catalog_update_attempt: {
+        Args: {
+          p_team: string;
+          p_catalog: string;
+          p_expected_round: string;
+          p_expected_attempt?: string | null;
+        };
+        Returns: boolean;
+      };
       list_team_catalog_progress_identity: {
         Args: { p_team: string };
         Returns: Json;

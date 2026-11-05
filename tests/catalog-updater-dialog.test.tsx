@@ -16,6 +16,7 @@ import type {
  * both of them across a selection.
  */
 
+const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
@@ -623,6 +624,37 @@ it('cancels an active run separately from the schedule', async () => {
   expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId);
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
 });
+it('binds stop to the observed updater round on a modern snapshot', async () => {
+  const activeRoundAt = '2026-11-05T10:00:00Z';
+  const api = client(
+    [
+      row('1', 'polo.mp4', {
+        updatePending: true,
+        activeRoundAt,
+        activeAttemptId: 'observed-attempt'
+      })
+    ],
+    running
+  );
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, {
+    roundAt: activeRoundAt,
+    attemptId: 'observed-attempt'
+  });
+});
+it('explains a stop that arrived after the run had already ended without changing its schedule', async () => {
+  const api = client(
+    [row('1', 'polo.mp4', { updatePending: true, updateInterval: '1d' })],
+    running,
+    { cancelCatalogUpdate: vi.fn().mockResolvedValue(false) }
+  );
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  expect(await screen.findByText('This update has already finished or stopped.')).toBeTruthy();
+  expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+  expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
+});
 it('shows the server refusal from a manual run', async () => {
   const api = client([row('1', 'polo.mp4')], stopped, {
     runCatalogUpdateNow: vi.fn().mockRejectedValue(new TeamApiError('PERMISSION_DENIED', false))
@@ -917,3 +949,38 @@ it('refreshes partial trash results and keeps failed and unstarted catalogs sele
     true
   );
 });
+
+it.each([
+  { actor: 'new-actor', access: 'same-space-access' },
+  { actor: null, access: 'changed-permissions' }
+])(
+  'clears manager state and suppresses a late command after private scope changes: %j',
+  async ({ actor, access }) => {
+    let finish!: (count: number) => void;
+    const run = vi.fn(
+      () =>
+        new Promise<number>(resolve => {
+          finish = resolve;
+        })
+    );
+    const api = client([row('1', 'polo.mp4')], stopped, { runCatalogUpdateNow: run });
+    const { onChanged } = renderDialog(api);
+    const selected = await screen.findByLabelText('Select polo.mp4 catalog');
+    await userEvent.click(selected);
+    await userEvent.type(screen.getByRole('searchbox'), 'polo');
+    await userEvent.click(screen.getByRole('button', { name: 'Update polo.mp4 catalog now' }));
+    expect(run).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      setPrivateCacheScope(actor, access);
+    });
+    await waitFor(() => expect(screen.getByRole('searchbox')).toHaveProperty('value', ''));
+    expect(await screen.findByLabelText('Select polo.mp4 catalog')).toHaveProperty(
+      'checked',
+      false
+    );
+    await act(async () => {
+      finish(1);
+    });
+    expect(onChanged).not.toHaveBeenCalled();
+  }
+);

@@ -15,6 +15,7 @@ export interface CatalogSnapshot {
   profile: CatalogUpdateProfile;
   interval: CatalogUpdaterInterval | null;
   nextRunAt?: string | null;
+  runtimeObservedAt?: string;
 }
 export interface CatalogScheduleSelection {
   interval: CatalogUpdaterInterval | null;
@@ -65,9 +66,11 @@ export function useCatalogInlineChanges({
   clockOffsetMs?: number;
 }) {
   const generation = useRef(0);
+  const snapshotCache = useRef(new Map<string, CatalogSnapshot>());
   const previousScope = useRef({ teamId, client });
   if (previousScope.current.teamId !== teamId || previousScope.current.client !== client) {
     generation.current += 1;
+    snapshotCache.current.clear();
     previousScope.current = { teamId, client };
   }
   const readControllers = useRef(new Set<AbortController>());
@@ -93,40 +96,57 @@ export function useCatalogInlineChanges({
     setUndo([]);
     locks.current.clear();
   }, [teamId, client]);
+  const remember = (
+    id: string,
+    incoming: CatalogSnapshot,
+    acknowledged = false
+  ): CatalogSnapshot => {
+    const previous = snapshotCache.current.get(id);
+    if (!previous || incoming.profile.version > previous.profile.version) {
+      snapshotCache.current.set(id, incoming);
+      return incoming;
+    }
+    if (incoming.profile.version < previous.profile.version) return previous;
+    const previousTime = Date.parse(previous.runtimeObservedAt ?? '');
+    const incomingTime = Date.parse(incoming.runtimeObservedAt ?? '');
+    const runtime =
+      Number.isFinite(previousTime) &&
+      (!Number.isFinite(incomingTime) || incomingTime <= previousTime)
+        ? previous
+        : incoming;
+    const settings = acknowledged ? incoming : previous;
+    const merged = {
+      ...runtime,
+      profile: {
+        ...runtime.profile,
+        refreshImages: settings.profile.refreshImages,
+        refreshTexts: settings.profile.refreshTexts,
+        growProducts: settings.profile.growProducts,
+        randomLinkVariation: settings.profile.randomLinkVariation,
+        restitch: settings.profile.restitch,
+        schedule: settings.profile.schedule,
+        version: settings.profile.version,
+        updatedAt: settings.profile.updatedAt
+      },
+      interval: settings.interval
+    };
+    snapshotCache.current.set(id, merged);
+    return merged;
+  };
   const snapshotFor = (id: string): CatalogSnapshot | undefined => {
     const row = current.current.rowById.get(id);
-    const local = current.current.snapshots[id];
-    if (row?.profile && local && row.profile.version === local.profile.version) {
-      // Runtime changes do not increment settings version. Preserve acknowledged settings
-      // while accepting newly observed runtime facts from the atomic registry snapshot.
-      const settings = local.profile;
-      return {
-        profile: {
-          ...row.profile,
-          refreshImages: settings.refreshImages,
-          refreshTexts: settings.refreshTexts,
-          growProducts: settings.growProducts,
-          randomLinkVariation: settings.randomLinkVariation,
-          restitch: settings.restitch,
-          schedule: settings.schedule,
-          version: settings.version,
-          updatedAt: settings.updatedAt
-        },
-        interval: local.interval,
-        nextRunAt: row.nextRunAt
-      };
-    }
-    if (row?.profile && (!local || row.profile.version >= local.profile.version))
-      return { profile: row.profile, interval: row.updateInterval, nextRunAt: row.nextRunAt };
-    return (
-      local ??
-      (row?.profile
-        ? { profile: row.profile, interval: row.updateInterval, nextRunAt: row.nextRunAt }
-        : undefined)
-    );
+    return row?.profile
+      ? remember(id, {
+          profile: row.profile,
+          interval: row.updateInterval,
+          nextRunAt: row.nextRunAt,
+          runtimeObservedAt: row.runtimeObservedAt
+        })
+      : snapshotCache.current.get(id);
   };
   const publish = (id: string, snapshot: CatalogSnapshot) => {
-    current.current.snapshots = { ...current.current.snapshots, [id]: snapshot };
+    const merged = remember(id, snapshot, true);
+    current.current.snapshots = { ...current.current.snapshots, [id]: merged };
     setSnapshots(current.current.snapshots);
   };
   const read = async (id: string): Promise<CatalogSnapshot> => {
@@ -235,6 +255,19 @@ export function useCatalogInlineChanges({
         return obsolete();
       }
       if (outcome.kind === 'confirmed') {
+        if ((snapshotFor(id)?.profile.version ?? 0) > outcome.snapshot.profile.version) {
+          failure = new TeamApiError('STALE_RESULT', false);
+          setStates(current => ({
+            ...current,
+            [id]: { phase: 'conflict', field, intended: value, code: 'STALE_RESULT' }
+          }));
+          setUndo(current =>
+            current.map(item => (item.catalogId === id ? { ...item, invalid: true } : item))
+          );
+          flow.fail('CONFLICT');
+          return { confirmed: false, error: failure };
+        }
+
         confirmed = true;
         flow.stage('save_confirmed');
         settle(id, field, value, before, outcome.snapshot, flow, Boolean(undoEntry));

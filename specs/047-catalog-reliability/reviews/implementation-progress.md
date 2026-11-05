@@ -7,6 +7,15 @@ Production unchanged. No completed-task checkboxes claimed for partial work.
 
 ## Implemented changes awaiting full acceptance
 
+Latest follow-up verification: `npm run verify` passed all 14 gates in 1132s,
+with 8807 tests passed and 60 explicit skips. The complete machine-readable
+report is retained as `verification-fast-scope-cancel.json`. The separate real
+PostgreSQL replay passed 46 pgTAP files / 1064 assertions, 2 Auth clock tests and
+8 native concurrency suites / 37 tests. The completed-command summary and every
+tested migration hash are retained as `verification-db-scope-cancel.json`.
+The disposable clone was removed. The connected acceptance profile was not
+migrated by these checks. Manual beta acceptance remains unperformed.
+
 - T012 portion: run/retry require nonnegative safe integers; cancellation requires
   boolean. Malformed responses no longer masquerade as genuine 0/false no-ops.
   Regression first: 10 failures; after fix: all 15 profile/outcome API tests pass.
@@ -171,3 +180,19 @@ The manager snapshot additionally carries active round/attempt, progress owner a
 A follow-up review identified two bounded remaining cases for T012/T025: a present malformed optional pending flag can still become false, and disappearance of a native child can unnecessarily reset the same round's fill. These remain open for the next correction and are not claimed fixed by the passing suite. The passing source is retained as an implementation checkpoint, not completion of all 60 tasks.
 
 The fresh real PostgreSQL rerun including progress identity passed: 46 pgTAP files/1064 assertions, 2 Auth clock tests and 8 native concurrency suites/37 tests. `verification-db-export-progress.json` records the completed-command summary and every tested migration hash. The disposable container was removed by the runner. Running beta and production were not migrated.
+
+### Further manager/native corrections after 68709d21 (uncommitted)
+
+Owner additionally requires a manual beta walkthrough after implementation and automatic checks. No manual candidate-UI acceptance is claimed yet. The existing connected beta belongs to the dirty older `AffSupport-catalog-beta-20261104` checkout, HEAD a6c8b274; its ownership journal records an old packaged source and its recorded app/owner PIDs are absent. The local database/functions containers still run. No existing workspace files, stack, connected profile or credentials were changed during this read-only preparation.
+
+Regression-first follow-ups now cover:
+
+- Present malformed pending flags, impossible accepted counts, invalid or cross-catalog history and invalid stage times fail explicitly; genuine legacy absence, empty data and no-ops remain distinct.
+- Progress survives child completion within one round, but resets for a new round/child; history applies confirmation labels only to its matching active attempt.
+- Actor/access epoch or catalog changes reset manager/history state. Late old commands, retry errors, file terminals and diagnostic errors cannot enter the replacement actor/view.
+- Lost retry replies trigger a fresh bounded history read before another mutation is offered. A same-tick hide/refocus queues a fresh serial read even if the canceled read has not yet unwound.
+- Additive observed-round cancellation rejects a replacement round, leaves it active, and refuses a provider reconciliation hold with a closed user-facing code. Its existing provider-worker lease refusal is preserved. Error refresh is limited to command paths, preserving per-item trash refresh ownership.
+- Server observation time orders same-version runtime facts. A scoped cache retains the newest observation across later stale responses, preserves acknowledged settings and detects an old acknowledgement after a newer settings version was already observed. Plain patch acknowledgements never invent observation time.
+- Screen transfer enforces its own byte ceiling before reading, cancels rejected upstream bodies, removes partial bytes, and limits transient retries. Cache classification preserves missing/changed source, expiry, permission, network and local-disk causes; only candidate-local defects enter refusal memory.
+
+Focused follow-up suites passed (separate runs): 121 manager/API/SQL tests; 75 inline/manager/bulk tests; 38 history/cache tests; 46 analytics/file/ingestion tests; 62 native bridge/cache tests; 29 cache/real-decoder tests; 52 SQL/code-map tests. Some groups overlap. Earlier full 8769-test proof belongs to commit 68709d21; the current follow-up requires a fresh full verification and real-PostgreSQL rerun of the new migrations. Nothing was published to production.

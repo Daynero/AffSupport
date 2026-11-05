@@ -1,3 +1,4 @@
+import { captureAnalyticsActor, type AnalyticsActorSource } from '../../analytics/actorScope';
 import type { TeamErrorCode } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 
@@ -14,7 +15,7 @@ export type CatalogUiStage =
   | 'undo_requested';
 export type CatalogUiFailure =
   'READ_FAILED' | 'SAVE_FAILED' | 'CONFLICT' | 'VALIDATION' | 'UNKNOWN' | TeamErrorCode;
-type Tracker = Pick<typeof analytics, 'track'>;
+type Tracker = Pick<typeof analytics, 'track'> & AnalyticsActorSource;
 
 /** No names, search terms, paths, settings values or provider errors enter this seam. */
 export function beginCatalogUiFlow(
@@ -36,6 +37,7 @@ export function beginCatalogUiFlow(
 ) {
   const id = crypto.randomUUID();
   const startedAt = performance.now();
+  const ownsActor = captureAnalyticsActor(tracker);
   let settled = false;
   const base = {
     flow_id: counts.parentFlowId ?? id,
@@ -57,6 +59,7 @@ export function beginCatalogUiFlow(
     code?: CatalogUiFailure
   ) {
     try {
+      if (!ownsActor()) return;
       tracker.track(event, {
         ...base,
         action_identifier: stage,

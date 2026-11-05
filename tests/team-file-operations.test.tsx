@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CatalogMaterialItem,
   TeamMaterialProvenanceEntry,
-  TeamPermissions
+  TeamPermissions,
+  TeamDownloadGrantResult
 } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast.js';
 import {
@@ -284,6 +285,44 @@ describe('team file operations', () => {
     );
     const payload = JSON.stringify(track.mock.calls);
     expect(payload).not.toMatch(/material-1|creative\.mp4|team_id|material_id|filename|path/i);
+  });
+
+  it('does not attribute a late file failure to the replacement analytics actor', async () => {
+    const context = analytics.journalContext();
+    const owner = vi
+      .spyOn(analytics, 'journalContext')
+      .mockReturnValue({ ...context, userId: 'actor-a' });
+    const track = vi.spyOn(analytics, 'track');
+    let fail!: (cause: Error) => void;
+    const client = actionsClient();
+    client.requestDownload = vi.fn(
+      () =>
+        new Promise<TeamDownloadGrantResult>((_resolve, reject) => {
+          fail = reject;
+        })
+    );
+    await openMenu(
+      <MaterialSurface
+        teamId={TEAM_ID}
+        material={material()}
+        permissions={permissions()}
+        storageKind="shared_drive"
+        client={client}
+        browseClient={browseClient}
+        onChanged={vi.fn()}
+      />
+    );
+    await clickMaterialAction('Download');
+    expect(track).toHaveBeenCalledWith('team_file_attempt_started', expect.anything());
+    owner.mockReturnValue({ ...context, userId: 'actor-b' });
+    await act(async () => {
+      fail(new Error('NOT_FOUND'));
+    });
+    expect(
+      track.mock.calls.filter(
+        ([event]) => event === 'team_file_attempt_completed' || event === 'error_occurred'
+      )
+    ).toHaveLength(0);
   });
 
   it('saves complete UTF-8 TXT and offers reload or a separate version on stale identity', async () => {

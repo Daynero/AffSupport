@@ -10,6 +10,7 @@ import type {
 } from '@video-compressor/shared';
 import {
   completeTeamFileAttempt,
+  isTeamFileAttemptCurrent,
   startTeamFileAttempt,
   teamAnalyticsSizeBucket,
   type TeamFileAttemptFlow
@@ -399,6 +400,7 @@ function errorCodeOf(error: unknown) {
  * attempt, not an error, and stays in `team_file_attempt_completed` alone.
  */
 export function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
+  if (!isTeamFileAttemptCurrent(attempt)) return;
   const outcome = analyticsOutcome(error);
   if (outcome !== 'failure' && outcome !== 'unsupported') return;
   trackToolError({

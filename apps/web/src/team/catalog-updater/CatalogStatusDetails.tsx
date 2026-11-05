@@ -1,3 +1,4 @@
+import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { createReadCoordinator, withReadDeadline } from '../readCoordinator';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateAttempt } from '@video-compressor/shared';
@@ -17,10 +18,18 @@ const STAGE_LABELS = {
   TranslationKey
 >;
 
-export function CatalogStatusDetails({
+export function CatalogStatusDetails(props: Parameters<typeof CatalogStatusDetailsScope>[0]) {
+  const epoch = usePrivateCacheEpoch();
+  return (
+    <CatalogStatusDetailsScope key={`${props.teamId}:${props.catalogId}:${epoch}`} {...props} />
+  );
+}
+
+function CatalogStatusDetailsScope({
   teamId,
   catalogId,
   currentProfileVersion,
+  activeAttemptId,
   load,
   onClose,
   onRetry,
@@ -30,6 +39,8 @@ export function CatalogStatusDetails({
   teamId: string;
   catalogId: string;
   currentProfileVersion?: number;
+  /** Undefined is a legacy server; null explicitly means no active attempt. */
+  activeAttemptId?: string | null;
   load: (
     teamId: string,
     catalogId: string,
@@ -58,6 +69,9 @@ export function CatalogStatusDetails({
       setRevision(value => value + 1);
     } catch (cause) {
       setRetryError(teamErrorMessageFor(cause, t));
+      // A lost command reply must be reconciled before offering another mutation.
+      setAttempts(null);
+      setRevision(value => value + 1);
     } finally {
       retryLock.current = false;
       setRetryPending(false);
@@ -77,8 +91,8 @@ export function CatalogStatusDetails({
         setError(false);
       }
     });
-    const refresh = () => {
-      if (document.hidden || reader.isRunning()) return;
+    const refresh = (foreground = false) => {
+      if (document.hidden || (reader.isRunning() && !foreground)) return;
       reader.start();
       void reader.request().catch(() => {
         if (active && !document.hidden) setError(true);
@@ -86,7 +100,7 @@ export function CatalogStatusDetails({
     };
     const visibility = () => {
       if (document.hidden) reader.stop();
-      else refresh();
+      else refresh(true);
     };
     refresh();
     document.addEventListener('visibilitychange', visibility);
@@ -107,6 +121,10 @@ export function CatalogStatusDetails({
     ? [...attempts].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
     : null;
   const latest = orderedAttempts?.[0];
+  const activeAttempt =
+    activeAttemptId === undefined
+      ? latest
+      : orderedAttempts?.find(attempt => attempt.attemptId === activeAttemptId);
   const retrySource =
     latest && (latest.result === 'failed' || latest.result === 'partial') ? latest : null;
   return (
@@ -132,7 +150,7 @@ export function CatalogStatusDetails({
       )}
       {!error && attempts === null && <p>{t('catalogUpdaterLoading')}</p>}
       {attempts?.length === 0 && <p>{t('catalogUpdaterHistoryEmpty')}</p>}
-      {checkingDelivery && latest?.result === 'running' && (
+      {checkingDelivery && activeAttempt?.result === 'running' && (
         <p className="field-hint">{t('catalogDeliveryCheckingHint')}</p>
       )}
       {attempts && attempts.length > 0 && (
@@ -152,7 +170,7 @@ export function CatalogStatusDetails({
               </span>
               {' · '}
               <strong>
-                {checkingDelivery && attempt === latest && attempt.result === 'running'
+                {checkingDelivery && attempt === activeAttempt && attempt.result === 'running'
                   ? t('catalogDeliveryChecking')
                   : t(
                       `catalogUpdaterResult_${attempt.result}` as
@@ -201,7 +219,7 @@ export function CatalogStatusDetails({
               {attempt.result === 'unknown' && (
                 <p className="field-hint">
                   {t(
-                    checkingDelivery && attempt === latest
+                    checkingDelivery && attempt === activeAttempt
                       ? 'catalogDeliveryUncertainHint'
                       : 'catalogUpdaterUnknownDelivery'
                   )}

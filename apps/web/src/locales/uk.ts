@@ -2643,10 +2643,11 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterApply: 'Задати',
   catalogUpdaterOff: 'Вимкнено',
   catalogUpdaterOffLong: 'Не оновлювати автоматично',
+  catalogUpdaterCancelAlready: 'Це оновлення вже завершене або зупинене.',
   catalogUpdaterCancelUpdate: 'Зупинити це оновлення',
   catalogUpdaterPartialRead:
     'Частину даних каталогів не вдалося прочитати ({count} записів). Доступні каталоги показано. Оновіть список, щоб спробувати знову.',
-  catalogUpdaterNoWorkAccepted: 'Нових оновлень не прийнято. Поточний стан оновлено.',
+  catalogUpdaterNoWorkAccepted: 'Нових оновлень не прийнято. Перевіряємо поточний стан…',
   catalogUpdaterNowAlready: 'Вже оновлюється',
   catalogUpdaterNowStarted: 'Оновлюємо зараз: {count}',
   catalogUpdaterStatusScheduled: 'За розкладом: {count} · найближче через',

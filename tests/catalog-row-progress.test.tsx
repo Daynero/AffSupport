@@ -154,3 +154,24 @@ it('ignores progress from another attempt and video progress with no live child'
     }).value
   ).toBe(0.08);
 });
+
+it('keeps the round progress when its finished video child leaves the snapshot', () => {
+  const current = {
+    ...row,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: 'a',
+    progressAttemptId: 'a'
+  };
+  const { rerender } = render(
+    view({
+      ...current,
+      updateStage: 'restitching',
+      restitchOperationId: 'child-a',
+      restitchProgress: 100
+    })
+  );
+  const tr = screen.getByRole('row');
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.4');
+  rerender(view({ ...current, updateStage: 'preparing', restitchOperationId: null }));
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.4');
+});

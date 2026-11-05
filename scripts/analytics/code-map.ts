@@ -819,6 +819,15 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'] = {
+    files: [
+      'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx'
+    ],
+    check:
+      'The provider outcome is still being reconciled. Refresh the authoritative attempt; do not claim it stopped or replay a write.'
+  };
   map['team:download:CATALOG_EXPORT_TOO_LARGE'] = {
     files: [
       'supabase/functions/drive-transfer/catalog-export.ts',

@@ -343,6 +343,7 @@ export interface CatalogRegistryRow {
   updateStage: CatalogUpdateStage | null;
   /** Live progress of the video copy, reported by the member's local app. */
   /** Missing on older servers; null means the new snapshot observed no active identity. */
+  runtimeObservedAt?: string;
   activeRoundAt?: string | null;
   activeAttemptId?: string | null;
   progressAttemptId?: string | null;
@@ -572,6 +573,8 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     (row.next_run_at != null &&
       (typeof row.next_run_at !== 'string' || !Number.isFinite(Date.parse(row.next_run_at)))) ||
     (row.update_interval != null && parseUpdaterInterval(row.update_interval) === null) ||
+    (Object.prototype.hasOwnProperty.call(row, 'update_pending') &&
+      typeof row.update_pending !== 'boolean') ||
     typeof row.in_updater !== 'boolean'
   ) {
     return null;
@@ -2373,6 +2376,13 @@ export const teamApi = {
     throwRpc(error);
     const payload = asRecord(data);
     if (!payload) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (
+      payload.observed_at !== undefined &&
+      (typeof payload.observed_at !== 'string' || !Number.isFinite(Date.parse(payload.observed_at)))
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    const observation =
+      typeof payload.observed_at === 'string' ? { runtimeObservedAt: payload.observed_at } : {};
     const catalogs = catalogListSnapshotFrom(payload.catalogs, catalogRegistryRowFrom);
     const profiles = catalogListSnapshotFrom(payload.profiles, value =>
       catalogUpdateProfileFrom(value, true)
@@ -2385,7 +2395,7 @@ export const teamApi = {
         invalidRowCount += 1;
         return [];
       }
-      return [{ ...row, profile }];
+      return [{ ...row, profile, ...observation }];
     });
     return { rows, invalidRowCount };
   },
@@ -2474,17 +2484,27 @@ export const teamApi = {
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     const allowed = new Set(['running', 'success', 'partial', 'failed', 'cancelled', 'unknown']);
-    return data.flatMap(value => {
+    const attempts = data.flatMap<CatalogUpdateAttempt>(value => {
       const row = asRecord(value);
       if (
         !row ||
         typeof row.attempt_id !== 'string' ||
-        typeof row.catalog_material_id !== 'string' ||
+        row.catalog_material_id !== catalogId ||
         (row.trigger_kind !== 'schedule' &&
           row.trigger_kind !== 'manual' &&
           row.trigger_kind !== 'retry' &&
           row.trigger_kind !== 'unknown') ||
         typeof row.started_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.started_at)) ||
+        (row.ended_at != null &&
+          (typeof row.ended_at !== 'string' || !Number.isFinite(Date.parse(row.ended_at)))) ||
+        (row.delivery_verified_at != null &&
+          (typeof row.delivery_verified_at !== 'string' ||
+            !Number.isFinite(Date.parse(row.delivery_verified_at)))) ||
+        (row.profile_version != null &&
+          (typeof row.profile_version !== 'number' ||
+            !Number.isSafeInteger(row.profile_version) ||
+            row.profile_version < 1)) ||
         typeof row.result !== 'string' ||
         !allowed.has(row.result)
       )
@@ -2510,7 +2530,8 @@ export const teamApi = {
                     'verifying',
                     'finalizing'
                   ].includes(stage.stage) &&
-                  typeof stage.at === 'string'
+                  typeof stage.at === 'string' &&
+                  Number.isFinite(Date.parse(stage.at))
                   ? [
                       {
                         stage: stage.stage as NonNullable<
@@ -2566,6 +2587,8 @@ export const teamApi = {
         }
       ];
     });
+    if (attempts.length !== data.length) throw new TeamApiError('INVALID_RESPONSE', false);
+    return attempts;
   },
 
   async patchCatalogUpdateProfile(
@@ -2702,18 +2725,42 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
+    if (
+      typeof data !== 'number' ||
+      !Number.isSafeInteger(data) ||
+      data < 0 ||
+      data > new Set(catalogIds).size
+    ) {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
     return data;
   },
 
-  async cancelCatalogUpdate(teamId: string, catalogId: string): Promise<boolean> {
+  async cancelCatalogUpdate(
+    teamId: string,
+    catalogId: string,
+    observed?: { roundAt: string; attemptId: string | null }
+  ): Promise<boolean> {
+    if (
+      observed !== undefined &&
+      (!observed ||
+        typeof observed.roundAt !== 'string' ||
+        !Number.isFinite(Date.parse(observed.roundAt)) ||
+        (observed.attemptId !== null && typeof observed.attemptId !== 'string'))
+    )
+      throw new TeamApiError('INVALID_INPUT', false);
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('cancel_team_catalog_update', {
-        p_team: teamId,
-        p_catalog: catalogId
-      })
+      observed === undefined
+        ? requireSupabaseClient().rpc('cancel_team_catalog_update', {
+            p_team: teamId,
+            p_catalog: catalogId
+          })
+        : requireSupabaseClient().rpc('cancel_team_catalog_update_attempt', {
+            p_team: teamId,
+            p_catalog: catalogId,
+            p_expected_round: observed.roundAt,
+            p_expected_attempt: observed.attemptId
+          })
     );
     throwRpc(error);
     if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2733,7 +2780,7 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0 || data > 1) {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
     return data;

@@ -179,6 +179,7 @@ it('joins only valid catalog/profile rows from a single manager snapshot RPC', a
   rpc.mockResolvedValue({
     error: null,
     data: {
+      observed_at: '2026-11-05T12:00:00Z',
       catalogs: [catalog, { ...catalog, catalog_id: 'missing-profile' }],
       profiles: [profile]
     }
@@ -189,6 +190,7 @@ it('joins only valid catalog/profile rows from a single manager snapshot RPC', a
   expect(data.rows).toHaveLength(1);
   expect(data.rows[0].profile?.version).toBe(1);
   expect(data.invalidRowCount).toBe(1);
+  expect(data.rows[0].runtimeObservedAt).toBe('2026-11-05T12:00:00Z');
 });
 
 it.each([
@@ -197,7 +199,10 @@ it.each([
   { product_count: 1.5 },
   { update_count: -1 },
   { update_interval: 'not-an-interval' },
-  { next_run_at: 'bad' }
+  { next_run_at: 'bad' },
+  { update_pending: 'false' },
+  { update_pending: 0 },
+  { update_pending: null }
 ])(
   'keeps malformed catalog fields partial instead of crashing the manager or showing a false disabled schedule: %j',
   async bad => {
@@ -219,3 +224,97 @@ it.each([
     });
   }
 );
+
+it.each([
+  { started_at: 'invalid' },
+  { ended_at: 'invalid' },
+  { delivery_verified_at: 'invalid' },
+  { catalog_material_id: 'another-catalog' },
+  { profile_version: -1 }
+])(
+  'refuses malformed or cross-catalog history rather than showing empty success: %j',
+  async bad => {
+    rpc.mockResolvedValue({
+      error: null,
+      data: [
+        {
+          attempt_id: 'attempt',
+          catalog_material_id: 'catalog',
+          trigger_kind: 'manual',
+          started_at: '2026-11-05T12:00:00Z',
+          ended_at: null,
+          delivery_verified_at: null,
+          result: 'failed',
+          ...bad
+        }
+      ]
+    });
+    await expect(teamApi.listCatalogUpdateAttempts('team', 'catalog')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+  }
+);
+it('retains a genuine empty history and excludes invalid optional stage timestamps', async () => {
+  rpc.mockResolvedValueOnce({ error: null, data: [] });
+  expect(await teamApi.listCatalogUpdateAttempts('team', 'catalog')).toEqual([]);
+  rpc.mockResolvedValueOnce({
+    error: null,
+    data: [
+      {
+        attempt_id: 'attempt',
+        catalog_material_id: 'catalog',
+        trigger_kind: 'manual',
+        started_at: '2026-11-05T12:00:00Z',
+        result: 'running',
+        stage_history: [{ stage: 'uploading', at: 'invalid' }]
+      }
+    ]
+  });
+  expect((await teamApi.listCatalogUpdateAttempts('team', 'catalog'))[0]?.stages).toEqual([]);
+});
+
+it('refuses more accepted work than the command could have requested', async () => {
+  rpc.mockResolvedValue({ error: null, data: 2 });
+  await expect(teamApi.runCatalogUpdateNow('team', ['catalog'])).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+  await expect(teamApi.retryCatalogUpdate('team', 'catalog', 'attempt')).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+});
+
+it('uses the observed-round stop RPC and never falls back to an unfenced stop on conflict', async () => {
+  const observed = { roundAt: '2026-11-05T10:00:00Z', attemptId: null };
+  rpc.mockResolvedValueOnce({ error: null, data: false });
+  expect(await teamApi.cancelCatalogUpdate('team', 'catalog', observed)).toBe(false);
+  expect(rpc).toHaveBeenLastCalledWith('cancel_team_catalog_update_attempt', {
+    p_team: 'team',
+    p_catalog: 'catalog',
+    p_expected_round: observed.roundAt,
+    p_expected_attempt: null
+  });
+  rpc.mockResolvedValueOnce({ error: { message: 'STALE_RESULT', code: '40001' }, data: null });
+  await expect(teamApi.cancelCatalogUpdate('team', 'catalog', observed)).rejects.toMatchObject({
+    code: 'STALE_RESULT'
+  });
+  expect(rpc).toHaveBeenCalledTimes(2);
+  expect(rpc.mock.calls.every(([name]) => name === 'cancel_team_catalog_update_attempt')).toBe(
+    true
+  );
+});
+it('refuses an invalid observed stop identity before sending any RPC', async () => {
+  await expect(
+    teamApi.cancelCatalogUpdate('team', 'catalog', { roundAt: 'invalid', attemptId: null })
+  ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+it('does not invent freshness when manager observation metadata is malformed', async () => {
+  rpc.mockResolvedValue({
+    error: null,
+    data: { observed_at: 'invalid', catalogs: [], profiles: [] }
+  });
+  await expect(teamApi.listCatalogManagerSnapshot('team')).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+});

@@ -1119,10 +1119,12 @@ describe('the worker’s address and grants', () => {
     const item = await catalog('manager snapshot');
     const data = await harness.asUser<{
       snapshot: {
+        observed_at: string;
         catalogs: Array<{ catalog_id: string }>;
         profiles: Array<{ catalog_material_id: string; version: number }>;
       };
     }>(OWNER, 'select public.list_team_catalog_manager_snapshot($1) as snapshot', [teamId]);
+    expect(Number.isFinite(Date.parse(data[0]!.snapshot.observed_at))).toBe(true);
     expect(data[0]!.snapshot.catalogs.some(row => row.catalog_id === item.sheet)).toBe(true);
     expect(data[0]!.snapshot.profiles.some(row => row.catalog_material_id === item.sheet)).toBe(
       true
@@ -1179,6 +1181,76 @@ describe('the worker’s address and grants', () => {
       "select has_function_privilege('anon','public.list_team_catalog_progress_identity(uuid)','execute') as anonymous"
     );
     expect(acl[0]!.anonymous).toBe(false);
+  }, 60000);
+  it('does not cancel a newer round when the stop used an older observed identity', async () => {
+    const item = await catalog('cancel round fence');
+    const pending = async () =>
+      (
+        await harness.asUser<{ update_pending: boolean }>(
+          OWNER,
+          'select update_pending from public.list_team_product_catalogs($1) where catalog_id=$2',
+          [teamId, item.sheet]
+        )
+      )[0]!.update_pending;
+    const run = () =>
+      harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+        teamId,
+        [item.sheet]
+      ]);
+    await run();
+    const initial = (
+      await harness.root<{ round_due_at: string }>(
+        'select round_due_at::text from public.team_catalog_updater_items where catalog_material_id=$1',
+        [item.sheet]
+      )
+    )[0]!;
+    await claim('cancel-fence-worker', 100);
+    expect(await complete(item.sheet, 'cancel-fence-worker', 1)).toBe(true);
+    await run();
+    await expect(
+      harness.asUser(OWNER, 'select public.cancel_team_catalog_update_attempt($1,$2,$3,null)', [
+        teamId,
+        item.sheet,
+        initial.round_due_at
+      ])
+    ).rejects.toThrow('STALE_RESULT');
+    expect(await pending()).toBe(true);
+    const current = (
+      await harness.root<{ round_due_at: string }>(
+        'select round_due_at::text from public.team_catalog_updater_items where catalog_material_id=$1',
+        [item.sheet]
+      )
+    )[0]!;
+    await harness.root(
+      'update public.team_catalog_updater_items set reconciliation_required=true where catalog_material_id=$1',
+      [item.sheet]
+    );
+    await expect(
+      harness.asUser(OWNER, 'select public.cancel_team_catalog_update_attempt($1,$2,$3,null)', [
+        teamId,
+        item.sheet,
+        current.round_due_at
+      ])
+    ).rejects.toThrow('CATALOG_UPDATE_RECONCILIATION_REQUIRED');
+    expect(await pending()).toBe(true);
+    await harness.root(
+      'update public.team_catalog_updater_items set reconciliation_required=false where catalog_material_id=$1',
+      [item.sheet]
+    );
+    await expect(
+      harness.asUser(VIEWER, 'select public.cancel_team_catalog_update_attempt($1,$2,$3,null)', [
+        teamId,
+        item.sheet,
+        current.round_due_at
+      ])
+    ).rejects.toThrow('PERMISSION_DENIED');
+    const result = await harness.asUser<{ stopped: boolean }>(
+      OWNER,
+      'select public.cancel_team_catalog_update_attempt($1,$2,$3,null) as stopped',
+      [teamId, item.sheet, current.round_due_at]
+    );
+    expect(result[0]!.stopped).toBe(true);
+    expect(await pending()).toBe(false);
   }, 60000);
   it('restricts native export to live catalog identity and actor download access', async () => {
     const item = await catalog('catalog export');

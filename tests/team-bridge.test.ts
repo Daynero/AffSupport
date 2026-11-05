@@ -193,6 +193,41 @@ describe('team cloud/local transfer bridge', () => {
     expect(await readdir(root)).toEqual([]);
   });
 
+  it.each([200, 206])(
+    'enforces a smaller screen byte ceiling before reading a %s provider body',
+    async status => {
+      const root = await temporaryRoot();
+      const cancel = vi.fn();
+      const response = new Response(new ReadableStream({ cancel }), {
+        status,
+        headers: {
+          'content-length': status === 200 ? '8' : '2',
+          ...(status === 206 ? { 'content-range': 'bytes 0-1/8' } : {})
+        }
+      });
+      const read = vi.spyOn(response.body!, 'getReader').mockImplementation(() => {
+        throw new Error('BODY_MUST_NOT_BE_READ');
+      });
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(response);
+      const client = new TeamTransferClient({ fetchImpl, temporaryRoot: root });
+      await expect(
+        client.downloadSource(
+          {
+            operationId: 'screen-limit',
+            transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+            grant: { ...grant(), maxRangeBytes: 16 },
+            maxTotalBytes: 2
+          },
+          new AbortController().signal
+        )
+      ).rejects.toThrow('TOO_LARGE');
+      expect(new Headers(fetchImpl.mock.calls[0]?.[1]?.headers).get('range')).toBe('bytes=0-1');
+      expect(read).not.toHaveBeenCalled();
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(await readdir(root)).toEqual([]);
+    }
+  );
+
   it('fails closed on permission loss or source identity changes and removes partial bytes', async () => {
     const root = await temporaryRoot();
     const permissionLoss = new TeamTransferClient({

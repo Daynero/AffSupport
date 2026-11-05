@@ -64,7 +64,7 @@ export async function saveCatalogProfile(input: {
   try {
     const profile = await input.write();
     if (!active()) return unknown(new DOMException('Catalog scope changed', 'AbortError'));
-    const snapshot = { ...input.base, profile };
+    const snapshot = { ...input.base, profile, runtimeObservedAt: undefined };
     if (
       profile.catalogId === input.base.profile.catalogId &&
       profile.version === input.base.profile.version + 1 &&

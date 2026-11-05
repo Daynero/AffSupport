@@ -59,7 +59,7 @@ export function CatalogProgressRow({
 }: HTMLAttributes<HTMLTableRowElement> & { row: CatalogRegistryRow }) {
   const { t } = useI18n();
   const current = catalogRowProgress(row);
-  const identity = row.activeAttemptId ?? row.activeRoundAt;
+  const identity = `${row.catalogId}:${row.activeAttemptId ?? row.activeRoundAt ?? 'legacy'}`;
   const child = row.restitchOperationId;
 
   const last = useRef({
@@ -73,8 +73,9 @@ export function CatalogProgressRow({
   const success = row.profile?.lastSuccessfulAt;
   const confirmed = !row.profile?.reconciliationRequired && row.profile?.lastResult === 'success';
   useEffect(() => {
-    const sameAttempt = identity === last.current.identity && child === last.current.child;
-    const wasActive = last.current.active && sameAttempt;
+    const sameAttempt = identity === last.current.identity;
+    const newChild = child != null && last.current.child != null && child !== last.current.child;
+    const wasActive = last.current.active && sameAttempt && !newChild;
     const finished =
       !current.active &&
       confirmed &&
@@ -88,7 +89,12 @@ export function CatalogProgressRow({
       setFill(previous => (wasActive ? Math.max(previous, current.value) : current.value));
       setComplete(false);
     } else if (!complete) setFill(0);
-    last.current = { active: current.active, success, identity, child };
+    last.current = {
+      active: current.active,
+      success,
+      identity,
+      child: sameAttempt ? (child ?? last.current.child) : child
+    };
   }, [current.active, current.value, confirmed, success, complete, identity, child]);
   return (
     <tr

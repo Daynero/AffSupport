@@ -1,3 +1,4 @@
+import { captureAnalyticsActor, type AnalyticsActorSource } from './actorScope';
 import {
   PRODUCT_VERSION,
   type MaterialCategory,
@@ -733,7 +734,7 @@ function safeAgentPlatform(value: unknown): AgentAnalyticsPlatform | null {
 export const analytics = new ProductAnalytics();
 bindJournalContext(() => analytics.journalContext());
 
-type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
+type AnalyticsTracker = Pick<ProductAnalytics, 'track'> & AnalyticsActorSource;
 
 /** 011 — a root (or a set of picked folders) was connected. */
 export function trackTeamStorageConnected(
@@ -828,6 +829,13 @@ export function trackTeamLandingRender(
   });
 }
 
+const fileAttemptActors = new WeakMap<TeamFileAttemptFlow, () => boolean>();
+
+/** Late file errors and terminals cannot borrow a replacement user's analytics envelope. */
+export function isTeamFileAttemptCurrent(flow: TeamFileAttemptFlow): boolean {
+  return fileAttemptActors.get(flow)?.() ?? true;
+}
+
 export interface TeamFileAttemptFlow {
   attemptId: string;
   action: TeamAnalyticsAction;
@@ -888,6 +896,7 @@ export function startTeamFileAttempt(
     startedAt: options.now ?? Date.now(),
     completed: false
   };
+  fileAttemptActors.set(flow, captureAnalyticsActor(options.tracker ?? analytics));
   try {
     (options.tracker ?? analytics).track('team_file_attempt_started', {
       attempt_id: flow.attemptId,
@@ -917,6 +926,7 @@ export function completeTeamFileAttempt(
 ): void {
   if (flow.completed) return;
   flow.completed = true;
+  if (!isTeamFileAttemptCurrent(flow)) return;
   try {
     (options.tracker ?? analytics).track('team_file_attempt_completed', {
       attempt_id: flow.attemptId,

@@ -99,6 +99,30 @@ describe('privacy-minimized analytics', () => {
     });
   });
 
+  it('suppresses an old file terminal after the analytics actor changes', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    const flow = startTeamFileAttempt(
+      { action: 'download', storageKind: 'my_drive', sizeBucket: 'tiny' },
+      { tracker: service }
+    );
+    service.setUser('22222222-2222-4222-8222-222222222222');
+    completeTeamFileAttempt(
+      flow,
+      { outcome: 'success', delivery: 'agent_saved', retryable: false },
+      { tracker: service }
+    );
+    await service.flush();
+    expect(
+      sender.mock.calls
+        .flatMap(([events]) => events)
+        .filter(event => event.attempt_id === flow.attemptId)
+    ).toHaveLength(0);
+  });
+
   it('keeps the file lifecycle callable when diagnostic tracking throws', () => {
     const tracker = {
       track: vi.fn(() => {

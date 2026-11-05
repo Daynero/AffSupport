@@ -48,7 +48,11 @@ export class ScreenCacheError extends Error {
   constructor(
     public readonly code: string,
     public readonly reason:
-      'transfer_failed' | 'checksum_mismatch' | 'cache_write_failed' = 'transfer_failed'
+      | 'transfer_failed'
+      | 'checksum_mismatch'
+      | 'cache_write_failed'
+      | 'source_missing'
+      | 'source_changed' = 'transfer_failed'
   ) {
     super(code);
   }
@@ -60,6 +64,31 @@ function cacheWriteError(cause: unknown): ScreenCacheError {
     diskFull ? 'DISK_FULL' : 'RESTITCH_SCREEN_FETCH_FAILED',
     'cache_write_failed'
   );
+}
+
+/** Preserve closed provider/local causes; only proven file-local failures may enter refusal memory. */
+function screenTransferError(cause: unknown): ScreenCacheError {
+  if (cause instanceof ScreenCacheError) return cause;
+  if (
+    cause &&
+    typeof cause === 'object' &&
+    'code' in cause &&
+    ['ENOSPC', 'EACCES', 'EROFS', 'EIO', 'EMFILE', 'ENFILE'].includes(String(cause.code))
+  )
+    return cacheWriteError(cause);
+  if (cause instanceof Error) {
+    if (cause.message === 'TOO_LARGE' || cause.message === 'UNSUPPORTED_MEDIA')
+      return new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
+    if (cause.message === 'NOT_FOUND')
+      return new ScreenCacheError('RESTITCH_SCREEN_UNAVAILABLE', 'source_missing');
+    if (cause.message === 'SOURCE_CHANGED')
+      return new ScreenCacheError('SOURCE_CHANGED', 'source_changed');
+    if (
+      ['EXPIRED', 'PERMISSION_DENIED', 'DRIVE_UNAVAILABLE', 'RATE_LIMITED'].includes(cause.message)
+    )
+      return new ScreenCacheError(cause.message);
+  }
+  return new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
 }
 
 interface IndexEntry {
@@ -178,14 +207,14 @@ export class TeamScreenCache {
         try {
           await this.#fetch(file, screen, screen.transfer, signal);
           have = true;
-        } catch (error) {
+        } catch (cause) {
           signal.throwIfAborted();
+          const error = screenTransferError(cause);
           if (
-            (error instanceof ScreenCacheError &&
-              (error.code === 'RESTITCH_SCREEN_UNSUPPORTED' ||
-                error.reason === 'checksum_mismatch')) ||
-            (error instanceof Error &&
-              ['NOT_FOUND', 'SOURCE_CHANGED', 'UNSUPPORTED_MEDIA'].includes(error.message))
+            error.code === 'RESTITCH_SCREEN_UNSUPPORTED' ||
+            error.reason === 'checksum_mismatch' ||
+            error.reason === 'source_missing' ||
+            error.reason === 'source_changed'
           ) {
             const now = this.#now();
             index.refusals = [
@@ -197,7 +226,7 @@ export class TeamScreenCache {
                     item.scope === scope &&
                     item.slot === screen.slot &&
                     item.materialId === screen.materialId &&
-                    item.checksum === screen.checksum
+                    item.checksum.toLowerCase() === screen.checksum.toLowerCase()
                   )
               ),
               {
@@ -205,7 +234,7 @@ export class TeamScreenCache {
                 scope,
                 slot: screen.slot,
                 materialId: screen.materialId,
-                checksum: screen.checksum,
+                checksum: screen.checksum.toLowerCase(),
                 rejectedAt: now
               }
             ].slice(-SCREEN_REFUSAL_LIMIT);
@@ -214,22 +243,16 @@ export class TeamScreenCache {
               ...(operationId ? { operationId } : {}),
               materialId: screen.materialId,
               reason:
-                error instanceof ScreenCacheError
-                  ? error.code === 'RESTITCH_SCREEN_UNSUPPORTED'
-                    ? 'unsupported_image'
-                    : error.reason
-                  : 'source_unavailable'
+                error.code === 'RESTITCH_SCREEN_UNSUPPORTED' ? 'unsupported_image' : error.reason
             });
           }
-          if (error instanceof ScreenCacheError && error.code === 'RESTITCH_SCREEN_UNSUPPORTED') {
+          if (error.code === 'RESTITCH_SCREEN_UNSUPPORTED') {
             throw error;
           }
           diagnostics.record('team', 'screen_fetch_failed', {
-            reason: error instanceof ScreenCacheError ? error.reason : 'transfer_failed'
+            reason: error.reason
           });
-          throw error instanceof ScreenCacheError
-            ? error
-            : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
+          throw error;
         }
       }
       signal.throwIfAborted();
@@ -364,7 +387,9 @@ export class TeamScreenCache {
       {
         operationId: `screen:${screen.materialId}`,
         transferUrl: transfer.transferUrl,
-        grant
+        grant,
+        maxTotalBytes: RESTITCH_SCREEN_MAX_BYTES,
+        maxRetries: 2
       },
       signal
     );

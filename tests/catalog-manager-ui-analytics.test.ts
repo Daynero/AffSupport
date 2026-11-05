@@ -85,3 +85,14 @@ it('diagnoses a creation-period result without collecting date bounds', () => {
   expect(track.mock.calls.at(-1)![1]).not.toHaveProperty('from');
   expect(track.mock.calls.at(-1)![1]).not.toHaveProperty('to');
 });
+
+it('never attaches a previous actor’s manager flow to a replacement actor', () => {
+  let userId: string | null = 'actor-a';
+  const tracker = { track: vi.fn(), journalContext: () => ({ userId }) };
+  const flow = beginCatalogUiFlow('profile', {}, tracker);
+  userId = 'actor-b';
+  flow.stage('save_confirmed');
+  flow.complete();
+  flow.cancel();
+  expect(tracker.track).toHaveBeenCalledTimes(1);
+});

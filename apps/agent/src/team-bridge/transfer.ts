@@ -18,6 +18,9 @@ export interface TeamSourceDownloadRequest {
   operationId: string;
   transferUrl: string;
   grant: TeamTransferGrant;
+  /** A narrower consumer ceiling, checked before reading or writing provider bytes. */
+  maxTotalBytes?: number;
+  maxRetries?: number;
   /**
    * How much of the source is here, as it arrives.
    *
@@ -69,6 +72,17 @@ export class TeamTransferClient {
   ): Promise<DownloadedTeamSource> {
     validateOperationId(request.operationId);
     validateTransferGrant(request.grant, ['process_input', 'download_range']);
+    const maximumBytes = request.maxTotalBytes ?? MAX_TRANSFER_BYTES;
+    const maximumRetries = request.maxRetries ?? 4;
+    if (
+      !Number.isSafeInteger(maximumBytes) ||
+      maximumBytes < 1 ||
+      maximumBytes > MAX_TRANSFER_BYTES ||
+      !Number.isSafeInteger(maximumRetries) ||
+      maximumRetries < 0 ||
+      maximumRetries > 4
+    )
+      throw new Error('INVALID_INPUT');
     const endpoint = transferUrl(request.transferUrl);
     await mkdir(this.#temporaryRoot, { recursive: true });
     const workspace = await mkdtemp(path.join(this.#temporaryRoot, 'soty-team-process-'));
@@ -85,10 +99,11 @@ export class TeamTransferClient {
       while (totalBytes === null || offset < totalBytes) {
         throwIfAborted(signal);
         let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        let body: ReadableStream<Uint8Array> | null = null;
         try {
           uses += 1;
           if (uses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
-          const end = Math.min(offset + request.grant.maxRangeBytes - 1, MAX_TRANSFER_BYTES - 1);
+          const end = Math.min(offset + request.grant.maxRangeBytes - 1, maximumBytes - 1);
           if (end < offset) throw new Error('TOO_LARGE');
           const response = await this.#fetch(endpoint, {
             method: 'GET',
@@ -100,6 +115,7 @@ export class TeamTransferClient {
             redirect: 'error',
             signal
           });
+          body = response.body;
           if (response.status !== 200 && response.status !== 206) {
             const payload: unknown = await response.json().catch(() => null);
             const retryable =
@@ -135,12 +151,10 @@ export class TeamTransferClient {
               responseEnd < offset ||
               responseEnd > end ||
               declaredTotal <= responseEnd ||
-              declaredTotal > MAX_TRANSFER_BYTES ||
+              declaredTotal > maximumBytes ||
               length !== responseEnd - offset + 1
             ) {
-              throw new Error(
-                declaredTotal > MAX_TRANSFER_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE'
-              );
+              throw new Error(declaredTotal > maximumBytes ? 'TOO_LARGE' : 'INVALID_RESPONSE');
             }
             if (totalBytes !== null && totalBytes !== declaredTotal)
               throw new Error('SOURCE_CHANGED');
@@ -148,6 +162,7 @@ export class TeamTransferClient {
             const requiredUses = Math.ceil(totalBytes / request.grant.maxRangeBytes);
             if (requiredUses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
           } else {
+            if (length !== null && length > maximumBytes) throw new Error('TOO_LARGE');
             if (offset !== 0 || length === null || length > request.grant.maxRangeBytes) {
               throw new Error('INVALID_RESPONSE');
             }
@@ -165,7 +180,7 @@ export class TeamTransferClient {
             if (
               responseBytes > request.grant.maxRangeBytes ||
               responseBytes > length ||
-              offset + responseBytes > MAX_TRANSFER_BYTES
+              offset + responseBytes > maximumBytes
             ) {
               await reader.cancel();
               throw new Error('TOO_LARGE');
@@ -191,7 +206,7 @@ export class TeamTransferClient {
           if (
             uses + remainingUses > request.grant.maxUses ||
             !transientTransferError(error) ||
-            retries >= 4 ||
+            retries >= maximumRetries ||
             uses >= request.grant.maxUses
           ) {
             throw error instanceof TypeError ? new Error('DRIVE_UNAVAILABLE') : error;
@@ -199,7 +214,10 @@ export class TeamTransferClient {
           retries += 1;
           await transferRetryDelay(Math.min(retries, 2) * 1000, signal);
         } finally {
-          await reader?.cancel().catch(() => undefined);
+          if (reader) {
+            await reader.cancel().catch(() => undefined);
+            reader.releaseLock();
+          } else await body?.cancel().catch(() => undefined);
         }
       }
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {

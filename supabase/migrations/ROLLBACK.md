@@ -2245,7 +2245,6 @@ bulk items, operation keys and material-group checkpoints. A missing/newer RPC
 leaves the operation nonterminal rather than asserting a false failure. No
 automatic rollback or production repair is authorized.
 
-
 ### 20261207124000 — Catalog claim eligibility and retained receipts
 
 Retain the handoff actor, extended expiry and output-observed markers: removing
@@ -2258,7 +2257,6 @@ to the analytics role; clients and service_role cannot read this diagnostic view
 The new view is optional for the CLI, which reports unavailable coverage if absent.
 Native empty-claim telemetry requires an agent release. No automatic rollback or
 production data repair is authorized.
-
 
 ### 20261207125000 — Scope manual retries to accepted attempts
 
@@ -2285,3 +2283,30 @@ combines the existing authorized projections in one statement snapshot. The
 previous RPCs and their grants are unchanged. Withdraw its web consumer before a
 reviewed forward migration drops `public.list_team_catalog_manager_snapshot(uuid)`.
 No application rows need restoration.
+
+047 follow-up deltas remain additive and unactivated in production:
+
+- `20261207132000_catalog_reliability_error_codes.sql` adds closed failure codes.
+  Retain their reader mappings while historical diagnostics may reference them.
+- `20261207133000_catalog_export_context.sql` adds a service-only live catalog/actor
+  download authorization check. Withdraw the XLSX grant/range consumer before any
+  reviewed forward removal; do not issue native Sheets media grants as a fallback.
+- `20261207134000_catalog_progress_identity.sql` enriches the invoker snapshot
+  through an explicitly view-authorized helper. Withdraw identity-dependent UI,
+  restore the preceding snapshot definition in a reviewed forward migration, then
+  remove the helper. No attempt, catalog or provider data is rewritten.
+- `20261207135000_catalog_cancel_observed_round.sql` adds a process-authorized,
+  row-locked stop bound to an observed round/attempt. Withdraw its web consumer
+  before forward removal. An error in the new route must never fall back to the
+  unfenced legacy route. Existing in-flight provider lease protection remains.
+
+The 047 analytics guard also admits `file_delivery=browser_handoff|agent_saved|
+url_visible`. Withdraw those producers before narrowing the guard. Browser handoff
+must never be relabeled as a proven disk save during withdrawal. None of these
+notes authorizes automatic rollback, deletion of evidence or production repair.
+
+`20261207136000_catalog_snapshot_observation.sql` adds the database statement's
+observation time to the same authorized snapshot. To withdraw it, restore the
+preceding snapshot definition through a reviewed forward migration. New clients
+explicitly treat an omitted legacy observation as unknown; never manufacture a
+server observation time from response arrival or settings version.

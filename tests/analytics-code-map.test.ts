@@ -225,3 +225,9 @@ it('maps native catalog export and selection budgets to their concrete producers
   for (const code of ['CATALOG_EXPORT_TOO_LARGE', 'RESTITCH_SCREEN_SELECTION_LIMIT'])
     expect(lookupCodeLocations(`team:download:${code}`)?.matched).toBe(`team:download:${code}`);
 });
+
+it('maps an uncertain catalog stop to its guarded database boundary', () => {
+  expect(lookupCodeLocations('team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED')?.matched).toBe(
+    'team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'
+  );
+});
