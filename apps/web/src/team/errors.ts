@@ -116,6 +116,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTITCH_NO_SCREENS: 'teamRestitchNoScreens',
   RESTITCH_INVALID: 'launchesRestitchInvalid',
   RESTITCH_POOL_EMPTY: 'teamRestitchPoolEmpty',
+  RESTITCH_SCREEN_SELECTION_LIMIT: 'teamRestitchScreenSelectionLimit',
   RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
   RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',
   RESTITCH_SOURCES_TOO_MANY: 'teamRestitchSourcesTooMany',
@@ -132,6 +133,8 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
 const SYNC_COPY: Record<string, TranslationKey> = {
+  DISK_FULL: 'errorDiskFull',
+  MEDIA_TOOL_UNAVAILABLE: 'errorToolUnavailable',
   STITCH_PLAN_VIDEO_CODEC: 'stitcherUnsupportedVideoCodec',
   STITCH_PLAN_AUDIO_CODEC: 'stitcherUnsupportedAudioCodec',
   STITCH_PLAN_VARIABLE_FRAME_RATE: 'stitcherUnsupportedVariableFrameRate',

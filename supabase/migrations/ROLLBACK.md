@@ -2267,3 +2267,21 @@ snapshots and existing retry diagnostics. Reverting the function to its older
 implementation reintroduces resets for pending selections in mixed bulk requests;
 use an explicitly reviewed forward correction instead. Do not rewrite attempts
 or clear uncertain-operation fences as rollback.
+
+## 047 catalog file action analytics
+
+`20261207130000_catalog_file_action_analytics.sql` extends the closed diagnostic
+vocabulary with `action=share`, `file_surface=material|catalog_manager` and an explicit
+`storage_kind=unknown` when connection metadata is unavailable. It does
+not change application rows or permissions. To withdraw the candidate before any
+production activation, revert its producers with it. A reviewed forward migration
+can restore the exact `analytics_properties_are_safe_v2` definition from
+`20261207114000_workspace_read_analytics_guard.sql`; already applied history stays
+immutable. Old clients omit the optional surface and remain accepted. Restoring the
+old guard while new producers still run would reject their events.
+
+`20261207131000_catalog_manager_snapshot.sql` adds an invoker-only read RPC that
+combines the existing authorized projections in one statement snapshot. The
+previous RPCs and their grants are unchanged. Withdraw its web consumer before a
+reviewed forward migration drops `public.list_team_catalog_manager_snapshot(uuid)`.
+No application rows need restoration.

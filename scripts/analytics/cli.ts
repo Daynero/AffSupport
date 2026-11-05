@@ -482,14 +482,14 @@ export async function executeCommand(
       const id = requireArg(args, 0, 'catalog <catalog-id | attempt-id>');
       if (id === 'team') {
         const teamId = requireArg(args, 1, 'catalog team <team-id>');
-        const data = await getTeamCatalogUpdateDiagnosis(teamId, args.limit ?? 10);
+        const data = await getTeamCatalogUpdateDiagnosis(teamId, args.limit ?? 10, period);
         const catalog_images = await getCatalogImageDiagnosis(teamId, period, {
           limit: args.limit
         });
         const full = { ...data, catalog_images };
         return done(full, JSON.stringify(full, null, 2));
       }
-      const data = await getCatalogUpdateDiagnosis(id, args.limit ?? 10);
+      const data = await getCatalogUpdateDiagnosis(id, args.limit ?? 10, period);
       if (!data.subject) throw new CommandError(`No catalog update attempts found for "${id}".`);
       const catalog_images = await getCatalogImageDiagnosis(
         data.attempts[0]?.attempt_id ?? id,

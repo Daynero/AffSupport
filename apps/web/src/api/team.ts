@@ -299,6 +299,26 @@ export interface ProductCatalogCreateResult {
   videoShared: boolean;
 }
 
+export interface CatalogListSnapshot<T> {
+  rows: T[];
+  invalidRowCount: number;
+}
+
+function catalogListSnapshotFrom<T>(
+  data: unknown,
+  parse: (value: unknown) => T | null
+): CatalogListSnapshot<T> {
+  if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+  const rows: T[] = [];
+  let invalidRowCount = 0;
+  for (const value of data) {
+    const row = parse(value);
+    if (row) rows.push(row);
+    else invalidRowCount++;
+  }
+  return { rows, invalidRowCount };
+}
+
 /** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
 export interface CatalogRegistryRow {
   catalogId: string;
@@ -2312,6 +2332,64 @@ export const teamApi = {
     });
   },
 
+  async listCatalogManagerSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogRegistryRow>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_manager_snapshot', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    const payload = asRecord(data);
+    if (!payload) throw new TeamApiError('INVALID_RESPONSE', false);
+    const catalogs = catalogListSnapshotFrom(payload.catalogs, catalogRegistryRowFrom);
+    const profiles = catalogListSnapshotFrom(payload.profiles, value =>
+      catalogUpdateProfileFrom(value, true)
+    );
+    const byId = new Map(profiles.rows.map(profile => [profile.catalogId, profile]));
+    let invalidRowCount = catalogs.invalidRowCount + profiles.invalidRowCount;
+    const rows = catalogs.rows.flatMap(row => {
+      const profile = byId.get(row.catalogId);
+      if (!profile) {
+        invalidRowCount += 1;
+        return [];
+      }
+      return [{ ...row, profile }];
+    });
+    return { rows, invalidRowCount };
+  },
+
+  async listTeamProductCatalogSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogRegistryRow>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    return catalogListSnapshotFrom(data, catalogRegistryRowFrom);
+  },
+
+  async listCatalogUpdateProfileSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogUpdateProfile>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_update_profiles', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    return catalogListSnapshotFrom(data, value => catalogUpdateProfileFrom(value, true));
+  },
+
   async listTeamProductCatalogs(
     teamId: string,
     options: { signal?: AbortSignal } = {}
@@ -2324,9 +2402,10 @@ export const teamApi = {
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
-    return data.flatMap(row => {
+    return data.map(row => {
       const parsed = catalogRegistryRowFrom(row);
-      return parsed ? [parsed] : [];
+      if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+      return parsed;
     });
   },
 
@@ -2342,21 +2421,27 @@ export const teamApi = {
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
-    return data
-      .map(row => catalogUpdateProfileFrom(row, true))
-      .filter((profile): profile is CatalogUpdateProfile => profile !== null);
+    return data.map(row => {
+      const profile = catalogUpdateProfileFrom(row, true);
+      if (!profile) throw new TeamApiError('INVALID_RESPONSE', false);
+      return profile;
+    });
   },
 
   async listCatalogUpdateAttempts(
     teamId: string,
-    catalogId: string
+    catalogId: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<CatalogUpdateAttempt[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_catalog_update_attempts', {
-        p_team: teamId,
-        p_catalog: catalogId,
-        p_limit: 10
-      })
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_update_attempts', {
+          p_team: teamId,
+          p_catalog: catalogId,
+          p_limit: 10
+        }),
+        options
+      )
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2492,11 +2577,23 @@ export const teamApi = {
   },
 
   /** The next spare copy this member's computer should prepare, or null (023). */
-  async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
+  async claimRestitchJob(
+    teamId: string,
+    screenRefusals: Array<{
+      slot: 'start' | 'end';
+      materialId: string;
+      checksum: string;
+      settingsRevision?: string;
+    }> = []
+  ): Promise<RestitchClaim | null> {
     const value = await invokeTeamFunction(
       'drive-ops/updater/claim',
       // Says which claim this tab speaks (030): a space on Drive pools refuses an older one.
-      { teamId, restitchContractVersion: RESTITCH_CONTRACT_VERSION },
+      {
+        teamId,
+        restitchContractVersion: RESTITCH_CONTRACT_VERSION,
+        ...(screenRefusals.length ? { screenRefusals } : {})
+      },
       restitchClaimGuard
     );
     const job = value.job;
@@ -2577,7 +2674,10 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return typeof data === 'number' ? data : 0;
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
   },
 
   async cancelCatalogUpdate(teamId: string, catalogId: string): Promise<boolean> {
@@ -2588,7 +2688,8 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async retryCatalogUpdate(
@@ -2604,7 +2705,10 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return typeof data === 'number' ? data : 0;
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
   },
 
   async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {

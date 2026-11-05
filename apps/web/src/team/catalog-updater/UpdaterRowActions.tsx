@@ -4,7 +4,7 @@ import { DropdownMenu, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { materialMenuEntries } from '../materials/MaterialActionMenu';
-import type { TeamPermissions } from '@video-compressor/shared';
+import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import type { CatalogRegistryRow } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { useOptionalAgent } from '../../AgentContext';
@@ -38,6 +38,7 @@ export function UpdaterRowActions({
   row,
   teamId,
   permissions,
+  storageKind = null,
   onChanged,
   onReveal,
   onHistory,
@@ -46,6 +47,7 @@ export function UpdaterRowActions({
   row: CatalogRegistryRow;
   teamId: string;
   permissions: TeamPermissions;
+  storageKind?: TeamAnalyticsStorage | null;
   onChanged: () => void;
   /** Close the dialog and show the sheet where it lives. */
   onReveal?: (row: CatalogRegistryRow) => void;
@@ -83,6 +85,8 @@ export function UpdaterRowActions({
     material: ref,
     permissions,
     browseClient: teamApi,
+    storageKind,
+    surface: 'catalog_manager',
     replaceMaterialId: row.catalogId,
     onChanged
   });

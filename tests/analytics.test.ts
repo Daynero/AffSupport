@@ -74,6 +74,47 @@ describe('privacy-minimized analytics', () => {
     });
   });
 
+  it('preserves typed share and surface through the delivery sanitizer', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    const flow = startTeamFileAttempt(
+      {
+        action: 'share',
+        surface: 'catalog_manager',
+        storageKind: 'shared_drive',
+        sizeBucket: 'tiny'
+      },
+      { tracker: service }
+    );
+    completeTeamFileAttempt(flow, { outcome: 'success', retryable: false }, { tracker: service });
+    await service.flush();
+    const events = sender.mock.calls[0][0];
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      attempt_id: flow.attemptId,
+      properties: { action: 'share', file_surface: 'catalog_manager', outcome: 'success' }
+    });
+  });
+
+  it('keeps the file lifecycle callable when diagnostic tracking throws', () => {
+    const tracker = {
+      track: vi.fn(() => {
+        throw new Error('offline diagnostics');
+      })
+    };
+    const flow = startTeamFileAttempt(
+      { action: 'share', storageKind: 'my_drive', sizeBucket: 'tiny' },
+      { tracker }
+    );
+    expect(() =>
+      completeTeamFileAttempt(flow, { outcome: 'success', retryable: false }, { tracker })
+    ).not.toThrow();
+    expect(flow.completed).toBe(true);
+  });
+
   it('emits content-free file attempt and processing workflow lifecycles', async () => {
     const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
       acceptedEventIds: events.map(event => event.event_id)
@@ -126,6 +167,7 @@ describe('privacy-minimized analytics', () => {
     expect(delivered[1].attempt_id).toBe(fileAttempt.attemptId);
     expect(delivered[1].properties).toEqual({
       action: 'download',
+      file_surface: 'material',
       storage_kind: 'shared_drive',
       size_bucket: 'agent',
       cache_state: 'cold',

@@ -250,9 +250,12 @@ export function createRestitchDelegate(
         resolved = await deps.screenCache.resolve(
           options.teamId ?? input.teamId ?? 'unknown',
           options.screens,
-          input.signal
+          input.signal,
+          options.defaults.updatedAt,
+          input.operationId
         );
       } catch (error) {
+        input.signal.throwIfAborted();
         throw new Error(
           error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED',
           { cause: error }

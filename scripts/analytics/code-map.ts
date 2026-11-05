@@ -388,8 +388,13 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
   },
   RESTITCH_SCREEN_UNSUPPORTED: {
     stage: 'stitch',
-    agent: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/agent/src/team-bridge/restitch.ts'],
-    check: 'Check that the selected picture is a supported static image within the size limit.'
+    agent: [
+      'apps/agent/src/team-bridge/screen-cache.ts',
+      'apps/agent/src/team-bridge/screen-decode.ts',
+      'apps/agent/src/team-bridge/restitch.ts'
+    ],
+    check:
+      'Check the strict managed decode, frame and pixel ceiling; metadata alone does not establish usable image bytes.'
   },
   STITCH_IMAGE_UNAVAILABLE: {
     stage: 'stitch',
@@ -832,6 +837,11 @@ function build(): Record<string, CodeLocation> {
     check:
       'Inspect operationId, last native stage and safe errorCode. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. Missing journal delivery leaves the cause unknown.'
   };
+  map['journal:team:screen_candidate_rejected'] = {
+    files: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/web/src/team/restitch/screens.ts'],
+    check:
+      'A confirmed file-specific image failure was persisted for the next random draw. Correlate the operation and material; network and disk failures do not blacklist candidates. Repaired versions and changed settings can be checked again.'
+  };
   map['journal:team:screen_fetch_failed'] = {
     files: [
       'apps/agent/src/team-bridge/screen-cache.ts',
@@ -1103,6 +1113,7 @@ function build(): Record<string, CodeLocation> {
     'RESTITCH_INVALID',
     'RESTITCH_NO_SCREENS',
     'RESTITCH_POOL_EMPTY',
+    'RESTITCH_SCREEN_SELECTION_LIMIT',
     'RESTITCH_SOURCES_INVALID',
     'RESTITCH_CLIENT_OUTDATED',
     'RESTITCH_SCREEN_UNAVAILABLE',

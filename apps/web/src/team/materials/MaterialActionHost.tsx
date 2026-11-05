@@ -1,13 +1,25 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { recordOriginalResultDelivery } from '../library/original-result-analytics';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import { Button, FormField, Input, Modal } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import {
+  startTeamFileAttempt,
+  completeTeamFileAttempt,
+  teamAnalyticsSizeBucket,
+  type TeamFileAttemptFlow
+} from '../../analytics/service';
 import { teamApi } from '../../api/team';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
-import { useMaterialActions, type MaterialActionsClient } from '../catalog/useMaterialActions';
+import {
+  useMaterialActions,
+  analyticsOutcome,
+  retryableError,
+  reportFileAttemptError,
+  type MaterialActionsClient
+} from '../catalog/useMaterialActions';
 import type { ActionHandlers } from './useMaterialActionList';
 import type { MaterialRef } from './actions';
 import { MaterialNoteDialog } from './MaterialNote';
@@ -33,6 +45,7 @@ export interface MaterialActionHostInput {
   browseClient: FolderPickerClient;
   actionsClient?: MaterialActionsClient;
   storageKind?: TeamAnalyticsStorage | null;
+  surface?: 'material' | 'catalog_manager';
   /** Where an upload into this folder lands. */
   destinationFolderId?: string | null;
   /** Replaced when an upload's name clashes with this exact material. */
@@ -57,6 +70,7 @@ export function useMaterialActionHost({
   browseClient,
   actionsClient,
   storageKind = null,
+  surface = 'material',
   destinationFolderId = null,
   replaceMaterialId = null,
   onChanged,
@@ -67,6 +81,32 @@ export function useMaterialActionHost({
   const [prompt, setPrompt] = useState<'rename' | 'move' | 'note' | null>(null);
   const [newName, setNewName] = useState(material.name);
   const uploadInput = useRef<HTMLInputElement>(null);
+  const scope = JSON.stringify([teamId, material.id]);
+  const shareAttempts = useRef(0);
+  const shareRequest = useRef<{
+    scope: string;
+    pending: boolean;
+    keys: Map<boolean, string>;
+  } | null>(null);
+  if (shareRequest.current?.scope !== scope) {
+    shareRequest.current = { scope, pending: false, keys: new Map() };
+  }
+  const [shareBusy, setShareBusy] = useState<string | null>(null);
+  const [sharedLink, setSharedLink] = useState<{
+    scope: string;
+    url: string;
+    attempt?: TeamFileAttemptFlow | null;
+  } | null>(null);
+  useEffect(() => {
+    if (sharedLink?.scope === scope && sharedLink.attempt)
+      completeTeamFileAttempt(sharedLink.attempt, { outcome: 'success', retryable: false });
+  }, [sharedLink, scope]);
+  useEffect(() => {
+    if (!shareRequest.current) shareRequest.current = { scope, pending: false, keys: new Map() };
+    return () => {
+      shareRequest.current = null;
+    };
+  }, [scope]);
 
   /**
    * Select the base name, leaving the extension alone.
@@ -98,6 +138,7 @@ export function useMaterialActionHost({
     },
     client: actionsClient,
     storageKind,
+    surface,
     destinationFolderId,
     onChanged
   });
@@ -110,28 +151,69 @@ export function useMaterialActionHost({
    * `rememberChoice` is what tells the space to keep the sharing it just did,
    * rather than asking again on the next copy.
    */
+  const copySharedLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      if (shareRequest.current?.scope === scope)
+        push({ tone: 'success', text: t('teamShareCopied') });
+    } catch {
+      if (shareRequest.current?.scope === scope)
+        push({ tone: 'error', text: t('teamShareClipboardUnavailable') });
+    }
+  };
+
   const shareLink = async (remember: boolean) => {
+    const request = shareRequest.current;
+    if (!request || request.pending) return;
+    request.pending = true;
+    setShareBusy(scope);
+    const key = request.keys.get(remember) ?? crypto.randomUUID();
+    request.keys.set(remember, key);
+    const attempt = startTeamFileAttempt({
+      action: 'share',
+      storageKind: storageKind ?? 'unknown',
+      surface,
+      sizeBucket: teamAnalyticsSizeBucket(material.sizeBytes),
+      attemptNumber: ++shareAttempts.current
+    });
     try {
       const result = await teamApi.shareLibraryMaterial({
         teamId,
         materialId: material.id,
         allowIfRestricted: true,
         rememberChoice: remember,
-        idempotencyKey: crypto.randomUUID()
+        idempotencyKey: key
       });
+      if (shareRequest.current !== request) {
+        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'cancelled', retryable: false });
+        return;
+      }
       if (result.state !== 'ready') {
+        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'blocked', retryable: false });
         push({ tone: 'error', text: t('teamShareFailed') });
         return;
       }
-      try {
-        await navigator.clipboard.writeText(result.url);
-        push({ tone: 'success', text: t('teamShareCopied') });
-      } catch {
-        // A browser that refuses the clipboard still made the link; show it.
-        push({ tone: 'success', text: `${t('teamShareReady')} ${result.url}` });
-      }
+      request.keys.delete(remember);
+      setSharedLink({ scope, url: result.url, attempt });
+      await copySharedLink(result.url);
     } catch (cause) {
-      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      if (attempt) {
+        completeTeamFileAttempt(attempt, {
+          outcome: analyticsOutcome(cause),
+          retryable: retryableError(cause)
+        });
+        try {
+          reportFileAttemptError(attempt, cause);
+        } catch {
+          /* File actions survive diagnostics failures. */
+        }
+      }
+      if (shareRequest.current === request) {
+        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+      }
+    } finally {
+      request.pending = false;
+      if (shareRequest.current === request) setShareBusy(null);
     }
   };
 
@@ -197,6 +279,26 @@ export function useMaterialActionHost({
           if (file) void actions.upload(file, 'cancel');
         }}
       />
+      {sharedLink?.scope === scope && (
+        <Modal nested size="sm" title={t('teamShareReady')} onClose={() => setSharedLink(null)}>
+          <FormField label={t('teamShareReady')} htmlFor="material-shared-link">
+            <Input
+              id="material-shared-link"
+              value={sharedLink.url}
+              readOnly
+              onFocus={event => event.currentTarget.select()}
+            />
+          </FormField>
+          <div className="team-dialog-actions">
+            <Button onClick={() => void copySharedLink(sharedLink.url)}>
+              {t('materialActionCopyLink')}
+            </Button>
+            <Button onClick={() => window.open(sharedLink.url, '_blank', 'noopener,noreferrer')}>
+              {t('materialActionOpen')}
+            </Button>
+          </div>
+        </Modal>
+      )}
       {prompt === 'rename' && (
         <Modal
           nested
@@ -291,5 +393,5 @@ export function useMaterialActionHost({
     </>
   );
 
-  return { handlers, dialogs, busy: actions.busy };
+  return { handlers, dialogs, busy: actions.busy || shareBusy === scope };
 }

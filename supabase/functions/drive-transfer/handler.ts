@@ -193,6 +193,45 @@ export type DownloadGrantResult =
       grant: TeamTransferGrant;
     };
 
+/** Resolve missing index metadata only through an authorized, live provider read. */
+export async function resolveDownloadMaterial(
+  material: PreviewMaterialRecord,
+  loadLive: () => Promise<{
+    id: string;
+    size: number | null;
+    mimeType: string;
+    version: string | null;
+    checksum: string | null;
+    canDownload: boolean;
+  }>
+): Promise<PreviewMaterialRecord> {
+  if (!material.canDownload) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  if (material.sizeBytes !== null) return material;
+  const live = await loadLive();
+  if (live.id !== material.driveFileId)
+    throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+  if (!live.canDownload) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  if (live.mimeType.startsWith('application/vnd.google-apps.')) {
+    throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
+  }
+  if (live.size === null || !Number.isSafeInteger(live.size) || live.size < 0) {
+    throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+  }
+  if (
+    (material.driveVersion && live.version !== material.driveVersion) ||
+    (material.checksum && live.checksum !== material.checksum)
+  ) {
+    throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+  }
+  return {
+    ...material,
+    sizeBytes: live.size,
+    mimeType: live.mimeType,
+    driveVersion: live.version,
+    checksum: live.checksum
+  };
+}
+
 export async function buildDownloadGrantResult(
   material: PreviewMaterialRecord,
   options: { consumer: 'browser' | 'agent'; rangeEndpoint: string },

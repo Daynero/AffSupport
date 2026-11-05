@@ -174,14 +174,17 @@ async function drawScreens(
   actorId: string,
   jobId: string,
   leaseHash: string,
-  teamId: string
+  teamId: string,
+  refusalHistory: unknown[] = [],
+  settingsRevision = ''
 ): Promise<unknown[] | null> {
   if (!deps.screenGrant) {
     await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
     return null;
   }
   const excluded: string[] = [];
-  for (let round = 0; round < 2; round += 1) {
+  let grantFailures = 0;
+  for (let round = 0; round < 32; round += 1) {
     let drawn: unknown;
     try {
       drawn = await deps.rpc('service_draw_restitch_screens', {
@@ -208,6 +211,31 @@ async function drawScreens(
       return null;
     }
     const picked = isRecord(drawn) && Array.isArray(drawn.screens) ? drawn.screens : [];
+    const remembered = picked.filter(
+      entry =>
+        isRecord(entry) &&
+        typeof entry.materialId === 'string' &&
+        typeof entry.checksum === 'string' &&
+        refusalHistory.some(
+          item =>
+            isRecord(item) &&
+            item.settingsRevision === settingsRevision &&
+            item.slot === entry.slot &&
+            item.materialId === entry.materialId &&
+            item.checksum === entry.checksum
+        )
+    );
+    if (remembered.length) {
+      for (const entry of remembered)
+        if (isRecord(entry) && typeof entry.materialId === 'string') {
+          if (excluded.includes(entry.materialId)) {
+            await fail(deps, actorId, jobId, leaseHash, 'INVALID_RESPONSE');
+            return null;
+          }
+          excluded.push(entry.materialId);
+        }
+      continue;
+    }
     const screens: unknown[] = [];
     let refused: { materialId: string; code: string } | null = null;
     for (const entry of picked) {
@@ -222,11 +250,13 @@ async function drawScreens(
     }
     if (!refused) return screens;
     excluded.push(refused.materialId);
-    if (round === 1 || refused.code === 'RESTITCH_SOURCE_FORBIDDEN') {
+    grantFailures++;
+    if (grantFailures >= 2 || refused.code === 'RESTITCH_SOURCE_FORBIDDEN') {
       await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
       return null;
     }
   }
+  await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SCREEN_SELECTION_LIMIT');
   return null;
 }
 
@@ -275,7 +305,15 @@ export async function claimRestitchJob(
   // The pictures, drawn by the server from the space's pools and granted to this member's app.
   let screens: unknown[] | null = null;
   if (driveMode) {
-    const drawn = await drawScreens(deps, actorId, job.jobId, leaseHash, teamId);
+    const drawn = await drawScreens(
+      deps,
+      actorId,
+      job.jobId,
+      leaseHash,
+      teamId,
+      Array.isArray(body.screenRefusals) ? body.screenRefusals.slice(0, 512) : [],
+      typeof defaults?.updatedAt === 'string' ? defaults.updatedAt : ''
+    );
     if (drawn === null) return { job: null };
     screens = drawn;
   }

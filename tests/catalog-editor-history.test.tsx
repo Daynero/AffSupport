@@ -259,6 +259,9 @@ it('does not overlap confirmation history reads or allow older responses to repl
         checkingDelivery
       />
     );
+    await act(async () => {
+      await Promise.resolve();
+    });
     act(() => {
       tick?.();
       tick?.();
@@ -271,5 +274,28 @@ it('does not overlap confirmation history reads or allow older responses to repl
     expect(screen.queryByText('Unknown result')).toBeNull();
   } finally {
     timer.mockRestore();
+  }
+});
+
+it('bounds a hung history read and aborts it so the user can retry', async () => {
+  vi.useFakeTimers();
+  let signal: AbortSignal | undefined;
+  const load = vi.fn((_team: string, _catalog: string, options?: { signal?: AbortSignal }) => {
+    signal = options?.signal;
+    return new Promise<CatalogUpdateAttempt[]>(() => {});
+  });
+  try {
+    render(
+      <CatalogStatusDetails teamId="team" catalogId="catalog" load={load} onClose={() => {}} />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15001);
+    });
+    expect(screen.getByText('Could not load update history.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(signal?.aborted).toBe(true);
+  } finally {
+    cleanup();
+    vi.useRealTimers();
   }
 });

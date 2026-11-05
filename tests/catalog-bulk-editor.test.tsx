@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogUpdateProfile } from '@video-compressor/shared';
@@ -162,4 +162,93 @@ describe('bulk editor partial results', () => {
     resolve({ ...profile('A'), version: 2 });
     await waitFor(() => expect(window.dispatchEvent(event())).toBe(true));
   });
+});
+
+it('confirms a committed bulk save by readback after its response is lost', async () => {
+  let stored = profile('A');
+  const save = vi.fn(async () => {
+    stored = { ...stored, restitch: true, version: 2 };
+    throw new TypeError('lost response');
+  });
+  const read = vi.fn(async () => ({ profile: stored, interval: null }));
+  render(
+    <CatalogBulkEditor items={items.slice(0, 1)} save={save} read={read} onSaved={() => {}} />
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Replace video · Off' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'On' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await screen.findByText('Saved 1 catalogs');
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(read).toHaveBeenCalledTimes(1);
+});
+it('rechecks an unknown save without repeating its mutation', async () => {
+  const save = vi.fn().mockRejectedValue(new TypeError('lost response'));
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new TypeError('offline'))
+    .mockRejectedValueOnce(new TypeError('offline'))
+    .mockResolvedValue({
+      profile: { ...profile('A'), version: 2, restitch: true },
+      interval: null
+    });
+  render(
+    <CatalogBulkEditor items={items.slice(0, 1)} save={save} read={read} onSaved={() => {}} />
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Replace video · Off' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'On' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  expect(await screen.findByRole('button', { name: 'Check current settings' })).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Check current settings' }));
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  await userEvent.click(screen.getByRole('button', { name: 'Check current settings' }));
+  await screen.findByText('Saved 1 catalogs');
+  expect(save).toHaveBeenCalledTimes(1);
+});
+
+it('saves a changed calendar time atomically even when the interval stays daily', async () => {
+  const scheduled = {
+    ...items[0],
+    interval: '1d' as const,
+    profile: { ...profile('A'), schedule: { timeZone: 'UTC', weekday: 1, time: '09:00' } }
+  };
+  const save = vi.fn(async () => ({ ...scheduled.profile, version: 2 }));
+  render(<CatalogBulkEditor items={[scheduled]} save={save} onSaved={() => {}} />);
+  await userEvent.click(
+    screen.getByRole('button', { name: /Frequency to save with the selected settings/ })
+  );
+  fireEvent.change(screen.getByLabelText('Time'), { target: { value: '11:30' } });
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith('A', 1, {
+      updateInterval: '1d',
+      schedule: { timeZone: 'UTC', weekday: 1, time: '11:30' }
+    })
+  );
+});
+
+it('stops enqueuing the remaining bulk writes after leaving the manager', async () => {
+  const many = Array.from({ length: 8 }, (_, index) => ({
+    ...items[0]!,
+    catalogId: `id-${index}`,
+    profile: profile(`id-${index}`)
+  }));
+  const releases: Array<() => void> = [];
+  const save = vi.fn(
+    (id: string) =>
+      new Promise<CatalogUpdateProfile>(resolve => {
+        releases.push(() => resolve({ ...profile(id), version: 2 }));
+      })
+  );
+  const onSaved = vi.fn();
+  const view = render(<CatalogBulkEditor items={many} save={save} onSaved={onSaved} />);
+  await setDaily();
+  fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  expect(save).toHaveBeenCalledTimes(4);
+  view.unmount();
+  await act(async () => {
+    releases.forEach(release => release());
+  });
+  expect(save).toHaveBeenCalledTimes(4);
+  expect(onSaved).not.toHaveBeenCalled();
 });

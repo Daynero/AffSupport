@@ -125,7 +125,7 @@ export function useBulkTrash(
   const execute = useCallback(
     async (
       group: BulkTrashGroup,
-      rows: readonly TeamMaterialRow[],
+      rows: readonly Pick<TeamMaterialRow, 'id' | 'name' | 'category'>[],
       tailClient: TrashTailClient
     ) => {
       if (currentTeam.current !== teamId || active.current.has(group.id)) return;
@@ -201,7 +201,10 @@ export function useBulkTrash(
     [client, refresh, reportStage, teamId]
   );
   const start = useCallback(
-    async (rows: readonly TeamMaterialRow[], tailClient: TrashTailClient) => {
+    async (
+      rows: readonly Pick<TeamMaterialRow, 'id' | 'name' | 'category'>[],
+      tailClient: TrashTailClient
+    ) => {
       if (currentTeam.current !== teamId)
         throw new DOMException('Bulk trash scope ended', 'AbortError');
       if (starting.current === teamId) throw new TeamApiError('WRONG_STATE', true);

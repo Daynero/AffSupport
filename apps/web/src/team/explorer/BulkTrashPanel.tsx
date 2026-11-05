@@ -14,7 +14,7 @@ export function BulkTrashPanel({
   onDismiss
 }: {
   group: BulkTrashGroup;
-  rows: readonly TeamMaterialRow[];
+  rows: readonly Pick<TeamMaterialRow, 'id' | 'name'>[];
   uncertain: boolean;
   onRetry?: () => void;
   onVisible: (id: string) => void;

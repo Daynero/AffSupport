@@ -100,3 +100,93 @@ it('retains the precise calendar schedule from the profile list and patch respon
     ).schedule
   ).toEqual(schedule);
 });
+
+it.each([null, '1', -1, 1.5, NaN, Infinity])(
+  'rejects malformed run/retry counts instead of reporting a no-op: %s',
+  async data => {
+    rpc.mockResolvedValue({ error: null, data });
+    await expect(teamApi.runCatalogUpdateNow('team', ['catalog'])).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+    await expect(teamApi.retryCatalogUpdate('team', 'catalog', 'attempt')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+  }
+);
+it.each([null, 0, 'false', undefined])('rejects malformed cancellation: %s', async data => {
+  rpc.mockResolvedValue({ error: null, data });
+  await expect(teamApi.cancelCatalogUpdate('team', 'catalog')).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+});
+it('retains genuine command no-ops', async () => {
+  rpc.mockResolvedValue({ error: null, data: 0 });
+  expect(await teamApi.runCatalogUpdateNow('team', ['catalog'])).toBe(0);
+  expect(await teamApi.retryCatalogUpdate('team', 'catalog', 'attempt')).toBe(0);
+  rpc.mockResolvedValue({ error: null, data: false });
+  expect(await teamApi.cancelCatalogUpdate('team', 'catalog')).toBe(false);
+});
+
+it('does not present a malformed profile row as a successfully loaded empty list', async () => {
+  rpc.mockResolvedValue({ error: null, data: [{ unexpected: true }] });
+  await expect(teamApi.listCatalogUpdateProfiles('team')).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+});
+it('does not silently drop malformed registry rows', async () => {
+  rpc.mockResolvedValue({ error: null, data: [{ unexpected: true }] });
+  await expect(teamApi.listTeamProductCatalogs('team')).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+});
+it('accepts genuinely empty lists', async () => {
+  rpc.mockResolvedValue({ error: null, data: [] });
+  expect(await teamApi.listTeamProductCatalogs('team')).toEqual([]);
+  expect(await teamApi.listCatalogUpdateProfiles('team')).toEqual([]);
+});
+it('preserves valid profiles while making malformed omissions explicit', async () => {
+  rpc.mockResolvedValue({ error: null, data: [profile, { unexpected: true }] });
+  const result = await teamApi.listCatalogUpdateProfileSnapshot('team');
+  expect(result.invalidRowCount).toBe(1);
+  expect(result.rows).toHaveLength(1);
+  expect(result.rows[0].catalogId).toBe('catalog');
+});
+it('distinguishes all-invalid registry data from a genuinely empty snapshot', async () => {
+  rpc.mockResolvedValue({ error: null, data: [{ unexpected: true }] });
+  expect(await teamApi.listTeamProductCatalogSnapshot('team')).toEqual({
+    rows: [],
+    invalidRowCount: 1
+  });
+  rpc.mockResolvedValue({ error: null, data: [] });
+  expect(await teamApi.listTeamProductCatalogSnapshot('team')).toEqual({
+    rows: [],
+    invalidRowCount: 0
+  });
+});
+
+it('joins only valid catalog/profile rows from a single manager snapshot RPC', async () => {
+  const catalog = {
+    catalog_id: 'catalog',
+    name: 'Catalog',
+    sheet_url: 'https://docs.google.com/spreadsheets/d/catalog',
+    video_id: 'video',
+    video_name: 'Video',
+    product_count: 2,
+    created_at: '2026-11-05T10:00:00Z',
+    update_count: 0,
+    in_updater: false
+  };
+  rpc.mockResolvedValue({
+    error: null,
+    data: {
+      catalogs: [catalog, { ...catalog, catalog_id: 'missing-profile' }],
+      profiles: [profile]
+    }
+  });
+  const data = await teamApi.listCatalogManagerSnapshot('team');
+  expect(rpc).toHaveBeenCalledOnce();
+  expect(rpc).toHaveBeenCalledWith('list_team_catalog_manager_snapshot', { p_team: 'team' });
+  expect(data.rows).toHaveLength(1);
+  expect(data.rows[0].profile?.version).toBe(1);
+  expect(data.invalidRowCount).toBe(1);
+});

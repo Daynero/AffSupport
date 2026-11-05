@@ -2644,6 +2644,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterOff: 'Вимкнено',
   catalogUpdaterOffLong: 'Не оновлювати автоматично',
   catalogUpdaterCancelUpdate: 'Зупинити це оновлення',
+  catalogUpdaterPartialRead:
+    'Частину даних каталогів не вдалося прочитати ({count} записів). Доступні каталоги показано. Оновіть список, щоб спробувати знову.',
+  catalogUpdaterNoWorkAccepted: 'Нових оновлень не прийнято. Поточний стан оновлено.',
   catalogUpdaterNowAlready: 'Вже оновлюється',
   catalogUpdaterNowStarted: 'Оновлюємо зараз: {count}',
   catalogUpdaterStatusScheduled: 'За розкладом: {count} · найближче через',
@@ -2920,6 +2923,8 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
   teamRestitchAgentTooOldForSources:
     'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  teamRestitchScreenSelectionLimit:
+    'Досягнуто ліміт перевірок картинок. Замініть або зменште набір картинок і спробуйте знову.',
   teamRestitchPoolEmpty:
     'Немає картинок для перезашивки: усі джерела пулу недоступні або порожні. Відкрийте налаштування простору й перевірте їх.',
   teamRestitchSourceForbidden:
@@ -3581,6 +3586,8 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerSortFoldersMixed: 'Разом із файлами',
   teamShareAction: 'Поділитися: {name}',
   teamShareCopied: 'Посилання скопійовано',
+  teamShareClipboardUnavailable:
+    'Браузер заборонив копіювання. Виділіть і скопіюйте посилання з поля.',
   teamShareReady: 'Посилання для доступу:',
   teamShareFailed: 'Не вдалося створити посилання.',
   teamExplorerSearchOpen: 'Шукати файли',

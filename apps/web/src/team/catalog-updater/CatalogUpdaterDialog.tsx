@@ -1,3 +1,8 @@
+import { withReadDeadline } from '../readCoordinator';
+import type { TeamAnalyticsStorage } from '@video-compressor/shared';
+import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
+import { BulkTrashPanel } from '../explorer/BulkTrashPanel';
+import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { TeamApiError } from '../../api/team';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -51,6 +56,7 @@ import {
 } from './useCatalogUpdater';
 
 export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
+  getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
   setCatalogUpdateInterval: (
     teamId: string,
     catalogIds: string[],
@@ -60,7 +66,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
   cancelCatalogUpdate?: (teamId: string, catalogId: string) => Promise<boolean>;
   listCatalogUpdateAttempts?: (
     teamId: string,
-    catalogId: string
+    catalogId: string,
+    options?: { signal?: AbortSignal }
   ) => Promise<import('@video-compressor/shared').CatalogUpdateAttempt[]>;
   retryCatalogUpdate?: (
     teamId: string,
@@ -109,7 +116,11 @@ function needsAttention(row: CatalogRegistryRow) {
   );
 }
 
-export function CatalogUpdaterDialog({
+export function CatalogUpdaterDialog(props: Parameters<typeof CatalogUpdaterDialogScope>[0]) {
+  return <CatalogUpdaterDialogScope key={props.teamId} {...props} />;
+}
+
+function CatalogUpdaterDialogScope({
   teamId,
   client = defaultClient,
   onClose,
@@ -129,8 +140,38 @@ export function CatalogUpdaterDialog({
   /** Close the updater and show this catalog's sheet where it lives in the space. */
   onReveal?: (row: CatalogRegistryRow) => void;
 }) {
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [storageContext, setStorageContext] = useState<{
+    teamId: string;
+    kind: TeamAnalyticsStorage | null;
+  } | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    setStorageContext(null);
+    if (client.getConnectionStatus) {
+      void withReadDeadline(() => client.getConnectionStatus!(teamId), controller.signal)
+        .then(status => {
+          if (!controller.signal.aborted)
+            setStorageContext({ teamId, kind: status.driveKind ?? null });
+        })
+        .catch(() => {
+          /* Unknown storage stays unknown; never infer My Drive. */
+        });
+    }
+    return () => controller.abort();
+  }, [client, teamId]);
   const { t, language } = useI18n();
   const { push } = useToasts();
+  const workspaceOperations = useOptionalWorkspaceOperations();
+  const [trashGroups, setTrashGroups] = useState<Set<string>>(() => new Set());
+  const directTrashKeys = useRef(new Map<string, string>());
+  const observedTrash = useRef('');
   const { can, permissions } = useTeam();
   const titleId = useId();
   const searchId = useId();
@@ -198,9 +239,10 @@ export function CatalogUpdaterDialog({
   useEffect(() => {
     if (registry.rows !== null) {
       listFlow.current?.stage('result_visible');
-      listFlow.current?.complete();
+      if (registry.invalidRowCount > 0) listFlow.current?.fail('INVALID_RESPONSE');
+      else listFlow.current?.complete();
     } else if (registry.error) listFlow.current?.fail('READ_FAILED');
-  }, [registry.rows, registry.error]);
+  }, [registry.rows, registry.error, registry.invalidRowCount]);
   const [expandedCatalogId, setExpandedCatalogId] = useState<string | null>(null);
   const [historyCatalogId, setHistoryCatalogId] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLSpanElement>(null);
@@ -216,10 +258,10 @@ export function CatalogUpdaterDialog({
         }
       : row;
   });
+  const nameCounts = new Map<string, number>();
+  for (const row of rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
   const duplicateNames = new Set(
-    rows
-      .filter((row, index) => rows.findIndex(other => other.name === row.name) !== index)
-      .map(row => row.name)
+    [...nameCounts].filter(([, count]) => count > 1).map(([name]) => name)
   );
   const heldRows = useRef(new Map<string, CatalogRegistryRow>());
   const listRef = useRef<HTMLTableElement>(null);
@@ -330,14 +372,16 @@ export function CatalogUpdaterDialog({
     setBusyIds(current => new Set([...current, ...ids]));
     try {
       await work();
+      if (!mounted.current) return;
       updater.reload();
       registry.reload();
       onChanged?.();
     } catch (error) {
-      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+      if (mounted.current) push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       ids.forEach(id => busyRef.current.delete(id));
-      setBusyIds(current => new Set([...current].filter(id => !ids.includes(id))));
+      if (mounted.current)
+        setBusyIds(current => new Set([...current].filter(id => !ids.includes(id))));
     }
   };
 
@@ -349,6 +393,7 @@ export function CatalogUpdaterDialog({
     }
     return withBusy(ids, async () => {
       const opened = await client.runCatalogUpdateNow(teamId, ids);
+      if (!mounted.current) return;
       push({
         tone: 'success',
         text:
@@ -432,14 +477,66 @@ export function CatalogUpdaterDialog({
       await client.cancelCatalogUpdate?.(teamId, id);
     });
 
+  const trashRows = rows.map(row => ({
+    id: row.catalogId,
+    name: row.name,
+    category: 'other' as const
+  }));
+  const managerTrash = workspaceOperations?.bulkTrash;
+  const receipts = managerTrash?.groups.filter(group => trashGroups.has(group.id)) ?? [];
+  const receiptFingerprint = receipts
+    .map(
+      group =>
+        `${group.id}:${group.items.map(item => `${item.materialId}:${item.state}`).join(',')}`
+    )
+    .join('|');
+  useEffect(() => {
+    if (!receiptFingerprint || observedTrash.current === receiptFingerprint) return;
+    observedTrash.current = receiptFingerprint;
+    const confirmed = new Set(
+      receipts.flatMap(group =>
+        group.items.filter(item => item.state === 'confirmed').map(item => item.materialId)
+      )
+    );
+    if (confirmed.size)
+      setSelected(current => new Set([...current].filter(id => !confirmed.has(id))));
+    registry.reload();
+    onChanged?.();
+  }, [receiptFingerprint, registry.reload, onChanged]);
   const deleteSelected = async () => {
     const ids = confirmDelete;
     await withBusy(ids, async () => {
-      for (const materialId of ids) {
-        await teamApi.trashMaterial({ teamId, materialId, idempotencyKey: crypto.randomUUID() });
+      if (managerTrash) {
+        const group = await managerTrash.start(
+          trashRows.filter(row => ids.includes(row.id)),
+          teamApi
+        );
+        if (!mounted.current) return;
+        setTrashGroups(current => new Set([...current, group.id]));
+        setConfirmDelete([]);
+        return;
       }
-      setSelected(current => new Set([...current].filter(id => !ids.includes(id))));
-      setConfirmDelete([]);
+      try {
+        for (const materialId of ids) {
+          if (!mounted.current) return;
+          const idempotencyKey = directTrashKeys.current.get(materialId) ?? crypto.randomUUID();
+          directTrashKeys.current.set(materialId, idempotencyKey);
+          const result = await teamApi.trashMaterial({ teamId, materialId, idempotencyKey });
+          if (!mounted.current) return;
+          if (result.state !== 'succeeded')
+            throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+          if (result.materialId !== null && result.materialId !== materialId)
+            throw new TeamApiError('INVALID_RESPONSE', false);
+          directTrashKeys.current.delete(materialId);
+          setSelected(current => new Set([...current].filter(id => id !== materialId)));
+        }
+        setConfirmDelete([]);
+      } finally {
+        if (mounted.current) {
+          registry.reload();
+          onChanged?.();
+        }
+      }
     });
   };
 
@@ -749,6 +846,14 @@ export function CatalogUpdaterDialog({
           </Button>
         </div>
       )}
+      {registry.invalidRowCount > 0 && (
+        <div className="team-inline-error" role="alert">
+          {t('catalogUpdaterPartialRead', { count: registry.invalidRowCount })}
+          <Button type="button" size="sm" variant="ghost" onClick={registry.reload}>
+            {t('catalogUpdaterRetry')}
+          </Button>
+        </div>
+      )}
       <div className="team-updater-list">
         {registry.rows === null && !registry.error && (
           <p className="team-updater-empty">{t('catalogUpdaterLoading')}</p>
@@ -761,7 +866,7 @@ export function CatalogUpdaterDialog({
             </Button>
           </div>
         )}
-        {registry.rows !== null && rows.length === 0 && (
+        {registry.rows !== null && rows.length === 0 && registry.invalidRowCount === 0 && (
           <div className="team-updater-empty">
             <p>{t('catalogUpdaterEmpty')}</p>
             <Button variant="secondary" onClick={() => guard(onClose)}>
@@ -1153,6 +1258,9 @@ export function CatalogUpdaterDialog({
                         )}
                         {permissions && (
                           <UpdaterRowActions
+                            storageKind={
+                              storageContext?.teamId === teamId ? storageContext.kind : null
+                            }
                             row={row}
                             teamId={teamId}
                             permissions={permissions}
@@ -1432,40 +1540,46 @@ export function CatalogUpdaterDialog({
                   load={client.listCatalogUpdateAttempts}
                   onClose={() => {
                     setHistoryCatalogId(null);
-                    requestAnimationFrame(() =>
-                      Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label]'))
-                        .find(
-                          button =>
-                            button.getAttribute('aria-label') ===
-                            t('materialActionsFor', { name: row.name })
-                        )
-                        ?.focus()
-                    );
+                    requestAnimationFrame(() => {
+                      if (!mounted.current) return;
+                      Array.from(
+                        listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
+                      )
+                        .find(element => element.dataset.catalogId === row.catalogId)
+                        ?.querySelector<HTMLButtonElement>('.team-updater-row-actions button')
+                        ?.focus();
+                    });
                   }}
                   onRetry={
                     mayRun && client.retryCatalogUpdate
                       ? async sourceAttemptId => {
                           setBusyIds(current => new Set([...current, row.catalogId]));
                           try {
-                            await client.retryCatalogUpdate!(
+                            const accepted = await client.retryCatalogUpdate!(
                               teamId,
                               row.catalogId,
                               sourceAttemptId
                             );
+                            if (!mounted.current) return;
                             push({
                               tone: 'success',
-                              text: t('catalogUpdaterNowStarted', { count: 1 })
+                              text:
+                                accepted === 0
+                                  ? t('catalogUpdaterNoWorkAccepted')
+                                  : t('catalogUpdaterNowStarted', { count: accepted })
                             });
                             registry.reload();
                             updater.reload();
                             onChanged?.();
                           } catch (error) {
+                            if (!mounted.current) return;
                             push({ tone: 'error', text: teamErrorMessageFor(error, t) });
                             throw error;
                           } finally {
-                            setBusyIds(
-                              current => new Set([...current].filter(id => id !== row.catalogId))
-                            );
+                            if (mounted.current)
+                              setBusyIds(
+                                current => new Set([...current].filter(id => id !== row.catalogId))
+                              );
                           }
                         }
                       : undefined
@@ -1503,6 +1617,7 @@ export function CatalogUpdaterDialog({
             save={(id, version, patch) =>
               client.patchCatalogUpdateProfile!(teamId, id, version, patch)
             }
+            read={(id, options) => readCatalogSnapshot(client, teamId, id, options?.signal)}
             onDirtyChange={setEditorDirty}
             onPendingChange={setEditorPending}
             onSaved={() => {
@@ -1648,6 +1763,27 @@ export function CatalogUpdaterDialog({
           </Button>
         </Modal>
       )}
+      {managerTrash &&
+        receipts.map(group => (
+          <BulkTrashPanel
+            key={group.id}
+            group={group}
+            rows={trashRows}
+            uncertain={managerTrash.uncertain}
+            onVisible={managerTrash.acknowledgeVisible}
+            onDismiss={managerTrash.dismiss}
+            onRetry={
+              permissions?.delete && managerTrash.owns(group)
+                ? () => {
+                    void managerTrash
+                      .retry(group, trashRows, teamApi)
+                      .then(() => registry.reload())
+                      .catch(error => push({ tone: 'error', text: teamErrorMessageFor(error, t) }));
+                  }
+                : undefined
+            }
+          />
+        ))}
       {confirmDelete.length > 0 && (
         <ConfirmDialog
           nested

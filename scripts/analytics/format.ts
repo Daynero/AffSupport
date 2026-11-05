@@ -577,6 +577,10 @@ export function formatAudit(data: AuditData, period: ResolvedPeriod, written: st
   ]);
   return [
     header('Coverage audit', period),
+    ...(data.sources
+      ?.filter(source => source.status === 'unavailable')
+      .map(source => `  Unavailable source ${source.id}: ${source.reason}; values are unknown.`) ??
+      []),
     `  ${num(data.registry_size)} capabilities · covered ${num(data.summary.covered)} · partial ${num(data.summary.partial)} · uncovered ${num(data.summary.uncovered)} · declared but never emitted ${num(data.summary.declared_but_never_emitted)}`,
     '',
     table(['Capability', 'Status', 'Producer', 'Starts', 'Orphans', 'Missing'], rows),
@@ -597,7 +601,9 @@ export function formatAudit(data: AuditData, period: ResolvedPeriod, written: st
     `  Delivery: ${num(data.delivery.reports)} report(s) · rejected ${num(data.delivery.rejected)} · evicted ${num(data.delivery.evicted)} · expired ${num(data.delivery.expired)} (${data.delivery.note})`,
     data.uncovered_builds.length
       ? `  Web builds without link events: ${data.uncovered_builds.join(', ')}`
-      : '  Every web build seen emits link events.',
+      : data.sources?.some(source => source.id === 'builds' && source.status === 'unavailable')
+        ? '  Web build coverage is unknown: source unavailable.'
+        : '  Every web build seen emits link events.',
     '',
     '  Findings:',
     findings.length
@@ -616,7 +622,8 @@ export function formatInspect(data: InspectData): string {
   if (!data.found) {
     return [
       `\nInspect · ${data.id}\n${'─'.repeat(32)}\n  No event carries this id (as run_id, flow_id, attempt_id or workflow_id).`,
-      ...schemaLines
+      ...schemaLines,
+      ...(data.team_native?.blind_spots.map(note => `  Native evidence: ${note}`) ?? [])
     ].join('\n');
   }
   const body = data.events.map(r => [
@@ -650,6 +657,14 @@ export function formatInspect(data: InspectData): string {
         `${data.agent.agent_instance_ids.join(',') || '—'} · ${data.agent.agent_platforms.join(',') || '—'}`
       ]
     ]),
+    ...(data.team_native
+      ? [
+          kv([
+            ['Native error', data.team_native.records.at(-1)?.error_code ?? 'unknown'],
+            ['Native evidence limits', data.team_native.blind_spots.join('; ') || 'none observed']
+          ])
+        ]
+      : []),
     ...lagLine(data.delivery_lag_ms),
     ...schemaLines,
     '',

@@ -1,3 +1,4 @@
+import type { ResolvedPeriod } from './types.js';
 import type { CatalogUpdateSchedule } from '../../packages/shared/src/team/catalog-updater.js';
 import { query } from './db.js';
 import { lookupCodeLocations } from './code-map.js';
@@ -5,19 +6,24 @@ import { lookupCodeLocations } from './code-map.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 /** Discover recent attempts without requiring a catalog UUID from the product UI. */
-export async function getTeamCatalogUpdateDiagnosis(teamId: string, limit = 10) {
+export async function getTeamCatalogUpdateDiagnosis(
+  teamId: string,
+  limit = 10,
+  period?: ResolvedPeriod
+) {
   if (!UUID.test(teamId)) throw new Error('Expected a team UUID.');
   const catalogs = await query<{ catalog_material_id: string }>(
     `select catalog_material_id from public.analytics_catalog_updates
      where team_id = $1::uuid
+       ${period ? 'and ($3::timestamptz is null or started_at >= $3::timestamptz) and started_at <= $4::timestamptz' : ''}
      group by catalog_material_id
      order by max(started_at) desc
      limit $2`,
-    [teamId, Math.min(Math.max(limit, 1), 50)]
+    [teamId, Math.min(Math.max(limit, 1), 50), ...(period ? [period.start, period.end] : [])]
   );
   const diagnoses = [];
   for (const catalog of catalogs) {
-    diagnoses.push(await getCatalogUpdateDiagnosis(catalog.catalog_material_id, 3));
+    diagnoses.push(await getCatalogUpdateDiagnosis(catalog.catalog_material_id, 3, period));
   }
   return { team_id: teamId, catalogs: diagnoses };
 }
@@ -53,7 +59,7 @@ interface CatalogAttemptRow {
   video_preparation_lease_until?: string | null;
 }
 
-export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
+export async function getCatalogUpdateDiagnosis(id: string, limit = 10, period?: ResolvedPeriod) {
   if (!UUID.test(id)) throw new Error('Expected a catalog or attempt UUID.');
   const rows = await query<CatalogAttemptRow>(
     `
@@ -66,11 +72,12 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
            video_preparation_state, video_preparation_error,
            video_preparation_retry_at, video_preparation_lease_until, video_operation_state, video_operation_stage
     from public.analytics_catalog_updates
-    where catalog_material_id = $1::uuid or attempt_id = $1::uuid
+    where (catalog_material_id = $1::uuid or attempt_id = $1::uuid)
+      ${period ? 'and ($3::timestamptz is null or started_at >= $3::timestamptz) and started_at <= $4::timestamptz' : ''}
     order by started_at desc
     limit $2
   `,
-    [id, Math.min(Math.max(limit, 1), 50)]
+    [id, Math.min(Math.max(limit, 1), 50), ...(period ? [period.start, period.end] : [])]
   );
   const latest = rows[0] ?? null;
   // Optional projection: old deployments must report missing coverage explicitly.
@@ -79,13 +86,23 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
       where table_schema='public' and table_name='analytics_catalog_claim_eligibility') as present`
   );
   const eligibility =
-    available[0]?.present === true
+    !period?.as_of && available[0]?.present === true
       ? await query<Record<string, unknown>>(
           `select catalog_id, team_id, blockers, open_operations, prior_operations, native_claimants, native_claimants_truncated, observed_at from public.analytics_catalog_claim_eligibility where catalog_id=$1::uuid`,
           [latest?.catalog_material_id ?? id]
         )
       : null;
+  const historical = Boolean(period?.as_of);
+  const endedInWindow = (row: CatalogAttemptRow) =>
+    !period || Boolean(row.ended_at && Date.parse(row.ended_at) <= Date.parse(period.end));
   return {
+    temporal_scope: {
+      attempts: period ? 'started_at_in_requested_window' : 'bounded_recent_attempts',
+      current_fields: ['profile', 'last_success_at', 'last_error', 'video_preparation'],
+      current_fields_basis: 'current_snapshot_only',
+      observed_at: new Date().toISOString(),
+      as_of: period?.as_of ?? null
+    },
     claim_eligibility: {
       status: eligibility === null ? 'unavailable' : eligibility.length ? 'observed' : 'not_found',
       temporal_scope: 'current_snapshot_only',
@@ -128,22 +145,37 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10) {
       attempt_id: row.attempt_id,
       trigger: row.trigger_kind,
       started_at: row.started_at,
-      ended_at: row.ended_at,
-      result: row.result,
-      failure_code: row.failure_code,
-      code_locations: row.failure_code
-        ? lookupCodeLocations(`catalog:update:${row.failure_code}`)
-        : null,
-      delivery_verified_at: row.delivery_verified_at,
+      ended_at: endedInWindow(row) ? row.ended_at : null,
+      result: historical && !endedInWindow(row) ? 'unknown' : row.result,
+      failure_code: endedInWindow(row) ? row.failure_code : null,
+      code_locations:
+        endedInWindow(row) && row.failure_code
+          ? lookupCodeLocations(`catalog:update:${row.failure_code}`)
+          : null,
+      delivery_verified_at:
+        !period ||
+        (row.delivery_verified_at && Date.parse(row.delivery_verified_at) <= Date.parse(period.end))
+          ? row.delivery_verified_at
+          : null,
       profile_version: row.profile_version,
       schedule: row.attempt_schedule ?? null,
       source_attempt_id: row.source_attempt_id,
-      stages: row.stage_history ?? [],
-      actual_changes: row.actual_changes,
+      stages: (row.stage_history ?? []).filter(
+        stage => !period || Date.parse(stage.at) <= Date.parse(period.end)
+      ),
+      actual_changes: historical && !endedInWindow(row) ? null : row.actual_changes,
       delivery_proven:
-        row.delivery_verified_at !== null && (row.result === 'success' || row.result === 'partial')
+        Boolean(row.delivery_verified_at) &&
+        (!period || Date.parse(row.delivery_verified_at!) <= Date.parse(period.end)) &&
+        endedInWindow(row) &&
+        (row.result === 'success' || row.result === 'partial')
     })),
     blind_spots: [
+      ...(historical
+        ? [
+            'Current profile, last error/success and video preparation are live snapshots, not reconstructed as-of state. Attempts without a terminal at the cutoff remain unknown.'
+          ]
+        : []),
       ...(eligibility === null
         ? [
             'Server claim eligibility is not exposed by this deployment; an empty native claim does not explain why work was withheld.'

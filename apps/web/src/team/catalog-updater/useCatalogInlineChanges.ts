@@ -1,3 +1,4 @@
+import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { useEffect, useRef, useState } from 'react';
 import type {
   CatalogUpdateProfile,
@@ -70,6 +71,13 @@ export function useCatalogInlineChanges({
   onChanged?: () => void;
   clockOffsetMs?: number;
 }) {
+  const generation = useRef(0);
+  const previousScope = useRef({ teamId, client });
+  if (previousScope.current.teamId !== teamId || previousScope.current.client !== client) {
+    generation.current += 1;
+    previousScope.current = { teamId, client };
+  }
+  const readControllers = useRef(new Set<AbortController>());
   const [snapshots, setSnapshots] = useState<Record<string, CatalogSnapshot>>({});
   const [states, setStates] = useState<Record<string, InlineChangeState>>({});
   const [undo, setUndo] = useState<CatalogUndo[]>([]);
@@ -79,10 +87,18 @@ export function useCatalogInlineChanges({
   const visibleFlows = useRef(new Map<string, CatalogUiFlow>());
   useEffect(
     () => () => {
+      generation.current += 1;
+      for (const controller of readControllers.current) controller.abort();
       for (const flow of visibleFlows.current.values()) flow.cancel();
     },
     []
   );
+  useEffect(() => {
+    setSnapshots({});
+    setStates({});
+    setUndo([]);
+    locks.current.clear();
+  }, [teamId, client]);
   const snapshotFor = (id: string): CatalogSnapshot | undefined => {
     const row = current.current.rows.find(row => row.catalogId === id);
     const local = current.current.snapshots[id];
@@ -100,14 +116,13 @@ export function useCatalogInlineChanges({
     setSnapshots(current.current.snapshots);
   };
   const read = async (id: string): Promise<CatalogSnapshot> => {
-    const [profiles, catalogs] = await Promise.all([
-      client.listCatalogUpdateProfiles?.(teamId),
-      client.listTeamProductCatalogs(teamId)
-    ]);
-    const catalog = catalogs.find(row => row.catalogId === id);
-    const profile = profiles?.find(profile => profile.catalogId === id) ?? catalog?.profile;
-    if (!profile || !catalog) throw new Error('Catalog profile unavailable');
-    return { profile, interval: catalog.updateInterval, nextRunAt: catalog.nextRunAt };
+    const controller = new AbortController();
+    readControllers.current.add(controller);
+    try {
+      return await readCatalogSnapshot(client, teamId, id, controller.signal);
+    } finally {
+      readControllers.current.delete(controller);
+    }
   };
   const settle = (
     id: string,
@@ -139,6 +154,12 @@ export function useCatalogInlineChanges({
     value: Value,
     undoEntry?: CatalogUndo
   ): Promise<{ confirmed: boolean; error?: unknown }> => {
+    const epoch = generation.current;
+    const active = () => generation.current === epoch;
+    const obsolete = () => ({
+      confirmed: false,
+      error: new DOMException('Catalog scope changed', 'AbortError')
+    });
     if (locks.current.has(id) || !client.patchCatalogUpdateProfile)
       return { confirmed: false, error: new TeamApiError('WRONG_STATE', false) };
     const base = snapshotFor(id);
@@ -158,6 +179,10 @@ export function useCatalogInlineChanges({
     try {
       if (undoEntry) {
         expected = await read(id);
+        if (!active()) {
+          flow.cancel();
+          return obsolete();
+        }
         publish(id, expected);
         if (
           expected.profile.version !== undoEntry.version ||
@@ -186,6 +211,10 @@ export function useCatalogInlineChanges({
             }
           : { [field]: value }) as CatalogUpdateProfilePatch
       );
+      if (!active()) {
+        flow.cancel();
+        return obsolete();
+      }
       if (
         !equal(
           readValue(
@@ -222,6 +251,10 @@ export function useCatalogInlineChanges({
         Boolean(undoEntry)
       );
     } catch (cause) {
+      if (!active()) {
+        flow.cancel();
+        return obsolete();
+      }
       const conflict = cause instanceof TeamApiError && cause.code === 'STALE_RESULT';
       if (conflict) failure = cause;
       // A typed server rejection proves no write. Transport failures require reconciliation.
@@ -241,6 +274,10 @@ export function useCatalogInlineChanges({
         flow.stage(conflict ? 'conflict' : 'readback_requested');
         try {
           const latest = await read(id);
+          if (!active()) {
+            flow.cancel();
+            return obsolete();
+          }
           publish(id, latest);
           if (
             !conflict &&
@@ -263,6 +300,10 @@ export function useCatalogInlineChanges({
             flow.fail(conflict ? 'CONFLICT' : 'UNKNOWN');
           }
         } catch {
+          if (!active()) {
+            flow.cancel();
+            return obsolete();
+          }
           setStates(current => ({
             ...current,
             [id]: { phase: 'unknown', field, intended: value, code: 'UNKNOWN' }
@@ -271,7 +312,7 @@ export function useCatalogInlineChanges({
         }
       }
     } finally {
-      locks.current.delete(id);
+      if (active()) locks.current.delete(id);
     }
     return { confirmed, error: confirmed ? undefined : failure };
   };
@@ -282,12 +323,19 @@ export function useCatalogInlineChanges({
     if (!result.confirmed) throw result.error;
   };
   const reconcile = async (id: string) => {
+    const epoch = generation.current;
+    const active = () => generation.current === epoch;
     if (locks.current.has(id)) return;
     locks.current.add(id);
     const flow = beginCatalogUiFlow('profile', { count: 1 });
     flow.stage('readback_requested');
     try {
-      publish(id, await read(id));
+      const latest = await read(id);
+      if (!active()) {
+        flow.cancel();
+        return;
+      }
+      publish(id, latest);
       setStates(current => {
         const next = { ...current };
         delete next[id];
@@ -296,9 +344,10 @@ export function useCatalogInlineChanges({
       visibleFlows.current.set(id, flow);
       reload();
     } catch {
-      flow.fail('READ_FAILED');
+      if (active()) flow.fail('READ_FAILED');
+      else flow.cancel();
     } finally {
-      locks.current.delete(id);
+      if (active()) locks.current.delete(id);
     }
   };
   const blocked = (id: string) => locks.current.has(id) || states[id]?.phase === 'unknown';

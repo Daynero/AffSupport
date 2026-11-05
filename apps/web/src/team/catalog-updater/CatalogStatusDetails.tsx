@@ -1,3 +1,4 @@
+import { createReadCoordinator, withReadDeadline } from '../readCoordinator';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateAttempt } from '@video-compressor/shared';
 import { Button } from '../../components/ui/index';
@@ -29,7 +30,11 @@ export function CatalogStatusDetails({
   teamId: string;
   catalogId: string;
   currentProfileVersion?: number;
-  load: (teamId: string, catalogId: string) => Promise<CatalogUpdateAttempt[]>;
+  load: (
+    teamId: string,
+    catalogId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogUpdateAttempt[]>;
   onClose: () => void;
   onRetry?: (sourceAttemptId: string) => Promise<void> | void;
   retryDisabled?: boolean;
@@ -60,29 +65,37 @@ export function CatalogStatusDetails({
   };
   useEffect(() => {
     let active = true;
-    let inFlight = false;
+    setAttempts(null);
+    setError(false);
+    const reader = createReadCoordinator(async signal => {
+      const rows = await withReadDeadline(
+        child => load(teamId, catalogId, { signal: child }),
+        signal
+      );
+      if (active && !signal.aborted) {
+        setAttempts(rows);
+        setError(false);
+      }
+    });
     const refresh = () => {
-      if (inFlight) return;
-      inFlight = true;
-      void load(teamId, catalogId)
-        .then(rows => {
-          if (active) {
-            setAttempts(rows);
-            setError(false);
-          }
-        })
-        .catch(() => {
-          if (active) setError(true);
-        })
-        .finally(() => {
-          inFlight = false;
-        });
+      if (document.hidden || reader.isRunning()) return;
+      reader.start();
+      void reader.request().catch(() => {
+        if (active && !document.hidden) setError(true);
+      });
+    };
+    const visibility = () => {
+      if (document.hidden) reader.stop();
+      else refresh();
     };
     refresh();
+    document.addEventListener('visibilitychange', visibility);
     const timer = checkingDelivery ? window.setInterval(refresh, 5000) : null;
     return () => {
-      if (timer !== null) window.clearInterval(timer);
       active = false;
+      reader.stop();
+      document.removeEventListener('visibilitychange', visibility);
+      if (timer !== null) window.clearInterval(timer);
     };
   }, [teamId, catalogId, load, revision, checkingDelivery]);
   const date = new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {

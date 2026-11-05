@@ -1,3 +1,4 @@
+import { getTeamProcessJournalEvidence, mergeTeamProcessJournal } from './team-process-journal.js';
 import { getOriginalJournalEvidence, inspectOriginalJournal } from './transcription-journal.js';
 import {
   getTranslationRetirementEvidence,
@@ -1511,7 +1512,7 @@ const auditEventsCte = (attemptId: string) => `with reg as (
        join reg r on r.event_name = e.event_name and (r.tool is null or e.tool = r.tool)
          and (r.flow_step is null or e.properties ->> 'flow_step' = r.flow_step)
          and (r.capability not like 'accounts.%' or e.properties ->> 'account_action' = substring(r.capability from 10))
-       where ${EVENTS_RANGE}
+       where ${EVENTS_RANGE} and e.event_name = any($4::text[])
      )`;
 
 interface CatalogSettingsAuditEvidence {
@@ -1609,6 +1610,27 @@ async function getRetirementAudit(
 
 export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const schema = await getSchema();
+  const sources: NonNullable<AuditData['sources']> = [];
+  const readSource = async <T>(id: string, read: () => Promise<T>): Promise<T | null> => {
+    try {
+      const value = await read();
+      sources.push({ id, status: 'available' });
+      return value;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      const reason =
+        code === '57014'
+          ? 'timeout'
+          : code === '42501'
+            ? 'permission'
+            : ['42P01', '42703'].includes(code)
+              ? 'schema'
+              : null;
+      if (!reason) throw error;
+      sources.push({ id, status: 'unavailable', reason });
+      return null;
+    }
+  };
   const AUDIT_EVENTS_CTE = auditEventsCte(eventColumnSql(schema).attemptId);
   const tuples = registryTuples();
   const params = [
@@ -1621,53 +1643,70 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     tuples.map(t => t.flowStep)
   ];
 
-  const observed = await query<{
-    capability: string;
-    role: SignalRole;
-    event_name: string;
-    events: number;
-    users: number;
-    correlated: number;
-  }>(
-    `${AUDIT_EVENTS_CTE}
+  const observed =
+    (await readSource(
+      'observed',
+      async () =>
+        await query<{
+          capability: string;
+          role: SignalRole;
+          event_name: string;
+          events: number;
+          users: number;
+          correlated: number;
+        }>(
+          `${AUDIT_EVENTS_CTE}
      select capability, role, event_name, count(*)::int as events,
        count(distinct user_id)::int as users, count(cid)::int as correlated
      from ev group by 1, 2, 3 order by 1, 2, 3`,
-    params
-  );
+          params
+        )
+    )) ?? [];
 
-  const pairs = await query<{
-    capability: string;
-    orphan_starts: number;
-    correlated_pairs: number;
-  }>(
-    `${AUDIT_EVENTS_CTE}, starts as (
-       select distinct capability, user_id, cid from ev where role = 'start' and cid is not null
-     ), terms as (
-       select distinct capability, user_id, cid from ev where role = 'terminal' and cid is not null
+  const pairs =
+    (await readSource(
+      'pairs',
+      async () =>
+        await query<{
+          capability: string;
+          orphan_starts: number;
+          correlated_pairs: number;
+        }>(
+          `${AUDIT_EVENTS_CTE}, correlated as (
+       select capability, user_id, cid,
+         bool_or(role = 'start') as has_start,
+         bool_or(role = 'terminal') as has_terminal
+       from ev where role in ('start', 'terminal') and cid is not null
+       group by capability, user_id, cid
      )
-     select s.capability,
-       count(*) filter (where t.cid is null)::int as orphan_starts,
-       count(*) filter (where t.cid is not null)::int as correlated_pairs
-     from starts s left join terms t on t.capability = s.capability and t.user_id = s.user_id and t.cid = s.cid
-     group by 1 order by 1`,
-    params
-  );
+     select capability,
+       count(*) filter (where has_start and (not has_terminal or user_id is null))::int as orphan_starts,
+       count(*) filter (where has_start and has_terminal and user_id is not null)::int as correlated_pairs
+     from correlated group by capability order by capability`,
+          params
+        )
+    )) ?? [];
 
   // The sync view is the authoritative source for one capability; a role that cannot see it
   // counts nothing there, and `schema` says so.
-  const syncJobs = schema.tables.analytics_catalog_sync_jobs
-    ? await queryOne<{ jobs: number }>(
-        `select count(*)::int as jobs
+  const syncJobs = await readSource('syncJobs', async () =>
+    schema.tables.analytics_catalog_sync_jobs
+      ? await queryOne<{ jobs: number }>(
+          `select count(*)::int as jobs
          from public.analytics_catalog_sync_jobs j
          where ($1::timestamptz is null or j.created_at >= $1::timestamptz)
            and j.created_at <= $2::timestamptz`,
-        rangeParams(period)
-      )
-    : null;
+          rangeParams(period)
+        )
+      : null
+  );
 
-  const unknownCodes = await query<AuditUnknownCode>(
-    `select coalesce(e.tool, 'unknown') as tool,
+  const unknownCodes =
+    (await readSource(
+      'unknownCodes',
+      async () =>
+        await query<AuditUnknownCode>(
+          `select coalesce(e.tool, 'unknown') as tool,
        count(*) filter (
          where coalesce(e.error_code, e.properties ->> 'error_code', 'unknown') = 'unknown'
        )::int as unknown_code,
@@ -1678,16 +1717,20 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
      from public.analytics_events e
      where ${EVENTS_RANGE} and (e.event_name like '%failed' or e.event_name = 'error_occurred')
      group by 1 order by 1`,
-    rangeParams(period)
-  );
+          rangeParams(period)
+        )
+    )) ?? [];
 
-  const deliveryTotals = await queryOne<{
-    reports: number;
-    rejected: number;
-    evicted: number;
-    expired: number;
-  }>(
-    `select count(*)::int as reports,
+  const deliveryTotals = await readSource(
+    'deliveryTotals',
+    async () =>
+      await queryOne<{
+        reports: number;
+        rejected: number;
+        evicted: number;
+        expired: number;
+      }>(
+        `select count(*)::int as reports,
        coalesce(sum(case when jsonb_typeof(e.properties -> 'rejected_count') = 'number'
          then (e.properties ->> 'rejected_count')::numeric else 0 end), 0)::int as rejected,
        coalesce(sum(case when jsonb_typeof(e.properties -> 'evicted_count') = 'number'
@@ -1696,15 +1739,20 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
          then (e.properties ->> 'expired_count')::numeric else 0 end), 0)::int as expired
      from public.analytics_events e
      where ${EVENTS_RANGE} and e.event_name = 'analytics_delivery_report'`,
-    rangeParams(period)
+        rangeParams(period)
+      )
   );
 
-  const deliveryByEvent = await query<{
-    event_name: string;
-    rejected_reports: number;
-    evicted_reports: number;
-  }>(
-    `with reports as (
+  const deliveryByEvent =
+    (await readSource(
+      'deliveryByEvent',
+      async () =>
+        await query<{
+          event_name: string;
+          rejected_reports: number;
+          evicted_reports: number;
+        }>(
+          `with reports as (
        select e.properties from public.analytics_events e
        where ${EVENTS_RANGE} and e.event_name = 'analytics_delivery_report'
      ), names as (
@@ -1718,20 +1766,29 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
        count(*) filter (where kind = 'rejected')::int as rejected_reports,
        count(*) filter (where kind = 'evicted')::int as evicted_reports
      from names where event_name <> '' group by 1 order by 1`,
-    rangeParams(period)
-  );
+          rangeParams(period)
+        )
+    )) ?? [];
 
-  const builds = await query<{ web_build_id: string; covered: boolean }>(
-    `select e.web_build_id,
+  const builds =
+    (await readSource(
+      'builds',
+      async () =>
+        await query<{ web_build_id: string; covered: boolean }>(
+          `select e.web_build_id,
        bool_or(e.event_name in (${LINK_EVENT_LIST})) as covered
      from public.analytics_events e
      where ${EVENTS_RANGE} and e.web_build_id is not null
      group by e.web_build_id
      order by e.web_build_id asc`,
-    rangeParams(period)
-  );
+          rangeParams(period)
+        )
+    )) ?? [];
 
-  const deliveryLag = await getDeliveryLag(period);
+  const deliveryLag = (await readSource(
+    'deliveryLag',
+    async () => await getDeliveryLag(period)
+  )) ?? { p50: null, p95: null, samples: 0 };
 
   const observedBy = new Map<string, typeof observed>();
   for (const row of observed) {
@@ -1742,12 +1799,30 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   const pairsBy = new Map(pairs.map(row => [row.capability, row]));
 
   const eventStatuses = registryEventStatuses();
-  const launchAudit = await getLaunchAudit(period.start, period.end);
-  const catalogSettingsAudit = await getCatalogSettingsAudit(period);
-  const catalogImageAudit = await getCatalogImageAudit(period);
-  const textScheduleAudit = await getCatalogTextScheduleDiagnosis(null, period);
-  const recoveryAudit = await getRecoveryEvidence(null, period.start, period.end);
-  const retirementAudit = await getRetirementAudit(period, schema);
+  const launchAudit = await readSource(
+    'launchAudit',
+    async () => await getLaunchAudit(period.start, period.end)
+  );
+  const catalogSettingsAudit = await readSource(
+    'catalogSettingsAudit',
+    async () => await getCatalogSettingsAudit(period)
+  );
+  const catalogImageAudit = await readSource(
+    'catalogImageAudit',
+    async () => await getCatalogImageAudit(period)
+  );
+  const textScheduleAudit = await readSource(
+    'textScheduleAudit',
+    async () => await getCatalogTextScheduleDiagnosis(null, period)
+  );
+  const recoveryAudit = await readSource(
+    'recoveryAudit',
+    async () => await getRecoveryEvidence(null, period.start, period.end)
+  );
+  const retirementAudit = await readSource(
+    'retirementAudit',
+    async () => await getRetirementAudit(period, schema)
+  );
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
@@ -1756,24 +1831,68 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       pairsBy.get(capability.id),
       syncJobs ? syncJobs.jobs : null,
       launchAudit,
-      catalogSettingsAudit,
-      recoveryAudit,
-      retirementAudit,
+      catalogSettingsAudit ?? {
+        missing: ['catalogSettingsAudit_unavailable'],
+        installed_at: null,
+        capture_enabled: null,
+        schema_version: null,
+        observations: 0,
+        changes: 0
+      },
+      recoveryAudit ?? { supported: false, items: [], blind_spots: ['recoveryAudit_unavailable'] },
+      retirementAudit ?? {
+        supported: false,
+        samples: 0,
+        pending_server: 0,
+        pending_local: 0,
+        unknown: 0
+      },
       period,
       Boolean(schema.tables.analytics_recovery_retirement),
-      catalogImageAudit,
-      textScheduleAudit
+      catalogImageAudit ?? undefined,
+      textScheduleAudit ?? undefined
     )
   );
 
+  const unavailable = new Set(
+    sources.filter(source => source.status === 'unavailable').map(source => source.id)
+  );
+  const projectionSources: Record<string, string> = {
+    'team.launches': 'launchAudit',
+    'team.catalog_settings': 'catalogSettingsAudit',
+    'team.catalog_images': 'catalogImageAudit',
+    'team.catalog_text_schedule': 'textScheduleAudit',
+    'team.tariff_recovery': 'recoveryAudit',
+    'team.recovery_retirement': 'retirementAudit',
+    'team.sync': 'syncJobs'
+  };
+  for (const capability of capabilities) {
+    const projection = projectionSources[capability.id];
+    const missingSources = [
+      ...(projection && unavailable.has(projection) ? [projection] : []),
+      ...(capability.source === 'events' && !projection
+        ? ['observed', 'pairs'].filter(id => unavailable.has(id))
+        : [])
+    ];
+    if (!missingSources.length) continue;
+    capability.status = 'partial';
+    capability.missing.push(...missingSources.map(id => `source_unavailable:${id}`));
+    if (projection || unavailable.has('observed')) capability.samples = null;
+    if (unavailable.has('pairs')) {
+      capability.orphan_starts = null;
+      capability.correlated_pairs = null;
+    }
+  }
+
   const delivery: AuditDelivery = {
-    reports: deliveryTotals?.reports ?? 0,
-    rejected: deliveryTotals?.rejected ?? 0,
-    evicted: deliveryTotals?.evicted ?? 0,
-    expired: deliveryTotals?.expired ?? 0,
+    reports: unavailable.has('deliveryTotals') ? null : (deliveryTotals?.reports ?? 0),
+    rejected: unavailable.has('deliveryTotals') ? null : (deliveryTotals?.rejected ?? 0),
+    evicted: unavailable.has('deliveryTotals') ? null : (deliveryTotals?.evicted ?? 0),
+    expired: unavailable.has('deliveryTotals') ? null : (deliveryTotals?.expired ?? 0),
     by_event: deliveryByEvent,
-    note:
-      (deliveryTotals?.reports ?? 0) === 0
+    note: unavailable.has('deliveryTotals')
+      ? 'delivery source unavailable; losses are unknown'
+      : (deliveryTotals?.reports ?? 0) === 0
         ? 'no analytics_delivery_report in the period: losses are unknown, not zero'
         : 'sums of the client-side counters carried by analytics_delivery_report'
   };
@@ -1795,12 +1914,12 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
   }
 
   return {
-    translation_retirement: await getTranslationRetirementEvidence(
-      null,
-      period.start,
-      period.end,
-      'all'
-    ),
+    translation_retirement:
+      (await readSource('translation_retirement', () =>
+        getTranslationRetirementEvidence(null, period.start, period.end, 'all')
+      )) ?? undefined,
+    sources,
+    completeness: sources.some(source => source.status === 'unavailable') ? 'partial' : 'complete',
     registry_size: COVERAGE_REGISTRY.length,
     capabilities,
     unknown_codes: unknownCodes,
@@ -2131,11 +2250,11 @@ function auditFindings(
         evidence
       );
     }
-    if (capability.orphan_starts > 0) {
+    if ((capability.orphan_starts ?? 0) > 0) {
       add(
         capability.id,
         'orphan_starts',
-        capability.orphan_starts > capability.correlated_pairs ? 'medium' : 'low',
+        (capability.orphan_starts ?? 0) > (capability.correlated_pairs ?? 0) ? 'medium' : 'low',
         [],
         [
           `${capability.orphan_starts} start id(s) without a terminal in the period`,
@@ -2163,14 +2282,20 @@ function auditFindings(
   }
 
   const lost = [
-    ...(delivery.rejected > 0 ? ['rejected'] : []),
-    ...(delivery.evicted > 0 ? ['evicted'] : []),
-    ...(delivery.expired > 0 ? ['expired'] : [])
+    ...((delivery.rejected ?? 0) > 0 ? ['rejected'] : []),
+    ...((delivery.evicted ?? 0) > 0 ? ['evicted'] : []),
+    ...((delivery.expired ?? 0) > 0 ? ['expired'] : [])
   ];
   if (lost.length > 0) {
-    add('analytics.delivery', 'delivery_losses', delivery.rejected > 0 ? 'high' : 'medium', lost, [
-      `rejected ${delivery.rejected}, evicted ${delivery.evicted}, expired ${delivery.expired} across ${delivery.reports} report(s)`
-    ]);
+    add(
+      'analytics.delivery',
+      'delivery_losses',
+      (delivery.rejected ?? 0) > 0 ? 'high' : 'medium',
+      lost,
+      [
+        `rejected ${delivery.rejected}, evicted ${delivery.evicted}, expired ${delivery.expired} across ${delivery.reports} report(s)`
+      ]
+    );
   }
 
   return findings.sort(
@@ -2195,12 +2320,14 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
-  const [core, retirement, translation, initialOriginal] = await Promise.all([
+  const [initialCore, retirement, translation, initialOriginal, nativeTeam] = await Promise.all([
     getInspectCore(id, asOf, limit),
     getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z'),
     getTranslationRetirementEvidence(id, null, asOf ?? new Date().toISOString(), 'identity', limit),
-    getOriginalJournalEvidence(id, asOf ?? new Date().toISOString())
+    getOriginalJournalEvidence(id, asOf ?? new Date().toISOString()),
+    getTeamProcessJournalEvidence(id, asOf ?? new Date().toISOString())
   ]);
+  const core = mergeTeamProcessJournal(initialCore, nativeTeam);
   let original = initialOriginal;
   if (core.found && original.attempts.length === 0 && original.supported) {
     const bindings = [

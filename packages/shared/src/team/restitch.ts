@@ -597,3 +597,8 @@ export function parseRestitchScreens(value: unknown): RestitchParse<RestitchScre
   }
   return { ok: true, value: screens };
 }
+
+/** Bounded image recovery and version-scoped refusal memory shared by web and agent. */
+export const RESTITCH_SCREEN_SELECTION_MAX_CANDIDATES = 32;
+export const RESTITCH_SCREEN_REFUSAL_TTL_MS = 24 * 60 * 60 * 1000;
+export const RESTITCH_SCREEN_REFUSAL_LIMIT = 512;

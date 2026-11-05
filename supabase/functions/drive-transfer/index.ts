@@ -40,6 +40,7 @@ import {
   authorizePreviewRange,
   boundedResponseBody,
   buildDownloadGrantResult,
+  resolveDownloadMaterial,
   buildPreviewResult,
   ensureLandingArtifactFolder,
   forwardedRangeHeaders,
@@ -1664,8 +1665,27 @@ Deno.serve(async request => {
         })
       );
       if (!material) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+      const downloadable = await resolveDownloadMaterial(material, async () => {
+        const context = transferContext(
+          await rpcValue(configured.service, 'service_get_material_transfer_context', {
+            p_team: teamId.value,
+            p_material: materialId.value,
+            p_actor: userId
+          })
+        );
+        if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+        const drive = await driveClient(configured.service, context.credentialId, request);
+        const live = await proveLiveAncestry({
+          client: drive,
+          fileId: context.driveFileId,
+          rootFolderId: context.rootFolderId,
+          resourceKey: context.resourceKey
+        });
+        requireDriveCapability(live, 'canDownload');
+        return { ...live, canDownload: live.capabilities.canDownload === true };
+      });
       const result = await buildDownloadGrantResult(
-        material,
+        downloadable,
         { consumer: consumer.value, rangeEndpoint: rangeEndpoint(request) },
         value => issueDownloadGrant(configured.service, value, userId, consumer.value)
       );

@@ -27,8 +27,13 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import type { RestitchScreen, TeamTransferGrant } from '@video-compressor/shared';
-import { RESTITCH_SCREEN_MAX_BYTES } from '@video-compressor/shared';
-import { probeImage } from '../ffmpeg/tools.js';
+import {
+  RESTITCH_SCREEN_MAX_BYTES,
+  RESTITCH_SCREEN_REFUSAL_TTL_MS,
+  RESTITCH_SCREEN_REFUSAL_LIMIT
+} from '@video-compressor/shared';
+import { decodeRestitchScreen } from './screen-decode.js';
+import type { probeImage } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { diagnostics } from '../server/diagnostics-log.js';
 import type { DownloadedTeamSource, TeamSourceDownloadRequest } from './transfer.js';
@@ -49,13 +54,32 @@ export class ScreenCacheError extends Error {
   }
 }
 
+function cacheWriteError(cause: unknown): ScreenCacheError {
+  const diskFull = cause && typeof cause === 'object' && 'code' in cause && cause.code === 'ENOSPC';
+  return new ScreenCacheError(
+    diskFull ? 'DISK_FULL' : 'RESTITCH_SCREEN_FETCH_FAILED',
+    'cache_write_failed'
+  );
+}
+
 interface IndexEntry {
   teamId: string;
   lastUsedAt: number;
   sizeBytes: number;
 }
 
+interface ScreenRefusal {
+  teamId: string;
+  scope: string;
+  slot: RestitchScreen['slot'];
+  materialId: string;
+  checksum: string;
+  rejectedAt: number;
+}
+export const SCREEN_REFUSAL_TTL_MS = RESTITCH_SCREEN_REFUSAL_TTL_MS;
+export const SCREEN_REFUSAL_LIMIT = RESTITCH_SCREEN_REFUSAL_LIMIT;
 interface ScreenIndex {
+  refusals?: ScreenRefusal[];
   entries: Record<string, IndexEntry>;
 }
 
@@ -74,6 +98,7 @@ export interface ScreenCacheDeps {
     ) => Promise<DownloadedTeamSource>;
   };
   probe?: typeof probeImage;
+  decode?: typeof decodeRestitchScreen;
   now?: () => number;
   log?: (message: string) => void;
 }
@@ -104,6 +129,8 @@ export class TeamScreenCache {
   readonly #deps: ScreenCacheDeps;
   #index: ScreenIndex | null = null;
   #paths = new Map<string, string>();
+  #saveTail: Promise<void> = Promise.resolve();
+  #loading: Promise<ScreenIndex> | null = null;
 
   constructor(deps: ScreenCacheDeps, root = path.join(applicationSupportRoot(), TEAM_SCREENS_DIR)) {
     this.#root = root;
@@ -127,24 +154,73 @@ export class TeamScreenCache {
   async resolve(
     teamId: string,
     screens: readonly RestitchScreen[],
-    signal: AbortSignal
+    signal: AbortSignal,
+    scope = '',
+    operationId?: string
   ): Promise<ResolvedScreen[]> {
-    await mkdir(this.#root, { recursive: true });
+    signal.throwIfAborted();
+    await mkdir(this.#root, { recursive: true }).catch(cause => {
+      throw cacheWriteError(cause);
+    });
     const index = await this.#load();
     const resolved: ResolvedScreen[] = [];
     for (const screen of screens) {
+      signal.throwIfAborted();
       const key = screenCacheKey(screen);
       if (!KEY.test(key) || screen.sizeBytes > RESTITCH_SCREEN_MAX_BYTES) {
         throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
       }
       const file = path.join(this.#root, `${key}${EXTENSION[screen.mimeType]}`);
-      let have = await this.#usable(file, screen);
+      let have = await this.#usable(file, screen, signal);
+      signal.throwIfAborted();
       if (!have) {
         if (!screen.transfer) throw new ScreenCacheError('RESTITCH_SCREEN_UNAVAILABLE');
         try {
           await this.#fetch(file, screen, screen.transfer, signal);
           have = true;
         } catch (error) {
+          signal.throwIfAborted();
+          if (
+            (error instanceof ScreenCacheError &&
+              (error.code === 'RESTITCH_SCREEN_UNSUPPORTED' ||
+                error.reason === 'checksum_mismatch')) ||
+            (error instanceof Error &&
+              ['NOT_FOUND', 'SOURCE_CHANGED', 'UNSUPPORTED_MEDIA'].includes(error.message))
+          ) {
+            const now = this.#now();
+            index.refusals = [
+              ...(index.refusals ?? []).filter(
+                item =>
+                  now - item.rejectedAt < SCREEN_REFUSAL_TTL_MS &&
+                  !(
+                    item.teamId === teamId &&
+                    item.scope === scope &&
+                    item.slot === screen.slot &&
+                    item.materialId === screen.materialId &&
+                    item.checksum === screen.checksum
+                  )
+              ),
+              {
+                teamId,
+                scope,
+                slot: screen.slot,
+                materialId: screen.materialId,
+                checksum: screen.checksum,
+                rejectedAt: now
+              }
+            ].slice(-SCREEN_REFUSAL_LIMIT);
+            await this.#save(index);
+            diagnostics.record('team', 'screen_candidate_rejected', {
+              ...(operationId ? { operationId } : {}),
+              materialId: screen.materialId,
+              reason:
+                error instanceof ScreenCacheError
+                  ? error.code === 'RESTITCH_SCREEN_UNSUPPORTED'
+                    ? 'unsupported_image'
+                    : error.reason
+                  : 'source_unavailable'
+            });
+          }
           if (error instanceof ScreenCacheError && error.code === 'RESTITCH_SCREEN_UNSUPPORTED') {
             throw error;
           }
@@ -156,13 +232,53 @@ export class TeamScreenCache {
             : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED');
         }
       }
+      signal.throwIfAborted();
       const size = (await stat(file)).size;
+      index.refusals = (index.refusals ?? []).filter(
+        item =>
+          !(
+            item.teamId === teamId &&
+            item.scope === scope &&
+            item.slot === screen.slot &&
+            item.materialId === screen.materialId &&
+            item.checksum.toLowerCase() === screen.checksum.toLowerCase()
+          )
+      );
       index.entries[key] = { teamId, lastUsedAt: this.#now(), sizeBytes: size };
       this.#paths.set(key, file);
       resolved.push({ slot: screen.slot, id: screenAssetId(screen), path: file });
     }
     await this.#save(index);
     return resolved;
+  }
+
+  async refusalHistory(teamId: string) {
+    const index = await this.#load();
+    return (index.refusals ?? [])
+      .filter(
+        item => item.teamId === teamId && this.#now() - item.rejectedAt < SCREEN_REFUSAL_TTL_MS
+      )
+      .map(({ scope, slot, materialId, checksum }) => ({
+        settingsRevision: scope,
+        slot,
+        materialId,
+        checksum
+      }));
+  }
+
+  async refused(
+    teamId: string,
+    scope = ''
+  ): Promise<Array<Pick<ScreenRefusal, 'slot' | 'materialId' | 'checksum'>>> {
+    const index = await this.#load();
+    return (index.refusals ?? [])
+      .filter(
+        item =>
+          item.teamId === teamId &&
+          item.scope === scope &&
+          this.#now() - item.rejectedAt < SCREEN_REFUSAL_TTL_MS
+      )
+      .map(({ slot, materialId, checksum }) => ({ slot, materialId, checksum }));
   }
 
   /**
@@ -196,14 +312,39 @@ export class TeamScreenCache {
     return gone.length;
   }
 
-  async #usable(file: string, screen: RestitchScreen): Promise<boolean> {
+  async #usable(file: string, screen: RestitchScreen, signal: AbortSignal): Promise<boolean> {
     try {
       await access(file, constants.R_OK);
     } catch {
       return false;
     }
-    const image = await (this.#deps.probe ?? probeImage)(file);
-    return Boolean(image && image.codec === CODEC[screen.mimeType]);
+    const size = (await stat(file)).size;
+    if (size < 1 || size > RESTITCH_SCREEN_MAX_BYTES) return false;
+    const digest = createHash('md5')
+      .update(await readFile(file))
+      .digest('hex');
+    if (digest !== screen.checksum.toLowerCase()) return false;
+    return this.#valid(file, screen, signal);
+  }
+
+  async #valid(file: string, screen: RestitchScreen, signal: AbortSignal): Promise<boolean> {
+    signal.throwIfAborted();
+    // An injected metadata probe may add a check; production always does a strict full decode.
+    if (this.#deps.probe) {
+      const image = await this.#deps.probe(file, undefined, { countFrames: true });
+      if (!image || image.codec !== CODEC[screen.mimeType] || image.frames !== 1) return false;
+    }
+    try {
+      return await (this.#deps.decode ?? decodeRestitchScreen)(file, screen.mimeType, signal);
+    } catch (cause) {
+      signal.throwIfAborted();
+      if (
+        cause instanceof Error &&
+        ['MEDIA_TOOL_UNAVAILABLE', 'RESTITCH_SCREEN_SELECTION_LIMIT'].includes(cause.message)
+      )
+        throw new ScreenCacheError(cause.message);
+      throw cause;
+    }
   }
 
   async #fetch(
@@ -228,7 +369,13 @@ export class TeamScreenCache {
       signal
     );
     try {
-      if (downloaded.sizeBytes < 1 || downloaded.sizeBytes > RESTITCH_SCREEN_MAX_BYTES) {
+      const actualSize = (await stat(downloaded.file)).size;
+      if (
+        actualSize < 1 ||
+        actualSize > RESTITCH_SCREEN_MAX_BYTES ||
+        downloaded.sizeBytes < 1 ||
+        downloaded.sizeBytes > RESTITCH_SCREEN_MAX_BYTES
+      ) {
         throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
       }
       const bytes = await readFile(downloaded.file);
@@ -236,24 +383,18 @@ export class TeamScreenCache {
       const expected = screen.checksum.toLowerCase();
       // The catalog's md5 is what the key is made of; bytes that disagree with it would be
       // cached under a name that lies about them, which is worse than no cache at all.
-      if (digest !== expected && (downloaded.sourceChecksum ?? '').toLowerCase() !== expected) {
+      if (digest !== expected) {
         throw new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED', 'checksum_mismatch');
       }
-      const image = await (this.#deps.probe ?? probeImage)(downloaded.file, undefined, {
-        countFrames: true
-      });
-      if (!image || image.codec !== CODEC[screen.mimeType] || (image.frames ?? 1) > 1) {
+      if (!(await this.#valid(downloaded.file, screen, signal)))
         throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
-      }
       const staged = `${file}.part-${process.pid}-${Date.now()}`;
       try {
         await writeFile(staged, bytes, { flag: 'wx' });
         await rename(staged, file);
       } catch (error) {
         await unlink(staged).catch(() => {});
-        throw error instanceof ScreenCacheError
-          ? error
-          : new ScreenCacheError('RESTITCH_SCREEN_FETCH_FAILED', 'cache_write_failed');
+        throw error instanceof ScreenCacheError ? error : cacheWriteError(error);
       }
     } finally {
       await downloaded.cleanup().catch(() => {});
@@ -279,7 +420,17 @@ export class TeamScreenCache {
   }
 
   async #load(): Promise<ScreenIndex> {
+    if (this.#loading) return this.#loading;
     if (this.#index) return this.#index;
+    this.#loading = this.#readIndex();
+    try {
+      return await this.#loading;
+    } finally {
+      this.#loading = null;
+    }
+  }
+
+  async #readIndex(): Promise<ScreenIndex> {
     try {
       const parsed: unknown = JSON.parse(
         await readFile(path.join(this.#root, 'index.json'), 'utf8')
@@ -288,7 +439,38 @@ export class TeamScreenCache {
         typeof parsed === 'object' && parsed !== null && 'entries' in parsed
           ? (parsed as { entries: unknown }).entries
           : null;
-      this.#index = { entries: {} };
+      this.#index = { entries: {}, refusals: [] };
+      const refusals =
+        typeof parsed === 'object' && parsed !== null && 'refusals' in parsed
+          ? parsed.refusals
+          : null;
+      if (Array.isArray(refusals))
+        for (const item of refusals.slice(-SCREEN_REFUSAL_LIMIT)) {
+          if (
+            typeof item !== 'object' ||
+            item === null ||
+            typeof item.teamId !== 'string' ||
+            typeof item.scope !== 'string' ||
+            item.scope.length > 128 ||
+            (item.slot !== 'start' && item.slot !== 'end') ||
+            typeof item.materialId !== 'string' ||
+            typeof item.checksum !== 'string' ||
+            !KEY.test(`${item.materialId}-${item.checksum}`) ||
+            typeof item.rejectedAt !== 'number' ||
+            !Number.isFinite(item.rejectedAt) ||
+            item.rejectedAt > this.#now() ||
+            this.#now() - item.rejectedAt >= SCREEN_REFUSAL_TTL_MS
+          )
+            continue;
+          this.#index.refusals!.push({
+            teamId: item.teamId,
+            scope: item.scope,
+            slot: item.slot,
+            materialId: item.materialId,
+            checksum: item.checksum,
+            rejectedAt: item.rejectedAt
+          });
+        }
       if (typeof entries === 'object' && entries !== null) {
         for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
           if (
@@ -325,11 +507,24 @@ export class TeamScreenCache {
     return this.#index;
   }
 
-  async #save(index: ScreenIndex) {
-    await mkdir(this.#root, { recursive: true });
-    const target = path.join(this.#root, 'index.json');
-    const staged = `${target}.part-${process.pid}`;
-    await writeFile(staged, JSON.stringify(index));
-    await rename(staged, target);
+  #save(index: ScreenIndex): Promise<void> {
+    const serialized = JSON.stringify(index);
+    const write = async () => {
+      await mkdir(this.#root, { recursive: true }).catch(cause => {
+        throw cacheWriteError(cause);
+      });
+      const target = path.join(this.#root, 'index.json');
+      const staged = `${target}.part-${process.pid}`;
+      try {
+        await writeFile(staged, serialized);
+        await rename(staged, target);
+      } catch (cause) {
+        await unlink(staged).catch(() => {});
+        throw cacheWriteError(cause);
+      }
+    };
+    const saved = this.#saveTail.then(write, write);
+    this.#saveTail = saved.catch(() => undefined);
+    return saved;
   }
 }

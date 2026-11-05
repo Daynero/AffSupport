@@ -688,6 +688,7 @@ interface OperationGroup {
   id: string;
   id_kind: InvestigateOperation['id_kind'];
   rows: EventRow[];
+  nativeLastSeenAt?: string;
 }
 
 function operationGroups(rows: EventRow[]): OperationGroup[] {
@@ -757,11 +758,15 @@ async function operationsOf(
   focus: string | null
 ): Promise<InvestigateOperation[]> {
   const candidates = groups
-    .filter(group => group.id === focus || !endedInSuccess(group))
+    .filter(
+      group => group.id === focus || group.nativeLastSeenAt !== undefined || !endedInSuccess(group)
+    )
     .sort(
       (a, b) =>
         Number(b.id === focus) - Number(a.id === focus) ||
-        (b.rows.at(-1)?.occurred_at ?? '').localeCompare(a.rows.at(-1)?.occurred_at ?? '') ||
+        (b.rows.at(-1)?.occurred_at ?? b.nativeLastSeenAt ?? '').localeCompare(
+          a.rows.at(-1)?.occurred_at ?? a.nativeLastSeenAt ?? ''
+        ) ||
         a.id.localeCompare(b.id)
     )
     .slice(0, OPERATION_LIMIT);
@@ -786,6 +791,17 @@ async function operationsOf(
       group.rows.find(row => row.tool)?.tool ??
       (found.capability ? (capabilityById(found.capability)?.tool ?? null) : null);
     const error = errorOf(group.rows, tool);
+    const nativeCode = found.team_native?.records.at(-1)?.error_code;
+    if (
+      nativeCode &&
+      !found.team_native?.blind_spots.some(note => note.startsWith('Conflicting'))
+    ) {
+      if (!error.code || error.code === 'unknown') {
+        error.code = nativeCode;
+        error.stage = 'process';
+        error.fingerprint = `team:process:${nativeCode}`;
+      }
+    }
     const stageOf = (event: string) =>
       found.stages.expected.find(stage =>
         found.capability ? stageEventsOf(found, stage).includes(event) : false
@@ -798,16 +814,26 @@ async function operationsOf(
       tool,
       stages: found.stages,
       last_proven_stage: found.last_proven_stage,
-      chain: found.events.map(event => ({
-        event: event.event_name,
-        at: iso(event.occurred_at),
-        stage: stageOf(event.event_name)
-      })),
+      chain: [
+        ...found.events.map(event => ({
+          event: event.event_name,
+          at: iso(event.occurred_at),
+          stage: stageOf(event.event_name)
+        })),
+        ...(found.team_native?.records ?? []).map(record => ({
+          event: 'journal:team:process_terminal',
+          at: record.at,
+          stage: record.stage
+        }))
+      ],
       terminal: found.terminal,
       error_code: status === 'failed' ? (error.code ?? 'unknown') : error.code,
       error_stage: error.stage,
       fingerprint: status === 'failed' ? error.fingerprint : null,
-      agent_instance_ids: sortedUnique(group.rows.map(row => row.agent_instance_id)),
+      agent_instance_ids: sortedUnique([
+        ...group.rows.map(row => row.agent_instance_id),
+        ...found.agent.agent_instance_ids
+      ]),
       started_at: found.first_seen_at,
       last_seen_at: found.last_seen_at
     });
@@ -1639,6 +1665,25 @@ export async function getInvestigation(
 
   const environment = environmentOf(rows, newest);
   const groups = operationGroups(rows);
+  for (const record of journal) {
+    const operationId = record.props.operationId;
+    if (
+      record.category !== 'team' ||
+      record.code !== 'process_terminal' ||
+      typeof operationId !== 'string' ||
+      !UUID.test(operationId)
+    )
+      continue;
+    const existing = groups.find(group => group.id === operationId);
+    if (existing) existing.nativeLastSeenAt = record.recorded_at;
+    else
+      groups.push({
+        id: operationId,
+        id_kind: 'run_id',
+        rows: [],
+        nativeLastSeenAt: record.recorded_at
+      });
+  }
   const operations = await operationsOf(groups, period, scope.focus);
   const link = linkOf(rows);
   const errors = errorClusters(rows);

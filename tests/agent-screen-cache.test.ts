@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, stat, truncate, writeFile } from 'node:fs/promises';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -101,13 +101,18 @@ const probe = vi.fn(
     const animated = Object.values(RESTITCH_FIXTURES).some(
       meta => meta.animated && meta.md5 === md5
     );
-    return { width: 64, height: 32, codec, frames: options?.countFrames && animated ? 2 : null };
+    return {
+      width: 64,
+      height: 32,
+      codec,
+      frames: options?.countFrames ? (animated ? 2 : 1) : null
+    };
   }
 );
 
 function cache(transfer: ReturnType<typeof transferOf>) {
   return new TeamScreenCache(
-    { transfer, probe: probe as never, now: () => clock, log: () => {} },
+    { transfer, probe: probe as never, decode: async () => true, now: () => clock, log: () => {} },
     path.join(directory, 'TeamScreens')
   );
 }
@@ -224,7 +229,7 @@ describe('resolving a job’s screens', () => {
     await writeFile(store.root, 'in the way');
     await expect(
       store.resolve(TEAM, [screen('plain.png')], new AbortController().signal)
-    ).rejects.toBeTruthy();
+    ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_FETCH_FAILED', reason: 'cache_write_failed' });
     expect((await stat(path.join(directory, 'library.png'))).size).toBeGreaterThan(0);
   });
 });
@@ -255,4 +260,130 @@ describe('making room', () => {
     expect(await store.evict(TEAM, [])).toBe(1);
     expect(store.pathFor(screenAssetId(theirs))).not.toBeNull();
   });
+});
+
+it('refetches a corrupt cache entry even when its image header still probes successfully', async () => {
+  const transfer = transferOf('copy');
+  const store = cache(transfer);
+  const [first] = await store.resolve(TEAM, [screen('plain.png')], new AbortController().signal);
+  const bytes = await readFile(first!.path);
+  bytes[bytes.length - 1] ^= 1;
+  await writeFile(first!.path, bytes);
+  await store.resolve(TEAM, [screen('plain.png')], new AbortController().signal);
+  expect(transfer.downloadSource).toHaveBeenCalledTimes(2);
+  expect(await readFile(first!.path)).toEqual(await readFile(restitchFixturePath('plain.png')));
+});
+
+it('does not trust a provider checksum header over the checksum of the received bytes', async () => {
+  const transfer = transferOf('copy');
+  const original = transfer.downloadSource.getMockImplementation()!;
+  transfer.downloadSource.mockImplementation(async request => {
+    const result = await original(request);
+    result.sourceChecksum = 'f'.repeat(32);
+    return result;
+  });
+  await expect(
+    cache(transfer).resolve(
+      TEAM,
+      [screen('plain.png', { checksum: 'f'.repeat(32) })],
+      new AbortController().signal
+    )
+  ).rejects.toMatchObject({ reason: 'checksum_mismatch' });
+});
+
+it('does not accept even a warm screen after cancellation', async () => {
+  const transfer = transferOf('copy');
+  const store = cache(transfer);
+  await store.resolve(TEAM, [screen('plain.png')], new AbortController().signal);
+  const controller = new AbortController();
+  controller.abort();
+  await expect(store.resolve(TEAM, [screen('plain.png')], controller.signal)).rejects.toMatchObject(
+    { name: 'AbortError' }
+  );
+  expect(transfer.downloadSource).toHaveBeenCalledTimes(1);
+});
+
+it('persists only file-specific refusals and isolates them by team and settings revision', async () => {
+  fixtureByMaterial.set(MATERIAL, 'animated.webp');
+  const store = cache(transferOf('copy'));
+  const item = screen('animated.webp');
+  await expect(
+    store.resolve(TEAM, [item], new AbortController().signal, 'settings-1')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+  const restarted = cache(transferOf('fail'));
+  expect(await restarted.refused(TEAM, 'settings-1')).toEqual([
+    { slot: 'start', materialId: MATERIAL, checksum: item.checksum }
+  ]);
+  expect(await restarted.refused(TEAM, 'settings-2')).toEqual([]);
+  expect(await restarted.refused('other-team', 'settings-1')).toEqual([]);
+  clock += 24 * 60 * 60 * 1000 + 1;
+  expect(await restarted.refused(TEAM, 'settings-1')).toEqual([]);
+});
+it('does not blacklist a picture after a network outage', async () => {
+  const store = cache(transferOf('fail'));
+  await expect(
+    store.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings-1')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_FETCH_FAILED' });
+  expect(await store.refused(TEAM, 'settings-1')).toEqual([]);
+});
+
+it('refuses probeable bytes when the full decoder rejects them and remembers the version', async () => {
+  const transfer = transferOf('copy');
+  const decoder = vi.fn(async () => false);
+  const instance = new TeamScreenCache(
+    { transfer, probe: probe as never, decode: decoder },
+    path.join(directory, 'decode-cache')
+  );
+  await expect(
+    instance.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+  expect(await instance.refused(TEAM, 'settings')).toHaveLength(1);
+  expect(instance.pathFor(screenAssetId(screen('plain.png')))).toBeNull();
+});
+it('does not blacklist an image when decoder resources time out', async () => {
+  const transfer = transferOf('copy');
+  const instance = new TeamScreenCache(
+    {
+      transfer,
+      probe: probe as never,
+      decode: async () => {
+        throw new Error('RESTITCH_SCREEN_SELECTION_LIMIT');
+      }
+    },
+    path.join(directory, 'decode-timeout')
+  );
+  await expect(
+    instance.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_SELECTION_LIMIT' });
+  expect(await instance.refused(TEAM, 'settings')).toEqual([]);
+});
+
+it('persists both source rejections when two jobs initialize the same cache concurrently', async () => {
+  const store = cache(transferOf('copy'));
+  const first = screen('plain.png', { checksum: 'f'.repeat(32) });
+  const second = screen('plain.png', {
+    materialId: '31000000-0000-4000-8000-000000000002',
+    checksum: 'e'.repeat(32)
+  });
+  const results = await Promise.allSettled(
+    [first, second].map(candidate =>
+      store.resolve(TEAM, [candidate], new AbortController().signal, 'scope')
+    )
+  );
+  expect(results.every(result => result.status === 'rejected')).toBe(true);
+  const restarted = cache(transferOf('fail'));
+  expect(await restarted.refused(TEAM, 'scope')).toHaveLength(2);
+});
+
+it('bounds actual downloaded file bytes even when transfer metadata underreports its size', async () => {
+  const transfer = transferOf('copy');
+  const download = transfer.downloadSource.getMockImplementation()!;
+  transfer.downloadSource.mockImplementation(async request => {
+    const result = await download(request);
+    await truncate(result.file, 51 * 1024 * 1024);
+    return result;
+  });
+  await expect(
+    cache(transfer).resolve(TEAM, [screen('plain.png')], new AbortController().signal)
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
 });

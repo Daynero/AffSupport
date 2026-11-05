@@ -16,6 +16,7 @@ import {
   TEAM_PROCESS_ERROR_CODES,
   TEAM_RETIREMENT_ERROR_CODES,
   TEAM_COMMERCIAL_ERROR_CODES,
+  TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
@@ -48,6 +49,7 @@ const extensionCodes = new Set([
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,
   ...TEAM_COMMERCIAL_ERROR_CODES,
+  ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
@@ -61,6 +63,7 @@ if (
       TEAM_PROCESS_ERROR_CODES.length +
       TEAM_RETIREMENT_ERROR_CODES.length +
       TEAM_COMMERCIAL_ERROR_CODES.length +
+      TEAM_CATALOG_RELIABILITY_ERROR_CODES.length +
       CATALOG_IMAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
@@ -267,6 +270,24 @@ const commercialInsert =
 const commercialCodes = [...commercialInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
 if (JSON.stringify(commercialCodes) !== JSON.stringify([...TEAM_COMMERCIAL_ERROR_CODES]))
   fail('Commercial error catalog is out of date: ' + commercialPath);
+
+const catalogReliabilityPath = resolve(
+  root,
+  'supabase/migrations/20261207132000_catalog_reliability_error_codes.sql'
+);
+const catalogReliabilitySql = readFileSync(catalogReliabilityPath, 'utf8');
+const catalogReliabilityInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    catalogReliabilitySql
+  )?.[1] ?? '';
+const catalogReliabilityCodes = [...catalogReliabilityInsert.matchAll(/\('([^']+)'\)/gu)].map(
+  match => match[1]
+);
+if (
+  JSON.stringify(catalogReliabilityCodes) !==
+  JSON.stringify([...TEAM_CATALOG_RELIABILITY_ERROR_CODES])
+)
+  fail('Catalog reliability error catalog is out of date: ' + catalogReliabilityPath);
 
 const next = generatedSql();
 const extension = generatedExtensionSql();

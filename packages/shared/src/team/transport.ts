@@ -38,7 +38,10 @@ export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 /** Installed with the commercial access boundary; keep the historical seed immutable. */
 export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
 
+export const TEAM_CATALOG_RELIABILITY_ERROR_CODES = ['RESTITCH_SCREEN_SELECTION_LIMIT'] as const;
+
 export const TEAM_ERROR_CODES = [
+  ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES,
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,

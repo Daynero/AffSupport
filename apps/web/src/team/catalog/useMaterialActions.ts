@@ -77,6 +77,7 @@ export function useMaterialActions(input: {
   material: RowMaterial;
   client?: MaterialActionsClient;
   storageKind?: TeamAnalyticsStorage | null;
+  surface?: 'material' | 'catalog_manager';
   /** Folder a new version or an upload lands in; null when unknown. */
   destinationFolderId?: string | null;
   /** Called after any operation that changed something on the server. */
@@ -87,6 +88,7 @@ export function useMaterialActions(input: {
     material,
     client = defaultMaterialActionsClient,
     storageKind = null,
+    surface = 'material',
     destinationFolderId = null,
     onChanged
   } = input;
@@ -126,18 +128,18 @@ export function useMaterialActions(input: {
 
   const beginAttempt = useCallback(
     (action: TeamAnalyticsAction, sizeBytes = material.sizeBytes ?? null) => {
-      if (!storageKind) return null;
       const attemptNumber = (attemptNumbers.current[action] ?? 0) + 1;
       attemptNumbers.current[action] = attemptNumber;
       return startTeamFileAttempt({
         action,
-        storageKind,
+        surface,
+        storageKind: storageKind ?? 'unknown',
         sizeBucket: teamAnalyticsSizeBucket(sizeBytes),
         cacheState: 'unknown',
         attemptNumber
       });
     },
-    [material.sizeBytes, storageKind]
+    [material.sizeBytes, storageKind, surface]
   );
 
   /**
@@ -386,7 +388,7 @@ function errorCodeOf(error: unknown) {
  * a question put to the person (a name clash, a permission they lack) is an outcome of the
  * attempt, not an error, and stays in `team_file_attempt_completed` alone.
  */
-function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
+export function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
   const outcome = analyticsOutcome(error);
   if (outcome !== 'failure' && outcome !== 'unsupported') return;
   trackToolError({
@@ -403,14 +405,14 @@ function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): v
   });
 }
 
-function retryableError(error: unknown): boolean {
+export function retryableError(error: unknown): boolean {
   if (error && typeof error === 'object' && 'retryable' in error) {
     return (error as { retryable?: unknown }).retryable === true;
   }
   return ['RATE_LIMITED', 'DRIVE_UNAVAILABLE', 'DELIVERY_UNAVAILABLE'].includes(errorCodeOf(error));
 }
 
-function analyticsOutcome(error: unknown): TeamAnalyticsOutcome {
+export function analyticsOutcome(error: unknown): TeamAnalyticsOutcome {
   const code = errorCodeOf(error);
   if (code === 'UNSUPPORTED_MEDIA' || code === 'TOO_LARGE') return 'unsupported';
   if (code === 'ABORTED' || code === 'CANCELED') return 'cancelled';

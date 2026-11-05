@@ -6919,6 +6919,10 @@ export type GeneratedDatabase = {
           title: string;
         }[];
       };
+      list_team_catalog_manager_snapshot: {
+        Args: { p_team: string };
+        Returns: Json;
+      };
       list_team_product_catalogs: {
         Args: { p_team: string };
         Returns: {

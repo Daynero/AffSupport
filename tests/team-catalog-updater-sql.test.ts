@@ -1115,4 +1115,28 @@ describe('the worker’s address and grants', () => {
     );
     expect(rows[0]).toEqual({ anon: false, authenticated: false, service: true });
   }, 60_000);
+  it('reads manager settings and registry through one authorized stable snapshot', async () => {
+    const item = await catalog('manager snapshot');
+    const data = await harness.asUser<{
+      snapshot: {
+        catalogs: Array<{ catalog_id: string }>;
+        profiles: Array<{ catalog_material_id: string; version: number }>;
+      };
+    }>(OWNER, 'select public.list_team_catalog_manager_snapshot($1) as snapshot', [teamId]);
+    expect(data[0]!.snapshot.catalogs.some(row => row.catalog_id === item.sheet)).toBe(true);
+    expect(data[0]!.snapshot.profiles.some(row => row.catalog_material_id === item.sheet)).toBe(
+      true
+    );
+    await expect(
+      harness.asUser(OTHER, 'select public.list_team_catalog_manager_snapshot($1)', [teamId])
+    ).rejects.toThrow('PERMISSION_DENIED');
+    const definition = await harness.root<{
+      volatility: string;
+      definer: boolean;
+      anonymous: boolean;
+    }>(`select p.provolatile as volatility, p.prosecdef as definer,
+      has_function_privilege('anon',p.oid,'execute') as anonymous
+      from pg_proc p where p.oid='public.list_team_catalog_manager_snapshot(uuid)'::regprocedure`);
+    expect(definition[0]).toEqual({ volatility: 's', definer: false, anonymous: false });
+  }, 60000);
 });

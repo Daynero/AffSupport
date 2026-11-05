@@ -831,6 +831,7 @@ export function trackTeamLandingRender(
 export interface TeamFileAttemptFlow {
   attemptId: string;
   action: TeamAnalyticsAction;
+  surface?: 'material' | 'catalog_manager';
   storageKind: TeamAnalyticsStorage;
   sizeBucket: TeamAnalyticsSizeBucket;
   cacheState: TeamAnalyticsCacheState;
@@ -867,6 +868,7 @@ export function teamAnalyticsSizeBucket(
 export function startTeamFileAttempt(
   input: {
     action: TeamAnalyticsAction;
+    surface?: 'material' | 'catalog_manager';
     storageKind: TeamAnalyticsStorage;
     sizeBucket: TeamAnalyticsSizeBucket;
     cacheState?: TeamAnalyticsCacheState;
@@ -878,6 +880,7 @@ export function startTeamFileAttempt(
   const flow: TeamFileAttemptFlow = {
     attemptId: uuid(),
     action: input.action,
+    surface: input.surface ?? 'material',
     storageKind: input.storageKind,
     sizeBucket: input.sizeBucket,
     cacheState: input.cacheState ?? 'unknown',
@@ -885,15 +888,20 @@ export function startTeamFileAttempt(
     startedAt: options.now ?? Date.now(),
     completed: false
   };
-  (options.tracker ?? analytics).track('team_file_attempt_started', {
-    attempt_id: flow.attemptId,
-    action: flow.action,
-    storage_kind: flow.storageKind,
-    size_bucket: flow.sizeBucket,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    stage: input.stage ?? stageForFileAction(flow.action)
-  });
+  try {
+    (options.tracker ?? analytics).track('team_file_attempt_started', {
+      attempt_id: flow.attemptId,
+      action: flow.action,
+      file_surface: flow.surface ?? 'material',
+      storage_kind: flow.storageKind,
+      size_bucket: flow.sizeBucket,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      stage: input.stage ?? stageForFileAction(flow.action)
+    });
+  } catch {
+    // Diagnostics must not prevent the file operation or hide its result.
+  }
   return flow;
 }
 
@@ -908,19 +916,24 @@ export function completeTeamFileAttempt(
 ): void {
   if (flow.completed) return;
   flow.completed = true;
-  (options.tracker ?? analytics).track('team_file_attempt_completed', {
-    attempt_id: flow.attemptId,
-    action: flow.action,
-    storage_kind: flow.storageKind,
-    size_bucket: flow.sizeBucket,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
-    stage: result.stage ?? stageForFileAction(flow.action),
-    outcome: result.outcome,
-    retryable: result.retryable,
-    production_completed: result.outcome === 'success'
-  });
+  try {
+    (options.tracker ?? analytics).track('team_file_attempt_completed', {
+      attempt_id: flow.attemptId,
+      action: flow.action,
+      file_surface: flow.surface ?? 'material',
+      storage_kind: flow.storageKind,
+      size_bucket: flow.sizeBucket,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+      stage: result.stage ?? stageForFileAction(flow.action),
+      outcome: result.outcome,
+      retryable: result.retryable,
+      production_completed: result.outcome === 'success'
+    });
+  } catch {
+    // Diagnostics must not prevent the file operation or hide its result.
+  }
 }
 
 export function startTeamWorkflow(

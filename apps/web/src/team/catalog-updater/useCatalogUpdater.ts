@@ -1,6 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { useScopedRefresh } from '../useScopedRefresh';
-import { teamApi, type CatalogRegistryRow, type CatalogUpdaterState } from '../../api/team';
+import {
+  teamApi,
+  type CatalogRegistryRow,
+  type CatalogUpdaterState,
+  type CatalogListSnapshot
+} from '../../api/team';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
 
@@ -16,6 +21,18 @@ const FALLBACK_POLL_MS = 60_000;
 const ACTIVE_UPDATE_POLL_MS = 5_000;
 
 export interface CatalogUpdaterClient {
+  listCatalogManagerSnapshot?: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogListSnapshot<CatalogRegistryRow>>;
+  listTeamProductCatalogSnapshot?: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogListSnapshot<CatalogRegistryRow>>;
+  listCatalogUpdateProfileSnapshot?: (
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogListSnapshot<CatalogUpdateProfile>>;
   getCatalogUpdater: (
     teamId: string,
     options?: { signal?: AbortSignal }
@@ -85,18 +102,32 @@ export function useCatalogRegistry(
   const { value, error, lastLoadedAt, reload, poll } = useRefreshing(
     teamId,
     async signal => {
-      const [rows, profiles] = await Promise.all([
-        client.listTeamProductCatalogs(teamId, { signal }),
-        client.listCatalogUpdateProfiles?.(teamId, { signal }) ?? Promise.resolve([])
+      if (client.listCatalogManagerSnapshot)
+        return client.listCatalogManagerSnapshot(teamId, { signal });
+      const [catalogs, profiles] = await Promise.all([
+        client.listTeamProductCatalogSnapshot?.(teamId, { signal }) ??
+          client
+            .listTeamProductCatalogs(teamId, { signal })
+            .then(rows => ({ rows, invalidRowCount: 0 })),
+        client.listCatalogUpdateProfileSnapshot?.(teamId, { signal }) ??
+          (client.listCatalogUpdateProfiles?.(teamId, { signal }) ?? Promise.resolve([])).then(
+            rows => ({ rows, invalidRowCount: 0 })
+          )
       ]);
-      const byId = new Map(profiles.map(profile => [profile.catalogId, profile]));
-      return rows.map(row => ({ ...row, profile: byId.get(row.catalogId) ?? row.profile }));
+      const byId = new Map(profiles.rows.map(profile => [profile.catalogId, profile]));
+      return {
+        rows: catalogs.rows.map(row => ({
+          ...row,
+          profile: byId.get(row.catalogId) ?? row.profile
+        })),
+        invalidRowCount: catalogs.invalidRowCount + profiles.invalidRowCount
+      };
     },
     enabled,
     client
   );
   const hasPendingUpdate =
-    value?.some(
+    value?.rows.some(
       row =>
         row.updatePending || (row.profile?.restitch && row.profile.restitchStatus === 'preparing')
     ) ?? false;
@@ -105,7 +136,13 @@ export function useCatalogRegistry(
     const timer = window.setInterval(poll, ACTIVE_UPDATE_POLL_MS);
     return () => window.clearInterval(timer);
   }, [enabled, hasPendingUpdate, poll]);
-  return { rows: value, error, lastLoadedAt, reload };
+  return {
+    rows: value?.rows ?? null,
+    invalidRowCount: value?.invalidRowCount ?? 0,
+    error,
+    lastLoadedAt,
+    reload
+  };
 }
 
 /** Matches a search against the video's and the sheet's names, ignoring case and outer spaces. */

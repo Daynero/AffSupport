@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildDownloadGrantResult,
+  resolveDownloadMaterial,
   MAX_PREVIEW_RANGE_BYTES,
   authorizePreviewRange,
   buildPreviewResult,
@@ -577,5 +578,54 @@ describe('resumable upload and full-download transfer contract', () => {
         issueGrant
       )
     ).resolves.toMatchObject({ kind: 'agent', grant: { purpose: 'download_range' } });
+  });
+});
+
+describe('download metadata missing from the index', () => {
+  const live = {
+    id: 'drive-file',
+    size: 1024,
+    mimeType: 'text/csv',
+    version: null,
+    checksum: null,
+    canDownload: true
+  };
+  it('recovers byte size from a proven live file without inventing a size', async () => {
+    const item = material({
+      sizeBytes: null,
+      driveFileId: live.id,
+      driveVersion: null,
+      checksum: null
+    });
+    expect(await resolveDownloadMaterial(item, async () => live)).toMatchObject({
+      sizeBytes: 1024
+    });
+  });
+  it('does not contact the provider without download permission', async () => {
+    const load = vi.fn(async () => live);
+    await expect(
+      resolveDownloadMaterial(material({ sizeBytes: null, canDownload: false }), load)
+    ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    expect(load).not.toHaveBeenCalled();
+  });
+  it('does not silently accept another identity or changed version', async () => {
+    await expect(
+      resolveDownloadMaterial(material({ sizeBytes: null, driveFileId: 'other' }), async () => live)
+    ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+    await expect(
+      resolveDownloadMaterial(
+        material({ sizeBytes: null, driveFileId: live.id, driveVersion: 'old' }),
+        async () => live
+      )
+    ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+  });
+  it('names native documents as unsupported instead of pretending they have byte ranges', async () => {
+    await expect(
+      resolveDownloadMaterial(material({ sizeBytes: null, driveFileId: live.id }), async () => ({
+        ...live,
+        size: null,
+        mimeType: 'application/vnd.google-apps.spreadsheet'
+      }))
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_MEDIA' });
   });
 });

@@ -1,3 +1,4 @@
+import type { TeamScreenCache } from './screen-cache.js';
 import { createReadStream } from 'node:fs';
 import { recordRetiredCommand } from '../transcription/diagnostics.js';
 import path from 'node:path';
@@ -23,6 +24,7 @@ import type { RestitchPrepareBridge, RestitchPrepareRequest } from './restitch-p
 import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
 
 export interface TeamBridgeRoutesDeps {
+  screenCache?: TeamScreenCache;
   preview: TeamPreviewBridge;
   process: TeamProcessBridge;
   poster: TeamPosterBridge;
@@ -37,6 +39,7 @@ export interface TeamBridgeRoutesDeps {
 export function registerTeamBridgeRoutes(
   app: FastifyInstance,
   {
+    screenCache,
     preview,
     process,
     poster,
@@ -48,6 +51,26 @@ export function registerTeamBridgeRoutes(
     acceptingNewTasks
   }: TeamBridgeRoutesDeps
 ) {
+  app.get<{ Querystring: { teamId?: unknown; scope?: unknown } }>(
+    '/api/team/restitch/screen-refusals',
+    async (request, reply) => {
+      if (!screenCache) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+      const { teamId, scope } = request.query;
+      if (
+        typeof teamId !== 'string' ||
+        !/^[0-9a-f-]{36}$/iu.test(teamId) ||
+        typeof scope !== 'string' ||
+        scope.length > 128
+      )
+        return reply.code(400).send({ error: 'INVALID_INPUT' });
+      return {
+        refusals:
+          scope === '*'
+            ? await screenCache.refusalHistory(teamId)
+            : await screenCache.refused(teamId, scope)
+      };
+    }
+  );
   app.get('/api/team/events', events.handler);
   app.get('/api/team/landings/events', events.handler);
 

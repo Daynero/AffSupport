@@ -521,6 +521,7 @@ const teamProcessBridge = new TeamProcessBridge({
   events: teamOperationEvents
 });
 const teamRecoveryWorker = new TeamRecoveryWorker({
+  screenRefusals: teamId => teamScreenCache.refusalHistory(teamId),
   environment: config.environment,
   currentActorId: () => entitlementGate.currentActorId(),
   journal: new RecoveryJournal(path.join(applicationSupportRoot(), 'Recovery', config.environment)),
@@ -569,6 +570,7 @@ const modules = createToolModules({
     embedding: () => queue.state().settings.imageEmbedding
   },
   teamWorkspace: {
+    screenCache: teamScreenCache,
     preview: teamPreviewBridge,
     process: teamProcessBridge,
     recovery: teamRecoveryWorker,

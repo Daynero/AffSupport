@@ -122,7 +122,10 @@ export async function handleRecovery(
     const value = object(
       await deps.drive('claim', credential, {
         teamId,
-        restitchContractVersion: RESTITCH_CONTRACT_VERSION
+        restitchContractVersion: RESTITCH_CONTRACT_VERSION,
+        ...(Array.isArray(body.screenRefusals)
+          ? { screenRefusals: body.screenRefusals.slice(0, 512) }
+          : {})
       })
     );
     const operation = deps.token();

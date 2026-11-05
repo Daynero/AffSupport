@@ -639,7 +639,9 @@ it('offers history and live settings inside the catalog overflow', async () => {
   await userEvent.click(await screen.findByRole('button', { name: /^Actions (for|on) polo/ }));
   expect(screen.getByRole('menuitem', { name: 'Configure' })).toBeTruthy();
   await userEvent.click(screen.getByRole('menuitem', { name: 'Update history' }));
-  expect(api.listCatalogUpdateAttempts).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId);
+  expect(api.listCatalogUpdateAttempts).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, {
+    signal: expect.any(AbortSignal)
+  });
 });
 it('opens the same live toggles in details without a separate Save form', async () => {
   const api = client([row('1', 'polo.mp4')], stopped);
@@ -868,4 +870,50 @@ it('keeps save feedback beside the name and reserves action/footer slots through
     });
   });
   await waitFor(() => expect(indicator.getAttribute('data-phase')).toBe('saved'));
+});
+
+it('keeps valid catalogs visible and explains partial reads without pretending the list is empty', async () => {
+  const item = row('1', 'polo.mp4');
+  const api = client([item], stopped, {
+    listTeamProductCatalogSnapshot: vi.fn().mockResolvedValue({ rows: [item], invalidRowCount: 2 })
+  });
+  renderDialog(api);
+  expect(await screen.findByText(/Some catalog data could not be read/)).toBeTruthy();
+  expect(await screen.findByLabelText('Select polo.mp4 catalog')).toBeTruthy();
+  expect(screen.queryByText(/No catalogs yet/)).toBeNull();
+});
+
+it('refreshes partial trash results and keeps failed and unstarted catalogs selected', async () => {
+  const { teamApi } = await import('../apps/web/src/api/team');
+  const catalogs = [row('1', 'first.mp4'), row('2', 'second.mp4'), row('3', 'third.mp4')];
+  const trash = vi
+    .spyOn(teamApi, 'trashMaterial')
+    .mockResolvedValueOnce({
+      operationId: 'trash-first',
+      state: 'succeeded',
+      materialId: catalogs[0].catalogId,
+      reused: false
+    })
+    .mockRejectedValueOnce(new TypeError('lost response'));
+  const api = client(catalogs, stopped);
+  renderDialog(api);
+  for (const name of ['first', 'second', 'third']) {
+    await userEvent.click(await screen.findByLabelText(`Select ${name}.mp4 catalog`));
+  }
+  await userEvent.click(screen.getByRole('button', { name: 'Catalog manager actions' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Delete selected' }));
+  const confirmation = screen.getAllByRole('dialog').at(-1)!;
+  const readsBefore = vi.mocked(api.listTeamProductCatalogs).mock.calls.length;
+  await userEvent.click(within(confirmation).getByRole('button', { name: 'Delete selected' }));
+  await waitFor(() => expect(trash).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(api.listTeamProductCatalogs).toHaveBeenCalledTimes(readsBefore + 1));
+  expect((screen.getByLabelText('Select first.mp4 catalog') as HTMLInputElement).checked).toBe(
+    false
+  );
+  expect((screen.getByLabelText('Select second.mp4 catalog') as HTMLInputElement).checked).toBe(
+    true
+  );
+  expect((screen.getByLabelText('Select third.mp4 catalog') as HTMLInputElement).checked).toBe(
+    true
+  );
 });

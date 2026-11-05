@@ -177,9 +177,16 @@ export const TEAM_ANALYTICS_OUTCOMES = [
 export type TeamAnalyticsOutcome = (typeof TEAM_ANALYTICS_OUTCOMES)[number];
 export const TEAM_ANALYTICS_CUES = ['geo', 'offer', 'language', 'category'] as const;
 export type TeamAnalyticsCue = (typeof TEAM_ANALYTICS_CUES)[number];
-export const TEAM_ANALYTICS_ACTIONS = ['upload', 'download', 'rename', 'move', 'trash'] as const;
+export const TEAM_ANALYTICS_ACTIONS = [
+  'upload',
+  'download',
+  'rename',
+  'move',
+  'trash',
+  'share'
+] as const;
 export type TeamAnalyticsAction = (typeof TEAM_ANALYTICS_ACTIONS)[number];
-export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive'] as const;
+export const TEAM_ANALYTICS_STORAGES = ['my_drive', 'shared_drive', 'unknown'] as const;
 export type TeamAnalyticsStorage = (typeof TEAM_ANALYTICS_STORAGES)[number];
 export const TEAM_ANALYTICS_SIZE_BUCKETS = ['tiny', 'small', 'medium', 'large', 'agent'] as const;
 export type TeamAnalyticsSizeBucket = (typeof TEAM_ANALYTICS_SIZE_BUCKETS)[number];
@@ -241,6 +248,7 @@ export interface TeamAnalyticsProperties {
   category?: MaterialCategory;
   cue_category?: TeamAnalyticsCue;
   action?: TeamAnalyticsAction;
+  file_surface?: 'material' | 'catalog_manager';
   storage_kind?: TeamAnalyticsStorage;
   size_bucket?: TeamAnalyticsSizeBucket;
   cache_state?: TeamAnalyticsCacheState;
@@ -329,6 +337,7 @@ export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  file_surface: { kind: 'enum', values: ['material', 'catalog_manager'] },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

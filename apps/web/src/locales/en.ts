@@ -2649,6 +2649,10 @@ export const en = {
   catalogUpdaterOff: 'Off',
   catalogUpdaterOffLong: 'Don’t update automatically',
   catalogUpdaterCancelUpdate: 'Stop this update',
+  catalogUpdaterPartialRead:
+    'Some catalog data could not be read ({count} records). Available catalogs are shown. Refresh to try again.',
+  catalogUpdaterNoWorkAccepted:
+    'No new update was accepted. The current status has been refreshed.',
   catalogUpdaterNowAlready: 'Already updating',
   catalogUpdaterNowStarted: 'Updating now: {count}',
   catalogUpdaterStatusScheduled: 'On a schedule: {count} · next in',
@@ -2926,6 +2930,8 @@ export const en = {
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
   teamRestitchAgentTooOldForSources:
     'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  teamRestitchScreenSelectionLimit:
+    'The image check limit was reached. Replace or reduce the image pool and try again.',
   teamRestitchPoolEmpty:
     'No pictures are available for re-stitching: every source of the pool is unavailable or empty. Open the space settings to check them.',
   teamRestitchSourceForbidden:
@@ -3595,6 +3601,8 @@ export const en = {
   teamExplorerSortFoldersMixed: 'Mixed with files',
   teamShareAction: 'Share {name}',
   teamShareCopied: 'Link copied',
+  teamShareClipboardUnavailable:
+    'Clipboard access was denied. Select and copy the link from the field.',
   teamShareReady: 'Shareable link:',
   teamShareFailed: 'Could not create a share link.',
   teamExplorerSearchOpen: 'Search files',

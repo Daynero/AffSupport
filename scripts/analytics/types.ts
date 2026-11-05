@@ -153,11 +153,11 @@ export interface AuditCapability {
   /** Expected signals (and `correlation`) not observed in the period. */
   missing: string[];
   /** Start events observed; `0` with `status: uncovered` means nothing arrived. */
-  samples: number;
+  samples: number | null;
   /** Start ids with no terminal carrying the same id inside the period. */
-  orphan_starts: number;
+  orphan_starts: number | null;
   /** Start ids that do meet a terminal with the same id. */
-  correlated_pairs: number;
+  correlated_pairs: number | null;
   observed: Array<{
     event: string;
     role: 'start' | 'terminal' | 'readiness' | 'error';
@@ -179,11 +179,11 @@ export interface AuditUnknownCode {
 }
 
 export interface AuditDelivery {
-  reports: number;
-  rejected: number;
-  evicted: number;
-  expired: number;
-  by_event: Array<{ event_name: string; rejected_reports: number; evicted_reports: number }>;
+  reports: number | null;
+  rejected: number | null;
+  evicted: number | null;
+  expired: number | null;
+  by_event: Array<{ event_name: string; rejected_reports: number | null; evicted_reports: number }>;
   note: string;
 }
 
@@ -200,6 +200,12 @@ export interface AuditFinding {
 }
 
 export interface AuditData {
+  completeness?: 'complete' | 'partial';
+  sources?: Array<{
+    id: string;
+    status: 'available' | 'unavailable';
+    reason?: 'timeout' | 'permission' | 'schema';
+  }>;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   registry_size: number;
   capabilities: AuditCapability[];
@@ -255,6 +261,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
@@ -282,6 +289,7 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   found: false;

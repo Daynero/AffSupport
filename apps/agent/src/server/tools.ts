@@ -1,3 +1,4 @@
+import type { TeamScreenCache } from '../team-bridge/screen-cache.js';
 import { registerRecoveryRoutes } from '../team-bridge/recovery-enrollment.js';
 import type { TeamRecoveryWorker } from '../team-bridge/recovery-worker.js';
 import type { FastifyInstance } from 'fastify';
@@ -103,6 +104,7 @@ export interface ToolModulesDeps {
     embedding: () => ImageEmbeddingSettings;
   };
   teamWorkspace: {
+    screenCache?: TeamScreenCache;
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
     recovery?: TeamRecoveryWorker;
@@ -231,6 +233,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         if (teamWorkspace.recovery)
           registerRecoveryRoutes(app, teamWorkspace.recovery, ctx.acceptingNewTasks);
         registerTeamBridgeRoutes(app, {
+          screenCache: teamWorkspace.screenCache,
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
           poster: teamWorkspace.poster,

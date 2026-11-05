@@ -1,3 +1,4 @@
+import { getRestitchScreenRefusals } from '../../api/client';
 import { useEffect, useRef, useState } from 'react';
 import {
   parseMaterialRestitchPrep,
@@ -49,7 +50,8 @@ export interface RestitchPreparerClient {
 }
 
 const defaultClient: RestitchPreparerClient = {
-  claimRestitchJob: teamId => teamApi.claimRestitchJob(teamId),
+  claimRestitchJob: async teamId =>
+    teamApi.claimRestitchJob(teamId, await getRestitchScreenRefusals(teamId, '*')),
   heartbeatRestitchJob: (jobId, leaseToken, progress) =>
     teamApi.heartbeatRestitchJob(jobId, leaseToken, progress),
   completeRestitchJob: input => teamApi.completeRestitchJob(input),

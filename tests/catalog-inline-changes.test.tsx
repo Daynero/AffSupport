@@ -292,3 +292,53 @@ it('keeps a typed server refusal in the correlated diagnostic flow and the sched
   });
   expect(result.current.states.one).toMatchObject({ phase: 'error', code: 'PERMISSION_DENIED' });
 });
+
+it('ignores late save acknowledgement from the previous team and clears its undo/state', async () => {
+  let resolve!: (profile: CatalogUpdateProfile) => void;
+  const patch = vi.fn().mockReturnValue(
+    new Promise<CatalogUpdateProfile>(r => {
+      resolve = r;
+    })
+  );
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: patch
+  };
+  const reload = vi.fn();
+  const onChanged = vi.fn();
+  const hook = renderHook(
+    ({ teamId }) => useCatalogInlineChanges({ teamId, client, rows: [row], reload, onChanged }),
+    { initialProps: { teamId: 'old' } }
+  );
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = hook.result.current.change('one', 'restitch', true);
+  });
+  hook.rerender({ teamId: 'new' });
+  await act(async () => {
+    resolve({ ...profile, version: 2, restitch: true });
+    await pending;
+  });
+  expect(await pending).toBe(false);
+  expect(hook.result.current.undo).toEqual([]);
+  expect(hook.result.current.states).toEqual({});
+  expect(reload).not.toHaveBeenCalled();
+  expect(onChanged).not.toHaveBeenCalled();
+});
+it('does not refresh or publish a save result after unmount', async () => {
+  let resolve!: (profile: CatalogUpdateProfile) => void;
+  const patch = vi.fn().mockReturnValue(
+    new Promise<CatalogUpdateProfile>(r => {
+      resolve = r;
+    })
+  );
+  const hook = setup(patch);
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = hook.result.current.change('one', 'restitch', true);
+  });
+  hook.unmount();
+  resolve({ ...profile, version: 2, restitch: true });
+  expect(await pending).toBe(false);
+});

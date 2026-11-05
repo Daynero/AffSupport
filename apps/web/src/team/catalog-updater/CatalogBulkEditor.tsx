@@ -1,3 +1,7 @@
+import { TeamApiError } from '../../api/team';
+import { withReadDeadline } from '../readCoordinator';
+import { profilePatchMatches } from './profilePatchMatches';
+import type { CatalogSnapshot } from './useCatalogInlineChanges';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { Button, SelectMenu } from '../../components/ui/index';
@@ -25,6 +29,7 @@ type Item = {
 export function CatalogBulkEditor({
   items,
   save,
+  read,
   onSaved,
   onDirtyChange,
   onPendingChange,
@@ -37,23 +42,32 @@ export function CatalogBulkEditor({
     expectedVersion: number,
     patch: CatalogUpdateProfilePatch
   ) => Promise<CatalogUpdateProfile>;
+  read?: (catalogId: string, options?: { signal?: AbortSignal }) => Promise<CatalogSnapshot>;
   onSaved: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   onPendingChange?: (pending: boolean) => void;
 }) {
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const { t } = useI18n();
   const [draft, setDraft] = useState<CatalogUpdateProfilePatch>({});
   const [pending, setPending] = useState(false);
   const [failures, setFailures] = useState<string[]>([]);
   const [successCount, setSuccessCount] = useState(0);
   const [resultsByCatalog, setResultsByCatalog] = useState<
-    Array<{ id: string; name: string; ok: boolean; error?: string }>
+    Array<{ id: string; name: string; ok: boolean; unknown?: boolean; error?: string }>
   >([]);
   const flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const bulkFlowId = useRef<string | undefined>(undefined);
   const [delivery, setDelivery] = useState<{
     flow: ReturnType<typeof beginCatalogUiFlow>;
     failed: boolean;
+    unknown: boolean;
   } | null>(null);
   useEffect(() => {
     flow.current = beginCatalogUiFlow('bulk', { count: items.length });
@@ -76,7 +90,7 @@ export function CatalogBulkEditor({
     if (!delivery) return;
     // Passive effects run after the result list and counts have committed.
     delivery.flow.stage('result_visible');
-    if (delivery.failed) delivery.flow.fail('SAVE_FAILED');
+    if (delivery.failed) delivery.flow.fail(delivery.unknown ? 'UNKNOWN' : 'SAVE_FAILED');
     else delivery.flow.complete();
   }, [delivery]);
   useEffect(() => {
@@ -89,7 +103,81 @@ export function CatalogBulkEditor({
     [onPendingChange]
   );
   const confirmedIds = useRef(new Set<string>());
+  const baselineItems = useRef(new Map(items.map(item => [item.catalogId, item])));
+  if (!Object.keys(draft).length && !pending)
+    baselineItems.current = new Map(items.map(item => [item.catalogId, item]));
+  const unknownIds = useRef(new Set<string>());
+  const readControllers = useRef(new Set<AbortController>());
+  useEffect(
+    () => () => {
+      for (const controller of readControllers.current) controller.abort();
+    },
+    []
+  );
+  const locked = pending || unknownIds.current.size > 0;
+  class UnknownSave extends Error {}
+  const readback = async (item: Item, conflict = false): Promise<CatalogUpdateProfile> => {
+    if (!read) throw new UnknownSave();
+    const controller = new AbortController();
+    readControllers.current.add(controller);
+    let snapshot: CatalogSnapshot;
+    try {
+      snapshot = await withReadDeadline(
+        signal => read(item.catalogId, { signal }),
+        controller.signal
+      );
+    } catch {
+      unknownIds.current.add(item.catalogId);
+      throw new UnknownSave();
+    } finally {
+      readControllers.current.delete(controller);
+    }
+    if (
+      !conflict &&
+      snapshot.profile.version === item.profile.version + 1 &&
+      profilePatchMatches(snapshot, draft)
+    ) {
+      unknownIds.current.delete(item.catalogId);
+      return snapshot.profile;
+    }
+    if (snapshot.profile.version !== item.profile.version) {
+      unknownIds.current.delete(item.catalogId);
+      throw new TeamApiError('STALE_RESULT', false);
+    }
+    unknownIds.current.add(item.catalogId);
+    throw new UnknownSave();
+  };
+  const saveItem = async (item: Item): Promise<CatalogUpdateProfile> => {
+    if (!mounted.current) throw new UnknownSave();
+    if (unknownIds.current.has(item.catalogId)) return readback(item);
+    let saved: CatalogUpdateProfile;
+    try {
+      saved = await save(item.catalogId, item.profile.version, draft);
+      if (!mounted.current) throw new UnknownSave();
+    } catch (cause) {
+      if (!mounted.current) throw cause;
+      if (
+        !read ||
+        (cause instanceof TeamApiError &&
+          !cause.retryable &&
+          !['INVALID_RESPONSE', 'STALE_RESULT'].includes(cause.code))
+      )
+        throw cause;
+      return readback(item, cause instanceof TeamApiError && cause.code === 'STALE_RESULT');
+    }
+    if (
+      read &&
+      (draft.updateInterval !== undefined ||
+        draft.schedule !== undefined ||
+        !profilePatchMatches({ profile: saved, interval: item.interval }, draft))
+    )
+      return readback(item);
+    return saved;
+  };
+  const errorText = (cause: unknown) =>
+    cause instanceof UnknownSave ? t('catalogIconsUnknown') : teamErrorMessageFor(cause, t);
   const resetResults = () => {
+    baselineItems.current = new Map(items.map(item => [item.catalogId, item]));
     confirmedIds.current.clear();
     setResultsByCatalog([]);
     setSuccessCount(0);
@@ -97,15 +185,24 @@ export function CatalogBulkEditor({
   };
   const keys = Object.keys(draft) as (keyof CatalogUpdateProfilePatch)[];
   const changesItem = (item: Item) =>
-    (draft.updateInterval !== undefined && draft.updateInterval !== item.interval) ||
-    FIELDS.some(([field]) => draft[field] !== undefined && draft[field] !== item.profile[field]);
-  const changedItems = items.filter(
-    item => !confirmedIds.current.has(item.catalogId) && changesItem(item)
-  );
+    !profilePatchMatches({ profile: item.profile, interval: item.interval }, draft);
+  const changedItems = items
+    .map(item => baselineItems.current.get(item.catalogId) ?? item)
+    .filter(item => !confirmedIds.current.has(item.catalogId) && changesItem(item));
   const affected = changedItems.length;
   const currentInterval = items.every(item => item.interval === items[0]?.interval)
     ? (items[0]?.interval ?? null)
     : 'mixed';
+  const firstSchedule = items[0]?.profile.schedule ?? null;
+  const mixedSchedule = !items.every(item => {
+    const value = item.profile.schedule ?? null;
+    return (
+      value?.time === firstSchedule?.time &&
+      value?.weekday === firstSchedule?.weekday &&
+      value?.timeZone === firstSchedule?.timeZone
+    );
+  });
+  const currentSchedule = mixedSchedule ? null : firstSchedule;
   const apply = async () => {
     if (!keys.length || !affected || pending) return;
     // A retry gets its own attempt; completed earlier results remain visible.
@@ -123,13 +220,13 @@ export function CatalogBulkEditor({
     // Keep large selections from opening hundreds of simultaneous writes.
     await Promise.all(
       Array.from({ length: Math.min(4, changedItems.length) }, async () => {
-        while (nextIndex < changedItems.length) {
+        while (mounted.current && nextIndex < changedItems.length) {
           const index = nextIndex++;
           const item = changedItems[index]!;
           try {
             results[index] = {
               status: 'fulfilled',
-              value: await save(item.catalogId, item.profile.version, draft)
+              value: await saveItem(item)
             };
           } catch (reason) {
             results[index] = { status: 'rejected', reason };
@@ -137,9 +234,13 @@ export function CatalogBulkEditor({
         }
       })
     );
+    if (!mounted.current) {
+      attemptFlow.cancel();
+      return;
+    }
     const failed = results.flatMap((result, index) =>
       result.status === 'rejected'
-        ? [`${changedItems[index]?.name}: ${teamErrorMessageFor(result.reason, t)}`]
+        ? [`${changedItems[index]?.name}: ${errorText(result.reason)}`]
         : []
     );
     setFailures(failed);
@@ -147,7 +248,8 @@ export function CatalogBulkEditor({
       id: changedItems[index]!.catalogId,
       name: changedItems[index]!.name,
       ok: result.status === 'fulfilled',
-      error: result.status === 'rejected' ? teamErrorMessageFor(result.reason, t) : undefined
+      unknown: result.status === 'rejected' && result.reason instanceof UnknownSave,
+      error: result.status === 'rejected' ? errorText(result.reason) : undefined
     }));
     setResultsByCatalog(previous => {
       const byId = new Map(previous.map(result => [result.id, result]));
@@ -159,7 +261,13 @@ export function CatalogBulkEditor({
     });
     setSuccessCount(confirmedIds.current.size);
     if (results.some(result => result.status === 'fulfilled')) attemptFlow.stage('save_confirmed');
-    setDelivery({ flow: attemptFlow, failed: failed.length > 0 });
+    setDelivery({
+      flow: attemptFlow,
+      failed: failed.length > 0,
+      unknown: results.some(
+        result => result.status === 'rejected' && result.reason instanceof UnknownSave
+      )
+    });
     flow.current = null;
     if (!failed.length) setDraft({});
     setPending(false);
@@ -173,7 +281,8 @@ export function CatalogBulkEditor({
         <>
           <div className="team-updater-filter-field">
             <span>
-              {t('catalogUpdaterFilterInterval')} · {intervalLabel(currentInterval, t)} ·{' '}
+              {t('catalogUpdaterFilterInterval')} · {intervalLabel(currentInterval, t)}
+              {mixedSchedule ? ` · ${t('catalogUpdaterMixed')}` : ''} ·{' '}
               {draft.updateInterval === undefined
                 ? t('catalogUpdaterBulkKeep')
                 : intervalLabel(draft.updateInterval, t)}
@@ -183,12 +292,13 @@ export function CatalogBulkEditor({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={pending}
+                disabled={locked}
                 onClick={() => {
                   resetResults();
                   setDraft(current => {
                     const next = { ...current };
                     delete next.updateInterval;
+                    delete next.schedule;
                     return next;
                   });
                 }}
@@ -200,7 +310,12 @@ export function CatalogBulkEditor({
           <UpdaterIntervalPicker
             value={draft.updateInterval === undefined ? currentInterval : draft.updateInterval}
             label={t('catalogUpdaterBulkIntervalTogether')}
-            disabled={pending}
+            disabled={locked}
+            schedule={draft.schedule === undefined ? currentSchedule : draft.schedule}
+            onSaveSchedule={async (value, schedule) => {
+              resetResults();
+              setDraft(current => ({ ...current, updateInterval: value, schedule }));
+            }}
             onChange={value => {
               resetResults();
               setDraft(current => ({ ...current, updateInterval: value }));
@@ -223,7 +338,7 @@ export function CatalogBulkEditor({
             </span>
             <SelectMenu
               id={`bulk-${field}`}
-              disabled={pending}
+              disabled={locked}
               label={`${t(label)} · ${
                 items.every(item => item.profile[field] === items[0]?.profile[field])
                   ? items[0]?.profile[field]
@@ -279,7 +394,7 @@ export function CatalogBulkEditor({
         disabled={!keys.length || !affected || pending}
         onClick={() => void apply()}
       >
-        {t('catalogUpdaterSaveProfile')}
+        {t(unknownIds.current.size > 0 ? 'catalogIconsCheck' : 'catalogUpdaterSaveProfile')}
       </Button>
       {successCount > 0 && (
         <p role="status">{t('catalogUpdaterBulkSaved', { count: successCount })}</p>
@@ -298,9 +413,11 @@ export function CatalogBulkEditor({
             {resultsByCatalog.map(result => (
               <li key={result.id}>
                 {result.name}:{' '}
-                {result.ok
-                  ? t('catalogUpdaterBulkResultSaved')
-                  : `${t('catalogUpdaterBulkResultFailed')} · ${result.error}`}
+                {result.unknown
+                  ? t('catalogIconsUnknown')
+                  : result.ok
+                    ? t('catalogUpdaterBulkResultSaved')
+                    : `${t('catalogUpdaterBulkResultFailed')} · ${result.error}`}
               </li>
             ))}
           </ol>

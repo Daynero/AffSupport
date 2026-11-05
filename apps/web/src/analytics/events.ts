@@ -358,6 +358,7 @@ export type AnalyticsProperties = {
 export interface TeamFileAttemptStartedProperties {
   attempt_id: string;
   action: TeamAnalyticsAction;
+  file_surface?: TeamAnalyticsProperties['file_surface'];
   storage_kind: TeamAnalyticsStorage;
   size_bucket: TeamAnalyticsSizeBucket;
   cache_state: TeamAnalyticsCacheState;
@@ -572,6 +573,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  file_surface: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.file_surface },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

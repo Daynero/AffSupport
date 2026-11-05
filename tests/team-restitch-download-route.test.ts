@@ -111,3 +111,37 @@ it('authenticates retired process commands and returns the closed refusal before
     await app.close();
   }
 });
+
+it('returns versioned image refusals only through the authenticated, scoped read', async () => {
+  const app = Fastify();
+  const refused = vi
+    .fn()
+    .mockResolvedValue([{ slot: 'start', materialId: 'image-id', checksum: 'a'.repeat(32) }]);
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.headers.authorization !== 'Bearer synthetic')
+      return reply.code(401).send({ error: 'UNAUTHORIZED' });
+  });
+  registerTeamBridgeRoutes(app, {
+    screenCache: { refused },
+    events: { handler: vi.fn() },
+    acceptingNewTasks: () => true
+  } as unknown as TeamBridgeRoutesDeps);
+  const teamId = '30000000-0000-4000-8000-0000000000cc';
+  const url = `/api/team/restitch/screen-refusals?teamId=${teamId}&scope=settings-1`;
+  try {
+    expect((await app.inject({ url })).statusCode).toBe(401);
+    expect(refused).not.toHaveBeenCalled();
+    const result = await app.inject({ url, headers: { authorization: 'Bearer synthetic' } });
+    expect(result.statusCode).toBe(200);
+    expect(result.json().refusals).toHaveLength(1);
+    expect(refused).toHaveBeenCalledWith(teamId, 'settings-1');
+    const invalid = await app.inject({
+      url: '/api/team/restitch/screen-refusals?teamId=invalid&scope=settings-1',
+      headers: { authorization: 'Bearer synthetic' }
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(refused).toHaveBeenCalledTimes(1);
+  } finally {
+    await app.close();
+  }
+});

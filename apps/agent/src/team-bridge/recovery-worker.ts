@@ -118,6 +118,11 @@ function activeClaim(
   };
 }
 export interface RecoveryWorkerOptions {
+  screenRefusals?: (
+    teamId: string
+  ) => Promise<
+    Array<{ settingsRevision: string; slot: 'start' | 'end'; materialId: string; checksum: string }>
+  >;
   environment: AppEnvironment;
   currentActorId: () => string | null;
   allowed?: () => boolean;
@@ -781,7 +786,13 @@ export class TeamRecoveryWorker {
       await this.#checkpoint(r, requestId, null, 'claiming');
       if (!(await this.#checkIdentity(r))) return;
       const value =
-        secrets.active ?? (await this.#call(r.endpoint, 'claim', secrets.claim, { requestId }));
+        secrets.active ??
+        (await this.#call(r.endpoint, 'claim', secrets.claim, {
+          requestId,
+          ...(this.options.screenRefusals
+            ? { screenRefusals: await this.options.screenRefusals(r.teamId) }
+            : {})
+        }));
       if (!(await this.#checkIdentity(r))) return;
       if (value.pending === true) {
         await this.#checkpoint(r, requestId, null, 'blocked', 'checkpoint_unavailable');

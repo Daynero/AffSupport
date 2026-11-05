@@ -1014,7 +1014,8 @@ export class GoogleDriveClient {
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`
     );
     url.searchParams.set('supportsAllDrives', 'true');
-    url.searchParams.set('sendNotificationEmail', 'false');
+    // Notification flags apply only to user/group permissions, never anyone.
+    // https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/create
     url.searchParams.set('fields', 'id,type,role');
     const response = await this.#request(url, {
       method: 'POST',
