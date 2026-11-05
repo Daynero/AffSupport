@@ -1,24 +1,24 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.3.2",
-  "buildNumber": "78",
-  "buildId": "1.3.2+78",
+  "version": "1.3.3",
+  "buildNumber": "79",
+  "buildId": "1.3.3+79",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-04T19:04:26.866Z",
+  "publishedAt": "2026-11-05T10:55:33.820Z",
   "summary": {
-    "uk": "Виправлено помилки та покращено продуктивність.",
-    "en": "Bug fixes and performance improvements."
+    "uk": "Покращено відновлення каталогів і повторні спроби. Додано закриття панелей кошика.",
+    "en": "Improved catalog recovery and retries. Trash panels can now be dismissed."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.2/Soty-v1.3.2-macOS-arm64.dmg",
-      "sha256": "e9cdcde9b85e3c413dedbd10e8f66d355a943ef395176bd067385ae5fde01098"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.3/Soty-v1.3.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.2/Soty-v1.3.2-Windows-x64.exe",
-      "sha256": "8007f2be51f9ee8a6536f9e02347ad8880c3eda72e947e443ad0f8ea14287f51"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.3/Soty-v1.3.3-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +43,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "0MATXjUB521uTWlKj52o3DqYap5gsKj2cvz4nGDBtIvHs3LcqAX2sSLfwWjaJottqZey6Tvc_CMHZRk0zeWUoA"
+  "signature": "HvHoYQfyBqxzR2qxgrVh6QDLS0-EXer7GaeKo5cYSd6L5j5v0NH57Ygs821ZwcWbiXOeioXFiqmxDKUgRHN2GQ"
 }
