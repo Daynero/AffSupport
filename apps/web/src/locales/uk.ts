@@ -3622,6 +3622,24 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerSortFolders: 'Папки',
   teamExplorerSortFoldersSeparate: 'Окремо від файлів',
   teamExplorerSortFoldersMixed: 'Разом із файлами',
+  materialLinkTitle: 'Посилання на файл',
+  materialLinkUrl: 'Посилання',
+  materialLinkPublic: 'Кожен із посиланням має доступ.',
+  materialLinkRestricted: 'Доступ обмежений. Посилання працює для тих, хто вже має доступ.',
+  materialLinkVisibilityUnknown: 'Посилання отримано, але доступ для інших не вдалося перевірити.',
+  materialLinkPending:
+    'Зміну доступу ще не підтверджено. Перевірте стан перед повторним поширенням.',
+  materialLinkReceiptPending:
+    'Посилання доступне для всіх. Soty ще не вдалося зберегти підтвердження — перевірте стан пізніше.',
+  materialLinkCheck: 'Перевірити стан',
+  materialLinkUpdateRequired:
+    'Оновіть сторінку, щоб скористатися оновленим поширенням. Наявне посилання можна скопіювати.',
+  materialLinkPreferenceFailed:
+    'Посилання готове, але не вдалося запам’ятати вибір. Наступного разу Soty запитає підтвердження.',
+  materialLinkUnavailable:
+    'Не вдалося отримати коректне посилання на файл. Оновіть його стан або перевірте доступ у Google Drive.',
+  materialLinkExpired:
+    'Час підтвердження минув. Оновіть стан посилання й підтвердьте поширення ще раз.',
   teamShareAction: 'Поділитися: {name}',
   teamShareCopied: 'Посилання скопійовано',
   teamShareClipboardUnavailable:

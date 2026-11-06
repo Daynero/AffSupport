@@ -1,3 +1,4 @@
+import { FunctionsFetchError } from '@supabase/supabase-js';
 import {
   executeTariffGrant,
   pendingTariffGrant,
@@ -707,18 +708,24 @@ export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
   guard: UnknownGuard<T>,
-  options: { method?: 'GET' | 'POST' } = {}
+  options: { method?: 'GET' | 'POST'; signal?: AbortSignal } = {}
 ): Promise<T> {
   const supabase = requireSupabaseClient();
   const { data, error } = await supabase.functions.invoke(
     functionName,
-    options.method === 'GET' ? { method: 'GET' } : { body }
+    options.method === 'GET'
+      ? { method: 'GET', ...(options.signal ? { signal: options.signal } : {}) }
+      : { body, ...(options.signal ? { signal: options.signal } : {}) }
   );
   let payload = data;
   if (error && data === null) {
     payload = await envelopeFromInvokeError(error);
     // A transport failure carries no envelope at all; that alone is retryable.
-    if (payload === null) throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    if (payload === null) {
+      if (error instanceof FunctionsFetchError)
+        throw new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
+      throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    }
   }
   const parsed = parseTeamEdgeResult(payload);
   if (!parsed.ok) {
@@ -4992,14 +4999,18 @@ export const teamApi = {
     return { allowLinkOnCopy: row.allowLinkOnCopy, remembered: row.remembered };
   },
 
-  async shareLibraryMaterial(request: LibraryShareCopyRequest): Promise<LibraryShareCopyResult> {
+  async shareLibraryMaterial(
+    request: LibraryShareCopyRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<LibraryShareCopyResult> {
     const normalized = parseLibraryShareCopyRequest(request);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
     const value = await invokeTeamFunction(
       'library-ops/share/copy',
       { action: 'share_copy', ...normalized },
       (candidate): candidate is LibraryShareCopyResult =>
-        parseLibraryShareCopyResult(candidate) !== null
+        parseLibraryShareCopyResult(candidate) !== null,
+      { signal: options.signal ?? AbortSignal.timeout(25_000) }
     );
     return parseLibraryShareCopyResult(value) as LibraryShareCopyResult;
   },

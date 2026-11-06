@@ -259,3 +259,39 @@ update attempt. Browser completion is an observation of visible acceptance;
 `production_completed=false` prevents that acknowledgement from being presented
 as verified catalog production. Missing, delayed or truncated evidence remains
 explicit.
+
+### Material Get-link / Share protocol v2 (T010–T011)
+
+Get-link is a read: it obtains a provider-verified HTTPS Drive/Docs URL and never
+creates permission or saves sharing consent. URL availability, current public
+access, confirmation persistence and clipboard delivery are independent facts.
+Restricted URLs remain selectable and openable; permission-list failure does not
+hide a separately verified URL. Share inspects first, then uses explicit consent
+or an already remembered approval. A new remember checkbox starts unchecked.
+Legacy callers without actor/version binding can read only.
+
+A modern permission request binds expected actor, material/connection/provider
+identity, observed opaque share version and remember choice. Its immutable key is
+`share.v2:<server-anchored issuance milliseconds>:<UUIDv4>`. First use has a
+five-minute DB-clock window. Completed same-key replay never gets another write
+permit; changed payload is refused. One unknown request holds each provider file,
+including material aliases. A final provider read preserves existing public
+reader/commenter/writer access. Permission creation is never retried. A consumed
+permit proves only that a write may have started, not dispatch or attribution.
+Acknowledgement and later observed public access remain separate evidence.
+
+Check performs reads only, including after lost responses or reload. A public
+observation can settle a pending request, without attributing another actor's
+permission to it. Missing clipboard permission never repeats Share. Actor/client/
+permission scope changes fence late results before copying or rendering them.
+Completed/blocked requests and idle authorities expire after 31 days in bounded
+batches of at most 100 total; unknown writes do not expire. Opaque UUID versions
+and issuance-window checks prevent expired keys becoming fresh write permits.
+
+The restricted `analytics_material_share_intents` projection contains opaque
+request/actor/team IDs and bounded states/timestamps, not provider IDs, raw keys,
+URL or hashes. `investigate` discovers the ten newest owned server requests even
+without browser events. `inspect` keeps immutable UI observations separate from
+current mutable receipt state; a historical cutoff cannot reconstruct that state.
+Readback and clipboard actions have their own flow IDs and reference the original
+request through `parent_flow_id`; child failures never replace its terminal.

@@ -1,25 +1,22 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { recordOriginalResultDelivery } from '../library/original-result-analytics';
 import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
-import { Button, FormField, Input, Modal } from '../../components/ui/index';
-import { useI18n } from '../../i18n';
 import {
-  startTeamFileAttempt,
-  completeTeamFileAttempt,
-  teamAnalyticsSizeBucket,
-  type TeamFileAttemptFlow
-} from '../../analytics/service';
+  Button,
+  Checkbox,
+  ErrorState,
+  FormField,
+  Input,
+  LoadingState,
+  Modal
+} from '../../components/ui/index';
+import { useMaterialLink } from './useMaterialLink';
+import { useI18n } from '../../i18n';
 import { teamApi } from '../../api/team';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
-import {
-  useMaterialActions,
-  analyticsOutcome,
-  retryableError,
-  reportFileAttemptError,
-  type MaterialActionsClient
-} from '../catalog/useMaterialActions';
+import { useMaterialActions, type MaterialActionsClient } from '../catalog/useMaterialActions';
 import type { ActionHandlers } from './useMaterialActionList';
 import type { MaterialRef } from './actions';
 import { MaterialNoteDialog } from './MaterialNote';
@@ -81,36 +78,14 @@ export function useMaterialActionHost({
   const [prompt, setPrompt] = useState<'rename' | 'move' | 'note' | null>(null);
   const [newName, setNewName] = useState(material.name);
   const uploadInput = useRef<HTMLInputElement>(null);
-  const scope = JSON.stringify([teamId, material.id]);
-  const shareAttempts = useRef(0);
-  const shareRequest = useRef<{
-    scope: string;
-    pending: boolean;
-    keys: Map<boolean, string>;
-  } | null>(null);
-  if (shareRequest.current?.scope !== scope) {
-    shareRequest.current = { scope, pending: false, keys: new Map() };
-  }
-  const [shareBusy, setShareBusy] = useState<string | null>(null);
-  const [sharedLink, setSharedLink] = useState<{
-    scope: string;
-    url: string;
-    attempt?: TeamFileAttemptFlow | null;
-  } | null>(null);
-  useEffect(() => {
-    if (sharedLink?.scope === scope && sharedLink.attempt)
-      completeTeamFileAttempt(sharedLink.attempt, {
-        outcome: 'success',
-        retryable: false,
-        delivery: 'url_visible'
-      });
-  }, [sharedLink, scope]);
-  useEffect(() => {
-    if (!shareRequest.current) shareRequest.current = { scope, pending: false, keys: new Map() };
-    return () => {
-      shareRequest.current = null;
-    };
-  }, [scope]);
+  const link = useMaterialLink({
+    teamId,
+    materialId: material.id,
+    sizeBytes: material.sizeBytes,
+    storageKind,
+    surface,
+    canShare: permissions.edit
+  });
 
   /**
    * Select the base name, leaving the extension alone.
@@ -148,80 +123,6 @@ export function useMaterialActionHost({
   });
 
   /**
-   * A link to this file, made shareable and put on the clipboard.
-   *
-   * It lived in a button of its own that only two surfaces rendered, so the
-   * same file could be linked from a folder row and not from a search result.
-   * `rememberChoice` is what tells the space to keep the sharing it just did,
-   * rather than asking again on the next copy.
-   */
-  const copySharedLink = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      if (shareRequest.current?.scope === scope)
-        push({ tone: 'success', text: t('teamShareCopied') });
-    } catch {
-      if (shareRequest.current?.scope === scope)
-        push({ tone: 'error', text: t('teamShareClipboardUnavailable') });
-    }
-  };
-
-  const shareLink = async (remember: boolean) => {
-    const request = shareRequest.current;
-    if (!request || request.pending) return;
-    request.pending = true;
-    setShareBusy(scope);
-    const key = request.keys.get(remember) ?? crypto.randomUUID();
-    request.keys.set(remember, key);
-    const attempt = startTeamFileAttempt({
-      action: 'share',
-      storageKind: storageKind ?? 'unknown',
-      surface,
-      sizeBucket: teamAnalyticsSizeBucket(material.sizeBytes),
-      attemptNumber: ++shareAttempts.current
-    });
-    try {
-      const result = await teamApi.shareLibraryMaterial({
-        teamId,
-        materialId: material.id,
-        allowIfRestricted: true,
-        rememberChoice: remember,
-        idempotencyKey: key
-      });
-      if (shareRequest.current !== request) {
-        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'cancelled', retryable: false });
-        return;
-      }
-      if (result.state !== 'ready') {
-        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'blocked', retryable: false });
-        push({ tone: 'error', text: t('teamShareFailed') });
-        return;
-      }
-      request.keys.delete(remember);
-      setSharedLink({ scope, url: result.url, attempt });
-      await copySharedLink(result.url);
-    } catch (cause) {
-      if (attempt) {
-        completeTeamFileAttempt(attempt, {
-          outcome: analyticsOutcome(cause),
-          retryable: retryableError(cause)
-        });
-        try {
-          reportFileAttemptError(attempt, cause);
-        } catch {
-          /* File actions survive diagnostics failures. */
-        }
-      }
-      if (shareRequest.current === request) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      }
-    } finally {
-      request.pending = false;
-      if (shareRequest.current === request) setShareBusy(null);
-    }
-  };
-
-  /**
    * The video's own words, on the clipboard.
    *
    * The transcript is a file beside the video, and reading it meant finding
@@ -250,9 +151,9 @@ export function useMaterialActionHost({
   };
 
   const handlers: ActionHandlers = {
-    copyLink: () => void shareLink(false),
+    copyLink: () => void link.open('get_link'),
     copyText: () => void copyText(),
-    share: () => void shareLink(true),
+    share: () => void link.open('share'),
     download: () => void actions.download(),
     rename: () => {
       setNewName(material.name);
@@ -283,24 +184,109 @@ export function useMaterialActionHost({
           if (file) void actions.upload(file, 'cancel');
         }}
       />
-      {sharedLink?.scope === scope && (
-        <Modal nested size="sm" title={t('teamShareReady')} onClose={() => setSharedLink(null)}>
-          <FormField label={t('teamShareReady')} htmlFor="material-shared-link">
+      {!link.visible && !link.error && link.busy && (
+        <Modal nested size="sm" title={t('materialLinkTitle')} onClose={link.dismiss}>
+          <LoadingState label={t('loading')} />
+        </Modal>
+      )}
+      {link.visible && (
+        <Modal nested size="sm" title={t('materialLinkTitle')} onClose={link.dismiss}>
+          <FormField label={t('materialLinkUrl')} htmlFor="material-shared-link">
             <Input
               id="material-shared-link"
-              value={sharedLink.url}
+              value={link.visible.result.url}
               readOnly
               onFocus={event => event.currentTarget.select()}
             />
           </FormField>
+          <p className="field-hint">
+            {t(
+              link.visible.result.public === true
+                ? 'materialLinkPublic'
+                : link.visible.result.public === false
+                  ? 'materialLinkRestricted'
+                  : 'materialLinkVisibilityUnknown'
+            )}
+          </p>
+          {!link.error &&
+            link.visible.result.visibilityCode &&
+            link.visible.result.visibilityCode !== 'CATALOG_LINK_SHARING_UNCERTAIN' && (
+              <ErrorState
+                className="team-inline-error"
+                message={teamErrorMessageFor({ code: link.visible.result.visibilityCode }, t)}
+              />
+            )}
+          {link.error && (
+            <>
+              <ErrorState className="team-inline-error" message={link.error} />
+              {!link.awaitingConfirmation && link.visible.result.sharing !== 'uncertain' && (
+                <Button loading={link.busy} onClick={() => void link.check()}>
+                  {t('materialLinkCheck')}
+                </Button>
+              )}
+            </>
+          )}
+          {link.awaitingConfirmation || link.visible.result.sharing === 'uncertain' ? (
+            <div className="team-dialog-form">
+              <p>
+                {t(
+                  link.visible.result.public === true
+                    ? 'materialLinkReceiptPending'
+                    : 'materialLinkPending'
+                )}
+              </p>
+              <Button loading={link.busy} onClick={() => void link.check()}>
+                {t('materialLinkCheck')}
+              </Button>
+            </div>
+          ) : link.visible.result.public !== true ? (
+            link.visible.mode === 'share' ? (
+              <div className="team-dialog-form">
+                {link.visible.result.linkProtocol !== 2 ? (
+                  <ErrorState message={t('materialLinkUpdateRequired')} />
+                ) : !permissions.edit || !link.visible.result.canShare ? (
+                  <p className="field-hint">{t('creativeLibraryShareUnavailable')}</p>
+                ) : (
+                  <>
+                    <p>{t('creativeLibrarySharePrompt')}</p>
+                    <Checkbox
+                      label={t('creativeLibraryShareRemember')}
+                      checked={link.remember}
+                      disabled={link.busy}
+                      onChange={link.setRemember}
+                    />
+                    <Button loading={link.busy} onClick={() => void link.approve()}>
+                      {t('creativeLibraryShareApprove')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : permissions.edit ? (
+              <Button disabled={link.busy} onClick={() => void link.open('share')}>
+                {t('materialActionShare')}
+              </Button>
+            ) : null
+          ) : null}
+          {link.visible.result.public === null &&
+            !link.awaitingConfirmation &&
+            link.visible.result.sharing !== 'uncertain' &&
+            !link.error && (
+              <Button loading={link.busy} onClick={() => void link.check()}>
+                {t('materialLinkCheck')}
+              </Button>
+            )}
           <div className="team-dialog-actions">
-            <Button onClick={() => void copySharedLink(sharedLink.url)}>
-              {t('materialActionCopyLink')}
-            </Button>
-            <Button onClick={() => window.open(sharedLink.url, '_blank', 'noopener,noreferrer')}>
-              {t('materialActionOpen')}
-            </Button>
+            <Button onClick={link.copy}>{t('materialActionCopyLink')}</Button>
+            <Button onClick={link.openUrl}>{t('materialActionOpen')}</Button>
           </div>
+        </Modal>
+      )}
+      {!link.visible && link.error && (
+        <Modal nested size="sm" title={t('materialLinkTitle')} onClose={link.dismiss}>
+          <ErrorState message={link.error} />
+          <Button loading={link.busy} onClick={() => void link.check()}>
+            {t('materialLinkCheck')}
+          </Button>
         </Modal>
       )}
       {prompt === 'rename' && (
@@ -397,5 +383,5 @@ export function useMaterialActionHost({
     </>
   );
 
-  return { handlers, dialogs, busy: actions.busy || shareBusy === scope };
+  return { handlers, dialogs, busy: actions.busy || link.busy };
 }

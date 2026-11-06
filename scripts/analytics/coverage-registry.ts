@@ -81,7 +81,8 @@ export interface CapabilitySignal {
     | 'member_permissions_save'
     | 'member_remove'
     | 'member_access_refresh'
-    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry'}`;
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry'}`
+    | `material_link_${'get_link' | 'share' | 'confirm' | 'readback' | 'clipboard'}`;
 }
 
 export interface Capability {
@@ -305,6 +306,60 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
   })),
+  ...(['get_link', 'share', 'confirm', 'readback', 'clipboard'] as const).map(action => ({
+    id: `team.material_link_${action}`,
+    tool: 'team' as const,
+    title: `File link · ${action}`,
+    stages: ['requested', 'observed_stage', 'terminal'],
+    stageEvents: {
+      requested: ['operation_started' as const],
+      observed_stage: ['operation_stage_completed' as const],
+      terminal: [
+        'operation_completed' as const,
+        'operation_failed' as const,
+        'operation_cancelled' as const
+      ]
+    },
+    start: [
+      {
+        event: 'operation_started' as const,
+        correlate: 'attempt_id' as const,
+        flowStep: `material_link_${action}` as const
+      }
+    ],
+    terminal: (['operation_completed', 'operation_failed', 'operation_cancelled'] as const).map(
+      event => ({
+        event,
+        correlate: 'attempt_id' as const,
+        flowStep: `material_link_${action}` as const
+      })
+    ),
+    platforms: BOTH,
+    producerStatus: 'emitted' as const,
+    source: 'events' as const,
+    unobservable: [
+      'Clipboard contents and use in another application; access changes outside Soty after a provider observation.',
+      'A consumed write permit without a valid acknowledgement does not prove that a provider POST ran.',
+      'Beta disables event delivery; a manual walkthrough is fallback evidence, not a production telemetry proof.'
+    ],
+    note: 'Typed material-link flows distinguish URL availability, visibility, explicit/remembered consent, permission observation, preference persistence and clipboard outcome. Get-link never creates permission or saves consent. Permission uncertainty retains its immutable request and a per-file hold; Check is read-only. A URL-visible stage does not prove public access or clipboard success. The restricted analytics_material_share_intents projection adds server evidence without provider IDs, URLs or content. Its current state is not reconstructed history. UI producer-to-ingestion-to-SELECT-only diagnosis is verified separately from manual provider acceptance.'
+  })),
+  {
+    id: 'team.material_sharing',
+    tool: 'team',
+    title: 'File sharing · durable permission intent',
+    stages: ['request_recorded', 'permission_observed', 'browser_result'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    unobservable: [
+      'Provider dispatch before acknowledgement; browser visibility without its UI event; historical target after completed receipt compaction.'
+    ],
+    note: 'Service-only immutable share receipts and opaque per-file versions fence replay and stale preflight. Unknown permits are retained. Completed receipts keep hashes instead of material/provider pointers; a server confirmation proves a public-access observation, never clipboard delivery. Current projection and missing/expired evidence stay explicit.'
+  },
   ...(['list', 'filter', 'profile', 'bulk', 'template', 'run', 'retry'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
     tool: 'team' as const,

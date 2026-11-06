@@ -1,3 +1,8 @@
+import {
+  getMaterialSharingAudit,
+  getMaterialSharingEvidence,
+  inspectMaterialSharing
+} from './material-sharing.js';
 import { getCatalogCommandEvidence } from './catalog-commands.js';
 import { getTeamProcessJournalEvidence, mergeTeamProcessJournal } from './team-process-journal.js';
 import { getOriginalJournalEvidence, inspectOriginalJournal } from './transcription-journal.js';
@@ -1824,6 +1829,9 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     'retirementAudit',
     async () => await getRetirementAudit(period, schema)
   );
+  const materialSharingAudit = await readSource('materialSharingAudit', () =>
+    getMaterialSharingAudit(period)
+  );
   const capabilities = COVERAGE_REGISTRY.map(capability =>
     auditCapability(
       capability,
@@ -1851,7 +1859,8 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
       period,
       Boolean(schema.tables.analytics_recovery_retirement),
       catalogImageAudit ?? undefined,
-      textScheduleAudit ?? undefined
+      textScheduleAudit ?? undefined,
+      materialSharingAudit ?? undefined
     )
   );
 
@@ -1963,7 +1972,8 @@ function auditCapability(
   period: ResolvedPeriod,
   browserRetirementReceiptsSupported = false,
   catalogImageAudit?: Awaited<ReturnType<typeof getCatalogImageAudit>>,
-  textScheduleAudit?: Awaited<ReturnType<typeof getCatalogTextScheduleDiagnosis>>
+  textScheduleAudit?: Awaited<ReturnType<typeof getCatalogTextScheduleDiagnosis>>,
+  materialSharingAudit?: Awaited<ReturnType<typeof getMaterialSharingAudit>>
 ): AuditCapability {
   const base = {
     id: capability.id,
@@ -2091,6 +2101,22 @@ function auditCapability(
       missing,
       samples: evidence.observations,
       note: `${capability.note ?? ''} Installed observation boundary: ${evidence.installed_at ?? 'unknown'}. Observed changes in period: ${evidence.changes}; baseline observations are not changes.`
+    };
+  }
+  if (capability.id === 'team.material_sharing') {
+    const missing = [
+      ...(!materialSharingAudit ? ['material_sharing_source_unavailable'] : []),
+      ...(!materialSharingAudit?.samples ? ['sharing_evidence_in_period'] : []),
+      ...(materialSharingAudit?.pending ? ['permission_reconciliation_pending'] : []),
+      ...(materialSharingAudit?.missing_browser ? ['browser_result_unobserved'] : []),
+      ...(materialSharingAudit?.truncated ? ['sharing_sample_truncated'] : [])
+    ];
+    return {
+      ...base,
+      status: !materialSharingAudit?.samples ? 'uncovered' : missing.length ? 'partial' : 'covered',
+      missing,
+      samples: materialSharingAudit?.samples ?? 0,
+      note: `${capability.note ?? ''} Bounded to 501 newest requests; mutable receipt state is current, not reconstructed at the period cutoff.`
     };
   }
   if (capability.source === 'authoritative_table') {
@@ -2321,7 +2347,27 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
-  const core = await getInspectComposite(id, asOf, limit);
+  const initial = await getInspectComposite(id, asOf, limit);
+  const sharing = await getMaterialSharingEvidence(
+    id,
+    asOf,
+    initial.found
+      ? initial.events
+          .flatMap(event => [event.flow_id, event.run_id])
+          .filter((value): value is string => typeof value === 'string')
+      : [],
+    limit
+  );
+  const related =
+    sharing.items.length > 0 ||
+    sharing.related_ui_events.length > 0 ||
+    (initial.found && initial.capability?.startsWith('team.material_link_'));
+  const core: InspectData = initial.found
+    ? related
+      ? { ...initial, material_sharing: sharing }
+      : initial
+    : (inspectMaterialSharing(id, sharing, asOf) ??
+      (related ? { ...initial, material_sharing: sharing } : initial));
   const commands = await getCatalogCommandEvidence(
     id,
     asOf,

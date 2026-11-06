@@ -63,7 +63,7 @@
       належний storage context, flow/attempt і surface. Share також має lifecycle.
       Перевірка: та сама дія з двох поверхонь доходить до ingestion з failure/success
       і не дублюється; telemetry failure не блокує користувача.
-      **Evidence:** —
+      **Evidence (partial):** Canonical source checkpoint: reviews/verification-fast-material-links.json (14/14 gates, 8988 passed tests). The actual material-link hook and typed producer pass sanitizer, SQL ingestion and SELECT-only inspect/investigate/audit; clipboard child failures no longer replace URL success. Current provider/UI acceptance remains open; see reviews/material-link-implementation.md.
 
 - [x] T007 [US1] приєднати native terminal до CLI — `scripts/analytics/investigate.ts`. Залежності: T005–T006.
       `queries.ts`, `investigate.ts`, recovery/catalog projections: journal terminal
@@ -92,14 +92,14 @@
       мають класифіковані причини; результат отримується лише з довіреного provider
       contract. Використати idempotent intent/receipt, reconciled retry після втрати
       відповіді; перевірити межі edit/view/share. A01–A03, ready/restricted/revoked.
-      **Evidence:** —
+      **Evidence (partial):** URL resolution is separated from permission writes, with immutable actor/version-bound intents, one per-file permit, read-only reconciliation, explicit uncertainty and bounded retention. reviews/verification-db-material-link.json: 425 migrations, 1074 pgTAP assertions, 2 Auth and 46 native tests; real SHA and concurrent permit races pass. Real provider acceptance and the idle-confirmation freshness regression remain open.
 
 - [ ] T011 [US1] стійке отримання URL у UI — `apps/web/src/team/materials/MaterialActionHost.tsx`. Залежності: T010.
       Спільний action host/dialog: pending lock, окремі available/public/copied
       outcomes, поле URL із Copy/Open при denied clipboard. Охопити menu, direct
       catalog buttons і explorer. Перевірки: double click, denied clipboard, закриття
       меню, довгий URL, keyboard; не повторювати share через clipboard failure.
-      **Evidence:** —
+      **Evidence (partial):** Shared link host now retains selectable Copy/Open URLs, separates public/copied outcomes, serializes same-tick actions and fences actor/client scope changes. Its 17 UI regressions are covered by the complete 8988-test checkpoint. Current manual UI acceptance is blocked by unavailable Computer Use; no walkthrough success is claimed.
 
 - [x] T012 [US1] строгі API результати та неповні списки — `apps/web/src/api/team.ts`. Залежності: T005.
       `api/team.ts` guards для registry/profiles/run/retry/cancel: invalid rows

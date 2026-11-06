@@ -204,8 +204,28 @@ export async function executeLibraryOpsCommand(
     return deps.movePlacement(command.request);
   }
   if (command.action === 'share_copy') {
+    if (
+      command.request.expectedActorId !== undefined &&
+      command.request.expectedActorId !== deps.actorId
+    )
+      throw new TeamFunctionError('PERMISSION_DENIED');
+    // Older clients can still obtain URLs. Their old combined Copy/Share action
+    // never bypasses the modern explicit-consent and observed-version boundary.
+    const modern =
+      command.request.expectedActorId !== undefined &&
+      command.request.expectedShareVersion !== undefined;
+    if (
+      command.request.allowIfRestricted &&
+      modern &&
+      !/^share[.]v2:[0-9]{13}:[0-9a-f-]{36}$/u.test(command.request.idempotencyKey)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
     if (!deps.shareMaterial) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
-    return deps.shareMaterial(command.request);
+    return deps.shareMaterial(
+      modern
+        ? command.request
+        : { ...command.request, allowIfRestricted: false, rememberChoice: false }
+    );
   }
   if (command.action === 'job_finalize') {
     return deps.serviceRpc('service_accept_library_result', {

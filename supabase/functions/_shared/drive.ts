@@ -1026,6 +1026,9 @@ export class GoogleDriveClient {
     if (
       !isRecord(payload) ||
       typeof payload.id !== 'string' ||
+      payload.id.length < 1 ||
+      payload.id.length > 200 ||
+      /\p{Cc}/u.test(payload.id) ||
       payload.type !== 'anyone' ||
       payload.role !== 'reader'
     ) {

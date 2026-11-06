@@ -8,6 +8,7 @@ import { GoogleDriveClient } from '../supabase/functions/_shared/drive.js';
 import { executeLibraryOpsCommand } from '../supabase/functions/library-ops/handler.js';
 
 const TEAM_ID = '47000000-0000-4000-8000-000000000001';
+const ACTOR_ID = '47000000-0000-4000-8000-000000000003';
 const MATERIAL_ID = '47000000-0000-4000-8000-000000000002';
 
 describe('Creative Library exact Drive sharing', () => {
@@ -136,7 +137,9 @@ describe('Creative Library exact Drive sharing', () => {
       materialId: MATERIAL_ID,
       allowIfRestricted: true,
       rememberChoice: false,
-      idempotencyKey: 'share-copy-12345678'
+      idempotencyKey: `share.v2:${Date.now()}:${crypto.randomUUID()}`,
+      expectedActorId: ACTOR_ID,
+      expectedShareVersion: null
     };
     const shareMaterial = vi.fn().mockResolvedValue({
       state: 'ready',
@@ -146,9 +149,134 @@ describe('Creative Library exact Drive sharing', () => {
     });
     await executeLibraryOpsCommand(
       { action: 'share_copy', request },
-      { actorId: 'actor', callerRpc: vi.fn(), serviceRpc: vi.fn(), shareMaterial }
+      { actorId: ACTOR_ID, callerRpc: vi.fn(), serviceRpc: vi.fn(), shareMaterial }
     );
     expect(shareMaterial).toHaveBeenCalledTimes(1);
     expect(shareMaterial).toHaveBeenCalledWith(request);
   });
+});
+
+it('keeps legacy combined Copy/Share clients read-only instead of bypassing explicit approval', async () => {
+  const request: LibraryShareCopyRequest = {
+    teamId: TEAM_ID,
+    materialId: MATERIAL_ID,
+    allowIfRestricted: true,
+    rememberChoice: true,
+    idempotencyKey: 'legacy-share-12345678'
+  };
+  const shareMaterial = vi.fn().mockResolvedValue({ state: 'confirmation_required' });
+  await executeLibraryOpsCommand(
+    { action: 'share_copy', request },
+    { actorId: ACTOR_ID, callerRpc: vi.fn(), serviceRpc: vi.fn(), shareMaterial }
+  );
+  expect(shareMaterial).toHaveBeenCalledWith({
+    ...request,
+    allowIfRestricted: false,
+    rememberChoice: false
+  });
+});
+it.each([false, true])(
+  'rejects a changed actor before even resolving a link (mutation=%s)',
+  async allowIfRestricted => {
+    const shareMaterial = vi.fn();
+    await expect(
+      executeLibraryOpsCommand(
+        {
+          action: 'share_copy',
+          request: {
+            teamId: TEAM_ID,
+            materialId: MATERIAL_ID,
+            allowIfRestricted,
+            rememberChoice: false,
+            expectedActorId: ACTOR_ID,
+            expectedShareVersion: null,
+            idempotencyKey: `share.v2:${Date.now()}:${crypto.randomUUID()}`
+          }
+        },
+        { actorId: TEAM_ID, callerRpc: vi.fn(), serviceRpc: vi.fn(), shareMaterial }
+      )
+    ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    expect(shareMaterial).not.toHaveBeenCalled();
+  }
+);
+it('refuses an unversioned key on a modern mutation rather than using the old writer', async () => {
+  const shareMaterial = vi.fn();
+  await expect(
+    executeLibraryOpsCommand(
+      {
+        action: 'share_copy',
+        request: {
+          teamId: TEAM_ID,
+          materialId: MATERIAL_ID,
+          allowIfRestricted: true,
+          rememberChoice: false,
+          expectedActorId: ACTOR_ID,
+          expectedShareVersion: null,
+          idempotencyKey: 'legacy-share-12345678'
+        }
+      },
+      { actorId: ACTOR_ID, callerRpc: vi.fn(), serviceRpc: vi.fn(), shareMaterial }
+    )
+  ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  expect(shareMaterial).not.toHaveBeenCalled();
+});
+const modernLink = {
+  state: 'ready',
+  url: 'https://docs.google.com/spreadsheets/d/fixture/edit',
+  public: false,
+  permissionChanged: false,
+  canShare: true,
+  sharing: 'unchanged',
+  linkProtocol: 2,
+  serverNow: '2026-11-06T12:00:00.000Z',
+  shareVersion: null
+};
+it('distinguishes unverified visibility from a known restricted URL without coercion', () => {
+  expect(
+    parseLibraryShareCopyResult({
+      ...modernLink,
+      public: null,
+      visibilityCode: 'DRIVE_UNAVAILABLE'
+    })
+  ).toMatchObject({ public: null, permissionChanged: false, visibilityCode: 'DRIVE_UNAVAILABLE' });
+  expect(parseLibraryShareCopyResult({ ...modernLink, public: false })).toMatchObject({
+    public: false
+  });
+  expect(
+    parseLibraryShareCopyResult({
+      ...modernLink,
+      public: true,
+      permissionChanged: null,
+      sharing: 'confirmed'
+    })
+  ).toMatchObject({ public: true, permissionChanged: null });
+});
+it.each([
+  { public: 'false' },
+  { permissionChanged: 'false' },
+  { public: null },
+  { linkProtocol: 3 },
+  { serverNow: 'bad-date' },
+  { shareVersion: 5 },
+  { pendingCommandId: 'bad-id' },
+  { preferenceSaved: false, preferenceCode: 'user-provided-message' },
+  { preferenceSaved: true, preferenceCode: 'PERMISSION_DENIED' },
+  { url: 'https://docs.google.com.evil.invalid/x' },
+  {
+    sharing: {
+      toString() {
+        throw new Error('must not coerce');
+      }
+    }
+  }
+])('refuses malformed link evidence %j without executing coercion', patch => {
+  expect(parseLibraryShareCopyResult({ ...modernLink, ...patch })).toBeNull();
+});
+it('drops unrelated provider payload fields at the shared boundary', () => {
+  const parsed = parseLibraryShareCopyResult({
+    ...modernLink,
+    providerPayload: { secret: 'synthetic' },
+    rawName: 'Synthetic name'
+  });
+  expect(parsed).toEqual(modernLink);
 });

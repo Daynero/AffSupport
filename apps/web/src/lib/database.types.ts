@@ -4927,6 +4927,45 @@ export type GeneratedDatabase = {
       };
     };
     Views: {
+      analytics_material_share_intents: {
+        Row: {
+          actor_id: string | null;
+          command_id: string | null;
+          confirmed_at: string | null;
+          created_at: string | null;
+          intent_id: string | null;
+          material_id: string | null;
+          permission_acknowledged: boolean | null;
+          state: string | null;
+          team_id: string | null;
+          write_may_have_started: boolean | null;
+        };
+        Insert: {
+          actor_id?: string | null;
+          command_id?: never;
+          confirmed_at?: string | null;
+          created_at?: string | null;
+          intent_id?: string | null;
+          material_id?: string | null;
+          permission_acknowledged?: never;
+          state?: string | null;
+          team_id?: string | null;
+          write_may_have_started?: boolean | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          command_id?: never;
+          confirmed_at?: string | null;
+          created_at?: string | null;
+          intent_id?: string | null;
+          material_id?: string | null;
+          permission_acknowledged?: never;
+          state?: string | null;
+          team_id?: string | null;
+          write_may_have_started?: boolean | null;
+        };
+        Relationships: [];
+      };
       analytics_catalog_image_coverage: {
         Row: {
           capture_enabled: boolean | null;
@@ -5650,6 +5689,62 @@ export type GeneratedDatabase = {
       };
     };
     Functions: {
+      service_prune_material_share_receipts: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
+      service_observe_material_share_public: {
+        Args: {
+          p_actor: string;
+          p_file: string;
+          p_material: string;
+          p_team: string;
+        };
+        Returns: number;
+      };
+      service_material_share_status: {
+        Args: {
+          p_actor: string;
+          p_file: string;
+          p_material: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_confirm_material_share: {
+        Args: {
+          p_actor: string;
+          p_file: string;
+          p_intent: string;
+          p_no_write?: boolean;
+          p_permission?: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_begin_material_share: {
+        Args: {
+          p_actor: string;
+          p_connection: string;
+          p_expected_share_version: string;
+          p_file: string;
+          p_key: string;
+          p_material: string;
+          p_public_observed: boolean;
+          p_remember: boolean;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_acknowledge_material_share: {
+        Args: {
+          p_actor: string;
+          p_intent: string;
+          p_permission: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       accept_invitation: {
         Args: { p_invitation: string; p_plain_token?: string };
         Returns: {

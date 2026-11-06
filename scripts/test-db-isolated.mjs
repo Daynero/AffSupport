@@ -204,6 +204,7 @@ try {
         'tests/search-migration-role-postgres.test.ts',
         'tests/catalog-image-adoption-postgres.test.ts',
         'tests/catalog-command-postgres.test.ts',
+        'tests/material-share-postgres.test.ts',
         'tests/recovery-retention-postgres.test.ts',
         'tests/recovery-retirement-postgres.test.ts',
         'tests/acceptance-clock-postgres.test.ts',

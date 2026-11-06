@@ -262,6 +262,7 @@ export interface InspectAgentIdentity {
 
 export interface InspectFound {
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
+  material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
@@ -291,6 +292,7 @@ export interface InspectFound {
 
 export interface InspectNotFound {
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
+  material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
@@ -930,6 +932,9 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  material_sharing?: Awaited<
+    ReturnType<typeof import('./material-sharing.js').getOwnedMaterialSharingEvidence>
+  >;
   catalog_claims?: Awaited<
     ReturnType<typeof import('./catalog-updates.js').getOwnedCatalogClaimEvidence>
   >;

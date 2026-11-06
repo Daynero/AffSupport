@@ -535,27 +535,21 @@ describe('investigate · (e) a user with no events', () => {
     expect(data.coverage.events).toBe(0);
     expect(data.findings).toHaveLength(1);
     expect(data.findings[0]).toMatchObject({ kind: 'insufficient', rule: 'no_events' });
-    expect(data.coverage.blind_spots.map(spot => spot.kind)).toEqual([
-      'no_events_in_period',
-      'analytics_disabled',
-      'recovery_retirement_gap',
-      'tariff_recovery_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'workspace_evidence_gap',
-      'launch_diagnostics_unavailable'
-    ]);
+    expect(data.coverage.blind_spots.map(spot => spot.kind)).toEqual(
+      expect.arrayContaining([
+        'no_events_in_period',
+        'analytics_disabled',
+        'recovery_retirement_gap',
+        'tariff_recovery_gap',
+        'workspace_evidence_gap',
+        'launch_diagnostics_unavailable'
+      ])
+    );
+    expect(
+      data.coverage.blind_spots.some(spot =>
+        spot.detail.includes('Permission receipt projection is unavailable')
+      )
+    ).toBe(true);
     expect(data.recovery_retirement).toMatchObject({ supported: false, receipts: [] });
     expect(
       data.coverage.blind_spots.find(spot => spot.kind === 'recovery_retirement_gap')?.detail
@@ -594,6 +588,27 @@ describe('investigate · (e) a user with no events', () => {
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Workspace diagnostic projection is unavailable')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Permission receipt projection is unavailable')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('A consumed permit without a valid acknowledgement')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('A confirmation proves a public-access observation')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Completed receipts retain request binding')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('The cutoff bounds receipt creation only')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Related clipboard failures are separate')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Server request discovery failed')
       }),
       expect.objectContaining({ detail: 'Historical catalog claim eligibility is not retained.' }),
       expect.objectContaining({

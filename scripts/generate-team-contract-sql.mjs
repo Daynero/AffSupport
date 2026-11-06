@@ -19,6 +19,7 @@ import {
   TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   TEAM_CATALOG_MANAGER_ERROR_CODES,
   TEAM_CATALOG_POLISH_ERROR_CODES,
+  TEAM_CATALOG_LINK_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
@@ -54,6 +55,7 @@ const extensionCodes = new Set([
   ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...TEAM_CATALOG_MANAGER_ERROR_CODES,
   ...TEAM_CATALOG_POLISH_ERROR_CODES,
+  ...TEAM_CATALOG_LINK_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
@@ -70,6 +72,7 @@ if (
       TEAM_CATALOG_RELIABILITY_ERROR_CODES.length +
       TEAM_CATALOG_MANAGER_ERROR_CODES.length +
       TEAM_CATALOG_POLISH_ERROR_CODES.length +
+      TEAM_CATALOG_LINK_ERROR_CODES.length +
       CATALOG_IMAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
@@ -324,6 +327,15 @@ const catalogPolishCodes = [...catalogPolishInsert.matchAll(/\('([^']+)'\)/gu)].
 );
 if (JSON.stringify(catalogPolishCodes) !== JSON.stringify([...TEAM_CATALOG_POLISH_ERROR_CODES]))
   fail('Catalog polish error catalog is out of date: ' + catalogPolishPath);
+
+const linkPath = resolve(root, 'supabase/migrations/20261207140000_material_share_intents.sql');
+const linkInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    readFileSync(linkPath, 'utf8')
+  )?.[1] ?? '';
+const linkCodes = [...linkInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(linkCodes) !== JSON.stringify([...TEAM_CATALOG_LINK_ERROR_CODES]))
+  fail('Material link error catalog is out of date: ' + linkPath);
 
 const next = generatedSql();
 const extension = generatedExtensionSql();

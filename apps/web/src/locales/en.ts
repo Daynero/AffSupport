@@ -3636,6 +3636,26 @@ export const en = {
   teamExplorerSortFolders: 'Folders',
   teamExplorerSortFoldersSeparate: 'Apart from files',
   teamExplorerSortFoldersMixed: 'Mixed with files',
+  materialLinkTitle: 'File link',
+  materialLinkUrl: 'Link',
+  materialLinkPublic: 'Anyone with the link has access.',
+  materialLinkRestricted:
+    'Access is restricted. This link works for people who already have access.',
+  materialLinkVisibilityUnknown:
+    'The link is available, but access for other people could not be checked.',
+  materialLinkPending:
+    'The access change is not confirmed yet. Check its status before sharing again.',
+  materialLinkReceiptPending:
+    'Anyone with the link has access. Soty could not record the confirmation yet; check the status later.',
+  materialLinkCheck: 'Check status',
+  materialLinkUpdateRequired:
+    'Refresh the page to use the updated sharing flow. You can still copy the existing link.',
+  materialLinkPreferenceFailed:
+    'The link is ready, but your choice could not be remembered. Soty will ask again next time.',
+  materialLinkUnavailable:
+    'Could not obtain a valid link for this file. Refresh its status or check access in Google Drive.',
+  materialLinkExpired:
+    'The confirmation has expired. Refresh the link status and confirm sharing again.',
   teamShareAction: 'Share {name}',
   teamShareCopied: 'Link copied',
   teamShareClipboardUnavailable:

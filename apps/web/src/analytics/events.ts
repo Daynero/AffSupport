@@ -286,6 +286,8 @@ const PROPERTY_VALUE_MAX_LENGTH = 128;
 
 export type AnalyticsProperties = {
   flow_id?: string;
+  /** Related operation, without merging its terminal into this flow. */
+  parent_flow_id?: string;
   run_id?: string;
   tool_identifier?: AnalyticsTool;
   feature_identifier?: string;
@@ -502,6 +504,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   Record<keyof AnalyticsProperties, AnalyticsPropertyRule>
 > = {
   flow_id: { kind: 'id' },
+  parent_flow_id: { kind: 'id' },
   run_id: { kind: 'id' },
   revision_id: { kind: 'id' },
   account_operation: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.account_operation },

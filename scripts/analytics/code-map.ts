@@ -819,8 +819,38 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  const materialLinkFiles = [
+    'supabase/functions/library-ops/share-resolution.ts',
+    'supabase/functions/library-ops/index.ts',
+    'supabase/migrations/20261207140000_material_share_intents.sql',
+    'apps/web/src/team/materials/useMaterialLink.ts',
+    'apps/web/src/team/materials/MaterialActionHost.tsx'
+  ];
+  for (const code of [
+    'CATALOG_LINK_UNAVAILABLE',
+    'CATALOG_LINK_SHARING_UNCERTAIN',
+    'CATALOG_LINK_REQUEST_EXPIRED',
+    'CATALOG_LINK_UPDATE_REQUIRED'
+  ])
+    map[`team:library:${code}`] = {
+      files: materialLinkFiles,
+      check:
+        'Separate the verified provider URL from visibility and permission intent. Inspect the retained per-file share receipt and opaque authority version. Unknown acknowledgement never permits another POST; read status with the original actor. An expired or legacy confirmation needs a fresh read, not an old mutation fallback.'
+    };
+  map['team:library:CLIPBOARD_UNAVAILABLE'] = {
+    files: [
+      'apps/web/src/team/materials/useMaterialLink.ts',
+      'apps/web/src/team/materials/link-analytics.ts'
+    ],
+    check:
+      'Clipboard refused after URL resolution. The selectable URL must remain visible; Copy retries clipboard only, never provider sharing. Clipboard contents and use elsewhere remain unobservable.'
+  };
   map['team:library:TEAM_TRANSPORT_UNAVAILABLE'] = {
-    files: ['apps/web/src/api/team.ts', 'apps/web/src/team/catalog-updater/useCatalogCommands.ts'],
+    files: [
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/useCatalogCommands.ts',
+      'apps/web/src/team/materials/useMaterialLink.ts'
+    ],
     check:
       'The browser fetch failed without a server response. Reconcile the retained command identity; connectivity failure does not prove an in-flight mutation was absent.'
   };

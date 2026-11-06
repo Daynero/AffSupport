@@ -9,6 +9,7 @@ import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
 import { getCatalogGenerationEvidence } from './catalog-generations.js';
+import { getMaterialSharingEvidence, getOwnedMaterialSharingEvidence } from './material-sharing.js';
 /**
  * 033 — `journal` and `investigate`: everything the database knows about one user's problem,
  * in one read-only call (FR-005, FR-006).
@@ -374,6 +375,15 @@ async function resolveSubject(
         or e.properties ->> 'workflow_id' = $1::text)`
     );
     if (attempt) return scopeOf('attempt', value, attempt, value);
+    const sharing = await getMaterialSharingEvidence(value, period.end);
+    const receipt = sharing.items[0];
+    if (receipt)
+      return scopeOf(
+        receipt.command_id === value.toLowerCase() ? 'flow' : 'attempt',
+        value,
+        { user_id: receipt.actor_id, installation_id: null },
+        value
+      );
   } else {
     // `$2::uuid is null` (always true here) also gives Postgres the type of the unused $2.
     const attempt = await owner(
@@ -1902,6 +1912,26 @@ export async function getInvestigation(
   }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
+  const material_sharing = await getOwnedMaterialSharingEvidence(scope.userId, period);
+  for (const detail of material_sharing.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const receipt of material_sharing.items) {
+    if (!['write_started', 'acknowledged', 'blocked'].includes(receipt.request_state)) continue;
+    const fingerprint = 'team:library:CATALOG_LINK_SHARING_UNCERTAIN';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['material_share_pending', receipt.intent_id]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'material_sharing_currently_pending',
+      title: `Sharing request currently requires reconciliation: ${receipt.request_state}.`,
+      evidence: [`material_share:${receipt.intent_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read the existing file permissions using Check. A consumed permit does not prove a provider write; do not repeat permission creation. This is current receipt state, not reconstructed historical state.'
+    });
+  }
   const catalog_claims = await getOwnedCatalogClaimEvidence(scope.userId, period.as_of);
   for (const detail of catalog_claims.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
@@ -2066,6 +2096,7 @@ export async function getInvestigation(
     workspace,
     launches,
     catalog_generations,
+    material_sharing,
     catalog_claims,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
