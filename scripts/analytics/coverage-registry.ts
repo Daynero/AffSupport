@@ -993,6 +993,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     id: 'team.storage_connect',
     tool: 'team',
     title: 'Team · connect storage',
+    note: 'Owners can enter root_missing spaces from the lobby to reach storage recovery. team_storage_attention proves observed health, and sync reports current connection state; neither proves that lobby entry or the recovery action reached the user.',
     stages: ['connect', 'attention'],
     stageEvents: {
       connect: ['team_storage_connected'],

@@ -6,13 +6,15 @@ export type SpaceReadiness = 'ready' | 'setup_incomplete' | 'preparing';
 
 /**
  * Classify how a space should appear in the lobby from its shared connection
- * state and the viewer's role. A space is only enterable once its Drive root is
- * connected; an owner whose space never got a root sees "Continue setup", while
+ * state and the viewer's role. Owners can also enter a space with a missing
+ * root to reach the existing storage recovery controls. An owner whose space
+ * never got a root sees "Continue setup", while
  * everyone else sees a read-only "being set up" state (covers an invited member
  * opening a space whose owner has not finished folder connection).
  */
 export function spaceReadiness(space: TeamContextSnapshot): SpaceReadiness {
   if (space.connectionState === 'connected') return 'ready';
+  if (space.role === 'owner' && space.connectionState === 'root_missing') return 'ready';
   if (
     space.role === 'owner' &&
     (space.connectionState === 'none' || space.connectionState === 'detached')
@@ -47,14 +49,16 @@ export function SpaceCard({
 }) {
   const { t } = useI18n();
   const readiness = spaceReadiness(space);
+  const rootMissing = space.connectionState === 'root_missing';
   const actionable = readiness !== 'preparing';
   const activate = () => {
     if (readiness === 'ready') onEnter(space.id);
     else if (readiness === 'setup_incomplete') onResume(space.id);
   };
 
-  const actionLabel =
-    readiness === 'ready'
+  const actionLabel = rootMissing
+    ? t('teamDriveRootMissing')
+    : readiness === 'ready'
       ? t('teamSpaceCardEnter')
       : readiness === 'setup_incomplete'
         ? t('teamSpaceCardContinueSetup')
@@ -78,12 +82,15 @@ export function SpaceCard({
               }
             }
           }
-        : { 'aria-label': `${space.name} — ${t('teamSpaceCardPreparingHint')}` })}
+        : {
+            'aria-label': `${space.name} — ${rootMissing ? t('teamDriveRootMissing') : t('teamSpaceCardPreparingHint')}`
+          })}
     >
       <div className="team-space-card-copy">
         <h3>{space.name}</h3>
         <p className="team-space-card-role">{roleLabel(space.role, t)}</p>
-        {readiness === 'preparing' && (
+        {rootMissing && <p className="team-space-card-hint">{t('teamSpaceRootMissingBody')}</p>}
+        {readiness === 'preparing' && !rootMissing && (
           <p className="team-space-card-hint">{t('teamSpaceCardPreparingHint')}</p>
         )}
       </div>

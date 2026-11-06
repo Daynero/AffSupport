@@ -173,31 +173,34 @@ describe('a stale health snapshot says so (028, release C)', () => {
   });
 });
 
-it('reports completed preview preparation once and deduplicates repeated attention reasons', async () => {
-  const ready = vi.spyOn(analytics, 'trackTeamPreviewsReady').mockImplementation(() => {});
-  const attention = vi.spyOn(analytics, 'trackTeamStorageAttention').mockImplementation(() => {});
-  const getStorageHealth = vi
-    .fn()
-    .mockResolvedValueOnce({ kind: 'preparing', ready: 3, pending: 2 })
-    .mockResolvedValueOnce({ kind: 'preparing', ready: 4, pending: 1 })
-    .mockResolvedValueOnce({ kind: 'connected', lastReconciledAt: '2026-11-03T00:00:00Z' })
-    .mockResolvedValue({ kind: 'attention', reason: 'needs_reauth', fixer: 'owner' });
-  const client = { getStorageHealth };
-  const view = renderHook(() => useStorageHealth({ teamId: 'previews-team', client }));
-  await act(async () => {
-    await Promise.resolve();
-  });
-  expect(view.result.current.health?.kind).toBe('preparing');
-  await act(async () => view.result.current.refresh());
-  expect(ready).not.toHaveBeenCalled();
-  await act(async () => view.result.current.refresh());
-  expect(ready).toHaveBeenCalledExactlyOnceWith({
-    readyCount: 4,
-    unavailableCount: 0,
-    durationMs: expect.any(Number)
-  });
-  await act(async () => view.result.current.refresh());
-  await act(async () => view.result.current.refresh());
-  expect(ready).toHaveBeenCalledTimes(1);
-  expect(attention).toHaveBeenCalledExactlyOnceWith({ reason: 'needs_reauth' });
-});
+it.each(['needs_reauth', 'root_missing'] as const)(
+  'reports completed preview preparation once and deduplicates repeated attention reasons (%s)',
+  async reason => {
+    const ready = vi.spyOn(analytics, 'trackTeamPreviewsReady').mockImplementation(() => {});
+    const attention = vi.spyOn(analytics, 'trackTeamStorageAttention').mockImplementation(() => {});
+    const getStorageHealth = vi
+      .fn()
+      .mockResolvedValueOnce({ kind: 'preparing', ready: 3, pending: 2 })
+      .mockResolvedValueOnce({ kind: 'preparing', ready: 4, pending: 1 })
+      .mockResolvedValueOnce({ kind: 'connected', lastReconciledAt: '2026-11-03T00:00:00Z' })
+      .mockResolvedValue({ kind: 'attention', reason, fixer: 'owner' });
+    const client = { getStorageHealth };
+    const view = renderHook(() => useStorageHealth({ teamId: 'previews-team', client }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(view.result.current.health?.kind).toBe('preparing');
+    await act(async () => view.result.current.refresh());
+    expect(ready).not.toHaveBeenCalled();
+    await act(async () => view.result.current.refresh());
+    expect(ready).toHaveBeenCalledExactlyOnceWith({
+      readyCount: 4,
+      unavailableCount: 0,
+      durationMs: expect.any(Number)
+    });
+    await act(async () => view.result.current.refresh());
+    await act(async () => view.result.current.refresh());
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(attention).toHaveBeenCalledExactlyOnceWith({ reason });
+  }
+);

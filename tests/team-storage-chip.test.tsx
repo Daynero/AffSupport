@@ -41,6 +41,18 @@ function show(
 }
 
 describe('StorageChip', () => {
+  it('lets the owner request recovery of the missing root from storage details', async () => {
+    const restoreRoot = vi.fn().mockResolvedValue({ state: 'connected' });
+    show(
+      { kind: 'attention', reason: 'root_missing', fixer: 'owner' },
+      { isOwner: true, canManage: true, client: { restoreRoot } }
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'The connected folder was deleted' }));
+    await user.click(await screen.findByRole('button', { name: 'Restore from trash' }));
+    expect(restoreRoot).toHaveBeenCalledWith('team-1');
+  });
+
   it('reads as indexing, preparing or waiting with live counts, and is quiet when up to date', () => {
     show({ kind: 'indexing', indexedFolders: 3, totalFolders: 12, files: 40 });
     expect(
