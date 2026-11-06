@@ -231,3 +231,10 @@ it('maps an uncertain catalog stop to its guarded database boundary', () => {
     'team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'
   );
 });
+
+it('points native team restitch failures at the actual image preparation origin', () => {
+  const entry = lookupCodeLocations('team:process:RESTITCH_SCREEN_FETCH_FAILED');
+  expect(entry?.matched).toBe('team:process:RESTITCH_SCREEN_FETCH_FAILED');
+  expect(entry?.files).toContain('apps/agent/src/team-bridge/screen-cache.ts');
+  expect(entry?.files).toContain('apps/agent/src/team-bridge/restitch.ts');
+});

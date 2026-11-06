@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "generated_at": "2026-11-06T09:55:35.785Z",
+  "as_of": "2026-11-05T15:00:00.000Z",
+  "production_writes": false,
+  "command": "investigate <installation-id> --as-of 2026-11-05T15:00:00Z --json",
+  "finding_kind": "fact",
+  "fingerprint": "team:process:RESTITCH_SCREEN_FETCH_FAILED",
+  "code_locations": [
+    {
+      "fingerprint": "team:process:RESTITCH_SCREEN_FETCH_FAILED",
+      "matched": "team:process:RESTITCH_SCREEN_FETCH_FAILED",
+      "files": [
+        "apps/agent/src/team-bridge/screen-cache.ts",
+        "apps/agent/src/team-bridge/restitch.ts",
+        "apps/agent/src/team-bridge/process.ts",
+        "apps/web/src/team/restitch/useRestitchDelivery.ts"
+      ],
+      "check": "Check the picture transfer endpoint, grant and checksum before retrying preparation."
+    }
+  ],
+  "limitations": [
+    "Historical image identity, effective settings and underlying transfer cause remain unobserved.",
+    "A native terminal is not proof of browser delivery.",
+    "This is a bounded historical report, not post-release success evidence."
+  ]
+}

@@ -1,3 +1,4 @@
+import { getCatalogStopEvidence } from './catalog-stops.js';
 import {
   getMaterialSharingAudit,
   getMaterialSharingEvidence,
@@ -2347,6 +2348,33 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const core = await getInspectWithCommands(id, asOf, limit);
+  const bindings =
+    core.found && core.capability === 'team.catalog_manager_stop'
+      ? [
+          ...new Set(
+            core.events
+              .map(event => event.flow_id)
+              .filter((value): value is string => typeof value === 'string')
+          )
+        ]
+      : [];
+  const stops = await getCatalogStopEvidence(
+    bindings.length === 1 ? bindings[0]! : id,
+    asOf,
+    limit
+  );
+  if (bindings.length > 1)
+    stops.blind_spots.push('Multiple Stop flow bindings are observed; no single flow is inferred.');
+  return stops.flows.length || (core.found && core.capability === 'team.catalog_manager_stop')
+    ? { ...core, catalog_stops: stops }
+    : core;
+}
+async function getInspectWithCommands(
+  id: string,
+  asOf?: string,
+  limit = 500
+): Promise<InspectData> {
   const initial = await getInspectComposite(id, asOf, limit);
   const sharing = await getMaterialSharingEvidence(
     id,

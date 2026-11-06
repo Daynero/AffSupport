@@ -212,12 +212,13 @@ function CatalogDefaultsEditorScope({
   useEffect(() => {
     if (!dirty && !saving) return;
     const prevent = (event: BeforeUnloadEvent) => {
+      if (!owner.current()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
-  }, [dirty, saving]);
+  }, [dirty, saving, owner]);
   if (!supported) return null;
   const save = async () => {
     if (

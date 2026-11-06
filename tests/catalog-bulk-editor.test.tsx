@@ -522,3 +522,21 @@ it('stops the queue immediately when the private actor epoch changes', async () 
   expect(save).toHaveBeenCalledTimes(4);
   expect(onSaved).not.toHaveBeenCalled();
 });
+
+it('does not keep the previous actor bulk-exit guard before its effect cleanup', async () => {
+  const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
+  render(
+    <CatalogBulkEditor items={[items[0]]} save={vi.fn()} read={readSaved} onSaved={() => {}} />
+  );
+  await setDaily();
+  const own = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(own);
+  expect(own.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const other = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+  });
+});

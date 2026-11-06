@@ -103,12 +103,13 @@ export function CatalogBulkEditor({
     if (!pending && !undoActivity.pending && !undoActivity.uncertain && !Object.keys(draft).length)
       return;
     const prevent = (event: BeforeUnloadEvent) => {
+      if (!mounted.current || privateCacheEpoch() !== scopeEpoch) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
-  }, [draft, pending, undoActivity]);
+  }, [draft, pending, undoActivity, scopeEpoch]);
   useEffect(() => {
     if (!delivery) return;
     // Passive effects run after the result list and counts have committed.

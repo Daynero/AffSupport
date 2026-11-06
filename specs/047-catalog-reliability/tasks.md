@@ -237,13 +237,13 @@
       final DB proof: 426 migrations, 1116 pgTAP assertions, 2 Auth and 46 native
       tests. The proved migration is applied only to local beta, all 13 protected
       snapshots matched. Actual manual beta acceptance and the remaining scope/
-      navigation matrix remain pending; task stays open.
+      navigation matrix remain pending; task stays open. Subsequent client replacement and same-tick old-scope exit/navigation regressions pass in reviews/verification-fast-catalog-stop.json (9049 tests / 14 gates); manual acceptance is still blocked by unavailable Computer Use hosts.
 
 - [ ] T029 [US3] truthful outcome історії та command telemetry — `scripts/analytics/catalog-updates.ts`. Залежності: T023–T028.
       Server accepted, provider verified, last success, partial video й UI visible
       розрізнені; catalog current projection не замінює історію спроб. Перевірити
       CLI source join, read-after-write та unknown recovery без нового run.
-      **Evidence:** —
+      **Evidence (partial):** Stop UI lifecycle now separates reply, fresh readback, committed feedback and read-only Check. Actual producer→sanitizer→SQL ingestion→SELECT-only CLI regressions pass, including conflicting/late/missing evidence; native and clipboard source joins are corrected. Full source proof: reviews/verification-fast-catalog-stop.json (14/14 gates, 9049 tests, 66 skips); native DB proof: 427 migrations, 1122 pgTAP assertions, 2 Auth and 46 native tests. Manual, batch and complete history acceptance remain open.
 
 - [ ] T030 [US3] приймання стабільного менеджера — `tests/catalog-updater-dialog.test.tsx`. Залежності: T021–T029.
       Розширити catalog-inline/bulk/dialog/row-progress/profile-outcome/runtime tests,

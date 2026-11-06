@@ -1,3 +1,4 @@
+import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
 import { getCommercialAccessEvidence } from './commercial-access.js';
 import { getTranslationRetirementEvidence } from './library-retirement.js';
@@ -1932,6 +1933,44 @@ export async function getInvestigation(
         'Read the existing file permissions using Check. A consumed permit does not prove a provider write; do not repeat permission creation. This is current receipt state, not reconstructed historical state.'
     });
   }
+  const catalog_stops = await getCatalogStopEvidence(
+    scope.userId ?? '',
+    period.as_of,
+    50,
+    scope.userId ?? undefined
+  );
+  for (const detail of catalog_stops.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const stop of catalog_stops.flows) {
+    const conflicting =
+      ['invalid', 'conflicting'].includes(stop.correlation) ||
+      stop.ui_terminal === 'conflicting' ||
+      (stop.browser_reported_readback === 'inactive' && stop.target?.result === 'running');
+    const resolved =
+      stop.ui_terminal === 'operation_completed' &&
+      stop.visible_result_observed &&
+      stop.browser_reported_readback === 'inactive';
+    if (resolved && !conflicting) continue;
+    const failure = [...stop.stages].reverse().find(stage => stage.code);
+    const fingerprint = `catalog:stop:${failure?.code ?? 'UNKNOWN'}`;
+    const location = lookupCodeLocations(fingerprint);
+    const evidence = stop.stages.flatMap(stage =>
+      stage.event_id ? [`event:${stage.event_id}`] : []
+    );
+    findings.push({
+      id: hashId(['catalog_stop_observation', stop.flow_id]),
+      kind: conflicting || failure ? 'fact' : 'insufficient',
+      severity: conflicting || failure ? 'medium' : 'low',
+      rule: 'catalog_stop_unconfirmed',
+      title: conflicting
+        ? 'Stop browser evidence has conflicting target or terminal observations.'
+        : `Stop browser result is not confirmed: reply ${stop.browser_reported_reply}, readback ${stop.browser_reported_readback}.`,
+      evidence: evidence.length ? evidence : ['blind_spot:catalog_stop_event_identity_missing'],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: `Inspect Stop flow ${stop.flow_id} and its recorded target. Check reads state without another Stop RPC; preserve pending provider and execution fences. Browser acknowledgement and current target state do not prove causal Stop execution or native termination.`
+    });
+  }
   const catalog_claims = await getOwnedCatalogClaimEvidence(scope.userId, period.as_of);
   for (const detail of catalog_claims.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
@@ -2098,6 +2137,7 @@ export async function getInvestigation(
     catalog_generations,
     material_sharing,
     catalog_claims,
+    catalog_stops,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,

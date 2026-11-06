@@ -1,7 +1,7 @@
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
-import { usePrivateCacheEpoch } from '../private-cache-scope';
+import { privateClientId, usePrivateCacheEpoch } from '../private-cache-scope';
 import { withReadDeadline } from '../readCoordinator';
 import type { TeamAnalyticsStorage } from '@video-compressor/shared';
 import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
@@ -42,7 +42,7 @@ import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
 import { spaceRouteFor } from '../SpaceSettingsLink';
 import { DropdownMenu } from '../../components/ui/index';
-import { beginCatalogUiFlow } from './analytics';
+import { beginCatalogUiFlow, type CatalogUiFlow, type CatalogUiFailure } from './analytics';
 import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
@@ -128,7 +128,12 @@ function needsAttention(row: CatalogRegistryRow) {
 
 export function CatalogUpdaterDialog(props: Parameters<typeof CatalogUpdaterDialogScope>[0]) {
   const epoch = usePrivateCacheEpoch();
-  return <CatalogUpdaterDialogScope key={`${props.teamId}:${epoch}`} {...props} />;
+  return (
+    <CatalogUpdaterDialogScope
+      key={`${props.teamId}:${privateClientId(props.client ?? defaultClient)}:${epoch}`}
+      {...props}
+    />
+  );
 }
 
 function CatalogUpdaterDialogScope({
@@ -153,11 +158,16 @@ function CatalogUpdaterDialogScope({
 }) {
   const mounted = useRef(true);
   const stopControllers = useRef(new Set<AbortController>());
+  const stopFlows = useRef(new Set<CatalogUiFlow>());
+  const stopFeedback = useRef(new Map<number, { flow: CatalogUiFlow; error?: CatalogUiFailure }>());
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       for (const controller of stopControllers.current) controller.abort();
+      for (const flow of stopFlows.current) flow.cancel();
+      stopFlows.current.clear();
+      stopFeedback.current.clear();
     };
   }, []);
   const sourceScope = useRef({ teamId, client });
@@ -187,7 +197,18 @@ function CatalogUpdaterDialogScope({
     return () => controller.abort();
   }, [client, teamId]);
   const { t, language } = useI18n();
-  const { push } = useToasts();
+  const { push, toasts } = useToasts();
+  useEffect(() => {
+    if (!owner.current()) return;
+    for (const toast of toasts) {
+      const delivered = stopFeedback.current.get(toast.id);
+      if (!delivered) continue;
+      if (delivered.error) delivered.flow.fail(delivered.error, 'result_visible');
+      else delivered.flow.complete();
+      stopFeedback.current.delete(toast.id);
+      stopFlows.current.delete(delivered.flow);
+    }
+  }, [toasts, owner]);
   const workspaceOperations = useOptionalWorkspaceOperations();
   const [trashGroups, setTrashGroups] = useState<Set<string>>(() => new Set());
   const directTrashKeys = useRef(new Map<string, string>());
@@ -264,6 +285,7 @@ function CatalogUpdaterDialogScope({
   const [editorUncertain, setEditorUncertain] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
   const guard = (action: () => void) => {
+    if (!owner.current()) return;
     if (editorPending || Object.values(inline.states).some(state => state.phase === 'pending'))
       return;
     if (editorDirty || editorUncertain) setDiscardAction(() => action);
@@ -272,6 +294,7 @@ function CatalogUpdaterDialogScope({
 
   useEffect(() => {
     const prevent = (event: Event) => {
+      if (!owner.current()) return;
       if (
         editorPending ||
         Object.values(inline.states).some(state => state.phase === 'pending') ||
@@ -284,7 +307,7 @@ function CatalogUpdaterDialogScope({
     };
     window.addEventListener(BEFORE_NAVIGATION_EVENT, prevent);
     return () => window.removeEventListener(BEFORE_NAVIGATION_EVENT, prevent);
-  }, [editorDirty, editorPending, editorUncertain, inline.hasPending, t]);
+  }, [editorDirty, editorPending, editorUncertain, inline.hasPending, t, owner]);
   const listFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   useEffect(() => {
     const flow = beginCatalogUiFlow('list');
@@ -446,7 +469,11 @@ function CatalogUpdaterDialogScope({
   const withBusy = async (
     ids: string[],
     work: () => Promise<void>,
-    options: { rethrow?: boolean; refreshOnFailure?: boolean } = {}
+    options: {
+      rethrow?: boolean;
+      refreshOnFailure?: boolean;
+      onFailure?: (error: unknown) => void;
+    } = {}
   ) => {
     if (!owner.current()) return;
     if (ids.some(id => busyRef.current.has(id))) {
@@ -463,7 +490,8 @@ function CatalogUpdaterDialogScope({
       onChanged?.();
     } catch (error) {
       if (owner.current()) {
-        push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+        if (options.onFailure) options.onFailure(error);
+        else push({ tone: 'error', text: teamErrorMessageFor(error, t) });
         if (options.refreshOnFailure) {
           updater.reload();
           registry.reload();
@@ -566,8 +594,119 @@ function CatalogUpdaterDialogScope({
     for (const row of shown.slice(0, visibleCount)) inline.delivered(row.catalogId);
   });
 
-  const cancelNow = (row: CatalogRegistryRow) =>
-    withBusy(
+  const showStopFeedback = (
+    flow: CatalogUiFlow,
+    input: Parameters<typeof push>[0],
+    error?: CatalogUiFailure
+  ) => {
+    if (!owner.current()) {
+      flow.cancel();
+      return;
+    }
+    const toastId = push(input);
+    stopFeedback.current.set(toastId, { flow, error });
+  };
+  const observeStop = async (
+    row: CatalogRegistryRow,
+    flow: CatalogUiFlow,
+    controller: AbortController,
+    requestFlowId: string
+  ) => {
+    flow.stage('stop_readback_requested');
+    let inactive = false;
+    let readCode: CatalogUiFailure = 'PROCESS_RESULT_UNCERTAIN';
+    try {
+      const fresh = await withReadDeadline(async signal => {
+        if (client.listCatalogManagerSnapshot)
+          return client.listCatalogManagerSnapshot(teamId, { signal });
+        if (client.listTeamProductCatalogSnapshot)
+          return client.listTeamProductCatalogSnapshot(teamId, { signal });
+        return {
+          rows: await client.listTeamProductCatalogs(teamId, { signal }),
+          invalidRowCount: 0
+        };
+      }, controller.signal);
+      if (!owner.current()) {
+        flow.cancel();
+        return;
+      }
+      const current = fresh?.rows.find(item => item.catalogId === row.catalogId);
+      const observedRound = Date.parse(row.activeRoundAt ?? '');
+      const currentRound = Date.parse(current?.activeRoundAt ?? '');
+      if (
+        current &&
+        (Number.isFinite(observedRound) || row.activeRoundAt === null) &&
+        (current.activeRoundAt === null ||
+          (Number.isFinite(currentRound) && currentRound !== observedRound))
+      ) {
+        inactive = true;
+        flow.stage('stop_target_inactive');
+      } else if (
+        Number.isFinite(observedRound) &&
+        Number.isFinite(currentRound) &&
+        currentRound === observedRound
+      ) {
+        flow.stage('stop_target_active');
+      } else flow.stage('stop_readback_unknown');
+    } catch (cause) {
+      if (!owner.current()) {
+        flow.cancel();
+        return;
+      }
+      readCode = teamErrorCodeOf(cause) ?? 'READ_FAILED';
+      flow.stage('stop_readback_unknown', readCode);
+    }
+    if (inactive) {
+      showStopFeedback(flow, { tone: 'info', text: t('catalogStopObservedInactive') });
+      return;
+    }
+    showStopFeedback(
+      flow,
+      {
+        tone: 'warning',
+        text: t('catalogStopUnconfirmed'),
+        action: { label: t('catalogCommandCheck'), run: () => checkStop(row, requestFlowId) }
+      },
+      readCode
+    );
+  };
+  const stopFailure = (flow: CatalogUiFlow, cause: unknown) => {
+    const code = teamErrorCodeOf(cause) ?? 'UNKNOWN';
+    flow.stage('stop_rejected', code);
+    showStopFeedback(flow, { tone: 'error', text: teamErrorMessageFor(cause, t) }, code);
+  };
+  const checkStop = (row: CatalogRegistryRow, requestFlowId: string) => {
+    if (!owner.current() || busyRef.current.has(row.catalogId)) return;
+    const flow = beginCatalogUiFlow('stop', {
+      count: 1,
+      relatedFlowId: row.activeAttemptId ?? undefined,
+      originFlowId: requestFlowId
+    });
+    stopFlows.current.add(flow);
+    flow.stage('stop_check_requested');
+    return withBusy(
+      [row.catalogId],
+      async () => {
+        const controller = new AbortController();
+        stopControllers.current.add(controller);
+        try {
+          await observeStop(row, flow, controller, requestFlowId);
+        } finally {
+          stopControllers.current.delete(controller);
+        }
+      },
+      { onFailure: cause => stopFailure(flow, cause) }
+    );
+  };
+  const cancelNow = (row: CatalogRegistryRow) => {
+    if (!owner.current() || busyRef.current.has(row.catalogId)) return;
+    const flow = beginCatalogUiFlow('stop', {
+      count: 1,
+      relatedFlowId: row.activeAttemptId ?? undefined
+    });
+    stopFlows.current.add(flow);
+    flow.stage('stop_requested');
+    return withBusy(
       [row.catalogId],
       async () => {
         if (inline.blocked(row.catalogId) || commands.blocked(row.catalogId))
@@ -576,32 +715,48 @@ function CatalogUpdaterDialogScope({
           throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
         const controller = new AbortController();
         stopControllers.current.add(controller);
-        let cancelled: boolean;
         try {
-          cancelled =
-            row.activeRoundAt === null
-              ? false
-              : await withCatalogCommandDeadline(signal => {
-                  if (!client.cancelCatalogUpdate)
-                    throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
-                  return client.cancelCatalogUpdate(
-                    teamId,
-                    row.catalogId,
-                    {
-                      roundAt: row.activeRoundAt!,
-                      attemptId: row.activeAttemptId ?? null
-                    },
-                    owner.options(signal)
-                  );
-                }, controller.signal);
+          try {
+            const cancelled =
+              row.activeRoundAt === null
+                ? false
+                : await withCatalogCommandDeadline(signal => {
+                    if (!client.cancelCatalogUpdate)
+                      throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+                    return client.cancelCatalogUpdate(
+                      teamId,
+                      row.catalogId,
+                      { roundAt: row.activeRoundAt!, attemptId: row.activeAttemptId ?? null },
+                      owner.options(signal)
+                    );
+                  }, controller.signal);
+            if (!owner.current()) {
+              flow.cancel();
+              return;
+            }
+            flow.stage(cancelled ? 'stop_accepted' : 'stop_not_active');
+          } catch (cause) {
+            if (!owner.current()) {
+              flow.cancel();
+              return;
+            }
+            const code = teamErrorCodeOf(cause);
+            if (
+              !(cause instanceof TypeError) &&
+              code !== 'TEAM_TRANSPORT_UNAVAILABLE' &&
+              code !== 'PROCESS_RESULT_UNCERTAIN'
+            )
+              throw cause;
+            flow.stage('stop_reply_unknown', code ?? 'UNKNOWN');
+          }
+          await observeStop(row, flow, controller, flow.id);
         } finally {
           stopControllers.current.delete(controller);
         }
-        if (owner.current() && cancelled === false)
-          push({ tone: 'info', text: t('catalogUpdaterCancelAlready') });
       },
-      { refreshOnFailure: true }
+      { refreshOnFailure: true, onFailure: cause => stopFailure(flow, cause) }
     );
+  };
 
   const trashRows = rows.map(row => ({
     id: row.catalogId,

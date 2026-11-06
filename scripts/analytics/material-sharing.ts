@@ -78,7 +78,7 @@ export async function getMaterialSharingEvidence(
       : Promise.resolve([]),
     candidates.length
       ? query<UiRow>(
-          `select properties->>'flow_id' flow_id,event_name,properties->>'flow_step' flow_step,
+          `select flow_id::text flow_id,event_name,properties->>'flow_step' flow_step,
    properties->>'error_code' error_code,
    case when jsonb_typeof(properties->'production_completed')='boolean' then (properties->>'production_completed')::boolean end production_completed,
    occurred_at::text,created_at::text from public.analytics_events

@@ -739,9 +739,15 @@ it('explains a stop that arrived after the run had already ended without changin
     running,
     { cancelCatalogUpdate: vi.fn().mockResolvedValue(false) }
   );
+  vi.mocked(api.cancelCatalogUpdate!).mockImplementation(async () => {
+    vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+      row('1', 'polo.mp4', { updateInterval: '1d', activeRoundAt: null, activeAttemptId: null })
+    ]);
+    return false;
+  });
   renderDialog(api);
   await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
-  expect(await screen.findByText('This update has already finished or stopped.')).toBeTruthy();
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
@@ -1202,4 +1208,186 @@ it('explains a quarantined current round separately from its unchanged historica
   expect(current.textContent).not.toContain('Google Drive is not responding');
   expect(screen.getByText(/Google Drive is not responding\. Try again shortly\./)).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Try again now' }).hasAttribute('disabled')).toBe(true);
+});
+
+it('replaces a client with fresh manager state while an old Stop is pending', async () => {
+  let finish!: (value: boolean) => void;
+  const stop = vi.fn(
+    () =>
+      new Promise<boolean>(resolve => {
+        finish = resolve;
+      })
+  );
+  const active = row('1', 'polo.mp4', {
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: null
+  });
+  const first = client([active], running, { cancelCatalogUpdate: stop });
+  const next = client([row('1', 'polo.mp4')], stopped);
+  const onChanged = vi.fn();
+  const surface = (api: DialogClient) => (
+    <TeamProvider initialTeams={[owned]} realtime={false}>
+      <ToastProvider>
+        <CatalogUpdaterDialog
+          teamId={TEAM_ID}
+          client={api}
+          onClose={vi.fn()}
+          onChanged={onChanged}
+        />
+      </ToastProvider>
+    </TeamProvider>
+  );
+  const view = render(surface(first));
+  await userEvent.type(await screen.findByRole('searchbox'), 'polo');
+  await userEvent.click(screen.getByLabelText('Select polo.mp4 catalog'));
+  await userEvent.click(screen.getByRole('button', { name: 'Stop this update' }));
+  expect(stop).toHaveBeenCalledTimes(1);
+  view.rerender(surface(next));
+  expect(screen.getByRole('searchbox')).toHaveProperty('value', '');
+  expect(await screen.findByLabelText('Select polo.mp4 catalog')).toHaveProperty('checked', false);
+  await act(async () => {
+    finish(true);
+  });
+  expect(onChanged).not.toHaveBeenCalled();
+  expect(await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' })).toHaveProperty(
+    'disabled',
+    false
+  );
+  expect(next.cancelCatalogUpdate).not.toHaveBeenCalled();
+});
+
+it('does not report Stop delivery before a fresh authoritative read and visible feedback', async () => {
+  const { analytics } = await import('../apps/web/src/analytics/service');
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const attemptId = '47000000-0000-4000-8000-000000000099';
+  const active = {
+    ...row('1', 'polo.mp4'),
+    profile: profileFor(row('1', '').catalogId),
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: attemptId
+  };
+  let resolve!: (value: { rows: CatalogRegistryRow[]; invalidRowCount: number }) => void;
+  let stopped = false;
+  const read = vi.fn(() =>
+    stopped
+      ? new Promise<{ rows: CatalogRegistryRow[]; invalidRowCount: number }>(done => {
+          resolve = done;
+        })
+      : Promise.resolve({ rows: [active], invalidRowCount: 0 })
+  );
+  const api = client([active], running, {
+    listCatalogManagerSnapshot: read,
+    cancelCatalogUpdate: vi.fn(async () => {
+      stopped = true;
+      return true;
+    })
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(1));
+  const stopCalls = () =>
+    track.mock.calls.filter(
+      ([, p]) => (p && 'flow_step' in p ? p.flow_step : undefined) === 'catalog_manager_stop'
+    );
+  expect(
+    stopCalls().some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_accepted'
+    )
+  ).toBe(true);
+  expect(stopCalls().some(([event]) => event === 'operation_completed')).toBe(false);
+  await act(async () => {
+    resolve({
+      rows: [{ ...active, updatePending: false, activeRoundAt: null, activeAttemptId: null }],
+      invalidRowCount: 0
+    });
+  });
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  const completed = stopCalls().filter(([event]) => event === 'operation_completed');
+  expect(completed).toHaveLength(1);
+  expect(completed[0]?.[1]).toMatchObject({
+    parent_flow_id: attemptId,
+    production_completed: false
+  });
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+});
+
+it('checks an uncertain Stop without repeating the RPC and compares round timestamps by instant', async () => {
+  const { analytics } = await import('../apps/web/src/analytics/service');
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const active = row('1', 'polo.mp4', {
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: '47000000-0000-4000-8000-000000000099'
+  });
+  const api = client([active], running, {
+    cancelCatalogUpdate: vi
+      .fn()
+      .mockRejectedValue(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+  });
+  renderDialog(api);
+  await screen.findByRole('button', { name: 'Stop this update' });
+  vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+    { ...active, activeRoundAt: '2026-11-05T12:00:00+02:00' }
+  ]);
+  await userEvent.click(screen.getByRole('button', { name: 'Stop this update' }));
+  expect(
+    await screen.findByText('The stop result is not confirmed yet. Check the current status.')
+  ).toBeTruthy();
+  expect(screen.queryByText('The observed update is no longer active.')).toBeNull();
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+  vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+    { ...active, updatePending: false, activeRoundAt: null, activeAttemptId: null }
+  ]);
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+  const stop = track.mock.calls.filter(
+    ([, p]) => (p && 'flow_step' in p ? p.flow_step : undefined) === 'catalog_manager_stop'
+  );
+  expect(
+    stop.some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_reply_unknown'
+    )
+  ).toBe(true);
+  expect(
+    stop.some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_check_requested'
+    )
+  ).toBe(true);
+  expect(stop.filter(([name]) => name === 'operation_completed')).toHaveLength(1);
+});
+
+it('does not keep the previous actor navigation guard before its effect cleanup', async () => {
+  const { BEFORE_NAVIGATION_EVENT } = await import('../apps/web/src/lib/navigation');
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn(
+      () =>
+        new Promise<CatalogUpdateProfile>(resolve => {
+          finish = resolve;
+        })
+    )
+  });
+  const { onChanged } = renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+  );
+  const own = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+  window.dispatchEvent(own);
+  expect(own.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const other = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+    window.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+  });
+  await act(async () => {
+    finish({ ...profileFor(row('1', '').catalogId), version: 2, restitch: true });
+  });
+  expect(onChanged).not.toHaveBeenCalled();
 });

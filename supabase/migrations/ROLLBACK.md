@@ -2329,3 +2329,20 @@ requires proving that no retained client command or protected run depends on it.
 138100 adds closed storage/unsupported error codes. Retain these codes when
 reverting UI so historical diagnosis remains readable. No provider file, account,
 Drive connection, schedule or credential is removed by these migrations.
+
+## 20261207143000–20261207144000 — actor fences and Stop diagnosis
+
+143000 adds actor-bound profile/default/observed-Stop entry points while preserving
+existing entry points. Keep the actor fence and closed Stop error code during a
+client rollback; old deployed clients still have their original RPCs. Withdrawal
+must never make a stale intent execute as the replacement account or fall back to
+unqualified Stop. No provider hold, schedule, last-success or attempt terminal is
+removed by these wrappers.
+
+144000 adds three nonunique partial analytics indexes for Stop target, original
+request and actor discovery. They can remain when reverting the new web/CLI
+consumer. Any later index removal is a reviewed forward migration; it does not
+remove event or attempt evidence. Stop diagnostics use the existing attempt
+projection and keep browser acknowledgement distinct from server state. There is
+no new Stop queue/receipt ledger to reset or replay. These notes authorize no
+production change or automatic rollback.

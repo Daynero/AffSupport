@@ -79,9 +79,46 @@ compares the observed round before calling the existing cancellation boundary.
 No active round returns false; a replacement round/attempt returns STALE_RESULT
 and is left running. A live provider-worker lease retains the existing WRONG_STATE
 refusal: cancellation cannot claim that an in-flight provider write was undone.
-The old two-argument RPC remains for legacy snapshots. New snapshots must use the
-observed-round RPC and never fall back to an unfenced cancel after an error.
+The old two-argument RPC remains for already deployed clients. The current UI
+refuses a missing observed round before dispatch and never falls back to an
+unfenced cancel. Its actor-bound observed-round RPC also checks the original
+actor captured before session acquisition.
 Schedule off remains a separate profile change. No new publication writer is added.
+
+### Stop diagnostic observations (T029)
+
+The initiating actor is captured before session acquisition; the server refuses a
+replacement actor through the additive actor-bound RPC. An unknown observed round
+never falls back to the legacy unqualified Stop. Manager state is scoped by team,
+client identity and private actor/access epoch.
+
+Stop has its own `flow_id` and `attempt_id`, `flow_step=catalog_manager_stop` and
+`production_completed=false`. The observed catalog attempt is `parent_flow_id`;
+a read-only Check has another own flow and retains the original request in
+`workflow_id`. Neither Stop nor Check uses the target attempt as its own flow.
+Closed stages distinguish request, accepted/no-op/unknown reply, rejected request,
+readback, inactive/active/unknown target and committed visible feedback. A lost
+reply permits a bounded state read, never an automatic second Stop RPC. Round
+identity is compared by timestamp instant rather than textual timezone spelling.
+
+`catalog_stops` in SELECT-only inspect/investigate separates browser-reported
+acknowledgement, readback and visible result from the existing authoritative
+attempt projection. No new Stop queue or server receipt ledger is introduced.
+The browser relation is an observation, not a causal server Stop receipt. A target
+terminal never replaces a Stop terminal, and Stop UI completion never replaces
+the update terminal. Cancelled/inactive does not prove native child termination
+or provider quiescence; existing execution/upload fences remain authoritative.
+
+Lookup is bounded to 501 UI rows (500 output), 20 target identities, and fixed
+feature/flow predicates. It uses the canonical `analytics_events.flow_id` column;
+parent/origin remain bounded opaque properties. Missing/invalid identity,
+conflicting relation, unavailable view, delayed delivery and cutoff limitations
+remain explicit. Event cutoff includes occurrence and receipt time. Target state
+is a current snapshot with terminal-time filtering, never reconstructed history.
+Only opaque identities, closed stages/codes and times are returned; no URLs,
+settings values, file names or provider payloads are collected. Beta telemetry
+remains disabled; producer → sanitizer → actual SQL → SELECT-only diagnosis is
+verified with isolated fixtures. Manual beta acceptance remains separate.
 
 ## C3. Native contract і variants
 

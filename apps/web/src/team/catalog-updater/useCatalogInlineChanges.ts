@@ -490,12 +490,13 @@ export function useCatalogInlineChanges({
   useEffect(() => {
     if (!hasPending) return;
     const prevent = (event: BeforeUnloadEvent) => {
+      if (!owner.current()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
-  }, [hasPending]);
+  }, [hasPending, owner]);
   return {
     snapshotFor,
     states,

@@ -3,7 +3,8 @@ import { TEAM_ERROR_CODES, type TeamErrorCode } from '@video-compressor/shared';
 const machineCauses = new Set<string>(TEAM_ERROR_CODES);
 import { analytics } from '../../analytics/service';
 
-export type CatalogUiAction = 'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry';
+export type CatalogUiAction =
+  'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop';
 export type CatalogUiStage =
   | 'opened'
   | 'draft_changed'
@@ -17,7 +18,17 @@ export type CatalogUiStage =
   | 'command_requested'
   | 'command_accepted'
   | 'command_cancel_requested'
-  | 'command_cancelled';
+  | 'command_cancelled'
+  | 'stop_requested'
+  | 'stop_accepted'
+  | 'stop_not_active'
+  | 'stop_reply_unknown'
+  | 'stop_rejected'
+  | 'stop_check_requested'
+  | 'stop_readback_requested'
+  | 'stop_target_inactive'
+  | 'stop_target_active'
+  | 'stop_readback_unknown';
 export type CatalogUiFailure =
   'READ_FAILED' | 'SAVE_FAILED' | 'CONFLICT' | 'VALIDATION' | 'UNKNOWN' | TeamErrorCode;
 type Tracker = Pick<typeof analytics, 'track'> & AnalyticsActorSource;
@@ -29,6 +40,8 @@ export function beginCatalogUiFlow(
     count?: number;
     hiddenCount?: number;
     parentFlowId?: string;
+    relatedFlowId?: string;
+    originFlowId?: string;
     field?:
       | 'createdAt'
       | 'restitch'
@@ -47,11 +60,13 @@ export function beginCatalogUiFlow(
   const base = {
     flow_id: counts.parentFlowId ?? id,
     attempt_id: id,
+    ...(counts.relatedFlowId ? { parent_flow_id: counts.relatedFlowId } : {}),
+    ...(counts.originFlowId ? { workflow_id: counts.originFlowId } : {}),
     feature_identifier: 'catalog_manager',
     flow_step: `catalog_manager_${action}`,
     item_count: counts.count,
     file_count: counts.hiddenCount,
-    ...(['run', 'retry'].includes(action) ? { production_completed: false } : {}),
+    ...(['run', 'retry', 'stop'].includes(action) ? { production_completed: false } : {}),
     ...(counts.field ? { setting_name: counts.field } : {})
   };
   function emit(
@@ -103,9 +118,11 @@ export function beginCatalogUiFlow(
         stage ??
           (code === 'CONFLICT'
             ? 'conflict'
-            : ['run', 'retry'].includes(action)
-              ? 'command_requested'
-              : 'save_requested'),
+            : action === 'stop'
+              ? 'stop_requested'
+              : ['run', 'retry'].includes(action)
+                ? 'command_requested'
+                : 'save_requested'),
         code
       );
     },

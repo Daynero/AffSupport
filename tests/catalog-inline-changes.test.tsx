@@ -602,3 +602,31 @@ it('keeps a current mutation usable after StrictMode effect cleanup and restart'
   });
   expect(patch).toHaveBeenCalledTimes(1);
 });
+
+it('keeps the pending-exit guard in its initiating actor scope even before React cleanup', async () => {
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const patch = vi.fn(
+    () =>
+      new Promise<CatalogUpdateProfile>(resolve => {
+        finish = resolve;
+      })
+  );
+  const { result } = setup(patch);
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = result.current.change('one', 'restitch', true);
+  });
+  const ownExit = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(ownExit);
+  expect(ownExit.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const replacementExit = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(replacementExit);
+    expect(replacementExit.defaultPrevented).toBe(false);
+  });
+  await act(async () => {
+    finish({ ...profile, version: 2, restitch: true });
+    await pending;
+  });
+});

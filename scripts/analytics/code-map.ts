@@ -819,6 +819,16 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  for (const [code, source] of Object.entries(STITCH_CODES)) {
+    map[`team:process:${code}`] = {
+      files: [
+        ...source.agent,
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/web/src/team/restitch/useRestitchDelivery.ts'
+      ],
+      check: source.check
+    };
+  }
   const materialLinkFiles = [
     'supabase/functions/library-ops/share-resolution.ts',
     'supabase/functions/library-ops/index.ts',
@@ -837,6 +847,16 @@ function build(): Record<string, CodeLocation> {
       check:
         'Separate the verified provider URL from visibility and permission intent. Inspect the retained per-file share receipt and opaque authority version. Unknown acknowledgement never permits another POST; read status with the original actor. An expired or legacy confirmation needs a fresh read, not an old mutation fallback.'
     };
+  map['catalog:stop:*'] = {
+    files: [
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'apps/web/src/api/team.ts',
+      'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
+      'supabase/migrations/20261207137000_catalog_legacy_stop_hold.sql'
+    ],
+    check:
+      'Separate the browser Stop reply, read-only Check, visible feedback and current target attempt. Preserve provider and execution holds; never repeat a write to infer its result. Missing or conflicting evidence is unknown.'
+  };
   map['team:library:CLIPBOARD_UNAVAILABLE'] = {
     files: [
       'apps/web/src/team/materials/useMaterialLink.ts',

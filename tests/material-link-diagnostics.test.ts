@@ -88,6 +88,12 @@ it('keeps real clipboard child failures separate from the successful URL through
         event => event.code === 'CLIPBOARD_UNAVAILABLE'
       )
     ).toHaveLength(3);
+    expect(
+      result.material_sharing?.related_ui_events
+        .filter(event => event.code === 'CLIPBOARD_UNAVAILABLE')
+        .map(event => event.flow_id)
+        .sort()
+    ).toEqual(children.map(child => child.commandId).sort());
     const child = await getInspect(children[0]!.commandId);
     expect(child.found && child.capability).toBe('team.material_link_clipboard');
     expect(child.found && child.terminal?.event).toBe('operation_failed');

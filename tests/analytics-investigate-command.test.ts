@@ -610,6 +610,24 @@ describe('investigate · (e) a user with no events', () => {
       expect.objectContaining({
         detail: expect.stringContaining('Server request discovery failed')
       }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Stop is a separate browser lifecycle')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('not a durable server Stop receipt')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('current snapshot filtered by terminal time')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('does not prove native child termination')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Missing or delayed browser evidence is unknown')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('No observed attempt identity is available')
+      }),
       expect.objectContaining({ detail: 'Historical catalog claim eligibility is not retained.' }),
       expect.objectContaining({
         detail: expect.stringContaining('Checkpoint presence is observation')

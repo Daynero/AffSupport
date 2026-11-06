@@ -2645,6 +2645,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterOffLong: 'Не оновлювати автоматично',
   catalogStopTargetUnknown:
     'Поточну спробу ще не перевірено. Оновіть список каталогів, перш ніж зупиняти оновлення.',
+  catalogStopObservedInactive: 'Попередня спроба оновлення більше не активна.',
+  catalogStopUnconfirmed: 'Результат зупинки ще не підтверджено. Перевірте поточний стан.',
   catalogUpdaterCancelAlready: 'Це оновлення вже завершене або зупинене.',
   catalogUpdaterCancelUpdate: 'Зупинити це оновлення',
   catalogUpdaterPartialRead:

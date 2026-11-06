@@ -182,3 +182,18 @@ it('does not read back or publish an old save after the actor changes', async ()
   expect(screen.queryByText('Defaults saved')).toBeNull();
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+it('does not keep the previous actor exit warning before its effect cleanup', async () => {
+  const user = userEvent.setup();
+  render(<CatalogDefaultsEditor teamId="space" client={client()} open />);
+  await user.click(await screen.findByRole('checkbox', { name: 'Change images' }));
+  const own = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(own);
+  expect(own.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const other = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+  });
+});

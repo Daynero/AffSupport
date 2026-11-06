@@ -81,7 +81,7 @@ export interface CapabilitySignal {
     | 'member_permissions_save'
     | 'member_remove'
     | 'member_access_refresh'
-    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry'}`
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop'}`
     | `material_link_${'get_link' | 'share' | 'confirm' | 'readback' | 'clipboard'}`;
 }
 
@@ -360,43 +360,50 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     note: 'Service-only immutable share receipts and opaque per-file versions fence replay and stale preflight. Unknown permits are retained. Completed receipts keep hashes instead of material/provider pointers; a server confirmation proves a public-access observation, never clipboard delivery. Current projection and missing/expired evidence stay explicit.'
   },
-  ...(['list', 'filter', 'profile', 'bulk', 'template', 'run', 'retry'] as const).map(action => ({
-    id: `team.catalog_manager_${action}`,
-    tool: 'team' as const,
-    title: `Catalog manager · ${action}`,
-    stages: ['requested', 'observed_stage', 'terminal'],
-    stageEvents: {
-      requested: ['operation_started' as const],
-      observed_stage: ['operation_stage_completed' as const],
-      terminal: [
-        'operation_completed' as const,
-        'operation_failed' as const,
-        'operation_cancelled' as const
-      ]
-    },
-    start: [
-      {
-        event: 'operation_started' as const,
-        correlate: 'attempt_id' as const,
-        flowStep: `catalog_manager_${action}` as const
-      }
-    ],
-    terminal: (['operation_completed', 'operation_failed', 'operation_cancelled'] as const).map(
-      event => ({
-        event,
-        correlate: 'attempt_id' as const,
-        flowStep: `catalog_manager_${action}` as const
-      })
-    ),
-    platforms: BOTH,
-    unobservable: [
-      'Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
-      'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics. Catalog settings editors reuse template flows; this bounded UI signal does not identify which content field changed. Server settings journal remains separate evidence.'
-    ],
-    producerStatus: 'emitted' as const,
-    source: 'events' as const,
-    note: 'Current catalog claim eligibility reuses the exact server predicates and exposes bounded native claimant blockers through catalog and investigate (owned teams only). Missing projections and historical decisions remain unknown. Empty native claims are sampled once per five minutes and survive the journal privacy fence, ingestion and CLI (team-recovery-worker and agent-journal-ingest tests). Durable handoff expiry and output receipts survive Stop and copy cleanup; uncertain execution and uploads remain fenced. Classified pre-upload browser media failures settle their operation and revoke grants with the matching job lease; unknown replies, native execution fences and provider uploads remain blocked. Specific media codes survive the delegate, pipeline_failed journal and catalog diagnosis (including retry_blocked_by_open_operation and code locations). Tests cover another member retrying, invalid tokens and protected uncertain execution. Hover/focus/selection preserve row progress; pointer observation is intentionally untracked. Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Bulk settings Undo records undo_requested, save_requested, readback_requested, save_confirmed and result_visible through the same bounded lifecycle. Only version-checked confirmed rows are restored; unknown inverse writes are checked read-only. Conflict stages retain closed CONFLICT causes through sanitization, SQL ingestion and the read-only CLI (catalog-diagnostics-ingestion). Bulk stage counts do not identify individual catalog rows; per-item command/receipt attribution remains a diagnostic gap. A stalled settings acknowledgement is bounded, but timeout never proves the write was cancelled; unchanged old-version reads retain UNKNOWN and block another write. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. Calendar validation resolves only the selected bounded IANA/UTC name rather than enumerating tzdata on every save; team-catalog-updater-sql verifies the name fence, DST and atomic schedule writes. Source-beta full save timing and browser acceptance are fallback evidence; no timing or timezone content is added to telemetry. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
-  })),
+  ...(['list', 'filter', 'profile', 'bulk', 'template', 'run', 'retry', 'stop'] as const).map(
+    action => ({
+      id: `team.catalog_manager_${action}`,
+      tool: 'team' as const,
+      title: `Catalog manager · ${action}`,
+      stages: ['requested', 'observed_stage', 'terminal'],
+      stageEvents: {
+        requested: ['operation_started' as const],
+        observed_stage: ['operation_stage_completed' as const],
+        terminal: [
+          'operation_completed' as const,
+          'operation_failed' as const,
+          'operation_cancelled' as const
+        ]
+      },
+      start: [
+        {
+          event: 'operation_started' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `catalog_manager_${action}` as const
+        }
+      ],
+      terminal: (['operation_completed', 'operation_failed', 'operation_cancelled'] as const).map(
+        event => ({
+          event,
+          correlate: 'attempt_id' as const,
+          flowStep: `catalog_manager_${action}` as const
+        })
+      ),
+      platforms: BOTH,
+      unobservable: [
+        'Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
+        'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics. Catalog settings editors reuse template flows; this bounded UI signal does not identify which content field changed. Server settings journal remains separate evidence.',
+        ...(action === 'stop'
+          ? [
+              'Stop has its own flow_id, an observed target in parent_flow_id and an optional original request in workflow_id for read-only Check. catalog_stops keeps browser replies, readback and visible feedback separate from current target state; no causal server Stop receipt, native child termination or provider quiescence is inferred.'
+            ]
+          : [])
+      ],
+      producerStatus: 'emitted' as const,
+      source: 'events' as const,
+      note: 'Current catalog claim eligibility reuses the exact server predicates and exposes bounded native claimant blockers through catalog and investigate (owned teams only). Missing projections and historical decisions remain unknown. Empty native claims are sampled once per five minutes and survive the journal privacy fence, ingestion and CLI (team-recovery-worker and agent-journal-ingest tests). Durable handoff expiry and output receipts survive Stop and copy cleanup; uncertain execution and uploads remain fenced. Classified pre-upload browser media failures settle their operation and revoke grants with the matching job lease; unknown replies, native execution fences and provider uploads remain blocked. Specific media codes survive the delegate, pipeline_failed journal and catalog diagnosis (including retry_blocked_by_open_operation and code locations). Tests cover another member retrying, invalid tokens and protected uncertain execution. Hover/focus/selection preserve row progress; pointer observation is intentionally untracked. Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Bulk settings Undo records undo_requested, save_requested, readback_requested, save_confirmed and result_visible through the same bounded lifecycle. Only version-checked confirmed rows are restored; unknown inverse writes are checked read-only. Conflict stages retain closed CONFLICT causes through sanitization, SQL ingestion and the read-only CLI (catalog-diagnostics-ingestion). Bulk stage counts do not identify individual catalog rows; per-item command/receipt attribution remains a diagnostic gap. A stalled settings acknowledgement is bounded, but timeout never proves the write was cancelled; unchanged old-version reads retain UNKNOWN and block another write. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. Calendar validation resolves only the selected bounded IANA/UTC name rather than enumerating tzdata on every save; team-catalog-updater-sql verifies the name fence, DST and atomic schedule writes. Source-beta full save timing and browser acceptance are fallback evidence; no timing or timezone content is added to telemetry. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
+    })
+  ),
   {
     id: 'team.catalog_text_schedule',
     tool: 'team',
