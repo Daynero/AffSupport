@@ -1,0 +1,130 @@
+{
+  "ok": true,
+  "generated_at": "2026-11-06T07:47:44.370088+00:00",
+  "kind": "read_only_historical_cli_evidence",
+  "checkout_base": "c331b6eddc222a9f67e2b611cbb21790cd1dde5c",
+  "inspect_as_of": "2026-11-05T15:00:00Z",
+  "journal_as_of": "2026-11-05T11:47:00Z",
+  "period": "7d",
+  "production_writes": false,
+  "incidents": [
+    {
+      "id": "aa66028f-61ad-4d19-ae79-5f46feee14a7",
+      "terminal": {
+        "event": "journal:team:process_terminal",
+        "outcome": "failure",
+        "occurred_at": "2026-11-05T11:44:58.544Z"
+      },
+      "last_proven_stage": "native:processing",
+      "stages": {
+        "expected": ["execution_reserved", "started", "terminal", "delivered"],
+        "observed": ["execution_reserved"],
+        "missing": ["started", "terminal", "delivered"]
+      },
+      "team_native": {
+        "supported": true,
+        "truncated": false,
+        "records": [
+          {
+            "agent_instance_id": "52180dea-de93-485e-9928-82d4f1ea68d5",
+            "seq": 668,
+            "at": "2026-11-05T11:44:58.544Z",
+            "stage": "processing",
+            "outcome": "failure",
+            "error_code": "RESTITCH_SCREEN_FETCH_FAILED"
+          }
+        ],
+        "blind_spots": ["Native execution terminal does not prove browser delivery."]
+      }
+    },
+    {
+      "id": "d97a7dda-9fe9-4350-a81a-8eec64dd0d65",
+      "terminal": {
+        "event": "journal:team:process_terminal",
+        "outcome": "failure",
+        "occurred_at": "2026-11-05T11:46:32.255Z"
+      },
+      "last_proven_stage": "native:processing",
+      "stages": {
+        "expected": ["execution_reserved", "started", "terminal", "delivered"],
+        "observed": ["execution_reserved"],
+        "missing": ["started", "terminal", "delivered"]
+      },
+      "team_native": {
+        "supported": true,
+        "truncated": false,
+        "records": [
+          {
+            "agent_instance_id": "52180dea-de93-485e-9928-82d4f1ea68d5",
+            "seq": 848,
+            "at": "2026-11-05T11:46:32.255Z",
+            "stage": "processing",
+            "outcome": "failure",
+            "error_code": "RESTITCH_SCREEN_FETCH_FAILED"
+          }
+        ],
+        "blind_spots": ["Native execution terminal does not prove browser delivery."]
+      }
+    }
+  ],
+  "limitations": [
+    "Underlying transfer failure, selected image identity and historical effective settings are unobserved.",
+    "Native terminal does not prove correlated browser delivery.",
+    "Full investigate was bounded to 3152 events and 5000 journal records; it is not an exhaustive historical record.",
+    "New sharing receipt projection is unavailable in production; this is explicit unsupported coverage, not proof of no write."
+  ],
+  "journal": [
+    {
+      "seq": 667,
+      "category": "team",
+      "code": "screen_fetch_failed",
+      "props": {
+        "reason": "transfer_failed"
+      },
+      "recorded_at": "2026-11-05T11:44:58.543Z",
+      "received_at": "2026-11-05T11:45:02.663Z",
+      "lag_ms": 4120
+    },
+    {
+      "seq": 668,
+      "category": "team",
+      "code": "process_terminal",
+      "props": {
+        "errorCode": "RESTITCH_SCREEN_FETCH_FAILED",
+        "operationId": "aa66028f-61ad-4d19-ae79-5f46feee14a7",
+        "outcome": "failed",
+        "stage": "processing",
+        "tool": "restitch"
+      },
+      "recorded_at": "2026-11-05T11:44:58.544Z",
+      "received_at": "2026-11-05T11:45:02.663Z",
+      "lag_ms": 4119
+    },
+    {
+      "seq": 847,
+      "category": "team",
+      "code": "screen_fetch_failed",
+      "props": {
+        "reason": "transfer_failed"
+      },
+      "recorded_at": "2026-11-05T11:46:32.255Z",
+      "received_at": "2026-11-05T11:46:40.340Z",
+      "lag_ms": 8085
+    },
+    {
+      "seq": 848,
+      "category": "team",
+      "code": "process_terminal",
+      "props": {
+        "errorCode": "RESTITCH_SCREEN_FETCH_FAILED",
+        "operationId": "d97a7dda-9fe9-4350-a81a-8eec64dd0d65",
+        "outcome": "failed",
+        "stage": "processing",
+        "tool": "restitch"
+      },
+      "recorded_at": "2026-11-05T11:46:32.255Z",
+      "received_at": "2026-11-05T11:46:40.340Z",
+      "lag_ms": 8085
+    }
+  ]
+}

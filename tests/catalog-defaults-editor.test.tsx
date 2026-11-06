@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -16,6 +17,7 @@ vi.mock('../apps/web/src/team/TeamContext', () => ({
   useTeam: () => ({ can: () => permissions.editable })
 }));
 beforeEach(() => {
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
   localStorage.setItem('language', 'en');
   permissions.editable = true;
   track.mockClear();
@@ -77,7 +79,11 @@ describe('catalog defaults explicit save', () => {
     await user.click(checkbox);
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() =>
-      expect(api.setCatalogUpdaterRefreshImages).toHaveBeenCalledWith('space', false)
+      expect(api.setCatalogUpdaterRefreshImages).toHaveBeenCalledWith(
+        'space',
+        false,
+        expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+      )
     );
     expect(api.setCatalogUpdaterRestitch).not.toHaveBeenCalled();
     expect(api.setCatalogUpdaterRefreshTexts).not.toHaveBeenCalled();
@@ -148,4 +154,31 @@ describe('catalog defaults explicit save', () => {
     expect(checkbox.hasAttribute('disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: 'Save settings' })).toBeNull();
   });
+});
+
+it('does not read back or publish an old save after the actor changes', async () => {
+  const api = client();
+  let finish!: (value: boolean) => void;
+  api.setCatalogUpdaterRefreshImages = vi.fn(
+    () =>
+      new Promise<boolean>(resolve => {
+        finish = resolve;
+      })
+  );
+  const user = userEvent.setup();
+  render(<CatalogDefaultsEditor teamId="space" client={api} open />);
+  await user.click(await screen.findByRole('checkbox', { name: 'Change images' }));
+  await user.click(screen.getByRole('button', { name: 'Save settings' }));
+  expect(api.setCatalogUpdaterRefreshImages).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+  });
+  await screen.findByRole('checkbox', { name: 'Change images' });
+  const reads = vi.mocked(api.getCatalogUpdaterRefreshImages!).mock.calls.length;
+  await act(async () => {
+    finish(false);
+  });
+  expect(api.getCatalogUpdaterRefreshImages).toHaveBeenCalledTimes(reads);
+  expect(screen.queryByText('Defaults saved')).toBeNull();
+  expect(screen.queryByRole('alert')).toBeNull();
 });

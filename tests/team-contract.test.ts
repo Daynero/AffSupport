@@ -22,6 +22,7 @@ import {
   TEAM_CATALOG_MANAGER_ERROR_CODES,
   TEAM_CATALOG_POLISH_ERROR_CODES,
   TEAM_CATALOG_LINK_ERROR_CODES,
+  TEAM_CATALOG_MUTATION_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
@@ -244,6 +245,10 @@ describe('team contract', () => {
       'supabase/migrations/20261207140000_material_share_intents.sql',
       'utf8'
     );
+    const mutationDelta = readFileSync(
+      'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql',
+      'utf8'
+    );
     const codes = (sql: string) => {
       const block =
         /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)(?:;|on conflict)/iu.exec(
@@ -263,6 +268,7 @@ describe('team contract', () => {
     expect(codes(managerDelta)).toEqual([...TEAM_CATALOG_MANAGER_ERROR_CODES]);
     expect(codes(polishDelta)).toEqual([...TEAM_CATALOG_POLISH_ERROR_CODES]);
     expect(codes(linkDelta)).toEqual([...TEAM_CATALOG_LINK_ERROR_CODES]);
+    expect(codes(mutationDelta)).toEqual([...TEAM_CATALOG_MUTATION_ERROR_CODES]);
     expect(
       [
         ...codes(base),
@@ -274,7 +280,8 @@ describe('team contract', () => {
         ...codes(reliabilityDelta),
         ...codes(managerDelta),
         ...codes(polishDelta),
-        ...codes(linkDelta)
+        ...codes(linkDelta),
+        ...codes(mutationDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));

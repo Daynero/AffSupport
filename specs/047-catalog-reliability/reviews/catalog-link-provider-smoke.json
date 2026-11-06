@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "kind": "real_provider_api_not_manual_ui",
+  "at": "2026-11-06T06:42:42.251Z",
+  "sourceBase": "c331b6eddc222a9f67e2b611cbb21790cd1dde5c",
+  "actorId": "11111111-1111-4111-8111-111111111111",
+  "teamId": "22222222-2222-4222-8222-222222222222",
+  "materialId": "13c1fa9a-a8c7-4660-9e9d-c3a2b37dc780",
+  "shareCommand": "2a2a3d01-bb47-4263-b11e-867e5a0fed10",
+  "initialPublic": false,
+  "publicObserved": true,
+  "bytes": 44,
+  "contentSha256": "13bd2137ba82eb64088375bcb8c4145dae3496f4cf795e6cd4b9ccf8a1fa3ec9",
+  "stages": [
+    "existing_catalog_url_verified",
+    "synthetic_file_registered",
+    "permission_request_intent_retained",
+    "public_access_observed",
+    "same_key_replay_public",
+    "single_confirmed_acknowledged_receipt"
+  ],
+  "privateShareExercised": true,
+  "productionTouched": false,
+  "manualBrowserAccepted": false
+}

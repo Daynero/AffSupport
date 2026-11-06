@@ -1,0 +1,144 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-06T07:47:03.367Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1444865,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 9034,
+      "skipped_tests": 66,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 15,
+        "disposable PostgreSQL container": 17,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "platform:darwin": 3,
+        "disposable PostgreSQL": 4,
+        "apps/web/dist/index.html": 2,
+        "apps/web/public/_headers": 2,
+        "apps/web/dist": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "apps/web/dist/assets": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/apps/web/dist/.vite/manifest.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/specs/038-unified-accounts/reviews/bundle-budget-baseline.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/specs/045-catalog-r2-images/bundle-budget-comparison.json": 4,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 3193
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 37989
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 27947
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 27338
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 26157
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 5103
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 232
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2674
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 95
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 99
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 385
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 77
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 5575
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1307918
+      }
+    ]
+  },
+  "source_snapshot": {
+    "base": "c331b6eddc222a9f67e2b611cbb21790cd1dde5c",
+    "sha256": {
+      "apps/web/src/api/team.ts": "acbc7e49c667372fe3b67171ac74e772652ffebdda184ab651dae28c54a3d873",
+      "apps/web/src/lib/database.types.ts": "57b470362ff4d014ebdd17cfa3aab2cd2197424b327809fb9e7144d207970858",
+      "apps/web/src/locales/en.ts": "86f6e66e265a1d4c781cb763c1e12060c17449e8fbd886b0ad02806ba20da8de",
+      "apps/web/src/locales/uk.ts": "db155d733e48e864cd2ce6eeea94ca8ce25e7d1db837eb6432c7e738f303c281",
+      "apps/web/src/team/catalog-updater/CatalogDefaultsEditor.tsx": "7c608bf4e7087df92544c7b5acb718b41c9db549366987a0ca32627e7e495752",
+      "apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx": "497c5d1a41e8c36920aeaa1cff74a8f22946f87b8ff73b8988c225da1722286c",
+      "apps/web/src/team/catalog-updater/captureCatalogMutationOwner.ts": "d7369066070b8dce01fbbd4b3121358757b2f4483c1677b75fc4769fc09ef5c1",
+      "apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts": "86edb0efef35251c82a7d034de4f8482d163e8ca9317110ee887fdea9eb72809",
+      "apps/web/src/team/catalog-updater/useCatalogUpdater.ts": "2a7ac1bc37a721d622d4cfb02145ed013ee0b906d706c69e7fbbdd49cea9128b",
+      "apps/web/src/team/errors.ts": "577b226e365e7bbc33181df04aa22288fe5c3c9b78292b3447083c315c7992c4",
+      "apps/web/src/team/materials/useMaterialLink.ts": "dbb7f2968ea8ac98ae0b12d10cfc279509ecaf509b081cdaa8967c008c1db0af",
+      "packages/shared/src/team/transport.ts": "180c36825d081e1439174c74da4b0dbc95bdd1c51a81e6782ded8a7bd5805395",
+      "scripts/analytics/code-map.ts": "3677cc50c21797094b2c2e4878bb1bb406fa715141bc66a4370c3611d80ed756",
+      "scripts/generate-team-contract-sql.mjs": "258ea9febf9827e491a33a36488d7fe430da473bdf409fa083fcf74e9c684fdc",
+      "supabase/functions/_shared/errors.ts": "a631d5c7800274eee877b6621ea6cce18f800dbf909ced393ffdbd1b93cce56d",
+      "supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql": "5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9",
+      "supabase/tests/database/catalog-actor-bound-mutations.test.sql": "8c869dec2d5824d2ad42140e90aa429edf2f3901e78541b1c66e28a3ff9fe8b2",
+      "tests/catalog-actor-bound-api-sql.test.ts": "75a50efb5f712bea78be2b32d2165573f9b9b92f49fb8c8c133c77885c311b7f",
+      "tests/catalog-defaults-contract-api.test.ts": "59fda5e3cdf730f57c04a5480980a758a5211e78942eb6d9931d2ab2c98fd0d2",
+      "tests/catalog-defaults-editor.test.tsx": "29e2e2746e12837f1fdac940de1fd55bdba3459c7b68dd35b94adffb128e7249",
+      "tests/catalog-inline-changes.test.tsx": "18fff4f1c14ca021ba77d770d98ef98113173c2c761f384c119f1675bdd0d6ac",
+      "tests/catalog-profile-outcome-api.test.ts": "e8dc5397951fac440fdf262de37dfe697c4abee0846f445e0378e6bf4a88b8e4",
+      "tests/catalog-updater-dialog.test.tsx": "43a7cf19613cee6c96d0130a564b9024a98db6938e4dd94f9cd7d3a94016b44c",
+      "tests/material-share-link.test.tsx": "0c0a1700c6f5d8ff04a986551b598cef57a7a69cb2e56a512914647f794968f7",
+      "tests/team-contract.test.ts": "0cdeae2b6a915d183c1f80bf8cb4bd3a49cdeec4c265e0100125e269bae6d66f"
+    },
+    "unchanged_during_run": true
+  }
+}

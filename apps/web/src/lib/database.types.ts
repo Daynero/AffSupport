@@ -7074,6 +7074,17 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      cancel_team_catalog_update_attempt_as_actor: {
+        Args: {
+          p_catalog: string;
+          p_expected_actor: string;
+          /** Null explicitly targets a round without a matching attempt. */
+          p_expected_attempt: string | null;
+          p_expected_round: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       list_team_catalog_progress_identity: {
         Args: { p_team: string };
         Returns: Json;
@@ -7194,6 +7205,16 @@ export type GeneratedDatabase = {
       owned_team_count: { Args: { p_user: string }; Returns: number };
       patch_team_catalog_update_profile: {
         Args: { p_catalog: string; p_expected_version: number; p_patch: Json; p_team: string };
+        Returns: Json;
+      };
+      patch_team_catalog_update_profile_as_actor: {
+        Args: {
+          p_catalog: string;
+          p_expected_actor: string;
+          p_expected_version: number;
+          p_patch: Json;
+          p_team: string;
+        };
         Returns: Json;
       };
       pause_launch_restitch: {
@@ -9358,20 +9379,40 @@ export type GeneratedDatabase = {
         Args: { p_grow: boolean; p_team: string };
         Returns: boolean;
       };
+      set_team_catalog_updater_grow_as_actor: {
+        Args: { p_expected_actor: string; p_grow: boolean; p_team: string };
+        Returns: boolean;
+      };
       set_team_catalog_updater_random_link_variation: {
         Args: { p_enabled: boolean; p_team: string };
+        Returns: boolean;
+      };
+      set_team_catalog_updater_random_link_variation_as_actor: {
+        Args: { p_enabled: boolean; p_expected_actor: string; p_team: string };
         Returns: boolean;
       };
       set_team_catalog_updater_refresh_images: {
         Args: { p_refresh: boolean; p_team: string };
         Returns: boolean;
       };
+      set_team_catalog_updater_refresh_images_as_actor: {
+        Args: { p_expected_actor: string; p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
       set_team_catalog_updater_refresh_texts: {
         Args: { p_refresh: boolean; p_team: string };
         Returns: boolean;
       };
+      set_team_catalog_updater_refresh_texts_as_actor: {
+        Args: { p_expected_actor: string; p_refresh: boolean; p_team: string };
+        Returns: boolean;
+      };
       set_team_catalog_updater_restitch: {
         Args: { p_restitch: boolean; p_team: string };
+        Returns: Json;
+      };
+      set_team_catalog_updater_restitch_as_actor: {
+        Args: { p_expected_actor: string; p_restitch: boolean; p_team: string };
         Returns: Json;
       };
       set_team_material_tag: {

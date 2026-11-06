@@ -42,8 +42,21 @@ credential digests changed during runtime and are not claimed identical. The
 private snapshot limitation and failed native/browser control attempts are in
 manual-beta-material-links.md. No new manual sharing success is claimed.
 
-Remaining work: actual manager/Explorer Get-link and Share walkthroughs, clipboard
-recovery and real provider permission acceptance. A read-only review also found
-that a long-idle confirmation advances its key timestamp; the next regression
-will require a fresh inspection rather than extending that first-use window.
-T006/T010/T011/T014 remain open for their applicable acceptance boundaries.
+Real-provider API acceptance subsequently passed against local beta: existing native
+catalog URL read; new 44-byte synthetic private CSV; explicit public grant;
+same-key replay retaining one confirmed acknowledged receipt. A viewer could obtain
+the restricted URL, could not grant public access (HTTP 403), produced no grant
+receipt, and left the file private until the owner granted it. The safe reports
+are catalog-link-provider-smoke.json and catalog-link-provider-smoke-acl.json.
+These are HTTP integration evidence, not manual browser or clipboard acceptance.
+They ran from c331b6ed with unchanged share backend, before the next UI increment.
+
+The long-idle confirmation regression was reproduced for 300001 ms and 31 days;
+the working change requires a fresh inspection and uses its fixed server timestamp.
+Focused sharing tests passed, then the full source verification passed 14/14
+gates and 9034 tests (66 explicit skips); see verification-fast-catalog-actor.json.
+
+Remaining work: actual manager/Explorer Get-link and Share walkthroughs and
+clipboard recovery. Computer Use native and browser hosts are unavailable, so
+no new manual sharing success is claimed. T006/T010/T011/T014 remain open for
+their applicable acceptance boundaries.

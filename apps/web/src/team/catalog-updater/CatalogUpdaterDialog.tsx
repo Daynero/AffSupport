@@ -1,3 +1,5 @@
+import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
+import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
 import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { withReadDeadline } from '../readCoordinator';
@@ -20,6 +22,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import type {
+  CatalogMutationOptions,
   CatalogRegistryRow,
   CatalogUpdaterInterval,
   CatalogUpdaterState
@@ -68,7 +71,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, Catalo
   cancelCatalogUpdate?: (
     teamId: string,
     catalogId: string,
-    observed?: { roundAt: string; attemptId: string | null }
+    observed?: { roundAt: string; attemptId: string | null },
+    options?: CatalogMutationOptions
   ) => Promise<boolean>;
   listCatalogUpdateAttempts?: (
     teamId: string,
@@ -148,12 +152,21 @@ function CatalogUpdaterDialogScope({
   onReveal?: (row: CatalogRegistryRow) => void;
 }) {
   const mounted = useRef(true);
+  const stopControllers = useRef(new Set<AbortController>());
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      for (const controller of stopControllers.current) controller.abort();
     };
   }, []);
+  const sourceScope = useRef({ teamId, client });
+  if (sourceScope.current.teamId !== teamId || sourceScope.current.client !== client)
+    sourceScope.current = { teamId, client };
+  const owner = useMemo(() => {
+    const scope = sourceScope.current;
+    return captureCatalogMutationOwner(() => mounted.current && sourceScope.current === scope);
+  }, [teamId, client]);
   const [storageContext, setStorageContext] = useState<{
     teamId: string;
     kind: TeamAnalyticsStorage | null;
@@ -317,7 +330,7 @@ function CatalogUpdaterDialogScope({
     const target = recentReturnTarget.current;
     recentReturnTarget.current = null;
     const frame = requestAnimationFrame(() => {
-      if (!mounted.current) return;
+      if (!owner.current()) return;
       const row = Array.from(
         listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
       ).find(element => element.dataset.catalogId === target.catalogId);
@@ -435,17 +448,21 @@ function CatalogUpdaterDialogScope({
     work: () => Promise<void>,
     options: { rethrow?: boolean; refreshOnFailure?: boolean } = {}
   ) => {
-    if (ids.some(id => busyRef.current.has(id))) return;
+    if (!owner.current()) return;
+    if (ids.some(id => busyRef.current.has(id))) {
+      if (options.rethrow) throw new TeamApiError('WRONG_STATE', false);
+      return;
+    }
     ids.forEach(id => busyRef.current.add(id));
     setBusyIds(current => new Set([...current, ...ids]));
     try {
       await work();
-      if (!mounted.current) return;
+      if (!owner.current()) return;
       updater.reload();
       registry.reload();
       onChanged?.();
     } catch (error) {
-      if (mounted.current) {
+      if (owner.current()) {
         push({ tone: 'error', text: teamErrorMessageFor(error, t) });
         if (options.refreshOnFailure) {
           updater.reload();
@@ -455,12 +472,13 @@ function CatalogUpdaterDialogScope({
       if (options.rethrow) throw error;
     } finally {
       ids.forEach(id => busyRef.current.delete(id));
-      if (mounted.current)
+      if (owner.current())
         setBusyIds(current => new Set([...current].filter(id => !ids.includes(id))));
     }
   };
 
   const executeNow = (ids: string[]) => {
+    if (!owner.current()) return;
     if (ids.some(id => inline.blocked(id) || commands.blocked(id) || busyRef.current.has(id)))
       return;
     if (rows.some(row => ids.includes(row.catalogId) && row.profile?.reconciliationRequired)) {
@@ -468,7 +486,7 @@ function CatalogUpdaterDialogScope({
       return;
     }
     return commands.submit(ids).then(outcome => {
-      if (mounted.current && outcome.kind === 'rejected')
+      if (owner.current() && outcome.kind === 'rejected')
         push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
     });
   };
@@ -493,7 +511,14 @@ function CatalogUpdaterDialogScope({
     field: import('./useCatalogInlineChanges').CatalogField,
     value: import('./useCatalogInlineChanges').Value
   ) => {
-    if (!mayRun || inline.blocked(row.catalogId) || busyRef.current.has(row.catalogId)) return;
+    if (
+      !owner.current() ||
+      !mayRun ||
+      inline.blocked(row.catalogId) ||
+      commands.blocked(row.catalogId) ||
+      busyRef.current.has(row.catalogId)
+    )
+      return;
     heldRows.current.set(row.catalogId, row);
     void inline.change(row.catalogId, field, value);
   };
@@ -545,16 +570,34 @@ function CatalogUpdaterDialogScope({
     withBusy(
       [row.catalogId],
       async () => {
-        const cancelled =
-          row.activeRoundAt === null
-            ? false
-            : row.activeRoundAt === undefined
-              ? await client.cancelCatalogUpdate?.(teamId, row.catalogId)
-              : await client.cancelCatalogUpdate?.(teamId, row.catalogId, {
-                  roundAt: row.activeRoundAt,
-                  attemptId: row.activeAttemptId ?? null
-                });
-        if (mounted.current && cancelled === false)
+        if (inline.blocked(row.catalogId) || commands.blocked(row.catalogId))
+          throw new TeamApiError('WRONG_STATE', false);
+        if (row.activeRoundAt === undefined)
+          throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
+        const controller = new AbortController();
+        stopControllers.current.add(controller);
+        let cancelled: boolean;
+        try {
+          cancelled =
+            row.activeRoundAt === null
+              ? false
+              : await withCatalogCommandDeadline(signal => {
+                  if (!client.cancelCatalogUpdate)
+                    throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+                  return client.cancelCatalogUpdate(
+                    teamId,
+                    row.catalogId,
+                    {
+                      roundAt: row.activeRoundAt!,
+                      attemptId: row.activeAttemptId ?? null
+                    },
+                    owner.options(signal)
+                  );
+                }, controller.signal);
+        } finally {
+          stopControllers.current.delete(controller);
+        }
+        if (owner.current() && cancelled === false)
           push({ tone: 'info', text: t('catalogUpdaterCancelAlready') });
       },
       { refreshOnFailure: true }
@@ -594,18 +637,18 @@ function CatalogUpdaterDialogScope({
           trashRows.filter(row => ids.includes(row.id)),
           teamApi
         );
-        if (!mounted.current) return;
+        if (!owner.current()) return;
         setTrashGroups(current => new Set([...current, group.id]));
         setConfirmDelete([]);
         return;
       }
       try {
         for (const materialId of ids) {
-          if (!mounted.current) return;
+          if (!owner.current()) return;
           const idempotencyKey = directTrashKeys.current.get(materialId) ?? crypto.randomUUID();
           directTrashKeys.current.set(materialId, idempotencyKey);
           const result = await teamApi.trashMaterial({ teamId, materialId, idempotencyKey });
-          if (!mounted.current) return;
+          if (!owner.current()) return;
           if (result.state !== 'succeeded')
             throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
           if (result.materialId !== null && result.materialId !== materialId)
@@ -615,7 +658,7 @@ function CatalogUpdaterDialogScope({
         }
         setConfirmDelete([]);
       } finally {
-        if (mounted.current) {
+        if (owner.current()) {
           registry.reload();
           onChanged?.();
         }
@@ -936,7 +979,7 @@ function CatalogUpdaterDialogScope({
           const outcome = await (kind === 'check'
             ? commands.check(state.intent.commandId)
             : commands.cancel(state.intent.commandId));
-          if (mounted.current && outcome?.kind === 'rejected')
+          if (owner.current() && outcome?.kind === 'rejected')
             push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
         };
         return (
@@ -1712,7 +1755,7 @@ function CatalogUpdaterDialogScope({
                   onClose={() => {
                     setHistoryCatalogId(null);
                     requestAnimationFrame(() => {
-                      if (!mounted.current) return;
+                      if (!owner.current()) return;
                       Array.from(
                         listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
                       )
@@ -1724,8 +1767,13 @@ function CatalogUpdaterDialogScope({
                   onRetry={
                     mayRun
                       ? async sourceAttemptId => {
-                          if (inline.blocked(row.catalogId) || commands.blocked(row.catalogId))
-                            return;
+                          if (
+                            !owner.current() ||
+                            inline.blocked(row.catalogId) ||
+                            commands.blocked(row.catalogId) ||
+                            busyRef.current.has(row.catalogId)
+                          )
+                            throw new TeamApiError('WRONG_STATE', false);
                           const outcome = await commands.submit([row.catalogId], sourceAttemptId);
                           if (outcome.kind === 'rejected' || outcome.kind === 'unknown')
                             throw outcome.error;
@@ -1764,13 +1812,14 @@ function CatalogUpdaterDialogScope({
                 interval: row.updateInterval
               }))}
             save={(id, version, patch) =>
-              client.patchCatalogUpdateProfile!(teamId, id, version, patch)
+              client.patchCatalogUpdateProfile!(teamId, id, version, patch, owner.options())
             }
             read={(id, options) => readCatalogSnapshot(client, teamId, id, options?.signal)}
             onDirtyChange={setEditorDirty}
             onPendingChange={setEditorPending}
             onUncertainChange={setEditorUncertain}
             onSaved={() => {
+              if (!owner.current()) return;
               registry.reload();
               onChanged?.();
             }}

@@ -179,10 +179,10 @@ export function useMaterialLink(input: {
       let remembered = chosenRemember;
       if (approve) {
         if (!owner.clock) throw new TeamApiError('CATALOG_LINK_UPDATE_REQUIRED', false);
+        if (Math.max(0, performance.now() - owner.clock.monotonic) > 5 * 60_000)
+          throw new TeamApiError('CATALOG_LINK_REQUEST_EXPIRED', false);
         if (!owner.write) {
-          const issued = Math.floor(
-            owner.clock.serverMs + Math.max(0, performance.now() - owner.clock.monotonic)
-          );
+          const issued = Math.floor(owner.clock.serverMs);
           owner.write = {
             key: `share.v2:${issued}:${flow.commandId}`,
             commandId: flow.commandId,
@@ -242,9 +242,7 @@ export function useMaterialLink(input: {
         }
         if (allowed) {
           approve = true;
-          const issued = Math.floor(
-            owner.clock.serverMs + Math.max(0, performance.now() - owner.clock.monotonic)
-          );
+          const issued = Math.floor(owner.clock.serverMs);
           owner.write = {
             key: `share.v2:${issued}:${flow.commandId}`,
             commandId: flow.commandId,

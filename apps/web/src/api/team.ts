@@ -1,3 +1,4 @@
+import { privateCacheActor } from '../team/private-cache-scope';
 import { FunctionsFetchError } from '@supabase/supabase-js';
 import {
   executeTariffGrant,
@@ -210,6 +211,20 @@ export class TeamApiError extends Error {
     this.retryable = retryable;
     this.details = details;
   }
+}
+
+export interface CatalogMutationOptions {
+  expectedActorId: string;
+  signal?: AbortSignal;
+}
+/** Capture before session acquisition; the server refuses a replacement account. */
+function catalogMutationActor(options?: CatalogMutationOptions): string {
+  if (options !== undefined && (!options || typeof options.expectedActorId !== 'string'))
+    throw new TeamApiError('INVALID_INPUT', false);
+  const actor = options?.expectedActorId ?? privateCacheActor();
+  if (actor === null || actor === undefined) throw new TeamApiError('AUTH_REQUIRED', false);
+  if (!isCatalogCommandUuid(actor)) throw new TeamApiError('INVALID_INPUT', false);
+  return actor.toLowerCase();
 }
 
 export interface TeamContextSnapshot {
@@ -2616,16 +2631,28 @@ export const teamApi = {
     teamId: string,
     catalogId: string,
     expectedVersion: number,
-    patch: CatalogUpdateProfilePatch
+    patch: CatalogUpdateProfilePatch,
+    options?: CatalogMutationOptions
   ): Promise<CatalogUpdateProfile> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('patch_team_catalog_update_profile', {
-        p_team: teamId,
-        p_catalog: catalogId,
-        p_expected_version: expectedVersion,
-        p_patch: { ...patch, schedule: patch.schedule ? { ...patch.schedule } : patch.schedule }
-      })
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('patch_team_catalog_update_profile_as_actor', {
+            p_team: teamId,
+            p_catalog: catalogId,
+            p_expected_version: expectedVersion,
+            p_patch: {
+              ...patch,
+              schedule: patch.schedule ? { ...patch.schedule } : patch.schedule
+            },
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     const parsed = catalogUpdateProfileFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2835,29 +2862,33 @@ export const teamApi = {
   async cancelCatalogUpdate(
     teamId: string,
     catalogId: string,
-    observed?: { roundAt: string; attemptId: string | null }
+    observed?: { roundAt: string; attemptId: string | null },
+    options?: CatalogMutationOptions
   ): Promise<boolean> {
+    if (observed === undefined) throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
     if (
-      observed !== undefined &&
-      (!observed ||
-        typeof observed.roundAt !== 'string' ||
-        !Number.isFinite(Date.parse(observed.roundAt)) ||
-        (observed.attemptId !== null && typeof observed.attemptId !== 'string'))
+      !observed ||
+      typeof observed.roundAt !== 'string' ||
+      !Number.isFinite(Date.parse(observed.roundAt)) ||
+      (observed.attemptId !== null && !isCatalogCommandUuid(observed.attemptId))
     )
       throw new TeamApiError('INVALID_INPUT', false);
-    const { data, error } = await withFreshSession(() =>
-      observed === undefined
-        ? requireSupabaseClient().rpc('cancel_team_catalog_update', {
-            p_team: teamId,
-            p_catalog: catalogId
-          })
-        : requireSupabaseClient().rpc('cancel_team_catalog_update_attempt', {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('cancel_team_catalog_update_attempt_as_actor', {
             p_team: teamId,
             p_catalog: catalogId,
             p_expected_round: observed.roundAt,
-            p_expected_attempt: observed.attemptId
-          })
+            p_expected_attempt: observed.attemptId,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
@@ -2882,13 +2913,25 @@ export const teamApi = {
     return data;
   },
 
-  async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_restitch', {
-        p_team: teamId,
-        p_restitch: restitch
-      })
+  async setCatalogUpdaterRestitch(
+    teamId: string,
+    restitch: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<CatalogUpdaterState> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_restitch_as_actor', {
+            p_team: teamId,
+            p_restitch: restitch,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -3063,18 +3106,32 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_refresh_images', { p_team: teamId })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRefreshImages(teamId: string, refresh: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images', {
-        p_team: teamId,
-        p_refresh: refresh
-      })
+  async setCatalogUpdaterRefreshImages(
+    teamId: string,
+    refresh: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images_as_actor', {
+            p_team: teamId,
+            p_refresh: refresh,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterRefreshTexts(teamId: string): Promise<boolean> {
@@ -3082,18 +3139,32 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_refresh_texts', { p_team: teamId })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRefreshTexts(teamId: string, refresh: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts', {
-        p_team: teamId,
-        p_refresh: refresh
-      })
+  async setCatalogUpdaterRefreshTexts(
+    teamId: string,
+    refresh: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts_as_actor', {
+            p_team: teamId,
+            p_refresh: refresh,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterRandomLinkVariation(teamId: string): Promise<boolean> {
@@ -3103,18 +3174,32 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRandomLinkVariation(teamId: string, enabled: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_random_link_variation', {
-        p_team: teamId,
-        p_enabled: enabled
-      })
+  async setCatalogUpdaterRandomLinkVariation(
+    teamId: string,
+    enabled: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_random_link_variation_as_actor', {
+            p_team: teamId,
+            p_enabled: enabled,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterGrow(teamId: string): Promise<boolean> {
@@ -3122,18 +3207,32 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_grow', { p_team: teamId })
     );
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterGrow(teamId: string, grow: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_grow', {
-        p_team: teamId,
-        p_grow: grow
-      })
+  async setCatalogUpdaterGrow(
+    teamId: string,
+    grow: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_grow_as_actor', {
+            p_team: teamId,
+            p_grow: grow,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async createProductCatalog(input: {

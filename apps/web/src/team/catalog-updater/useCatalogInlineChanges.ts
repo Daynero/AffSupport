@@ -1,3 +1,5 @@
+import { usePrivateCacheEpoch } from '../private-cache-scope';
+import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
@@ -65,7 +67,9 @@ export function useCatalogInlineChanges({
   onChanged?: () => void;
   clockOffsetMs?: number;
 }) {
+  const privateEpoch = usePrivateCacheEpoch();
   const generation = useRef(0);
+  const mounted = useRef(true);
   const snapshotCache = useRef(new Map<string, CatalogSnapshot>());
   const unknownIntents = useRef(
     new Map<
@@ -80,13 +84,21 @@ export function useCatalogInlineChanges({
       }
     >()
   );
-  const previousScope = useRef({ teamId, client });
-  if (previousScope.current.teamId !== teamId || previousScope.current.client !== client) {
+  const previousScope = useRef({ teamId, client, privateEpoch });
+  if (
+    previousScope.current.teamId !== teamId ||
+    previousScope.current.client !== client ||
+    previousScope.current.privateEpoch !== privateEpoch
+  ) {
     generation.current += 1;
     snapshotCache.current.clear();
     unknownIntents.current.clear();
-    previousScope.current = { teamId, client };
+    previousScope.current = { teamId, client, privateEpoch };
   }
+  const owner = useMemo(() => {
+    const scope = previousScope.current;
+    return captureCatalogMutationOwner(() => mounted.current && previousScope.current === scope);
+  }, [teamId, client, privateEpoch]);
   const readControllers = useRef(new Set<AbortController>());
   const [snapshots, setSnapshots] = useState<Record<string, CatalogSnapshot>>({});
   const [states, setStates] = useState<Record<string, InlineChangeState>>({});
@@ -96,21 +108,22 @@ export function useCatalogInlineChanges({
   const current = useRef({ rowById, snapshots });
   current.current = { rowById, snapshots };
   const visibleFlows = useRef(new Map<string, CatalogUiFlow>());
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       generation.current += 1;
       unknownIntents.current.clear();
       for (const controller of readControllers.current) controller.abort();
       for (const flow of visibleFlows.current.values()) flow.cancel();
-    },
-    []
-  );
+    };
+  }, []);
   useEffect(() => {
     setSnapshots({});
     setStates({});
     setUndo([]);
     locks.current.clear();
-  }, [teamId, client]);
+  }, [teamId, client, privateEpoch]);
   const remember = (
     id: string,
     incoming: CatalogSnapshot,
@@ -169,6 +182,7 @@ export function useCatalogInlineChanges({
     setSnapshots(current.current.snapshots);
   };
   const read = async (id: string): Promise<CatalogSnapshot> => {
+    if (!owner.current()) throw new DOMException('Catalog scope changed', 'AbortError');
     const controller = new AbortController();
     readControllers.current.add(controller);
     try {
@@ -208,11 +222,12 @@ export function useCatalogInlineChanges({
     undoEntry?: CatalogUndo
   ): Promise<{ confirmed: boolean; error?: unknown }> => {
     const epoch = generation.current;
-    const active = () => generation.current === epoch;
+    const active = () => generation.current === epoch && owner.current();
     const obsolete = () => ({
       confirmed: false,
       error: new DOMException('Catalog scope changed', 'AbortError')
     });
+    if (!active()) return obsolete();
     if (
       locks.current.has(id) ||
       unknownIntents.current.has(id) ||
@@ -282,7 +297,13 @@ export function useCatalogInlineChanges({
         patch,
         write: () => {
           writeSent = true;
-          return client.patchCatalogUpdateProfile!(teamId, id, expected.profile.version, patch);
+          return client.patchCatalogUpdateProfile!(
+            teamId,
+            id,
+            expected.profile.version,
+            patch,
+            owner.options(controller.signal)
+          );
         },
         signal: controller.signal,
         read: () => read(id),
@@ -366,8 +387,8 @@ export function useCatalogInlineChanges({
   };
   const reconcile = async (id: string) => {
     const epoch = generation.current;
-    const active = () => generation.current === epoch;
-    if (locks.current.has(id)) return;
+    const active = () => generation.current === epoch && owner.current();
+    if (!active() || locks.current.has(id)) return;
     locks.current.add(id);
     const flow = beginCatalogUiFlow('profile', { count: 1 });
     flow.stage('readback_requested');

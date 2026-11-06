@@ -228,7 +228,16 @@
       Locks, drafts, selection, undo, visibleFlows належать team/actor/catalog scope.
       Unsaved/pending/unknown мають доступний recovery, close та контрольовані guards.
       Перевірки: switch team/login, late completion, permission revoked, browser exit.
-      **Evidence:** —
+      **Partial evidence:** actor-bound RPC/SDK and UI increment in progress; seven
+      cross-account mutations reproduced against actual SDK/SQL before the fix,
+      all eight actor scenarios now pass. A retained inline callback, StrictMode
+      restart, observed Stop and delayed defaults completion are covered in the
+      219-test focused pass; complete typecheck passed. See
+      reviews/catalog-actor-bound-mutations.md. Full source verification passed 14/14 gates and 9034 tests (66 explicit skips);
+      final DB proof: 426 migrations, 1116 pgTAP assertions, 2 Auth and 46 native
+      tests. The proved migration is applied only to local beta, all 13 protected
+      snapshots matched. Actual manual beta acceptance and the remaining scope/
+      navigation matrix remain pending; task stays open.
 
 - [ ] T029 [US3] truthful outcome історії та command telemetry — `scripts/analytics/catalog-updates.ts`. Залежності: T023–T028.
       Server accepted, provider verified, last success, partial video й UI visible

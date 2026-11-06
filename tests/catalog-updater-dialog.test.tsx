@@ -386,9 +386,15 @@ it('saves one toggle immediately for exactly one catalog', async () => {
     await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
   );
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      restitch: true
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        restitch: true
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
   expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('button', { name: 'Save settings' })).toBeNull();
@@ -406,14 +412,20 @@ it('saves a precise catalog schedule only after explicit confirmation', async ()
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      updateInterval: '1d',
-      schedule: expect.objectContaining({
-        time: expect.any(String),
-        timeZone: expect.any(String),
-        weekday: expect.any(Number)
-      })
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        updateInterval: '1d',
+        schedule: expect.objectContaining({
+          time: expect.any(String),
+          timeZone: expect.any(String),
+          weekday: expect.any(Number)
+        })
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
   expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
@@ -490,10 +502,16 @@ it('validates custom hours before the explicit numeric application', async () =>
   await userEvent.type(hours, '36');
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      updateInterval: '36h',
-      schedule: null
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        updateInterval: '36h',
+        schedule: null
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
 });
 it('updates a catalog now without changing its schedule', async () => {
@@ -666,14 +684,19 @@ it('shows one reconciliation status instead of running and stacked errors', asyn
   expect(screen.queryByRole('button', { name: /Needs attention/ })).toBeNull();
   expect(within(tableRow).queryByRole('button', { name: 'Cancel this update' })).toBeNull();
 });
-it('cancels an active run separately from the schedule', async () => {
+it('refuses a legacy Stop without an observed round and leaves the schedule unchanged', async () => {
   const api = client(
     [row('1', 'polo.mp4', { updatePending: true, updateInterval: '1d' })],
     running
   );
   renderDialog(api);
   await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
-  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId);
+  expect(api.cancelCatalogUpdate).not.toHaveBeenCalled();
+  expect(
+    await screen.findByText(
+      'The current attempt has not been verified. Refresh the catalog list before stopping this update.'
+    )
+  ).toBeTruthy();
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
 });
 it('binds stop to the observed updater round on a modern snapshot', async () => {
@@ -690,14 +713,29 @@ it('binds stop to the observed updater round on a modern snapshot', async () => 
   );
   renderDialog(api);
   await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
-  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, {
-    roundAt: activeRoundAt,
-    attemptId: 'observed-attempt'
-  });
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(
+    TEAM_ID,
+    row('1', '').catalogId,
+    {
+      roundAt: activeRoundAt,
+      attemptId: 'observed-attempt'
+    },
+    expect.objectContaining({
+      expectedActorId: '47000000-0000-4000-8000-000000000001',
+      signal: expect.any(AbortSignal)
+    })
+  );
 });
 it('explains a stop that arrived after the run had already ended without changing its schedule', async () => {
   const api = client(
-    [row('1', 'polo.mp4', { updatePending: true, updateInterval: '1d' })],
+    [
+      row('1', 'polo.mp4', {
+        updatePending: true,
+        updateInterval: '1d',
+        activeRoundAt: '2026-11-05T10:00:00Z',
+        activeAttemptId: null
+      })
+    ],
     running,
     { cancelCatalogUpdate: vi.fn().mockResolvedValue(false) }
   );

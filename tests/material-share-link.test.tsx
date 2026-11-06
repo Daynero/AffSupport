@@ -431,3 +431,25 @@ it('shows the closed visibility failure reason while retaining the verified URL'
   expect(screen.getByRole('alert').textContent).toBe('teamErrorPermissionDenied');
   expect(screen.getByText('materialLinkCheck')).not.toBeNull();
 });
+
+it.each([300_001, 31 * 24 * 60 * 60 * 1000])(
+  'requires a fresh inspection after an idle confirmation (%s ms)',
+  async elapsed => {
+    clipboard();
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    share.mockResolvedValueOnce(restricted).mockResolvedValueOnce(publicResult);
+    try {
+      render(<Harness />);
+      fireEvent.click(screen.getByText('share'));
+      await screen.findByText('creativeLibraryShareApprove');
+      now.mockReturnValue(elapsed);
+      fireEvent.click(screen.getByText('creativeLibraryShareApprove'));
+      await screen.findByText('materialLinkExpired');
+      expect(share).toHaveBeenCalledTimes(1);
+      expect(screen.getByDisplayValue(url)).toHaveProperty('readOnly', true);
+      expect(screen.getByText('materialLinkCheck')).not.toBeNull();
+    } finally {
+      now.mockRestore();
+    }
+  }
+);

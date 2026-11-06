@@ -15,6 +15,8 @@ import { TeamApiError, type CatalogRegistryRow } from '../apps/web/src/api/team'
 import { useCatalogInlineChanges } from '../apps/web/src/team/catalog-updater/useCatalogInlineChanges';
 import { analytics } from '../apps/web/src/analytics/service';
 import { CatalogIconControls } from '../apps/web/src/team/catalog-updater/CatalogIconControls';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
+const ACTOR = '47000000-0000-4000-8000-000000000001';
 const profile: CatalogUpdateProfile = {
   catalogId: 'one',
   version: 1,
@@ -26,7 +28,10 @@ const profile: CatalogUpdateProfile = {
   growProducts: true
 };
 const row = { catalogId: 'one', profile, updateInterval: null } as CatalogRegistryRow;
-beforeEach(() => localStorage.setItem('language', 'en'));
+beforeEach(() => {
+  localStorage.setItem('language', 'en');
+  setPrivateCacheScope(ACTOR, 'owner');
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -59,7 +64,13 @@ it('writes exactly one field and synchronously blocks a second mutation of the s
   });
   expect(result.current.blocked('one')).toBe(true);
   expect(patch).toHaveBeenCalledTimes(1);
-  expect(patch).toHaveBeenCalledWith('team', 'one', 1, { restitch: true });
+  expect(patch).toHaveBeenCalledWith(
+    'team',
+    'one',
+    1,
+    { restitch: true },
+    expect.objectContaining({ expectedActorId: ACTOR, signal: expect.any(AbortSignal) })
+  );
   await act(async () => {
     resolve({ ...profile, restitch: true, version: 2 });
     await first;
@@ -198,9 +209,15 @@ it('undo restores only the changed field with the verified version', async () =>
   await act(async () => {
     await result.current.undoChange(entry);
   });
-  expect(client.patchCatalogUpdateProfile).toHaveBeenLastCalledWith('team', 'one', 2, {
-    restitch: false
-  });
+  expect(client.patchCatalogUpdateProfile).toHaveBeenLastCalledWith(
+    'team',
+    'one',
+    2,
+    {
+      restitch: false
+    },
+    expect.objectContaining({ expectedActorId: ACTOR })
+  );
   expect(result.current.undo).toHaveLength(0);
 });
 it('keeps a known refusal at the confirmed value', async () => {
@@ -283,7 +300,13 @@ it('saves schedule atomically and reconciles an uncertain response including its
     confirmed = await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
   expect(confirmed).toBe(true);
-  expect(patch).toHaveBeenCalledWith('team', 'one', 1, { updateInterval: '1w', schedule });
+  expect(patch).toHaveBeenCalledWith(
+    'team',
+    'one',
+    1,
+    { updateInterval: '1w', schedule },
+    expect.objectContaining({ expectedActorId: ACTOR })
+  );
   expect(result.current.snapshotFor('one')?.profile.schedule).toEqual(schedule);
   expect(result.current.undo[0]?.before).toEqual({ interval: null, schedule: null });
 });
@@ -551,4 +574,31 @@ it('accepts a newer runtime observation independently of an older embedded setti
     runtimeObservedAt: '2026-11-05T12:01:00Z',
     profile: { version: 2, restitch: true, lastResult: 'success' }
   });
+});
+
+it('refuses a retained inline callback immediately after an actor switch', async () => {
+  const { result, client } = setup();
+  const oldChange = result.current.change;
+  act(() => setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner'));
+  await act(async () => {
+    expect(await oldChange('one', 'restitch', true)).toBe(false);
+  });
+  expect(client.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+});
+
+it('keeps a current mutation usable after StrictMode effect cleanup and restart', async () => {
+  const patch = vi.fn().mockResolvedValue({ ...profile, restitch: true, version: 2 });
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn().mockResolvedValue([row]),
+    patchCatalogUpdateProfile: patch
+  };
+  const { result } = renderHook(
+    () => useCatalogInlineChanges({ teamId: 'team', client, rows: [row], reload: vi.fn() }),
+    { wrapper: ({ children }) => <React.StrictMode>{children}</React.StrictMode> }
+  );
+  await act(async () => {
+    expect(await result.current.change('one', 'restitch', true)).toBe(true);
+  });
+  expect(patch).toHaveBeenCalledTimes(1);
 });

@@ -4,6 +4,7 @@ import {
   teamApi,
   type CatalogRegistryRow,
   type CatalogUpdaterState,
+  type CatalogMutationOptions,
   type CatalogListSnapshot
 } from '../../api/team';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
@@ -49,7 +50,8 @@ export interface CatalogUpdaterClient {
     teamId: string,
     catalogId: string,
     expectedVersion: number,
-    patch: CatalogUpdateProfilePatch
+    patch: CatalogUpdateProfilePatch,
+    options?: CatalogMutationOptions
   ) => Promise<CatalogUpdateProfile>;
 }
 

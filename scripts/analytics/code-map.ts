@@ -864,6 +864,15 @@ function build(): Record<string, CodeLocation> {
   };
   map['team:library:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
   map['catalog:update:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
+  map['team:library:CATALOG_STOP_TARGET_UNKNOWN'] = {
+    files: [
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql'
+    ],
+    check:
+      'Stop was refused before dispatch because the manager had no observed round. Refresh the catalog state and target that exact round; never fall back to stopping an unobserved current operation.'
+  };
   map['team:library:CATALOG_COMMAND_UNSUPPORTED'] = {
     files: [
       'apps/web/src/api/team.ts',

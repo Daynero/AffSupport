@@ -2643,6 +2643,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterApply: 'Задати',
   catalogUpdaterOff: 'Вимкнено',
   catalogUpdaterOffLong: 'Не оновлювати автоматично',
+  catalogStopTargetUnknown:
+    'Поточну спробу ще не перевірено. Оновіть список каталогів, перш ніж зупиняти оновлення.',
   catalogUpdaterCancelAlready: 'Це оновлення вже завершене або зупинене.',
   catalogUpdaterCancelUpdate: 'Зупинити це оновлення',
   catalogUpdaterPartialRead:

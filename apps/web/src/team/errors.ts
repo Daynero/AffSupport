@@ -120,6 +120,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   CATALOG_EXPORT_TOO_LARGE: 'catalogExportTooLarge',
   CATALOG_COMMAND_STORAGE_UNAVAILABLE: 'catalogCommandStorageUnavailable',
   CATALOG_COMMAND_UNSUPPORTED: 'catalogCommandUnsupported',
+  CATALOG_STOP_TARGET_UNKNOWN: 'catalogStopTargetUnknown',
   TEAM_TRANSPORT_UNAVAILABLE: 'teamTransportUnavailable',
   CATALOG_LINK_UNAVAILABLE: 'materialLinkUnavailable',
   CATALOG_LINK_SHARING_UNCERTAIN: 'materialLinkPending',

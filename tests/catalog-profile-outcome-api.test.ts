@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const rpc = vi.fn();
 vi.mock('../apps/web/src/lib/supabase', () => ({
   withFreshSession: <T>(run: () => PromiseLike<T>) => run(),
@@ -6,6 +6,8 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
   getSupabaseClient: () => ({ rpc })
 }));
 const { teamApi } = await import('../apps/web/src/api/team');
+const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
+beforeEach(() => setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner'));
 afterEach(() => rpc.mockReset());
 const profile = {
   catalog_material_id: 'catalog',
@@ -115,7 +117,12 @@ it.each([null, '1', -1, 1.5, NaN, Infinity])(
 );
 it.each([null, 0, 'false', undefined])('rejects malformed cancellation: %s', async data => {
   rpc.mockResolvedValue({ error: null, data });
-  await expect(teamApi.cancelCatalogUpdate('team', 'catalog')).rejects.toMatchObject({
+  await expect(
+    teamApi.cancelCatalogUpdate('team', 'catalog', {
+      roundAt: '2026-11-05T10:00:00Z',
+      attemptId: null
+    })
+  ).rejects.toMatchObject({
     code: 'INVALID_RESPONSE'
   });
 });
@@ -124,7 +131,12 @@ it('retains genuine command no-ops', async () => {
   expect(await teamApi.runCatalogUpdateNow('team', ['catalog'])).toBe(0);
   expect(await teamApi.retryCatalogUpdate('team', 'catalog', 'attempt')).toBe(0);
   rpc.mockResolvedValue({ error: null, data: false });
-  expect(await teamApi.cancelCatalogUpdate('team', 'catalog')).toBe(false);
+  expect(
+    await teamApi.cancelCatalogUpdate('team', 'catalog', {
+      roundAt: '2026-11-05T10:00:00Z',
+      attemptId: null
+    })
+  ).toBe(false);
 });
 
 it('does not present a malformed profile row as a successfully loaded empty list', async () => {
@@ -287,9 +299,10 @@ it('uses the observed-round stop RPC and never falls back to an unfenced stop on
   const observed = { roundAt: '2026-11-05T10:00:00Z', attemptId: null };
   rpc.mockResolvedValueOnce({ error: null, data: false });
   expect(await teamApi.cancelCatalogUpdate('team', 'catalog', observed)).toBe(false);
-  expect(rpc).toHaveBeenLastCalledWith('cancel_team_catalog_update_attempt', {
+  expect(rpc).toHaveBeenLastCalledWith('cancel_team_catalog_update_attempt_as_actor', {
     p_team: 'team',
     p_catalog: 'catalog',
+    p_expected_actor: '47000000-0000-4000-8000-000000000001',
     p_expected_round: observed.roundAt,
     p_expected_attempt: null
   });
@@ -298,9 +311,9 @@ it('uses the observed-round stop RPC and never falls back to an unfenced stop on
     code: 'STALE_RESULT'
   });
   expect(rpc).toHaveBeenCalledTimes(2);
-  expect(rpc.mock.calls.every(([name]) => name === 'cancel_team_catalog_update_attempt')).toBe(
-    true
-  );
+  expect(
+    rpc.mock.calls.every(([name]) => name === 'cancel_team_catalog_update_attempt_as_actor')
+  ).toBe(true);
 });
 it('refuses an invalid observed stop identity before sending any RPC', async () => {
   await expect(
@@ -317,4 +330,11 @@ it('does not invent freshness when manager observation metadata is malformed', a
   await expect(teamApi.listCatalogManagerSnapshot('team')).rejects.toMatchObject({
     code: 'INVALID_RESPONSE'
   });
+});
+
+it('refuses Stop without an observed target before sending any RPC', async () => {
+  await expect(teamApi.cancelCatalogUpdate('team', 'catalog')).rejects.toMatchObject({
+    code: 'CATALOG_STOP_TARGET_UNKNOWN'
+  });
+  expect(rpc).not.toHaveBeenCalled();
 });
