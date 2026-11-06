@@ -819,9 +819,26 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['team:library:CATALOG_COMMAND_UNSUPPORTED'] = {
+    files: [
+      'apps/web/src/api/team.ts',
+      'supabase/migrations/20261207138000_catalog_command_receipts.sql'
+    ],
+    check:
+      'The command RPC is absent from the server schema cache. This rejected request did not start work; apply the matching backend contract before retrying. Never fall back to an untracked writer.'
+  };
+  map['team:library:CATALOG_COMMAND_STORAGE_UNAVAILABLE'] = {
+    files: [
+      'apps/web/src/team/catalog-updater/catalogCommandJournal.ts',
+      'apps/web/src/team/catalog-updater/catalogCommandCoordinator.ts'
+    ],
+    check:
+      'The browser refused bounded pending-intent storage before dispatch. The new request was not sent; do not infer that older unknown commands failed. Reconcile their retained IDs.'
+  };
   map['team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'] = {
     files: [
       'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
+      'supabase/migrations/20261207137000_catalog_legacy_stop_hold.sql',
       'apps/web/src/api/team.ts',
       'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx'
     ],

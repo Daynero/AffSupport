@@ -117,19 +117,23 @@ export function useCatalogInlineChanges({
     acknowledged = false
   ): CatalogSnapshot => {
     const previous = snapshotCache.current.get(id);
-    if (!previous || incoming.profile.version > previous.profile.version) {
+    if (!previous) {
       snapshotCache.current.set(id, incoming);
       return incoming;
     }
-    if (incoming.profile.version < previous.profile.version) return previous;
     const previousTime = Date.parse(previous.runtimeObservedAt ?? '');
     const incomingTime = Date.parse(incoming.runtimeObservedAt ?? '');
     const runtime =
-      Number.isFinite(previousTime) &&
-      (!Number.isFinite(incomingTime) || incomingTime <= previousTime)
+      (Number.isFinite(previousTime) &&
+        (!Number.isFinite(incomingTime) || incomingTime <= previousTime)) ||
+      (!Number.isFinite(incomingTime) && incoming.profile.version < previous.profile.version)
         ? previous
         : incoming;
-    const settings = acknowledged ? incoming : previous;
+    const settings =
+      incoming.profile.version > previous.profile.version ||
+      (incoming.profile.version === previous.profile.version && acknowledged)
+        ? incoming
+        : previous;
     const merged = {
       ...runtime,
       profile: {

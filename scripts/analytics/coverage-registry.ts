@@ -81,7 +81,7 @@ export interface CapabilitySignal {
     | 'member_permissions_save'
     | 'member_remove'
     | 'member_access_refresh'
-    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry'}`;
 }
 
 export interface Capability {
@@ -305,7 +305,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
   })),
-  ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
+  ...(['list', 'filter', 'profile', 'bulk', 'template', 'run', 'retry'] as const).map(action => ({
     id: `team.catalog_manager_${action}`,
     tool: 'team' as const,
     title: `Catalog manager · ${action}`,

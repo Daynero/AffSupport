@@ -475,3 +475,50 @@ it('does not report a late bulk acknowledgement as current after a newer version
   expect(screen.queryByRole('button', { name: 'Undo saved changes' })).toBeNull();
   expect(save).toHaveBeenCalledTimes(1);
 });
+
+it('does not send queued saves for catalogs removed from the current selection', async () => {
+  const many = Array.from({ length: 5 }, (_, index) => ({
+    catalogId: String(index),
+    name: `Catalog ${index}`,
+    profile: profile(String(index)),
+    interval: null
+  }));
+  const releases: Array<() => void> = [];
+  const save = vi.fn(async (id: string) => {
+    await new Promise<void>(resolve => releases.push(resolve));
+    return { ...profile(id), restitch: true, version: 2 };
+  });
+  const view = render(<CatalogBulkEditor items={many} save={save} onSaved={() => {}} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Replace video · Off' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'On' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  expect(save).toHaveBeenCalledTimes(4);
+  view.rerender(<CatalogBulkEditor items={many.slice(0, 4)} save={save} onSaved={() => {}} />);
+  await act(async () => releases.splice(0).forEach(release => release()));
+  expect(save).toHaveBeenCalledTimes(4);
+});
+it('stops the queue immediately when the private actor epoch changes', async () => {
+  const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
+  const many = Array.from({ length: 5 }, (_, index) => ({
+    catalogId: String(index),
+    name: `Catalog ${index}`,
+    profile: profile(String(index)),
+    interval: null
+  }));
+  const releases: Array<() => void> = [];
+  const save = vi.fn(async (id: string) => {
+    await new Promise<void>(resolve => releases.push(resolve));
+    return { ...profile(id), restitch: true, version: 2 };
+  });
+  const onSaved = vi.fn();
+  render(<CatalogBulkEditor items={many} save={save} onSaved={onSaved} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Replace video · Off' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'On' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+  await act(async () => {
+    setPrivateCacheScope('next-actor', 'changed');
+    releases.splice(0).forEach(release => release());
+  });
+  expect(save).toHaveBeenCalledTimes(4);
+  expect(onSaved).not.toHaveBeenCalled();
+});

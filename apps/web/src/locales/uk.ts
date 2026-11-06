@@ -2935,6 +2935,23 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
   teamRestitchAgentTooOldForSources:
     'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  catalogCommandAlreadyAccepted:
+    'Цей запит уже прийнято. Щоб зупинити активне оновлення, натисніть «Зупинити» в каталозі.',
+  catalogCommandRecovered:
+    'Попередній запит підтверджено. Прийнято оновлень: {count}. Оновлюємо поточний стан…',
+  catalogCommandLastProblem: 'Остання відома помилка: {message}',
+  catalogCommandMore: 'та ще {count}',
+  catalogCommandCancelled: 'Запит скасовано до прийняття. Оновлення не запускалось.',
+  catalogCommandChecking: 'Перевіряємо запит на оновлення {count} каталогів…',
+  catalogCommandUnknown:
+    'Результат запиту для {count} каталогів не підтверджено. Перевірте стан перед новим запуском. Закриття цього вікна не скасовує запит.',
+  catalogCommandCheck: 'Перевірити стан',
+  catalogCommandCancel: 'Скасувати неприйнятий запит',
+  catalogCommandRefresh: 'Оновлюємо стан каталогу перед наступним запуском.',
+  catalogCommandUnsupported:
+    'Сервер ще не підтримує підтвердження цих запитів. Оновіть сторінку після оновлення сервера.',
+  catalogCommandStorageUnavailable:
+    'Не вдалося зберегти стан запиту в браузері. Новий запит не надіслано. Перевірте доступне сховище браузера.',
   catalogExportTooLarge:
     'Каталог перевищує ліміт експорту Google (10 МБ). Зменште кількість товарів або відкрийте таблицю в Google Sheets.',
   teamRestitchScreenSelectionLimit:

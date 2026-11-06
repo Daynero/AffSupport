@@ -1,3 +1,4 @@
+import { privateCacheEpoch } from '../private-cache-scope';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { TeamApiError } from '../../api/team';
@@ -73,6 +74,8 @@ export function CatalogBulkUndo({
 }) {
   const { t } = useI18n();
   const mounted = useRef(true);
+  const scopeEpoch = useRef(privateCacheEpoch()).current;
+  const scopeActive = () => mounted.current && privateCacheEpoch() === scopeEpoch;
   const allowed = useRef(new Set(allowedIds));
   allowed.current = new Set(allowedIds);
   const locked = useRef(false);
@@ -114,9 +117,10 @@ export function CatalogBulkUndo({
   }, [delivery]);
 
   const apply = async () => {
-    if (disabled || locked.current || !candidates.length) return;
+    if (!scopeActive() || disabled || locked.current || !candidates.length) return;
     locked.current = true;
     setPending(true);
+    onActivityChange({ pending: true, uncertain: unknown });
     onStart();
     const flow = beginCatalogUiFlow('bulk', { count: candidates.length, parentFlowId });
     flows.current.add(flow);
@@ -126,10 +130,10 @@ export function CatalogBulkUndo({
     try {
       await Promise.all(
         Array.from({ length: Math.min(4, candidates.length) }, async () => {
-          while (mounted.current && next < candidates.length) {
+          while (scopeActive() && next < candidates.length) {
             const receipt = candidates[next++]!;
             const key = keyFor(receipt);
-            const active = () => mounted.current && allowed.current.has(receipt.catalogId);
+            const active = () => scopeActive() && allowed.current.has(receipt.catalogId);
             if (!active()) continue;
             const controller = new AbortController();
             controllers.current.add(controller);
@@ -206,7 +210,7 @@ export function CatalogBulkUndo({
           }
         })
       );
-      if (!mounted.current) {
+      if (!scopeActive()) {
         flow.cancel();
         return;
       }
@@ -229,7 +233,7 @@ export function CatalogBulkUndo({
       }
     } finally {
       locked.current = false;
-      if (mounted.current) setPending(false);
+      if (scopeActive()) setPending(false);
     }
   };
 

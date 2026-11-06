@@ -1,8 +1,9 @@
 import { captureAnalyticsActor, type AnalyticsActorSource } from '../../analytics/actorScope';
-import type { TeamErrorCode } from '@video-compressor/shared';
+import { TEAM_ERROR_CODES, type TeamErrorCode } from '@video-compressor/shared';
+const machineCauses = new Set<string>(TEAM_ERROR_CODES);
 import { analytics } from '../../analytics/service';
 
-export type CatalogUiAction = 'list' | 'filter' | 'profile' | 'bulk' | 'template';
+export type CatalogUiAction = 'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry';
 export type CatalogUiStage =
   | 'opened'
   | 'draft_changed'
@@ -12,7 +13,11 @@ export type CatalogUiStage =
   | 'result_visible'
   | 'stale'
   | 'readback_requested'
-  | 'undo_requested';
+  | 'undo_requested'
+  | 'command_requested'
+  | 'command_accepted'
+  | 'command_cancel_requested'
+  | 'command_cancelled';
 export type CatalogUiFailure =
   'READ_FAILED' | 'SAVE_FAILED' | 'CONFLICT' | 'VALIDATION' | 'UNKNOWN' | TeamErrorCode;
 type Tracker = Pick<typeof analytics, 'track'> & AnalyticsActorSource;
@@ -46,6 +51,7 @@ export function beginCatalogUiFlow(
     flow_step: `catalog_manager_${action}`,
     item_count: counts.count,
     file_count: counts.hiddenCount,
+    ...(['run', 'retry'].includes(action) ? { production_completed: false } : {}),
     ...(counts.field ? { setting_name: counts.field } : {})
   };
   function emit(
@@ -64,6 +70,13 @@ export function beginCatalogUiFlow(
         ...base,
         action_identifier: stage,
         ...(code ? { error_code: code } : {}),
+        ...(code && machineCauses.has(code)
+          ? {
+              tool: 'team' as const,
+              error_stage: 'library' as const,
+              error_fingerprint: `team:library:${code}`
+            }
+          : {}),
         duration_ms: Math.max(0, Math.round(performance.now() - startedAt))
       });
     } catch {
@@ -82,10 +95,19 @@ export function beginCatalogUiFlow(
       settled = true;
       emit('operation_completed', 'result_visible');
     },
-    fail(code: CatalogUiFailure) {
+    fail(code: CatalogUiFailure, stage?: CatalogUiStage) {
       if (settled) return;
       settled = true;
-      emit('operation_failed', code === 'CONFLICT' ? 'conflict' : 'save_requested', code);
+      emit(
+        'operation_failed',
+        stage ??
+          (code === 'CONFLICT'
+            ? 'conflict'
+            : ['run', 'retry'].includes(action)
+              ? 'command_requested'
+              : 'save_requested'),
+        code
+      );
     },
     cancel() {
       if (settled) return;

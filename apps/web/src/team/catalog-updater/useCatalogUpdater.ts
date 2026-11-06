@@ -99,7 +99,7 @@ export function useCatalogRegistry(
   enabled: boolean,
   client: CatalogUpdaterClient = defaultClient
 ) {
-  const { value, error, lastLoadedAt, reload, poll } = useRefreshing(
+  const { value, error, lastLoadedAt, reload, reloadFresh, poll } = useRefreshing(
     teamId,
     async signal => {
       if (client.listCatalogManagerSnapshot)
@@ -141,6 +141,7 @@ export function useCatalogRegistry(
     invalidRowCount: value?.invalidRowCount ?? 0,
     error,
     lastLoadedAt,
+    reloadFresh,
     reload
   };
 }

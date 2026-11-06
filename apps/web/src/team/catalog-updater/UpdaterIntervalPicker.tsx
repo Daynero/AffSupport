@@ -63,6 +63,7 @@ export function UpdaterIntervalPicker({
   nextTitle,
   nextRunAt,
   schedule,
+  clockOffsetMs = 0,
   onSaveSchedule,
   onChange
 }: {
@@ -75,6 +76,7 @@ export function UpdaterIntervalPicker({
   nextTitle?: string;
   nextRunAt?: string | null;
   schedule?: CatalogUpdateSchedule | null;
+  clockOffsetMs?: number;
   onSaveSchedule?: (
     interval: CatalogUpdaterInterval | null,
     schedule: CatalogUpdateSchedule | null
@@ -156,7 +158,11 @@ export function UpdaterIntervalPicker({
         (preset !== '1w' || draftSchedule.weekday === originalSchedule.weekday)));
   const previewAt =
     open && nextInterval && (!calendarSchedule || validTime)
-      ? catalogNextRunPreview(nextInterval, calendarSchedule ? draftSchedule : null)
+      ? catalogNextRunPreview(
+          nextInterval,
+          calendarSchedule ? draftSchedule : null,
+          new Date(Date.now() + (Number.isFinite(clockOffsetMs) ? clockOffsetMs : 0))
+        )
       : null;
   const preview = previewAt ? new Date(previewAt) : null;
   const formatNext = (date: Date, timeZone?: string) => {

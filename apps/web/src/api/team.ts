@@ -6,6 +6,11 @@ import {
 import { catalogImageClient } from './team-catalog-images';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
+  normalizeCatalogCommandRequest,
+  parseCatalogCommandReceipt,
+  isCatalogCommandUuid,
+  type CatalogCommandRequest,
+  type CatalogCommandReceipt,
   isTaskCleanupReceipt,
   type TaskCleanupReceipt,
   isBulkTrashGroup,
@@ -2714,6 +2719,81 @@ export const teamApi = {
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  /** Records exactly one actor-bound intent. Acceptance is not provider delivery. */
+  async requestCatalogUpdateCommand(
+    teamId: string,
+    actorId: string,
+    input: CatalogCommandRequest
+  ): Promise<CatalogCommandReceipt> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request || !isCatalogCommandUuid(actorId)) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('request_team_catalog_update_command', {
+        p_team: teamId,
+        p_command: request.commandId,
+        p_catalogs: request.catalogIds,
+        p_expected_actor: actorId.toLowerCase(),
+        p_source_attempt: request.sourceAttemptId ?? null
+      })
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
+  },
+
+  /** Null means no committed receipt was observed, not that an in-flight write cannot commit. */
+  async getCatalogUpdateCommand(
+    teamId: string,
+    input: CatalogCommandRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogCommandReceipt | null> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('get_team_catalog_update_command', {
+            p_team: teamId,
+            p_command: request.commandId
+          }),
+          options
+        ),
+      options
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    if (data === null) return null;
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
+  },
+
+  /** Seals a not-yet-accepted intent, or returns its already accepted work unchanged. */
+  async cancelCatalogCommandIntent(
+    teamId: string,
+    actorId: string,
+    input: CatalogCommandRequest
+  ): Promise<CatalogCommandReceipt> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request || !isCatalogCommandUuid(actorId)) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('cancel_team_catalog_command_intent', {
+        p_team: teamId,
+        p_command: request.commandId,
+        p_catalogs: request.catalogIds,
+        p_expected_actor: actorId.toLowerCase(),
+        p_source_attempt: request.sourceAttemptId ?? null
+      })
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
   },
 
   /** Opens an update for catalogs this minute; resolves with how many were not already waiting. */

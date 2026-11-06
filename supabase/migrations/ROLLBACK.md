@@ -2310,3 +2310,22 @@ observation time to the same authorized snapshot. To withdraw it, restore the
 preceding snapshot definition through a reviewed forward migration. New clients
 explicitly treat an omitted legacy observation as unknown; never manufacture a
 server observation time from response arrival or settings version.
+
+## 20261207137000–20261207138100 — catalog holds and command receipts
+
+137000 preserves authoritative pending provider-reconciliation holds even when an
+updater item's cached flag or round is missing. It also makes legacy Stop obey the
+same hold and lock order as observed Stop. Keep these safety checks during a UI
+rollback; restoring the previous legacy body would permit discarding unresolved
+provider work. This migration creates no replacement round and rewrites no user
+settings.
+
+138000 adds actor-bound manager Run/Retry acceptance receipts, cancellation
+intent tombstones and exact attempt bindings. Roll back the new client first and
+retain the private command ledger, its attempt FK and restricted analytics views.
+Pending browser identities and already accepted work must still be reconcilable;
+never remove their evidence merely to retry. Any later explicit schema removal
+requires proving that no retained client command or protected run depends on it.
+138100 adds closed storage/unsupported error codes. Retain these codes when
+reverting UI so historical diagnosis remains readable. No provider file, account,
+Drive connection, schedule or credential is removed by these migrations.

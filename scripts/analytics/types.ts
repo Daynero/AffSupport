@@ -261,6 +261,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
@@ -289,6 +290,7 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;

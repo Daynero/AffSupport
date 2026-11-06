@@ -2941,6 +2941,23 @@ export const en = {
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
   teamRestitchAgentTooOldForSources:
     'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  catalogCommandAlreadyAccepted:
+    'This request was already accepted. To stop its active update, use Stop on the catalog.',
+  catalogCommandRecovered:
+    'Previous request confirmed. Accepted updates: {count}. Refreshing current status…',
+  catalogCommandLastProblem: 'Last observed problem: {message}',
+  catalogCommandMore: 'and {count} more',
+  catalogCommandCancelled: 'The request was cancelled before acceptance. No update was started.',
+  catalogCommandChecking: 'Checking the update request for {count} catalogs…',
+  catalogCommandUnknown:
+    'The result of the request for {count} catalogs is not confirmed. Check its status before starting again. Closing this window does not cancel the request.',
+  catalogCommandCheck: 'Check status',
+  catalogCommandCancel: 'Cancel unaccepted request',
+  catalogCommandRefresh: 'Refreshing catalog status before another launch.',
+  catalogCommandUnsupported:
+    'This server cannot confirm catalog commands yet. Refresh after the server update.',
+  catalogCommandStorageUnavailable:
+    'The request could not be saved in this browser. Your new request was not sent. Check available browser storage.',
   catalogExportTooLarge:
     'The catalog exceeds Google’s 10 MB export limit. Reduce the product count or open the spreadsheet in Google Sheets.',
   teamRestitchScreenSelectionLimit:

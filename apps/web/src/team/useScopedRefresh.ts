@@ -35,11 +35,11 @@ export function useScopedRefresh<T>(input: {
     setSnapshot(null);
     setFailure(null);
   }
-  const owner = useRef<ReturnType<typeof createReadCoordinator<void>> | null>(null);
+  const owner = useRef<ReturnType<typeof createReadCoordinator<boolean>> | null>(null);
   const request = useCallback((force = false) => {
     if (document.visibilityState === 'hidden' || (!force && Date.now() < retryAfter.current))
       return Promise.resolve();
-    return owner.current?.request() ?? Promise.resolve();
+    return owner.current?.request().then(() => {}) ?? Promise.resolve();
   }, []);
 
   useEffect(() => {
@@ -50,11 +50,12 @@ export function useScopedRefresh<T>(input: {
     const coordinator = createReadCoordinator(async signal => {
       try {
         const value = await withReadDeadline(child => loadRef.current(child), signal);
-        if (!active || signal.aborted) return;
+        if (!active || signal.aborted) return false;
         setSnapshot({ scope, value, loadedAt: new Date().toISOString() });
         setFailure(null);
         failures.current = 0;
         retryAfter.current = 0;
+        return true;
       } catch {
         if (active && !signal.aborted) {
           setFailure(scope);
@@ -62,6 +63,7 @@ export function useScopedRefresh<T>(input: {
           retryAfter.current =
             Date.now() + Math.min(60_000, 1000 * 2 ** Math.min(failures.current - 1, 6));
         }
+        return false;
       }
     });
     owner.current = coordinator;
@@ -92,7 +94,12 @@ export function useScopedRefresh<T>(input: {
   }, [enabled, revision, request]);
 
   const reload = useCallback(() => request(true), [request]);
+  const reloadFresh = useCallback(() => {
+    if (document.visibilityState === 'hidden') return Promise.resolve(false);
+    return owner.current?.requestFresh().then(result => result === true) ?? Promise.resolve(false);
+  }, []);
   return {
+    reloadFresh,
     value: enabled && snapshot?.scope === scope ? snapshot.value : null,
     error: enabled && failure === scope,
     lastLoadedAt: snapshot?.scope === scope ? snapshot.loadedAt : null,

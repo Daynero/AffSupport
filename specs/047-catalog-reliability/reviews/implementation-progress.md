@@ -226,3 +226,55 @@ needs server-clock preview wiring. Legacy Stop, restricted-share consent and
 command identities are continuing work, not claimed complete. Independent drafts
 were prepared under ignored scratchpad while the verified application source was
 frozen; they are not included in this passing checkpoint.
+
+## Command and scope checkpoint — 2026-11-06
+
+The unchanged candidate passed all 13 static gates in the full fast invocation.
+Its suite reached seven completed shards without assertion failures, then hit the
+existing 45-minute gate budget on shard 8. The exact failed report is
+`verification-fast-command-timeout.json`; this is not a one-command full pass.
+Only the affected phase was repeated through the canonical verifier, with the
+owned beta VM and preparation browser stopped. `npm run verify -- --gates=suite`
+passed both seed/suite gates in 2047 seconds: **8895 passed tests, 61 explicit skips**.
+`verification-suite-command-receipts.json` preserves that independent verdict.
+No timeout or test thresholds were relaxed. During the initial run, canonical
+beta:down unexpectedly also compiled shared while shard 4 ran; that resource
+scheduling deviation was corrected before the successful isolated suite rerun.
+
+- Actor-bound immutable Run/Retry receipts bind each retained request identity
+  atomically to exact server attempt IDs. Unknown results are read back without
+  another mutation. Cancelling an unaccepted request seals a tombstone; an already
+  accepted request returns its receipt rather than pretending work was stopped.
+- The manager persists bounded UUID-only identities before dispatch, resumes
+  read-only on reopen, keeps acknowledged rows blocked until a fresh registry
+  read, and includes zero-accepted outcomes in that refresh. Recovery notices name
+  affected catalogs, preserve the last closed cause and distinguish an earlier
+  request confirmation from a newly started update.
+- Initial browser-storage refusal now records the actual failed user attempt.
+  A real hook regression carries its producer through sanitizer, SQL ingestion
+  and SELECT-only CLI diagnosis, proving the code, fingerprint and pre-dispatch
+  stage with no server command. The coordinator also owns a canonical copy of
+  caller input rather than retaining a mutable catalog array.
+- Authoritative reconciliation holds protect legacy/observed Stop, manual Run,
+  worker claims, profile reads and diagnostic projections even when a cached flag
+  or legacy item is missing. Existing unknown provider operations remain held.
+- Settings and runtime snapshots merge independently when newer settings lack
+  observation metadata. Bulk calendar previews use the server offset; Save/Undo
+  queues stop dispatching for removed selected rows or a changed actor epoch.
+- The complete 421-migration disposable PostgreSQL gate passed: 46 pgTAP files /
+  1064 assertions, 2 Auth tests, 9 native suites / 41 concurrent cases. The command
+  ledger participates in the existing late-reference cleanup fence. New public
+  types came from that disposable database with unrelated SDK refinements retained.
+- The reviewed three-file delta was applied only to the connected local beta,
+  using pinned CLI 2.117. Its history matches all 421 source migrations. Eleven of
+  thirteen protected table digests matched across the application/runtime window;
+  connection and credential changes cannot be attributed from aggregate digests.
+  Two connections remained connected and all seven Vault secrets decrypted.
+
+Manual acceptance of this new checkpoint is next; earlier file/link/calendar
+walkthroughs remain in `manual-beta.md`. This is source-beta work, not a clean
+exact-SHA packaged promotion or production authorization. Expected-actor binding
+for profile/Stop, their shared action mutex, complete trash Undo, Share consent,
+same-click image replacement, video sets and delayed publication remain open.
+The failed real provider conditional-write proof and pending owner choice still
+block new US4/US5 writers; pure ignored prototypes do not complete those tasks.

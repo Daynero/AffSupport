@@ -488,3 +488,67 @@ it('does not present an older acknowledgement as the visible settings after a ne
   expect(result.current.snapshotFor('one')?.profile).toMatchObject({ version: 3, restitch: false });
   expect(result.current.undo).toEqual([]);
 });
+
+it('retains observed runtime facts when a newer settings acknowledgement has no runtime observation', async () => {
+  const initial = {
+    ...row,
+    runtimeObservedAt: '2026-11-05T12:00:00Z',
+    profile: {
+      ...profile,
+      lastResult: 'partial' as const,
+      lastSuccessfulAt: '2026-11-04T12:00:00Z'
+    }
+  };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue({ ...profile, version: 2, restitch: true })
+  };
+  const { result } = renderHook(() =>
+    useCatalogInlineChanges({ teamId: 'team', client, rows: [initial], reload: vi.fn() })
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.snapshotFor('one')).toMatchObject({
+    runtimeObservedAt: initial.runtimeObservedAt,
+    profile: {
+      version: 2,
+      restitch: true,
+      lastResult: 'partial',
+      lastSuccessfulAt: '2026-11-04T12:00:00Z'
+    }
+  });
+});
+it('accepts a newer runtime observation independently of an older embedded settings version', async () => {
+  const initial = {
+    ...row,
+    runtimeObservedAt: '2026-11-05T12:00:00Z',
+    profile: { ...profile, lastResult: 'running' as const }
+  };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue({ ...profile, version: 2, restitch: true })
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [initial as CatalogRegistryRow] } }
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  rerender({
+    rows: [
+      {
+        ...initial,
+        runtimeObservedAt: '2026-11-05T12:01:00Z',
+        profile: { ...profile, lastResult: 'success' }
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')).toMatchObject({
+    runtimeObservedAt: '2026-11-05T12:01:00Z',
+    profile: { version: 2, restitch: true, lastResult: 'success' }
+  });
+});

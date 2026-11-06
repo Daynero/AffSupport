@@ -86,6 +86,7 @@
     "packages/shared/src/team/text-search.ts": 85,
     "packages/shared/src/team/bulk-trash.ts": 90,
     "packages/shared/src/team/catalog-updater.ts": 90,
+    "packages/shared/src/team/catalog-command.ts": 95,
     "packages/shared/src/team/recovery.ts": 90,
     "packages/shared/src/team/task-cleanup.ts": 90,
     "packages/shared/src/team/launches/notes.ts": 90,

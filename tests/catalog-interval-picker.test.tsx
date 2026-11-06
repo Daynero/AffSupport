@@ -268,3 +268,20 @@ it('names the saved Kyiv time zone beside the calendar time', async () => {
   await userEvent.click(screen.getByRole('button', { name: /Schedule:/ }));
   expect(screen.getByText('Kyiv time')).toBeTruthy();
 });
+
+it('previews a new interval from the observed server clock when the computer clock is wrong', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-01-01T01:00:00Z'));
+  render(
+    <UpdaterIntervalPicker
+      value="6h"
+      label="Schedule"
+      clockOffsetMs={20 * 60 * 60 * 1000}
+      schedule={{ timeZone: 'UTC', time: '09:00', weekday: 1 }}
+      onChange={vi.fn()}
+    />
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Schedule: catalogUpdaterEveryHours' }));
+  expect(document.querySelector('.catalog-schedule-feedback strong')?.textContent).toBe(
+    'January 2, 03:00'
+  );
+});

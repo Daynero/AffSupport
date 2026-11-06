@@ -6,6 +6,8 @@ import type {
 } from '../../../packages/shared/dist/team/transport.js';
 
 const STATUS_BY_CODE: Readonly<Record<TeamErrorCode, number>> = {
+  CATALOG_COMMAND_STORAGE_UNAVAILABLE: 409,
+  CATALOG_COMMAND_UNSUPPORTED: 501,
   CATALOG_IMAGE_UPGRADE_REQUIRED: 409,
   CATALOG_IMAGE_IMPORT_DISABLED: 409,
   IMAGE_QUOTA_EXCEEDED: 429,

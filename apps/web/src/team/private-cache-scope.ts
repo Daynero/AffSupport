@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 let scope = '';
+let actorId: string | null = null;
 let epoch = 0;
 const clearers = new Set<() => void>();
 const subscribers = new Set<() => void>();
@@ -12,6 +13,7 @@ export function setPrivateCacheScope(actor: string | null, access: string): void
   const next = JSON.stringify([actor, access]);
   if (next === scope) return;
   scope = next;
+  actorId = actor;
   epoch += 1;
   for (const clear of clearers) clear();
   // Do not synchronously update a mounted child while its parent renders.
@@ -19,6 +21,7 @@ export function setPrivateCacheScope(actor: string | null, access: string): void
     for (const notify of subscribers) notify();
   });
 }
+export const privateCacheActor = () => actorId;
 export const privateCacheEpoch = () => epoch;
 export function registerPrivateCache(clear: () => void): void {
   clearers.add(clear);

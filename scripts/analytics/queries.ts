@@ -1,3 +1,4 @@
+import { getCatalogCommandEvidence } from './catalog-commands.js';
 import { getTeamProcessJournalEvidence, mergeTeamProcessJournal } from './team-process-journal.js';
 import { getOriginalJournalEvidence, inspectOriginalJournal } from './transcription-journal.js';
 import {
@@ -2320,6 +2321,58 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const core = await getInspectComposite(id, asOf, limit);
+  const commands = await getCatalogCommandEvidence(
+    id,
+    asOf,
+    core.found
+      ? core.events
+          .map(event => event.flow_id)
+          .filter((value): value is string => typeof value === 'string')
+      : [],
+    limit
+  );
+  if (
+    !commands.items.length &&
+    (!core.found || !core.capability?.startsWith('team.catalog_manager_'))
+  )
+    return core;
+  if (core.found) return { ...core, catalog_commands: commands };
+  const latest = commands.items[0]!;
+  const stage = latest.status === 'cancelled' ? 'command_cancelled' : 'command_accepted';
+  return {
+    found: true,
+    id,
+    matched_by: ['authoritative_table'],
+    capability: `team.catalog_manager_${latest.kind}`,
+    tool: 'team',
+    stages: {
+      expected: ['requested', 'observed_stage', 'terminal'],
+      observed: [stage],
+      missing: ['terminal']
+    },
+    terminal: null,
+    last_proven_stage: stage,
+    first_seen_at: commands.items.at(-1)?.created_at ?? null,
+    last_seen_at: latest.created_at,
+    delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+    agent: {
+      local_app_versions: [],
+      local_app_builds: [],
+      web_build_ids: [],
+      platforms: [],
+      architectures: [],
+      agent_instance_id: null,
+      agent_instance_ids: [],
+      agent_platforms: [],
+      note: 'A server command receipt does not prove native work or browser delivery.'
+    },
+    events: [],
+    catalog_commands: commands
+  };
+}
+
+async function getInspectComposite(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   const [initialCore, retirement, translation, initialOriginal, nativeTeam] = await Promise.all([
     getInspectCore(id, asOf, limit),
     getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z'),

@@ -118,6 +118,8 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RESTITCH_POOL_EMPTY: 'teamRestitchPoolEmpty',
   RESTITCH_SCREEN_SELECTION_LIMIT: 'teamRestitchScreenSelectionLimit',
   CATALOG_EXPORT_TOO_LARGE: 'catalogExportTooLarge',
+  CATALOG_COMMAND_STORAGE_UNAVAILABLE: 'catalogCommandStorageUnavailable',
+  CATALOG_COMMAND_UNSUPPORTED: 'catalogCommandUnsupported',
   CATALOG_UPDATE_RECONCILIATION_REQUIRED: 'catalogUpdaterReconciliationHold',
   RESTITCH_SOURCE_FORBIDDEN: 'teamRestitchSourceForbidden',
   RESTITCH_SOURCES_INVALID: 'teamRestitchSourcesInvalid',

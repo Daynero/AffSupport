@@ -19,6 +19,7 @@ import {
   TEAM_RETIREMENT_ERROR_CODES,
   TEAM_COMMERCIAL_ERROR_CODES,
   TEAM_CATALOG_RELIABILITY_ERROR_CODES,
+  TEAM_CATALOG_MANAGER_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
@@ -233,6 +234,8 @@ describe('team contract', () => {
       'supabase/migrations/20261207132000_catalog_reliability_error_codes.sql',
       'utf8'
     );
+    const managerPath = 'supabase/migrations/20261207138100_catalog_command_codes.sql';
+    const managerDelta = readFileSync(managerPath, 'utf8');
     const codes = (sql: string) => {
       const block =
         /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)(?:;|on conflict)/iu.exec(
@@ -249,6 +252,7 @@ describe('team contract', () => {
     expect(codes(imageDelta)).toEqual([...CATALOG_IMAGE_ERROR_CODES]);
     expect(codes(commercialDelta)).toEqual([...TEAM_COMMERCIAL_ERROR_CODES]);
     expect(codes(reliabilityDelta)).toEqual([...TEAM_CATALOG_RELIABILITY_ERROR_CODES]);
+    expect(codes(managerDelta)).toEqual([...TEAM_CATALOG_MANAGER_ERROR_CODES]);
     expect(
       [
         ...codes(base),
@@ -257,7 +261,8 @@ describe('team contract', () => {
         ...codes(retirementDelta),
         ...codes(imageDelta),
         ...codes(commercialDelta),
-        ...codes(reliabilityDelta)
+        ...codes(reliabilityDelta),
+        ...codes(managerDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
@@ -287,6 +292,7 @@ describe('team contract', () => {
     expect(readFileSync(temporaryProcess, 'utf8')).toBe(processDelta);
     expect(readFileSync(temporaryImage, 'utf8')).toBe(imageDelta);
     expect(readFileSync(imagePath, 'utf8')).toBe(imageDelta);
+    expect(readFileSync(managerPath, 'utf8')).toBe(managerDelta);
     expect(readFileSync(basePath, 'utf8')).toBe(base);
     expect(readFileSync(processPath, 'utf8')).toBe(processDelta);
     writeFileSync(temporaryDelta, delta.replaceAll('\n', '\r\n'));

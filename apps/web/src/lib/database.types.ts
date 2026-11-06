@@ -1848,6 +1848,8 @@ export type GeneratedDatabase = {
           started_at: string;
           team_id: string;
           trigger_kind: string;
+
+          command_id: string | null;
         };
         ComputedFields: never;
         Insert: {
@@ -1867,6 +1869,8 @@ export type GeneratedDatabase = {
           started_at?: string;
           team_id: string;
           trigger_kind: string;
+
+          command_id?: string | null;
         };
         Update: {
           actual_changes?: Json | null;
@@ -1885,6 +1889,8 @@ export type GeneratedDatabase = {
           started_at?: string;
           team_id?: string;
           trigger_kind?: string;
+
+          command_id?: string | null;
         };
         Relationships: [
           {
@@ -5599,6 +5605,47 @@ export type GeneratedDatabase = {
           updated_at: string;
         };
         ComputedFields: never;
+        Relationships: [];
+      };
+
+      analytics_catalog_command_bindings: {
+        Row: {
+          attempt_id: string | null;
+          command_id: string | null;
+        };
+        Insert: {
+          attempt_id?: string | null;
+          command_id?: string | null;
+        };
+        Update: {
+          attempt_id?: string | null;
+          command_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_update_attempts_command_id_fkey';
+            columns: ['command_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_commands';
+            referencedColumns: ['command_id'];
+          }
+        ];
+      };
+
+      analytics_catalog_commands: {
+        Row: {
+          accepted: boolean | null;
+          actor_id: string | null;
+          attempt_id: string | null;
+          catalog_id: string | null;
+          command_id: string | null;
+          created_at: string | null;
+          kind: string | null;
+          reason: string | null;
+          source_attempt_id: string | null;
+          status: string | null;
+          team_id: string | null;
+        };
         Relationships: [];
       };
     };
@@ -9401,6 +9448,33 @@ export type GeneratedDatabase = {
           secret: string;
           updated_at: string;
         }[];
+      };
+
+      cancel_team_catalog_command_intent: {
+        Args: {
+          p_catalogs: string[];
+          p_command: string;
+          p_expected_actor: string;
+          p_source_attempt?: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+
+      get_team_catalog_update_command: {
+        Args: { p_command: string; p_team: string };
+        Returns: Json;
+      };
+
+      request_team_catalog_update_command: {
+        Args: {
+          p_catalogs: string[];
+          p_command: string;
+          p_expected_actor: string;
+          p_source_attempt?: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
     };
     Enums: {

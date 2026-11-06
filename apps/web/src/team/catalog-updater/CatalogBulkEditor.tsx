@@ -1,3 +1,4 @@
+import { privateCacheEpoch, privateCacheSuperseded } from '../private-cache-scope';
 import { TeamApiError } from '../../api/team';
 import { saveCatalogProfile } from './saveCatalogProfile';
 import { profilePatchMatches } from './profilePatchMatches';
@@ -35,9 +36,11 @@ export function CatalogBulkEditor({
   onDirtyChange,
   onPendingChange,
   onUncertainChange,
+  clockOffsetMs = 0,
   mode = 'all'
 }: {
   mode?: 'all' | 'restitch' | 'schedule';
+  clockOffsetMs?: number;
   items: Item[];
   save: (
     catalogId: string,
@@ -51,6 +54,9 @@ export function CatalogBulkEditor({
   onUncertainChange?: (uncertain: boolean) => void;
 }) {
   const mounted = useRef(true);
+  const scopeEpoch = useRef(privateCacheEpoch()).current;
+  const applyLocked = useRef(false);
+  const scopeActive = () => mounted.current && privateCacheEpoch() === scopeEpoch;
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -140,6 +146,8 @@ export function CatalogBulkEditor({
     pending || unknownIds.current.size > 0 || undoActivity.pending || undoActivity.uncertain;
   class UnknownSave extends Error {}
   const saveItem = async (item: Item): Promise<CatalogSnapshot> => {
+    const active = () => scopeActive() && currentItems.current.has(item.catalogId);
+    if (!active()) throw privateCacheSuperseded();
     const controller = new AbortController();
     readControllers.current.add(controller);
     try {
@@ -150,9 +158,10 @@ export function CatalogBulkEditor({
         read: read ? signal => read(item.catalogId, { signal }) : undefined,
         readOnly: unknownIds.current.has(item.catalogId),
         signal: controller.signal,
-        canContinue: () => mounted.current,
+        canContinue: active,
         onStage: stage => flow.current?.stage(stage)
       });
+      if (!active()) throw privateCacheSuperseded();
       if (outcome.kind === 'confirmed') {
         unknownIds.current.delete(item.catalogId);
         if (
@@ -205,95 +214,114 @@ export function CatalogBulkEditor({
   });
   const currentSchedule = mixedSchedule ? null : firstSchedule;
   const apply = async () => {
-    if (!keys.length || !affected || pending || undoActivity.pending || undoActivity.uncertain)
+    if (
+      !scopeActive() ||
+      applyLocked.current ||
+      !keys.length ||
+      !affected ||
+      pending ||
+      undoActivity.pending ||
+      undoActivity.uncertain
+    )
       return;
-    // A retry gets its own attempt; completed earlier results remain visible.
-    if (!flow.current)
-      flow.current = beginCatalogUiFlow('bulk', {
-        count: changedItems.length,
-        parentFlowId: bulkFlowId.current
-      });
-    const attemptFlow = flow.current;
-    attemptFlow.stage(
-      changedItems.every(item => unknownIds.current.has(item.catalogId))
-        ? 'readback_requested'
-        : 'save_requested'
-    );
-    setPending(true);
-    setFailures([]);
-    const appliedPatch = draft;
-    const results: PromiseSettledResult<CatalogSnapshot>[] = new Array(changedItems.length);
-    let nextIndex = 0;
-    // Keep large selections from opening hundreds of simultaneous writes.
-    await Promise.all(
-      Array.from({ length: Math.min(4, changedItems.length) }, async () => {
-        while (mounted.current && nextIndex < changedItems.length) {
-          const index = nextIndex++;
-          const item = changedItems[index]!;
-          try {
-            results[index] = {
-              status: 'fulfilled',
-              value: await saveItem(item)
-            };
-          } catch (reason) {
-            results[index] = { status: 'rejected', reason };
-          }
-        }
-      })
-    );
-    if (!mounted.current) {
-      attemptFlow.cancel();
-      return;
-    }
-    const failed = results.flatMap((result, index) =>
-      result.status === 'rejected'
-        ? [`${changedItems[index]?.name}: ${errorText(result.reason)}`]
-        : []
-    );
-    setFailures(failed);
-    const nextResults = results.map((result, index) => ({
-      id: changedItems[index]!.catalogId,
-      name: changedItems[index]!.name,
-      ok: result.status === 'fulfilled',
-      unknown: result.status === 'rejected' && result.reason instanceof UnknownSave,
-      error: result.status === 'rejected' ? errorText(result.reason) : undefined
-    }));
-    setResultsByCatalog(previous => {
-      const byId = new Map(previous.map(result => [result.id, result]));
-      nextResults.forEach(result => byId.set(result.id, result));
-      return [...byId.values()];
-    });
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') confirmedIds.current.add(changedItems[index]!.catalogId);
-    });
-    setUndoReceipts(previous => {
-      const byId = new Map(previous.map(receipt => [receipt.catalogId, receipt]));
-      results.forEach((result, index) => {
-        if (result.status !== 'fulfilled') return;
-        const item = changedItems[index]!;
-        byId.set(item.catalogId, {
-          catalogId: item.catalogId,
-          name: item.name,
-          before: { profile: item.profile, interval: item.interval },
-          after: result.value,
-          patch: appliedPatch
+    applyLocked.current = true;
+    onPendingChange?.(true);
+    try {
+      // A retry gets its own attempt; completed earlier results remain visible.
+      if (!flow.current)
+        flow.current = beginCatalogUiFlow('bulk', {
+          count: changedItems.length,
+          parentFlowId: bulkFlowId.current
         });
+      const attemptFlow = flow.current;
+      attemptFlow.stage(
+        changedItems.every(item => unknownIds.current.has(item.catalogId))
+          ? 'readback_requested'
+          : 'save_requested'
+      );
+      setPending(true);
+      setFailures([]);
+      const appliedPatch = draft;
+      const results: PromiseSettledResult<CatalogSnapshot>[] = new Array(changedItems.length);
+      let nextIndex = 0;
+      // Keep large selections from opening hundreds of simultaneous writes.
+      await Promise.all(
+        Array.from({ length: Math.min(4, changedItems.length) }, async () => {
+          while (scopeActive() && nextIndex < changedItems.length) {
+            const index = nextIndex++;
+            const item = changedItems[index]!;
+            try {
+              results[index] = {
+                status: 'fulfilled',
+                value: await saveItem(item)
+              };
+            } catch (reason) {
+              results[index] = { status: 'rejected', reason };
+            }
+          }
+        })
+      );
+      if (!scopeActive()) {
+        attemptFlow.cancel();
+        return;
+      }
+      const failed = results.flatMap((result, index) =>
+        result.status === 'rejected'
+          ? [`${changedItems[index]?.name}: ${errorText(result.reason)}`]
+          : []
+      );
+      setFailures(failed);
+      const nextResults = results.map((result, index) => ({
+        id: changedItems[index]!.catalogId,
+        name: changedItems[index]!.name,
+        ok: result.status === 'fulfilled',
+        unknown: result.status === 'rejected' && result.reason instanceof UnknownSave,
+        error: result.status === 'rejected' ? errorText(result.reason) : undefined
+      }));
+      setResultsByCatalog(previous => {
+        const byId = new Map(previous.map(result => [result.id, result]));
+        nextResults.forEach(result => byId.set(result.id, result));
+        return [...byId.values()];
       });
-      return [...byId.values()];
-    });
-    setSuccessCount(confirmedIds.current.size);
-    if (results.some(result => result.status === 'fulfilled')) attemptFlow.stage('save_confirmed');
-    setDelivery({
-      flow: attemptFlow,
-      failed: failed.length > 0,
-      unknown: results.some(
-        result => result.status === 'rejected' && result.reason instanceof UnknownSave
-      )
-    });
-    flow.current = null;
-    if (!failed.length) setDraft({});
-    setPending(false);
-    onSaved();
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') confirmedIds.current.add(changedItems[index]!.catalogId);
+      });
+      setUndoReceipts(previous => {
+        const byId = new Map(previous.map(receipt => [receipt.catalogId, receipt]));
+        results.forEach((result, index) => {
+          if (result.status !== 'fulfilled') return;
+          const item = changedItems[index]!;
+          byId.set(item.catalogId, {
+            catalogId: item.catalogId,
+            name: item.name,
+            before: { profile: item.profile, interval: item.interval },
+            after: result.value,
+            patch: appliedPatch
+          });
+        });
+        return [...byId.values()];
+      });
+      setSuccessCount(confirmedIds.current.size);
+      if (results.some(result => result.status === 'fulfilled'))
+        attemptFlow.stage('save_confirmed');
+      setDelivery({
+        flow: attemptFlow,
+        failed: failed.length > 0,
+        unknown: results.some(
+          result => result.status === 'rejected' && result.reason instanceof UnknownSave
+        )
+      });
+      flow.current = null;
+      if (!failed.length) setDraft({});
+      setPending(false);
+      onSaved();
+    } finally {
+      applyLocked.current = false;
+      if (scopeActive()) {
+        setPending(false);
+        onPendingChange?.(false);
+      }
+    }
   };
   return (
     <div className="team-updater-profile" role="group" aria-label={t('catalogUpdaterBulkSettings')}>
@@ -330,6 +358,7 @@ export function CatalogBulkEditor({
             )}
           </div>
           <UpdaterIntervalPicker
+            clockOffsetMs={clockOffsetMs}
             value={draft.updateInterval === undefined ? currentInterval : draft.updateInterval}
             label={t('catalogUpdaterBulkIntervalTogether')}
             disabled={locked}

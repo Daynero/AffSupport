@@ -1,3 +1,4 @@
+import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
 import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { withReadDeadline } from '../readCoordinator';
 import type { TeamAnalyticsStorage } from '@video-compressor/shared';
@@ -32,7 +33,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
 import { searchFieldEscape } from '../../lib/searchField';
-import { teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
@@ -56,7 +57,7 @@ import {
   type CatalogUpdaterClient
 } from './useCatalogUpdater';
 
-export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
+export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, CatalogCommandClient {
   getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
   setCatalogUpdateInterval: (
     teamId: string,
@@ -206,7 +207,37 @@ function CatalogUpdaterDialogScope({
   const [confirmDelete, setConfirmDelete] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   /** Rows with a change on its way, so their controls wait instead of taking a second press. */
-  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [localBusyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const commands = useCatalogCommands({
+    teamId,
+    client,
+    reloadFresh: registry.reloadFresh,
+    onConfirmed: (receipt, mode) => {
+      push({
+        tone:
+          mode !== 'request' || receipt.status === 'cancelled' || receipt.acceptedCount === 0
+            ? 'info'
+            : 'success',
+        text:
+          receipt.status === 'cancelled'
+            ? t('catalogCommandCancelled')
+            : mode === 'cancel'
+              ? t('catalogCommandAlreadyAccepted')
+              : mode === 'read'
+                ? t('catalogCommandRecovered', { count: receipt.acceptedCount })
+                : receipt.acceptedCount === 0
+                  ? t('catalogUpdaterNoWorkAccepted')
+                  : t('catalogUpdaterNowStarted', { count: receipt.acceptedCount })
+      });
+      updater.reload();
+      onChanged?.();
+    }
+  });
+  const busyIds = new Set([
+    ...localBusyIds,
+    ...commands.refreshing,
+    ...commands.states.flatMap(state => state.intent.catalogIds)
+  ]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState<'all' | 'restitch' | 'schedule'>('all');
@@ -430,26 +461,16 @@ function CatalogUpdaterDialogScope({
   };
 
   const executeNow = (ids: string[]) => {
-    if (ids.some(id => inline.blocked(id) || busyRef.current.has(id))) return;
+    if (ids.some(id => inline.blocked(id) || commands.blocked(id) || busyRef.current.has(id)))
+      return;
     if (rows.some(row => ids.includes(row.catalogId) && row.profile?.reconciliationRequired)) {
       push({ tone: 'error', text: t('catalogUpdaterReconciliationHold') });
       return;
     }
-    return withBusy(
-      ids,
-      async () => {
-        const opened = await client.runCatalogUpdateNow(teamId, ids);
-        if (!mounted.current) return;
-        push({
-          tone: opened === 0 ? 'info' : 'success',
-          text:
-            opened === 0
-              ? t('catalogUpdaterNowAlready')
-              : t('catalogUpdaterNowStarted', { count: opened })
-        });
-      },
-      { refreshOnFailure: true }
-    );
+    return commands.submit(ids).then(outcome => {
+      if (mounted.current && outcome.kind === 'rejected')
+        push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+    });
   };
 
   const updateNow = (ids: string[]) => {
@@ -896,6 +917,80 @@ function CatalogUpdaterDialogScope({
           </Button>
         </div>
       ) : null}
+      {Boolean(commands.error) && (
+        <p className="team-inline-error" role="alert">
+          {teamErrorMessageFor(commands.error, t)}
+        </p>
+      )}
+      {commands.states.map(state => {
+        const captionId = `${titleId}-command-${state.intent.commandId}`;
+        const names = state.intent.catalogIds
+          .slice(0, 3)
+          .flatMap(id => {
+            const row = rows.find(row => row.catalogId === id);
+            return row ? [row.name] : [];
+          })
+          .join(', ');
+        const code = teamErrorCodeOf(state.error);
+        const recover = async (kind: 'check' | 'cancel') => {
+          const outcome = await (kind === 'check'
+            ? commands.check(state.intent.commandId)
+            : commands.cancel(state.intent.commandId));
+          if (mounted.current && outcome?.kind === 'rejected')
+            push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+        };
+        return (
+          <div key={state.intent.commandId} className="team-inline-error" role="status">
+            <p id={captionId}>
+              {t(state.phase === 'working' ? 'catalogCommandChecking' : 'catalogCommandUnknown', {
+                count: state.intent.catalogIds.length
+              })}
+              {names && (
+                <>
+                  {' '}
+                  {names}
+                  {state.intent.catalogIds.length > 3
+                    ? ` ${t('catalogCommandMore', { count: state.intent.catalogIds.length - 3 })}`
+                    : ''}
+                </>
+              )}
+            </p>
+            {state.phase === 'unknown' && code && code !== 'PROCESS_RESULT_UNCERTAIN' && (
+              <p className="field-hint">
+                {t('catalogCommandLastProblem', { message: teamErrorMessageFor(state.error, t) })}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-describedby={captionId}
+              disabled={state.phase === 'working'}
+              onClick={() => void recover('check')}
+            >
+              {t('catalogCommandCheck')}
+            </Button>
+            {mayRun && (
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-describedby={captionId}
+                disabled={state.phase === 'working'}
+                onClick={() => void recover('cancel')}
+              >
+                {t('catalogCommandCancel')}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+      {commands.refreshing.length > 0 && (
+        <div className="team-inline-error" role="status">
+          <p>{t('catalogCommandRefresh')}</p>
+          <Button size="sm" variant="ghost" onClick={() => void commands.refresh()}>
+            {t('catalogCommandCheck')}
+          </Button>
+        </div>
+      )}
       {registry.error && registry.rows !== null && (
         <div className="team-inline-error" role="alert">
           {t('catalogUpdaterStale', {
@@ -1236,6 +1331,7 @@ function CatalogUpdaterDialogScope({
                     </td>
                     <td className="catalog-schedule-cell">
                       <UpdaterIntervalPicker
+                        clockOffsetMs={updater.offsetMs}
                         value={row.updateInterval}
                         label={t('catalogUpdaterIntervalFor', { name: row.name })}
                         disabled={
@@ -1461,6 +1557,7 @@ function CatalogUpdaterDialogScope({
                     )}
                     <strong>{t('catalogUpdaterWhen')}</strong>
                     <UpdaterIntervalPicker
+                      clockOffsetMs={updater.offsetMs}
                       value={row.updateInterval}
                       label={t('catalogUpdaterIntervalFor', { name: row.name })}
                       disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
@@ -1614,28 +1711,13 @@ function CatalogUpdaterDialogScope({
                     });
                   }}
                   onRetry={
-                    mayRun && client.retryCatalogUpdate
+                    mayRun
                       ? async sourceAttemptId => {
-                          if (inline.blocked(row.catalogId)) return;
-                          await withBusy(
-                            [row.catalogId],
-                            async () => {
-                              const accepted = await client.retryCatalogUpdate!(
-                                teamId,
-                                row.catalogId,
-                                sourceAttemptId
-                              );
-                              if (!mounted.current) return;
-                              push({
-                                tone: accepted === 0 ? 'info' : 'success',
-                                text:
-                                  accepted === 0
-                                    ? t('catalogUpdaterNoWorkAccepted')
-                                    : t('catalogUpdaterNowStarted', { count: accepted })
-                              });
-                            },
-                            { rethrow: true, refreshOnFailure: true }
-                          );
+                          if (inline.blocked(row.catalogId) || commands.blocked(row.catalogId))
+                            return;
+                          const outcome = await commands.submit([row.catalogId], sourceAttemptId);
+                          if (outcome.kind === 'rejected' || outcome.kind === 'unknown')
+                            throw outcome.error;
                         }
                       : undefined
                   }
@@ -1660,6 +1742,7 @@ function CatalogUpdaterDialogScope({
         >
           <h2 id={`${titleId}-bulk`}>{t('catalogUpdaterBulkSettings')}</h2>
           <CatalogBulkEditor
+            clockOffsetMs={updater.offsetMs}
             mode={bulkMode}
             items={liveSelected
               .filter(row => row.profile && !inline.blocked(row.catalogId))

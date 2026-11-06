@@ -16,6 +16,10 @@ import type {
  * both of them across a selection.
  */
 
+vi.mock('../apps/web/src/auth/AuthContext', () => ({
+  useOptionalAuth: () => ({ user: { id: '47000000-0000-4000-8000-000000000001' } })
+}));
+
 const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
@@ -102,6 +106,7 @@ const running: CatalogUpdaterState = {
 };
 
 beforeEach(() => {
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
   localStorage.setItem('catalog-icon-legend-seen', '1');
@@ -119,7 +124,7 @@ function client(
   state: CatalogUpdaterState,
   overrides: Partial<DialogClient> = {}
 ): DialogClient {
-  return {
+  const api: DialogClient = {
     getCatalogUpdater: vi.fn().mockResolvedValue(state),
     listTeamProductCatalogs: vi.fn().mockResolvedValue(rows),
     setCatalogUpdateInterval: vi.fn().mockResolvedValue(running),
@@ -136,6 +141,27 @@ function client(
     setCatalogUpdaterRestitch: vi.fn().mockResolvedValue({ ...stopped, restitch: true }),
     ...overrides
   };
+  api.requestCatalogUpdateCommand ??= async (_team, _actor, intent) => {
+    const count = intent.sourceAttemptId
+      ? await api.retryCatalogUpdate!(_team, intent.catalogIds[0]!, intent.sourceAttemptId)
+      : await api.runCatalogUpdateNow(_team, intent.catalogIds);
+    return {
+      commandId: intent.commandId,
+      kind: intent.sourceAttemptId ? 'retry' : 'run',
+      status: 'accepted',
+      sourceAttemptId: intent.sourceAttemptId ?? null,
+      requestedCount: intent.catalogIds.length,
+      acceptedCount: Math.min(count, intent.catalogIds.length),
+      items: intent.catalogIds.map((catalogId, index) => ({
+        catalogId,
+        accepted: index < count,
+        attemptId: index < count ? crypto.randomUUID() : null,
+        reason: index < count ? 'accepted' : 'already_pending'
+      }))
+    };
+  };
+  api.getCatalogUpdateCommand ??= async () => null;
+  return api;
 }
 
 function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
@@ -1039,3 +1065,50 @@ it.each([
     expect(onChanged).not.toHaveBeenCalled();
   }
 );
+
+it('keeps an unconfirmed command distinct from a new launch and explains its last known cause', async () => {
+  const item = row('1', 'polo.mp4');
+  let intent!: import('@video-compressor/shared').CatalogCommandRequest;
+  const request = vi.fn(async (_team: string, _actor: string, value: typeof intent) => {
+    intent = value;
+    throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+  });
+  const read = vi
+    .fn()
+    .mockResolvedValueOnce(null)
+    .mockImplementation(async () => ({
+      commandId: intent.commandId,
+      kind: 'run',
+      status: 'accepted',
+      sourceAttemptId: null,
+      requestedCount: 1,
+      acceptedCount: 1,
+      items: [
+        {
+          catalogId: item.catalogId,
+          accepted: true,
+          attemptId: '47000000-0000-4000-8000-000000000009',
+          reason: 'accepted'
+        }
+      ]
+    }));
+  const api = client([item], stopped, {
+    requestCatalogUpdateCommand: request,
+    getCatalogUpdateCommand: read
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' }));
+  const notice = await screen.findByText(
+    /The result of the request for 1 catalogs is not confirmed/
+  );
+  expect(notice.textContent).toContain(item.name);
+  const panel = notice.closest<HTMLElement>('[role="status"]')!;
+  expect(within(panel).getByText(/Last observed problem:/)).toBeTruthy();
+  expect(
+    within(panel).getByRole('button', { name: 'Check status' }).getAttribute('aria-describedby')
+  ).toBe(notice.id);
+  await userEvent.click(within(panel).getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText(/Previous request confirmed. Accepted updates: 1/)).toBeTruthy();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(api.runCatalogUpdateNow).not.toHaveBeenCalled();
+});

@@ -225,3 +225,37 @@ tariff reservation. Producer exception не блокує користуваць�
 Verification: real producer → sanitizer → ingestion → stored rows → SELECT-only
 CLI на ізольованій synthetic DB; окремо real beta UI/Drive readback. Жодного ввімкнення
 production telemetry в beta, жодних grants або сирого provider content у fixtures.
+
+### Durable manager Run/Retry intent (T024, additive)
+
+`request_team_catalog_update_command(team, command, catalogs, expected_actor,
+source_attempt)` atomically seals one immutable acceptance receipt and binds each
+accepted catalog to its actual update attempt. The same key and canonical payload
+replays that receipt after the round finishes; a changed actor/team/payload is
+refused. A retry has exactly one catalog and a source attempt. Command acceptance
+never proves provider delivery or UI visibility.
+
+The browser retains only command/catalog/source-attempt UUIDs and creation time,
+separated by confirmed actor and team, before dispatch. Storage failure refuses a
+new request. Unknown commands do not expire into assumed failure. Limits are 500
+catalogs per command, 50 retained commands per actor/team, four concurrent requests
+or lookups, 2,000 examined storage keys and 25,000 characters per stored record.
+Waiting for an acknowledgement and its one readback is bounded independently.
+
+`get_team_catalog_update_command` is view-authorized, actor-bound and read-only.
+Null means no observed committed receipt; the original request may still commit.
+Reopening performs one bounded lookup pass, without replaying a mutation or adding
+a polling owner. Every acknowledged catalog, including zero accepted work, waits for a registry read begun after acknowledgement
+before another run is allowed; an older in-flight read cannot unlock it.
+
+`cancel_team_catalog_command_intent` serializes on the same command identity. It
+seals a cancelled-before-acceptance tombstone, or returns an already accepted
+receipt. It never stops that accepted update. Stopping an active update remains a
+separate observed-round command. Closing a window does not cancel server work.
+
+Restricted immutable analytics views expose identifiers, counts, closed reasons
+and acceptance time only. `inspect` joins by command, UI flow/attempt and actual
+update attempt. Browser completion is an observation of visible acceptance;
+`production_completed=false` prevents that acknowledgement from being presented
+as verified catalog production. Missing, delayed or truncated evidence remains
+explicit.
