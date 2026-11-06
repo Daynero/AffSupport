@@ -1911,6 +1911,28 @@ export async function getInvestigation(
             : 'Inspect the safe receipt; retain unverified files and reconcile unknown operations before retrying.'
     });
   }
+  const groupLocation = lookupCodeLocations('material:group:execution');
+  for (const group of workspace.material_groups?.records ?? []) {
+    if (group.state === 'registered') continue;
+    findings.push({
+      id: hashId(['material_group_execution', group.id, group.state]),
+      kind: group.state === 'legacy_unknown' ? 'insufficient' : 'fact',
+      severity: group.state === 'dispatch_unconfirmed' ? 'high' : 'medium',
+      rule: 'workspace_receipt',
+      title:
+        'File ' + group.action + ': ' + group.state + (group.code ? ' (' + group.code + ')' : ''),
+      evidence: ['material_group:' + group.id],
+      code_locations: groupLocation ? [groupLocation] : [],
+      next_step:
+        group.state === 'dispatch_unconfirmed'
+          ? 'Retain the original key and held member. A reservation does not prove provider nonexecution; reconcile without issuing another PATCH.'
+          : group.state === 'provider_confirmed'
+            ? 'All member acknowledgements are recorded. Read the existing group completion and current material generation; do not repeat provider writes.'
+            : group.state === 'retryable_no_pending'
+              ? 'The original executor closed with no pending member. Revalidate current rights and source before resuming the same intent.'
+              : 'Inspect the original execution marker. Missing legacy or browser evidence remains unknown; do not rotate its request key.'
+    });
+  }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
   const material_sharing = await getOwnedMaterialSharingEvidence(scope.userId, period);

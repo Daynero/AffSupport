@@ -30,6 +30,7 @@ export interface AnalyticsSchema {
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
     analytics_workspace_operations?: boolean;
+    analytics_material_group_execution?: boolean;
     analytics_process_output_cleanup?: boolean;
     analytics_workspace_recovery?: boolean;
     analytics_recovery_execution?: boolean;
@@ -261,6 +262,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  material_groups?: import('./material-groups.js').MaterialGroupEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
@@ -292,6 +294,7 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  material_groups?: import('./material-groups.js').MaterialGroupEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;

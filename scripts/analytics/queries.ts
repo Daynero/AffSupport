@@ -1,3 +1,4 @@
+import { getMaterialGroupEvidence, mergeMaterialGroupInspection } from './material-groups.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import {
   getMaterialSharingAudit,
@@ -2348,7 +2349,19 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
-  const core = await getInspectWithCommands(id, asOf, limit);
+  const initialCore = await getInspectWithCommands(id, asOf, limit);
+  const groups = await getMaterialGroupEvidence({
+    ids: [
+      id,
+      ...(initialCore.found
+        ? initialCore.events
+            .flatMap(event => [event.flow_id, event.run_id])
+            .filter((value): value is string => typeof value === 'string')
+        : [])
+    ],
+    asOf: asOf ?? new Date().toISOString()
+  });
+  const core = mergeMaterialGroupInspection(initialCore, groups);
   const bindings =
     core.found && core.capability === 'team.catalog_manager_stop'
       ? [

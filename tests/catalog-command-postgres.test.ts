@@ -88,6 +88,42 @@ const count = (sheet: string) =>
   sql(
     `select count(*) from public.team_catalog_update_attempts where catalog_material_id='${sheet}'`
   );
+async function materialExecutionFixture(create = true, withChild = false) {
+  const material = randomUUID(),
+    child = randomUUID(),
+    operation = randomUUID(),
+    intent = randomUUID();
+  await sql(`begin;
+    insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,mime_type) values
+    ('${material}','${team}','${connection}','${material}','root','Synthetic execution','file','video/mp4'),
+    ('${child}','${team}','${connection}','${child}','root','Synthetic member','file','text/plain');
+    insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+    values('${operation}','${team}','${owner}','trash','running','${material}','${operation}','group-v1:${'a'.repeat(64)}');commit;`);
+  const members = JSON.stringify([
+    {
+      material_id: material,
+      drive_file_id: material,
+      parent_folder_id: 'root',
+      resource_key: null,
+      role: 'source'
+    },
+    ...(withChild
+      ? [
+          {
+            material_id: child,
+            drive_file_id: child,
+            parent_folder_id: 'root',
+            resource_key: null,
+            role: 'transcript'
+          }
+        ]
+      : [])
+  ]);
+  const statement = `insert into private.team_material_group_intents(id,team_id,source_material_id,operation_id,action,member_snapshot,state)
+    values('${intent}','${team}','${material}','${operation}','trash','${members}'::jsonb,'running')`;
+  if (create) await sql(statement);
+  return { material, child, operation, intent, statement };
+}
 describe.skipIf(!container)(
   '047 command acceptance [needs: disposable PostgreSQL container]',
   () => {
@@ -280,6 +316,156 @@ describe.skipIf(!container)(
           `select count(*) from private.team_bulk_trash_groups where id in ('${firstId}','${otherId}')`
         )
       ).toBe('1');
+    }, 15000);
+    it('grants one material executor across independent concurrent SQL sessions', async () => {
+      const f = await materialExecutionFixture(),
+        firstOwner = randomUUID(),
+        otherOwner = randomUUID();
+      const first = sql(
+        `begin;select public.service_claim_material_group_execution('${f.intent}','${firstOwner}');select pg_sleep(2) /* material_claim_hold */;commit;`
+      );
+      await held('material_claim_hold');
+      const second = sql(
+        `begin;select public.service_claim_material_group_execution('${f.intent}','${otherOwner}') /* material_claim_wait */;commit;`
+      );
+      await held('material_claim_wait', 'Lock');
+      expect(receipt(await first).acquired).toBe(true);
+      expect(receipt(await second).acquired).toBe(false);
+      expect(
+        await sql(
+          `select execution_owner from private.team_material_group_intents where id='${f.intent}'`
+        )
+      ).toBe(firstOwner);
+    }, 15000);
+    it('never reissues a member reservation while a concurrent request is committing it', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID();
+      expect(
+        receipt(
+          await sql(
+            `select public.service_claim_material_group_execution('${f.intent}','${executor}')`
+          )
+        ).acquired
+      ).toBe(true);
+      const first = sql(
+        `begin;select public.service_begin_material_group_dispatch('${f.intent}','${executor}','${f.material}');select pg_sleep(2) /* material_member_hold */;commit;`
+      );
+      await held('material_member_hold');
+      const second = sql(
+        `begin;select public.service_begin_material_group_dispatch('${f.intent}','${executor}','${f.material}') /* material_member_wait */;commit;`
+      );
+      await held('material_member_wait', 'Lock');
+      expect(await first).toBe('t');
+      expect(await second).toBe('f');
+      await sql(`select public.service_end_material_group_execution('${f.intent}','${executor}')`);
+      expect(
+        receipt(
+          await sql(
+            `select public.service_claim_material_group_execution('${f.intent}','${randomUUID()}')`
+          )
+        ).acquired
+      ).toBe(false);
+    }, 15000);
+    it('retains a cancellation committed while confirmed-group reconciliation waits', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID();
+      await sql(`update public.team_materials set placement_state='moving' where id='${f.material}';
+        select public.service_claim_material_group_execution('${f.intent}','${executor}');
+        select public.service_begin_material_group_dispatch('${f.intent}','${executor}','${f.material}');
+        select public.service_checkpoint_material_group_execution('${f.intent}','${executor}','${f.material}');`);
+      const first = sql(
+        asActor(
+          `select public.cancel_team_operation('${team}','${f.operation}');select pg_sleep(2) /* group_completion_cancel_hold */`
+        )
+      );
+      await held('group_completion_cancel_hold');
+      const second = sql(
+        `select public.service_reconcile_confirmed_material_group('${team}','${owner}','${f.operation}','${f.material}','trash',null) /* group_completion_cancel_wait */`
+      ).then(
+        value => ({ value, error: null }),
+        error => ({ value: null, error: error as Error })
+      );
+      await held('group_completion_cancel_wait', 'Lock');
+      await first;
+      expect((await second).error?.message).toContain('PROCESS_RESULT_UNCERTAIN');
+      expect(await sql(`select state from public.team_operations where id='${f.operation}'`)).toBe(
+        'canceled'
+      );
+      expect(
+        await sql(`select lifecycle from public.team_materials where id='${f.material}'`)
+      ).toBe('active');
+    }, 15000);
+    it('refuses a late executor failure after concurrent registration commits', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID();
+      await sql(`update public.team_materials set placement_state='moving' where id='${f.material}';
+        select public.service_claim_material_group_execution('${f.intent}','${executor}');
+        select public.service_begin_material_group_dispatch('${f.intent}','${executor}','${f.material}');
+        select public.service_checkpoint_material_group_execution('${f.intent}','${executor}','${f.material}');`);
+      const first = sql(
+        `begin;select public.service_reconcile_confirmed_material_group('${team}','${owner}','${f.operation}','${f.material}','trash',null);select pg_sleep(2) /* material_completion_hold */;commit;`
+      );
+      await held('material_completion_hold');
+      const second = sql(
+        `select public.service_mark_material_group_execution_reconciling('${f.intent}','${executor}','DRIVE_UNAVAILABLE') /* material_late_failure_wait */`
+      );
+      await held('material_late_failure_wait', 'Lock');
+      await first;
+      expect(await second).toBe('f');
+      expect(
+        await sql(`select placement_state from public.team_materials where id='${f.material}'`)
+      ).toBe('ready');
+      expect(await sql(`select state from public.team_operations where id='${f.operation}'`)).toBe(
+        'succeeded'
+      );
+    }, 15000);
+    it('finishes an acknowledged intent after concurrent catalog observation commits', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID();
+      await sql(`update public.team_materials set placement_state='moving' where id='${f.material}';
+        select public.service_claim_material_group_execution('${f.intent}','${executor}');
+        select public.service_begin_material_group_dispatch('${f.intent}','${executor}','${f.material}');
+        select public.service_checkpoint_material_group_execution('${f.intent}','${executor}','${f.material}');`);
+      const first = sql(
+        `begin;update public.team_materials set lifecycle='trashed',trashed_at=now() where id='${f.material}';select pg_sleep(2) /* material_observation_hold */;commit;`
+      );
+      await held('material_observation_hold');
+      const second = sql(
+        `select public.service_reconcile_confirmed_material_group('${team}','${owner}','${f.operation}','${f.material}','trash',null) /* material_observation_wait */`
+      );
+      await held('material_observation_wait', 'Lock');
+      await first;
+      expect(receipt(await second).state).toBe('succeeded');
+      expect(
+        await sql(
+          `select lifecycle||':'||placement_state from public.team_materials where id='${f.material}'`
+        )
+      ).toBe('trashed:ready');
+    }, 15000);
+    it('serializes overlapping member snapshots even when their primary sources differ', async () => {
+      const f = await materialExecutionFixture(false, true),
+        secondIntent = randomUUID(),
+        secondOperation = randomUUID();
+      await sql(`insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+        values('${secondOperation}','${team}','${owner}','trash','running','${f.child}','${secondOperation}','group-v1:${'b'.repeat(64)}')`);
+      const first = sql(
+        `begin;${f.statement};select pg_sleep(2) /* material_overlap_hold */;commit;`
+      );
+      await held('material_overlap_hold');
+      const second =
+        sql(`begin;insert into private.team_material_group_intents(id,team_id,source_material_id,operation_id,action,member_snapshot,state)
+        values('${secondIntent}','${team}','${f.child}','${secondOperation}','trash',jsonb_build_array(jsonb_build_object('material_id','${f.child}','role','source')),'running') /* material_overlap_wait */;commit;`).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+      await held('material_overlap_wait', 'Lock');
+      await first;
+      expect((await second).error?.message).toContain('GROUP_RECONCILING');
+      expect(
+        await sql(
+          `select count(*) from private.team_material_group_intents where id='${secondIntent}'`
+        )
+      ).toBe('0');
     }, 15000);
   }
 );

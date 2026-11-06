@@ -241,22 +241,69 @@ export async function applyLibraryGroupMutation(input: {
   destinationFolderId?: string | null;
   sourceName?: string | null;
 }): Promise<void> {
-  if (input.intent.action === 'move' && !input.destinationFolderId) {
+  if (input.intent.action === 'move' && !input.destinationFolderId)
     throw new TeamFunctionError('INVALID_INPUT');
-  }
-  const destination = input.destinationFolderId
-    ? await proveLiveAncestry({
-        client: input.drive,
-        fileId: input.destinationFolderId,
-        rootFolderId: input.rootFolderId
-      })
-    : null;
-  if (destination) requireDriveCapability(destination, 'canAddChildren');
-
+  const executor = crypto.randomUUID();
+  const identity = { p_intent: input.intent.intentId, p_executor: executor };
+  let ownsExecution = false;
+  let currentMember: string | null = null;
+  let providerStarted = false;
+  let acknowledged: string | null = null;
+  const rpc = async (name: string, args: Record<string, unknown>) => {
+    const { data, error } = await input.service.rpc(name, args);
+    if (error) {
+      const code = (['PERMISSION_DENIED', 'NOT_FOUND', 'INVALID_INPUT'] as const).find(
+        value => error.message === value
+      );
+      throw new TeamFunctionError(code ?? 'GROUP_RECONCILING', { retryable: !code });
+    }
+    return data;
+  };
+  const settle = async (name: string, args: Record<string, unknown>) => {
+    try {
+      // Supabase RPC builders are lazy thenables, not Promises with .catch().
+      await input.service.rpc(name, args);
+    } catch {
+      // A missing settlement acknowledgement keeps the durable reservation held.
+    }
+  };
   try {
-    const alreadyApplied = new Set(input.intent.appliedMemberIds);
+    const claim = await rpc('service_claim_material_group_execution', identity);
+    if (
+      !isRecord(claim) ||
+      claim.intentId !== input.intent.intentId ||
+      claim.teamId !== input.intent.teamId ||
+      claim.operationId !== input.intent.operationId ||
+      claim.sourceMaterialId !== input.intent.sourceMaterialId ||
+      typeof claim.acquired !== 'boolean' ||
+      typeof claim.completed !== 'boolean' ||
+      (claim.acquired && claim.completed) ||
+      !Array.isArray(claim.appliedMemberIds) ||
+      (claim.completed && claim.appliedMemberIds.length !== input.intent.members.length) ||
+      !claim.appliedMemberIds.every(
+        id =>
+          typeof id === 'string' && input.intent.members.some(member => member.materialId === id)
+      ) ||
+      new Set(claim.appliedMemberIds).size !== claim.appliedMemberIds.length
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    if (claim.completed) return;
+    if (!claim.acquired) throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+    ownsExecution = true;
+    const destination = input.destinationFolderId
+      ? await proveLiveAncestry({
+          client: input.drive,
+          fileId: input.destinationFolderId,
+          rootFolderId: input.rootFolderId
+        })
+      : null;
+    if (destination) requireDriveCapability(destination, 'canAddChildren');
+    const alreadyApplied = new Set(claim.appliedMemberIds);
     for (const member of input.intent.members) {
       if (alreadyApplied.has(member.materialId)) continue;
+      currentMember = member.materialId;
+      providerStarted = false;
+      acknowledged = null;
       const live = await proveLiveAncestry({
         client: input.drive,
         fileId: member.driveFileId,
@@ -264,45 +311,87 @@ export async function applyLibraryGroupMutation(input: {
         rootFolderId: input.rootFolderId,
         allowTrashedTarget: input.intent.action === 'restore'
       });
-      if (input.intent.action === 'move') {
-        requireDriveCapability(live, 'canMoveItemWithinDrive');
-        await input.drive.updateFileMetadata({
-          fileId: live.id,
-          resourceKey: member.resourceKey,
-          ...(member.role === 'source' && input.sourceName ? { name: input.sourceName } : {}),
-          addParentId: input.destinationFolderId!,
-          removeParentIds: live.parents
-        });
-      } else if (input.intent.action === 'trash') {
-        requireDriveCapability(live, 'canTrash');
-        await input.drive.updateFileMetadata({
-          fileId: live.id,
-          resourceKey: member.resourceKey,
-          trashed: true
-        });
-      } else {
-        requireDriveCapability(live, 'canUntrash');
-        await input.drive.updateFileMetadata({
-          fileId: live.id,
-          resourceKey: member.resourceKey,
-          trashed: false,
-          ...(input.destinationFolderId
-            ? { addParentId: input.destinationFolderId, removeParentIds: live.parents }
-            : {})
-        });
-      }
-      const { error } = await input.service.rpc('service_checkpoint_material_group_intent', {
-        p_intent: input.intent.intentId,
-        p_material: member.materialId
+      requireDriveCapability(
+        live,
+        input.intent.action === 'move'
+          ? 'canMoveItemWithinDrive'
+          : input.intent.action === 'trash'
+            ? 'canTrash'
+            : 'canUntrash'
+      );
+      if (
+        (await rpc('service_begin_material_group_dispatch', {
+          ...identity,
+          p_material: member.materialId
+        })) !== true
+      )
+        throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+      providerStarted = true;
+      const updated = await input.drive.updateFileMetadata({
+        fileId: live.id,
+        resourceKey: member.resourceKey,
+        ...(input.intent.action === 'move'
+          ? {
+              ...(member.role === 'source' && input.sourceName ? { name: input.sourceName } : {}),
+              addParentId: input.destinationFolderId!,
+              removeParentIds: live.parents
+            }
+          : {
+              trashed: input.intent.action === 'trash',
+              ...(input.intent.action === 'restore' && input.destinationFolderId
+                ? { addParentId: input.destinationFolderId, removeParentIds: live.parents }
+                : {})
+            })
       });
-      if (error) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+      const changesParent =
+        input.intent.action === 'move' ||
+        (input.intent.action === 'restore' && !!input.destinationFolderId);
+      if (
+        updated.id !== live.id ||
+        (input.intent.action !== 'move' && updated.trashed !== (input.intent.action === 'trash')) ||
+        !Array.isArray(updated.parents) ||
+        (changesParent
+          ? !updated.parents.includes(input.destinationFolderId!)
+          : JSON.stringify([...updated.parents].sort()) !==
+            JSON.stringify([...live.parents].sort())) ||
+        (input.intent.action === 'move' &&
+          member.role === 'source' &&
+          input.sourceName &&
+          updated.name !== input.sourceName)
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+      acknowledged = member.materialId;
+      if (
+        (await rpc('service_checkpoint_material_group_execution', {
+          ...identity,
+          p_material: member.materialId
+        })) !== true
+      )
+        throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+      alreadyApplied.add(member.materialId);
+      currentMember = null;
+      providerStarted = false;
+      acknowledged = null;
     }
   } catch (error) {
-    await input.service.rpc('service_mark_material_group_reconciling', {
-      p_intent: input.intent.intentId,
+    if (!ownsExecution)
+      throw new TeamFunctionError('GROUP_RECONCILING', {
+        retryable: true,
+        details: { causeCode: safeProviderErrorCode(error) }
+      });
+    await settle('service_mark_material_group_execution_reconciling', {
+      ...identity,
       p_error_code: safeProviderErrorCode(error)
     });
     throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+  } finally {
+    // Only this invocation can attest that its reserved member never reached PATCH.
+    // A lost provider reply keeps dispatch_member held; expiry cannot reissue it.
+    await settle('service_end_material_group_execution', {
+      ...identity,
+      p_not_dispatched: currentMember && !providerStarted ? currentMember : null,
+      p_acknowledged: acknowledged
+    });
   }
 }
 

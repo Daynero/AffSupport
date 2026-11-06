@@ -1,7 +1,7 @@
 # Historical incident reconciliation — T003
 
 This separates historical facts from independently reproduced source defects.
-It does not identify an unobserved provider cause or close implementation tasks.
+T003 investigation/reproduction is complete at this boundary; this does not identify an unobserved provider cause or close the separate remediation and acceptance tasks.
 Pinned read-only evidence: [incident-cli-asof-20261105.json](incident-cli-asof-20261105.json).
 Operation inspection ends at 2026-11-05T15:00:00Z; journal inspection at 11:47:00Z.
 Production rows were not changed. Current snapshots cannot reconstruct missing history.
@@ -45,4 +45,4 @@ Existing suites are extended rather than adding a test that merely repeats this 
 
 The new ESM initialization fault was introduced and fixed during this beta work;
 tests/restitch-esm-boundary.test.ts reproduces it. It is not Ruslan's historical
-cause. Complete current fast verification and final feature acceptance remain open.
+cause. The fresh complete source suite is verification-fast-material-execution.json. Final feature, manual and packaged-beta acceptance remain open.

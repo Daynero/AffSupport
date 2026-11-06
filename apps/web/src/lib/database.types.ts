@@ -6196,6 +6196,23 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      analytics_material_group_execution: {
+        Row: {
+          action: string | null;
+          actor_id: string | null;
+          code: string | null;
+          confirmed_count: number | null;
+          created_at: string | null;
+          has_unconfirmed_dispatch: boolean | null;
+          id: string | null;
+          member_count: number | null;
+          operation_id: string | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        Relationships: [];
+      };
       analytics_material_share_intents: {
         Row: {
           actor_id: string | null;
@@ -8615,6 +8632,10 @@ export type GeneratedDatabase = {
         Args: { p_connection: string; p_job: string };
         Returns: boolean;
       };
+      service_begin_material_group_dispatch: {
+        Args: { p_executor: string; p_intent: string; p_material: string };
+        Returns: boolean;
+      };
       service_begin_material_share: {
         Args: {
           p_actor: string;
@@ -8899,6 +8920,10 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_checkpoint_material_group_execution: {
+        Args: { p_executor: string; p_intent: string; p_material: string };
+        Returns: boolean;
+      };
       service_checkpoint_material_group_intent: {
         Args: { p_intent: string; p_material: string };
         Returns: boolean;
@@ -9008,6 +9033,10 @@ export type GeneratedDatabase = {
       };
       service_claim_launch_video_cleanup: {
         Args: { p_limit?: number; p_owner: string };
+        Returns: Json;
+      };
+      service_claim_material_group_execution: {
+        Args: { p_executor: string; p_intent: string };
         Returns: Json;
       };
       service_claim_orphan_cleanups: {
@@ -9432,6 +9461,15 @@ export type GeneratedDatabase = {
       service_draw_restitch_screens: {
         Args: { p_actor: string; p_exclude?: string[]; p_team: string };
         Returns: Json;
+      };
+      service_end_material_group_execution: {
+        Args: {
+          p_acknowledged?: string;
+          p_executor: string;
+          p_intent: string;
+          p_not_dispatched?: string;
+        };
+        Returns: boolean;
       };
       service_enqueue_catalog_reconciliation:
         | { Args: { p_connection: string }; Returns: string }
@@ -9993,6 +10031,10 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_mark_material_group_execution_reconciling: {
+        Args: { p_error_code: string; p_executor: string; p_intent: string };
+        Returns: boolean;
+      };
       service_mark_material_group_reconciling: {
         Args: { p_error_code: string; p_intent: string };
         Returns: boolean;
@@ -10110,6 +10152,17 @@ export type GeneratedDatabase = {
       };
       service_reconcile_catalog_result: {
         Args: { p_actor: string; p_intent: string; p_team: string };
+        Returns: Json;
+      };
+      service_reconcile_confirmed_material_group: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_destination?: string;
+          p_material: string;
+          p_operation: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       service_record_access_expiry: {

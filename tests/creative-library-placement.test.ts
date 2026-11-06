@@ -73,10 +73,27 @@ function drive(failFileId: string | null = null) {
   ]);
   return {
     getFile: vi.fn(async (id: string) => files.get(id)),
-    updateFileMetadata: vi.fn(async ({ fileId }: { fileId: string }) => {
-      if (fileId === failFileId) throw new Error('provider details must not escape');
-      return files.get(fileId);
-    })
+    updateFileMetadata: vi.fn(
+      async ({
+        fileId,
+        addParentId,
+        name
+      }: {
+        fileId: string;
+        addParentId?: string;
+        name?: string;
+      }) => {
+        if (fileId === failFileId) throw new Error('provider details must not escape');
+        const current = files.get(fileId)!;
+        const updated = {
+          ...current,
+          parents: addParentId ? [addParentId] : current.parents,
+          name: name ?? current.name
+        };
+        files.set(fileId, updated);
+        return updated;
+      }
+    )
   };
 }
 
@@ -99,7 +116,21 @@ describe('Creative Library placement and source-sidecar grouping', () => {
 
   it('moves a source and current transcript as one checkpointed group', async () => {
     const provider = drive();
-    const rpc = vi.fn(async () => ({ data: true, error: null }));
+    const rpc = vi.fn(async (name: string) => ({
+      data:
+        name === 'service_claim_material_group_execution'
+          ? {
+              intentId: intent.intentId,
+              teamId: intent.teamId,
+              operationId: intent.operationId,
+              sourceMaterialId: intent.sourceMaterialId,
+              acquired: true,
+              completed: false,
+              appliedMemberIds: []
+            }
+          : true,
+      error: null
+    }));
     await applyLibraryGroupMutation({
       service: { rpc } as never,
       drive: provider as never,
@@ -108,15 +139,33 @@ describe('Creative Library placement and source-sidecar grouping', () => {
       destinationFolderId: 'destination'
     });
     expect(provider.updateFileMetadata).toHaveBeenCalledTimes(2);
-    expect(rpc).toHaveBeenCalledWith('service_checkpoint_material_group_intent', {
-      p_intent: intent.intentId,
-      p_material: intent.members[1].materialId
-    });
+    expect(rpc).toHaveBeenCalledWith(
+      'service_checkpoint_material_group_execution',
+      expect.objectContaining({
+        p_intent: intent.intentId,
+        p_material: intent.members[1].materialId,
+        p_executor: expect.any(String)
+      })
+    );
   });
 
   it('marks a partial provider move as reconciling and never reports success', async () => {
     const provider = drive('transcript');
-    const rpc = vi.fn(async () => ({ data: true, error: null }));
+    const rpc = vi.fn(async (name: string) => ({
+      data:
+        name === 'service_claim_material_group_execution'
+          ? {
+              intentId: intent.intentId,
+              teamId: intent.teamId,
+              operationId: intent.operationId,
+              sourceMaterialId: intent.sourceMaterialId,
+              acquired: true,
+              completed: false,
+              appliedMemberIds: []
+            }
+          : true,
+      error: null
+    }));
     await expect(
       applyLibraryGroupMutation({
         service: { rpc } as never,
@@ -126,7 +175,8 @@ describe('Creative Library placement and source-sidecar grouping', () => {
         destinationFolderId: 'destination'
       })
     ).rejects.toMatchObject({ code: 'GROUP_RECONCILING', retryable: true });
-    expect(rpc).toHaveBeenCalledWith('service_mark_material_group_reconciling', {
+    expect(rpc).toHaveBeenCalledWith('service_mark_material_group_execution_reconciling', {
+      p_executor: expect.any(String),
       p_intent: intent.intentId,
       p_error_code: 'DRIVE_UNAVAILABLE'
     });

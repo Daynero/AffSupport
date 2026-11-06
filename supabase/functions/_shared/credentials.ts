@@ -15,7 +15,7 @@ export interface ServiceRpcClient {
   rpc: (
     name: string,
     parameters: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
 }
 
 function parseCredential(value: unknown): DriveCredential | null {

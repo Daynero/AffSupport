@@ -2406,3 +2406,52 @@ instead of silently returning to timestamp-only paging. This migration writes
 no material, lifecycle receipt or provider data. A web rollback needs no schema
 rollback; removal requires a reviewed forward migration after dependent clients
 are retired. No production action is authorized by this note.
+
+## 20261207151000 — material-group dispatch ownership
+
+Keep the four nullable execution fields, overlap fence, immutable managed nonce
+and service-only execution RPCs during a client rollback. Existing rows remain
+legacy unknown; never backfill them as unexecuted or clear a pending member after
+an elapsed timeout. A provider reply lost after dispatch is held for explicit
+reconciliation through the same intent. The old checkpoint refuses managed
+intents, so an older Edge instance cannot acknowledge them without ownership.
+An old request nonce cannot adopt a new managed operation. Before applying this
+migration, quiesce owned old beta Edge instances and retain exact history,
+function definitions and old-row snapshots. No down migration, evidence deletion,
+production action or automatic rollback is authorized here.
+
+## 20261207152000 — confirmed active-group completion
+
+Retain this service-only reconciliation function during web rollback. It can
+complete only the existing managed active intent after every frozen member is
+acknowledged and no dispatch remains pending. It rechecks actor/source/action/
+destination bindings, the active parent under its lock and the original pending
+material placement/lifecycle. It never grants a provider write or treats an old
+terminal receipt as a current generation. Cancellation committed first remains
+canceled. The additive function changes no rows during migration. Removal needs
+a reviewed forward migration after dependent clients retire; no automatic down
+migration, production change or deletion of held evidence is authorized.
+
+## 20261207153000 — late material-group failures
+
+Keep the private failure guard and service-only owner-bound wrapper during client
+rollback. Legacy failure writers cannot mutate managed execution. A closed,
+replacement or terminal executor cannot change material placement or its parent.
+Active legacy failure reporting remains available. Registration of an already
+fully acknowledged group closes its completed marker atomically without clearing
+an unknown dispatch or granting provider execution. The migration changes no
+application rows. Keep original receipts and new function definitions; any
+removal needs a reviewed forward migration after dependent clients retire.
+No production action or automatic rollback is authorized.
+
+## 20261207154000 — observed material-group completion
+
+Retain this service-only active-intent reconciliation change during client
+rollback. An authorized catalog observation may already match the acknowledged
+trash or restore result before the original receipt completes. The original
+managed pending placement, complete member acknowledgements, no pending dispatch,
+actor/source/action/destination and cancellation fences still apply. Missing or
+replaced placement and terminal-generation replay remain refused. Fresh writes
+still require live provider preflight. This migration changes no application
+rows and grants no provider execution. No production action or automatic rollback
+is authorized.

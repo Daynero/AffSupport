@@ -28,6 +28,7 @@ import {
   type ServiceRpcClient
 } from '../_shared/credentials.ts';
 import { GoogleDriveClient, proveLiveAncestry, requireDriveCapability } from '../_shared/drive.ts';
+import { materialGroupRequestNonce } from '../_shared/operations.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -48,12 +49,7 @@ interface RpcFailure {
   message?: string;
 }
 
-interface RpcClient extends ServiceRpcClient {
-  rpc: (
-    name: string,
-    parameters: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: RpcFailure | null }>;
-}
+type RpcClient = ServiceRpcClient;
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
   const url = Deno.env.get('SUPABASE_URL');
@@ -323,7 +319,7 @@ async function movePlacement(input: {
           p_actor: input.actorId,
           p_kind: 'move',
           p_idempotency_key: operationKey,
-          p_request_nonce: `request.${operationKey}`,
+          p_request_nonce: await materialGroupRequestNonce(operationKey),
           p_source_material: materialId,
           p_destination_folder: destination.materialId,
           p_reserved_name_key: null,

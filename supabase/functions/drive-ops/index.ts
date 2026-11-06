@@ -43,6 +43,7 @@ import {
 import { ingestTranscript } from '../../../packages/shared/dist/team/transcript.js';
 import {
   TEAM_ERROR_CODES,
+  parseTeamFileOperationResult,
   type TeamErrorCode,
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
@@ -78,9 +79,11 @@ import {
 } from '../_shared/errors.ts';
 import {
   issueTransferGrant,
+  materialGroupRequestNonce,
   releaseNameReservation,
   startOperation,
   transitionOperation,
+  withOperationFailure,
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
@@ -133,12 +136,7 @@ interface RpcFailure {
   message?: string;
 }
 
-interface RpcClient extends ServiceRpcClient {
-  rpc: (
-    name: string,
-    parameters: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: RpcFailure | null }>;
-}
+type RpcClient = ServiceRpcClient;
 
 interface MaterialOperationContext extends DriveOperationMaterial {
   category: MaterialCategory | null;
@@ -1162,31 +1160,6 @@ function parseMutationBody(body: Record<string, unknown>) {
   };
 }
 
-async function withOperationFailure<T>(
-  service: RpcClient,
-  operationId: string,
-  run: () => Promise<T>
-): Promise<T> {
-  try {
-    return await run();
-  } catch (cause) {
-    // A move or rename that reserved a name and then failed must release it,
-    // or the next attempt is refused with a name conflict for a file that is
-    // not there (011, findings M1). Marking the operation failed does that.
-    const mapped = mapUnknownError(cause);
-    await rpcValue(service, 'service_transition_team_operation', {
-      p_operation: operationId,
-      p_state: 'failed',
-      p_stage: 'failed',
-      p_progress: 100,
-      p_result_material: null,
-      p_error_code: mapped.code,
-      p_retryable: mapped.retryable
-    }).catch(() => undefined);
-    throw cause;
-  }
-}
-
 async function startSimpleOperation(input: {
   service: RpcClient;
   teamId: string;
@@ -1204,7 +1177,9 @@ async function startSimpleOperation(input: {
     actorId: input.actorId,
     kind: input.kind,
     idempotencyKey: input.idempotencyKey,
-    requestNonce: requestNonce(input.idempotencyKey),
+    requestNonce: ['move', 'trash', 'restore'].includes(input.kind)
+      ? await materialGroupRequestNonce(input.idempotencyKey)
+      : requestNonce(input.idempotencyKey),
     sourceMaterialId: input.sourceMaterialId,
     destinationFolderId: input.destinationFolderId,
     reservedNameKey: input.reservedNameKey,
@@ -1590,23 +1565,46 @@ async function handleTrashRestore(
     materialId: common.materialId,
     actorId,
     permission: 'delete',
-    allowTrashed: action === 'restore'
+    // An accepted trash may already be observed by catalog sync before its
+    // receipt is finalized. Fresh writes still require live preflight below.
+    allowTrashed: true
   });
   const destinationFolderId =
     action === 'restore' && body.destinationFolderId !== undefined
       ? requireUuid(body.destinationFolderId)
       : null;
+  const accepted = await startSimpleOperation({
+    service,
+    teamId: common.teamId,
+    actorId,
+    kind: action,
+    idempotencyKey: common.idempotencyKey,
+    sourceMaterialId: common.materialId,
+    destinationFolderId
+  });
+  if (accepted.reused && ['pending', 'running'].includes(accepted.state)) {
+    const reconciled = await rpcValue(service, 'service_reconcile_confirmed_material_group', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_operation: accepted.operationId,
+      p_material: common.materialId,
+      p_action: action,
+      p_destination: destinationFolderId
+    });
+    if (reconciled !== null) {
+      const receipt = parseTeamFileOperationResult(reconciled);
+      if (
+        !receipt ||
+        receipt.state !== 'succeeded' ||
+        receipt.operationId !== accepted.operationId ||
+        receipt.materialId !== common.materialId
+      )
+        throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+      return receipt;
+    }
+  }
   const prepared = await acceptMutationPreflight({
-    accept: () =>
-      startSimpleOperation({
-        service,
-        teamId: common.teamId,
-        actorId,
-        kind: action,
-        idempotencyKey: common.idempotencyKey,
-        sourceMaterialId: common.materialId,
-        destinationFolderId
-      }),
+    accept: async () => accepted,
     preflight: async () => {
       const client = await driveClient(service, source.credentialId, request);
       const live = await proveContext(source, client, action === 'restore');

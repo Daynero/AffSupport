@@ -1536,6 +1536,20 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
     check:
       'Inspect the captured new-output identity, grant deadline, cleanup lease, durable mutation and adoption reservation and conditional v2 provider readback. A pending 404 or lost upload reply does not prove absence. Preserve original, published, moved or modified files; never retry the processing operation blindly.'
   },
+  'material:group:execution': {
+    files: [
+      'supabase/migrations/20261207151000_material_group_execution.sql',
+      'supabase/migrations/20261207152000_confirmed_material_group_reconciliation.sql',
+      'supabase/migrations/20261207153000_material_group_late_failure.sql',
+      'supabase/migrations/20261207154000_material_group_observed_completion.sql',
+      'supabase/functions/_shared/library.ts',
+      'supabase/functions/_shared/operations.ts',
+      'supabase/functions/drive-ops/index.ts',
+      'supabase/functions/library-ops/index.ts'
+    ],
+    check:
+      'Inspect immutable managed nonce, executor closure, pending member and confirmed counts. A reserved member is not proof that a provider write started; a lost reply cannot authorize another PATCH. Legacy unclassified execution remains unknown. A positive no-pending closure permits only the original intent to resume after current rights and source checks. Provider-confirmed members do not prove registration or browser delivery.'
+  },
   'workspace:receipt': {
     files: [
       'supabase/migrations/20261205122000_task_attachment_cleanup.sql',

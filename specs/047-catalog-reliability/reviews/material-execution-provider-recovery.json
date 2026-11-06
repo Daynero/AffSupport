@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-06T20:01:33.595Z",
+  "teamId": "22222222-2222-4222-8222-222222222222",
+  "materialId": "13c1fa9a-a8c7-4660-9e9d-c3a2b37dc780",
+  "groupId": "9d23a3ad-bf7c-494c-b130-7522fe2ef3cd",
+  "stages": [
+    "fresh_edge_actor_refusal_verified",
+    "group_accepted",
+    "same_key_replay_acknowledged",
+    "replacement_group_refused",
+    "item_prepared",
+    "request_marked",
+    "trash_context_refusal_retry_authorized_same_key",
+    "trash_same_intent_completion_reconciled",
+    "trash_confirmed",
+    "hosted_group_confirmed",
+    "restore_confirmed",
+    "restored_provider_link_available",
+    "managed_execution_receipts_verified",
+    "restored_provider_bytes_verified"
+  ],
+  "scope": "Actual local beta/provider API; no manual UI claim",
+  "productionTouched": false,
+  "bytes_verified": 44,
+  "same_original_trash_key": true,
+  "restore_used_original_prepared_key": true,
+  "completed_managed_file_receipts": 2,
+  "earlier_failures_retained": [
+    "new SDK lazy-builder settlement regression",
+    "active-only context omitted already observed target"
+  ],
+  "qualification": "Actual local beta/provider API acceptance, not manual UI or packaged-beta proof. Server completion and verified received bytes do not prove browser disk save. These new beta defects do not establish Ruslan historical causes."
+}

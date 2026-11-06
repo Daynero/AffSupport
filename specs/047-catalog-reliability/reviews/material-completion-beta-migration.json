@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-11-06T19:32:53.612Z",
+  "local_project": "r2beta045",
+  "before_migrations": 434,
+  "after_migrations": 436,
+  "pending_applied": ["20261207152000", "20261207153000"],
+  "history_exact": true,
+  "old_edge_quiescent_before_baseline": true,
+  "protected_tables": 14,
+  "unchanged_tables": 14,
+  "changed_tables": [],
+  "window": {
+    "before": "2026-11-06T19:31:21.557Z",
+    "after": "2026-11-06T19:31:25.523Z"
+  },
+  "scope": "Controlled local beta152000/153000 application window only; includes full stored material-group rows. Earlier151000 mutable-row exceptions remain recorded separately.",
+  "production_touched": false
+}

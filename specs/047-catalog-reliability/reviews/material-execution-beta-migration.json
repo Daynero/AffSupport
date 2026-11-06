@@ -1,0 +1,21 @@
+{
+  "migration_applied": true,
+  "observed_at": "2026-11-06T18:53:36.925Z",
+  "local_project": "r2beta045",
+  "history_exact": true,
+  "applied_migrations": 434,
+  "old_edge_quiescent": true,
+  "legacy_intents_left_unclassified": true,
+  "protected_tables": 14,
+  "unchanged_tables": 12,
+  "changed_tables": ["public.team_drive_connections", "private.google_drive_credentials"],
+  "changed_table_counts_preserved": true,
+  "retained_earlier_identity_matched": true,
+  "full_mutable_row_preservation_proven": false,
+  "window": {
+    "before": "2026-11-06T18:51:04.399Z",
+    "after": "2026-11-06T18:51:23.358Z"
+  },
+  "qualification": "Connection and credential full-row digests changed. Current reconciliation, sync and credential last-used timestamps fall inside the window. This supports background connection refresh, but field-by-field prior values are unavailable; the original mismatch remains retained. Earlier connection/principal identity hashes still match. No retrospective all-table preservation claim.",
+  "production_touched": false
+}

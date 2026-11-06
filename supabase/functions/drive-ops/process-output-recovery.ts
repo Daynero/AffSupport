@@ -86,7 +86,7 @@ export async function runProcessOutputCleanupTick(
   });
   // Late claim/settle RPCs can at most change durable lease state. A late provider
   // request has the same captured ID and ETag; future ticks reconcile readback.
-  const bounded = <T>(work: Promise<T>): Promise<T> => Promise.race([work, timeout]);
+  const bounded = <T>(work: PromiseLike<T>): Promise<T> => Promise.race([work, timeout]);
   const rpc = async (name: string, args: Record<string, unknown>) => {
     signal.throwIfAborted();
     const { data, error } = await bounded(service.rpc(name, args));

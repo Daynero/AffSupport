@@ -1,3 +1,4 @@
+import { getMaterialGroupEvidence, type MaterialGroupEvidence } from './material-groups.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
 import { TEAM_ERROR_CODES } from '../../packages/shared/src/team/transport.js';
@@ -44,6 +45,7 @@ export interface WorkspaceEvidence {
   cleanup?: ProcessOutputCleanupEvidence;
 }
 export interface WorkspaceEvidenceResult {
+  material_groups?: MaterialGroupEvidence;
   supported: boolean;
   operations: WorkspaceEvidence[];
   blind_spots: string[];
@@ -55,11 +57,14 @@ export async function getWorkspaceEvidence(
   asOf: string
 ): Promise<WorkspaceEvidenceResult> {
   const schema = await getSchema();
+  const materialGroups = await getMaterialGroupEvidence({ actorId, since, asOf });
   if (!schema.tables.analytics_workspace_operations)
     return {
       supported: false,
       operations: [],
+      material_groups: materialGroups,
       blind_spots: [
+        ...materialGroups.blind_spots,
         'Workspace diagnostic projection is unavailable; missing events do not prove success or absence of work.'
       ]
     };
@@ -67,12 +72,26 @@ export async function getWorkspaceEvidence(
     return {
       supported: true,
       operations: [],
+      material_groups: materialGroups,
       blind_spots: ['No authenticated subject for hosted workspace receipts.']
     };
-  const rows = await query<Record<string, unknown>>(
-    `select id::text,action,state,code,item_count,confirmed_count,created_at::text,updated_at::text from public.analytics_workspace_operations where actor_id=$1::uuid and ($2::timestamptz is null or created_at >= $2::timestamptz) and updated_at <= $3::timestamptz order by created_at desc limit 101`,
-    [actorId, since, asOf]
-  );
+  let rows: Record<string, unknown>[];
+  try {
+    rows = await query<Record<string, unknown>>(
+      `select id::text,action,state,code,item_count,confirmed_count,created_at::text,updated_at::text from public.analytics_workspace_operations where actor_id=$1::uuid and ($2::timestamptz is null or created_at >= $2::timestamptz) and updated_at <= $3::timestamptz order by created_at desc limit 101`,
+      [actorId, since, asOf]
+    );
+  } catch {
+    return {
+      supported: true,
+      operations: [],
+      material_groups: materialGroups,
+      blind_spots: [
+        ...materialGroups.blind_spots,
+        'Workspace diagnostic read failed; missing receipts do not prove success or absence of work.'
+      ]
+    };
+  }
   const operations: WorkspaceEvidence[] = [];
   let malformed = false;
   let unknownRestoreCode = false;
@@ -180,7 +199,9 @@ export async function getWorkspaceEvidence(
   return {
     supported: true,
     operations,
+    material_groups: materialGroups,
     blind_spots: [
+      ...materialGroups.blind_spots,
       ...(unknownRestoreCode
         ? ['A restore receipt has an unrecognized cause; its underlying failure remains unknown.']
         : []),

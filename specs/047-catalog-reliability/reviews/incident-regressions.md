@@ -24,4 +24,4 @@ test file:
 Source checks distinguish the proven code defects from attribution of historical
 user complaints. Fresh source verification is recorded separately; the remaining
 manual/provider and fault-matrix boundaries are not satisfied by these tests.
-T003 remains open until its required reproduction evidence is fully reconciled.
+T003 investigation/reproduction is reconciled in incident-reconciliation.md: every complaint has a proved source regression or an explicit historical blind spot. This closes the analysis boundary only. Actual remediation, new diagnostic coverage and manual/provider acceptance remain in their respective tasks. The fresh complete source suite is verification-fast-material-execution.json.

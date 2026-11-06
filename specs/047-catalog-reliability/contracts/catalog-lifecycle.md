@@ -79,6 +79,33 @@ Timeout після відправленої mutation — unknown, далі readb
 Нова requestKey не є способом «виправити» unknown. Accepted не дорівнює verified
 або visible. Діалог зберігає recovery link за opaque ID після reload.
 
+### Material-group provider dispatch
+
+Managed move/trash/restore operations bind an immutable `group-v1` nonce to the
+existing operation key. Existing intents retain nullable legacy execution state;
+they are never backfilled as unexecuted. The service claims one invocation and
+reserves each frozen member before provider PATCH. A repeated reservation returns
+readback, never a second write permit. Only the holding invocation may checkpoint
+that member, attest that its own provider call never began, or reconcile a verified
+response after a lost checkpoint acknowledgement. A lost provider response keeps
+the member held without expiry-based reset. The old checkpoint refuses managed
+intents. Completion requires all frozen members and no pending provider dispatch.
+Current actor rights remain authoritative. Overlapping unresolved member snapshots
+serialize within the team, including distinct primary sources with shared members.
+Managed failure markers bind the same open executor. Legacy, replaced, closed or
+completed writers cannot change its material placement or parent receipt. Fully
+acknowledged registration closes the finished marker atomically; it does not
+clear an unknown member or renew provider execution permission.
+
+GROUP_RECONCILING and PROCESS_RESULT_UNCERTAIN preserve the active parent; a
+duplicate or uncertain request cannot mark another executor's parent failed.
+The SELECT-only `analytics_material_group_execution` projection exposes opaque
+identities, closed state/cause and bounded counts. A reservation does not prove
+provider execution; member confirmation does not prove registration or UI delivery.
+Current-state/as-of limits, missing sources and malformed evidence remain explicit.
+Current-generation receipt replay and complete entry-point partial recovery are
+separate acceptance requirements; these primitives alone do not prove them.
+
 ### Stop the observed updater round (T024)
 
 The additive authenticated RPC `cancel_team_catalog_update_attempt(p_team uuid,
