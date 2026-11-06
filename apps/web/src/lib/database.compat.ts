@@ -5,6 +5,8 @@ import type { GeneratedDatabase } from './database.types';
 type NullableInputs = {
   request_team_catalog_update_command: 'p_source_attempt';
   cancel_team_catalog_command_intent: 'p_source_attempt';
+  cancel_team_catalog_update_attempt: 'p_expected_attempt';
+  cancel_team_catalog_update_attempt_as_actor: 'p_expected_attempt';
   reorder_team_accounts: 'p_parent';
   list_team_account_archive: 'p_cursor';
   find_team_folder_sync_request: 'p_folder';
@@ -15,6 +17,7 @@ type NullableInputs = {
   set_launch_defaults: 'p_expected_version';
   set_launch_offer_defaults: 'p_expected_version';
   update_launch_metadata: 'p_assignee';
+  set_launch_assignment: 'p_agent';
   set_team_agent_finance_value: 'p_value';
   set_team_catalog_update_interval: 'p_interval';
   set_team_material_tag: 'p_color';

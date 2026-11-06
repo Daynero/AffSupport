@@ -3,7 +3,10 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import { videoShareLink } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
-import { RESTITCH_CONTRACT_VERSION as SHARED_RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/restitch.js';
+import {
+  RESTITCH_CONTRACT_VERSION as SHARED_RESTITCH_CONTRACT_VERSION,
+  RESTITCH_SCREEN_REFUSAL_LIMIT
+} from '../../../packages/shared/dist/team/restitch.js';
 
 /**
  * The catalog updater's spare copies, prepared by a member's open tab (feature 023).
@@ -163,6 +166,26 @@ function errorCode(error: unknown): string {
   return error instanceof TeamFunctionError ? error.code : 'UNKNOWN';
 }
 
+/** Older settings and the opposite slot cannot consume this slot's refusal window. */
+function screenRefusalsForSettings(history: unknown, revision: string): unknown[] {
+  if (!Array.isArray(history)) return [];
+  const counts = { start: 0, end: 0 };
+  return history.filter(item => {
+    if (
+      !isRecord(item) ||
+      item.settingsRevision !== revision ||
+      (item.slot !== 'start' && item.slot !== 'end') ||
+      typeof item.materialId !== 'string' ||
+      typeof item.checksum !== 'string' ||
+      !/^[0-9a-f]{32}$/iu.test(item.checksum)
+    )
+      return false;
+    if (counts[item.slot] >= RESTITCH_SCREEN_REFUSAL_LIMIT) return false;
+    counts[item.slot]++;
+    return true;
+  });
+}
+
 /**
  * One picture per enabled slot from the space's pools, each with a grant the claimer's app can
  * fetch it on. An empty pool defers the job for an hour without spending an attempt; a refused
@@ -311,7 +334,10 @@ export async function claimRestitchJob(
       job.jobId,
       leaseHash,
       teamId,
-      Array.isArray(body.screenRefusals) ? body.screenRefusals.slice(0, 512) : [],
+      screenRefusalsForSettings(
+        body.screenRefusals,
+        typeof defaults?.updatedAt === 'string' ? defaults.updatedAt : ''
+      ),
       typeof defaults?.updatedAt === 'string' ? defaults.updatedAt : ''
     );
     if (drawn === null) return { job: null };

@@ -20,6 +20,29 @@ beforeAll(async () => {
 afterAll(async () => {
   await h?.close();
 });
+it('retains an unconfirmed restore in the restricted workspace projection without a browser event', async () => {
+  const id = crypto.randomUUID();
+  await h.root(
+    `insert into public.team_operations
+    (id,team_id,actor_id,kind,state,idempotency_key,request_nonce,error_code)
+    values($1::uuid,$2::uuid,$3::uuid,'restore','running',$1::uuid::text,$1::uuid::text,'PROCESS_RESULT_UNCERTAIN')`,
+    [id, team, actor]
+  );
+  expect(
+    await h.root(
+      'select id::text,action,state,code,confirmed_count from public.analytics_workspace_operations where id=$1',
+      [id]
+    )
+  ).toEqual([
+    {
+      id,
+      action: 'restore',
+      state: 'running',
+      code: 'PROCESS_RESULT_UNCERTAIN',
+      confirmed_count: 0
+    }
+  ]);
+});
 it('replays one task-copy receipt and rejects key reuse with another payload', async () => {
   const task = (
     await h.asUser<{ id: string }>(actor, "select id from public.create_team_task($1,'Task')", [
@@ -89,6 +112,79 @@ async function file(kind = 'file', parent = 'root'): Promise<string> {
     )
   )[0]!.id;
 }
+it('does not replace a failed bulk operation key without evidence that no provider mutation started', async () => {
+  const source = await file(),
+    group = crypto.randomUUID(),
+    operation = crypto.randomUUID();
+  const receipt = (
+    await h.asUser<{ r: { items: Array<{ idempotencyKey: string }> } }>(
+      actor,
+      'select public.start_team_bulk_trash($1,$2,$3::uuid[]) r',
+      [team, group, [source]]
+    )
+  )[0]!.r;
+  const key = receipt.items[0]!.idempotencyKey;
+  await h.root(
+    `insert into public.team_operations
+    (id,team_id,actor_id,kind,state,idempotency_key,request_nonce,source_material_id,error_code,finished_at)
+    values($1,$2,$3,'trash','failed',$4,$4,$5,'PROCESS_RESULT_UNCERTAIN',now())`,
+    [operation, team, actor, key, source]
+  );
+  await expect(
+    h.asUser(actor, 'select public.prepare_team_bulk_trash_item($1,$2,$3)', [team, group, source])
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(
+    (
+      await h.root<{ idempotency_key: string }>(
+        'select idempotency_key from private.team_bulk_trash_items where group_id=$1',
+        [group]
+      )
+    )[0]!.idempotency_key
+  ).toBe(key);
+});
+it('allows a new bulk attempt after a locked fresh preflight refusal and preserves its refusal provenance', async () => {
+  const source = await file(),
+    group = crypto.randomUUID(),
+    operation = crypto.randomUUID();
+  const receipt = (
+    await h.asUser<{ r: { items: Array<{ idempotencyKey: string }> } }>(
+      actor,
+      'select public.start_team_bulk_trash($1,$2,$3::uuid[]) r',
+      [team, group, [source]]
+    )
+  )[0]!.r;
+  const key = receipt.items[0]!.idempotencyKey;
+  await h.root(
+    `insert into public.team_operations
+    (id,team_id,actor_id,kind,state,idempotency_key,request_nonce,source_material_id)
+    values($1,$2,$3,'trash','pending',$4,$4,$5)`,
+    [operation, team, actor, key, source]
+  );
+  expect(
+    (
+      await h.root<{ ok: boolean }>(
+        "select public.service_fail_drive_mutation_preflight($1,$2,'NOT_FOUND',false) ok",
+        [operation, actor]
+      )
+    )[0]!.ok
+  ).toBe(true);
+  expect(
+    (
+      await h.root<{ stage: string }>('select stage from public.team_operations where id=$1', [
+        operation
+      ])
+    )[0]!.stage
+  ).toBe('preflight_refused');
+  const next = (
+    await h.asUser<{ r: { items: Array<{ idempotencyKey: string; state: string }> } }>(
+      actor,
+      'select public.prepare_team_bulk_trash_item($1,$2,$3) r',
+      [team, group, source]
+    )
+  )[0]!.r.items[0]!;
+  expect(next.idempotencyKey).not.toBe(key);
+  expect(next.state).toBe('queued');
+});
 async function ownedAttachment() {
   const task = (
     await h.asUser<{ id: string }>(

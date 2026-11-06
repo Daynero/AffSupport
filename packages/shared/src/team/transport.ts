@@ -1,5 +1,6 @@
 // @ts-self-types="./transport.d.ts"
 import { CATALOG_IMAGE_ERROR_CODES } from './catalog-images.js';
+import { RESTITCH_RECOVERY_ERROR_CODES } from './restitch-recovery-errors.js';
 import {
   LANGUAGE_CODES,
   TEAM_OPERATION_KINDS,
@@ -66,6 +67,7 @@ export const TEAM_CATALOG_LINK_ERROR_CODES = [
 export const TEAM_CATALOG_MUTATION_ERROR_CODES = ['CATALOG_STOP_TARGET_UNKNOWN'] as const;
 
 export const TEAM_ERROR_CODES = [
+  ...RESTITCH_RECOVERY_ERROR_CODES,
   ...TEAM_CATALOG_MUTATION_ERROR_CODES,
   ...TEAM_CATALOG_LINK_ERROR_CODES,
   ...TEAM_CATALOG_POLISH_ERROR_CODES,

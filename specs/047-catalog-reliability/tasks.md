@@ -144,14 +144,14 @@
       exclusions за визначеним scope, exhaustion ≠ limit reached,
       перевірка ACL на кожний grant. Не передавати credentials/URLs у diagnostics.
       DB-тести: одна/кілька/всі непридатні, source version changed, empty/missing pool.
-      **Evidence:** —
+      **Evidence (partial):** Shared immutable restitch-selection kernel now preserves consumed candidate/retry/refresh/range/byte/IO state, rejects replay as dispatch authority and retains unknown reservations. Fifteen focused kernel cases plus fresh compiled ESM entry tests pass; unchanged limits live in dependency-free restitch-screen-policy.ts after a real beta import-cycle regression. Server persistence/CAS, accepted recipe/actor/pool authority, protected range measurement and ACL remain unimplemented; no capability is advertised. See reviews/catalog-refusal-round-followup.md.
 
 - [ ] T017 [US2] автоматичний fallback усіх шляхів — `apps/web/src/team/restitch/screens.ts`. Залежності: T016.
       `team/restitch/screens.ts`, shared orchestrator, native/recovery/updater:
       на класифікований file failure запитати інший кандидат до processing,
       зберегти підтверджений slot. Transient retry обмежений; outage не перебирає пул.
       Перевірки: один click → готове відео, без loop на останньому файлі, all paths parity.
-      **Evidence:** —
+      **Evidence (partial):** Native screen-recovery coordinator has 24 focused cases for slot preservation, bounded selection, same-version refresh, case-normalized replay, strict exhaustion evidence, cancellation and lost acknowledgement. It is not yet wired to the delivery/updater/Launch or recovery executors, and it is not actual same-click product acceptance. See reviews/catalog-refusal-round-followup.md.
 
 - [ ] T018 [US2] пам’ять відмов і snapshot діагностики — `apps/agent/src/team-bridge/recovery-journal.ts`. Залежності: T016–T017, T007.
       Зберігати durable per-attempt exclusions + bounded 24h refusal memory між
@@ -160,7 +160,7 @@
       чи повторно вибрана та сама картинка, а не лише загальний screen_fetch_failed.
       Перевірки: unchanged bad + новий click/restart, TTL/version/settings reset,
       successful repair, all remembered bad, eviction; current vs historical settings, privacy guard.
-      **Evidence:** —
+      **Evidence (partial):** Persistent refusal bounds now isolate each team/settings/slot, deterministic oldest-first eviction, expiry without sliding and repaired-version clearing. The four-file core passed full verify: 14/14 gates, 9057 tests, 66 skips (reviews/verification-fast-refusal-round-core.json). Later browser/updater prefix-window regressions failed five cases before correction; 59 focused tests passed afterward. Exact actor/source-pool authority, durable aggregate budgets, version-handle diagnosis and same-click native recovery remain T016–T020; the ignored budget prototype is not shipped evidence.
 
 - [ ] T019 [US2] cancel, recovery і повідомлення при fallback — `apps/agent/src/team-bridge/restitch.ts`. Залежності: T017–T018.
       Скасування припиняє draw/download, не запускає FFmpeg; cleanup та uncertainty
@@ -197,7 +197,7 @@
       `deleteSelected` перевести на наявний workspace receipt/batch seam: partial
       refresh, stable request keys, failed/unknown selection, відновлення/Undo.
       A10: A success/B failed/C unstarted, lost reply, referenced output і running catalog.
-      **Evidence:** —
+      **Evidence (partial):** Causal regressions and fixes for accepted-batch/failed-read retention, actual SDK→SQL actor-bound acceptance, synchronous scope revocation before the file write, guarded trash/restore routes, hosted manager receipt discovery and truthful restore acknowledgement are in reviews/catalog-bulk-trash-followup.md. Controlled manager+producer suites passed 65 tests; restore+SDK passed 21. These sets overlap other focused checks. Native verification now accepts 145000–150000 in the 433-migration/1163-assertion gate plus 49 native tests, including three actual bulk races. Owned beta applied the exact pending148000/149000; actual RPC/provider acceptance confirms same-key replay, replacement-group refusal and one trash/restore/download cycle with two receipts (reviews/catalog-bulk-trash-followup.md). The 68-file checkpoint passes full fast verification (14/14 gates, 9099 passed tests, 69 declared skips); actual 433-migration schema cursor reads and actor/Undo regressions are in reviews/catalog-bulk-trash-followup.md. Complete recovery diagnostics, generation reconciliation and actual manual UI acceptance remain open.
 
 - [ ] T024 [US3] узгодити run/stop/retry — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T012, T021.
       Dialog/History + RPC: фактичний accepted count, no-op/false, спільний lock,

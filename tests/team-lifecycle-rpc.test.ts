@@ -440,6 +440,42 @@ describe('list_team_trashed_materials', () => {
     expect(next.map(row => row.name)).toEqual(['asset-2.png', 'asset-3.png']);
   });
 
+  it('does not lose files sharing a microsecond timestamp across page boundaries', async () => {
+    const teamId = await trashedSpace('trash-tied-paging', 60);
+    await harness.root(
+      "update public.team_materials set trashed_at = '2026-11-06T10:00:00.000001Z' where team_id = $1",
+      [teamId]
+    );
+    const first = await harness.asUser<{ id: string; trashed_at: string }>(
+      MEMBER,
+      'select * from public.list_team_trashed_materials_v2($1, 50)',
+      [teamId]
+    );
+    expect(first).toHaveLength(50);
+    // Restore the boundary row before the next read: the cursor remains usable.
+    await harness.root(
+      "update public.team_materials set lifecycle='active', trashed_at=null where id=$1",
+      [first[49].id]
+    );
+    const next = await harness.asUser<{ id: string }>(
+      MEMBER,
+      "select * from public.list_team_trashed_materials_v2($1, 50, '2026-11-06T10:00:00.000001Z', $2)",
+      [teamId, first[49].id]
+    );
+    expect(next).toHaveLength(10);
+    expect(new Set([...first, ...next].map(row => row.id)).size).toBe(60);
+    await expect(
+      harness.asUser(STRANGER, 'select * from public.list_team_trashed_materials_v2($1)', [teamId])
+    ).rejects.toThrow(/PERMISSION_DENIED/);
+    await expect(
+      harness.asUser(
+        MEMBER,
+        "select * from public.list_team_trashed_materials_v2($1, 50, '2026-11-06T10:00:00Z')",
+        [teamId]
+      )
+    ).rejects.toThrow(/INVALID_INPUT/);
+  });
+
   it('requires the view permission', async () => {
     const teamId = await trashedSpace('trash-permission', 1);
     await expect(

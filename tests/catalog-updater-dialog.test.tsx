@@ -9,6 +9,12 @@ import type {
   CatalogUpdaterState,
   TeamContextSnapshot
 } from '../apps/web/src/api/team';
+import type { WorkspaceOperationsValue } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
+
+const hostedWorkspace = vi.hoisted(() => ({ value: null as WorkspaceOperationsValue | null }));
+vi.mock('../apps/web/src/team/explorer/WorkspaceOperationsProvider', () => ({
+  useOptionalWorkspaceOperations: () => hostedWorkspace.value
+}));
 
 /**
  * Feature 023, and a schedule per catalog in 024: the catalog updater's dialog — the registry and
@@ -106,6 +112,7 @@ const running: CatalogUpdaterState = {
 };
 
 beforeEach(() => {
+  hostedWorkspace.value = null;
   setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
@@ -1073,6 +1080,48 @@ it('refreshes partial trash results and keeps failed and unstarted catalogs sele
   expect((screen.getByLabelText('Select third.mp4 catalog') as HTMLInputElement).checked).toBe(
     true
   );
+});
+
+it('rediscovers an unfinished hosted catalog batch after reopening without unrelated file batches', async () => {
+  const item = row('1', 'polo.mp4');
+  const group = {
+    id: '47000000-0000-4000-8000-000000000099',
+    teamId: TEAM_ID,
+    actorId: '47000000-0000-4000-8000-000000000001',
+    items: [
+      {
+        materialId: item.catalogId,
+        idempotencyKey: 'catalog-key',
+        state: 'unknown' as const,
+        errorCode: null
+      }
+    ]
+  };
+  hostedWorkspace.value = {
+    groups: [],
+    startUploadGroup: vi.fn(),
+    retryUploadGroup: vi.fn(),
+    cancelGroup: vi.fn(),
+    bulkTrash: {
+      groups: [
+        group,
+        { ...group, id: 'other-group', items: [{ ...group.items[0]!, materialId: 'other-file' }] }
+      ],
+      uncertain: true,
+      start: vi.fn(),
+      retry: vi.fn(),
+      refresh: vi.fn(),
+      dismiss: vi.fn(),
+      acknowledgeVisible: vi.fn(),
+      owns: () => true
+    }
+  };
+  renderDialog(client([item], stopped));
+  await screen.findByLabelText('polo.mp4 catalog');
+  expect(screen.getByText('Move files to trash')).toBeTruthy();
+  expect(screen.getAllByText('Move files to trash')).toHaveLength(1);
+  expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
+  expect(hostedWorkspace.value.bulkTrash?.start).not.toHaveBeenCalled();
 });
 
 it.each([

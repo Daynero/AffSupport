@@ -43,6 +43,15 @@ List results: validated rows + bounded invalid-row count/reasons + freshness/com
 Entire invalid response — INVALID_RESPONSE; mixed valid rows — partial. Run/retry
 count=0 і cancel=false валідні no-op; malformed value не перетворюється в no-op.
 
+Trash pages use the authenticated read-only RPC list_team_trashed_materials_v2.
+The cursor is the exact returned timestamp plus material UUID, ordered descending
+by both values. Both fields are absent for the first page and present together
+for subsequent pages; a missing field or nonfinite timestamp is INVALID_INPUT.
+The boundary row need not still exist or remain trashed. Timestamp precision is
+preserved across the SDK and UI. Top-level folder filtering and current view ACL
+remain authoritative. The legacy three-argument RPC remains unchanged for older
+clients; a new-client read failure cannot fall back to a lossy timestamp cursor.
+
 ## C2. Commands і idempotency
 
 Existing `apps/web/src/api/team.ts` wrappers та `drive-ops`/RPC dispatch розширюються:
@@ -332,3 +341,38 @@ without browser events. `inspect` keeps immutable UI observations separate from
 current mutable receipt state; a historical cutoff cannot reconstruct that state.
 Readback and clipboard actions have their own flow IDs and reference the original
 request through `parent_flow_id`; child failures never replace its terminal.
+
+## C4.1. Recovery budget boundary (T016 implementation contract)
+
+The shared selection kernel is a versioned, immutable transition model, not an
+execution queue or an authorization seam. One private row belongs to an existing
+cloud team operation and one screen slot. Only a service-side compare-and-swap
+may persist a transition. A candidate reservation commits before issuing its
+transfer grant or starting provider I/O; repeated request IDs are readback only.
+Unsettled reservations survive restart and prevent fresh I/O or candidate changes.
+The server measures transferred payload prefixes and active fetch/read waits;
+client-reported byte/time counters cannot settle accounting.
+
+Transfer ranges have a fixed server-selected size (2 MiB, except the final range),
+so a caller cannot grow an unbounded ledger with advancing one-byte requests.
+The ledger bounds transfer records as well as candidates. A failed range can be
+retried from its original offset; its discarded prefix still consumes the same
+byte/time budget. Reacquiring an evicted accepted artifact keeps its candidate
+version and consumes the same retry and byte/time budget, without redrawing the
+opposite slot. Stale acquisition reports cannot invalidate a newer validation.
+
+Selection and refusal authority bind the authenticated processing actor separately
+from the owner of a frozen recipe. Refusal hints are private to that actor, team,
+source-pool configuration, slot and candidate version. Stable opaque version
+handles support correlation across ordinary clicks; raw checksums, provider IDs,
+URLs, tickets and filenames never enter analytics. A truncated candidate snapshot
+cannot prove every eligible candidate unusable.
+
+Manual local restitch delivery must acquire an existing kind=download cloud
+operation without obtaining process/upload permissions. Its native display ID
+and cloud UUID remain separate identities. Background updater and Launch paths
+bind to their own accepted immutable recipe, never a later workspace default.
+The actual installed binary advertises recovery support; unsupported executors
+are refused before claim, lease or processing. Existing legacy/default behavior
+remains available through its own contract until this new capability is complete.
+A new shared kernel alone is not evidence of any wired recovery path.

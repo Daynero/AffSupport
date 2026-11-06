@@ -764,7 +764,14 @@ function CatalogUpdaterDialogScope({
     category: 'other' as const
   }));
   const managerTrash = workspaceOperations?.bulkTrash;
-  const receipts = managerTrash?.groups.filter(group => trashGroups.has(group.id)) ?? [];
+  const currentCatalogIds = new Set(trashRows.map(row => row.id));
+  const receipts =
+    managerTrash?.groups.filter(
+      group =>
+        group.teamId === teamId &&
+        (trashGroups.has(group.id) ||
+          group.items.some(item => currentCatalogIds.has(item.materialId)))
+    ) ?? [];
   const receiptFingerprint = receipts
     .map(
       group =>

@@ -1,3 +1,4 @@
+import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
@@ -291,6 +292,20 @@ const PLAN_CHECK = (what: string) =>
   `Which input the stitch planner refused for ${what} and whether the rule is right.`;
 
 export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
+  ...Object.fromEntries(
+    RESTITCH_RECOVERY_ERROR_CODES.map(code => [
+      code,
+      {
+        stage: 'stitch',
+        agent: [
+          'apps/agent/src/team-bridge/screen-recovery.ts',
+          'packages/shared/src/team/restitch-selection.ts'
+        ],
+        check:
+          'Inspect the bound slot budget and last confirmed acquisition. Complete pool exhaustion, remembered defects, resource limits and uncertain accounting are distinct; an unknown reservation never permits another transfer.'
+      }
+    ])
+  ),
   STITCH_INTERRUPTED: {
     stage: 'stitch',
     agent: [AGENT_STITCH_QUEUE],
@@ -857,6 +872,18 @@ function build(): Record<string, CodeLocation> {
     check:
       'Separate the browser Stop reply, read-only Check, visible feedback and current target attempt. Preserve provider and execution holds; never repeat a write to infer its result. Missing or conflicting evidence is unknown.'
   };
+  map['team:library:PROCESS_RESULT_UNCERTAIN'] = {
+    files: [
+      'supabase/migrations/20261207149000_bulk_trash_overlap_fence.sql',
+      'apps/web/src/team/materials/file-operation-outcome.ts',
+      'apps/web/src/team/materials/tail.ts',
+      'apps/web/src/team/catalog/useMaterialActions.ts',
+      'apps/web/src/team/explorer/ExplorerShell.tsx',
+      'apps/web/src/team/catalog/TrashView.tsx'
+    ],
+    check:
+      'Inspect the exact file operation receipt. A fulfilled request with a non-success state does not confirm trash or restore, permit companion mutation or establish quiescence. A replacement bulk group cannot bypass unresolved overlapping files, folders or frozen members; reconcile the original group.'
+  };
   map['team:library:CLIPBOARD_UNAVAILABLE'] = {
     files: [
       'apps/web/src/team/materials/useMaterialLink.ts',
@@ -904,10 +931,13 @@ function build(): Record<string, CodeLocation> {
   map['team:library:CATALOG_COMMAND_STORAGE_UNAVAILABLE'] = {
     files: [
       'apps/web/src/team/catalog-updater/catalogCommandJournal.ts',
-      'apps/web/src/team/catalog-updater/catalogCommandCoordinator.ts'
+      'apps/web/src/team/catalog-updater/catalogCommandCoordinator.ts',
+      'apps/web/src/team/workspace/mutationJournal.ts',
+      'apps/web/src/team/explorer/useBulkTrash.ts',
+      'apps/web/src/team/catalog/TrashView.tsx'
     ],
     check:
-      'The browser refused bounded pending-intent storage before dispatch. The new request was not sent; do not infer that older unknown commands failed. Reconcile their retained IDs.'
+      'The browser refused bounded pending-intent storage. A new request is not dispatched without its saved identity. A failure clearing a confirmed receipt is a local storage failure, not proof that the provider action failed. Do not infer that older unknown commands failed; reconcile their retained IDs.'
   };
   map['team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'] = {
     files: [
@@ -940,6 +970,17 @@ function build(): Record<string, CodeLocation> {
       check:
         'Inspect the consumed selection or scaled decode budget. A resource limit does not prove every image is broken and does not blacklist the source.'
     };
+
+  for (const stage of ['download', 'process'])
+    for (const code of RESTITCH_RECOVERY_ERROR_CODES)
+      map[`team:${stage}:${code}`] = {
+        files: [
+          'apps/agent/src/team-bridge/screen-recovery.ts',
+          'packages/shared/src/team/restitch-selection.ts'
+        ],
+        check:
+          'Inspect the slot budget and proven file defects. Unknown accounting stops new transfers; only a complete eligible snapshot establishes exhaustion.'
+      };
 
   map['catalog:video:*'] = {
     files: [
@@ -1236,6 +1277,7 @@ function build(): Record<string, CodeLocation> {
     'RESTITCH_NO_SCREENS',
     'RESTITCH_POOL_EMPTY',
     'RESTITCH_SCREEN_SELECTION_LIMIT',
+    ...RESTITCH_RECOVERY_ERROR_CODES,
     'RESTITCH_SOURCES_INVALID',
     'RESTITCH_CLIENT_OUTDATED',
     'RESTITCH_SCREEN_UNAVAILABLE',
@@ -1504,10 +1546,14 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'supabase/functions/drive-ops/index.ts',
       'supabase/functions/drive-ops/task-cleanup.ts',
       'apps/web/src/team/tasks/TaskEditor.tsx',
-      'apps/web/src/team/explorer/useBulkTrash.ts'
+      'apps/web/src/team/explorer/useBulkTrash.ts',
+      'apps/web/src/team/catalog/TrashView.tsx',
+      'supabase/functions/drive-ops/handler.ts',
+      'supabase/migrations/20261207146000_restore_diagnostic_projection.sql',
+      'supabase/migrations/20261207147000_bulk_trash_retry_provenance.sql'
     ],
     check:
-      'For bulk trash inspect source_kind: trash_prepare (hosted retry preparation), trash_mark_request (request marker), trash_request (file-operation call including companion cleanup), trash_reconcile (receipt read), trash_refresh (initial read), trash_overlap (existing in-flight selection), trash_start (group acceptance). A call error cannot prove provider nonexecution. Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals become failed only while the operation remains pending without a lifecycle intent. An advanced or previously unknown write retains reconciliation. A refusal before Soty authorization has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
+      'For restore inspect its actor-bound request, hosted operation state and committed visible result; a missing reply is unknown and cannot prove nonexecution. For bulk trash inspect source_kind: trash_prepare (hosted retry preparation), trash_mark_request (request marker), trash_request (file-operation call including companion cleanup), trash_reconcile (receipt read), trash_refresh (initial read), trash_overlap (existing in-flight selection), trash_start (group acceptance). A call error cannot prove provider nonexecution. Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals record preflight_refused only while the operation remains pending without a lifecycle intent. A historical failed or canceled receipt alone cannot authorize a new provider key. An advanced or previously unknown write retains reconciliation. A refusal before Soty approval has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
   },
   ...Object.fromEntries(
     RECOVERY_REASONS.map(reason => [

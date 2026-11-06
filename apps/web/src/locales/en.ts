@@ -2971,6 +2971,16 @@ export const en = {
     'The request could not be saved in this browser. Your new request was not sent. Check available browser storage.',
   catalogExportTooLarge:
     'The catalog exceeds Google’s 10 MB export limit. Reduce the product count or open the spreadsheet in Google Sheets.',
+  teamRestitchScreenCandidatesExhausted:
+    'All checked images are unusable for restitching. Add different images in the space settings and try again.',
+  teamRestitchScreenPreviousFailures:
+    'Previously checked images in this set were unusable and are being skipped. Add new images or replace the damaged files.',
+  teamRestitchScreenByteLimit:
+    'This attempt reached the image download limit. Reduce image sizes and start a new attempt.',
+  teamRestitchScreenIoLimit:
+    'This attempt reached the image download time limit. Check the connection and start a new attempt.',
+  teamRestitchScreenAccountingUncertain:
+    'The image download outcome could not be confirmed. Wait for the operation state to recover before starting it again.',
   teamRestitchScreenSelectionLimit:
     'The image check limit was reached. Replace or reduce the image pool and try again.',
   teamRestitchPoolEmpty:
@@ -4103,7 +4113,7 @@ export const en = {
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
   teamErrorProcessFailed: 'This file could not be processed on this computer.',
   teamErrorProcessResultUncertain:
-    'The result could not be confirmed. The created file needs to be checked before trying again.',
+    'The result could not be confirmed. Check the file state before retrying.',
   teamTranscribeFailedFile:
     'Nothing could be transcribed from “{name}” — it may have no speech, or no sound at all.',
   teamErrorProcessCanceled: 'The run was stopped.',

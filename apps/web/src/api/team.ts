@@ -596,6 +596,10 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     (row.update_interval != null && parseUpdaterInterval(row.update_interval) === null) ||
     (Object.prototype.hasOwnProperty.call(row, 'update_pending') &&
       typeof row.update_pending !== 'boolean') ||
+    (Object.prototype.hasOwnProperty.call(row, 'active_round_at') &&
+      row.active_round_at !== null &&
+      (typeof row.active_round_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.active_round_at)))) ||
     typeof row.in_updater !== 'boolean'
   ) {
     return null;
@@ -1643,6 +1647,7 @@ function mapTrashedMaterial(value: unknown): TeamTrashedMaterial | null {
     typeof row.name !== 'string' ||
     !isMaterialKind(row.kind) ||
     typeof row.trashed_at !== 'string' ||
+    !Number.isFinite(Date.parse(row.trashed_at)) ||
     (row.parent_path_hint !== null && typeof row.parent_path_hint !== 'string')
   ) {
     return null;
@@ -4262,10 +4267,14 @@ export const teamApi = {
     teamId: string;
     materialId: string;
     idempotencyKey: string;
+    expectedActorId?: string;
   }): Promise<TeamFileOperationResult> {
+    const actor = catalogMutationActor(
+      input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
+    );
     const value = await invokeTeamFunction(
-      'drive-ops/trash',
-      { ...input, confirmed: true },
+      'drive-ops/trash-as-actor',
+      { ...input, expectedActorId: actor, confirmed: true },
       fileOperationGuard
     );
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
@@ -4276,8 +4285,16 @@ export const teamApi = {
     materialId: string;
     destinationFolderId?: string | null;
     idempotencyKey: string;
+    expectedActorId?: string;
   }): Promise<TeamFileOperationResult> {
-    const value = await invokeTeamFunction('drive-ops/restore', { ...input }, fileOperationGuard);
+    const actor = catalogMutationActor(
+      input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
+    );
+    const value = await invokeTeamFunction(
+      'drive-ops/restore-as-actor',
+      { ...input, expectedActorId: actor },
+      fileOperationGuard
+    );
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
 
@@ -4579,17 +4596,38 @@ export const teamApi = {
   async startBulkTrash(
     teamId: string,
     groupId: string,
-    materialIds: string[]
+    materialIds: string[],
+    options?: CatalogMutationOptions
   ): Promise<BulkTrashGroup> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('start_team_bulk_trash', {
-        p_team: teamId,
-        p_group: groupId,
-        p_materials: materialIds
-      })
+    const actor = catalogMutationActor(options);
+    const intendedIds = [...materialIds];
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('start_team_bulk_trash_as_actor', {
+            p_team: teamId,
+            p_group: groupId,
+            p_materials: intendedIds,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const intended = new Set(intendedIds.map(id => id.toLowerCase()));
+    if (
+      !isBulkTrashGroup(data) ||
+      data.id.toLowerCase() !== groupId.toLowerCase() ||
+      data.teamId.toLowerCase() !== teamId.toLowerCase() ||
+      data.actorId.toLowerCase() !== actor ||
+      data.items.length === 0 ||
+      data.items.length > intended.size ||
+      new Set(data.items.map(item => item.materialId.toLowerCase())).size !== data.items.length ||
+      data.items.some(item => !intended.has(item.materialId.toLowerCase()))
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
   },
   async listBulkTrash(
@@ -5703,7 +5741,7 @@ export const teamApi = {
   },
 
   /**
-   * Newest-first page of trashed materials. `before` is the `trashedAt` of the
+   * Newest-first page of trashed materials. The timestamp and ID identify the
    * last row already shown — keyset paging, so a restore happening mid-scroll
    * cannot shift the window and hide a row.
    */
@@ -5711,16 +5749,25 @@ export const teamApi = {
     teamId: string;
     limit?: number;
     before?: string | null;
+    beforeId?: string | null;
+    signal?: AbortSignal;
   }): Promise<TeamTrashedMaterial[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_trashed_materials', {
-        p_team: input.teamId,
-        p_limit: input.limit ?? 50,
-        p_before: input.before ?? undefined
-      })
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('list_team_trashed_materials_v2', {
+            p_team: input.teamId,
+            p_limit: input.limit ?? 50,
+            p_before: input.before ?? undefined,
+            p_before_id: input.beforeId ?? undefined
+          }),
+          input
+        ),
+      input
     );
     throwRpc(error);
-    const rows = (data ?? []).map(mapTrashedMaterial);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const rows = data.map(mapTrashedMaterial);
     if (rows.some(row => row === null)) throw new TeamApiError('INVALID_RESPONSE', false);
     return rows.filter((row): row is TeamTrashedMaterial => row !== null);
   },

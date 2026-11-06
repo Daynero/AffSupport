@@ -1,7 +1,9 @@
 import type { TeamErrorCode } from '@video-compressor/shared';
 import { teamErrorCodeOf } from '../errors';
 import { analytics } from '../../analytics/service';
-export type WorkspaceAction = 'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash';
+import { captureAnalyticsActor } from '../../analytics/actorScope';
+export type WorkspaceAction =
+  'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash' | 'restore';
 export type WorkspaceDiagnosticSource =
   | 'trash_refresh'
   | 'trash_prepare'
@@ -9,7 +11,8 @@ export type WorkspaceDiagnosticSource =
   | 'trash_request'
   | 'trash_reconcile'
   | 'trash_overlap'
-  | 'trash_start';
+  | 'trash_start'
+  | 'restore_request';
 export type WorkspaceStage =
   | 'requested'
   | 'accepted'
@@ -27,6 +30,7 @@ export function beginWorkspaceOperation(
   tracker = analytics,
   observing = false
 ) {
+  const ownsActor = captureAnalyticsActor(tracker);
   const attemptId = crypto.randomUUID();
   const base = {
     flow_id: flowId,
@@ -47,6 +51,7 @@ export function beginWorkspaceOperation(
     error?: TeamErrorCode | 'UNKNOWN'
   ) => {
     try {
+      if (!ownsActor()) return;
       tracker.track(event, {
         ...base,
         ...(receiptId ? { run_id: receiptId } : {}),
@@ -61,9 +66,26 @@ export function beginWorkspaceOperation(
     observing ? 'operation_stage_completed' : 'operation_started',
     observing ? 'accepted' : 'requested'
   );
+  const visibleResult = (
+    outcome: 'success' | 'failure' | 'unknown',
+    code?: TeamErrorCode | 'UNKNOWN'
+  ) => {
+    if (settled || !ownsActor()) return;
+    if (outcome === 'unknown') {
+      send('operation_stage_completed', 'result_visible', code);
+      return;
+    }
+    settled = true;
+    send(
+      outcome === 'success' ? 'operation_completed' : 'operation_failed',
+      'result_visible',
+      code
+    );
+  };
   return {
+    visibleResult,
     diagnostic(source: WorkspaceDiagnosticSource, cause: unknown) {
-      if (settled) return;
+      if (settled || !ownsActor()) return;
       try {
         tracker.track('operation_stage_completed', {
           ...base,
@@ -86,10 +108,7 @@ export function beginWorkspaceOperation(
       if (!settled) send('operation_stage_completed', stage, code);
     },
     visible() {
-      if (!settled) {
-        settled = true;
-        send('operation_completed', 'result_visible');
-      }
+      visibleResult('success');
     },
     fail(cause?: unknown) {
       if (settled) return;

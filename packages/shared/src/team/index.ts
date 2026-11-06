@@ -11,6 +11,8 @@ export * from './landing-gallery.js';
 export * from './library-processing.js';
 export * from './material-category.js';
 export * from './restitch.js';
+export * from './restitch-selection.js';
+export * from './restitch-recovery-errors.js';
 export * from './task-labels.js';
 export * from './tariffs.js';
 export * from './tasks.js';

@@ -223,6 +223,34 @@ describe('claiming', () => {
       });
     });
 
+    it('matches the claimed settings scope before bounding refusal history', async () => {
+      const allow = vi.fn(async () => ({ transferUrl: 'u', grant: { ticket: 'same-authority' } }));
+      const { deps } = setup({
+        effective: { ...drive, updatedAt: 'current' },
+        draws: [
+          { sourceMode: 'drive', pool: {}, screens: [picture('p1')] },
+          { sourceMode: 'drive', pool: {}, screens: [picture('p3')] }
+        ],
+        screenGrant: allow
+      });
+      const history = [
+        ...Array.from({ length: 512 }, (_, i) => ({
+          slot: 'start',
+          materialId: 'older-' + i,
+          checksum: 'a'.repeat(32),
+          settingsRevision: 'older'
+        })),
+        { slot: 'start', materialId: 'p1', checksum: 'a'.repeat(32), settingsRevision: 'current' }
+      ];
+      const result = await claimRestitchJob(deps, ACTOR, {
+        teamId: TEAM,
+        restitchContractVersion: 2,
+        screenRefusals: history
+      });
+      expect(allow).not.toHaveBeenCalledWith(TEAM, ACTOR, 'p1');
+      expect(result.job?.options.screens).toMatchObject([{ materialId: 'p3' }]);
+    });
+
     it('defers the job for an hour when the pool is empty, without spending an attempt', async () => {
       const { deps, call, rpc } = setup({
         effective: drive,

@@ -67,8 +67,12 @@ function client() {
       reused: false
     })),
     trashMaterial: vi.fn(async (input: { materialId: string }) => {
-      void input;
-      return undefined;
+      return {
+        operationId: `trash:${input.materialId}`,
+        state: 'succeeded' as const,
+        materialId: input.materialId,
+        reused: false
+      };
     })
   };
 }
@@ -331,3 +335,59 @@ describe('a material and what belongs to it', () => {
     });
   });
 });
+
+it('checks the retained owner after tail lookup before dispatching the primary write', async () => {
+  const api = client();
+  const owner = {
+    options: vi.fn(() => {
+      throw new Error('PERMISSION_DENIED');
+    })
+  };
+  await expect(
+    trashMaterialWithTail({ teamId: TEAM, material: VIDEO, client: api, owner })
+  ).rejects.toThrow('PERMISSION_DENIED');
+  expect(api.trashMaterial).not.toHaveBeenCalled();
+});
+
+it('stops companion dispatch when the original owner retires after primary success', async () => {
+  shared.companion = { id: 'txt-1', name: 'clip.txt' };
+  const api = client();
+  let active = true;
+  const owner = {
+    options: () => {
+      if (!active) throw new Error('PERMISSION_DENIED');
+      return { expectedActorId: 'original' };
+    }
+  };
+  api.trashMaterial.mockImplementationOnce(async () => {
+    active = false;
+    return { operationId: 'op', state: 'succeeded', materialId: VIDEO.id, reused: false };
+  });
+  await expect(
+    trashMaterialWithTail({ teamId: TEAM, material: VIDEO, client: api, owner })
+  ).rejects.toThrow('PERMISSION_DENIED');
+  expect(api.trashMaterial).toHaveBeenCalledOnce();
+  expect(api.trashMaterial).toHaveBeenCalledWith(
+    expect.objectContaining({ expectedActorId: 'original' })
+  );
+});
+
+it.each(['pending', 'running', 'failed', 'canceled', 'malformed'])(
+  'does not trash companions without a confirmed primary receipt: %s',
+  async state => {
+    shared.companion = { id: 'txt-1', name: 'clip.txt' };
+    shared.catalog = { id: 'sheet-1', name: 'clip catalog' };
+    const api = client();
+    api.trashMaterial.mockResolvedValueOnce(
+      (state === 'malformed'
+        ? undefined
+        : { operationId: 'trash:video-1', state, materialId: 'video-1', reused: false }) as never
+    );
+    await expect(
+      trashMaterialWithTail({ teamId: TEAM, material: VIDEO, client: api })
+    ).rejects.toMatchObject({
+      message: state === 'malformed' ? 'INVALID_RESPONSE' : 'PROCESS_RESULT_UNCERTAIN'
+    });
+    expect(api.trashMaterial).toHaveBeenCalledOnce();
+  }
+);

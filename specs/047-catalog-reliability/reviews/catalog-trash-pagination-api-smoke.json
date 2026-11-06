@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-06T16:59:48.765Z",
+  "teamId": "22222222-2222-4222-8222-222222222222",
+  "firstPageCount": 3,
+  "nextPageCount": 0,
+  "pairedCursorAccepted": true,
+  "incompleteCursorRefused": true,
+  "otherTeamRefused": true,
+  "anonymousRefused": true,
+  "applicationWrites": 0,
+  "productionTouched": false,
+  "scope": "Actual authenticated local beta RPC reads; tied batches verified separately in native SQL. No manual UI claim."
+}

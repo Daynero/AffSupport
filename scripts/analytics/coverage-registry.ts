@@ -61,7 +61,7 @@ export interface CapabilitySignal {
   outcome?: string;
   /** Closed discriminator for a capability sharing generic 031 operation events. */
   flowStep?:
-    | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash'}`
+    | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash' | 'restore'}`
     | 'theme'
     | 'catalog_image_prompt'
     | 'catalog_image_pool'
@@ -273,39 +273,42 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       note: 'Only opaque flow and attempt IDs and closed failure codes are collected. List requests cancel when obsolete. Mutation acceptance proves a valid server response; completion follows React commit of the member list and success feedback. An absent terminal remains unknown, never success or a proved cancellation. Beta analytics is disabled; producer and CLI regressions provide local evidence. Existing membership.updated and membership.removed server audits remain authoritative. No new SQL or production writes.'
     })
   ),
-  ...(['task_copy', 'task_detach', 'task_cleanup', 'bulk_trash'] as const).map(action => ({
-    id: `team.workspace_${action}`,
-    tool: 'team' as const,
-    title: `Workspace · ${action}`,
-    stages: ['requested', 'observed_stage', 'terminal'],
-    stageEvents: {
-      requested: ['operation_started' as const],
-      observed_stage: ['operation_stage_completed' as const],
-      terminal: ['operation_completed' as const, 'operation_failed' as const]
-    },
-    start: [
-      {
-        event: 'operation_started' as const,
+  ...(['task_copy', 'task_detach', 'task_cleanup', 'bulk_trash', 'restore'] as const).map(
+    action => ({
+      id: `team.workspace_${action}`,
+      tool: 'team' as const,
+      title: `Workspace · ${action}`,
+      stages: ['requested', 'observed_stage', 'terminal'],
+      stageEvents: {
+        requested: ['operation_started' as const],
+        observed_stage: ['operation_stage_completed' as const],
+        terminal: ['operation_completed' as const, 'operation_failed' as const]
+      },
+      start: [
+        {
+          event: 'operation_started' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `workspace_${action}` as const
+        }
+      ],
+      terminal: (['operation_completed', 'operation_failed'] as const).map(event => ({
+        event,
         correlate: 'attempt_id' as const,
         flowStep: `workspace_${action}` as const
-      }
-    ],
-    terminal: (['operation_completed', 'operation_failed'] as const).map(event => ({
-      event,
-      correlate: 'attempt_id' as const,
-      flowStep: `workspace_${action}` as const
-    })),
-    platforms: BOTH,
-    producerStatus: 'emitted' as const,
-    source: 'events' as const,
-    unobservable: [
-      'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
-      'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.',
-      'Bulk trash item diagnostics distinguish trash_prepare, trash_mark_request, trash_request, trash_reconcile, trash_refresh, trash_overlap and trash_start via source_kind with a closed error_code. They do not prove which provider substep failed or that a write did not apply; historical events without source_kind remain ambiguous. No names, paths or provider payloads are collected.',
-      'Bulk trash refusal before Soty authorization can create no operation receipt. Revoked access and older unknown requests remain unproven; a client permission error alone cannot establish no provider write.'
-    ],
-    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
-  })),
+      })),
+      platforms: BOTH,
+      producerStatus: 'emitted' as const,
+      source: 'events' as const,
+      unobservable: [
+        'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
+        'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.',
+        'Restore includes receipt-bound restore_request diagnostics and records visible delivery after feedback commits. A pending or running reply is not restoration. Unknown restore and bulk acceptance identities survive remount in bounded actor and team scoped browser storage. A local waiting deadline does not cancel hosted work; missing storage or receipt evidence remains unknown. Browser storage alone is not a cross-tab lease.',
+        'Bulk trash item diagnostics distinguish trash_prepare, trash_mark_request, trash_request, trash_reconcile, trash_refresh, trash_overlap and trash_start via source_kind with a closed error_code. They do not prove which provider substep failed or that a write did not apply; historical events without source_kind remain ambiguous. No names, paths or provider payloads are collected.',
+        'Bulk trash refusal before Soty authorization can create no operation receipt. Revoked access and older unknown requests remain unproven; a client permission error alone cannot establish no provider write.'
+      ],
+      note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
+    })
+  ),
   ...(['get_link', 'share', 'confirm', 'readback', 'clipboard'] as const).map(action => ({
     id: `team.material_link_${action}`,
     tool: 'team' as const,

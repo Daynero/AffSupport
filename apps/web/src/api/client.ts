@@ -857,7 +857,8 @@ export async function getRestitchScreenRefusals(
   const result: Array<
     Pick<RestitchScreen, 'slot' | 'materialId' | 'checksum'> & { settingsRevision?: string }
   > = [];
-  for (const item of value.refusals.slice(0, RESTITCH_SCREEN_REFUSAL_LIMIT)) {
+  const counts = new Map<string, number>();
+  for (const item of value.refusals) {
     if (
       typeof item !== 'object' ||
       item === null ||
@@ -865,9 +866,15 @@ export async function getRestitchScreenRefusals(
       typeof item.materialId !== 'string' ||
       !/^[0-9a-f-]{36}$/iu.test(item.materialId) ||
       typeof item.checksum !== 'string' ||
-      !/^[0-9a-f]{32}$/iu.test(item.checksum)
+      !/^[0-9a-f]{32}$/iu.test(item.checksum) ||
+      ('settingsRevision' in item &&
+        (typeof item.settingsRevision !== 'string' || item.settingsRevision.length > 128))
     )
       throw new Error('INVALID_RESPONSE');
+    const key = JSON.stringify([item.settingsRevision ?? scope, item.slot]);
+    const count = (counts.get(key) ?? 0) + 1;
+    if (count > RESTITCH_SCREEN_REFUSAL_LIMIT) throw new Error('INVALID_RESPONSE');
+    counts.set(key, count);
     result.push({
       slot: item.slot,
       materialId: item.materialId,

@@ -105,6 +105,45 @@ interface ScreenRefusal {
   checksum: string;
   rejectedAt: number;
 }
+/** Eviction belongs to the source/settings slot, never to an unrelated pool. */
+function boundedRefusals(refusals: readonly ScreenRefusal[], now: number): ScreenRefusal[] {
+  const scopes = new Map<string, Map<string, ScreenRefusal>>();
+  for (const item of refusals) {
+    if (item.rejectedAt > now || now - item.rejectedAt >= SCREEN_REFUSAL_TTL_MS) continue;
+    const scope = JSON.stringify([item.teamId, item.scope, item.slot]);
+    const identity = JSON.stringify([item.materialId, item.checksum.toLowerCase()]);
+    let versions = scopes.get(scope);
+    if (!versions) {
+      versions = new Map();
+      scopes.set(scope, versions);
+    }
+    const previous = versions.get(identity);
+    if (!previous || previous.rejectedAt < item.rejectedAt) versions.set(identity, item);
+  }
+  const compare = (a: ScreenRefusal, b: ScreenRefusal) => {
+    const time = a.rejectedAt - b.rejectedAt;
+    if (time) return time;
+    const left = JSON.stringify([
+      a.teamId,
+      a.scope,
+      a.slot,
+      a.materialId,
+      a.checksum.toLowerCase()
+    ]);
+    const right = JSON.stringify([
+      b.teamId,
+      b.scope,
+      b.slot,
+      b.materialId,
+      b.checksum.toLowerCase()
+    ]);
+    return left < right ? -1 : left > right ? 1 : 0;
+  };
+  return [...scopes.values()]
+    .flatMap(versions => [...versions.values()].sort(compare).slice(-SCREEN_REFUSAL_LIMIT))
+    .sort(compare);
+}
+
 export const SCREEN_REFUSAL_TTL_MS = RESTITCH_SCREEN_REFUSAL_TTL_MS;
 export const SCREEN_REFUSAL_LIMIT = RESTITCH_SCREEN_REFUSAL_LIMIT;
 interface ScreenIndex {
@@ -217,27 +256,30 @@ export class TeamScreenCache {
             error.reason === 'source_changed'
           ) {
             const now = this.#now();
-            index.refusals = [
-              ...(index.refusals ?? []).filter(
-                item =>
-                  now - item.rejectedAt < SCREEN_REFUSAL_TTL_MS &&
-                  !(
-                    item.teamId === teamId &&
-                    item.scope === scope &&
-                    item.slot === screen.slot &&
-                    item.materialId === screen.materialId &&
-                    item.checksum.toLowerCase() === screen.checksum.toLowerCase()
-                  )
-              ),
-              {
-                teamId,
-                scope,
-                slot: screen.slot,
-                materialId: screen.materialId,
-                checksum: screen.checksum.toLowerCase(),
-                rejectedAt: now
-              }
-            ].slice(-SCREEN_REFUSAL_LIMIT);
+            index.refusals = boundedRefusals(
+              [
+                ...(index.refusals ?? []).filter(
+                  item =>
+                    now - item.rejectedAt < SCREEN_REFUSAL_TTL_MS &&
+                    !(
+                      item.teamId === teamId &&
+                      item.scope === scope &&
+                      item.slot === screen.slot &&
+                      item.materialId === screen.materialId &&
+                      item.checksum.toLowerCase() === screen.checksum.toLowerCase()
+                    )
+                ),
+                {
+                  teamId,
+                  scope,
+                  slot: screen.slot,
+                  materialId: screen.materialId,
+                  checksum: screen.checksum.toLowerCase(),
+                  rejectedAt: now
+                }
+              ],
+              now
+            );
             await this.#save(index);
             diagnostics.record('team', 'screen_candidate_rejected', {
               ...(operationId ? { operationId } : {}),
@@ -470,7 +512,7 @@ export class TeamScreenCache {
           ? parsed.refusals
           : null;
       if (Array.isArray(refusals))
-        for (const item of refusals.slice(-SCREEN_REFUSAL_LIMIT)) {
+        for (const item of refusals) {
           if (
             typeof item !== 'object' ||
             item === null ||
@@ -496,6 +538,7 @@ export class TeamScreenCache {
             rejectedAt: item.rejectedAt
           });
         }
+      this.#index.refusals = boundedRefusals(this.#index.refusals ?? [], this.#now());
       if (typeof entries === 'object' && entries !== null) {
         for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
           if (

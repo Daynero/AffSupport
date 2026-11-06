@@ -1,6 +1,9 @@
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { withReadDeadline } from '../readCoordinator';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
+import { WorkspaceMutationJournal } from '../workspace/mutationJournal';
+import { withCatalogCommandDeadline as withMutationDeadline } from '../catalog-updater/catalogCommandCoordinator';
 import { teamErrorCodeOf } from '../errors';
 import type {
   BulkTrashItem,
@@ -34,20 +37,57 @@ export function useBulkTrash(
   const [uncertain, setUncertain] = useState(false);
   const active = useRef(new Set<string>());
   const starting = useRef<string | null>(null);
-  const currentTeam = useRef(teamId);
-  currentTeam.current = teamId;
+  const mutationControllers = useRef(new Set<AbortController>());
+  const epoch = usePrivateCacheEpoch();
+  const originatingActor = actorId ?? privateCacheActor();
+  const mutationJournal = useCallback(() => {
+    if (!originatingActor) throw new TeamApiError('AUTH_REQUIRED', false);
+    return new WorkspaceMutationJournal('bulk-trash', originatingActor, teamId, localStorage);
+  }, [originatingActor, teamId]);
+  const scope = useMemo(
+    () => ({ teamId, actorId, client, epoch }),
+    [teamId, actorId, client, epoch]
+  );
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const liveScope = useRef<typeof scope | null>(scope);
+  const scopeCurrent = useCallback(
+    () =>
+      currentScope.current === scope &&
+      liveScope.current === scope &&
+      privateCacheEpoch() === epoch,
+    [scope, epoch]
+  );
+  const waitMutation = useCallback(
+    async <T>(work: (signal: AbortSignal) => Promise<T>) => {
+      if (!scopeCurrent()) throw new DOMException('Bulk trash scope ended', 'AbortError');
+      const controller = new AbortController();
+      mutationControllers.current.add(controller);
+      try {
+        return await withMutationDeadline(work, controller.signal);
+      } finally {
+        mutationControllers.current.delete(controller);
+      }
+    },
+    [scopeCurrent]
+  );
   const generation = useRef(0);
   const readId = useRef(0);
   const observed = useRef(new Map<string, ReturnType<typeof beginWorkspaceOperation>>());
   const lastStage = useRef(new Map<string, string>());
-  const reportStage = useCallback((id: string, stage: WorkspaceStage, code?: TeamErrorCode) => {
-    const flow = observed.current.get(id);
-    const fingerprint = `${stage}:${code ?? ''}`;
-    if (!flow || lastStage.current.get(id) === fingerprint) return;
-    lastStage.current.set(id, fingerprint);
-    flow.stage(stage, code);
-  }, []);
+  const reportStage = useCallback(
+    (id: string, stage: WorkspaceStage, code?: TeamErrorCode) => {
+      if (!scopeCurrent()) return;
+      const flow = observed.current.get(id);
+      const fingerprint = `${stage}:${code ?? ''}`;
+      if (!flow || lastStage.current.get(id) === fingerprint) return;
+      lastStage.current.set(id, fingerprint);
+      flow.stage(stage, code);
+    },
+    [scopeCurrent]
+  );
   useEffect(() => {
+    if (!scopeCurrent()) return;
     for (const group of groups.filter(group => group.teamId === teamId)) {
       let flow = observed.current.get(group.id);
       if (!flow) {
@@ -63,8 +103,9 @@ export function useBulkTrash(
         reportStage(group.id, 'partial', teamErrorCodeOf({ code: failed.errorCode }) ?? undefined);
       else reportStage(group.id, 'running');
     }
-  }, [groups, teamId, reportStage]);
+  }, [groups, teamId, reportStage, scopeCurrent]);
   useEffect(() => {
+    liveScope.current = scope;
     generation.current++;
     setGroups([]);
     setDismissed(new Set());
@@ -74,8 +115,11 @@ export function useBulkTrash(
     lastStage.current.clear();
     return () => {
       generation.current++;
+      for (const controller of mutationControllers.current) controller.abort();
+      mutationControllers.current.clear();
+      if (liveScope.current === scope) liveScope.current = null;
     };
-  }, [teamId, actorId, client]);
+  }, [scope]);
   const readReceipts = useCallback(
     async (signal: AbortSignal) => {
       const current = generation.current;
@@ -87,18 +131,37 @@ export function useBulkTrash(
         );
         if (
           !signal.aborted &&
-          currentTeam.current === teamId &&
+          scopeCurrent() &&
           current === generation.current &&
           read === readId.current
         ) {
+          let localUnknown = false;
+          if (originatingActor)
+            try {
+              const journal = mutationJournal();
+              for (const group of receipts) {
+                if (
+                  group.actorId === originatingActor &&
+                  group.items.length > 0 &&
+                  group.items.every(item => item.state === 'confirmed')
+                )
+                  journal.confirmed(group.id);
+              }
+              localUnknown = journal
+                .list()
+                .some(intent => !receipts.some(group => group.id === intent.id));
+            } catch {
+              // A local journal failure cannot hide authoritative hosted receipts.
+              localUnknown = true;
+            }
           setGroups(receipts);
-          setUncertain(false);
+          setUncertain(localUnknown);
         }
         return receipts;
       } catch (cause) {
         if (
           !signal.aborted &&
-          currentTeam.current === teamId &&
+          scopeCurrent() &&
           current === generation.current &&
           read === readId.current
         )
@@ -106,7 +169,7 @@ export function useBulkTrash(
         throw cause;
       }
     },
-    [client, teamId]
+    [client, teamId, scopeCurrent, mutationJournal, originatingActor]
   );
   const requestReceipts = useVisibleSerialRead({
     scopeKey: JSON.stringify([teamId, actorId]),
@@ -128,7 +191,7 @@ export function useBulkTrash(
       rows: readonly Pick<TeamMaterialRow, 'id' | 'name' | 'category'>[],
       tailClient: TrashTailClient
     ) => {
-      if (currentTeam.current !== teamId || active.current.has(group.id)) return;
+      if (!scopeCurrent() || active.current.has(group.id)) return;
       active.current.add(group.id);
       const current = generation.current;
       try {
@@ -141,49 +204,58 @@ export function useBulkTrash(
         let index = 0;
         await Promise.all(
           Array.from({ length: Math.min(3, pending.length) }, async () => {
-            while (
-              index < pending.length &&
-              currentTeam.current === teamId &&
-              current === generation.current
-            ) {
+            while (index < pending.length && scopeCurrent() && current === generation.current) {
               let item: BulkTrashItem | undefined = pending[index++];
               if (!item) continue;
+              const materialId = item.materialId;
               const row = rows.find(candidate => candidate.id === item?.materialId);
               let source: WorkspaceDiagnosticSource = 'trash_prepare';
               try {
-                const prepared = await client.prepareBulkTrashItem(
-                  teamId,
-                  group.id,
-                  item.materialId
+                const prepared = await waitMutation(() =>
+                  client.prepareBulkTrashItem(teamId, group.id, materialId)
                 );
+                if (!scopeCurrent() || current !== generation.current) return;
                 item = prepared.items.find(candidate => candidate.materialId === item?.materialId);
                 if (!item || item.state === 'confirmed' || item.state === 'running') continue;
+                const acceptedItem = item;
                 source = 'trash_mark_request';
-                await client.markBulkTrashRequest(teamId, group.id, item.materialId);
+                await waitMutation(() => client.markBulkTrashRequest(teamId, group.id, materialId));
+                if (!scopeCurrent() || current !== generation.current) return;
                 source = 'trash_request';
-                await trashMaterialWithTail({
-                  teamId,
-                  material: {
-                    id: item.materialId,
-                    name: row?.name ?? '',
-                    category: row?.category ?? null
-                  },
-                  client: tailClient,
-                  idempotencyKey: item.idempotencyKey
-                });
+                await waitMutation(signal =>
+                  trashMaterialWithTail({
+                    teamId,
+                    material: {
+                      id: acceptedItem.materialId,
+                      name: row?.name ?? '',
+                      category: row?.category ?? null
+                    },
+                    client: {
+                      trashMaterial: input => {
+                        if (signal.aborted || !scopeCurrent() || current !== generation.current)
+                          throw new DOMException('Bulk trash scope ended', 'AbortError');
+                        return tailClient.trashMaterial({
+                          ...input,
+                          expectedActorId: authoritative.actorId
+                        });
+                      }
+                    },
+                    idempotencyKey: acceptedItem.idempotencyKey
+                  })
+                );
               } catch (cause) {
-                if (currentTeam.current !== teamId || current !== generation.current) return;
+                if (!scopeCurrent() || current !== generation.current) return;
                 observed.current.get(group.id)?.diagnostic(source, cause);
                 const code = teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE';
                 // A request failure does not establish a server failure. Reconcile its exact receipt.
                 if (item)
-                  await client
-                    .markBulkTrashRequest(teamId, group.id, item.materialId, code)
-                    .catch(() => undefined);
+                  await waitMutation(() =>
+                    client.markBulkTrashRequest(teamId, group.id, materialId, code)
+                  ).catch(() => undefined);
               }
-              if (currentTeam.current !== teamId || current !== generation.current) return;
+              if (!scopeCurrent() || current !== generation.current) return;
               await refresh().catch(cause => {
-                if (currentTeam.current !== teamId || current !== generation.current) return;
+                if (!scopeCurrent() || current !== generation.current) return;
                 observed.current.get(group.id)?.diagnostic('trash_reconcile', cause);
                 reportStage(group.id, 'unknown', teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE');
               });
@@ -191,80 +263,132 @@ export function useBulkTrash(
           })
         );
       } catch (cause) {
-        if (current === generation.current)
+        if (current === generation.current && scopeCurrent())
           observed.current.get(group.id)?.diagnostic('trash_refresh', cause);
         throw cause;
       } finally {
-        if (current === generation.current) active.current.delete(group.id);
+        if (current === generation.current && scopeCurrent()) active.current.delete(group.id);
       }
     },
-    [client, refresh, reportStage, teamId]
+    [client, refresh, reportStage, teamId, scopeCurrent, waitMutation]
   );
   const start = useCallback(
     async (
       rows: readonly Pick<TeamMaterialRow, 'id' | 'name' | 'category'>[],
       tailClient: TrashTailClient
     ) => {
-      if (currentTeam.current !== teamId)
-        throw new DOMException('Bulk trash scope ended', 'AbortError');
+      if (!scopeCurrent()) throw new DOMException('Bulk trash scope ended', 'AbortError');
       if (starting.current === teamId) throw new TeamApiError('WRONG_STATE', true);
       const current = generation.current;
+      const intent = mutationJournal().acquire(rows.map(row => row.id));
       starting.current = teamId;
-      const groupId = crypto.randomUUID();
+      const groupId = intent.id;
       const flow = beginWorkspaceOperation('bulk_trash', groupId, rows.length);
       observed.current.set(groupId, flow);
       let source: WorkspaceDiagnosticSource = 'trash_refresh';
       try {
         const existing = await refresh();
-        if (current !== generation.current || currentTeam.current !== teamId)
+        if (current !== generation.current || !scopeCurrent())
           throw new DOMException('Bulk trash scope ended', 'AbortError');
         const busy = new Set(
-          existing.flatMap(group =>
-            group.items
-              .filter(item => ['queued', 'running', 'unknown'].includes(item.state))
-              .map(item => item.materialId)
-          )
+          existing
+            .filter(group => group.id !== groupId)
+            .flatMap(group =>
+              group.items
+                .filter(item => ['queued', 'running', 'unknown'].includes(item.state))
+                .map(item => item.materialId)
+            )
         );
         source = 'trash_overlap';
         if (rows.some(row => busy.has(row.id))) throw new TeamApiError('WRONG_STATE', true);
         source = 'trash_start';
-        const group = await client.startBulkTrash(
-          teamId,
-          groupId,
-          rows.map(row => row.id)
+        const group = await waitMutation(() =>
+          client.startBulkTrash(
+            teamId,
+            groupId,
+            intent.materialIds,
+            originatingActor ? { expectedActorId: originatingActor } : undefined
+          )
         );
-        if (current !== generation.current || currentTeam.current !== teamId)
+        if (current !== generation.current || !scopeCurrent())
           throw new DOMException('Bulk trash scope ended', 'AbortError');
         flow.stage('accepted');
+        // The hosted acknowledgement survives a failed/lagging receipt read.
+        const retainAcknowledged = () => {
+          if (current !== generation.current || !scopeCurrent()) return;
+          setGroups(groups => [...groups.filter(item => item.id !== group.id), group]);
+          setUncertain(true);
+        };
+        setGroups(groups => [...groups.filter(item => item.id !== group.id), group]);
         source = 'trash_reconcile';
-        await refresh();
+        let fresh: BulkTrashGroup[];
+        try {
+          fresh = await refresh();
+        } catch (cause) {
+          if (current !== generation.current || !scopeCurrent())
+            throw new DOMException('Bulk trash scope ended', 'AbortError');
+          retainAcknowledged();
+          flow.diagnostic('trash_reconcile', cause);
+          flow.stage('unknown', teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE');
+          return group;
+        }
+        if (current !== generation.current || !scopeCurrent())
+          throw new DOMException('Bulk trash scope ended', 'AbortError');
+        if (!fresh.some(item => item.id === group.id)) {
+          retainAcknowledged();
+          flow.stage('unknown', 'PROCESS_RESULT_UNCERTAIN');
+          return group;
+        }
         void execute(group, rows, tailClient).catch(() => {
-          if (current === generation.current) setUncertain(true);
+          if (current === generation.current && scopeCurrent()) setUncertain(true);
         });
         return group;
       } catch (cause) {
-        if (current === generation.current) {
+        if (current === generation.current && scopeCurrent()) {
           flow.diagnostic(source, cause);
-          flow.fail(cause);
+          if (source === 'trash_start') {
+            setUncertain(true);
+            flow.stage('unknown', teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE');
+          } else flow.fail(cause);
         }
         throw cause;
       } finally {
-        if (current === generation.current && starting.current === teamId) starting.current = null;
+        if (current === generation.current && scopeCurrent() && starting.current === teamId)
+          starting.current = null;
       }
     },
-    [client, execute, refresh, teamId]
+    [
+      client,
+      execute,
+      refresh,
+      teamId,
+      originatingActor,
+      scopeCurrent,
+      mutationJournal,
+      waitMutation
+    ]
   );
-  const acknowledgeVisible = useCallback((id: string) => {
-    const flow = observed.current.get(id);
-    flow?.visible();
-  }, []);
-  const dismiss = useCallback((id: string) => {
-    setDismissed(current => new Set([...current, id]));
-  }, []);
+  const acknowledgeVisible = useCallback(
+    (id: string) => {
+      if (!scopeCurrent()) return;
+      const flow = observed.current.get(id);
+      flow?.visible();
+    },
+    [scopeCurrent]
+  );
+  const dismiss = useCallback(
+    (id: string) => {
+      if (!scopeCurrent()) return;
+      setDismissed(current => new Set([...current, id]));
+    },
+    [scopeCurrent]
+  );
   return {
     dismiss,
-    groups: groups.filter(group => group.teamId === teamId && !dismissed.has(group.id)),
-    uncertain,
+    groups: scopeCurrent()
+      ? groups.filter(group => group.teamId === teamId && !dismissed.has(group.id))
+      : [],
+    uncertain: scopeCurrent() && uncertain,
     start,
     retry: execute,
     refresh,

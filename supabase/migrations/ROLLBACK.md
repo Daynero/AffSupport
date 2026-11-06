@@ -2346,3 +2346,63 @@ remove event or attempt evidence. Stop diagnostics use the existing attempt
 projection and keep browser acknowledgement distinct from server state. There is
 no new Stop queue/receipt ledger to reset or replay. These notes authorize no
 production change or automatic rollback.
+
+## 20261207145000 — actor-bound bulk-trash acceptance
+
+New callers bind the initial batch group to its originating actor before session
+refresh. Keep this wrapper and the original group-owned prepare/mark functions
+during a client rollback. Missing support must refuse the new request, never
+fall back to an unbound writer. No group/item receipt, operation key, provider
+state or ACL is changed by this migration. Retain accepted and uncertain batch
+evidence; this note authorizes no production mutation or automatic rollback.
+
+## 20261207146000 — restore diagnostic projection
+
+This adds restore receipts to the restricted workspace analytics view. Reverting
+the web consumer needs no schema rollback. Retain the projection and existing
+service/analytics-only grants so interrupted restore requests remain diagnosable.
+Unknown legacy reason text is exposed only as UNKNOWN; do not broaden the view
+to user content or grant it to browser roles. No operation, provider state or
+restored material is changed. Removal, if necessary, requires a reviewed forward
+migration preserving the earlier view branches and grants.
+
+## 20261207147000 — proved preflight retry provenance
+
+Retain this retry fence when reverting the UI. Historical failed/canceled
+operations do not establish provider quiescence and must not be backfilled with
+the new preflight_refused marker. Only the service-only locked fresh metadata
+preflight sink creates that marker before any lifecycle intent or provider write.
+A new bulk attempt requires that explicit marker, the same source, a closed cause
+and no lifecycle intent; other terminals remain uncertain and retain their keys.
+Existing ACLs and attempt limits are preserved. Never restore the terminal-only
+retry condition or delete receipts to enable a new write. No production action
+or automatic rollback is authorized by this note.
+
+## 20261207148000 — bounded screen recovery outcomes
+
+Keep the additive closed error codes during a client rollback so retained failure
+receipts remain readable. This migration changes no operation, screen selection,
+provider file or grant. Do not delete historical receipts or reset uncertain
+accounting to enable a retry. No production action is authorized by this note.
+
+## 20261207149000 — overlapping bulk-trash acceptance fence
+
+Retain the team-scoped acceptance lock and unresolved-item overlap check during
+client rollback. A replacement group UUID must not bypass an older accepted,
+running, failed or uncertain request, including folders and frozen lifecycle
+members. Recover through the original group and its provenance checks; do not
+delete evidence, rotate its key or infer quiescence from a historical terminal.
+Confirmed successful receipts do not permanently block restored active files.
+The index and function replacement change no provider file or operation state.
+Existing authenticated grants and the actor-bound wrapper remain intact. No
+production action or automatic rollback is authorized by this note.
+
+## 20261207150000 — tied trash-page cursor
+
+The new authenticated-only read RPC uses the exact timestamp and material UUID
+as one cursor. Keep the legacy three-argument function unchanged for older
+clients. New clients require the versioned RPC and must surface a read failure
+instead of silently returning to timestamp-only paging. This migration writes
+no material, lifecycle receipt or provider data. A web rollback needs no schema
+rollback; removal requires a reviewed forward migration after dependent clients
+are retired. No production action is authorized by this note.

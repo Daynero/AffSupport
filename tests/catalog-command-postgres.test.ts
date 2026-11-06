@@ -217,5 +217,69 @@ describe.skipIf(!container)(
       ).toBe('failed:DRIVE_UNAVAILABLE');
       expect(await count(sheet)).toBe('1');
     }, 15000);
+    it('serializes replacement bulk groups before either acceptance becomes visible', async () => {
+      const sheet = await fixture(),
+        firstId = randomUUID(),
+        otherId = randomUUID();
+      const start = (id: string) =>
+        `select public.start_team_bulk_trash_as_actor('${team}','${id}',array['${sheet}']::uuid[],'${owner}')`;
+      const first = sql(asActor(`${start(firstId)};select pg_sleep(2) /* trash_accept_hold */`));
+      await held('trash_accept_hold');
+      const second = sql(asActor(`${start(otherId)} /* trash_overlap_wait */`)).then(
+        value => ({ value, error: null }),
+        error => ({ value: null, error })
+      );
+      await held('trash_overlap_wait', 'Lock');
+      await first;
+      expect((await second).error?.message).toContain('PROCESS_RESULT_UNCERTAIN');
+      expect(
+        await sql(
+          `select count(*) from private.team_bulk_trash_groups where id in ('${firstId}','${otherId}')`
+        )
+      ).toBe('1');
+    }, 15000);
+    it('allows same-key bulk replay after a concurrent acceptance commits', async () => {
+      const sheet = await fixture(),
+        group = randomUUID();
+      const start = `select public.start_team_bulk_trash('${team}','${group}',array['${sheet}']::uuid[])`;
+      const first = sql(asActor(`${start};select pg_sleep(2) /* trash_replay_hold */`));
+      await held('trash_replay_hold');
+      const second = sql(asActor(`${start} /* trash_replay_wait */`));
+      await held('trash_replay_wait', 'Lock');
+      expect(receipt(await second)).toEqual(receipt(await first));
+    }, 15000);
+    it('fences a racing child selection by another actor behind the accepted parent', async () => {
+      const sheet = await fixture(),
+        folder = randomUUID(),
+        otherActor = randomUUID(),
+        firstId = randomUUID(),
+        otherId = randomUUID();
+      await sql(`begin;
+        insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${otherActor}','authenticated','authenticated','${otherActor}@bulk-race.test.invalid','{}','{}');
+        insert into public.admin_users(user_id) values('${otherActor}');
+        insert into public.team_members(team_id,user_id,base_role) values('${team}','${otherActor}','admin');
+        insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,mime_type) values('${folder}','${team}','${connection}','${folder}','root','Synthetic folder','folder','application/vnd.google-apps.folder');
+        update public.team_materials set parent_folder_id='${folder}' where id='${sheet}';commit;`);
+      const first = sql(
+        asActor(
+          `select public.start_team_bulk_trash('${team}','${firstId}',array['${folder}']::uuid[]);select pg_sleep(2) /* trash_parent_hold */`
+        )
+      );
+      await held('trash_parent_hold');
+      const second = sql(
+        `begin;select set_config('request.jwt.claim.sub','${otherActor}',true);set local role authenticated;select public.start_team_bulk_trash_as_actor('${team}','${otherId}',array['${sheet}']::uuid[],'${otherActor}') /* trash_child_wait */;commit;`
+      ).then(
+        value => ({ value, error: null }),
+        error => ({ value: null, error })
+      );
+      await held('trash_child_wait', 'Lock');
+      await first;
+      expect((await second).error?.message).toContain('PROCESS_RESULT_UNCERTAIN');
+      expect(
+        await sql(
+          `select count(*) from private.team_bulk_trash_groups where id in ('${firstId}','${otherId}')`
+        )
+      ).toBe('1');
+    }, 15000);
   }
 );

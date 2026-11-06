@@ -325,7 +325,7 @@ export const RESTITCH_CONTRACT_VERSION = 2;
 /** The most pictures one slot's effective set may hold. The same bound the catalog pools use. */
 export const RESTITCH_POOL_LIMIT = 500;
 /** The agent's own ceiling for one picture; the server filters on it at selection time. */
-export const RESTITCH_SCREEN_MAX_BYTES = 50 * 1024 * 1024;
+export { RESTITCH_SCREEN_MAX_BYTES } from './restitch-screen-policy.js';
 export const RESTITCH_SCREEN_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
 export type RestitchScreenMimeType = (typeof RESTITCH_SCREEN_MIME_TYPES)[number];
 
@@ -599,6 +599,8 @@ export function parseRestitchScreens(value: unknown): RestitchParse<RestitchScre
 }
 
 /** Bounded image recovery and version-scoped refusal memory shared by web and agent. */
-export const RESTITCH_SCREEN_SELECTION_MAX_CANDIDATES = 32;
-export const RESTITCH_SCREEN_REFUSAL_TTL_MS = 24 * 60 * 60 * 1000;
-export const RESTITCH_SCREEN_REFUSAL_LIMIT = 512;
+export {
+  RESTITCH_SCREEN_SELECTION_MAX_CANDIDATES,
+  RESTITCH_SCREEN_REFUSAL_TTL_MS,
+  RESTITCH_SCREEN_REFUSAL_LIMIT
+} from './restitch-screen-policy.js';

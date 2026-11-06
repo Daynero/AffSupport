@@ -1,3 +1,4 @@
+import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
 import {
   useCallback,
   useEffect,
@@ -1388,14 +1389,17 @@ function ExplorerBody({
       const restore = async () => {
         for (const materialId of trashed) {
           try {
-            await actionsClient.restoreMaterial({
-              teamId,
-              materialId,
-              idempotencyKey: crypto.randomUUID()
-            });
+            requireCompletedFileOperation(
+              await actionsClient.restoreMaterial({
+                teamId,
+                materialId,
+                idempotencyKey: crypto.randomUUID()
+              })
+            );
           } catch (cause) {
+            changed();
             push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-            break;
+            return;
           }
         }
         changed();

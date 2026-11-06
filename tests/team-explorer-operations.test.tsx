@@ -9,12 +9,13 @@ import {
   screen,
   waitFor
 } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BulkTrashGroup, TeamMaterialRow } from '@video-compressor/shared';
 import { analytics } from '../apps/web/src/analytics/service';
 import { BulkTrashPanel } from '../apps/web/src/team/explorer/BulkTrashPanel';
 import { TeamApiError } from '../apps/web/src/api/team';
 import { useBulkTrash, type BulkTrashClient } from '../apps/web/src/team/explorer/useBulkTrash';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
 const team = '37000000-0000-4000-8000-000000000001';
 const actor = '37000000-0000-4000-8000-000000000002';
 const rows = Array.from(
@@ -26,10 +27,40 @@ const rows = Array.from(
       category: null
     }) as TeamMaterialRow
 );
+beforeEach(() => {
+  localStorage.clear();
+  setPrivateCacheScope(actor, 'bulk-test-owner');
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.useRealTimers();
+  setPrivateCacheScope(null, 'bulk-test-ended');
+});
+it('reuses an unacknowledged batch identity after remount even when receipt reads still omit it', async () => {
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => []),
+    startBulkTrash: vi.fn(async () => {
+      throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    }),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = { trashMaterial: vi.fn() };
+  const first = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await expect(first.result.current.start(rows.slice(0, 2), tail)).rejects.toThrow();
+  });
+  first.unmount();
+  const next = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await expect(next.result.current.start(rows.slice(0, 2).reverse(), tail)).rejects.toThrow();
+  });
+  const calls = vi.mocked(client.startBulkTrash).mock.calls;
+  expect(calls).toHaveLength(2);
+  expect(calls[1]![1]).toBe(calls[0]![1]);
+  expect(calls[1]![2]).toEqual(calls[0]![2]);
+  expect(tail.trashMaterial).not.toHaveBeenCalled();
 });
 it('renders 50 authoritative results, continues after failure, and recovers the same group from another session', async () => {
   let hosted: BulkTrashGroup[] = [];
@@ -118,7 +149,7 @@ it('does not publish a delayed old-space receipt after switching spaces', async 
       .mockResolvedValue([]),
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   function View({ id }: { id: string }) {
     const state = useBulkTrash(id, 0, client);
@@ -232,7 +263,7 @@ it('records unchanged hosted outcomes once and preserves a later authoritative f
     listBulkTrash: vi.fn(async () => [structuredClone(hosted)]),
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(() => useBulkTrash(team, 0, client, actor));
   await waitFor(() => expect(view.result.current.groups).toHaveLength(1));
@@ -272,7 +303,7 @@ it('coalesces catalog revision bursts while a bulk receipt read is pending', asy
     listBulkTrash: list,
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(({ revision }) => useBulkTrash(team, revision, client, actor), {
     initialProps: { revision: 0 }
@@ -295,7 +326,7 @@ it('pauses hidden automatic receipt reads but permits explicit reconciliation', 
     listBulkTrash: list,
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(({ revision }) => useBulkTrash(team, revision, client, actor), {
     initialProps: { revision: 7 }
@@ -322,7 +353,7 @@ it('returns fresh hosted receipts to manual reconciliation and retires old callb
     listBulkTrash: list,
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(() => useBulkTrash(team, 0, client, actor));
   await act(async () => {});
@@ -372,7 +403,7 @@ it('aborts a stalled receipt read at its deadline and allows a fresh retry', asy
     listBulkTrash: list,
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(() => useBulkTrash(team, 0, client, actor));
   await act(async () => {});
@@ -389,6 +420,36 @@ it('aborts a stalled receipt read at its deadline and allows a fresh retry', asy
   expect(list).toHaveBeenCalledTimes(2);
 });
 
+it('releases a stalled batch acceptance wait without replacing the unresolved intent', async () => {
+  vi.useFakeTimers();
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => []),
+    startBulkTrash: vi.fn(() => new Promise<BulkTrashGroup>(() => {})),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = { trashMaterial: vi.fn() };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  let result: unknown;
+  await act(async () => {
+    void view.result.current.start(rows.slice(0, 1), tail).catch(cause => {
+      result = cause;
+    });
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15000);
+  });
+  expect(result).toMatchObject({ code: 'PROCESS_RESULT_UNCERTAIN' });
+  expect(view.result.current.uncertain).toBe(true);
+  await act(async () => {
+    void view.result.current.start(rows.slice(0, 1), tail).catch(() => {});
+  });
+  const calls = vi.mocked(client.startBulkTrash).mock.calls;
+  expect(calls).toHaveLength(2);
+  expect(calls[1]![1]).toBe(calls[0]![1]);
+  expect(tail.trashMaterial).not.toHaveBeenCalled();
+});
+
 it('does not let an old execution release the active owner after a team round trip', async () => {
   const group: BulkTrashGroup = {
     id: 'group',
@@ -400,7 +461,7 @@ it('does not let an old execution release the active owner after a team round tr
     listBulkTrash: vi.fn(async id => (id === team ? [structuredClone(group)] : [])),
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(async () => structuredClone(group)),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const finish: Array<() => void> = [];
   const tail = {
@@ -452,7 +513,7 @@ it('does not let an old start clear a new start lock after a team round trip', a
     listBulkTrash: vi.fn().mockResolvedValue([]),
     startBulkTrash: start,
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const tail = { trashMaterial: vi.fn() };
   const view = renderHook(({ id }) => useBulkTrash(id, 0, client, actor), {
@@ -585,7 +646,7 @@ it('keeps a manually hidden unknown receipt hidden across refresh without mutati
     listBulkTrash: vi.fn(async () => [structuredClone(group)]),
     startBulkTrash: vi.fn(),
     prepareBulkTrashItem: vi.fn(),
-    markBulkTrashRequest: vi.fn()
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
   };
   const view = renderHook(() => useBulkTrash(team, 0, client, actor));
   await waitFor(() => expect(view.result.current.groups).toHaveLength(1));
@@ -598,4 +659,75 @@ it('keeps a manually hidden unknown receipt hidden across refresh without mutati
   expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
   expect(client.markBulkTrashRequest).not.toHaveBeenCalled();
   expect(group.items[0]?.state).toBe('unknown');
+});
+
+it('keeps an acknowledged group available when its first receipt refresh fails', async () => {
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000099',
+    teamId: team,
+    actorId: actor,
+    items: [
+      { materialId: rows[0]!.id, idempotencyKey: 'same-item-key', state: 'queued', errorCode: null }
+    ]
+  };
+  let accepted = false;
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => {
+      if (accepted) throw new TypeError('read unavailable');
+      return [];
+    }),
+    startBulkTrash: vi.fn(async (_team, id) => {
+      group.id = id;
+      accepted = true;
+      return structuredClone(group);
+    }),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = { trashMaterial: vi.fn() };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {});
+  let outcome: unknown;
+  await act(async () => {
+    outcome = await view.result.current.start(rows.slice(0, 1), tail).catch(cause => cause);
+  });
+  expect(outcome).toMatchObject({ id: group.id });
+  expect(view.result.current.groups).toContainEqual(group);
+  expect(view.result.current.uncertain).toBe(true);
+  expect(tail.trashMaterial).not.toHaveBeenCalled();
+  expect(client.startBulkTrash).toHaveBeenCalledTimes(1);
+});
+
+it('does not send the file write after access changes during the mark acknowledgement', async () => {
+  const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
+  setPrivateCacheScope(actor, 'bulk-trash-before');
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000099',
+    teamId: team,
+    actorId: actor,
+    items: [
+      { materialId: rows[0]!.id, idempotencyKey: 'same-key', state: 'queued', errorCode: null }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => structuredClone([group])),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(async () => structuredClone(group)),
+    markBulkTrashRequest: vi.fn(async () => {
+      setPrivateCacheScope(actor, 'bulk-trash-after');
+    })
+  };
+  const tail = { trashMaterial: vi.fn() };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  try {
+    await act(async () => {});
+    await act(async () => {
+      await view.result.current.retry(group, rows.slice(0, 1), tail);
+    });
+    expect(client.markBulkTrashRequest).toHaveBeenCalledOnce();
+    expect(tail.trashMaterial).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+    setPrivateCacheScope(null, 'bulk-trash-ended');
+  }
 });

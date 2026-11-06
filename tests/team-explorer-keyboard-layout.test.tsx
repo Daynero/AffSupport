@@ -206,8 +206,18 @@ describe('explorer narrow layout', () => {
 describe('explorer keyboard, second pass', () => {
   function actionsClient() {
     return {
-      trashMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' }),
-      restoreMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' }),
+      trashMaterial: vi.fn(async (input: { materialId: string }) => ({
+        operationId: 'op',
+        state: 'succeeded' as const,
+        materialId: input.materialId,
+        reused: false
+      })),
+      restoreMaterial: vi.fn(async (input: { materialId: string }) => ({
+        operationId: 'op',
+        state: 'succeeded' as const,
+        materialId: input.materialId,
+        reused: false
+      })),
       renameMaterial: vi.fn().mockResolvedValue({ state: 'succeeded' })
     };
   }

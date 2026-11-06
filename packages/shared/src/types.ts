@@ -1,3 +1,5 @@
+import { RESTITCH_RECOVERY_ERROR_CODES } from './team/restitch-recovery-errors.js';
+
 export type JobStatus =
   | 'analyzing'
   | 'ready'
@@ -536,6 +538,7 @@ export type TranscriptionErrorCode = (typeof TRANSCRIPTION_ERROR_CODES)[number];
  * one (`STITCH_PLAN_VIDEO-CODEC`); this is the closed list it is normalised into.
  */
 export const STITCH_ERROR_CODES = [
+  ...RESTITCH_RECOVERY_ERROR_CODES,
   'RESTITCH_SCREEN_UNAVAILABLE',
   'RESTITCH_SCREEN_FETCH_FAILED',
   'RESTITCH_SCREEN_UNSUPPORTED',

@@ -19,6 +19,20 @@ const profile = {
   version: 1,
   updated_at: '2026-10-18T10:00:00Z'
 };
+it('passes the exact timestamp and material cursor together to the versioned trash read', async () => {
+  rpc.mockResolvedValue({ error: null, data: [] });
+  await teamApi.listTrashedMaterials({
+    teamId: 'team',
+    before: '2026-11-06T10:00:00.000001Z',
+    beforeId: '47000000-0000-4000-8000-000000000099'
+  });
+  expect(rpc).toHaveBeenCalledWith('list_team_trashed_materials_v2', {
+    p_team: 'team',
+    p_limit: 50,
+    p_before: '2026-11-06T10:00:00.000001Z',
+    p_before_id: '47000000-0000-4000-8000-000000000099'
+  });
+});
 it('retains partial outcome independently of the last verified full success', async () => {
   rpc.mockResolvedValue({
     error: null,
@@ -214,7 +228,11 @@ it.each([
   { next_run_at: 'bad' },
   { update_pending: 'false' },
   { update_pending: 0 },
-  { update_pending: null }
+  { update_pending: null },
+  { active_round_at: false },
+  { active_round_at: 0 },
+  { active_round_at: {} },
+  { active_round_at: 'not-a-date' }
 ])(
   'keeps malformed catalog fields partial instead of crashing the manager or showing a false disabled schedule: %j',
   async bad => {
@@ -337,4 +355,31 @@ it('refuses Stop without an observed target before sending any RPC', async () =>
     code: 'CATALOG_STOP_TARGET_UNKNOWN'
   });
   expect(rpc).not.toHaveBeenCalled();
+});
+
+it.each([null, undefined, {}, 0])(
+  'rejects malformed trash payload instead of empty success: %j',
+  async data => {
+    rpc.mockResolvedValue({ error: null, data });
+    await expect(teamApi.listTrashedMaterials({ teamId: 'team' })).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+  }
+);
+it('rejects an invalid trash timestamp before it can crash date rendering', async () => {
+  rpc.mockResolvedValue({
+    error: null,
+    data: [
+      {
+        id: 'material',
+        name: 'Catalog',
+        kind: 'file',
+        trashed_at: 'not-a-date',
+        parent_path_hint: null
+      }
+    ]
+  });
+  await expect(teamApi.listTrashedMaterials({ teamId: 'team' })).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
 });

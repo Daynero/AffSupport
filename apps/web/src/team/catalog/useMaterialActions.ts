@@ -1,4 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
+import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
+import { WorkspaceMutationJournal } from '../workspace/mutationJournal';
+import { withCatalogCommandDeadline as withMutationDeadline } from '../catalog-updater/catalogCommandCoordinator';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { renameMaterialWithTail, trashMaterialWithTail } from '../materials/tail';
 import { moveWorkspaceMaterials } from '../explorer/moveCoordinator';
 import type {
@@ -96,6 +101,18 @@ export function useMaterialActions(input: {
 
   const { t } = useI18n();
   const { push, update, dismiss } = useToasts();
+  const currentScope = useRef({ teamId, materialId: material.id, client });
+  currentScope.current = { teamId, materialId: material.id, client };
+  const captureOwner = useCallback(
+    () =>
+      captureCatalogMutationOwner(
+        () =>
+          currentScope.current.teamId === teamId &&
+          currentScope.current.materialId === material.id &&
+          currentScope.current.client === client
+      ),
+    [teamId, material.id, client]
+  );
   /** What the tail module needs of this material, stable across renders. */
   const tailMaterial = useMemo(
     () => ({ id: material.id, name: material.name, category: material.category ?? null }),
@@ -104,6 +121,12 @@ export function useMaterialActions(input: {
   const [busy, setBusy] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [conflictFile, setConflictFile] = useState<File | null>(null);
+  const privateEpoch = usePrivateCacheEpoch();
+  useEffect(() => {
+    setBusy(false);
+    setErrorCode(null);
+    setConflictFile(null);
+  }, [privateEpoch, teamId, material.id, client]);
   const attemptNumbers = useRef<Partial<Record<TeamAnalyticsAction, number>>>({});
 
   /**
@@ -154,13 +177,16 @@ export function useMaterialActions(input: {
     async (
       action: TeamAnalyticsAction,
       work: () => Promise<unknown>,
-      successKey?: TranslationKey | null
+      successKey?: TranslationKey | null,
+      owner?: ReturnType<typeof captureCatalogMutationOwner>
     ): Promise<string | null> => {
+      if (owner && !owner.current()) return 'PERMISSION_DENIED';
       const attempt = beginAttempt(action);
       setBusy(true);
       setErrorCode(null);
       try {
         const delivered = await work();
+        if (owner && !owner.current()) return 'PERMISSION_DENIED';
         if (attempt)
           completeTeamFileAttempt(attempt, {
             outcome: 'success',
@@ -174,6 +200,7 @@ export function useMaterialActions(input: {
         report(action, null, successKey);
         return null;
       } catch (caught) {
+        if (owner && !owner.current()) return errorCodeOf(caught);
         if (attempt) {
           completeTeamFileAttempt(attempt, {
             outcome: analyticsOutcome(caught),
@@ -186,7 +213,7 @@ export function useMaterialActions(input: {
         report(action, code);
         return code;
       } finally {
-        setBusy(false);
+        if (!owner || owner.current()) setBusy(false);
       }
     },
     [beginAttempt, onChanged, report]
@@ -337,18 +364,39 @@ export function useMaterialActions(input: {
   );
 
   const restore = useCallback(
-    () =>
+    (owner = captureOwner()) =>
       run(
         'trash',
-        () =>
-          client.restoreMaterial({
+        async () => {
+          const options = owner.options();
+          const journal = new WorkspaceMutationJournal(
+            'restore',
+            options.expectedActorId,
             teamId,
-            materialId: material.id,
-            idempotencyKey: crypto.randomUUID()
-          }),
-        'teamToastRestored'
+            localStorage
+          );
+          const intent = journal.acquire([material.id]);
+          const result = requireCompletedFileOperation(
+            await withMutationDeadline(
+              () =>
+                client.restoreMaterial({
+                  teamId,
+                  materialId: material.id,
+                  idempotencyKey: intent.id,
+                  ...owner.options()
+                }),
+              new AbortController().signal
+            )
+          );
+          if (result.materialId !== null && result.materialId !== material.id)
+            throw new Error('INVALID_RESPONSE');
+          if (owner.current()) journal.confirmed(intent.id);
+          return result;
+        },
+        'teamToastRestored',
+        owner
       ),
-    [client, material.id, run, teamId]
+    [captureOwner, client, material.id, run, teamId]
   );
 
   /**
@@ -356,24 +404,26 @@ export function useMaterialActions(input: {
    *
    * A confirmation before a reversible action is friction charged for nothing:
    * it costs a click every time to prevent a mistake that costs one click to
-   * fix (FR-028). The undo is a fresh operation with its own idempotency key,
-   * and a race — the item already restored, or purged from Drive — surfaces as
-   * the operation's own mapped code rather than as silence.
+   * fix (FR-028). Undo retains the original actor and a durable restore identity;
+   * an uncertain acknowledgement cannot authorize a replacement request.
    */
   const trash = useCallback(async () => {
+    const owner = captureOwner();
     const code = await run(
       'trash',
-      () => trashMaterialWithTail({ teamId, material: tailMaterial, client }),
-      null
+      () => trashMaterialWithTail({ teamId, material: tailMaterial, client, owner }),
+      null,
+      owner
     );
     if (code) return code;
+    if (!owner.current()) return 'PERMISSION_DENIED';
     push({
       tone: 'success',
       text: t('teamToastTrashed'),
-      action: { label: t('teamUndo'), run: () => void restore() }
+      action: { label: t('teamUndo'), run: () => void restore(owner) }
     });
     return null;
-  }, [client, push, restore, run, t, tailMaterial, teamId]);
+  }, [captureOwner, client, push, restore, run, t, tailMaterial, teamId]);
 
   return {
     busy,

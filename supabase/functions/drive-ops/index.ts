@@ -121,6 +121,7 @@ import {
   normalizeReservedName,
   postconditionForMutation,
   validateLiveMutationTarget,
+  assertExpectedMutationActor,
   validateUploadStartRequest,
   type DriveOperationMaterial,
   type LiveDriveTarget,
@@ -3279,6 +3280,15 @@ Deno.serve(async request => {
       value = await handleCopy(request, body, configured.service, userId);
     } else if (path === '/move') {
       value = await handleMove(request, body, configured.service, userId);
+    } else if (path === '/trash-as-actor' || path === '/restore-as-actor') {
+      assertExpectedMutationActor(body.expectedActorId, userId);
+      value = await handleTrashRestore(
+        request,
+        body,
+        configured.service,
+        userId,
+        path === '/trash-as-actor' ? 'trash' : 'restore'
+      );
     } else if (path === '/trash') {
       value = await handleTrashRestore(request, body, configured.service, userId, 'trash');
     } else if (path === '/restore') {

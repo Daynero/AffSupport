@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, readdir, stat, truncate, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, stat, truncate, writeFile } from 'node:fs/promises';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
 import path from 'node:path';
@@ -421,4 +421,96 @@ it('bounds screen transfer before provider I/O and identifies local temporary-di
     expect.any(AbortSignal)
   );
   expect(await instance.refused(TEAM, 'scope')).toEqual([]);
+});
+
+function refusalEntry(index: number, overrides: Record<string, unknown> = {}) {
+  return {
+    teamId: TEAM,
+    scope: 'settings-1',
+    slot: 'start',
+    materialId: `31000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`,
+    checksum: 'f'.repeat(32),
+    rejectedAt: clock - 1000 + index,
+    ...overrides
+  };
+}
+
+it('retains independent refusal scopes across restart and a new rejection', async () => {
+  const store = cache(transferOf('copy'));
+  await mkdir(store.root, { recursive: true });
+  const start = Array.from({ length: 512 }, (_, i) => refusalEntry(i));
+  const end = Array.from({ length: 512 }, (_, i) => refusalEntry(i, { slot: 'end' }));
+  const otherScope = refusalEntry(700, { scope: 'settings-2' });
+  const otherTeam = refusalEntry(701, { teamId: 'other-team' });
+  await writeFile(
+    path.join(store.root, 'index.json'),
+    JSON.stringify({
+      entries: {},
+      refusals: [...start, ...end, otherScope, otherTeam]
+    })
+  );
+  expect(await store.refused(TEAM, 'settings-1')).toHaveLength(1024);
+  expect(await store.refused(TEAM, 'settings-2')).toHaveLength(1);
+  fixtureByMaterial.set(MATERIAL, 'animated.webp');
+  await expect(
+    store.resolve(TEAM, [screen('animated.webp')], new AbortController().signal, 'settings-1')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+  const restarted = cache(transferOf('fail'));
+  const rows = await restarted.refused(TEAM, 'settings-1');
+  expect(rows.filter(row => row.slot === 'start')).toHaveLength(512);
+  expect(rows.filter(row => row.slot === 'end')).toHaveLength(512);
+  expect(rows.some(row => row.slot === 'start' && row.materialId === start[0]!.materialId)).toBe(
+    false
+  );
+  expect(rows.some(row => row.slot === 'end' && row.materialId === end[0]!.materialId)).toBe(true);
+  expect(await restarted.refused(TEAM, 'settings-2')).toHaveLength(1);
+  expect(await restarted.refused('other-team', 'settings-1')).toHaveLength(1);
+});
+
+it('evicts the oldest refusal by timestamp even when disk history is out of order', async () => {
+  const store = cache(transferOf('fail'));
+  await mkdir(store.root, { recursive: true });
+  const rows = Array.from({ length: 513 }, (_, i) => refusalEntry(i));
+  await writeFile(
+    path.join(store.root, 'index.json'),
+    JSON.stringify({
+      entries: {},
+      refusals: [...rows].reverse()
+    })
+  );
+  const kept = await store.refused(TEAM, 'settings-1');
+  expect(kept).toHaveLength(512);
+  expect(kept.some(row => row.materialId === rows[0]!.materialId)).toBe(false);
+  expect(kept.some(row => row.materialId === rows[512]!.materialId)).toBe(true);
+});
+
+it('does not extend refusal expiry when later clicks read the remembered version', async () => {
+  fixtureByMaterial.set(MATERIAL, 'animated.webp');
+  const store = cache(transferOf('copy'));
+  await expect(
+    store.resolve(TEAM, [screen('animated.webp')], new AbortController().signal, 'settings')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+  clock += 24 * 60 * 60 * 1000 - 1;
+  expect(await store.refused(TEAM, 'settings')).toHaveLength(1);
+  expect(await store.refusalHistory(TEAM)).toHaveLength(1);
+  clock += 1;
+  expect(await cache(transferOf('fail')).refused(TEAM, 'settings')).toEqual([]);
+});
+
+it('clears a repaired version only after a successful full validation', async () => {
+  const transfer = transferOf('copy');
+  let valid = false;
+  const store = new TeamScreenCache(
+    { transfer, decode: async () => valid, now: () => clock },
+    path.join(directory, 'TeamScreens')
+  );
+  await expect(
+    store.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings')
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_UNSUPPORTED' });
+  expect(await store.refused(TEAM, 'settings')).toHaveLength(1);
+  valid = true;
+  await expect(
+    store.resolve(TEAM, [screen('plain.png')], new AbortController().signal, 'settings')
+  ).resolves.toHaveLength(1);
+  expect(await cache(transferOf('fail')).refused(TEAM, 'settings')).toEqual([]);
 });
