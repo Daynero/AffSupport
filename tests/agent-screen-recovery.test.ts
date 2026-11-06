@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import { expect, it, vi } from 'vitest';
 import type { RestitchScreen } from '@video-compressor/shared';
 import { ScreenCacheError } from '../apps/agent/src/team-bridge/screen-cache';
@@ -246,4 +247,22 @@ it('treats case variants of one opaque UUID as the same rejected version', async
     resolveScreensWithRecovery(['end'], p, new AbortController().signal)
   ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   expect(p.resolve).toHaveBeenCalledOnce();
+});
+
+it('keeps screen authority and nested failures out of ordinary error serialization', () => {
+  const selected = candidate(1);
+  selected.screen.fileName = 'SYNTHETIC_PRIVATE_SCREEN_NAME.png';
+  const failure = new Error('https://invalid.example/SYNTHETIC_PRIVATE_TICKET');
+  const error = new ScreenRecoveryCandidateError(selected, failure);
+  for (const value of [
+    JSON.stringify(error),
+    JSON.stringify({ ...error }),
+    inspect(error),
+    inspect(error, { showHidden: true })
+  ]) {
+    expect(value).not.toContain('SYNTHETIC_PRIVATE_SCREEN_NAME');
+    expect(value).not.toContain('SYNTHETIC_PRIVATE_TICKET');
+  }
+  expect(error.candidate).toBe(selected);
+  expect(error.failure).toBe(failure);
 });

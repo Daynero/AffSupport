@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-06T21:12:15.856Z",
+  "scope": "Actual local beta API refusal only; no job, provider write, manual UI or video success claimed",
+  "productionTouched": false,
+  "observations": [
+    {
+      "scenario": "replacement_actor",
+      "status": 403,
+      "code": "PERMISSION_DENIED"
+    },
+    {
+      "scenario": "missing_actor",
+      "status": 400,
+      "code": "INVALID_INPUT"
+    }
+  ],
+  "protectedTeamSnapshotsUnchanged": true,
+  "protectedTables": [
+    "public.team_operations",
+    "private.catalog_restitch_jobs"
+  ]
+}

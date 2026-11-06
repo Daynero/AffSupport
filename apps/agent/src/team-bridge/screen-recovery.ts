@@ -44,11 +44,21 @@ export interface ScreenRecoveryProvider {
   ): Promise<ScreenRecoveryCandidate>;
 }
 export class ScreenRecoveryCandidateError extends Error {
-  constructor(
-    public readonly candidate: ScreenRecoveryCandidate,
-    public readonly cause: unknown
-  ) {
+  #candidate: ScreenRecoveryCandidate;
+  #failure: unknown;
+
+  constructor(candidate: ScreenRecoveryCandidate, failure: unknown) {
     super('SCREEN_RECOVERY_CANDIDATE_FAILED');
+    this.#candidate = candidate;
+    this.#failure = failure;
+  }
+
+  get candidate(): ScreenRecoveryCandidate {
+    return this.#candidate;
+  }
+
+  get failure(): unknown {
+    return this.#failure;
   }
 }
 function checked(
@@ -167,7 +177,7 @@ export async function resolveScreensWithRecovery(
           resolved = reply.resolved;
         } catch (error) {
           signal.throwIfAborted();
-          const cause = error instanceof ScreenRecoveryCandidateError ? error.cause : error;
+          const cause = error instanceof ScreenRecoveryCandidateError ? error.failure : error;
           if (error instanceof ScreenRecoveryCandidateError)
             candidate = sameVersion(candidate, error.candidate);
           if (

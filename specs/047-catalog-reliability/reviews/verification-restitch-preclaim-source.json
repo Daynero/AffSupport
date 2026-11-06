@@ -1,0 +1,41 @@
+{
+  "at": "2026-11-06T21:40:37.646313+00:00",
+  "verified_base_sha": "44610d8186ca776019e060107b7b471eadb2cfa0",
+  "source_was_dirty": true,
+  "verified_source_files": {
+    "apps/agent/src/team-bridge/screen-recovery.ts": "ee770308fec7b7882d4fd8c4280104a72d12c279d6230f5ea609b5f20dc80f38",
+    "apps/web/src/api/client.ts": "e0b03e165442243be09778f8790bd67e29cf94c2400f7e4b62a51365a30f0033",
+    "apps/web/src/api/team.ts": "3cf4b8fa67e09e7301bdd8b9472daa742a745cf026a9d23ed79462e39b8942f9",
+    "apps/web/src/team/catalog-updater/analytics.ts": "9a7804d03d2620a35b676e588e2bd4297415086648399fb2aef8098b03a8740f",
+    "apps/web/src/team/catalog-updater/useRestitchPreparer.ts": "ff5702ba3628041c813f3eac57b255cdb3e7ea2b18d7d37f51df8563c85d2f10",
+    "apps/web/src/team/restitch/claim.ts": "555db59f5e3d93a3cc58e1997de1b6b89b55bbb7c17c9120f2bed9c068aacfa6",
+    "apps/web/src/team/workspace/WorkspaceShell.tsx": "41faf101bb4e33c860bd122a5b850bd1e7567c7af1b7a1d9a47d64b3b661bc82",
+    "scripts/analytics/code-map.ts": "e1cdfccb28ec11c950b3f53458dee3a117858a9657dc8473537564b76432f978",
+    "scripts/analytics/coverage-registry.ts": "0338fb8325addafe7ec2a4702fdcb5b655df11430c2dd26efc6f3b8b148ddf96",
+    "supabase/functions/drive-ops/index.ts": "745344600c5f26471f2416472b0eeaa9dc6be057f485f994342930dd689749a4",
+    "tests/agent-screen-recovery.test.ts": "e63d116d2ab147205d40c91f64dfc48692a9faa98236256b410c588e3b9a2e11",
+    "tests/catalog-diagnostics-ingestion.test.ts": "9128b2d3c04631f2d74480a079cfdd5de92e7f388978855b3166a36354c44da5",
+    "tests/catalog-updater-preclaim-capability.test.tsx": "77d47f6d0a7d4207add11bf5f26e96d4bd7d389cb6ccf2963dd551302de472d7",
+    "tests/restitch-agent-contract.test.ts": "45d7abc9c1f904910402ae59b6b8bd1121264197b85d48763d8555bd6c30fb59",
+    "tests/team-api-restitch-claim.test.ts": "845effea6cef174d780456f9d6e194f017cd15ce628827a58d6281ab2bca826e",
+    "tests/team-file-mutation-actor-bound.test.ts": "7678532aa0592a887def11e3c697498d833ca1b90aaeb9ba965032c635febd18"
+  },
+  "suite": {
+    "numTotalTests": 9225,
+    "numPassedTests": 9150,
+    "numFailedTests": 0,
+    "numPendingTests": 75,
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 8,
+      "completedShards": 8,
+      "complete": true
+    }
+  },
+  "native_inputs_unchanged": 68,
+  "migration_inputs_unchanged": 437,
+  "native_proof": "verification-db-material-observed.json",
+  "api_proof": "restitch-preclaim-beta-api.json",
+  "local_config_excluded": true,
+  "scope": "Browser pre-claim and private-error increment only; no complete same-click recovery, complete047, manual UI or packaged promotion proof."
+}

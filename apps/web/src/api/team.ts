@@ -17,6 +17,7 @@ import {
   type TaskCleanupReceipt,
   isBulkTrashGroup,
   type BulkTrashGroup,
+  RESTITCH_CONTRACT_VERSION,
   MATERIAL_CATEGORIES,
   TEAM_BASE_ROLES,
   TEAM_ERROR_CODES,
@@ -134,7 +135,6 @@ import {
   parseMaterialRestitchPrep,
   parseRestitchDrawResult,
   parseRestitchSourcesListing,
-  RESTITCH_CONTRACT_VERSION,
   parseTeamRestitchDefaults,
   type MaterialRestitchPrep,
   type TeamRestitchDefaults,
@@ -2688,14 +2688,24 @@ export const teamApi = {
       materialId: string;
       checksum: string;
       settingsRevision?: string;
-    }> = []
+    }> = [],
+    installedContractVersion = 1,
+    options?: CatalogMutationOptions
   ): Promise<RestitchClaim | null> {
+    if (
+      !Number.isSafeInteger(installedContractVersion) ||
+      installedContractVersion < 1 ||
+      installedContractVersion > RESTITCH_CONTRACT_VERSION
+    )
+      throw new TeamApiError('INVALID_INPUT', false);
+    const actor = catalogMutationActor(options);
     const value = await invokeTeamFunction(
-      'drive-ops/updater/claim',
-      // Says which claim this tab speaks (030): a space on Drive pools refuses an older one.
+      'drive-ops/updater/claim-as-actor',
+      // Advertise only the intersection of this page and its actual installed executor.
       {
         teamId,
-        restitchContractVersion: RESTITCH_CONTRACT_VERSION,
+        expectedActorId: actor,
+        restitchContractVersion: installedContractVersion,
         ...(screenRefusals.length ? { screenRefusals } : {})
       },
       restitchClaimGuard

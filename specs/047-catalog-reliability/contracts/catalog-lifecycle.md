@@ -403,3 +403,27 @@ The actual installed binary advertises recovery support; unsupported executors
 are refused before claim, lease or processing. Existing legacy/default behavior
 remains available through its own contract until this new capability is complete.
 A new shared kernel alone is not evidence of any wired recovery path.
+
+
+## Installed-executor pre-claim boundary (working increment)
+
+Browser updater claims probe the current installation's teamWorkspace, stitcher,
+imageEmbedding and teamRestitchSources contracts before requesting work. Missing
+source capability is legacy1 only when the baseline tools are usable. Unsupported
+or malformed capabilities refuse; unreachable health does not take a cloud job.
+The web advertises the intersection of its protocol and the actual installation,
+never its own source constant alone. Legacy library work remains compatible.
+
+The browser uses `drive-ops/updater/claim-as-actor` with expectedActorId captured
+before health and refusal-history reads. The server compares it to the current
+JWT actor before the existing claim handler. Desktop recovery credentials cannot
+use this new user route. No older unguarded-route fallback is permitted. Actor or
+access-epoch replacement blocks subsequent reads and handoff. A late accepted
+job remains held under the original server authority; it is not dispatched under
+the replacement account or silently re-claimed.
+
+The content-free catalog_manager_restitch_claim flow correlates probe/request and
+claim_refused, claim_idle or claim_accepted. Its terminal acknowledges only this
+claim step and always carries production_completed=false; it never emits
+result_visible. Native background claims and full durable screen-selection
+protocol negotiation remain separate unfinished boundaries.

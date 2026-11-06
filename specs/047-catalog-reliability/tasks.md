@@ -151,7 +151,7 @@
       на класифікований file failure запитати інший кандидат до processing,
       зберегти підтверджений slot. Transient retry обмежений; outage не перебирає пул.
       Перевірки: один click → готове відео, без loop на останньому файлі, all paths parity.
-      **Evidence (partial):** Native screen-recovery coordinator has 24 focused cases for slot preservation, bounded selection, same-version refresh, case-normalized replay, strict exhaustion evidence, cancellation and lost acknowledgement. It is not yet wired to the delivery/updater/Launch or recovery executors, and it is not actual same-click product acceptance. See reviews/catalog-refusal-round-followup.md.
+      **Evidence (partial):** Native screen-recovery coordinator has 24 focused cases for slot preservation, bounded selection, same-version refresh, case-normalized replay, strict exhaustion evidence, cancellation and lost acknowledgement. It is not yet wired to the delivery/updater/Launch or recovery executors, and it is not actual same-click product acceptance. See reviews/catalog-refusal-round-followup.md. Subsequent working pre-claim/privacy increment is tracked in reviews/restitch-preclaim.md; it does not wire durable recovery or close this task.
 
 - [ ] T018 [US2] пам’ять відмов і snapshot діагностики — `apps/agent/src/team-bridge/recovery-journal.ts`. Залежності: T016–T017, T007.
       Зберігати durable per-attempt exclusions + bounded 24h refusal memory між

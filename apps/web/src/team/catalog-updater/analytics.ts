@@ -4,8 +4,14 @@ const machineCauses = new Set<string>(TEAM_ERROR_CODES);
 import { analytics } from '../../analytics/service';
 
 export type CatalogUiAction =
-  'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop';
+  'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop' | 'restitch_claim';
 export type CatalogUiStage =
+  | 'executor_check_requested'
+  | 'executor_checked'
+  | 'claim_requested'
+  | 'claim_idle'
+  | 'claim_accepted'
+  | 'claim_refused'
   | 'opened'
   | 'draft_changed'
   | 'save_requested'
@@ -66,7 +72,9 @@ export function beginCatalogUiFlow(
     flow_step: `catalog_manager_${action}`,
     item_count: counts.count,
     file_count: counts.hiddenCount,
-    ...(['run', 'retry', 'stop'].includes(action) ? { production_completed: false } : {}),
+    ...(['run', 'retry', 'stop', 'restitch_claim'].includes(action)
+      ? { production_completed: false }
+      : {}),
     ...(counts.field ? { setting_name: counts.field } : {})
   };
   function emit(
@@ -77,19 +85,27 @@ export function beginCatalogUiFlow(
       | 'operation_failed'
       | 'operation_cancelled',
     stage: CatalogUiStage,
-    code?: CatalogUiFailure
+    code?: CatalogUiFailure,
+    operationId?: string
   ) {
     try {
       if (!ownsActor()) return;
       tracker.track(event, {
         ...base,
         action_identifier: stage,
+        ...(operationId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+          operationId
+        )
+          ? { run_id: operationId }
+          : {}),
         ...(code ? { error_code: code } : {}),
         ...(code && machineCauses.has(code)
           ? {
               tool: 'team' as const,
-              error_stage: 'library' as const,
-              error_fingerprint: `team:library:${code}`
+              error_stage:
+                action === 'restitch_claim' ? ('process' as const) : ('library' as const),
+              error_fingerprint: `team:${action === 'restitch_claim' ? 'process' : 'library'}:${code}`
             }
           : {}),
         duration_ms: Math.max(0, Math.round(performance.now() - startedAt))
@@ -103,6 +119,17 @@ export function beginCatalogUiFlow(
     id,
     stage(stage: CatalogUiStage, code?: CatalogUiFailure) {
       if (!settled) emit('operation_stage_completed', stage, code);
+    },
+    /** A claim acknowledgement is never a produced or visibly delivered video. */
+    claimResult(operationId: string | null) {
+      if (settled || action !== 'restitch_claim') return;
+      settled = true;
+      emit(
+        'operation_completed',
+        operationId === null ? 'claim_idle' : 'claim_accepted',
+        undefined,
+        operationId ?? undefined
+      );
     },
     /** Call only after the confirmed result has committed to the visible UI. */
     complete() {

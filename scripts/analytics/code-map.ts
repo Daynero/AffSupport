@@ -844,6 +844,18 @@ function build(): Record<string, CodeLocation> {
       check: source.check
     };
   }
+  for (const code of ['AGENT_UPDATE_REQUIRED', 'RESTITCH_CLIENT_OUTDATED']) {
+    map[`team:process:${code}`] = {
+      files: [
+        'apps/web/src/api/client.ts',
+        'apps/web/src/team/restitch/claim.ts',
+        'apps/web/src/team/catalog-updater/useRestitchPreparer.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts'
+      ],
+      check:
+        'Inspect the actual installed executor probe before the cloud claim. An old local app and an old page need different recovery; refusal and idle claims do not prove processing or video delivery.'
+    };
+  }
   const materialLinkFiles = [
     'supabase/functions/library-ops/share-resolution.ts',
     'supabase/functions/library-ops/index.ts',

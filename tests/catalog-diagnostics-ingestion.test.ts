@@ -176,3 +176,75 @@ it('retains bulk undo stages and a conflict cause through the real guard, ingest
   ).toBe(true);
   expect(JSON.stringify([failed, completed])).not.toContain('synthetic-catalog@example.invalid');
 });
+
+it('retains pre-claim refusal, idle and accepted evidence without claiming video delivery', async () => {
+  const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const refused = beginCatalogUiFlow('restitch_claim', {}, service);
+  refused.stage('executor_check_requested');
+  refused.fail('AGENT_UPDATE_REQUIRED', 'claim_refused');
+  const idle = beginCatalogUiFlow('restitch_claim', {}, service);
+  idle.stage('executor_check_requested');
+  idle.stage('executor_checked');
+  idle.stage('claim_requested');
+  idle.claimResult(null);
+  const accepted = beginCatalogUiFlow('restitch_claim', {}, service);
+  accepted.stage('executor_checked');
+  accepted.stage('claim_requested');
+  const operationId = '47000000-0000-4000-8000-000000000099';
+  accepted.claimResult(operationId);
+  await service.flush();
+  expect(ingestions).toHaveLength(12);
+  expect(
+    ingestions.every(row => row.accepted),
+    JSON.stringify(ingestions)
+  ).toBe(true);
+  const asOf = new Date(Date.now() + 1000).toISOString();
+  const details = [];
+  for (const flow of [refused, idle, accepted]) details.push(await getInspect(flow.id, asOf));
+  const [failure, empty, claimed] = details;
+  expect(
+    failure?.found &&
+      failure.events.some(
+        row => row.properties.error_fingerprint === 'team:process:AGENT_UPDATE_REQUIRED'
+      )
+  ).toBe(true);
+  expect(
+    empty?.found &&
+      empty.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.properties.action_identifier === 'claim_idle'
+      )
+  ).toBe(true);
+  expect(
+    claimed?.found &&
+      claimed.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.run_id === operationId &&
+          row.properties.action_identifier === 'claim_accepted'
+      )
+  ).toBe(true);
+  for (const detail of details) {
+    expect(detail.found).toBe(true);
+    if (!detail.found) continue;
+    expect(detail.events.every(row => row.properties.production_completed === false)).toBe(true);
+    expect(detail.events.some(row => row.properties.action_identifier === 'result_visible')).toBe(
+      false
+    );
+  }
+  expect(lookupCodeLocations('team:process:AGENT_UPDATE_REQUIRED')?.files).toContain(
+    'apps/web/src/team/restitch/claim.ts'
+  );
+  expect(JSON.stringify(details)).not.toContain('synthetic-catalog@example.invalid');
+});

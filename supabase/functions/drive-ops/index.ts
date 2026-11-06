@@ -3319,7 +3319,9 @@ Deno.serve(async request => {
         catalogRequest,
         userId
       );
-    } else if (path === '/updater/claim') {
+    } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
+      if (path === '/updater/claim-as-actor')
+        assertExpectedMutationActor(body.expectedActorId, userId);
       value = await claimRestitchJob(
         updaterRestitchDeps(request, configured.service),
         userId,

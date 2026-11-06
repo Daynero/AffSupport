@@ -42,12 +42,14 @@ beforeEach(() => {
             resolve({
               data: {
                 ok: true,
-                value: {
-                  operationId: '47000000-0000-4000-8000-000000000003',
-                  state: 'succeeded',
-                  materialId: input.materialId,
-                  reused: false
-                }
+                value: path.startsWith('drive-ops/updater/')
+                  ? { job: null }
+                  : {
+                      operationId: '47000000-0000-4000-8000-000000000003',
+                      state: 'succeeded',
+                      materialId: input.materialId,
+                      reused: false
+                    }
               },
               error: null
             });
@@ -88,3 +90,17 @@ for (const method of ['trashMaterial', 'restoreMaterial'] as const) {
     expect(calls.write).toHaveBeenCalledExactlyOnceWith(A);
   });
 }
+
+it('restitch claiming binds the actor before asynchronous token acquisition', async () => {
+  const pending = teamApi.claimRestitchJob(input.teamId, [], 2);
+  calls.actor = B;
+  calls.ready.shift()!();
+  await expect(pending).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+  expect(calls.write).not.toHaveBeenCalled();
+});
+it('restitch claiming permits the original actor through its guarded route', async () => {
+  const pending = teamApi.claimRestitchJob(input.teamId, [], 2);
+  calls.ready.shift()!();
+  expect(await pending).toBeNull();
+  expect(calls.write).toHaveBeenCalledExactlyOnceWith(A);
+});

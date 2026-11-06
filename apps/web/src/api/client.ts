@@ -887,6 +887,22 @@ export async function getRestitchScreenRefusals(
   return result;
 }
 
+/** Probe this installation before a cloud lease, rather than claiming with the page's version. */
+export async function agentRestitchContractVersion(): Promise<number> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  const contracts = normalizeToolContracts(health.toolContracts);
+  if (
+    !toolContractCompatible('teamWorkspace', contracts) ||
+    !toolContractCompatible('stitcher', contracts)
+  )
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  const reported = health.toolContracts?.teamRestitchSources;
+  const version = reported === undefined ? 1 : reported;
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error('AGENT_UPDATE_REQUIRED');
+  // A newer installed protocol does not teach this page how to speak it.
+  return Math.min(version, AGENT_TOOL_CONTRACTS.teamRestitchSources);
+}
+
 export async function agentCanRestitchFromSpace(): Promise<RestitchCapability> {
   try {
     const health = await request<Partial<HealthResponse>>('/api/health', 'GET');

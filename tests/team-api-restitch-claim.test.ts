@@ -1,4 +1,5 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const invoke = vi.fn();
 vi.mock('../apps/web/src/lib/config', () => ({
@@ -10,7 +11,11 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
   getSupabaseClient: () => ({ functions: { invoke } })
 }));
 const { teamApi } = await import('../apps/web/src/api/team');
-afterEach(() => vi.resetAllMocks());
+beforeEach(() => setPrivateCacheScope('47000000-0000-4000-8000-000000000081', 'restitch-claim'));
+afterEach(() => {
+  vi.resetAllMocks();
+  setPrivateCacheScope(null, 'ended');
+});
 
 const job = {
   jobId: 'job',
@@ -64,3 +69,17 @@ it('preserves an empty claim without requiring any screen grants', async () => {
   invoke.mockResolvedValue({ data: { ok: true, value: { job: null } }, error: null });
   expect(await teamApi.claimRestitchJob('team')).toBeNull();
 });
+
+it('defaults an unprobed caller to legacy instead of asserting installed Drive-screen support', async () => {
+  invoke.mockResolvedValue({ data: { ok: true, value: { job: null } }, error: null });
+  await teamApi.claimRestitchJob('team');
+  expect(invoke.mock.calls[0]?.[1]?.body.restitchContractVersion).toBe(1);
+});
+it.each([0, -1, 1.5, 3])(
+  'rejects an invalid or unsupported executor claim %s before cloud work',
+  async version => {
+    invoke.mockResolvedValue({ data: { ok: true, value: { job: null } }, error: null });
+    await expect(teamApi.claimRestitchJob('team', [], version)).rejects.toThrow('INVALID_INPUT');
+    expect(invoke).not.toHaveBeenCalled();
+  }
+);
