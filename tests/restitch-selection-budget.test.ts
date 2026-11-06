@@ -236,3 +236,71 @@ it.each([
 ] as const)('refuses impossible persisted history: %s', (_name, corrupt) => {
   expect(parseScreenSelectionBudget(corrupt())).toBeNull();
 });
+
+it('reacquires unavailable unvalidated prefixes without inventing validation or resetting cost', () => {
+  const size = 2 * bounds.rangeBytes + 4,
+    version = id(1);
+  let state = selectScreenCandidate(createScreenSelectionBudget(), version, size);
+  let request = 300;
+  for (const offset of [0, bounds.rangeBytes]) {
+    const transfer = reserveScreenTransfer(state, version, id(request++), offset);
+    state = settleScreenTransfer(transfer.state, transfer.reservation.requestId, {
+      bytes: transfer.reservation.bytesReserved,
+      ioMs: 1,
+      complete: true
+    });
+  }
+  expect(() => reserveScreenTransfer(state, version, id(request++), 0)).toThrow(
+    'unexpected_offset'
+  );
+  state = reacquireScreenCandidate(state, version);
+  expect(state.acceptedVersionId).toBeNull();
+  expect(state.candidates[0]?.validatedAcquisition).toBeNull();
+  expect(parseScreenSelectionBudget(JSON.parse(JSON.stringify(state)))).toEqual(state);
+  for (let offset = 0; offset < size; offset += bounds.rangeBytes) {
+    const transfer = reserveScreenTransfer(state, version, id(request++), offset);
+    state = settleScreenTransfer(transfer.state, transfer.reservation.requestId, {
+      bytes: transfer.reservation.bytesReserved,
+      ioMs: 1,
+      complete: true
+    });
+  }
+  state = acceptScreenCandidate(state, version, 1);
+  expect(parseScreenSelectionBudget(state)).toEqual(state);
+  expect(state.transfers.reduce((sum, t) => sum + (t.settlement?.bytes ?? 0), 0)).toBe(
+    4 * bounds.rangeBytes + 4
+  );
+  expect(state.candidates[0]?.acquisition).toBe(1);
+});
+it('retains the per-file reacquisition bound across repeated unvalidated restarts', () => {
+  let state = selectScreenCandidate(createScreenSelectionBudget(), id(1), 10);
+  for (let acquisition = 0; acquisition < 3; acquisition++) {
+    const transfer = reserveScreenTransfer(state, id(1), id(400 + acquisition), 0);
+    state = settleScreenTransfer(transfer.state, transfer.reservation.requestId, {
+      bytes: 2,
+      ioMs: 5,
+      complete: false
+    });
+    if (acquisition < 2) {
+      state = reacquireScreenCandidate(state, id(1));
+      expect(parseScreenSelectionBudget(state)).toEqual(state);
+    }
+  }
+  expect(() => reacquireScreenCandidate(state, id(1))).toThrow('retry_limit');
+  expect(state.transfers).toHaveLength(3);
+  expect(state.acceptedVersionId).toBeNull();
+});
+it('does not create an unvalidated acquisition before work or skip missing attempt history', () => {
+  const initial = selectScreenCandidate(createScreenSelectionBudget(), id(1), 10);
+  expect(() => reacquireScreenCandidate(initial, id(1))).toThrow('candidate_not_active');
+  const transfer = reserveScreenTransfer(initial, id(1), id(500), 0);
+  expect(() => reacquireScreenCandidate(transfer.state, id(1))).toThrow('accounting_unconfirmed');
+  const forged = settleScreenTransfer(transfer.state, id(500), {
+    bytes: 2,
+    ioMs: 5,
+    complete: false
+  });
+  forged.candidates[0]!.acquisition = 2;
+  forged.revision += 2;
+  expect(parseScreenSelectionBudget(forged)).toBeNull();
+});

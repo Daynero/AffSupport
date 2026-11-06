@@ -6387,6 +6387,29 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      analytics_restitch_selection_slots: {
+        Row: {
+          actor_id: string | null;
+          budget_revision: number | null;
+          candidate_count: number | null;
+          candidate_versions: Json | null;
+          confirmed_bytes: number | null;
+          confirmed_io_ms: number | null;
+          created_at: string | null;
+          operation_id: string | null;
+          pool_namespace_id: string | null;
+          range_count: number | null;
+          refresh_count: number | null;
+          retry_count: number | null;
+          slot: string | null;
+          snapshot_complete: boolean | null;
+          state: string | null;
+          team_id: string | null;
+          unconfirmed_range_count: number | null;
+          updated_at: string | null;
+        };
+        Relationships: [];
+      };
       analytics_team_workspace: {
         Row: {
           member_joined_at: string | null;
@@ -8698,6 +8721,17 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      service_cas_restitch_selection_slot: {
+        Args: {
+          p_actor: string;
+          p_expected_budget: Json;
+          p_next_budget: Json;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       service_catalog_export_allowed: {
         Args: { p_actor: string; p_material: string; p_team: string };
         Returns: boolean;
@@ -10150,6 +10184,15 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_read_restitch_selection_slot: {
+        Args: {
+          p_actor: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_reconcile_catalog_result: {
         Args: { p_actor: string; p_intent: string; p_team: string };
         Returns: Json;
@@ -10459,6 +10502,18 @@ export type GeneratedDatabase = {
           p_result: string;
         };
         Returns: string;
+      };
+      service_settle_restitch_selection_range: {
+        Args: {
+          p_actor: string;
+          p_expected_reservation: Json;
+          p_measurement: Json;
+          p_request: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: boolean;
       };
       service_settle_task_cleanup: {
         Args: { p_id: string; p_result: string };

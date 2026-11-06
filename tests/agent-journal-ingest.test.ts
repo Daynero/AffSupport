@@ -404,3 +404,52 @@ it('retains empty native claim evidence through the privacy fence, ingestion and
     setQueryExecutor(null);
   }
 });
+
+it('retains a pre-claim executor refusal and installed version through SQL ingestion and the read-only journal CLI', async () => {
+  const instance = randomUUID();
+  const props = {
+    team_id: randomUUID(),
+    delegation_id: randomUUID(),
+    request_id: randomUUID(),
+    stage: 'blocked',
+    reason: 'needs_agent_setup',
+    error_code: 'AGENT_UPDATE_REQUIRED',
+    restitch_contract_version: 2
+  };
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  expect(log.record('team', 'recovery_state', props)).toBe(true);
+  expect(await ingest(log.since(0), { instance })).toEqual({
+    accepted: 1,
+    duplicates: 0,
+    rejected: []
+  });
+  let chain: Promise<unknown> = Promise.resolve();
+  setQueryExecutor((sql, params) => {
+    const read = chain.then(async () => {
+      await harness.db.exec('begin read only;set local role wishly_analytics_ro');
+      try {
+        const result = await harness.db.query(sql, params);
+        await harness.db.exec('commit');
+        return result.rows as Record<string, unknown>[];
+      } catch (error) {
+        await harness.db.exec('rollback');
+        throw error;
+      }
+    });
+    chain = read.catch(() => {});
+    return read;
+  });
+  try {
+    const evidence = await getJournal(instance, {
+      token: 'all',
+      start: null,
+      end: new Date(Date.now() + 1000).toISOString(),
+      label: 'all'
+    });
+    expect(evidence.records[0]).toMatchObject({ category: 'team', code: 'recovery_state', props });
+    expect(JSON.stringify(evidence)).not.toContain('operationCredential');
+  } finally {
+    await chain;
+    setQueryExecutor(null);
+  }
+});

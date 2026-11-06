@@ -699,7 +699,13 @@ function CatalogUpdaterDialogScope({
     );
   };
   const cancelNow = (row: CatalogRegistryRow) => {
-    if (!owner.current() || busyRef.current.has(row.catalogId)) return;
+    if (
+      !owner.current() ||
+      busyRef.current.has(row.catalogId) ||
+      commands.blocked(row.catalogId) ||
+      inline.blocked(row.catalogId)
+    )
+      return;
     const flow = beginCatalogUiFlow('stop', {
       count: 1,
       relatedFlowId: row.activeAttemptId ?? undefined

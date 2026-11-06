@@ -590,6 +590,9 @@ describe('investigate · (e) a user with no events', () => {
         detail: expect.stringContaining('Material-group execution projection is unavailable')
       }),
       expect.objectContaining({
+        detail: expect.stringContaining('Restitch selection projection is unavailable')
+      }),
+      expect.objectContaining({
         detail: expect.stringContaining('Workspace diagnostic projection is unavailable')
       }),
       expect.objectContaining({

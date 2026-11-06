@@ -149,20 +149,9 @@ export function parseScreenSelectionBudget(value: unknown): ScreenSelectionBudge
       rejected: c.rejected
     });
   }
-  // Selection advances only after retiring the previous candidate. A cache
-  // reacquisition always retains the immediately preceding validation.
+  // Selection advances only after retiring the previous candidate.
   const active = state.candidates.filter(c => !c.rejected);
   if (active.length > 1 || (active.length === 1 && active[0] !== state.candidates.at(-1)))
-    return null;
-  if (
-    active.some(
-      c =>
-        c.acquisition > 0 &&
-        (state.acceptedVersionId !== c.versionId ||
-          c.validatedAcquisition === null ||
-          c.validatedAcquisition < c.acquisition - 1)
-    )
-  )
     return null;
   const requestIds = new Set<string>();
   let usedBytes = 0,
@@ -274,10 +263,20 @@ export function parseScreenSelectionBudget(value: unknown): ScreenSelectionBudge
   )
     return null;
   const acquisitions = state.candidates.reduce((n, c) => n + c.acquisition, 0);
-  const minimumValidations = state.candidates.reduce(
-    (n, c) => n + c.acquisition + (c.validatedAcquisition === c.acquisition ? 1 : 0),
-    0
-  );
+  // An unvalidated restart must retain evidence of each abandoned acquisition.
+  for (const c of active) {
+    for (let i = (c.validatedAcquisition ?? -1) + 1; i < c.acquisition; i++) {
+      if (!positions.has(c.versionId + ':' + i)) return null;
+    }
+  }
+  const minimumValidations = state.candidates.reduce((n, c) => {
+    const validations = new Set<number>();
+    if (c.validatedAcquisition !== null) validations.add(c.validatedAcquisition);
+    for (let i = 0; i < c.acquisition; i++) {
+      if (!positions.has(c.versionId + ':' + i)) validations.add(i);
+    }
+    return n + validations.size;
+  }, 0);
   const minimumRevision =
     state.candidates.length +
     state.transfers.length +
@@ -475,8 +474,16 @@ export function reacquireScreenCandidate(
   pending(state);
   if (
     c.rejected ||
-    state.acceptedVersionId !== c.versionId ||
-    c.validatedAcquisition !== c.acquisition
+    (state.acceptedVersionId !== null && state.acceptedVersionId !== c.versionId) ||
+    !(
+      (state.acceptedVersionId === c.versionId && c.validatedAcquisition === c.acquisition) ||
+      state.transfers.some(
+        t =>
+          t.candidateVersionId === c.versionId &&
+          t.acquisition === c.acquisition &&
+          t.settlement !== null
+      )
+    )
   )
     fail('candidate_not_active');
   if (

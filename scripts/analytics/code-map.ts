@@ -850,12 +850,23 @@ function build(): Record<string, CodeLocation> {
         'apps/web/src/api/client.ts',
         'apps/web/src/team/restitch/claim.ts',
         'apps/web/src/team/catalog-updater/useRestitchPreparer.ts',
-        'supabase/functions/drive-ops/updater-restitch.ts'
+        'supabase/functions/drive-ops/updater-restitch.ts',
+        'supabase/functions/team-recovery/handler.ts',
+        'apps/agent/src/team-bridge/recovery-worker.ts'
       ],
       check:
-        'Inspect the actual installed executor probe before the cloud claim. An old local app and an old page need different recovery; refusal and idle claims do not prove processing or video delivery.'
+        'Inspect the actual installed executor probe before the cloud claim. For native background claims inspect the installed executor declaration and durable replay, rather than assuming the broker version. An old local app and an old page need different recovery; refusal and idle claims do not prove processing or video delivery.'
     };
   }
+  map['restitch:selection:accounting'] = {
+    files: [
+      'supabase/functions/drive-ops/restitch-selection-store.ts',
+      'supabase/migrations/20261207155000_restitch_selection_storage.sql',
+      'packages/shared/src/team/restitch-selection.ts'
+    ],
+    check:
+      'Inspect the original slot and exact reservation. A held range proves neither an upstream read nor its absence. Preserve unknown accounting and confirm recorded measurements before issuing more work.'
+  };
   const materialLinkFiles = [
     'supabase/functions/library-ops/share-resolution.ts',
     'supabase/functions/library-ops/index.ts',
@@ -1697,8 +1708,12 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'Inspect shared eligibility predicates, lease deadlines and retained operation receipts. Preserve execution and upload fences; a current snapshot cannot establish a historical rejection.'
   },
   'journal:team:recovery_state': {
-    files: ['apps/agent/src/team-bridge/recovery-worker.ts'],
-    check: 'Inspect the persisted recovery checkpoint and current dependency.'
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'supabase/functions/team-recovery/handler.ts'
+    ],
+    check:
+      'Inspect the correlated request, installed restitch_contract_version and closed error_code alongside the persisted checkpoint. A proven pre-lease executor refusal closes only its no-job receipt; lost bookkeeping or unknown Drive outcomes remain fenced. Older producers may omit the cause, which remains unknown.'
   },
   'tariff:recovery:execution_reserved': {
     files: [

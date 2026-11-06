@@ -31,6 +31,7 @@ export interface AnalyticsSchema {
     analytics_launch_assignment_events?: boolean;
     analytics_workspace_operations?: boolean;
     analytics_material_group_execution?: boolean;
+    analytics_restitch_selection_slots?: boolean;
     analytics_process_output_cleanup?: boolean;
     analytics_workspace_recovery?: boolean;
     analytics_recovery_execution?: boolean;
@@ -262,6 +263,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  restitch_selections?: import('./restitch-selections.js').RestitchSelectionEvidence;
   material_groups?: import('./material-groups.js').MaterialGroupEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
@@ -294,6 +296,7 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  restitch_selections?: import('./restitch-selections.js').RestitchSelectionEvidence;
   material_groups?: import('./material-groups.js').MaterialGroupEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;

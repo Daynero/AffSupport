@@ -1,3 +1,8 @@
+import {
+  handleRecovery,
+  type RecoveryHandlerDeps
+} from '../supabase/functions/team-recovery/handler';
+import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 import { beforeAll, afterAll, beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
 const OWNER = '34000000-0000-4000-8000-000000000001';
@@ -498,6 +503,73 @@ describe('scoped background delegation', () => {
     expect(reply).toEqual({ error: 'AUTH_REQUIRED' });
     await expect(call('claim', H(4), { requestId: REQUEST })).rejects.toThrow(/AUTH_REQUIRED/);
   });
+  it.each(['unsupported', 'unknown', 'lost_after_commit', 'lost_before_commit'])(
+    'retains truthful broker receipt accounting after %s claim refusal',
+    async scenario => {
+      await enroll();
+      await rotate();
+      const d: RecoveryHandlerDeps = {
+        user: async () => OWNER,
+        revoke: async () => {},
+        token: () => 'x'.repeat(43),
+        hash: async () => H(4),
+        rpc: async (action, _hash, input) => {
+          if (action === 'register_claim' && scenario === 'lost_before_commit')
+            throw Error('SYNTHETIC_NETWORK');
+          const value = await call(action, H(4), input);
+          if (action === 'register_claim' && scenario === 'lost_after_commit')
+            throw Error('SYNTHETIC_NETWORK');
+          return value;
+        },
+        drive: async () => {
+          throw new TeamFunctionError(
+            scenario === 'unknown' ? 'DRIVE_UNAVAILABLE' : 'RESTITCH_CLIENT_OUTDATED'
+          );
+        }
+      };
+      const request = new Request('https://synthetic.test', {
+        method: 'POST',
+        headers: { 'x-team-recovery-credential': 'c'.repeat(43) },
+        body: JSON.stringify({
+          action: 'claim',
+          protocolVersion: 2,
+          requestId: REQUEST,
+          restitchContractVersion: 1
+        })
+      });
+      await expect(handleRecovery(request, d)).rejects.toThrow(
+        scenario === 'unknown'
+          ? 'DRIVE_UNAVAILABLE'
+          : scenario.startsWith('lost_')
+            ? 'PROCESS_RESULT_UNCERTAIN'
+            : 'AGENT_UPDATE_REQUIRED'
+      );
+      const expectedPending = scenario === 'unknown' || scenario === 'lost_before_commit';
+      const pending = (
+        await db.root<{ count: number }>(
+          "select count(*)::integer count from private.team_recovery_claim_receipts where state='pending'"
+        )
+      )[0]!.count;
+      expect(pending).toBe(expectedPending ? 1 : 0);
+      const replay = await call('claim', H(4), { requestId: REQUEST });
+      expect(replay).toEqual(
+        expectedPending ? { pending: true } : { replay: { job: null, operationCredential: null } }
+      );
+      expect(
+        (
+          await db.root<{ count: number }>(
+            "select count(*)::integer count from private.team_recovery_credentials where audience='execute'"
+          )
+        )[0]!.count
+      ).toBe(0);
+      if (!expectedPending) {
+        await db.root(
+          "update private.team_recovery_delegations set last_claim_at=clock_timestamp()-interval '31 seconds'"
+        );
+        expect(await call('claim', H(4), { requestId: ROTATION })).toMatchObject({ teamId: team });
+      }
+    }
+  );
   it('coalesces a lost claim response and enforces idle claim budgets', async () => {
     await enroll();
     await rotate();

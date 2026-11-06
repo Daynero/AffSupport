@@ -1,3 +1,10 @@
+import {
+  createScreenSelectionBudget,
+  selectScreenCandidate,
+  reserveScreenTransfer,
+  settleScreenTransfer,
+  reacquireScreenCandidate
+} from '@video-compressor/shared';
 import { assertDisposablePostgresContainer } from './support/disposable-postgres';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -43,11 +50,52 @@ async function sql(statement: string): Promise<string> {
   child.stdin!.end(statement);
   return result;
 }
+function holdSql(statement: string): { commit: () => Promise<string> } {
+  assertDisposablePostgresContainer(container);
+  const child = execFile(
+    'docker',
+    [
+      'exec',
+      '-i',
+      container!,
+      'psql',
+      '-X',
+      '-qAt',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-U',
+      'supabase_admin',
+      '-d',
+      'postgres'
+    ],
+    { timeout: 15000, maxBuffer: 1024 * 1024 }
+  );
+  const result = new Promise<string>((resolve, reject) => {
+    let output = '',
+      error = '';
+    child.stdout!.on('data', chunk => {
+      output += String(chunk);
+    });
+    child.stderr!.on('data', chunk => {
+      error = (error + String(chunk)).slice(-2000);
+    });
+    child.on('error', reject);
+    child.on('close', code => (code === 0 ? resolve(output.trim()) : reject(new Error(error))));
+  });
+  void result.catch(() => undefined);
+  child.stdin!.write(`begin;${statement};\n`);
+  return {
+    commit: () => {
+      child.stdin!.end('commit;\n');
+      return result;
+    }
+  };
+}
 async function held(marker: string, event = 'PgSleep') {
   await waitFor(
     async () =>
       (await sql(`select count(*) from pg_stat_activity where datname=current_database()
-    and pid<>pg_backend_pid() and query like '%${marker}%' and ${event === 'Lock' ? "wait_event_type='Lock'" : "wait_event='PgSleep'"}`)) ===
+    and pid<>pg_backend_pid() and query like '%${marker}%' and ${event === 'Lock' ? "wait_event_type='Lock'" : event === 'Idle' ? "state='idle in transaction'" : "wait_event='PgSleep'"}`)) ===
       '1',
     { timeoutMs: 5000, intervalMs: 30, describe: `isolated transaction ${marker} ${event}` }
   );
@@ -124,6 +172,124 @@ async function materialExecutionFixture(create = true, withChild = false) {
   if (create) await sql(statement);
   return { material, child, operation, intent, statement };
 }
+
+async function selectionStorageFixture() {
+  const video = randomUUID(),
+    image = randomUUID(),
+    root = randomUUID(),
+    version = randomUUID(),
+    requestId = randomUUID();
+  const recipe = JSON.stringify({
+    schemaVersion: 1,
+    seed: randomUUID(),
+    defaults: {
+      sourceMode: 'drive',
+      operation: 'restitch',
+      configured: true,
+      startEnabled: false,
+      endEnabled: true
+    }
+  });
+  await sql(
+    "begin;insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version) values('" +
+      video +
+      "','" +
+      team +
+      "','" +
+      connection +
+      "','" +
+      video +
+      "','root','Synthetic selection source','file','video','video/mp4',4,repeat('c',32),'1'),('" +
+      image +
+      "','" +
+      team +
+      "','" +
+      connection +
+      "','" +
+      image +
+      "','root','Synthetic selection image','file','image','image/png',4,repeat('a',32),'1');" +
+      "insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce) values('" +
+      root +
+      "','" +
+      team +
+      "','" +
+      owner +
+      "','download','running','" +
+      video +
+      "','" +
+      root +
+      "','selection:" +
+      root +
+      "');" +
+      "insert into private.restitch_selection_roots(root_operation_id,team_id,actor_id,source_material_id,source_version,recipe_owner_id,pool_namespace_id,recipe) values('" +
+      root +
+      "','" +
+      team +
+      "','" +
+      owner +
+      "','" +
+      video +
+      "','1','" +
+      owner +
+      "','" +
+      randomUUID() +
+      "','" +
+      recipe +
+      "'::jsonb);" +
+      "insert into private.restitch_selection_candidates(root_operation_id,slot,version_id,material_id,ordinal,size_bytes,mime_type,checksum,drive_version) values('" +
+      root +
+      "','end','" +
+      version +
+      "','" +
+      image +
+      "',1,4,'image/png',repeat('a',32),'1');" +
+      "update private.restitch_selection_slots set snapshot_complete=true where root_operation_id='" +
+      root +
+      "';commit;"
+  );
+  const empty = createScreenSelectionBudget(),
+    selected = selectScreenCandidate(empty, version, 4);
+  const reserved = reserveScreenTransfer(selected, version, requestId, 0).state;
+  const f = { root, version, requestId, empty, selected, reserved };
+  expect(await sql(selectionStorageCas(f, empty, selected))).toBe('t');
+  return f;
+}
+function selectionStorageCas(f: { root: string }, before: unknown, after: unknown) {
+  return (
+    "select public.service_cas_restitch_selection_slot('" +
+    f.root +
+    "','" +
+    team +
+    "','" +
+    owner +
+    "','end','" +
+    JSON.stringify(before) +
+    "'::jsonb,'" +
+    JSON.stringify(after) +
+    "'::jsonb)"
+  );
+}
+function selectionStorageSettle(
+  f: { root: string; requestId: string; reserved: { transfers: unknown[] } },
+  bytes: number
+) {
+  return (
+    "select public.service_settle_restitch_selection_range('" +
+    f.root +
+    "','" +
+    team +
+    "','" +
+    owner +
+    "','end','" +
+    f.requestId +
+    "','" +
+    JSON.stringify(f.reserved.transfers[0]) +
+    "'::jsonb,'" +
+    JSON.stringify({ bytes, ioMs: 5, complete: false }) +
+    "'::jsonb)"
+  );
+}
+
 describe.skipIf(!container)(
   '047 command acceptance [needs: disposable PostgreSQL container]',
   () => {
@@ -466,6 +632,120 @@ describe.skipIf(!container)(
           `select count(*) from private.team_material_group_intents where id='${secondIntent}'`
         )
       ).toBe('0');
+    }, 15000);
+
+    it('grants one screen range to overlapping same-state callers without replay dispatch', async () => {
+      const f = await selectionStorageFixture();
+      const first = sql(
+        'begin;' +
+          selectionStorageCas(f, f.selected, f.reserved) +
+          ';select pg_sleep(2) /* screen_reservation_hold */;commit;'
+      );
+      await held('screen_reservation_hold');
+      const second = sql(
+        selectionStorageCas(f, f.selected, f.reserved) + ' /* screen_reservation_wait */'
+      );
+      await held('screen_reservation_wait', 'Lock');
+      expect(await first).toBe('t');
+      expect(await second).toBe('f');
+      expect(
+        await sql(
+          "select range_count||':'||unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='" +
+            f.root +
+            "' and slot='end'"
+        )
+      ).toBe('1:1');
+    }, 15000);
+    it('refuses a range whose parent was canceled while its CAS waited', async () => {
+      const f = await selectionStorageFixture();
+      const first = sql(
+        asActor(
+          "select public.cancel_team_operation('" +
+            team +
+            "','" +
+            f.root +
+            "');select pg_sleep(2) /* screen_cancel_hold */"
+        )
+      );
+      await held('screen_cancel_hold');
+      const second = sql(
+        selectionStorageCas(f, f.selected, f.reserved) + ' /* screen_cancel_wait */'
+      ).then(
+        value => ({ value, error: null }),
+        error => ({ value: null, error: error as Error })
+      );
+      await held('screen_cancel_wait', 'Lock');
+      await first;
+      expect((await second).error?.message).toContain('WRONG_STATE');
+      expect(
+        await sql(
+          "select range_count from public.analytics_restitch_selection_slots where operation_id='" +
+            f.root +
+            "' and slot='end'"
+        )
+      ).toBe('0');
+    }, 15000);
+    it('waits for settled prefix accounting before reacquiring lost unvalidated bytes', async () => {
+      const f = await selectionStorageFixture();
+      expect(await sql(selectionStorageCas(f, f.selected, f.reserved))).toBe('t');
+      const settled = settleScreenTransfer(f.reserved, f.requestId, {
+        bytes: 2,
+        ioMs: 5,
+        complete: false
+      });
+      const reacquired = reacquireScreenCandidate(settled, f.reserved.candidates[0]!.versionId);
+      const first = holdSql(selectionStorageSettle(f, 2) + ' /* screen_prefix_hold */');
+      let second: Promise<string> | undefined;
+      try {
+        await held('screen_prefix_hold', 'Idle');
+        // pg_stat_activity truncates long JSON queries at track_activity_query_size.
+        second = sql(
+          '/* screen_prefix_wait */ ' + selectionStorageCas(f, settled, reacquired) + ';'
+        );
+        void second.catch(() => undefined);
+        await held('screen_prefix_wait', 'Lock');
+      } finally {
+        expect(await first.commit()).toBe('t');
+      }
+      expect(await second).toBe('t');
+      expect(
+        await sql(
+          "select confirmed_bytes||':'||retry_count||':'||state from public.analytics_restitch_selection_slots where operation_id='" +
+            f.root +
+            "' and slot='end'"
+        )
+      ).toBe('2:1:candidate_selected');
+      expect(await sql("select state from public.team_operations where id='" + f.root + "'")).toBe(
+        'running'
+      );
+    }, 15000);
+    it('records a reserved range after concurrent cancellation without reviving its parent', async () => {
+      const f = await selectionStorageFixture();
+      expect(await sql(selectionStorageCas(f, f.selected, f.reserved))).toBe('t');
+      const first = sql(
+        asActor(
+          "select public.cancel_team_operation('" +
+            team +
+            "','" +
+            f.root +
+            "');select pg_sleep(2) /* screen_accounting_cancel_hold */"
+        )
+      );
+      await held('screen_accounting_cancel_hold');
+      const second = sql(selectionStorageSettle(f, 2) + ' /* screen_accounting_cancel_wait */');
+      await held('screen_accounting_cancel_wait', 'Lock');
+      await first;
+      expect(await second).toBe('t');
+      expect(
+        await sql(
+          "select confirmed_bytes||':'||unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='" +
+            f.root +
+            "' and slot='end'"
+        )
+      ).toBe('2:0');
+      expect(await sql("select state from public.team_operations where id='" + f.root + "'")).toBe(
+        'canceled'
+      );
     }, 15000);
   }
 );

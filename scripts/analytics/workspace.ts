@@ -1,3 +1,7 @@
+import {
+  getRestitchSelectionEvidence,
+  type RestitchSelectionEvidence
+} from './restitch-selections.js';
 import { getMaterialGroupEvidence, type MaterialGroupEvidence } from './material-groups.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
@@ -45,6 +49,7 @@ export interface WorkspaceEvidence {
   cleanup?: ProcessOutputCleanupEvidence;
 }
 export interface WorkspaceEvidenceResult {
+  restitch_selections?: RestitchSelectionEvidence;
   material_groups?: MaterialGroupEvidence;
   supported: boolean;
   operations: WorkspaceEvidence[];
@@ -57,14 +62,19 @@ export async function getWorkspaceEvidence(
   asOf: string
 ): Promise<WorkspaceEvidenceResult> {
   const schema = await getSchema();
-  const materialGroups = await getMaterialGroupEvidence({ actorId, since, asOf });
+  const [materialGroups, restitchSelections] = await Promise.all([
+    getMaterialGroupEvidence({ actorId, since, asOf }),
+    getRestitchSelectionEvidence({ actorId, since, asOf })
+  ]);
   if (!schema.tables.analytics_workspace_operations)
     return {
       supported: false,
       operations: [],
       material_groups: materialGroups,
+      restitch_selections: restitchSelections,
       blind_spots: [
         ...materialGroups.blind_spots,
+        ...restitchSelections.blind_spots,
         'Workspace diagnostic projection is unavailable; missing events do not prove success or absence of work.'
       ]
     };
@@ -73,6 +83,7 @@ export async function getWorkspaceEvidence(
       supported: true,
       operations: [],
       material_groups: materialGroups,
+      restitch_selections: restitchSelections,
       blind_spots: ['No authenticated subject for hosted workspace receipts.']
     };
   let rows: Record<string, unknown>[];
@@ -86,8 +97,10 @@ export async function getWorkspaceEvidence(
       supported: true,
       operations: [],
       material_groups: materialGroups,
+      restitch_selections: restitchSelections,
       blind_spots: [
         ...materialGroups.blind_spots,
+        ...restitchSelections.blind_spots,
         'Workspace diagnostic read failed; missing receipts do not prove success or absence of work.'
       ]
     };
@@ -200,8 +213,10 @@ export async function getWorkspaceEvidence(
     supported: true,
     operations,
     material_groups: materialGroups,
+    restitch_selections: restitchSelections,
     blind_spots: [
       ...materialGroups.blind_spots,
+      ...restitchSelections.blind_spots,
       ...(unknownRestoreCode
         ? ['A restore receipt has an unrecognized cause; its underlying failure remains unknown.']
         : []),

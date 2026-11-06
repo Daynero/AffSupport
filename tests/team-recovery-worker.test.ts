@@ -232,6 +232,7 @@ describe('background recovery worker', () => {
     await vi.advanceTimersByTimeAsync(0);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(f.fetcher.mock.calls[0][1]?.body)).restitchContractVersion).toBe(2);
     await vi.advanceTimersByTimeAsync(29000);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);
@@ -709,33 +710,47 @@ describe('background recovery worker', () => {
       });
     }
   );
-  it.each(['AUTH_REQUIRED', 'PERMISSION_DENIED', 'INVALID_INPUT', 'INVALID_RESPONSE'])(
-    'persists permanent %s without retries or execution after restart',
-    async code => {
-      const f = await fixture();
-      f.fetcher.mockResolvedValue(
-        new Response(JSON.stringify({ ok: false, error: { code } }), { status: 403 })
-      );
-      await f.worker.load();
-      await vi.advanceTimersByTimeAsync(0);
-      await f.worker.idle();
-      const reason = code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup';
-      expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason });
-      await vi.advanceTimersByTimeAsync(3_600_000);
-      await f.worker.idle();
-      expect(f.fetcher).toHaveBeenCalledOnce();
-      await f.worker.shutdown();
-      const restarted = new TeamRecoveryWorker(f.worker.options);
-      workers.push(restarted);
-      await restarted.load();
-      await vi.advanceTimersByTimeAsync(0);
-      await restarted.idle();
-      await expect(restarted.retry(TEAM)).rejects.toThrow('WRONG_STATE');
-      expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
-      expect(f.fetcher).toHaveBeenCalledOnce();
-      expect(f.process.process).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    'AUTH_REQUIRED',
+    'PERMISSION_DENIED',
+    'INVALID_INPUT',
+    'INVALID_RESPONSE',
+    'AGENT_UPDATE_REQUIRED'
+  ])('persists permanent %s without retries or execution after restart', async code => {
+    const f = await fixture();
+    f.fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code } }), { status: 403 })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    const reason = code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup';
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_state',
+      expect.objectContaining({
+        team_id: TEAM,
+        stage: 'blocked',
+        reason,
+        error_code: code,
+        restitch_contract_version: 2,
+        request_id: expect.any(String)
+      })
+    );
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await f.worker.shutdown();
+    const restarted = new TeamRecoveryWorker(f.worker.options);
+    workers.push(restarted);
+    await restarted.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await restarted.idle();
+    await expect(restarted.retry(TEAM)).rejects.toThrow('WRONG_STATE');
+    expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
   it('cancels active work before removing its durable registration and never restores it', async () => {
     const f = await fixture();
     const order: string[] = [];

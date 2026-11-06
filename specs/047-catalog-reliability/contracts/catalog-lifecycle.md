@@ -427,3 +427,54 @@ claim_refused, claim_idle or claim_accepted. Its terminal acknowledges only this
 claim step and always carries production_completed=false; it never emits
 result_visible. Native background claims and full durable screen-selection
 protocol negotiation remain separate unfinished boundaries.
+
+
+## C4.2. Selection-storage foundation (unwired)
+
+The first storage increment admits only an existing manual download/process root.
+Its immutable source/team/actor binding is checked against the cloud operation;
+automated updater/Launch operations are explicitly refused until their immutable
+logical-preparation acceptance and executor-alias proof are implemented.
+No public root initializer, native capability or user path is enabled here.
+
+The service-only read/CAS/bookkeeping signatures are:
+
+- service_read_restitch_selection_slot(root, team, actor, slot): canonical scope
+  echo plus strict version1 budget; missing state never becomes an empty budget.
+- service_cas_restitch_selection_slot(root, team, actor, slot, expected, next):
+  exact state under lock, current permissions/source and one canonical kernel
+  transition. Only literal true acknowledgement permits a newly reserved range.
+- service_settle_restitch_selection_range(root, team, actor, slot, request,
+  expected_reservation, measurement): the already issued range only. It cannot
+  select a candidate, issue a grant or add a range. Trusted server measurements
+  may settle after parent cancellation/access revocation. Lost acknowledgement
+  may be confirmed read-only against the exact reservation and measurement.
+
+Service RPC builders are PromiseLike. A lost reservation acknowledgement or a
+failed compare-and-swap is never rebased into fresh dispatch. Fixed2MiB ranges,
+50MiB per candidate,250MiB and120s active upstream waits per slot,32 candidates,
+two per-candidate/six total retries, one per-candidate/two total refreshes and
+956 maximum transfer records retain the existing shared kernel values.
+
+Private rows have forced RLS, no direct browser or service table grants and the
+existing cleanup-reference fences. Candidate snapshots are frozen before use.
+Missing pool completeness remains unknown; it never proves every image broken.
+Actual protected reader, accepted recipe/pool authority, durable refusal memory,
+logical aliases, diagnostics and all product-path wiring remain separate work.
+
+Reacquisition also covers lost local prefixes of an unvalidated active candidate,
+after at least one settled range in that acquisition. It increments the same
+per-candidate/global retry counters, preserves all prior measurements and does
+not set acceptedVersionId or validatedAcquisition. Unsettled ranges still block
+reacquisition; a fresh selection with no work cannot consume a restart. Parsing
+requires retained transfer evidence for abandoned unvalidated acquisitions.
+
+Native background claims likewise declare the installed executor's compiled
+restitchContractVersion. Absent is legacy1, malformed values refuse before claim
+authorization and the server intersects the declaration with its own support.
+It never substitutes its current version for an absent client declaration.
+A durable Drive-screen replay is also refused for a legacy executor without
+claiming another job. Existing library replays remain compatible. The broker
+maps the updater's outdated-client refusal to AGENT_UPDATE_REQUIRED, which the
+existing worker records as blocked/needs_agent_setup without a retry storm.
+This does not advertise the unfinished durable-selection recovery capability.

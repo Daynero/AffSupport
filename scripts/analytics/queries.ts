@@ -1,3 +1,7 @@
+import {
+  getRestitchSelectionEvidence,
+  mergeRestitchSelectionInspection
+} from './restitch-selections.js';
 import { getMaterialGroupEvidence, mergeMaterialGroupInspection } from './material-groups.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import {
@@ -2361,7 +2365,21 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
     ],
     asOf: asOf ?? new Date().toISOString()
   });
-  const core = mergeMaterialGroupInspection(initialCore, groups);
+  const screenSelections = await getRestitchSelectionEvidence({
+    ids: [
+      id,
+      ...(initialCore.found
+        ? initialCore.events
+            .flatMap(event => [event.flow_id, event.run_id])
+            .filter((value): value is string => typeof value === 'string')
+        : [])
+    ],
+    asOf: asOf ?? new Date().toISOString()
+  });
+  const core = mergeRestitchSelectionInspection(
+    mergeMaterialGroupInspection(initialCore, groups),
+    screenSelections
+  );
   const bindings =
     core.found && core.capability === 'team.catalog_manager_stop'
       ? [

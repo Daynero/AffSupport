@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "observed_at": "2026-11-06T23:08:42.993142+00:00",
+  "project": "r2beta045",
+  "source_schema_before": 437,
+  "source_schema_after": 438,
+  "migration": "20261207155000_restitch_selection_storage.sql",
+  "migration_sha256": "21a9b580303b6d942e0782bb6e5547b66095af554da469c45e5fdd02bfbd8a54",
+  "protected_tables": [
+    "private.team_material_group_intents",
+    "auth.users",
+    "public.profiles",
+    "public.teams",
+    "public.team_members",
+    "public.team_drive_connections",
+    "private.google_drive_credentials",
+    "private.drive_credential_references",
+    "private.team_recovery_credentials",
+    "private.team_recovery_delegations",
+    "public.team_materials",
+    "public.team_product_catalogs",
+    "public.team_catalog_update_profiles",
+    "public.team_catalog_restitch_copies"
+  ],
+  "all_protected_fullrow_snapshots_unchanged": true,
+  "preservation_scope": "Edge-quiesced DDL window only; later authenticated refusal tests are separate observations.",
+  "native_proof": "verification-db-restitch-storage-prefix.json",
+  "browser_refusal_proof": "restitch-storage-beta-refusal.json",
+  "generated_types": {
+    "cli": "2.117.0",
+    "target": "actual local beta public schema",
+    "network": "soty-beta-r2beta045-loopback",
+    "canonical_wrapper_preserved": true,
+    "canonical_generator_sha256": "df7140e83a4b9560a41729e517dabebd7899d50791513032a20b2f507812c2c5",
+    "only_invocation_delta": "--network-id on existing owned isolated bridge; no network or source generator change"
+  },
+  "production_touched": false,
+  "scope": "Additive storage only; no public initializer or product selection path enabled."
+}

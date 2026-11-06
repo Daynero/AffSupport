@@ -2455,3 +2455,20 @@ replaced placement and terminal-generation replay remain refused. Fresh writes
 still require live provider preflight. This migration changes no application
 rows and grants no provider execution. No production action or automatic rollback
 is authorized.
+
+
+### 20261207155000 — restitch selection storage foundation
+
+This additive private storage has no public root initializer, advertised native
+capability or wired product path. Browser table/RPC access is revoked; only the
+service can read exact scope, CAS a canonical transition or settle an issued
+measurement. The diagnostic projection is content-free and SELECT-only.
+
+Before reverting a future producer, stop accepting new roots and keep all held
+ranges and original identities. Cancellation/access revocation cannot delete
+accounting or prevent its exact late settlement. Confirmed history and snapshots
+must not reset; unknown reservations never expire into new dispatch permission.
+Do not drop live storage, erase receipts, rotate keys or run a destructive down
+migration to recover a read. Retain the additive schema while reconciling any
+issued work. Candidate/pool/recipe acceptance, aliases and retention must be
+completed and verified before exposing a producer.

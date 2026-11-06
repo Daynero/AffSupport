@@ -1933,6 +1933,23 @@ export async function getInvestigation(
               : 'Inspect the original execution marker. Missing legacy or browser evidence remains unknown; do not rotate its request key.'
     });
   }
+  const selectionLocation = lookupCodeLocations('restitch:selection:accounting');
+  for (const selection of workspace.restitch_selections?.records ?? []) {
+    if (!['range_unconfirmed', 'candidate_rejected'].includes(selection.state)) continue;
+    findings.push({
+      id: hashId(['restitch_selection', selection.operation_id, selection.slot, selection.state]),
+      kind: selection.state === 'range_unconfirmed' ? 'fact' : 'insufficient',
+      severity: selection.state === 'range_unconfirmed' ? 'high' : 'medium',
+      rule: 'workspace_receipt',
+      title: 'Restitch ' + selection.slot + ': ' + selection.state,
+      evidence: ['restitch_selection:' + selection.operation_id + ':' + selection.slot],
+      code_locations: selectionLocation ? [selectionLocation] : [],
+      next_step:
+        selection.state === 'range_unconfirmed'
+          ? 'Retain the original root and request. A reserved range does not prove whether upstream work began; confirm accounting without issuing another read.'
+          : 'The candidate was rejected, but this storage foundation has no recorded cause. Inspect a correlated native failure; do not infer corruption, access denial or a whole-pool outage.'
+    });
+  }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
   const material_sharing = await getOwnedMaterialSharingEvidence(scope.userId, period);

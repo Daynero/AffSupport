@@ -1,4 +1,9 @@
+import {
+  claimRestitchJob,
+  type UpdaterRestitchDeps
+} from '../supabase/functions/drive-ops/updater-restitch';
 import { recoveryDigest, recoveryTokenHash } from '../supabase/functions/team-recovery/digest';
+import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 import { authorizeCaller } from '../supabase/functions/_shared/auth';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -209,6 +214,112 @@ describe('native recovery protocol', () => {
     expect(d.rpc).not.toHaveBeenCalled();
     expect(d.revoke).not.toHaveBeenCalled();
   });
+  it.each([
+    [undefined, 1],
+    [1, 1],
+    [2, 2],
+    [999, 2]
+  ])(
+    'uses installed recovery executor version %s rather than the server version',
+    async (installed, expected) => {
+      const d = deps();
+      vi.mocked(d.rpc).mockImplementation(async action =>
+        action === 'claim' ? { teamId: ID } : {}
+      );
+      await handleRecovery(
+        request({ action: 'claim', requestId: ID, restitchContractVersion: installed }),
+        d
+      );
+      expect(d.drive).toHaveBeenCalledWith('claim', SECRET, {
+        teamId: ID,
+        restitchContractVersion: expected
+      });
+    }
+  );
+  it.each([null, 0, -1, '2', 1.5])(
+    'refuses malformed executor capability %s before claim authorization',
+    async installed => {
+      const d = deps();
+      await expect(
+        handleRecovery(
+          request({ action: 'claim', requestId: ID, restitchContractVersion: installed }),
+          d
+        )
+      ).rejects.toThrow('INVALID_INPUT');
+      expect(d.rpc).not.toHaveBeenCalled();
+      expect(d.drive).not.toHaveBeenCalled();
+    }
+  );
+  it('does not replay a Drive-screen claim to an executor without its capability', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockResolvedValue({
+      replay: { job: { options: { defaults: { sourceMode: 'drive' } } } }
+    });
+    await expect(handleRecovery(request({ action: 'claim', requestId: ID }), d)).rejects.toThrow(
+      'AGENT_UPDATE_REQUIRED'
+    );
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+  it('maps a pre-claim unsupported executor to agent setup rather than a page reload', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockImplementation(async action =>
+      action === 'claim' ? { teamId: ID } : { job: null, operationCredential: null }
+    );
+    vi.mocked(d.drive).mockRejectedValue(new TeamFunctionError('RESTITCH_CLIENT_OUTDATED'));
+    await expect(
+      handleRecovery(request({ action: 'claim', requestId: ID, restitchContractVersion: 1 }), d)
+    ).rejects.toThrow('AGENT_UPDATE_REQUIRED');
+    expect(vi.mocked(d.rpc).mock.calls.map(([action]) => action)).toEqual([
+      'claim',
+      'register_claim'
+    ]);
+  });
+  it('runs the actual updater capability refusal before any job lease is taken', async () => {
+    const d = deps();
+    vi.mocked(d.rpc).mockImplementation(async action =>
+      action === 'claim' ? { teamId: ID } : { job: null, operationCredential: null }
+    );
+    const updater: UpdaterRestitchDeps = {
+      rpc: vi.fn(async () => ({ configured: true, sourceMode: 'drive' })),
+      startProcess: vi.fn(),
+      abandonOperation: vi.fn(),
+      hashHex: vi.fn(),
+      randomToken: vi.fn(),
+      log: vi.fn()
+    };
+    d.drive = async (_action, _credential, body) => claimRestitchJob(updater, ID, body);
+    await expect(handleRecovery(request({ action: 'claim', requestId: ID }), d)).rejects.toThrow(
+      'AGENT_UPDATE_REQUIRED'
+    );
+    expect(updater.rpc).toHaveBeenCalledExactlyOnceWith('service_get_space_restitch_defaults', {
+      p_team: ID
+    });
+    expect(updater.startProcess).not.toHaveBeenCalled();
+    expect(updater.randomToken).not.toHaveBeenCalled();
+    expect(vi.mocked(d.rpc).mock.calls.map(([action]) => action)).toEqual([
+      'claim',
+      'register_claim'
+    ]);
+  });
+  it.each(['library', 'drive'])(
+    'preserves compatible %s replay without claiming again',
+    async mode => {
+      const d = deps();
+      const replay = { job: { options: { defaults: { sourceMode: mode } } } };
+      vi.mocked(d.rpc).mockResolvedValue({ replay });
+      expect(
+        await handleRecovery(
+          request({
+            action: 'claim',
+            requestId: ID,
+            restitchContractVersion: mode === 'drive' ? 2 : 1
+          }),
+          d
+        )
+      ).toEqual(replay);
+      expect(d.drive).not.toHaveBeenCalled();
+    }
+  );
   it('returns a durable claim replay without claiming another job', async () => {
     const d = deps();
     vi.mocked(d.rpc).mockResolvedValue({ replay: { job: null } });

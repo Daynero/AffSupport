@@ -7,8 +7,10 @@ import {
   RECOVERY_BUDGET,
   RECOVERY_PREUPLOAD_FAILURE_CODES,
   TEAM_RECOVERY_PROTOCOL_VERSION,
+  RESTITCH_CONTRACT_VERSION,
   type RecoveryRetirementStage,
-  type AppEnvironment
+  type AppEnvironment,
+  type TeamErrorCode
 } from '@video-compressor/shared';
 import {
   platformRecoverySecrets,
@@ -575,7 +577,8 @@ export class TeamRecoveryWorker {
     requestId: string,
     operationId: string | null,
     stage: RecoveryCheckpoint['stage'],
-    reason: string | null = null
+    reason: string | null = null,
+    errorCode?: TeamErrorCode
   ) {
     this.#checkpoints = this.#checkpoints.filter(c => c.delegationId !== r.delegationId);
     this.#checkpoints.push({
@@ -609,6 +612,9 @@ export class TeamRecoveryWorker {
     }
     if (operationId || stage === 'blocked' || reason) {
       this.options.record?.('recovery_state', {
+        team_id: r.teamId,
+        restitch_contract_version: RESTITCH_CONTRACT_VERSION,
+        ...(errorCode ? { error_code: errorCode } : {}),
         stage,
         reason: reason ?? 'none',
         request_id: requestId,
@@ -789,6 +795,7 @@ export class TeamRecoveryWorker {
         secrets.active ??
         (await this.#call(r.endpoint, 'claim', secrets.claim, {
           requestId,
+          restitchContractVersion: RESTITCH_CONTRACT_VERSION,
           ...(this.options.screenRefusals
             ? { screenRefusals: await this.options.screenRefusals(r.teamId) }
             : {})
@@ -895,7 +902,8 @@ export class TeamRecoveryWorker {
           requestId,
           saved?.operationId ?? null,
           'blocked',
-          'checkpoint_unavailable'
+          'checkpoint_unavailable',
+          'PROCESS_RESULT_UNCERTAIN'
         );
         return;
       }
@@ -904,21 +912,23 @@ export class TeamRecoveryWorker {
         this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
-      if (
+      const permanentCode = (
         [
           'AUTH_REQUIRED',
           'PERMISSION_DENIED',
           'INVALID_INPUT',
           'INVALID_RESPONSE',
           'AGENT_UPDATE_REQUIRED'
-        ].includes(code)
-      ) {
+        ] as const
+      ).find(candidate => candidate === code);
+      if (permanentCode) {
         await this.#checkpoint(
           r,
           requestId,
           null,
           'blocked',
-          code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup'
+          permanentCode === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup',
+          permanentCode
         );
         return;
       }

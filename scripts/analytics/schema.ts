@@ -31,6 +31,7 @@ const TABLES = [
   'analytics_catalog_sync_jobs',
   'analytics_workspace_operations',
   'analytics_material_group_execution',
+  'analytics_restitch_selection_slots',
   'analytics_process_output_cleanup',
   'analytics_workspace_recovery',
   'analytics_recovery_execution',
@@ -120,6 +121,9 @@ async function probe(): Promise<AnalyticsSchema> {
       analytics_daily_events: has('table', 'analytics_daily_events'),
       analytics_daily_tool_outcomes: has('table', 'analytics_daily_tool_outcomes'),
       analytics_catalog_sync_jobs: has('table', 'analytics_catalog_sync_jobs'),
+      ...(has('table', 'analytics_restitch_selection_slots')
+        ? { analytics_restitch_selection_slots: true }
+        : {}),
       ...(has('table', 'analytics_material_group_execution')
         ? { analytics_material_group_execution: true }
         : {}),
@@ -158,6 +162,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_generations' &&
         table !== 'analytics_launch_cleanup' &&
         table !== 'analytics_material_group_execution' &&
+        table !== 'analytics_restitch_selection_slots' &&
         table !== 'analytics_workspace_recovery' &&
         table !== 'analytics_recovery_execution' &&
         table !== 'analytics_recovery_retirement' &&
