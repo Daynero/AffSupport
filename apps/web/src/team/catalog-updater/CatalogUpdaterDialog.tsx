@@ -662,7 +662,7 @@ function CatalogUpdaterDialogScope({
   const status = (
     <p className="team-updater-status">
       {registry.rows === null
-        ? t('catalogUpdaterLoading')
+        ? t(registry.error ? 'catalogUpdaterUnavailable' : 'catalogUpdaterLoading')
         : t('catalogUpdaterListSummary', {
             count: rows.length,
             scheduled: rows.filter(row => row.updateInterval !== null).length,
@@ -1102,6 +1102,7 @@ function CatalogUpdaterDialogScope({
                 const busy = busyIds.has(row.catalogId) || inline.blocked(row.catalogId);
                 const successfulAt = lastSuccess(row);
                 const result = row.profile?.lastResult;
+                const requiresReview = row.lastUpdateError === 'CATALOG_ATTEMPT_STATE_INCONSISTENT';
                 const lastLabel = successfulAt
                   ? shortWhen(successfulAt)
                   : row.profile?.lastSuccessfulAt === null && row.profile?.lastResult
@@ -1220,11 +1221,20 @@ function CatalogUpdaterDialogScope({
                         </small>
                       )}
                       <span
-                        className={`catalog-row-feedback${(row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked') ? ' sr-only' : ''}`}
+                        className={`catalog-row-feedback${!requiresReview && ((row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked')) ? ' sr-only' : ''}`}
                         role="status"
                       >
-                        {row.profile?.reconciliationRequired &&
-                        row.profile.lastResult === 'running' ? (
+                        {requiresReview ? (
+                          <button
+                            type="button"
+                            className="catalog-outcome-details"
+                            title={teamErrorMessageFor({ code: row.lastUpdateError }, t)}
+                            onClick={() => setHistoryCatalogId(row.catalogId)}
+                          >
+                            {t('catalogRunNeedsReview')}
+                          </button>
+                        ) : row.profile?.reconciliationRequired &&
+                          row.profile.lastResult === 'running' ? (
                           t('catalogUpdaterStageVerifying')
                         ) : row.profile?.reconciliationRequired ? (
                           <button
@@ -1690,6 +1700,7 @@ function CatalogUpdaterDialogScope({
                   catalogId={row.catalogId}
                   currentProfileVersion={row.profile?.version}
                   activeAttemptId={row.activeAttemptId}
+                  currentFailureCode={row.lastUpdateError}
                   checkingDelivery={Boolean(row.profile?.reconciliationRequired)}
                   retryDisabled={
                     inline.blocked(row.catalogId) ||

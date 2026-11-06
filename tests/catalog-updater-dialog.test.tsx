@@ -1112,3 +1112,56 @@ it('keeps an unconfirmed command distinct from a new launch and explains its las
   expect(request).toHaveBeenCalledTimes(1);
   expect(api.runCatalogUpdateNow).not.toHaveBeenCalled();
 });
+
+it('ends initial loading on a failed read and retries only the registry read', async () => {
+  const catalogs = [row('1', 'recoverable')];
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+    .mockResolvedValue(catalogs);
+  const api = client(catalogs, stopped, { listTeamProductCatalogs: read });
+  renderDialog(api);
+  await screen.findByText('Could not load catalogs.');
+  expect(screen.queryByText('Loading catalogs…')).toBeNull();
+  expect(screen.getByText('Catalogs unavailable')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await screen.findByLabelText('recoverable catalog');
+  expect(api.runCatalogUpdateNow).not.toHaveBeenCalled();
+  expect(api.cancelCatalogUpdate).not.toHaveBeenCalled();
+});
+
+it('explains a quarantined current round separately from its unchanged historical failure', async () => {
+  const item = row('1', 'quarantined', {
+    lastUpdateError: 'CATALOG_ATTEMPT_STATE_INCONSISTENT',
+    profile: {
+      ...profileFor('23000000-0000-4000-8000-000000000001'),
+      reconciliationRequired: true,
+      lastResult: 'failed'
+    }
+  });
+  const api = client([item], stopped, {
+    listCatalogUpdateAttempts: vi.fn().mockResolvedValue([
+      {
+        attemptId: '47000000-0000-4000-8000-000000000091',
+        catalogId: item.catalogId,
+        trigger: 'schedule',
+        startedAt: '2026-11-01T00:16:00Z',
+        endedAt: '2026-11-01T00:24:00Z',
+        stage: null,
+        result: 'failed',
+        failureCode: 'DRIVE_UNAVAILABLE',
+        deliveryVerifiedAt: null
+      }
+    ])
+  });
+  renderDialog(api);
+  await act(async () => {});
+  expect(screen.getByLabelText('quarantined catalog')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Requires review · details' }));
+  await act(async () => {});
+  const current = screen.getByRole('alert');
+  expect(current.textContent).toContain('This catalog needs a review of its previous update.');
+  expect(current.textContent).not.toContain('Google Drive is not responding');
+  expect(screen.getByText(/Google Drive is not responding\. Try again shortly\./)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Try again now' }).hasAttribute('disabled')).toBe(true);
+});

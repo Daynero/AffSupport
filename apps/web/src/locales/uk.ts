@@ -2801,6 +2801,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterClose: 'Закрити',
   catalogUpdaterSearch: 'Пошук за відео або каталогом',
   catalogUpdaterClearSearch: 'Очистити пошук',
+  catalogUpdaterUnavailable: 'Каталоги недоступні',
+  catalogRunNeedsReview: 'Потрібна перевірка · деталі',
+  catalogUpdaterCurrentProblem: 'Поточна проблема:',
   catalogUpdaterLoading: 'Завантажуємо каталоги…',
   catalogUpdaterEmpty: 'Каталогів ще немає. Створіть каталог із відео.',
   catalogUpdaterNoMatches: 'Нічого не знайдено.',
@@ -2948,6 +2951,10 @@ export const uk: Record<keyof typeof en, string> = {
   catalogCommandCheck: 'Перевірити стан',
   catalogCommandCancel: 'Скасувати неприйнятий запит',
   catalogCommandRefresh: 'Оновлюємо стан каталогу перед наступним запуском.',
+  teamTransportUnavailable:
+    'Не вдалося зв’язатися із сервером. Перевірте з’єднання, потім перевірте стан запиту перед новим запуском.',
+  catalogAttemptStateInconsistent:
+    'Потрібно перевірити попереднє оновлення цього каталогу. Зверніться до підтримки, щоб відновити оновлення; інші каталоги можуть працювати далі.',
   catalogCommandUnsupported:
     'Сервер ще не підтримує підтвердження цих запитів. Оновіть сторінку після оновлення сервера.',
   catalogCommandStorageUnavailable:

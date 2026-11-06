@@ -122,7 +122,8 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10, period?:
     last_error: latest?.last_error_code
       ? {
           code: latest.last_error_code,
-          at: latest.last_error_at
+          at: latest.last_error_at,
+          code_locations: lookupCodeLocations(`catalog:update:${latest.last_error_code}`)
         }
       : null,
     video_preparation: latest?.video_preparation_state

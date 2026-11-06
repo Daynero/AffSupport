@@ -1,0 +1,149 @@
+{
+  "runtime": {
+    "ready": true,
+    "busy": false,
+    "environment": "beta",
+    "channel": "beta",
+    "sourceRevision": "cf0835dd1251801e7efb4e3ecaadc30ed9c6784b",
+    "version": "1.3.3",
+    "buildNumber": "79",
+    "ffmpeg": null,
+    "ffprobe": null
+  },
+  "baseline": {
+    "phase": "baseline",
+    "observed_at": "2026-11-06T02:29:15.796Z",
+    "attempts": [],
+    "commands": []
+  },
+  "accepted": {
+    "phase": "run",
+    "observed_at": "2026-11-06T02:31:37.297Z",
+    "attempts": [
+      {
+        "result": "running",
+        "ended_at": null,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "started_at": "2026-11-06T02:31:25.71909+00:00",
+        "failure_code": null,
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "delivery_verified_at": null
+      }
+    ],
+    "commands": [
+      {
+        "kind": "run",
+        "reason": "accepted",
+        "status": "accepted",
+        "accepted": true,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "catalog_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "created_at": "2026-11-06T02:31:25.756273+00:00"
+      }
+    ]
+  },
+  "reopened_offline": {
+    "phase": "reopen",
+    "observed_at": "2026-11-06T02:37:20.886Z",
+    "attempts": [
+      {
+        "result": "running",
+        "ended_at": null,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "started_at": "2026-11-06T02:31:25.71909+00:00",
+        "failure_code": null,
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "delivery_verified_at": null
+      }
+    ],
+    "commands": [
+      {
+        "kind": "run",
+        "reason": "accepted",
+        "status": "accepted",
+        "accepted": true,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "catalog_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "created_at": "2026-11-06T02:31:25.756273+00:00"
+      }
+    ]
+  },
+  "cancelled": {
+    "phase": "cancelled",
+    "observed_at": "2026-11-06T02:38:01.384Z",
+    "attempts": [
+      {
+        "result": "running",
+        "ended_at": null,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "started_at": "2026-11-06T02:31:25.71909+00:00",
+        "failure_code": null,
+        "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "delivery_verified_at": null
+      }
+    ],
+    "commands": [
+      {
+        "kind": "run",
+        "reason": "accepted",
+        "status": "accepted",
+        "accepted": true,
+        "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+        "catalog_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+        "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+        "created_at": "2026-11-06T02:31:25.756273+00:00"
+      },
+      {
+        "kind": "run",
+        "reason": "cancelled_before_acceptance",
+        "status": "cancelled",
+        "accepted": false,
+        "attempt_id": null,
+        "catalog_id": "e78b40a1-2939-469c-9d56-790b4b20d023",
+        "command_id": "bfce4646-633e-4482-a23e-182b67f070d4",
+        "created_at": "2026-11-06T02:37:54.357337+00:00"
+      }
+    ]
+  },
+  "settings_before": [
+    {
+      "catalog_material_id": "c9abd55c-c0a7-4640-abc2-2efb03469635",
+      "version": 9,
+      "refresh_images": true,
+      "refresh_texts": true,
+      "grow_products": true,
+      "random_link_variation": true,
+      "restitch": false,
+      "schedule": null
+    },
+    {
+      "catalog_material_id": "e78b40a1-2939-469c-9d56-790b4b20d023",
+      "version": 5,
+      "refresh_images": true,
+      "refresh_texts": true,
+      "grow_products": true,
+      "random_link_variation": true,
+      "restitch": false,
+      "schedule": null
+    }
+  ],
+  "settings_restored": [
+    {
+      "version": 11,
+      "random_link_variation": true,
+      "restitch": false,
+      "schedule": null,
+      "round_due_at": "2026-11-06T02:31:25.71778+00:00",
+      "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+      "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+      "result": "running",
+      "profile_version": 9,
+      "snapshot_random_link_variation": true
+    }
+  ]
+}

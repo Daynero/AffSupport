@@ -1423,6 +1423,15 @@ function abortable<T extends { abortSignal: (signal: AbortSignal) => T }>(
 function throwRpc(error: { message: string; code?: string } | null): void {
   if (!error) return;
   if (/^AbortError\b/.test(error.message)) throw new RequestAbortedError();
+  // PostgREST wraps rejected fetches as a status-0 error with an empty code.
+  // Recognize only its known browser transport messages, never SQL text alone.
+  if (
+    !error.code &&
+    /^TypeError: (?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/u.test(
+      error.message
+    )
+  )
+    throw new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
   // A unique index that fired before the function's own check could — two
   // people naming the same account in the same second — arrives as bare
   // SQLSTATE 23505 with no uppercase token in it. It means the same thing.

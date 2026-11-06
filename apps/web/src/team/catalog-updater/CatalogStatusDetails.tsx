@@ -30,6 +30,7 @@ function CatalogStatusDetailsScope({
   catalogId,
   currentProfileVersion,
   activeAttemptId,
+  currentFailureCode,
   load,
   onClose,
   onRetry,
@@ -41,6 +42,8 @@ function CatalogStatusDetailsScope({
   currentProfileVersion?: number;
   /** Undefined is a legacy server; null explicitly means no active attempt. */
   activeAttemptId?: string | null;
+  /** Current runtime problem; never rewrites the immutable historical terminal. */
+  currentFailureCode?: string | null;
   load: (
     teamId: string,
     catalogId: string,
@@ -135,6 +138,11 @@ function CatalogStatusDetailsScope({
           {t('catalogUpdaterClose')}
         </Button>
       </div>
+      {currentFailureCode && (
+        <p role="alert" className="team-inline-error">
+          {t('catalogUpdaterCurrentProblem')} {teamErrorMessageFor({ code: currentFailureCode }, t)}
+        </p>
+      )}
       {error && (
         <div role="alert" className="team-inline-error">
           {t('catalogUpdaterHistoryFailed')}{' '}

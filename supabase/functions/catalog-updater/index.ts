@@ -1,3 +1,4 @@
+import { prepareCatalogClaims } from './claim-preparation.ts';
 import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
@@ -169,6 +170,8 @@ Deno.serve(async request => {
         pending: 1,
         unavailable: true
       }));
+      let claimQuarantined = 0;
+      let claimStale = 0;
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
@@ -237,31 +240,12 @@ Deno.serve(async request => {
               p_lease_seconds: leaseSeconds
             });
             if (!Array.isArray(rows)) return [];
-            return Promise.all(
-              rows.map(async row => {
-                if (
-                  !row ||
-                  typeof row !== 'object' ||
-                  !('team_id' in row) ||
-                  typeof row.team_id !== 'string' ||
-                  !('catalog_material_id' in row) ||
-                  typeof row.catalog_material_id !== 'string'
-                )
-                  return row;
-                const mode = await rpcValue(service, 'service_catalog_image_mode_v2', {
-                  p_team: row.team_id
-                });
-                if (mode !== 'v2') return row;
-                const imageAttempt = await rpcValue(
-                  service,
-                  'service_catalog_image_update_attempt_v2',
-                  { p_catalog: row.catalog_material_id, p_worker: workerId }
-                );
-                if (typeof imageAttempt !== 'string')
-                  throw new TeamFunctionError('INVALID_RESPONSE');
-                return { ...row, image_attempt_id: imageAttempt };
-              })
+            const prepared = await prepareCatalogClaims(rows, workerId, (name, parameters) =>
+              rpcValue(service, name, parameters)
             );
+            claimQuarantined += prepared.quarantined;
+            claimStale += prepared.stale;
+            return prepared.rows;
           },
           driveFor,
           progress: async (catalogId, stage) =>
@@ -357,6 +341,10 @@ Deno.serve(async request => {
       );
       return successResponse({
         ...summary,
+        claimed: summary.claimed + claimQuarantined + claimStale,
+        skipped: summary.skipped + claimQuarantined + claimStale,
+        claimQuarantined,
+        claimStale,
         launches,
         launchCleanup,
         launchVideoCleanup,

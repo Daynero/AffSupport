@@ -169,5 +169,53 @@ describe.skipIf(!container)(
         )
       ).toBe(command);
     }, 15000);
+    it('does not quarantine a replacement lease after waiting for its item lock', async () => {
+      const sheet = await fixture(),
+        command = randomUUID();
+      await sql(asActor(request(command, sheet)));
+      await sql(`update public.team_catalog_update_attempts set result='failed',ended_at=clock_timestamp() where catalog_material_id='${sheet}';
+        update public.team_catalog_updater_items set lease_owner='old-claim',lease_expires_at=clock_timestamp()+interval '1 minute' where catalog_material_id='${sheet}';`);
+      const replacement = sql(
+        `begin;update public.team_catalog_updater_items set lease_owner='new-claim' where catalog_material_id='${sheet}';select pg_sleep(2) /* claim_replacement_hold */;commit;`
+      );
+      await held('claim_replacement_hold');
+      const park = sql(
+        `select public.service_park_catalog_update_claim('${sheet}','old-claim') /* claim_replacement_wait */`
+      );
+      await held('claim_replacement_wait', 'Lock');
+      await replacement;
+      expect(await park).toBe('f');
+      expect(
+        await sql(
+          `select lease_owner||':'||reconciliation_required::text from public.team_catalog_updater_items where catalog_material_id='${sheet}'`
+        )
+      ).toBe('new-claim:false');
+    }, 15000);
+    it('keeps an old terminal and makes a racing Stop observe the quarantine', async () => {
+      const sheet = await fixture(),
+        command = randomUUID();
+      await sql(asActor(request(command, sheet)));
+      await sql(`update public.team_catalog_update_attempts set result='failed',failure_code='DRIVE_UNAVAILABLE',ended_at=clock_timestamp() where catalog_material_id='${sheet}';
+        update public.team_catalog_updater_items set lease_owner='park-owner',lease_expires_at=clock_timestamp()+interval '1 minute' where catalog_material_id='${sheet}';`);
+      const parked = sql(
+        `begin;select public.service_park_catalog_update_claim('${sheet}','park-owner');select pg_sleep(2) /* claim_quarantine_hold */;commit;`
+      );
+      await held('claim_quarantine_hold');
+      const stopping = sql(
+        asActor(
+          `select public.cancel_team_catalog_update('${team}','${sheet}') /* claim_stop_wait */`
+        )
+      );
+      const rejected = expect(stopping).rejects.toThrow(/CATALOG_UPDATE_RECONCILIATION_REQUIRED/);
+      await held('claim_stop_wait', 'Lock');
+      await parked;
+      await rejected;
+      expect(
+        await sql(
+          `select result||':'||failure_code from public.team_catalog_update_attempts where catalog_material_id='${sheet}'`
+        )
+      ).toBe('failed:DRIVE_UNAVAILABLE');
+      expect(await count(sheet)).toBe('1');
+    }, 15000);
   }
 );

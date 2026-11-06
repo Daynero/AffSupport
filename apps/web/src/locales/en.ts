@@ -2807,6 +2807,9 @@ export const en = {
   catalogUpdaterClose: 'Close',
   catalogUpdaterSearch: 'Search by video or catalog',
   catalogUpdaterClearSearch: 'Clear search',
+  catalogUpdaterUnavailable: 'Catalogs unavailable',
+  catalogRunNeedsReview: 'Requires review · details',
+  catalogUpdaterCurrentProblem: 'Current problem:',
   catalogUpdaterLoading: 'Loading catalogs…',
   catalogUpdaterEmpty: 'No catalogs yet. Create one from a video.',
   catalogUpdaterNoMatches: 'Nothing matches the search.',
@@ -2954,6 +2957,10 @@ export const en = {
   catalogCommandCheck: 'Check status',
   catalogCommandCancel: 'Cancel unaccepted request',
   catalogCommandRefresh: 'Refreshing catalog status before another launch.',
+  teamTransportUnavailable:
+    'Could not reach the server. Check your connection, then check the request status before starting again.',
+  catalogAttemptStateInconsistent:
+    'This catalog needs a review of its previous update. Contact support to restore updates; other catalogs can continue.',
   catalogCommandUnsupported:
     'This server cannot confirm catalog commands yet. Refresh after the server update.',
   catalogCommandStorageUnavailable:

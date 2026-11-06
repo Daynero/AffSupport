@@ -18,6 +18,7 @@ import {
   TEAM_COMMERCIAL_ERROR_CODES,
   TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   TEAM_CATALOG_MANAGER_ERROR_CODES,
+  TEAM_CATALOG_POLISH_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
@@ -52,6 +53,7 @@ const extensionCodes = new Set([
   ...TEAM_COMMERCIAL_ERROR_CODES,
   ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...TEAM_CATALOG_MANAGER_ERROR_CODES,
+  ...TEAM_CATALOG_POLISH_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
@@ -67,6 +69,7 @@ if (
       TEAM_COMMERCIAL_ERROR_CODES.length +
       TEAM_CATALOG_RELIABILITY_ERROR_CODES.length +
       TEAM_CATALOG_MANAGER_ERROR_CODES.length +
+      TEAM_CATALOG_POLISH_ERROR_CODES.length +
       CATALOG_IMAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
@@ -306,6 +309,21 @@ const catalogManagerCodes = [...catalogManagerInsert.matchAll(/\('([^']+)'\)/gu)
 );
 if (JSON.stringify(catalogManagerCodes) !== JSON.stringify([...TEAM_CATALOG_MANAGER_ERROR_CODES]))
   fail('Catalog command error catalog is out of date: ' + catalogManagerPath);
+
+const catalogPolishPath = resolve(
+  root,
+  'supabase/migrations/20261207139000_catalog_claim_quarantine.sql'
+);
+const catalogPolishSql = readFileSync(catalogPolishPath, 'utf8');
+const catalogPolishInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    catalogPolishSql
+  )?.[1] ?? '';
+const catalogPolishCodes = [...catalogPolishInsert.matchAll(/\('([^']+)'\)/gu)].map(
+  match => match[1]
+);
+if (JSON.stringify(catalogPolishCodes) !== JSON.stringify([...TEAM_CATALOG_POLISH_ERROR_CODES]))
+  fail('Catalog polish error catalog is out of date: ' + catalogPolishPath);
 
 const next = generatedSql();
 const extension = generatedExtensionSql();

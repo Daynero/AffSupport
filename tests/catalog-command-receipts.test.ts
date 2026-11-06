@@ -6,6 +6,7 @@ import { analytics, ProductAnalytics } from '../apps/web/src/analytics/service';
 import { beginCatalogUiFlow } from '../apps/web/src/team/catalog-updater/analytics';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
+import { TeamApiError } from '../apps/web/src/api/team';
 import { useCatalogCommands } from '../apps/web/src/team/catalog-updater/useCatalogCommands';
 import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
 import { lookupCodeLocations } from '../scripts/analytics/code-map';
@@ -435,6 +436,75 @@ it('diagnoses a real pre-dispatch browser storage refusal without inventing a se
   } finally {
     hook.unmount();
     localStorage.removeItem(key);
+    vi.restoreAllMocks();
+  }
+});
+
+it('diagnoses an uncertain offline command through the actual hook, ingestion and read-only CLI', async () => {
+  const ingestions: Array<{ accepted: boolean }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean }>(
+      OWNER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(OWNER);
+  const track = vi.spyOn(analytics, 'track').mockImplementation(service.track.bind(service));
+  vi.spyOn(analytics, 'journalContext').mockImplementation(service.journalContext.bind(service));
+  setPrivateCacheScope(OWNER, 'owner');
+  const client = {
+    requestCatalogUpdateCommand: vi
+      .fn()
+      .mockRejectedValue(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true)),
+    getCatalogUpdateCommand: vi.fn().mockResolvedValue(null),
+    cancelCatalogCommandIntent: vi.fn()
+  };
+  const sheet = await catalog();
+  const hook = renderHook(() =>
+    useCatalogCommands({
+      teamId: team,
+      client,
+      reloadFresh: async () => true,
+      onConfirmed: vi.fn()
+    })
+  );
+  let command: string | undefined;
+  try {
+    await act(async () => {
+      expect(await hook.result.current.submit([sheet])).toMatchObject({
+        kind: 'unknown',
+        error: { code: 'TEAM_TRANSPORT_UNAVAILABLE' }
+      });
+    });
+    const started = track.mock.calls.find(([event]) => event === 'operation_started')?.[1];
+    command = started && 'flow_id' in started ? String(started.flow_id) : undefined;
+    expect(command).toBeTruthy();
+    await service.flush();
+    expect(ingestions.length).toBeGreaterThanOrEqual(3);
+    expect(ingestions.every(row => row.accepted)).toBe(true);
+    const diagnosis = await getInspect(command!);
+    expect(diagnosis.found).toBe(true);
+    if (!diagnosis.found) throw new Error('Missing offline command evidence');
+    expect(diagnosis.terminal?.event).toBe('operation_failed');
+    expect(
+      diagnosis.events.find(event => event.event_name === 'operation_failed')?.properties
+    ).toMatchObject({
+      error_code: 'TEAM_TRANSPORT_UNAVAILABLE',
+      error_fingerprint: 'team:library:TEAM_TRANSPORT_UNAVAILABLE',
+      production_completed: false
+    });
+    expect(diagnosis.catalog_commands?.items ?? []).toEqual([]);
+    expect(await attemptCount(sheet)).toBe(0);
+    expect(client.requestCatalogUpdateCommand).toHaveBeenCalledTimes(1);
+    expect(lookupCodeLocations('team:library:TEAM_TRANSPORT_UNAVAILABLE')?.files).toContain(
+      'apps/web/src/api/team.ts'
+    );
+  } finally {
+    hook.unmount();
+    if (command) localStorage.removeItem(`soty.catalog-command.v1:${OWNER}:${team}:${command}`);
     vi.restoreAllMocks();
   }
 });

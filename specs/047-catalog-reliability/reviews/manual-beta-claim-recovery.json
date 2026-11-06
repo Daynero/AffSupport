@@ -1,0 +1,98 @@
+{
+  "attempt": {
+    "result": "success",
+    "ended_at": "2026-11-06T03:21:10.133632+00:00",
+    "attempt_id": "c0c185bc-c0f0-4ee4-9984-50b590030cfe",
+    "command_id": "af3249c0-74b1-4b0f-ad5f-6543d8fd747d",
+    "started_at": "2026-11-06T02:31:25.71909+00:00",
+    "failure_code": null,
+    "stage_history": [
+      {
+        "at": "2026-11-06T03:21:03.255595+00:00",
+        "stage": "preparing"
+      },
+      {
+        "at": "2026-11-06T03:21:03.497086+00:00",
+        "stage": "refreshing"
+      },
+      {
+        "at": "2026-11-06T03:21:05.34324+00:00",
+        "stage": "building"
+      },
+      {
+        "at": "2026-11-06T03:21:05.428009+00:00",
+        "stage": "uploading"
+      },
+      {
+        "at": "2026-11-06T03:21:09.611351+00:00",
+        "stage": "verifying"
+      },
+      {
+        "at": "2026-11-06T03:21:09.884962+00:00",
+        "stage": "finalizing"
+      }
+    ],
+    "delivery_verified_at": "2026-11-06T03:21:10.133632+00:00"
+  },
+  "quarantine": {
+    "result": "failed",
+    "ended_at": "2026-11-01T00:24:10.441081+00:00",
+    "attempt_id": "99e3ebe1-397c-4c7b-ab5b-d7b6291e8fd3",
+    "failure_code": "DRIVE_UNAVAILABLE",
+    "round_due_at": "2026-11-01T00:16:00.417735+00:00",
+    "last_update_error": "CATALOG_ATTEMPT_STATE_INCONSISTENT",
+    "reconciliation_required": true
+  },
+  "attempt_count": 1,
+  "observed_at": "2026-11-06T03:23:26.265516+00:00",
+  "base_revision": "cf0835dd1251801e7efb4e3ecaadc30ed9c6784b",
+  "source_dirty": true,
+  "production_touched": false,
+  "source_sha256": {
+    "apps/web/src/api/team.ts": "71d189b3c713d7b8324a100b4e51bb12f6435688d67dbc8fb21960ee082d2d06",
+    "apps/web/src/team/errors.ts": "6a950b3f8afe90b1641261030323436b1c31589ef2726a6161a78e6b822a311d",
+    "supabase/functions/catalog-updater/index.ts": "ba1cd64498378745bbc67ee59b0fce25e6f66ef25fb5d79966c460ff78bbfeb9",
+    "supabase/functions/catalog-updater/claim-preparation.ts": "806f1a3d2fcbff20930a238a43620f0ec138a68af1a1e0eea090c855d67e26e4",
+    "supabase/migrations/20261207139000_catalog_claim_quarantine.sql": "331fd86ceeb2e132b5efb6ca33c6f0f96d4e7bca6bcede8184a164e1bdae0dee",
+    "apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx": "1f9169f17f8f5d7507e3e2662e6d60f5ec3db7c58ae86b24a2d828e5c91973d5",
+    "apps/web/src/team/catalog-updater/CatalogStatusDetails.tsx": "0cbd1d98f60e1291c7006659b2cc9fbc7b59dc24d32d1bd8ce7895b1fb06dc8e",
+    "apps/web/src/locales/uk.ts": "254e9d499098eac32992105461b1281069b731e96c1dfd4e7692a5fd4ff128df",
+    "apps/web/src/locales/en.ts": "16f51c7084c1b9be0fe3198ef859d315a4c381aa09715a53d7ab90fa93084618"
+  },
+  "offline_cancellation": {
+    "reason": "cancelled_before_acceptance",
+    "status": "cancelled",
+    "attempts": 0,
+    "command_id": "85475650-ca46-4b90-8d9e-92b4a72394e0",
+    "created_at": "2026-11-06T03:26:24.176121+00:00"
+  },
+  "manual_ui": {
+    "locale": "uk",
+    "browser": "Chrome incognito",
+    "history_success_visible": true,
+    "six_stages_visible": true,
+    "transport_cause_visible": true,
+    "unknown_retained_after_manager_reopen": true,
+    "offline_readback_retained_unknown": true,
+    "cancelled_notice_removed": true,
+    "browser_restart_durability_tested": false,
+    "packaged_beta_tested": false,
+    "unavailable_header_instead_of_loading": true,
+    "retry_restored_catalog_count": 38,
+    "quarantine_current_problem_visible": true,
+    "historical_drive_error_preserved_visible": true,
+    "network_emulation_restored": true,
+    "new_run_clicked_for_recovered_attempt": false
+  },
+  "download": {
+    "file": "/Users/daynero/Downloads/047_recovered_v36_manual_20261106.xlsx",
+    "bytes": 66737,
+    "sha256": "dd87548548c73f47cadde5557428c8d32b15a58886dad4456a48b808aac8bc66",
+    "zip_crc_valid": true,
+    "worksheet_rows": 1000,
+    "data_rows": 401,
+    "valued_cells": 10862,
+    "nonempty_rows": 402,
+    "worksheet_rows_include_formatted_empty": true
+  }
+}

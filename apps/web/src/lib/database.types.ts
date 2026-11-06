@@ -8695,6 +8695,10 @@ export type GeneratedDatabase = {
         Args: { p_drive_folder_id: string; p_team: string };
         Returns: undefined;
       };
+      service_park_catalog_update_claim: {
+        Args: { p_item: string; p_worker: string };
+        Returns: boolean;
+      };
       service_open_catalog_updater_rounds: { Args: Record<PropertyKey, never>; Returns: number };
       service_peek_drive_oauth_transaction: {
         Args: { p_state_hash: string };

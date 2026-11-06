@@ -819,6 +819,21 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  map['team:library:TEAM_TRANSPORT_UNAVAILABLE'] = {
+    files: ['apps/web/src/api/team.ts', 'apps/web/src/team/catalog-updater/useCatalogCommands.ts'],
+    check:
+      'The browser fetch failed without a server response. Reconcile the retained command identity; connectivity failure does not prove an in-flight mutation was absent.'
+  };
+  const claimQuarantine = {
+    files: [
+      'supabase/functions/catalog-updater/claim-preparation.ts',
+      'supabase/migrations/20261207139000_catalog_claim_quarantine.sql'
+    ],
+    check:
+      'The current lease found an open round without a running matching attempt. Its old terminal and provider receipts were preserved; review them before releasing the quarantine. Healthy sibling claims may continue.'
+  };
+  map['team:library:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
+  map['catalog:update:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
   map['team:library:CATALOG_COMMAND_UNSUPPORTED'] = {
     files: [
       'apps/web/src/api/team.ts',

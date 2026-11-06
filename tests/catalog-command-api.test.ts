@@ -35,6 +35,30 @@ afterEach(() => {
   rpc.mockReset();
   gate.wait = null;
 });
+it.each([
+  'TypeError: Failed to fetch',
+  'TypeError: Load failed',
+  'TypeError: NetworkError when attempting to fetch resource.'
+])(
+  'preserves an actual PostgREST fetch refusal as retryable transport failure: %s',
+  async message => {
+    rpc.mockResolvedValue({ data: null, error: { code: '', message, details: '', hint: '' } });
+    await expect(teamApi.requestCatalogUpdateCommand(team, actor, request)).rejects.toMatchObject({
+      code: 'TEAM_TRANSPORT_UNAVAILABLE',
+      retryable: true
+    });
+  }
+);
+it('does not guess transport failure from a server SQL error containing similar words', async () => {
+  rpc.mockResolvedValue({
+    data: null,
+    error: { code: 'XX000', message: 'TypeError: Failed to fetch' }
+  });
+  await expect(teamApi.requestCatalogUpdateCommand(team, actor, request)).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE',
+    retryable: false
+  });
+});
 it('binds an exact command to its originating actor and canonical distinct catalog IDs', async () => {
   rpc.mockResolvedValue({ data: receipt, error: null });
   expect(

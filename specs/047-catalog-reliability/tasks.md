@@ -186,12 +186,12 @@
       readback, retry не повторює confirmed rows і не перезаписує чужі правки.
       **Evidence:** shared saveCatalogProfile controller used by inline and bulk; exact version/readback, typed stale conflict, read-only unknown recovery, scope revocation and four-write bound covered in catalog-profile-save-controller, catalog-inline-changes and catalog-bulk-editor tests. Full canonical verification: reviews/verification-fast-export-save.json (14/14 gates, 8769 tests). Commit 68709d21. Follow-up verification-fast-bulk-undo.json: 14/14 gates, 8824 tests, including bounded stalled acknowledgements, unchanged old-version UNKNOWN, read-only recovery of an inverse, direct duplicate-intent fencing and failed Undo preflight.
 
-- [ ] T022 [US3] точний bulk schedule та undo — `apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx`. Залежності: T021.
+- [x] T022 [US3] точний bulk schedule та undo — `apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx`. Залежності: T021.
       BulkEditor + IntervalPicker + server patch: interval/time/day/zone атомарні;
       mixed/keep semantics, legacy anchor, DST і preview за server clock.
       Перевірки: одиночний/bulk parity, undo після чужої зміни, зменшення scope,
       failed validation і unknown save не виглядають як confirmed.
-      **Evidence:** —
+      **Evidence:** cf0835dd; complete calendar tuple/CAS, mixed/keep, foreign-version Undo, server-offset preview and shrinking-scope regressions pass in the canonical 8895-test suite (verification-suite-command-receipts.json), with all 13 static gates passed separately. Atomic schedule SQL is covered by the 421-migration PostgreSQL gate. Earlier real two-catalog calendar Save/Undo after the 8433477e full check is retained in manual-beta-calendar-undo.json; the new server-clock skew case is controlled regression evidence, not an OS-clock manual change.
 
 - [ ] T023 [US3] per-item масове видалення — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T005–T007, T012.
       `deleteSelected` перевести на наявний workspace receipt/batch seam: partial
@@ -203,7 +203,7 @@
       Dialog/History + RPC: фактичний accepted count, no-op/false, спільний lock,
       retry same intent після readback; stop current і schedule off окремі.
       A11: дві вкладки, double click, success/cancel race, stale profile/attempt.
-      **Evidence:** —
+      **Evidence (partial):** reviews/verification-fast-claim-quarantine.json: 14/14 gates, 8911 passed tests. Immutable Run/Retry receipts, double-click suppression and cancellation tombstones; real beta resumed the original accepted attempt to verified success without another Run. A stale terminal claim no longer poisons healthy siblings. Shared Stop/Run/Retry locking and remaining acceptance cases stay open.
 
 - [x] T025 [US3] progress із прив’язкою до attempt — `apps/web/src/team/catalog-updater/CatalogProgressRow.tsx`. Залежності: T007, T020, T024.
       Додати відсутню active-attempt identity у read model; ProgressRow/History
@@ -217,14 +217,12 @@
       unmount, old response; відновлення читання не повторює запис.
       **Evidence:** c9e05c5e; existing readCoordinator/withReadDeadline and visible serial owners used for manager/history/readback; finite deadline, abort/unmount, same-tick refocus and actor/team scope regressions pass in catalog-editor-history, catalog-inline-changes and catalog-updater-dialog. No new polling owner or mutation on read retry. Full 8807-test verify passed; ordinary real beta history loaded and closed correctly (reviews/manual-beta.md).
 
-- [ ] T027 [US3] consistent profile/runtime snapshot — `apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts`. Залежності: T021, T025–T026.
+- [x] T027 [US3] consistent profile/runtime snapshot — `apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts`. Залежності: T021, T025–T026.
       Розділити versioned settings і runtime facts; дві відповіді registry/profile
       не створюють вигаданого узгодженого стану. Refresh не підміняє підтверджені
       локальні settings старішими; newer runtime приймається без зміни settings version.
       Перевірки: optimistic/readback/realtime reorder і settings change під час run.
-      **Evidence (partial, reopened):** c9e05c5e; stable invoker manager snapshot combines authorized registry/profile reads, with server observed_at separate from settings version. Scoped cache rejects older runtime observations and stale acknowledgements after a newer settings version, while accepting new same-version runtime. SQL/API/reorder regressions and full 1064-assertion PostgreSQL replay passed. Real beta save and Undo were confirmed as versions 2 and 3 with their actual values; reviews/manual-beta.md.
-
-      **Remaining:** inspection of the newer-settings acknowledgement path found that absent runtime metadata can still replace older proven facts. Reopened until the independent settings/runtime merge regression and fix are verified.
+      **Evidence:** cf0835dd; independent settings/runtime merge regressions cover newer settings without runtime metadata, stale acknowledgements and newer same-version runtime. All 13 static gates and the complete 8895-test suite passed across the retained canonical reports. Manual source beta changed/undid profile version 9 → 11 during the same active attempt, preserving its ID, round and frozen version-9 snapshot; manual-beta-commands.md/json. The separate worker batch defect found during this walkthrough was repaired and manually repeated in reviews/manual-beta-claim-recovery.md; it does not change the snapshot-merge acceptance scope.
 
 - [ ] T028 [US3] очищення scope та навігація — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T021, T026–T027.
       Locks, drafts, selection, undo, visibleFlows належать team/actor/catalog scope.
@@ -243,7 +241,7 @@
       DB/RPC concurrency. A09–A13 і smoke A01–A08, owner/editor/viewer.
       Вихід: пакет core reliability перед початком багатоваріантного виконання;
       ранній release — окремий package acceptance за quickstart, full tasks лишаються відкритими.
-      **Evidence:** —
+      **Evidence (partial):** reviews/manual-beta-claim-recovery.md/json records actual source-beta history, same-attempt recovery, offline Check, close/reopen, unaccepted cancellation with zero attempts, list-read recovery and a valid downloaded XLSX. Complete fast check: 14 gates / 8911 tests. Full 422-migration replay: 1064 pgTAP assertions + 2 Auth + 43 native concurrency cases. This is neither full feature acceptance nor packaged-beta promotion.
 
 ## Phase 6 — US4 (P2): N відеоваріацій
 

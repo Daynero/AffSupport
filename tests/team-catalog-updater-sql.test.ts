@@ -1422,3 +1422,150 @@ it('does not open a replacement round while an orphaned reconciliation receipt s
     setQueryExecutor(null);
   }
 });
+
+it('quarantines a leased terminal round without rewriting history or losing its provider receipt', async () => {
+  const { sheet } = await catalog('terminal-round-quarantine');
+  await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+    teamId,
+    [sheet]
+  ]);
+  await harness.root(
+    "update public.team_catalog_update_attempts set result='failed',failure_code='DRIVE_UNAVAILABLE',ended_at=clock_timestamp() where catalog_material_id=$1",
+    [sheet]
+  );
+  await harness.root(
+    "update public.team_catalog_updater_items set lease_owner='quarantine-worker',lease_expires_at=clock_timestamp()+interval '1 minute' where catalog_material_id=$1",
+    [sheet]
+  );
+  await harness.root(
+    `insert into private.catalog_update_reconciliations
+    (catalog_material_id,marker,expected_count,product_count,settings_snapshot)
+    values($1,gen_random_uuid(),1,3,'{}')`,
+    [sheet]
+  );
+  const before = (
+    await harness.root<{ attempt_id: string; ended_at: string; round_due_at: string }>(
+      `select attempt_id,ended_at,round_due_at from public.team_catalog_update_attempts where catalog_material_id=$1`,
+      [sheet]
+    )
+  )[0]!;
+  expect(
+    (
+      await harness.root<{ parked: boolean }>(
+        "select public.service_park_catalog_update_claim($1,'quarantine-worker') parked",
+        [sheet]
+      )
+    )[0]!.parked
+  ).toBe(true);
+  const after = (
+    await harness.root<{
+      result: string;
+      failure_code: string;
+      attempt_id: string;
+      ended_at: string;
+      round_due_at: string;
+      reconciliation_required: boolean;
+      lease_owner: string | null;
+    }>(
+      `select a.result,a.failure_code,a.attempt_id,a.ended_at,a.round_due_at,i.reconciliation_required,i.lease_owner from public.team_catalog_update_attempts a join public.team_catalog_updater_items i on i.catalog_material_id=a.catalog_material_id where a.catalog_material_id=$1`,
+      [sheet]
+    )
+  )[0]!;
+  expect(after).toMatchObject({
+    ...before,
+    result: 'failed',
+    failure_code: 'DRIVE_UNAVAILABLE',
+    reconciliation_required: true,
+    lease_owner: null
+  });
+  expect(
+    Number(
+      (
+        await harness.root<{ n: number }>(
+          'select count(*) n from private.catalog_update_reconciliations where catalog_material_id=$1',
+          [sheet]
+        )
+      )[0]!.n
+    )
+  ).toBe(1);
+  await expect(
+    harness.asUser(OWNER, 'select public.cancel_team_catalog_update($1,$2)', [teamId, sheet])
+  ).rejects.toThrow(/CATALOG_UPDATE_RECONCILIATION_REQUIRED/);
+  await harness.root('create role catalog_quarantine_diagnostics_reader');
+  await harness.root('grant usage on schema public to catalog_quarantine_diagnostics_reader');
+  await harness.root(
+    'grant select on public.analytics_catalog_updates to catalog_quarantine_diagnostics_reader'
+  );
+  setQueryExecutor(async (sql, params) => {
+    assertReadOnlySql(sql);
+    await harness.db.exec('begin read only; set local role catalog_quarantine_diagnostics_reader');
+    try {
+      const result = await harness.db.query(sql, params);
+      await harness.db.exec('commit');
+      return result.rows as Record<string, unknown>[];
+    } catch (error) {
+      await harness.db.exec('rollback');
+      throw error;
+    }
+  });
+  try {
+    const diagnosis = await getCatalogUpdateDiagnosis(sheet);
+    expect(diagnosis.profile?.reconciliation_required).toBe(true);
+    expect(diagnosis.last_error?.code).toBe('CATALOG_ATTEMPT_STATE_INCONSISTENT');
+    expect(diagnosis.last_error?.code_locations?.files).toContain(
+      'supabase/functions/catalog-updater/claim-preparation.ts'
+    );
+    expect(diagnosis.attempts[0]).toMatchObject({
+      result: 'failed',
+      failure_code: 'DRIVE_UNAVAILABLE',
+      delivery_proven: false
+    });
+  } finally {
+    setQueryExecutor(null);
+  }
+});
+
+it('does not quarantine a healthy attempt, an expired lease or a replacement owner', async () => {
+  const { sheet } = await catalog('healthy-claim-authority');
+  await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+    teamId,
+    [sheet]
+  ]);
+  await harness.root(
+    "update public.team_catalog_updater_items set lease_owner='current-worker',lease_expires_at=clock_timestamp()+interval '1 minute' where catalog_material_id=$1",
+    [sheet]
+  );
+  const park = async (worker: string) =>
+    (
+      await harness.root<{ parked: boolean }>(
+        'select public.service_park_catalog_update_claim($1,$2) parked',
+        [sheet, worker]
+      )
+    )[0]!.parked;
+  expect(await park('current-worker')).toBe(false);
+  await harness.root(
+    "update public.team_catalog_update_attempts set result='failed',ended_at=clock_timestamp() where catalog_material_id=$1",
+    [sheet]
+  );
+  expect(await park('old-worker')).toBe(false);
+  await harness.root(
+    "update public.team_catalog_updater_items set lease_expires_at=clock_timestamp()-interval '1 second' where catalog_material_id=$1",
+    [sheet]
+  );
+  expect(await park('current-worker')).toBe(false);
+  expect(
+    (
+      await harness.root<{ reconciliation_required: boolean }>(
+        'select reconciliation_required from public.team_catalog_updater_items where catalog_material_id=$1',
+        [sheet]
+      )
+    )[0]!.reconciliation_required
+  ).toBe(false);
+  expect(
+    (
+      await harness.root<{ anon: boolean; authenticated: boolean; service: boolean }>(
+        `select has_function_privilege('anon','public.service_park_catalog_update_claim(uuid,text)','execute') anon,has_function_privilege('authenticated','public.service_park_catalog_update_claim(uuid,text)','execute') authenticated,has_function_privilege('service_role','public.service_park_catalog_update_claim(uuid,text)','execute') service`
+      )
+    )[0]
+  ).toEqual({ anon: false, authenticated: false, service: true });
+});
