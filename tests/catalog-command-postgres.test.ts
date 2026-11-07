@@ -250,7 +250,7 @@ async function selectionStorageFixture() {
   const empty = createScreenSelectionBudget(),
     selected = selectScreenCandidate(empty, version, 4);
   const reserved = reserveScreenTransfer(selected, version, requestId, 0).state;
-  const f = { root, version, requestId, empty, selected, reserved };
+  const f = { root, video, image, version, requestId, empty, selected, reserved };
   expect(await sql(selectionStorageCas(f, empty, selected))).toBe('t');
   return f;
 }
@@ -288,6 +288,35 @@ function selectionStorageSettle(
     JSON.stringify({ bytes, ioMs: 5, complete: false }) +
     "'::jsonb)"
   );
+}
+
+async function manualSelectionFixture() {
+  const f = await selectionStorageFixture(),
+    key = 'manual:' + randomUUID(),
+    client = randomUUID();
+  await sql(`update public.team_materials set name='Synthetic screen.png' where id='${f.image}'`);
+  await sql(
+    asActor(
+      `select public.set_restitch_defaults('${team}','{"operation":"restitch","sourceMode":"drive","fitMode":"cover","startEnabled":false,"endEnabled":true,"finalDurationMode":"custom","customFinalDurationSeconds":60}'::jsonb);`
+    )
+  );
+  await sql(
+    `insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by) values('${team}','end','${f.image}','file',1,'${owner}') on conflict do nothing;`
+  );
+  const accept = `select public.service_accept_manual_restitch_download('${team}','${owner}','${f.video}','${key}','${client}')`;
+  return { ...f, accept };
+}
+function claimSelection(root: string, claim: string, native: string) {
+  return `select public.service_claim_restitch_executor('${root}','${team}','${owner}','${claim}','${native}',1)`;
+}
+function ownedSelectionCas(
+  root: string,
+  executor: string,
+  epoch: number,
+  before: unknown,
+  after: unknown
+) {
+  return `select public.service_cas_restitch_selection_slot_owned('${root}','${team}','${owner}','end','${JSON.stringify(before)}'::jsonb,'${JSON.stringify(after)}'::jsonb,'${executor}',${epoch})`;
 }
 
 describe.skipIf(!container)(
@@ -744,6 +773,254 @@ describe.skipIf(!container)(
         )
       ).toBe('2:0');
       expect(await sql("select state from public.team_operations where id='" + f.root + "'")).toBe(
+        'canceled'
+      );
+    }, 15000);
+    it('serializes an atomic manual selection root behind a missing first acknowledgement', async () => {
+      const f = await manualSelectionFixture();
+      const first = holdSql(f.accept + ' /* manual_selection_accept_hold */');
+      let second: Promise<string> | undefined, original: string;
+      try {
+        await held('manual_selection_accept_hold', 'Idle');
+        second = sql(f.accept + ' /* manual_selection_accept_wait */');
+        void second.catch(() => undefined);
+        await held('manual_selection_accept_wait', 'Lock');
+      } finally {
+        original = await first.commit();
+      }
+      const a = JSON.parse(original),
+        b = JSON.parse((await second)!);
+      expect(a.operationId).toBe(b.operationId);
+      expect(a.reused).toBe(false);
+      expect(b.reused).toBe(true);
+      expect(
+        await sql(
+          `select count(*) from private.restitch_selection_executors where root_operation_id='${a.operationId}' and state='unclaimed'`
+        )
+      ).toBe('1');
+    }, 15000);
+    it('admits only one native executor when claims arrive concurrently', async () => {
+      const f = await manualSelectionFixture(),
+        root = JSON.parse(await sql(f.accept)).operationId as string;
+      const claim = randomUUID(),
+        native = randomUUID();
+      const first = holdSql(
+        claimSelection(root, claim, native) + ' /* manual_executor_claim_hold */'
+      );
+      let second: Promise<{ error: Error | null }> | undefined, original: string;
+      try {
+        await held('manual_executor_claim_hold', 'Idle');
+        second = sql(
+          claimSelection(root, randomUUID(), randomUUID()) + ' /* manual_executor_claim_wait */'
+        ).then(
+          () => ({ error: null }),
+          error => ({ error: error as Error })
+        );
+        await held('manual_executor_claim_wait', 'Lock');
+      } finally {
+        original = await first.commit();
+      }
+      expect((await second)?.error?.message).toContain('WRONG_STATE');
+      const accepted = JSON.parse(original);
+      expect(accepted.active).toBe(true);
+      expect(accepted.epoch).toBe(1);
+      expect(JSON.parse(await sql(claimSelection(root, claim, native)))).toEqual(accepted);
+      expect(
+        JSON.parse(
+          await sql(
+            `select public.service_read_restitch_executor_claim('${root}','${team}','${owner}','${claim}','${native}')`
+          )
+        )
+      ).toEqual(accepted);
+    }, 15000);
+    it('refuses a delayed old-owner range after a newer claim commits', async () => {
+      const f = await manualSelectionFixture(),
+        root = JSON.parse(await sql(f.accept)).operationId as string;
+      const old = JSON.parse(await sql(claimSelection(root, randomUUID(), randomUUID()))) as {
+        executorId: string;
+        epoch: number;
+      };
+      const version = await sql(
+        `select version_id from private.restitch_selection_candidates where root_operation_id='${root}' and slot='end' order by ordinal limit 1`
+      );
+      const selected = selectScreenCandidate(createScreenSelectionBudget(), version, 4),
+        reserved = reserveScreenTransfer(selected, version, randomUUID(), 0).state;
+      expect(
+        await sql(
+          ownedSelectionCas(
+            root,
+            old.executorId,
+            old.epoch,
+            createScreenSelectionBudget(),
+            selected
+          )
+        )
+      ).toBe('t');
+      expect(
+        await sql(
+          `select public.service_quiesce_restitch_executor('${root}','${team}','${owner}','${old.executorId}',${old.epoch},'${randomUUID()}')`
+        )
+      ).toBe('t');
+      const first = holdSql(
+        claimSelection(root, randomUUID(), randomUUID()) + ' /* newer_executor_hold */'
+      );
+      let second: Promise<{ error: Error | null }> | undefined;
+      try {
+        await held('newer_executor_hold', 'Idle');
+        second = sql(
+          '/* old_executor_range_wait */ ' +
+            ownedSelectionCas(root, old.executorId, old.epoch, selected, reserved)
+        ).then(
+          () => ({ error: null }),
+          error => ({ error: error as Error })
+        );
+        await held('old_executor_range_wait', 'Lock');
+      } finally {
+        expect(JSON.parse(await first.commit()).epoch).toBe(2);
+      }
+      expect((await second)?.error?.message).toContain('WRONG_STATE');
+      expect(
+        await sql(
+          `select range_count from public.analytics_restitch_selection_slots where operation_id='${root}' and slot='end'`
+        )
+      ).toBe('0');
+    }, 15000);
+    it('grants one epoch CAS across concurrent material claim sessions', async () => {
+      const f = await materialExecutionFixture(),
+        firstOwner = randomUUID(),
+        other = randomUUID();
+      const first = holdSql(
+        `select public.service_claim_material_group_execution_v2('${f.intent}','${firstOwner}',0) /* group_epoch_claim_hold */`
+      );
+      let second: Promise<string> | undefined;
+      let original: string;
+      try {
+        await held('group_epoch_claim_hold', 'Idle');
+        second = sql(
+          `select public.service_claim_material_group_execution_v2('${f.intent}','${other}',0) /* group_epoch_claim_wait */`
+        );
+        void second.catch(() => undefined);
+        await held('group_epoch_claim_wait', 'Lock');
+      } finally {
+        original = await first.commit();
+      }
+      expect(JSON.parse(original)).toMatchObject({
+        acquired: true,
+        epoch: 1,
+        executorId: firstOwner
+      });
+      expect(JSON.parse((await second)!)).toMatchObject({
+        acquired: false,
+        epoch: 1,
+        executorId: null
+      });
+    }, 15000);
+    it('retains a concurrently committed unconfirmed provider dispatch across epoch takeover', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID(),
+        other = randomUUID();
+      expect(
+        JSON.parse(
+          await sql(
+            `select public.service_claim_material_group_execution_v2('${f.intent}','${executor}',0)`
+          )
+        ).acquired
+      ).toBe(true);
+      const first = holdSql(
+        `select public.service_begin_material_group_dispatch_v2('${f.intent}','${executor}',1,'${f.material}') /* group_epoch_dispatch_hold */`
+      );
+      let second: Promise<string> | undefined;
+      try {
+        await held('group_epoch_dispatch_hold', 'Idle');
+        second = sql(
+          `select public.service_claim_material_group_execution_v2('${f.intent}','${other}',1) /* group_epoch_dispatch_wait */`
+        );
+        void second.catch(() => undefined);
+        await held('group_epoch_dispatch_wait', 'Lock');
+      } finally {
+        expect(await first.commit()).toBe('t');
+      }
+      expect(JSON.parse((await second)!)).toMatchObject({
+        acquired: false,
+        hasPendingDispatch: true
+      });
+      expect(
+        await sql(
+          `select execution_epoch||':'||(dispatch_member is not null)::text from private.team_material_group_intents where id='${f.intent}'`
+        )
+      ).toBe('1:true');
+    }, 15000);
+    it('refuses a delayed old epoch close after a replacement material owner commits', async () => {
+      const f = await materialExecutionFixture(),
+        old = randomUUID(),
+        current = randomUUID();
+      expect(
+        JSON.parse(
+          await sql(
+            `select public.service_claim_material_group_execution_v2('${f.intent}','${old}',0)`
+          )
+        ).acquired
+      ).toBe(true);
+      const first = holdSql(
+        `select public.service_claim_material_group_execution_v2('${f.intent}','${current}',1) /* group_epoch_replace_hold */`
+      );
+      let second: Promise<string> | undefined;
+      try {
+        await held('group_epoch_replace_hold', 'Idle');
+        second = sql(
+          `select public.service_end_material_group_execution_v2('${f.intent}','${old}',1,null,null) /* group_epoch_close_wait */`
+        );
+        void second.catch(() => undefined);
+        await held('group_epoch_close_wait', 'Lock');
+      } finally {
+        expect(JSON.parse(await first.commit()).epoch).toBe(2);
+      }
+      expect(await second).toBe('f');
+      expect(
+        await sql(
+          `select public.service_begin_material_group_dispatch_v2('${f.intent}','${current}',2,'${f.material}')`
+        )
+      ).toBe('t');
+      expect(
+        await sql(`select public.service_end_material_group_execution('${f.intent}','${old}')`)
+      ).toBe('f');
+      expect(
+        await sql(
+          `select execution_epoch||':'||execution_closed::text||':'||(dispatch_member is not null)::text from private.team_material_group_intents where id='${f.intent}'`
+        )
+      ).toBe('2:false:true');
+    }, 15000);
+    it('refuses material dispatch when cancellation commits before its operation lock', async () => {
+      const f = await materialExecutionFixture(),
+        executor = randomUUID();
+      expect(
+        JSON.parse(
+          await sql(
+            `select public.service_claim_material_group_execution_v2('${f.intent}','${executor}',0)`
+          )
+        ).acquired
+      ).toBe(true);
+      const first = holdSql(
+        `update public.team_operations set state='canceled',stage='canceled',finished_at=clock_timestamp() where id='${f.operation}' /* group_epoch_cancel_hold */`
+      );
+      let second: Promise<string> | undefined;
+      try {
+        await held('group_epoch_cancel_hold', 'Idle');
+        second = sql(
+          `select public.service_begin_material_group_dispatch_v2('${f.intent}','${executor}',1,'${f.material}') /* group_epoch_cancel_wait */`
+        );
+        void second.catch(() => undefined);
+        await held('group_epoch_cancel_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect(await second).toBe('f');
+      expect(
+        await sql(
+          `select (dispatch_member is null)::text from private.team_material_group_intents where id='${f.intent}'`
+        )
+      ).toBe('true');
+      expect(await sql(`select state from public.team_operations where id='${f.operation}'`)).toBe(
         'canceled'
       );
     }, 15000);

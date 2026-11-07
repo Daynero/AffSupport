@@ -1,5 +1,6 @@
 import {
   acceptScreenCandidate,
+  SCREEN_SELECTION_BOUNDS,
   parseScreenSelectionBudget,
   reacquireScreenCandidate,
   ScreenSelectionBudgetError,
@@ -20,6 +21,7 @@ export interface RestitchSelectionSlotScope {
   teamId: string;
   actorId: string;
   slot: 'start' | 'end';
+  executor?: { id: string; epoch: number };
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const uncertain = () =>
@@ -46,18 +48,24 @@ function kernelFailure(error: unknown): never {
             : 'INVALID_INPUT';
   throw new TeamFunctionError(code, { details: { budget_reason: error.reason } });
 }
-function rpcFailure(error: unknown): never {
+export function restitchSelectionRpcFailure(error: unknown): never {
   const message = error && typeof error === 'object' && 'message' in error ? error.message : null;
   const tokens: string[] =
     typeof message === 'string' ? (message.match(/[A-Z][A-Z0-9_]{1,63}/gu) ?? []) : [];
 
   for (const code of [
     'AUTH_REQUIRED',
+    'INVALID_INPUT',
+    'REQUEST_REUSE_CONFLICT',
     'PERMISSION_DENIED',
     'SPACE_BLOCKED',
     'WRONG_STATE',
     'SOURCE_CHANGED',
-    'RESTITCH_SOURCES_INVALID'
+    'RESTITCH_SOURCES_INVALID',
+    'RESTITCH_INVALID',
+    'RESTITCH_NO_SCREENS',
+    'RESTITCH_SOURCES_TOO_MANY',
+    'RESTITCH_CLIENT_OUTDATED'
   ] as const)
     if (tokens.includes(code)) throw new TeamFunctionError(code);
   throw uncertain();
@@ -75,7 +83,13 @@ export class RestitchSelectionSlotStore {
       ![scope.rootOperationId, scope.teamId, scope.actorId].every(
         id => typeof id === 'string' && UUID.test(id)
       ) ||
-      !['start', 'end'].includes(scope.slot)
+      !['start', 'end'].includes(scope.slot) ||
+      (scope.executor !== undefined &&
+        (!scope.executor ||
+          typeof scope.executor.id !== 'string' ||
+          !UUID.test(scope.executor.id) ||
+          !Number.isSafeInteger(scope.executor.epoch) ||
+          scope.executor.epoch < 1))
     )
       throw new TeamFunctionError('INVALID_INPUT');
     this.#service = service;
@@ -83,7 +97,10 @@ export class RestitchSelectionSlotStore {
       rootOperationId: scope.rootOperationId.toLowerCase(),
       teamId: scope.teamId.toLowerCase(),
       actorId: scope.actorId.toLowerCase(),
-      slot: scope.slot
+      slot: scope.slot,
+      ...(scope.executor
+        ? { executor: { id: scope.executor.id.toLowerCase(), epoch: scope.executor.epoch } }
+        : {})
     };
   }
   #args(): Record<string, unknown> {
@@ -101,18 +118,35 @@ export class RestitchSelectionSlotStore {
     } catch {
       throw uncertain();
     }
-    if (reply.error) rpcFailure(reply.error);
+    if (reply.error) restitchSelectionRpcFailure(reply.error);
     return reply.data;
   }
   async read(): Promise<ScreenSelectionBudget> {
-    const value = await this.#rpc('service_read_restitch_selection_slot', this.#args());
+    return this.#read(false);
+  }
+  #ownerArgs(): Record<string, unknown> {
+    return {
+      p_executor: this.#scope.executor?.id ?? null,
+      p_epoch: this.#scope.executor?.epoch ?? null
+    };
+  }
+  async #read(active: boolean): Promise<ScreenSelectionBudget> {
+    const value = await this.#rpc(
+      active
+        ? 'service_read_active_restitch_selection_slot'
+        : 'service_read_restitch_selection_slot',
+      active ? { ...this.#args(), ...this.#ownerArgs() } : this.#args()
+    );
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw uncertain();
     const row = value as Record<string, unknown>;
     if (
       row.rootOperationId !== this.#scope.rootOperationId ||
       row.teamId !== this.#scope.teamId ||
       row.actorId !== this.#scope.actorId ||
-      row.slot !== this.#scope.slot
+      row.slot !== this.#scope.slot ||
+      (active &&
+        this.#scope.executor !== undefined &&
+        (row.executorId !== this.#scope.executor.id || row.epoch !== this.#scope.executor.epoch))
     )
       throw uncertain();
     const state = parseScreenSelectionBudget(row.budget);
@@ -122,11 +156,17 @@ export class RestitchSelectionSlotStore {
   async #cas(before: ScreenSelectionBudget, after: ScreenSelectionBudget): Promise<void> {
     if (!parseScreenSelectionBudget(after) || after.revision !== before.revision + 1)
       throw uncertain();
-    const reply = await this.#rpc('service_cas_restitch_selection_slot', {
-      ...this.#args(),
-      p_expected_budget: before,
-      p_next_budget: after
-    });
+    const reply = await this.#rpc(
+      this.#scope.executor
+        ? 'service_cas_restitch_selection_slot_owned'
+        : 'service_cas_restitch_selection_slot',
+      {
+        ...(this.#scope.executor ? this.#ownerArgs() : {}),
+        ...this.#args(),
+        p_expected_budget: before,
+        p_next_budget: after
+      }
+    );
     // A false or lost response is never retried as another mutation here.
     if (reply !== true) throw uncertain();
   }
@@ -134,7 +174,7 @@ export class RestitchSelectionSlotStore {
   async #change(
     apply: (before: ScreenSelectionBudget) => ScreenSelectionBudget
   ): Promise<{ acknowledgedChange: boolean; state: ScreenSelectionBudget }> {
-    const before = await this.read();
+    const before = await this.#read(true);
     let after: ScreenSelectionBudget;
     try {
       after = apply(before);
@@ -154,23 +194,53 @@ export class RestitchSelectionSlotStore {
   accept(versionId: string, acquisition: number) {
     return this.#change(before => acceptScreenCandidate(before, versionId, acquisition));
   }
-  reacquire(versionId: string) {
-    return this.#change(before => reacquireScreenCandidate(before, versionId));
+  #requireAcquisition(acquisition: number) {
+    if (
+      !Number.isSafeInteger(acquisition) ||
+      acquisition < 0 ||
+      acquisition > SCREEN_SELECTION_BOUNDS.candidateRetries
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
   }
-  refresh(versionId: string, requestId: string) {
-    return this.#change(before => refreshScreenCandidateGrant(before, versionId, requestId));
+  #assertAcquisition(before: ScreenSelectionBudget, versionId: string, acquisition: number) {
+    if (
+      before.candidates.find(c => c.versionId === versionId.toLowerCase())?.acquisition !==
+      acquisition
+    )
+      throw new ScreenSelectionBudgetError('acquisition_mismatch');
+  }
+  async reacquire(versionId: string, acquisition: number) {
+    this.#requireAcquisition(acquisition);
+    return this.#change(before => {
+      this.#assertAcquisition(before, versionId, acquisition);
+      return reacquireScreenCandidate(before, versionId);
+    });
+  }
+  async refresh(versionId: string, requestId: string, acquisition: number) {
+    this.#requireAcquisition(acquisition);
+    return this.#change(before => {
+      this.#assertAcquisition(before, versionId, acquisition);
+      return refreshScreenCandidateGrant(before, versionId, requestId);
+    });
   }
   async reserve(
     versionId: string,
     requestId: string,
-    offset: number
+    offset: number,
+    acquisition: number
   ): Promise<{
     kind: 'dispatch' | 'readback';
     reservation: ScreenTransferReservation;
   }> {
-    const before = await this.read();
+    this.#requireAcquisition(acquisition);
+    const before = await this.#read(true);
     let next: ReturnType<typeof reserveScreenTransfer>;
     try {
+      const repeated = before.transfers.find(t => t.requestId === requestId.toLowerCase());
+      if (repeated) {
+        if (repeated.acquisition !== acquisition)
+          throw new ScreenSelectionBudgetError('acquisition_mismatch');
+      } else this.#assertAcquisition(before, versionId, acquisition);
       next = reserveScreenTransfer(before, versionId, requestId, offset);
     } catch (error) {
       kernelFailure(error);
@@ -191,7 +261,9 @@ export class RestitchSelectionSlotStore {
       kernelFailure(error);
     }
     if (before === after) return;
-    const expected = after.transfers.find(row => row.requestId === requestId.toLowerCase());
+    const expected = parseScreenSelectionBudget(after)?.transfers.find(
+      row => row.requestId === requestId.toLowerCase()
+    );
     if (!expected) throw uncertain();
     try {
       // Accounting for a previously issued permit must still settle after cancellation

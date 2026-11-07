@@ -12,6 +12,7 @@ import {
 } from './drive.ts';
 import { isRecord } from './validation.ts';
 
+// eslint-disable-next-line no-control-regex -- Provider identifiers must exclude ASCII control bytes.
 const PROVIDER_ID = /^[^\u0000-\u001f]{1,1024}$/u;
 
 export type LibraryFolderSegment = 'stage' | 'offer' | 'language' | 'type';
@@ -51,6 +52,7 @@ export function normalizeCanonicalSegment(value: unknown, maximum = 120): string
     normalized.length > maximum ||
     normalized === '.' ||
     normalized === '..' ||
+    // eslint-disable-next-line no-control-regex -- Canonical path segments must exclude ASCII control bytes.
     /[\u0000-\u001f/\\]/u.test(normalized)
   ) {
     throw new TeamFunctionError('INVALID_INPUT');
@@ -243,8 +245,16 @@ export async function applyLibraryGroupMutation(input: {
 }): Promise<void> {
   if (input.intent.action === 'move' && !input.destinationFolderId)
     throw new TeamFunctionError('INVALID_INPUT');
+  input = {
+    ...input,
+    intent: {
+      ...input.intent,
+      members: input.intent.members.map(member => ({ ...member })),
+      appliedMemberIds: [...input.intent.appliedMemberIds]
+    }
+  };
   const executor = crypto.randomUUID();
-  const identity = { p_intent: input.intent.intentId, p_executor: executor };
+  let identity: { p_intent: string; p_executor: string; p_epoch: number } | null = null;
   let ownsExecution = false;
   let currentMember: string | null = null;
   let providerStarted = false;
@@ -268,27 +278,76 @@ export async function applyLibraryGroupMutation(input: {
     }
   };
   try {
-    const claim = await rpc('service_claim_material_group_execution', identity);
-    if (
-      !isRecord(claim) ||
-      claim.intentId !== input.intent.intentId ||
-      claim.teamId !== input.intent.teamId ||
-      claim.operationId !== input.intent.operationId ||
-      claim.sourceMaterialId !== input.intent.sourceMaterialId ||
-      typeof claim.acquired !== 'boolean' ||
-      typeof claim.completed !== 'boolean' ||
-      (claim.acquired && claim.completed) ||
-      !Array.isArray(claim.appliedMemberIds) ||
-      (claim.completed && claim.appliedMemberIds.length !== input.intent.members.length) ||
-      !claim.appliedMemberIds.every(
+    const validReceipt = (
+      value: unknown
+    ): value is Record<string, unknown> & {
+      acquired: boolean;
+      completed: boolean;
+      epoch: number;
+      claimProtocol: number;
+      executorId: string | null;
+      hasPendingDispatch: boolean;
+      appliedMemberIds: string[];
+    } =>
+      isRecord(value) &&
+      value.intentId === input.intent.intentId &&
+      value.teamId === input.intent.teamId &&
+      value.operationId === input.intent.operationId &&
+      value.sourceMaterialId === input.intent.sourceMaterialId &&
+      typeof value.acquired === 'boolean' &&
+      typeof value.completed === 'boolean' &&
+      !(value.acquired && value.completed) &&
+      typeof value.epoch === 'number' &&
+      Number.isSafeInteger(value.epoch) &&
+      value.epoch >= 0 &&
+      (value.claimProtocol === 1 || value.claimProtocol === 2) &&
+      (value.executorId === null || typeof value.executorId === 'string') &&
+      typeof value.hasPendingDispatch === 'boolean' &&
+      Array.isArray(value.appliedMemberIds) &&
+      (!value.completed ||
+        (!value.hasPendingDispatch &&
+          value.appliedMemberIds.length === input.intent.members.length)) &&
+      value.appliedMemberIds.every(
         id =>
           typeof id === 'string' && input.intent.members.some(member => member.materialId === id)
-      ) ||
-      new Set(claim.appliedMemberIds).size !== claim.appliedMemberIds.length
-    )
+      ) &&
+      new Set(value.appliedMemberIds).size === value.appliedMemberIds.length;
+    const context = await rpc('service_read_material_group_execution', {
+      p_intent: input.intent.intentId
+    });
+    if (!validReceipt(context) || context.acquired || context.executorId !== null)
       throw new TeamFunctionError('INVALID_RESPONSE');
+    if (context.completed) return;
+    if (context.hasPendingDispatch || context.epoch >= Number.MAX_SAFE_INTEGER)
+      throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+    // Preserve this original scope even when a later request becomes the owner.
+    identity = {
+      p_intent: input.intent.intentId,
+      p_executor: executor,
+      p_epoch: context.epoch + 1
+    };
+    let claim: unknown;
+    try {
+      claim = await rpc('service_claim_material_group_execution_v2', {
+        p_intent: identity.p_intent,
+        p_executor: executor,
+        p_expected_epoch: context.epoch
+      });
+    } catch (error) {
+      if (error instanceof TeamFunctionError && error.code !== 'GROUP_RECONCILING') throw error;
+      claim = await rpc('service_read_material_group_execution', identity);
+    }
+    if (!isRecord(claim)) claim = await rpc('service_read_material_group_execution', identity);
+    if (!validReceipt(claim)) throw new TeamFunctionError('INVALID_RESPONSE');
     if (claim.completed) return;
     if (!claim.acquired) throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+    if (
+      claim.executorId !== executor ||
+      claim.epoch !== identity.p_epoch ||
+      claim.claimProtocol !== 2 ||
+      claim.hasPendingDispatch
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
     ownsExecution = true;
     const destination = input.destinationFolderId
       ? await proveLiveAncestry({
@@ -320,7 +379,7 @@ export async function applyLibraryGroupMutation(input: {
             : 'canUntrash'
       );
       if (
-        (await rpc('service_begin_material_group_dispatch', {
+        (await rpc('service_begin_material_group_dispatch_v2', {
           ...identity,
           p_material: member.materialId
         })) !== true
@@ -362,7 +421,7 @@ export async function applyLibraryGroupMutation(input: {
         throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
       acknowledged = member.materialId;
       if (
-        (await rpc('service_checkpoint_material_group_execution', {
+        (await rpc('service_checkpoint_material_group_execution_v2', {
           ...identity,
           p_material: member.materialId
         })) !== true
@@ -379,19 +438,21 @@ export async function applyLibraryGroupMutation(input: {
         retryable: true,
         details: { causeCode: safeProviderErrorCode(error) }
       });
-    await settle('service_mark_material_group_execution_reconciling', {
-      ...identity,
-      p_error_code: safeProviderErrorCode(error)
-    });
+    if (identity)
+      await settle('service_mark_material_group_execution_reconciling_v2', {
+        ...identity,
+        p_error_code: safeProviderErrorCode(error)
+      });
     throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
   } finally {
     // Only this invocation can attest that its reserved member never reached PATCH.
     // A lost provider reply keeps dispatch_member held; expiry cannot reissue it.
-    await settle('service_end_material_group_execution', {
-      ...identity,
-      p_not_dispatched: currentMember && !providerStarted ? currentMember : null,
-      p_acknowledged: acknowledged
-    });
+    if (identity)
+      await settle('service_end_material_group_execution_v2', {
+        ...identity,
+        p_not_dispatched: currentMember && !providerStarted ? currentMember : null,
+        p_acknowledged: acknowledged
+      });
   }
 }
 

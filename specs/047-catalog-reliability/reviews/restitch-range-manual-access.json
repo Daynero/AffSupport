@@ -1,0 +1,12 @@
+{
+  "observed_at": "2026-11-07T00:33:40.464811+00:00",
+  "method": "cua.getState",
+  "apps": 0,
+  "browsers": 0,
+  "errors": [
+    "Sky Computer Use native pipe startup failed",
+    "The browser access host is unavailable"
+  ],
+  "manual_acceptance_performed": false,
+  "production_touched": false
+}

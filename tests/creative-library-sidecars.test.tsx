@@ -153,19 +153,37 @@ describe('Creative Library transcript sidecars', () => {
         return updated;
       });
       const accepted = lifecycleIntent(action);
-      const rpc = vi.fn(async (name: string) => ({
+      const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
         data:
-          name === 'service_claim_material_group_execution'
+          name === 'service_read_material_group_execution'
             ? {
                 intentId: accepted.intentId,
                 teamId: accepted.teamId,
                 operationId: accepted.operationId,
                 sourceMaterialId: accepted.sourceMaterialId,
-                acquired: true,
+                epoch: 0,
+                claimProtocol: 1,
+                executorId: null,
+                hasPendingDispatch: false,
+                acquired: false,
                 completed: false,
                 appliedMemberIds: []
               }
-            : true,
+            : name === 'service_claim_material_group_execution_v2'
+              ? {
+                  intentId: accepted.intentId,
+                  teamId: accepted.teamId,
+                  operationId: accepted.operationId,
+                  sourceMaterialId: accepted.sourceMaterialId,
+                  epoch: 1,
+                  claimProtocol: 2,
+                  executorId: args.p_executor,
+                  hasPendingDispatch: false,
+                  acquired: true,
+                  completed: false,
+                  appliedMemberIds: []
+                }
+              : true,
         error: null
       }));
       await applyLibraryGroupMutation({
@@ -183,7 +201,7 @@ describe('Creative Library transcript sidecars', () => {
         action === 'trash'
       ]);
       expect(
-        rpc.mock.calls.filter(([name]) => name === 'service_checkpoint_material_group_execution')
+        rpc.mock.calls.filter(([name]) => name === 'service_checkpoint_material_group_execution_v2')
       ).toHaveLength(2);
     }
   });

@@ -116,3 +116,24 @@ it('bounds receipts at 100 and reports truncation and unknown closed causes', as
   expect(evidence.records.every(value => value.code === 'UNKNOWN')).toBe(true);
   expect(evidence.blind_spots.join(' ')).toContain('truncated at 100');
 });
+
+it('exposes only the current fenced epoch through the bounded read-only projection', async () => {
+  reader({ rows: [{ ...row, ownership_observed: true, claim_protocol: 2, execution_epoch: 3 }] });
+  const evidence = await getMaterialGroupEvidence({ actorId: actor, asOf: at });
+  expect(evidence.records[0]).toMatchObject({ claim_protocol: 2, execution_epoch: 3 });
+  expect(JSON.stringify(evidence)).not.toContain('execution_owner');
+});
+it('keeps absent and malformed ownership separate from the independently known dispatch state', async () => {
+  reader({ rows: [{ ...row, ownership_observed: true, claim_protocol: 2, execution_epoch: '3' }] });
+  const malformed = await getMaterialGroupEvidence({ actorId: actor, asOf: at });
+  expect(malformed.records[0]).toMatchObject({
+    state: 'dispatch_unconfirmed',
+    execution_epoch: null,
+    claim_protocol: null
+  });
+  expect(malformed.blind_spots.join(' ')).toContain('Malformed execution ownership');
+  reader();
+  const absent = await getMaterialGroupEvidence({ actorId: actor, asOf: at });
+  expect(absent.records[0]?.execution_epoch).toBeNull();
+  expect(absent.blind_spots.join(' ')).toContain('epoch projection is unavailable');
+});

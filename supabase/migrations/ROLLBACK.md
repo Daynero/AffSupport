@@ -2456,7 +2456,6 @@ still require live provider preflight. This migration changes no application
 rows and grants no provider execution. No production action or automatic rollback
 is authorized.
 
-
 ### 20261207155000 — restitch selection storage foundation
 
 This additive private storage has no public root initializer, advertised native
@@ -2472,3 +2471,86 @@ Do not drop live storage, erase receipts, rotate keys or run a destructive down
 migration to recover a read. Retain the additive schema while reconciling any
 issued work. Candidate/pool/recipe acceptance, aliases and retention must be
 completed and verified before exposing a producer.
+
+### 20261207156000 — frozen restitch range context
+
+Adds immutable provider mapping to the disabled selection foundation. Existing
+rows adopt context only when their frozen content/version identity still agrees;
+otherwise the entire migration refuses. The candidate trigger derives mapping
+from the team material/connection, and rejects caller substitutions. The existing
+reservation CAS also checks that mapping and connection root. A new service-only
+read returns context for the exact active candidate acquisition; browser roles
+have no execute privilege. No initializer, grant or capability is introduced.
+
+Keep both the additive columns and the original reservations while reconciling
+issued work. Disabling a future producer must not remove measured prefixes or
+turn unknown ranges into fresh permits. Do not restore weaker CAS definitions,
+delete ledger rows or run an automatic destructive down migration. Root/recipe
+acceptance, stable version handles, retention and product-path integration still
+require their own verification before enabling a producer.
+
+### 20261207157000 — stable restitch candidate identities (source work)
+
+Adds an internal opaque-version registry keyed by team, actual connection/file
+and checksum/MIME/size. Renaming or metadata-only provider versions do not reset
+a candidate; changed bytes and independent provider copies get distinct handles.
+No actor or browser can read/write the registry directly, and its private factory
+is not a public RPC or a new permission. No roots or product producer are enabled.
+
+Do not remap existing root snapshots or ledger IDs while adopting this registry.
+Existing foundation roots retain their original handles; a future accepted-root
+factory must use registered handles for new snapshots. Keep live references when
+reconciling failures. Do not erase an unknown range or use registry expiry as
+permission for another draw. Retention/root retirement still needs its own proof
+before a producer can be enabled. This source migration is not yet applied to beta.
+
+### 20261207158000 — manual root admission and bounded pools (source work)
+
+Service-only acceptance atomically binds a cloud download operation to a local
+display UUID, immutable recipe, actor-private source namespace and candidate list.
+It samples duration once using the renderer's policy and permits metadata-only
+versions only for the new content-bound manual-download protocol. Legacy process
+source/finalize ownership is unchanged. The paired read RPC is nonmutating;
+missing accounting cannot initialize another budget. The namespace uses native
+PostgreSQL SHA256 and has no direct browser/service table privileges.
+
+This migration also bounds folder and image observations, preserves unknown or
+truncated coverage, keeps independent provider copies and projects disabled slots.
+No provider/network action, product route, native capability or execution lease
+is enabled. It is source-only, pending native concurrency and beta verification.
+Do not drop accepted roots, rewrite their recipes or use a failed read as fresh
+acceptance. Keep the additive schema during any future producer rollback.
+
+### 20261207159000 — ledger deletion fence (source work)
+
+Held ranges and active roots refuse deletion, including cascades. The guard uses
+NOWAIT in reverse-order deletion paths; contention preserves the deletion
+transaction rather than racing an issued-range writer. A protocol1 terminal
+parent still lacks native-quiescence proof and remains conservatively retained.
+This is not completed retirement support. Complete the owned native executor and
+verified retirement lifecycle before enabling a producer; never disable the
+fence or erase unknown accounting to make cleanup appear successful.
+
+### 20261207160000_restitch_owned_executor.sql
+
+Internal ownership and claim receipts only; no product producer is enabled.
+Do not drop executor or claim records while an accepted protocol 1 root exists.
+A missing owner ledger is unknown and cannot be recreated as unclaimed. Preserve
+exact late settlement after cancellation or ACL revocation. Retain the private
+CAS/source cores and service-only wrappers together; removing only the ownership
+checks would allow stale executors to mint new I/O. Forward repair must keep the
+original epoch and claims, and must not infer native quiescence from a timeout or
+parent terminal state. No production application or down migration is authorized.
+
+### 20261207161000_material_group_claim_epochs.sql
+
+Keep each adopted lifecycle intent's claim protocol and monotonic epoch together
+with its versioned begin/checkpoint/close/failure RPCs. Do not reset an epoch,
+reactivate a legacy UUID or clear an unconfirmed provider dispatch. Old callbacks
+must continue to refuse an adopted scope, including when an executor UUID repeats.
+A readback loss permits no second claim mutation. Forward repair must retain the
+original operation, actor and member snapshot. The new default epoch0 is not an
+observed historical claim count; the restricted projection returns null for that
+legacy boundary. Preserve all pre-existing intent columns and only add the two
+owned fields. Native restitch still requires its independent quiescence proof.
+No automated down migration or production application is authorized.

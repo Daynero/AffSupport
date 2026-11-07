@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "observedAt": "2026-11-07T04:26:51.087Z",
+  "schema": 444,
+  "stages": ["group_accepted"],
+  "code": "QA_UNKNOWN",
+  "scope": "Actual authenticated local beta API and provider synthetic bulk-trash/restore/download. No manual UI acceptance.",
+  "productionTouched": false
+}

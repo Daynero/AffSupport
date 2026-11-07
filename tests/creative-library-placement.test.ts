@@ -116,19 +116,37 @@ describe('Creative Library placement and source-sidecar grouping', () => {
 
   it('moves a source and current transcript as one checkpointed group', async () => {
     const provider = drive();
-    const rpc = vi.fn(async (name: string) => ({
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
       data:
-        name === 'service_claim_material_group_execution'
+        name === 'service_read_material_group_execution'
           ? {
               intentId: intent.intentId,
               teamId: intent.teamId,
               operationId: intent.operationId,
               sourceMaterialId: intent.sourceMaterialId,
-              acquired: true,
+              epoch: 0,
+              claimProtocol: 1,
+              executorId: null,
+              hasPendingDispatch: false,
+              acquired: false,
               completed: false,
               appliedMemberIds: []
             }
-          : true,
+          : name === 'service_claim_material_group_execution_v2'
+            ? {
+                intentId: intent.intentId,
+                teamId: intent.teamId,
+                operationId: intent.operationId,
+                sourceMaterialId: intent.sourceMaterialId,
+                epoch: 1,
+                claimProtocol: 2,
+                executorId: args.p_executor,
+                hasPendingDispatch: false,
+                acquired: true,
+                completed: false,
+                appliedMemberIds: []
+              }
+            : true,
       error: null
     }));
     await applyLibraryGroupMutation({
@@ -140,7 +158,7 @@ describe('Creative Library placement and source-sidecar grouping', () => {
     });
     expect(provider.updateFileMetadata).toHaveBeenCalledTimes(2);
     expect(rpc).toHaveBeenCalledWith(
-      'service_checkpoint_material_group_execution',
+      'service_checkpoint_material_group_execution_v2',
       expect.objectContaining({
         p_intent: intent.intentId,
         p_material: intent.members[1].materialId,
@@ -151,19 +169,37 @@ describe('Creative Library placement and source-sidecar grouping', () => {
 
   it('marks a partial provider move as reconciling and never reports success', async () => {
     const provider = drive('transcript');
-    const rpc = vi.fn(async (name: string) => ({
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
       data:
-        name === 'service_claim_material_group_execution'
+        name === 'service_read_material_group_execution'
           ? {
               intentId: intent.intentId,
               teamId: intent.teamId,
               operationId: intent.operationId,
               sourceMaterialId: intent.sourceMaterialId,
-              acquired: true,
+              epoch: 0,
+              claimProtocol: 1,
+              executorId: null,
+              hasPendingDispatch: false,
+              acquired: false,
               completed: false,
               appliedMemberIds: []
             }
-          : true,
+          : name === 'service_claim_material_group_execution_v2'
+            ? {
+                intentId: intent.intentId,
+                teamId: intent.teamId,
+                operationId: intent.operationId,
+                sourceMaterialId: intent.sourceMaterialId,
+                epoch: 1,
+                claimProtocol: 2,
+                executorId: args.p_executor,
+                hasPendingDispatch: false,
+                acquired: true,
+                completed: false,
+                appliedMemberIds: []
+              }
+            : true,
       error: null
     }));
     await expect(
@@ -175,8 +211,9 @@ describe('Creative Library placement and source-sidecar grouping', () => {
         destinationFolderId: 'destination'
       })
     ).rejects.toMatchObject({ code: 'GROUP_RECONCILING', retryable: true });
-    expect(rpc).toHaveBeenCalledWith('service_mark_material_group_execution_reconciling', {
+    expect(rpc).toHaveBeenCalledWith('service_mark_material_group_execution_reconciling_v2', {
       p_executor: expect.any(String),
+      p_epoch: 1,
       p_intent: intent.intentId,
       p_error_code: 'DRIVE_UNAVAILABLE'
     });

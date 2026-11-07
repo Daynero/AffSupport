@@ -404,7 +404,6 @@ are refused before claim, lease or processing. Existing legacy/default behavior
 remains available through its own contract until this new capability is complete.
 A new shared kernel alone is not evidence of any wired recovery path.
 
-
 ## Installed-executor pre-claim boundary (working increment)
 
 Browser updater claims probe the current installation's teamWorkspace, stitcher,
@@ -427,7 +426,6 @@ claim_refused, claim_idle or claim_accepted. Its terminal acknowledges only this
 claim step and always carries production_completed=false; it never emits
 result_visible. Native background claims and full durable screen-selection
 protocol negotiation remain separate unfinished boundaries.
-
 
 ## C4.2. Selection-storage foundation (unwired)
 
@@ -478,3 +476,98 @@ claiming another job. Existing library replays remain compatible. The broker
 maps the updater's outdated-client refusal to AGENT_UPDATE_REQUIRED, which the
 existing worker records as blocked/needs_agent_setup without a retry storm.
 This does not advertise the unfinished durable-selection recovery capability.
+
+## C4.3. Measured range and frozen source authority (working, unwired)
+
+`service_read_restitch_selection_source(root, team, actor, slot, version,
+acquisition)` is service-only. It echoes the exact logical scope and resolves
+credential/source context from the private frozen candidate. It requires the
+current processing actor's rights, an active parent operation and the same active
+candidate acquisition. It does not select, reserve, refresh or issue credentials
+to an HTTP caller. Missing or malformed state remains unknown/refused.
+
+The frozen candidate records connection, provider file, resource key, accepted
+parent and connection root. Metadata-only provider version changes preserve
+content identity; changed checksum/size/MIME, mapping, parent or connection root
+refuses. The reservation CAS repeats the current mapping/root checks to close
+the context-read race. Current provider metadata and live ancestry are checked
+again inside the protected reader before media access. Native checksum and decode
+validation remain required; accounted range completion is not image validation.
+
+The service adapter preloads DB context and credentials outside the I/O meter.
+A new acknowledged reservation is required before OAuth, metadata or media I/O.
+OAuth/metadata and image transports are distinct: only the exact frozen Drive
+file, GET and reserved Range may be the image response; one reservation permits
+at most one media dispatch. Untracked/control responses cannot be forwarded as
+images. Returned bytes are buffered within the fixed range and exposed only
+after exact server settlement or confirmed readback. Failed/late/canceled reads
+retain known prefixes; an unquiesced read or close holds the reservation. Active
+fetch/body waits include OAuth/metadata and exclude DB, CPU and backpressure.
+Clock rollback or an unknown/over-limit measurement cannot become zero usage.
+
+This is still an internal boundary. Accepted recipe/pool construction, stable
+version registry, root aliases, retention, a dedicated grant and installed native
+capability, all execution-path wiring and manual acceptance remain unfinished.
+No generic download/upload grant can activate this code.
+
+## C4.4. Internal manual-download admission (source-only)
+
+The service-only accept/read signatures are
+`service_{accept,read}_manual_restitch_download(team, actor, material, key,
+client_operation)`. They are not browser RPCs or native grants. Accept atomically
+creates the cloud download operation and frozen root before any selection or
+provider I/O. Read cannot initialize a missing root. Reuse binds the exact actor,
+source material and separate local display UUID; changed request identity refuses.
+An existing operation without its root remains unknown and cannot acquire a new
+budget. No process/upload right is obtained by a download-only caller.
+
+A registry supplies stable opaque versions by actual team/connection/file and
+checksum/MIME/size. Namespace configuration is separate: actor plus semantic
+settings and declared sources, excluding resave metadata and sampled randomness.
+The immutable root recipe stores one actual sampled duration, source content
+binding and bounded pool observations. Missing metadata, unresolved sources and
+truncation cannot establish all images unusable. The5001st folder/image or501st
+eligible image marks observation incomplete. Candidate snapshots retain each
+actual provider copy instead of deduplicating only by checksum.
+
+Protocol1 manual downloads compare their accepted source content/binding, allowing
+metadata-only provider versions. Legacy process roots retain their version policy.
+Disabled slots are explicit in diagnostics. Source-only deletion fences preserve
+active recipes and unknown ranges; a terminal protocol1 parent is not proof of
+native quiescence. An owned-executor/epoch and retirement protocol, dedicated
+capabilities, native handlers and automated-root aliases are prerequisites to any
+user-callable initializer or advertised support. These remain unfinished.
+
+#### C4.5 — Owned execution boundary (internal, beta storage verified)
+
+Protocol 1 actions require the original executor UUID and monotonic epoch. Both
+active reads (including no-op transitions) and CAS repeat current actor, parent
+and content authority. Read-only bookkeeping and exact settlement remain possible
+after cancellation. Claim receipts preserve the original native instance and
+epoch across retries; historical claims never reactivate and historical closure
+acknowledgements cannot close a later owner. Missing executor accounting remains
+unknown. No timeout alone allows takeover. A service-only quiescence receipt
+requires a future controller to observe all local requests and managed children
+stopped, plus no held server ranges; the RPC alone is not that proof. Capability,
+public endpoints and retention relaxation remain disabled until native acceptance.
+
+### Existing lifecycle actions: versioned execution scope
+
+Lifecycle Edge work uses `(intentId, executorId, epoch)` independently of native
+screen ownership. Capture the context epoch before awaits and compare it once in
+claim admission; never borrow a newer epoch after a lost reply. Missing claim
+acknowledgement permits only exact readback. Modern begin, checkpoint, close and
+failure callbacks reject old epochs, including a repeated executor UUID. Legacy
+callbacks cannot mutate an adopted modern scope.
+
+A pending provider dispatch blocks every replacement. With no issued dispatch,
+a transactional epoch fence can supersede metadata work because all its future
+PATCH calls require the matching begin RPC. This is not native quiescence: it
+must not be reused for local child processes, decoding, downloads or output saves.
+Cancellation and admission lock the same parent. Late exact bookkeeping may close
+issued work after cancellation or access revocation without creating new I/O.
+
+The read-only view exposes the current protocol and epoch; legacy, absent and
+malformed ownership remain explicitly unknown. Current counters do not reconstruct
+old request outcomes or prove visible delivery. Historical lifecycle receipts and
+current material-generation reconciliation remain a separate unfinished boundary.

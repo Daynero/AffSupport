@@ -299,6 +299,14 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
         stage: 'stitch',
         agent: [
           'apps/agent/src/team-bridge/screen-recovery.ts',
+          'supabase/functions/drive-ops/restitch-root.ts',
+          'supabase/migrations/20261207157000_restitch_candidate_versions.sql',
+          'supabase/migrations/20261207158000_restitch_pool_admission.sql',
+          'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-reader.ts',
+          'supabase/functions/drive-ops/restitch-range-source.ts',
+          'supabase/functions/drive-ops/restitch-selection-store.ts',
+          'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
           'packages/shared/src/team/restitch-selection.ts'
         ],
         check:
@@ -858,14 +866,31 @@ function build(): Record<string, CodeLocation> {
         'Inspect the actual installed executor probe before the cloud claim. For native background claims inspect the installed executor declaration and durable replay, rather than assuming the broker version. An old local app and an old page need different recovery; refusal and idle claims do not prove processing or video delivery.'
     };
   }
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:RESTITCH_INVALID`] = {
+      files: [
+        'supabase/functions/drive-ops/restitch-root.ts',
+        'supabase/migrations/20261207158000_restitch_pool_admission.sql',
+        'apps/web/src/team/restitch/useRestitchDelivery.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts'
+      ],
+      check:
+        'The accepted settings or requested preparation are invalid. Confirm source mode, enabled slots and the immutable recipe; this refusal is not proof that every image is broken.'
+    };
   map['restitch:selection:accounting'] = {
     files: [
+      'supabase/functions/drive-ops/restitch-executor.ts',
+      'supabase/migrations/20261207160000_restitch_owned_executor.sql',
       'supabase/functions/drive-ops/restitch-selection-store.ts',
+      'supabase/functions/drive-ops/restitch-range-reader.ts',
+      'supabase/functions/drive-ops/restitch-range-authority.ts',
+      'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
+      'supabase/functions/drive-ops/restitch-range-source.ts',
       'supabase/migrations/20261207155000_restitch_selection_storage.sql',
       'packages/shared/src/team/restitch-selection.ts'
     ],
     check:
-      'Inspect the original slot and exact reservation. A held range proves neither an upstream read nor its absence. Preserve unknown accounting and confirm recorded measurements before issuing more work.'
+      'Inspect the original executor epoch, slot and exact reservation. Superseded claims never authorize new reads. A held range proves neither an upstream read nor its absence. Preserve unknown accounting and confirm recorded measurements before issuing more work.'
   };
   const materialLinkFiles = [
     'supabase/functions/library-ops/share-resolution.ts',
@@ -999,10 +1024,15 @@ function build(): Record<string, CodeLocation> {
       map[`team:${stage}:${code}`] = {
         files: [
           'apps/agent/src/team-bridge/screen-recovery.ts',
+          'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-reader.ts',
+          'supabase/functions/drive-ops/restitch-range-source.ts',
+          'supabase/functions/drive-ops/restitch-selection-store.ts',
+          'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
           'packages/shared/src/team/restitch-selection.ts'
         ],
         check:
-          'Inspect the slot budget and proven file defects. Unknown accounting stops new transfers; only a complete eligible snapshot establishes exhaustion.'
+          'Inspect the original slot and acquisition, exact reservation and frozen provider mapping. A missing or canceled provider response cannot prove zero cost. Unknown accounting stops new transfers; only a complete eligible snapshot establishes exhaustion.'
       };
 
   map['catalog:video:*'] = {
@@ -1561,6 +1591,7 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   },
   'material:group:execution': {
     files: [
+      'supabase/migrations/20261207161000_material_group_claim_epochs.sql',
       'supabase/migrations/20261207151000_material_group_execution.sql',
       'supabase/migrations/20261207152000_confirmed_material_group_reconciliation.sql',
       'supabase/migrations/20261207153000_material_group_late_failure.sql',

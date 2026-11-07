@@ -6200,9 +6200,11 @@ export type GeneratedDatabase = {
         Row: {
           action: string | null;
           actor_id: string | null;
+          claim_protocol: number | null;
           code: string | null;
           confirmed_count: number | null;
           created_at: string | null;
+          execution_epoch: number | null;
           has_unconfirmed_dispatch: boolean | null;
           id: string | null;
           member_count: number | null;
@@ -8523,6 +8525,16 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_accept_manual_restitch_download: {
+        Args: {
+          p_actor: string;
+          p_client_operation: string;
+          p_key: string;
+          p_material: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_ack_launch_upload_quiescence: {
         Args: { p_operation: string; p_token_hash: string };
         Returns: boolean;
@@ -8659,6 +8671,15 @@ export type GeneratedDatabase = {
         Args: { p_executor: string; p_intent: string; p_material: string };
         Returns: boolean;
       };
+      service_begin_material_group_dispatch_v2: {
+        Args: {
+          p_epoch: number;
+          p_executor: string;
+          p_intent: string;
+          p_material: string;
+        };
+        Returns: boolean;
+      };
       service_begin_material_share: {
         Args: {
           p_actor: string;
@@ -8724,6 +8745,19 @@ export type GeneratedDatabase = {
       service_cas_restitch_selection_slot: {
         Args: {
           p_actor: string;
+          p_expected_budget: Json;
+          p_next_budget: Json;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_cas_restitch_selection_slot_owned: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
           p_expected_budget: Json;
           p_next_budget: Json;
           p_root_operation: string;
@@ -8958,6 +8992,15 @@ export type GeneratedDatabase = {
         Args: { p_executor: string; p_intent: string; p_material: string };
         Returns: boolean;
       };
+      service_checkpoint_material_group_execution_v2: {
+        Args: {
+          p_epoch: number;
+          p_executor: string;
+          p_intent: string;
+          p_material: string;
+        };
+        Returns: boolean;
+      };
       service_checkpoint_material_group_intent: {
         Args: { p_intent: string; p_material: string };
         Returns: boolean;
@@ -9073,6 +9116,10 @@ export type GeneratedDatabase = {
         Args: { p_executor: string; p_intent: string };
         Returns: Json;
       };
+      service_claim_material_group_execution_v2: {
+        Args: { p_executor: string; p_expected_epoch: number; p_intent: string };
+        Returns: Json;
+      };
       service_claim_orphan_cleanups: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
         Returns: {
@@ -9100,6 +9147,17 @@ export type GeneratedDatabase = {
       };
       service_claim_process_output_cleanup: {
         Args: { p_limit?: number; p_owner: string };
+        Returns: Json;
+      };
+      service_claim_restitch_executor: {
+        Args: {
+          p_actor: string;
+          p_claim: string;
+          p_contract: number;
+          p_native_instance: string;
+          p_root_operation: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       service_claim_restitch_job: {
@@ -9499,6 +9557,16 @@ export type GeneratedDatabase = {
       service_end_material_group_execution: {
         Args: {
           p_acknowledged?: string;
+          p_executor: string;
+          p_intent: string;
+          p_not_dispatched?: string;
+        };
+        Returns: boolean;
+      };
+      service_end_material_group_execution_v2: {
+        Args: {
+          p_acknowledged?: string;
+          p_epoch: number;
           p_executor: string;
           p_intent: string;
           p_not_dispatched?: string;
@@ -10069,6 +10137,15 @@ export type GeneratedDatabase = {
         Args: { p_error_code: string; p_executor: string; p_intent: string };
         Returns: boolean;
       };
+      service_mark_material_group_execution_reconciling_v2: {
+        Args: {
+          p_epoch: number;
+          p_error_code: string;
+          p_executor: string;
+          p_intent: string;
+        };
+        Returns: boolean;
+      };
       service_mark_material_group_reconciling: {
         Args: { p_error_code: string; p_intent: string };
         Returns: boolean;
@@ -10184,12 +10261,82 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_quiesce_restitch_executor: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_quiescence: string;
+          p_root_operation: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_read_active_restitch_selection_slot: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_manual_restitch_download: {
+        Args: {
+          p_actor: string;
+          p_client_operation: string;
+          p_key: string;
+          p_material: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_material_group_execution: {
+        Args: { p_epoch?: number; p_executor?: string; p_intent: string };
+        Returns: Json;
+      };
+      service_read_restitch_executor_claim: {
+        Args: {
+          p_actor: string;
+          p_claim: string;
+          p_native_instance: string;
+          p_root_operation: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_read_restitch_selection_slot: {
         Args: {
           p_actor: string;
           p_root_operation: string;
           p_slot: string;
           p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_restitch_selection_source: {
+        Args: {
+          p_acquisition: number;
+          p_actor: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+          p_version: string;
+        };
+        Returns: Json;
+      };
+      service_read_restitch_selection_source_owned: {
+        Args: {
+          p_acquisition: number;
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+          p_version: string;
         };
         Returns: Json;
       };

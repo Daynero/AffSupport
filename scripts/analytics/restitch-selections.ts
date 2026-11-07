@@ -3,6 +3,7 @@ import { getSchema } from './schema.js';
 import type { InspectData } from './types.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const STATES = [
+  'disabled',
   'awaiting_selection',
   'candidate_selected',
   'candidate_rejected',

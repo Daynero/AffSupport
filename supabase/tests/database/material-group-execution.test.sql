@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(38);
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
  ('b1510000-0000-4000-8000-000000000001','authenticated','authenticated','overlap-native@test.invalid','{}','{}');
 insert into public.admin_users(user_id) values('b1510000-0000-4000-8000-000000000001');
@@ -49,10 +49,11 @@ select throws_ok($q$insert into private.team_material_group_intents(team_id,sour
 select is(public.service_claim_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000071')->>'acquired','true','independent material can execute');
 select ok(public.service_begin_material_group_dispatch('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000071','b1510000-0000-4000-8000-000000000043'),'second material gets its own reservation');
 select ok(public.service_end_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000071','b1510000-0000-4000-8000-000000000043',null),'positive no-dispatch closure clears only its own member');
-select is(public.service_claim_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072')->>'acquired','true','same intent can resume after known no-dispatch closure');
+select is(public.service_claim_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072')->>'acquired','false','unversioned retry cannot reactivate a historical owner scope');
+select is(public.service_claim_material_group_execution_v2('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072',0)->>'acquired','true','same intent resumes through the current epoch contract after known no-dispatch closure');
 select ok(not public.service_end_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000071'),'old owner cannot close a replacement invocation');
-select ok(public.service_begin_material_group_dispatch('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072','b1510000-0000-4000-8000-000000000043'),'replacement invocation reserves its member once');
-select ok(public.service_checkpoint_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072','b1510000-0000-4000-8000-000000000043'),'verified response confirms exactly the held member');
+select ok(public.service_begin_material_group_dispatch_v2('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072',1,'b1510000-0000-4000-8000-000000000043'),'replacement invocation reserves its member once');
+select ok(public.service_checkpoint_material_group_execution_v2('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072',1,'b1510000-0000-4000-8000-000000000043'),'verified response confirms exactly the held member');
 select is(public.service_claim_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000071')->>'completed','true','all acknowledgements read back without another execution');
 select is(public.service_complete_material_group_intent('b1510000-0000-4000-8000-000000000063')->>'state','succeeded','existing completion authority registers the confirmed group');
 select is(public.service_claim_material_group_execution('b1510000-0000-4000-8000-000000000064','b1510000-0000-4000-8000-000000000071')->>'acquired','false','legacy execution never becomes an unexecuted managed reservation');
@@ -64,5 +65,14 @@ select ok(not has_table_privilege('anon','public.analytics_material_group_execut
 select ok(has_table_privilege('wishly_analytics_ro','public.analytics_material_group_execution','select'),'SELECT-only diagnostics can read bounded execution state');
 select ok(not exists(select 1 from information_schema.columns where table_schema='public' and table_name='analytics_material_group_execution' and column_name in('member_snapshot','drive_file_id','execution_owner','name','parent_folder_id')),'projection excludes provider and content fields');
 select ok(exists(select 1 from private.task_cleanup_reference_tables() where schema_name='private' and table_name='team_material_group_intents') and exists(select 1 from pg_trigger where tgrelid='private.team_material_group_intents'::regclass and tgname='task_cleanup_reference_fence' and tgenabled<>'D'),'existing cleanup inventory and row fence cover the new member marker');
+
+select is(public.service_claim_material_group_execution_v2('b1510000-0000-4000-8000-000000000061','b1510000-0000-4000-8000-000000000072',0)->>'acquired','false','versioned claim also preserves an unknown provider dispatch');
+select is((select execution_epoch from public.analytics_material_group_execution where id='b1510000-0000-4000-8000-000000000063'),1::bigint,'restricted diagnostics expose the current adopted epoch');
+select is((select execution_epoch from public.analytics_material_group_execution where id='b1510000-0000-4000-8000-000000000061'),null::bigint,'legacy ownership remains unknown rather than epoch zero');
+select is((select count(*)::integer from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in('service_read_material_group_execution','service_claim_material_group_execution_v2','service_begin_material_group_dispatch_v2','service_checkpoint_material_group_execution_v2','service_mark_material_group_execution_reconciling_v2','service_end_material_group_execution_v2') and has_function_privilege('service_role',p.oid,'execute') and not has_function_privilege('authenticated',p.oid,'execute') and not has_function_privilege('anon',p.oid,'execute')),6,'all versioned seams are service only');
+select throws_ok($q$update private.team_material_group_intents set execution_epoch=0 where id='b1510000-0000-4000-8000-000000000063'$q$,'55000','GROUP_RECONCILING','an adopted epoch cannot reset after completion');
+select ok(not public.service_checkpoint_material_group_execution_v2('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072',0,'b1510000-0000-4000-8000-000000000043'),'an old epoch cannot acknowledge current work');
+select ok(not public.service_checkpoint_material_group_execution('b1510000-0000-4000-8000-000000000063','b1510000-0000-4000-8000-000000000072','b1510000-0000-4000-8000-000000000043'),'legacy callbacks cannot act on an adopted epoch even with its executor UUID');
+
 select * from finish();
 rollback;

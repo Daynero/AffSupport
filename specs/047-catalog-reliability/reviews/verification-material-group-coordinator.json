@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T04:26:11.955Z",
+  "command": "vitest run tests/catalog-lifecycle-dispatch.test.ts --maxWorkers=1 --no-file-parallelism",
+  "tests": 25,
+  "inputs_sha256": {
+    "supabase/functions/_shared/library.ts": "784f25e5566e45728c1766a39b666b7eb5fdccc3fcd7ea698a897e6e965c193e",
+    "tests/catalog-lifecycle-dispatch.test.ts": "806dd91bee7e2c9b02e05a96a67f61a51ecfb950fcb0e48fe09ec3b7bfbc584d",
+    "supabase/migrations/20261207161000_material_group_claim_epochs.sql": "b7ff9a0f2caf5905ee50aba3ff205a82af2101aaa714753058507f9a775a933e"
+  },
+  "scope": "SQL-backed coordinator boundaries. Full source, native concurrency, runtime API and manual acceptance are separate."
+}

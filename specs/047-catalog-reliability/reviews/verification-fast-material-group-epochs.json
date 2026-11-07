@@ -1,0 +1,114 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-07T05:04:32.698Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 2173079,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 9402,
+      "skipped_tests": 89,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 15,
+        "disposable PostgreSQL container": 37,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "apps/agent/dist/index.js": 3,
+        "platform:darwin": 3,
+        "disposable PostgreSQL": 4,
+        "apps/web/dist/index.html": 2,
+        "apps/web/public/_headers": 2,
+        "apps/web/dist": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "apps/web/dist/assets": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-recovery-next/apps/web/dist/.vite/manifest.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-recovery-next/specs/038-unified-accounts/reviews/bundle-budget-baseline.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-recovery-next/specs/045-catalog-r2-images/bundle-budget-comparison.json": 4,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 3744
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 23950
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 25283
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 35850
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 33185
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 6404
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 193
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2466
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 100
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 94
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 375
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 116
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 10942
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 2030268
+      }
+    ]
+  }
+}

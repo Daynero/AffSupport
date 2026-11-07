@@ -23,6 +23,8 @@ export interface MaterialGroupRecord {
   member_count: number;
   confirmed_count: number;
   has_unconfirmed_dispatch: boolean;
+  claim_protocol: 1 | 2 | null;
+  execution_epoch: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,7 +59,7 @@ export async function getMaterialGroupEvidence(input: {
   let rows: Record<string, unknown>[];
   try {
     rows = await query<Record<string, unknown>>(
-      'select id::text,operation_id::text,team_id::text,actor_id::text,action,state,code,member_count,confirmed_count,has_unconfirmed_dispatch,created_at::text,updated_at::text from public.analytics_material_group_execution where ($1::uuid is null or actor_id=$1::uuid) and ($2::uuid[] is null or id=any($2::uuid[]) or operation_id=any($2::uuid[])) and ($3::timestamptz is null or created_at >= $3::timestamptz) and updated_at <= $4::timestamptz order by updated_at desc,id limit 101',
+      "select id::text,operation_id::text,team_id::text,actor_id::text,action,state,code,member_count,confirmed_count,has_unconfirmed_dispatch,created_at::text,updated_at::text,to_jsonb(e)->'claim_protocol' as claim_protocol,to_jsonb(e)->'execution_epoch' as execution_epoch,(to_jsonb(e)?'execution_epoch') as ownership_observed from public.analytics_material_group_execution e where ($1::uuid is null or actor_id=$1::uuid) and ($2::uuid[] is null or id=any($2::uuid[]) or operation_id=any($2::uuid[])) and ($3::timestamptz is null or created_at >= $3::timestamptz) and updated_at <= $4::timestamptz order by updated_at desc,id limit 101",
       [actor, ids.length ? ids : null, input.since ?? null, input.asOf]
     );
   } catch {
@@ -71,7 +73,10 @@ export async function getMaterialGroupEvidence(input: {
   }
   const records: MaterialGroupRecord[] = [];
   let malformed = false,
-    unknown = false;
+    unknown = false,
+    ownershipMissing = false,
+    ownershipMalformed = false,
+    legacyOwnership = false;
   for (const row of rows.slice(0, 100)) {
     if (
       typeof row.id !== 'string' ||
@@ -109,6 +114,24 @@ export async function getMaterialGroupEvidence(input: {
     const code =
       row.code === null ? null : CODES.has(String(row.code)) ? String(row.code) : 'UNKNOWN';
     if (code === 'UNKNOWN') unknown = true;
+    let claimProtocol: 1 | 2 | null = null,
+      epoch: number | null = null;
+    if (row.ownership_observed === true) {
+      if (row.claim_protocol === 1 && row.execution_epoch === null) {
+        claimProtocol = 1;
+        legacyOwnership = true;
+      } else if (
+        row.claim_protocol === 2 &&
+        typeof row.execution_epoch === 'number' &&
+        Number.isSafeInteger(row.execution_epoch) &&
+        row.execution_epoch >= 1
+      ) {
+        claimProtocol = 2;
+        epoch = row.execution_epoch;
+      } else if (row.claim_protocol !== null || row.execution_epoch !== null)
+        ownershipMalformed = true;
+      else legacyOwnership = true;
+    } else ownershipMissing = true;
     records.push({
       id: row.id,
       operation_id: row.operation_id,
@@ -119,6 +142,8 @@ export async function getMaterialGroupEvidence(input: {
       member_count: Number(row.member_count),
       confirmed_count: Number(row.confirmed_count),
       has_unconfirmed_dispatch: row.has_unconfirmed_dispatch,
+      claim_protocol: claimProtocol,
+      execution_epoch: epoch,
       created_at: row.created_at,
       updated_at: row.updated_at
     });
@@ -138,7 +163,20 @@ export async function getMaterialGroupEvidence(input: {
             'Malformed or conflicting material-group evidence was omitted; its outcome remains unknown.'
           ]
         : []),
-      ...(unknown ? ['An unrecognized material-group cause remains UNKNOWN.'] : [])
+      ...(unknown ? ['An unrecognized material-group cause remains UNKNOWN.'] : []),
+      ...(ownershipMissing
+        ? [
+            'Execution epoch projection is unavailable; ownership and prior claim counts remain unknown.'
+          ]
+        : []),
+      ...(ownershipMalformed
+        ? ['Malformed execution ownership was omitted; the independent group state remains usable.']
+        : []),
+      ...(legacyOwnership
+        ? [
+            'Legacy ownership has no observed epoch; current rows do not reconstruct earlier claims.'
+          ]
+        : [])
     ]
   };
 }
