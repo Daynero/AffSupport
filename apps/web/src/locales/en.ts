@@ -1165,6 +1165,8 @@ export const en = {
   linkAccountCheckPending: 'The online account check is postponed; the tools work',
   linkStateNotRead: 'The tool’s state could not be read',
   linkClockSkew: 'This computer’s clock is off; the account check may fail',
+  macIntel: 'Mac (Intel)',
+  installerUnavailable: 'This installer is not available yet.',
   macAppleSilicon: 'Mac (Apple Silicon)',
   windows: 'Windows',
   windowsComingSoonTitle: 'Soty for Windows',

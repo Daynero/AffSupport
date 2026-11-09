@@ -21,7 +21,7 @@ export const RELEASE_RUN_STATES = [
 export type ReleaseRunState = (typeof RELEASE_RUN_STATES)[number];
 
 export type ReleaseTargetKind = 'production' | 'sandbox';
-export type ReleaseRunnerPlatform = 'macos-arm64' | 'windows-x64';
+export type ReleaseRunnerPlatform = 'macos-arm64' | 'macos-x64' | 'windows-x64';
 
 export interface ReleaseIntent {
   schemaVersion: typeof RELEASE_RUNNER_SCHEMA_VERSION;

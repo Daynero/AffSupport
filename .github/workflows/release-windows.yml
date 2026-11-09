@@ -396,6 +396,10 @@ jobs:
           SMOKE_ENTITLEMENT_PRIVATE_KEY: release/windows/smoke-entitlement.private.pem
         run: node scripts/windows-smoke.mjs release/windows/Output
 
+      - name: Bind hosted smoke to its source and installer
+        shell: bash
+        run: node scripts/record-windows-release-evidence.mjs smoke "release/windows/Output/$(node scripts/release-meta.mjs windows-artifact-name)"
+
       - name: Rebuild the publishable installer with the production entitlement key
         shell: bash
         run: |
@@ -433,6 +437,17 @@ jobs:
         run: >
           node scripts/verify-windows-package.mjs
           release/windows/stage release/windows/Output --host release/windows/host
+
+      - name: Record final Windows evidence
+        shell: bash
+        run: node scripts/record-windows-release-evidence.mjs final "release/windows/Output/$(node scripts/release-meta.mjs windows-artifact-name)"
+
+      - name: Upload Windows execution evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-evidence
+          path: release/windows/release-evidence.json
+          if-no-files-found: error
 
       - name: Upload the installer
         uses: actions/upload-artifact@v4

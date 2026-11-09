@@ -13,6 +13,8 @@
  * Before returning a verdict it prints the divergence between the two lines, so
  * a decision that needs a human is visible before anything is published.
  */
+import { assertMacosBetaEvidence } from './lib/release/platform-evidence.mjs';
+import { REQUIRED_RELEASE_PLATFORMS } from '../packages/shared/dist/release.js';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -118,6 +120,18 @@ if (process.argv.includes('--web-only')) {
     fail(error instanceof Error ? error.message : 'web-only candidate proof is unavailable');
   }
 } else {
+  for (const target of REQUIRED_RELEASE_PLATFORMS.filter(platform =>
+    platform.startsWith('macos-')
+  )) {
+    try {
+      const targetProof = await assertMacosBetaEvidence(process.cwd(), target, { sourceSha: head });
+      process.stdout.write(
+        `${target}: ${targetProof.schemaVersion === 3 ? 'static qualification; native runtime unverified under intel-user-feedback-v1' : 'native packaged-beta runtime verified'}.\n`
+      );
+    } catch (error) {
+      fail(`${target}: ${error instanceof Error ? error.message : 'proof unavailable'}`);
+    }
+  }
   if (!existsSync(RECORD_PATH)) {
     fail(
       `no beta verification record at ${RECORD_PATH}. ` +

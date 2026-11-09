@@ -559,8 +559,14 @@ set +a
 ```bash
 nice -n 15 npm run package:mac
 nice -n 15 npm run package:dmg
+# Supply independently verified Intel inputs / target-specific browser, then:
+nice -n 15 npm run package:mac -- --arch=x64
+nice -n 15 npm run package:dmg -- --arch=x64
 (cd release && shasum -a 256 -c Soty-v<version>-macOS-arm64.zip.sha256)
 (cd release && shasum -a 256 -c Soty-v<version>-macOS-arm64.dmg.sha256)
+(cd release/x64 && shasum -a 256 -c Soty-v<version>-macOS-x64.dmg.sha256)
+node scripts/verify-macos-release-trust.mjs release/Soty-v<version>-macOS-arm64.dmg
+node scripts/verify-macos-release-trust.mjs release/x64/Soty-v<version>-macOS-x64.dmg --arch=x64
 ```
 
 Windows спершу проходить build-only gate. Команда `gh workflow run` повертає не
@@ -582,6 +588,7 @@ npm run release:watch -- <run-id>
 
 ```bash
 gh release create v<version> release/Soty-v<version>-macOS-arm64.dmg \
+  release/x64/Soty-v<version>-macOS-x64.dmg \
   --target <release-sha> --title "Soty <version>" --notes-file RELEASE_NOTES.md
 gh release view v<version> --json isDraft,assets,targetCommitish,url
 ```
@@ -612,6 +619,8 @@ gh release download v<version> --pattern 'Soty-v<version>-Windows-x64.exe' \
 ```bash
 node scripts/sign-release-manifest.mjs \
   --dmg release/Soty-v<version>-macOS-arm64.dmg --platform macos-arm64
+node scripts/sign-release-manifest.mjs \
+  --dmg release/x64/Soty-v<version>-macOS-x64.dmg --platform macos-x64
 node scripts/sign-release-manifest.mjs \
   --dmg release/windows/download-<version>/Soty-v<version>-Windows-x64.exe \
   --platform windows-x64
@@ -764,3 +773,17 @@ persisted version. Do not switch an admitted team back to a Drive-only client or
 objects to roll back. Any temporary selection-off procedure must use compatible readers and
 be validated against historical snapshots first. Explicit revocation/team deletion uses durable
 purge evidence; an acknowledged managed-CDN purge does not erase third-party downloaded copies.
+
+## Intel Mac release contract (049)
+
+New full releases require `macos-arm64`, `macos-x64` and `windows-x64` together. Historical signed channels retain their original platform set; new signed channels declare `platformSetVersion: 2`. Never add fabricated Intel entries to an old release. The runner packages both Mac targets sequentially and binds Windows hosted smoke and final installer checksums to the same source.
+
+Use `-- --arch=x64` for the Intel variant of Mac package commands; ARM defaults and paths remain unchanged. Intel outputs live in `release/x64/`, beta in `release/beta/x64/`, development in `release/dev/x64/`. A bootstrap runtime can be built with `SOTY_INTEL_BUILD_CACHE=/absolute/dedicated/cache nice -n 15 bash scripts/build-intel-inputs.sh`; supply the matching pinned browser through `SOTY_CHROMIUM_SOURCE_ROOT`. Do not reuse ARM binaries.
+
+Both Mac records must match the exact source, public beta configuration, agent seal and web seal. ARM retains native packaged-beta verification. Owner-ratified `intel-user-feedback-v1` accepts schema-3 Intel static qualification: runtime/hardware remain unverified, and physical Intel/native-beta testing is first-user feedback rather than a release prerequisite. `hardware-acceptance.json` is optional observed evidence. Static checks or Rosetta must never be labelled physical success. [Policy](../specs/049-macos-intel-support/release-policy.md).
+
+Before publication `scripts/verify-macos-release-trust.mjs` checks each Mac DMG's x86_64/arm64 payload and its sealed `release.json` identity (`target`, `architecture`, `buildId`, `stable` channel). Its default policy `developer-id` additionally requires the expected public Developer ID team in `MACOS_EXPECTED_TEAM_ID`, strict signatures, hardened runtime, Gatekeeper and stapled notarization; missing trust evidence blocks release. Until 048 provides Developer ID signing, the owner may explicitly select `SOTY_MACOS_TRUST_POLICY=adhoc-pre-048` (the way every release up to 1.3.3 shipped): ad-hoc signature integrity, payload and identity are still verified and the result reports `appleTrust: "unverified"`; it never claims notarization. There is no implicit fallback. This verifier does not sign or notarize an artifact. To re-sign an older signed channel without adding the Intel slot use `node scripts/sign-release-manifest.mjs --historical`; a current-version manifest missing a platform gets a zero-digest placeholder, never `null`. Existing immutable assets must match their published SHA-256; partial or uncertain publication stops for reconciliation rather than replacing assets.
+
+Manifest-only verification reuses sealed binaries and refreshes exact-source qualification (native ARM, static-qualified Intel). The resulting `release/beta/platform-baseline.json` binds both Mac seals and Windows workflow proof to the signed channel. Web mini releases retain and validate this complete baseline; they never rebuild an installer or change its architecture. All existing production authorization, activation and recovery gates still apply.
+
+For one ARM build host, prepare/verify the Intel beta target first (`npm run beta:package -- --arch=x64`, then `npm run beta:verify -- --arch=x64`), which never launches x64 code; then prepare/verify ARM natively. Packaging still refuses a running same-flavor app. Intel production package/DMG verification is static and does not require stopping a running production app. Public signature/notarization, all-three-artifact final-byte checks, Windows hosted proof, G0 and explicit activation are unchanged. Mini binds the qualification mode and may not relabel static Intel evidence native.

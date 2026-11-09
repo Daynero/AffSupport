@@ -304,7 +304,15 @@ describe('profile onboarding, account and blocked state', () => {
     // where the press came from.
     fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }));
     expect(reconnect).toHaveBeenCalledWith('account');
-    expect(screen.getByRole('link', { name: 'Download the app' })).toBeTruthy();
+    // An unknown native target asks for an explicit processor. Before the signed
+    // channel loads only the Apple Silicon build pinned into this web release is a
+    // link; Intel and Windows are never guessed.
+    expect(screen.queryByRole('link', { name: 'Download the app' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Mac (Apple Silicon)' })).toBeTruthy();
+    for (const name of ['Mac (Intel)', 'Windows']) {
+      expect(screen.getByRole('button', { name }).hasAttribute('disabled')).toBe(true);
+    }
+    expect(screen.getByText('This installer is not available yet.')).toBeTruthy();
   });
 
   it('keeps sign-out available on a blocked account', async () => {

@@ -30,10 +30,10 @@
     "release:controller:install": "node scripts/install-release-controller.mjs",
     "release:check": "npm run build && node scripts/verify-release.mjs --mode=contract && npm run verify:team-production",
     "release:watch": "node scripts/watch-github-run.mjs",
-    "package:mac": "npm run build && node scripts/verify-release.mjs --mode=candidate && npm run verify:team-production && node scripts/verify-beta-promotion.mjs && zsh scripts/package-mac.sh",
-    "package:dmg": "node scripts/verify-release.mjs --mode=candidate && npm run verify:team-production && zsh scripts/package-dmg.sh",
+    "package:mac": "node scripts/package-macos.mjs production",
+    "package:dmg": "node scripts/package-macos.mjs production-dmg",
     "package:dev": "zsh scripts/package-dev-mac.sh",
-    "package:dev:dmg": "npm run package:dev && zsh scripts/package-dev-dmg.sh && npm run verify:dev",
+    "package:dev:dmg": "node scripts/package-macos.mjs dev-dmg",
     "verify:dev": "zsh scripts/verify-dev-package.sh",
     "verify:dmg": "zsh scripts/verify-dmg.sh",
     "verify:package": "zsh scripts/verify-package.sh",
@@ -79,7 +79,8 @@
     "verify:soty-review": "npm run verify -w @video-compressor/soty-review",
     "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs",
     "release:web": "node scripts/release-web-only.mjs",
-    "beta:verify:web": "node scripts/verify-web-only.mjs"
+    "beta:verify:web": "node scripts/verify-web-only.mjs",
+    "runtime:mac": "node scripts/stage-macos-inputs.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

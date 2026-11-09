@@ -107,14 +107,17 @@ describe('promotion gate', () => {
   });
 
   it('is chained into every command that publishes', () => {
-    for (const command of [
-      'deploy:web',
-      'deploy:web:identity',
-      'deploy:web:member-pilot',
-      'package:mac'
-    ]) {
+    for (const command of ['deploy:web', 'deploy:web:identity', 'deploy:web:member-pilot']) {
       expect(ROOT_PACKAGE.scripts[command]).toContain('verify-beta-promotion.mjs');
     }
+    expect(ROOT_PACKAGE.scripts['package:mac']).toBe('node scripts/package-macos.mjs production');
+    const wrapper = readFileSync('scripts/package-macos.mjs', 'utf8');
+    const production = wrapper.slice(wrapper.indexOf('  production:'));
+    expect(production).toContain('verify-beta-promotion.mjs');
+    expect(production.indexOf('verify-beta-promotion.mjs')).toBeLessThan(
+      production.indexOf('scripts/package-mac.sh')
+    );
+    expect(wrapper).toContain('parseMacosTarget(args)');
   });
 });
 
@@ -188,7 +191,7 @@ describe('packaged beta build', () => {
   });
 
   it('writes the verification record only after every assertion passes', () => {
-    const recordIndex = SMOKE.indexOf('cat > "$temporary_record"');
+    const recordIndex = SMOKE.indexOf('record-macos-beta-proof.mjs');
     const lastAssertion = SMOKE.lastIndexOf('[[ "$beta_key" != "$production_key" ]]');
     expect(recordIndex).toBeGreaterThan(lastAssertion);
   });

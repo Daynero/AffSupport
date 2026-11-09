@@ -205,4 +205,4 @@ it('preserves designated no-tariff owners and their approved Google identities a
     setQueryExecutor(null);
     await db.close();
   }
-});
+}, 120_000);

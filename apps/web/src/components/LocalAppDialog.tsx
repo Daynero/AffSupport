@@ -5,13 +5,18 @@ import { agentKnown, agentLocalUrl, markAgentInstallStarted } from '../api/clien
 import type { ConnectionState } from '../connection';
 import { useI18n } from '../i18n';
 import { requireSupabaseClient } from '../lib/supabase';
-import { downloadUrlForPlatform, macAppleSiliconDownloadUrl } from '../release-manifest';
+import {
+  downloadUrlForPlatform,
+  macAppleSiliconDownloadUrl,
+  type DownloadPlatform
+} from '../release-manifest';
 import {
   currentBrowserPlatform,
   currentWindowsX64Supported,
   platformFromAgentCapabilities
 } from '../lib/platform';
 import { analytics } from '../analytics/service';
+import { InstallerDownload } from './InstallerDownload';
 import { Modal } from './Modal';
 import { ReconnectAction } from './ReconnectAction';
 import { SotyMark } from './SotyLogo';
@@ -39,6 +44,7 @@ export default function LocalAppDialog({
   const needsUpdate =
     toolAvailability(tool) === 'too_old' || connection === 'agent_update_required';
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
+  const intelDownload = downloadUrlForPlatform(releaseManifest.manifest, 'macos-x64');
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
   // An installed agent knows the host it runs on; the browser only claims one.
   const browserPlatform = platformFromAgentCapabilities(capabilities) ?? currentBrowserPlatform();
@@ -108,10 +114,11 @@ export default function LocalAppDialog({
     requestAnimationFrame(() => windowsButton.current?.focus());
   };
 
-  const trackDownload = () => {
+  const trackDownload = (installerTarget: DownloadPlatform) => {
     if (!needsUpdate) markAgentInstallStarted();
     analytics.track(needsUpdate ? 'update_started' : 'install_download_clicked', {
-      tool_identifier: toolIdentifier
+      tool_identifier: toolIdentifier,
+      installer_target: installerTarget
     });
   };
 
@@ -119,16 +126,29 @@ export default function LocalAppDialog({
     <a
       className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
       href={macDownloadUrl}
-      onClick={trackDownload}
+      onClick={() => trackDownload('macos-arm64')}
     >
       {t('macAppleSilicon')}
     </a>
+  );
+  const intelAction = intelDownload.available ? (
+    <a
+      className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
+      href={intelDownload.url}
+      onClick={() => trackDownload('macos-x64')}
+    >
+      {t('macIntel')}
+    </a>
+  ) : (
+    <Button disabled title={t('installerUnavailable')}>
+      {t('macIntel')}
+    </Button>
   );
   const windowsAction = windowsDownload.available ? (
     <a
       className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
       href={windowsDownload.url}
-      onClick={trackDownload}
+      onClick={() => trackDownload('windows-x64')}
     >
       {t('windows')}
     </a>
@@ -181,14 +201,20 @@ export default function LocalAppDialog({
           </a>
         )}
         <div className="platform-download-actions">
-          {windowsFirst ? (
+          {needsUpdate ? (
+            <InstallerDownload intent="update" toolIdentifier={toolIdentifier}>
+              {t('downloadLatest')}
+            </InstallerDownload>
+          ) : windowsFirst ? (
             <>
               {windowsAction}
               {macAction}
+              {intelAction}
             </>
           ) : (
             <>
               {macAction}
+              {intelAction}
               {windowsAction}
             </>
           )}

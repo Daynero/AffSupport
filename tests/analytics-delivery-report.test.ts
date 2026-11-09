@@ -403,6 +403,8 @@ describe('envelope v3', () => {
     });
     expect(attempt.properties).toEqual({
       action: 'download',
+      agent_architecture: 'unknown',
+      package_target: 'unknown',
       storage_kind: 'shared_drive',
       size_bucket: 'agent',
       cache_state: 'cold',

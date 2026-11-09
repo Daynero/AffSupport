@@ -1,6 +1,16 @@
+import { writePlatformBaseline } from './platform-baseline.mjs';
+import { releaseArtifactName } from '../../../packages/shared/dist/release.js';
+import { macosPaths } from '../macos-target.mjs';
+import {
+  assertMacosBetaEvidence,
+  validateWindowsEvidence,
+  readEvidenceJSON
+} from './platform-evidence.mjs';
+import { betaPackageProvenance } from '../../beta-package-provenance.mjs';
+import { sha256File } from './adapters/package.mjs';
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,7 +61,6 @@ function releaseEnvironment(cwd) {
   return loaded;
 }
 
-
 /**
  * The step adapter: what each registry step actually does.
  *
@@ -90,9 +99,9 @@ function supabaseAccessToken(cwd) {
   if (process.env.SUPABASE_ACCESS_TOKEN?.trim()) return process.env.SUPABASE_ACCESS_TOKEN.trim();
   try {
     return (
-      /^SUPABASE_ACCESS_TOKEN=(.+)$/mu.exec(
-        readFileSync(path.join(cwd, 'config/keys/supabase-release-cli.env'), 'utf8')
-      )?.[1]?.trim() ?? null
+      /^SUPABASE_ACCESS_TOKEN=(.+)$/mu
+        .exec(readFileSync(path.join(cwd, 'config/keys/supabase-release-cli.env'), 'utf8'))?.[1]
+        ?.trim() ?? null
     );
   } catch {
     return null;
@@ -137,7 +146,10 @@ async function run(stepId, argv, { cwd, env = {}, admission = null }) {
 }
 
 const npm = (...args) => ['npm', 'run', ...args];
-const betaVerification = ['zsh', fileURLToPath(new URL('../../verify-beta-package.sh', import.meta.url))];
+const betaVerification = [
+  'zsh',
+  fileURLToPath(new URL('../../verify-beta-package.sh', import.meta.url))
+];
 
 /**
  * Locates the workflow run a dispatch just created.
@@ -175,15 +187,24 @@ const betaVerification = ['zsh', fileURLToPath(new URL('../../verify-beta-packag
  * means "nothing to adopt, go ahead"; after one it means the effect is
  * ambiguous, which is the truth and is what the step already says.
  */
-const TRANSIENT = /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|502|503|rate limit/iu;
+const TRANSIENT =
+  /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|502|503|rate limit/iu;
 
 async function listWorkflowRuns({ cwd, workflow }) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const { stdout } = await exec(
         'gh',
-        ['run', 'list', '--workflow', workflow, '--limit', '10', '--json',
-         'databaseId,headSha,createdAt,status,conclusion,displayTitle'],
+        [
+          'run',
+          'list',
+          '--workflow',
+          workflow,
+          '--limit',
+          '10',
+          '--json',
+          'databaseId,headSha,createdAt,status,conclusion,displayTitle'
+        ],
         { cwd, shell: false }
       );
       return JSON.parse(stdout);
@@ -194,7 +215,9 @@ async function listWorkflowRuns({ cwd, workflow }) {
       // turned up, and one I walked straight into by hand-rolling a fixed delay
       // here first. Jitter matters against an API that rate-limits: three
       // clients backing off in lockstep arrive together.
-      await new Promise(resolve => setTimeout(resolve, retryDelay(attempt + 1, { baseMs: 1500, maxMs: 8000 })));
+      await new Promise(resolve =>
+        setTimeout(resolve, retryDelay(attempt + 1, { baseMs: 1500, maxMs: 8000 }))
+      );
     }
   }
   return null;
@@ -203,9 +226,7 @@ async function listWorkflowRuns({ cwd, workflow }) {
 async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt }) {
   const listed = await listWorkflowRuns({ cwd, workflow });
   if (!listed) return null;
-  const runs = listed.filter(
-    candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000
-  );
+  const runs = listed.filter(candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000);
   // The workflow names itself "Windows <release id> publish|build-only", so the
   // two dispatches one release makes are told apart as well as one release is
   // told from another.
@@ -216,13 +237,58 @@ async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, d
   // build-only run with the same SHA. The two jobs intentionally share the
   // commit but have different effects: build-only validates Windows, publish
   // attaches the installer to the immutable GitHub release.
-  const candidates = (releaseId ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha))
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const candidates = (
+    releaseId ? runs.filter(mine) : runs.filter(candidate => candidate.headSha === sourceSha)
+  ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   return candidates[0] ?? null;
 }
 
+async function watchWindowsEvidence(stepId, id, options) {
+  const { cwd, env, admission, sourceSha } = options;
+  if (!/^\d{1,32}$/u.test(String(id))) return fail('GATE_FAILED', 'Windows workflow id invalid');
+  const watched = await run(
+    stepId,
+    [process.execPath, 'scripts/watch-github-run.mjs', String(id)],
+    { cwd, env, admission }
+  );
+  if (!watched.ok) return watched;
+  const directory = path.join('release/windows/evidence', String(id));
+  if (!existsSync(path.join(cwd, directory, 'release-evidence.json'))) {
+    const downloaded = await run(
+      stepId,
+      [
+        'gh',
+        'run',
+        'download',
+        String(id),
+        '--name',
+        'windows-release-evidence',
+        '--dir',
+        directory
+      ],
+      { cwd, env, admission }
+    );
+    if (!downloaded.ok) return downloaded;
+  }
+  try {
+    const proof = await readEvidenceJSON(path.join(cwd, directory, 'release-evidence.json'));
+    if (proof.sourceSha !== sourceSha || proof.workflowRunId !== String(id))
+      return fail('GATE_FAILED', 'Windows workflow evidence is not source/run bound');
+    const normalized = validateWindowsEvidence(proof, {
+      sourceSha,
+      installerSha256: proof.installerSha256
+    });
+    return { ...watched, workflowRunId: String(id), windowsEvidence: normalized };
+  } catch (error) {
+    return fail('GATE_FAILED', messageOf(error));
+  }
+}
+
 /** @param {string} stepId @param {{cwd: any, env: any, admission: any, sourceSha: any, releaseId: any, publish: any, journal?: {append: (type: string, payload: unknown) => Promise<unknown>} | null}} options */
-async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releaseId, publish, journal = null }) {
+async function dispatchAndWatch(
+  stepId,
+  { cwd, env, admission, sourceSha, releaseId, publish, journal = null }
+) {
   const workflow = 'release-windows.yml';
   const dispatchedAt = Date.now();
 
@@ -248,19 +314,31 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
     dispatchedAt: 0
   });
   if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? '')) {
-    await journal?.append('remote_progress', { stepId, runId: started.databaseId, url: started.url ?? null, adopted: true });
-    return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(started.databaseId)], {
-      cwd,
-      env,
-      admission
+    await journal?.append('remote_progress', {
+      stepId,
+      runId: started.databaseId,
+      url: started.url ?? null,
+      adopted: true
     });
+    return watchWindowsEvidence(stepId, started.databaseId, { cwd, env, admission, sourceSha });
   }
 
   try {
     await exec(
       'gh',
-      ['workflow', 'run', workflow, '--ref', 'main',
-       '-f', `publish=${publish}`, '-f', `source_sha=${sourceSha}`, '-f', `release_id=${releaseId}`],
+      [
+        'workflow',
+        'run',
+        workflow,
+        '--ref',
+        'main',
+        '-f',
+        `publish=${publish}`,
+        '-f',
+        `source_sha=${sourceSha}`,
+        '-f',
+        `release_id=${releaseId}`
+      ],
       { cwd, shell: false }
     );
   } catch (error) {
@@ -291,12 +369,13 @@ async function dispatchAndWatch(stepId, { cwd, env, admission, sourceSha, releas
   }
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
-  await journal?.append('remote_progress', { stepId, runId: found.databaseId, url: found.url ?? null, adopted: false });
-  return run(stepId, [process.execPath, 'scripts/watch-github-run.mjs', String(found.databaseId)], {
-    cwd,
-    env,
-    admission
+  await journal?.append('remote_progress', {
+    stepId,
+    runId: found.databaseId,
+    url: found.url ?? null,
+    adopted: false
   });
+  return watchWindowsEvidence(stepId, found.databaseId, { cwd, env, admission, sourceSha });
 }
 
 /**
@@ -363,14 +442,90 @@ export async function createStepAdapter({
     })();
 
   const releaseId = `${runId}:${version}`;
-  const dmg = path.join('release', `Soty-v${version}-macOS-arm64.dmg`);
-  const exe = path.join('release', 'windows', `download-${version}`, `Soty-v${version}-Windows-x64.exe`);
+  const dmg = path.relative(
+    cwd,
+    path.join(
+      macosPaths(cwd, 'production', 'arm64').root,
+      releaseArtifactName('macos-arm64', version)
+    )
+  );
+  const intelDmg = path.relative(
+    cwd,
+    path.join(macosPaths(cwd, 'production', 'x64').root, releaseArtifactName('macos-x64', version))
+  );
+  const macArtifacts = [
+    [dmg, 'macos-arm64'],
+    [intelDmg, 'macos-x64']
+  ];
+  let windowsPublishedEvidence;
+  const exe = path.join(
+    'release',
+    'windows',
+    `download-${version}`,
+    releaseArtifactName('windows-x64', version)
+  );
   // The binding travels into every child, so a sandbox release reaches sandbox
   // destinations without any command here naming one. The release environment is
   // read out of the checkout being released rather than out of whichever shell
   // started the run.
   const childEnv = { ...env, ...releaseEnvironment(cwd), SOTY_RELEASE_RUN_ID: runId };
 
+  const targetEnv = arch => {
+    /** @type {NodeJS.ProcessEnv} */
+    const next = { ...childEnv };
+    if (arch === 'x64')
+      for (const key of [
+        'NODE_BINARY',
+        'FFMPEG_BINARY',
+        'FFPROBE_BINARY',
+        'WHISPER_BINARY',
+        'WHISPER_VAD_MODEL',
+        'SOTY_CHROMIUM_SOURCE_ROOT'
+      ]) {
+        if (childEnv[`${key}_MACOS_X64`]) next[key] = childEnv[`${key}_MACOS_X64`];
+        else if (['NODE_BINARY', 'FFMPEG_BINARY', 'FFPROBE_BINARY', 'WHISPER_BINARY'].includes(key))
+          delete next[key];
+      }
+    const inputRoot = path.join(cwd, 'release/inputs', arch);
+    if (existsSync(path.join(inputRoot, 'approved-inputs.json'))) {
+      next.MACOS_RUNTIME_INPUT_ROOT = inputRoot;
+      const resources = path.join(inputRoot, 'Contents/Resources');
+      for (const [key, relative] of Object.entries({
+        NODE_BINARY: 'runtime/node',
+        FFMPEG_BINARY: 'runtime/bin/ffmpeg',
+        FFPROBE_BINARY: 'runtime/bin/ffprobe',
+        WHISPER_BINARY: 'runtime/bin/whisper-cli',
+        WHISPER_VAD_MODEL: 'runtime/models/ggml-silero-v5.1.2.bin',
+        FFMPEG_SOURCE_ARCHIVE: 'licenses/sources/ffmpeg-source.tar.xz',
+        X264_SOURCE_ARCHIVE: 'licenses/sources/x264-source.tar.gz'
+      }))
+        next[key] ??= path.join(resources, relative);
+    }
+    return next;
+  };
+  const verifyNativeAndAggregate = async step => {
+    // Every Mac target is re-verified at the current HEAD: the manifest commit moves
+    // HEAD between beta_verify and manifest_beta_verify, and a proof recorded at the
+    // previous commit no longer binds. ARM keeps its native runtime journey; Intel is
+    // static qualification under intel-user-feedback-v1 and never executes x64 code.
+    // A non-ARM runner cannot produce the ARM proof, so the aggregate below fails closed.
+    for (const arch of process.arch === 'arm64' ? ['arm64', 'x64'] : ['x64']) {
+      const verified = await run(step, [...betaVerification, `--arch=${arch}`], {
+        cwd,
+        env: { ...childEnv, TMPDIR: '/tmp' },
+        admission
+      });
+      if (!verified.ok) return verified;
+    }
+    try {
+      const head = (await exec('git', ['rev-parse', 'HEAD'], { cwd, shell: false })).stdout.trim();
+      for (const target of ['macos-arm64', 'macos-x64'])
+        await assertMacosBetaEvidence(cwd, target, { sourceSha: head });
+      return { ok: true };
+    } catch (error) {
+      return fail('GATE_FAILED', messageOf(error));
+    }
+  };
   const steps = {
     /**
      * Preflight reads: the local build environment, then the live project.
@@ -410,15 +565,37 @@ export async function createStepAdapter({
       );
     },
 
-    prepare: () => run('prepare', npm('build', '-w', '@video-compressor/shared'), { cwd, env: childEnv, admission }),
+    prepare: () =>
+      run('prepare', npm('build', '-w', '@video-compressor/shared'), {
+        cwd,
+        env: childEnv,
+        admission
+      }),
 
-    candidate_gate: () => run('candidate_gate', npm('release:check'), { cwd, env: childEnv, admission }),
+    candidate_gate: () =>
+      run('candidate_gate', npm('release:check'), { cwd, env: childEnv, admission }),
 
-    beta_package: () => run('beta_package', npm('beta:package'), { cwd, env: childEnv, admission }),
+    beta_package: async () => {
+      for (const arch of ['arm64', 'x64']) {
+        try {
+          await betaPackageProvenance({ cwd, action: 'verify', arch });
+          continue;
+        } catch {
+          /* Build only the unsealed target; never overwrite a verified sibling. */
+        }
+        const built = await run('beta_package', npm('beta:package', '--', `--arch=${arch}`), {
+          cwd,
+          env: targetEnv(arch),
+          admission
+        });
+        if (!built.ok) return built;
+      }
+      return { ok: true };
+    },
 
     // LaunchServices cannot redirect a GUI launch into removable-volume temp
     // files reliably. Keep only the small runtime journey on the local volume.
-    beta_verify: () => run('beta_verify', betaVerification, { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }),
+    beta_verify: () => verifyNativeAndAggregate('beta_verify'),
 
     backend_beta: async () => {
       if (!backendPlan?.changes?.length) return { ok: true, skipped: true };
@@ -438,30 +615,135 @@ export async function createStepAdapter({
           lease: { leaseId: `${runId}:backend-beta` },
           adapter: resolvedBackendAdapter
         });
-        return result.ok ? { ok: true } : fail('GATE_FAILED', `backend rehearsal failed: ${result.error}`);
+        return result.ok
+          ? { ok: true }
+          : fail('GATE_FAILED', `backend rehearsal failed: ${result.error}`);
       } catch (error) {
         return fail('TARGET_MISMATCH', messageOf(error));
       }
     },
 
-    readiness: () => run('readiness', [process.execPath, 'scripts/verify-beta-promotion.mjs'], { cwd, env: childEnv, admission }),
+    readiness: () =>
+      run('readiness', [process.execPath, 'scripts/verify-beta-promotion.mjs'], {
+        cwd,
+        env: childEnv,
+        admission
+      }),
 
     macos_package: async () => {
-      const built = await run('macos_package', npm('package:mac'), { cwd, env: childEnv, admission });
-      if (!built.ok) return built;
-      return run('macos_package', npm('package:dmg'), { cwd, env: childEnv, admission });
+      for (const arch of ['arm64', 'x64']) {
+        const built = await run('macos_package', npm('package:mac', '--', `--arch=${arch}`), {
+          cwd,
+          env: targetEnv(arch),
+          admission
+        });
+        if (!built.ok) return built;
+        const image = await run('macos_package', npm('package:dmg', '--', `--arch=${arch}`), {
+          cwd,
+          env: targetEnv(arch),
+          admission
+        });
+        if (!image.ok) return image;
+      }
+      return { ok: true };
     },
 
     windows_smoke: () =>
-      dispatchAndWatch('windows_smoke', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: false, journal }),
+      dispatchAndWatch('windows_smoke', {
+        cwd,
+        env: childEnv,
+        admission,
+        sourceSha,
+        releaseId,
+        publish: false,
+        journal
+      }),
 
     publish: async () => {
-      if (!existsSync(path.join(cwd, dmg))) return fail('GATE_FAILED', `${dmg} was not built`);
+      for (const [file] of macArtifacts)
+        if (!existsSync(path.join(cwd, file))) return fail('GATE_FAILED', `${file} was not built`);
+      for (const [file, target] of macArtifacts) {
+        const trust = await run(
+          'publish',
+          [
+            process.execPath,
+            'scripts/verify-macos-release-trust.mjs',
+            path.join(cwd, file),
+            `--arch=${target === 'macos-x64' ? 'x64' : 'arm64'}`
+          ],
+          { cwd, env: childEnv, admission }
+        );
+        if (!trust.ok) return trust;
+      }
       // An existing release is not an error to overwrite: it is evidence this
       // step already ran. Creating it twice is what must never happen.
-      const existing = await exec('gh', ['release', 'view', `v${version}`, '--json', 'assets'], { cwd, shell: false })
+      const existing = await exec('gh', ['release', 'view', `v${version}`, '--json', 'assets'], {
+        cwd,
+        shell: false
+      })
         .then(({ stdout }) => JSON.parse(stdout))
         .catch(() => null);
+      if (existing) {
+        // Read back the immutable tag and asset bytes before adopting a retry.
+        const fetched = await run(
+          'publish',
+          ['git', 'fetch', '--no-tags', 'origin', `refs/tags/v${version}`],
+          { cwd, env: childEnv, admission }
+        );
+        if (!fetched.ok)
+          return fail('EFFECT_AMBIGUOUS', 'Published tag source could not be read back');
+        const { stdout: tagSha } = await exec('git', ['rev-parse', 'FETCH_HEAD^{commit}'], {
+          cwd,
+          shell: false
+        });
+        if (tagSha.trim() !== sourceSha)
+          return fail('EFFECT_AMBIGUOUS', 'Published tag names another source');
+        const names = new Set(existing.assets?.map(asset => asset.name));
+        const inspection = await mkdtemp(path.join(cwd, 'release', '.published-readback-'));
+        try {
+          for (const [file] of macArtifacts) {
+            const name = path.basename(file);
+            if (names.has(name)) {
+              const downloaded = await run(
+                'publish',
+                [
+                  'gh',
+                  'release',
+                  'download',
+                  `v${version}`,
+                  '--pattern',
+                  name,
+                  '--dir',
+                  inspection
+                ],
+                { cwd, env: childEnv, admission }
+              );
+              if (!downloaded.ok)
+                return fail('EFFECT_AMBIGUOUS', 'Published asset readback unavailable');
+              if (
+                (await sha256File(path.join(inspection, name))) !==
+                (await sha256File(path.join(cwd, file)))
+              )
+                return fail(
+                  'EFFECT_AMBIGUOUS',
+                  'Immutable published asset differs from sealed local output'
+                );
+            }
+          }
+          for (const [file] of macArtifacts)
+            if (!names.has(path.basename(file))) {
+              const uploaded = await run(
+                'publish',
+                ['gh', 'release', 'upload', `v${version}`, file],
+                { cwd, env: childEnv, admission }
+              );
+              if (!uploaded.ok)
+                return fail('EFFECT_AMBIGUOUS', 'Missing asset upload outcome requires readback');
+            }
+        } finally {
+          await rm(inspection, { recursive: true, force: true });
+        }
+      }
       if (!existing) {
         try {
           // `--target` is not optional. Without it `gh` creates the tag at the
@@ -470,8 +752,30 @@ export async function createStepAdapter({
           // were not built from, and every later question ("what shipped in
           // 1.1.1?") would be answered with somebody else's work.
           const notesPath = path.join(cwd, 'release', `notes-${version}.md`);
-          await writeFile(notesPath, releaseNotesForVersion(readFileSync(path.join(cwd, 'RELEASE_NOTES.md'), 'utf8'), version), { mode: 0o600 });
-          await exec('gh', ['release', 'create', `v${version}`, dmg, '--target', sourceSha, '--title', `Soty v${version}`, '--notes-file', notesPath], { cwd, shell: false });
+          await writeFile(
+            notesPath,
+            releaseNotesForVersion(
+              readFileSync(path.join(cwd, 'RELEASE_NOTES.md'), 'utf8'),
+              version
+            ),
+            { mode: 0o600 }
+          );
+          await exec(
+            'gh',
+            [
+              'release',
+              'create',
+              `v${version}`,
+              ...macArtifacts.map(([file]) => file),
+              '--target',
+              sourceSha,
+              '--title',
+              `Soty v${version}`,
+              '--notes-file',
+              notesPath
+            ],
+            { cwd, shell: false }
+          );
         } catch (error) {
           return fail('EFFECT_AMBIGUOUS', `gh release create failed: ${messageOf(error)}`);
         }
@@ -481,27 +785,92 @@ export async function createStepAdapter({
       // deployment must be able to name the artifacts it is advertising -- so a
       // release that created its own tag and never brought it home stopped one
       // step from shipping, with the tag visible in a browser.
-      await exec('git', ['fetch', '--no-tags', 'origin', `refs/tags/v${version}:refs/tags/v${version}`], {
+      await exec(
+        'git',
+        ['fetch', '--no-tags', 'origin', `refs/tags/v${version}:refs/tags/v${version}`],
+        {
+          cwd,
+          shell: false
+        }
+      ).catch(() => {});
+      const published = await dispatchAndWatch('publish', {
         cwd,
-        shell: false
-      }).catch(() => {});
-      return dispatchAndWatch('publish', { cwd, env: childEnv, admission, sourceSha, releaseId, publish: true, journal });
+        env: childEnv,
+        admission,
+        sourceSha,
+        releaseId,
+        publish: true,
+        journal
+      });
+      if (published.ok) windowsPublishedEvidence = published.windowsEvidence;
+      return published;
     },
 
     manifest: async () => {
       if (!existsSync(path.join(cwd, exe))) {
-        const downloaded = await run('manifest',
-          ['gh', 'release', 'download', `v${version}`, '--pattern', `Soty-v${version}-Windows-x64.exe`, '--dir', path.dirname(exe)],
-          { cwd, env: childEnv, admission });
+        const downloaded = await run(
+          'manifest',
+          [
+            'gh',
+            'release',
+            'download',
+            `v${version}`,
+            '--pattern',
+            releaseArtifactName('windows-x64', version),
+            '--dir',
+            path.dirname(exe)
+          ],
+          { cwd, env: childEnv, admission }
+        );
         if (!downloaded.ok) return downloaded;
       }
-      for (const [file, platform] of [[dmg, 'macos-arm64'], [exe, 'windows-x64']]) {
-        const signed = await run('manifest',
-          [process.execPath, 'scripts/sign-release-manifest.mjs', '--dmg', file, '--platform', platform],
-          { cwd, env: childEnv, admission });
+      try {
+        if (!windowsPublishedEvidence) {
+          const existing = await findWorkflowRun({
+            cwd,
+            workflow: 'release-windows.yml',
+            sourceSha,
+            releaseId,
+            publish: true,
+            dispatchedAt: 0
+          });
+          if (!existing) return fail('GATE_FAILED', 'Windows publication evidence unavailable');
+          const adopted = await watchWindowsEvidence('manifest', existing.databaseId, {
+            cwd,
+            env: childEnv,
+            admission,
+            sourceSha
+          });
+          if (!adopted.ok) return adopted;
+          windowsPublishedEvidence = adopted.windowsEvidence;
+        }
+        validateWindowsEvidence(windowsPublishedEvidence, {
+          sourceSha,
+          installerSha256: await sha256File(path.join(cwd, exe))
+        });
+      } catch (error) {
+        return fail('GATE_FAILED', messageOf(error));
+      }
+      for (const [file, platform] of [...macArtifacts, [exe, 'windows-x64']]) {
+        const signed = await run(
+          'manifest',
+          [
+            process.execPath,
+            'scripts/sign-release-manifest.mjs',
+            '--dmg',
+            file,
+            '--platform',
+            platform
+          ],
+          { cwd, env: childEnv, admission }
+        );
         if (!signed.ok) return signed;
       }
-      const published = await run('manifest', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      const published = await run(
+        'manifest',
+        [process.execPath, 'scripts/verify-published-release.mjs'],
+        { cwd, env: childEnv, admission }
+      );
       if (!published.ok) return published;
 
       /**
@@ -516,7 +885,7 @@ export async function createStepAdapter({
        * `commitKnownFiles` and `promoteBeta` were written for exactly this and
        * never called from anywhere, which is why no release had reached the step
        * that needed them. The commit moves the beta line with it, and
-       * `manifest_beta_verify` then re-packages and re-verifies at that commit:
+       * `manifest_beta_verify` then re-verifies the sealed package at that commit:
        * what ships is verified after the digests are recorded, not before.
        */
       const expectedBetaSha = await remoteBetaSha({ cwd, env: childEnv });
@@ -557,9 +926,36 @@ export async function createStepAdapter({
     },
 
     manifest_beta_verify: async () => {
-      const packaged = await run('manifest_beta_verify', npm('beta:package'), { cwd, env: childEnv, admission });
-      if (!packaged.ok) return packaged;
-      return run('manifest_beta_verify', betaVerification, { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission });
+      const verified = await verifyNativeAndAggregate('manifest_beta_verify');
+      if (!verified.ok) return verified;
+      try {
+        if (!windowsPublishedEvidence) {
+          const existing = await findWorkflowRun({
+            cwd,
+            workflow: 'release-windows.yml',
+            sourceSha,
+            releaseId,
+            publish: true,
+            dispatchedAt: 0
+          });
+          if (!existing) return fail('GATE_FAILED', 'Windows baseline evidence unavailable');
+          const adopted = await watchWindowsEvidence('manifest_beta_verify', existing.databaseId, {
+            cwd,
+            env: childEnv,
+            admission,
+            sourceSha
+          });
+          if (!adopted.ok) return adopted;
+          windowsPublishedEvidence = adopted.windowsEvidence;
+        }
+        const head = (
+          await exec('git', ['rev-parse', 'HEAD'], { cwd, shell: false })
+        ).stdout.trim();
+        await writePlatformBaseline(cwd, head, windowsPublishedEvidence);
+        return { ok: true };
+      } catch (error) {
+        return fail('GATE_FAILED', messageOf(error));
+      }
     },
 
     backend_apply: async () => {
@@ -567,44 +963,64 @@ export async function createStepAdapter({
       if (!resolvedBackendAdapter || !journal)
         return fail('ACCESS_UNAVAILABLE', 'no backend adapter or journal is configured');
       try {
-        const result = await withLegacyBackendWriter({
-          root:cwd,owner:`full-backend:${runId}`,sourceSha,binding,
-          journalPath:journal.journalPath ?? '',runId,
-          inheritedToken:env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? process.env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? null
-        }, async ({markWriting}) => {
-          const appliedResult = await applyBackendPlan({
-          binding,
-          plan: backendPlan,
-          sourceSha,
-          previousReceipts: (journal.journalPath ? await readJournal(journal.journalPath, runId) : [])
-            .filter(event => event.type === 'backend_receipt').map(event => event.payload),
-          adapter: legacyBackendWriterAdapter(resolvedBackendAdapter,markWriting),
-          /**
-           * The receipt sink `applyBackendPlan` has always asked for.
-           *
-           * It writes one receipt per change before making it -- "a crash after
-           * this line is interpretable" -- through a method called `flush` that
-           * nothing in this repository implemented. Declared in two JSDoc blocks
-           * and provided nowhere, so the step that applies a release to the
-           * production database failed on `journal.flush is not a function`,
-           * having first proved every digest and compatibility check and
-           * touched nothing.
-           *
-           * The run journal is the durable record this run already keeps, and
-           * its `append` fsyncs, which is what flushing a receipt before an
-           * irreversible write is for.
-           */
-          journal: {
-            flush: async receipt => {
-              await journal.append('backend_receipt', receipt);
-            }
+        const result = await withLegacyBackendWriter(
+          {
+            root: cwd,
+            owner: `full-backend:${runId}`,
+            sourceSha,
+            binding,
+            journalPath: journal.journalPath ?? '',
+            runId,
+            inheritedToken:
+              env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? process.env.SOTY_WEB_RELEASE_LOCK_TOKEN ?? null
+          },
+          async ({ markWriting }) => {
+            const appliedResult = await applyBackendPlan({
+              binding,
+              plan: backendPlan,
+              sourceSha,
+              previousReceipts: (journal.journalPath
+                ? await readJournal(journal.journalPath, runId)
+                : []
+              )
+                .filter(event => event.type === 'backend_receipt')
+                .map(event => event.payload),
+              adapter: legacyBackendWriterAdapter(resolvedBackendAdapter, markWriting),
+              /**
+               * The receipt sink `applyBackendPlan` has always asked for.
+               *
+               * It writes one receipt per change before making it -- "a crash after
+               * this line is interpretable" -- through a method called `flush` that
+               * nothing in this repository implemented. Declared in two JSDoc blocks
+               * and provided nowhere, so the step that applies a release to the
+               * production database failed on `journal.flush is not a function`,
+               * having first proved every digest and compatibility check and
+               * touched nothing.
+               *
+               * The run journal is the durable record this run already keeps, and
+               * its `append` fsyncs, which is what flushing a receipt before an
+               * irreversible write is for.
+               */
+              journal: {
+                flush: async receipt => {
+                  await journal.append('backend_receipt', receipt);
+                }
+              }
+            });
+            if (
+              appliedResult.ok &&
+              appliedResult.applied.every(item =>
+                ['observed', 'already-applied'].includes(item.state ?? '')
+              )
+            )
+              await journal.append('backend_write_confirmed', {
+                sourceSha,
+                bindingDigest: binding.digest,
+                applied: appliedResult.applied
+              });
+            return appliedResult;
           }
-          });
-          if (appliedResult.ok && appliedResult.applied.every(item => ['observed','already-applied'].includes(item.state ?? ''))) await journal.append('backend_write_confirmed',{
-            sourceSha,bindingDigest:binding.digest,applied:appliedResult.applied
-          });
-          return appliedResult;
-        });
+        );
         return result.ok ? { ok: true } : fail('GATE_FAILED', 'backend apply did not complete');
       } catch (error) {
         return fail(codeOf(error) ?? 'GATE_FAILED', messageOf(error));
@@ -621,9 +1037,17 @@ export async function createStepAdapter({
      * remembers to.
      */
     live_verify: async () => {
-      const published = await run('live_verify', [process.execPath, 'scripts/verify-published-release.mjs'], { cwd, env: childEnv, admission });
+      const published = await run(
+        'live_verify',
+        [process.execPath, 'scripts/verify-published-release.mjs'],
+        { cwd, env: childEnv, admission }
+      );
       if (!published.ok) return published;
-      return run('live_verify', [process.execPath, 'scripts/verify-live-smoke.mjs'], { cwd, env: childEnv, admission });
+      return run('live_verify', [process.execPath, 'scripts/verify-live-smoke.mjs'], {
+        cwd,
+        env: childEnv,
+        admission
+      });
     }
   };
 
@@ -635,7 +1059,10 @@ export async function createStepAdapter({
       // anything outside this machine, which is how the ordering is exercised
       // before real credentials exist.
       if (!allowRemote && REMOTE_STEPS.has(stepId))
-        return fail('ACCESS_UNAVAILABLE', `${stepId} needs remote access, which this run disallows`);
+        return fail(
+          'ACCESS_UNAVAILABLE',
+          `${stepId} needs remote access, which this run disallows`
+        );
       return step();
     }
   };

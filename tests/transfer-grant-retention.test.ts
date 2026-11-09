@@ -8,6 +8,7 @@ import {
 
 afterAll(closeTransferGrantDatabase);
 
+// Cold PGlite startup uses the same bounded budget as transfer-grant-tickets.
 it('drains only old expired tickets in bounded batches and preserves live transfers', async () => {
   const target = await transferGrantSuite.start();
   try {
@@ -82,4 +83,4 @@ it('drains only old expired tickets in bounded batches and preserves live transf
   } finally {
     await target.stop();
   }
-});
+}, 30_000);

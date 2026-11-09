@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseMacosTarget, macosPaths, nativeAcceptanceAllowed } from './lib/macos-target.mjs';
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { createPrivateKey, sign } from 'node:crypto';
 import {
@@ -154,7 +155,29 @@ export function selectOwnedRuntimePids(listeners, launcherPid, app, readParent, 
 }
 
 async function main() {
-  const packaged = path.resolve('release/beta/Soty Beta.app');
+  const target = parseMacosTarget(process.argv.slice(2));
+  const hardwareFlag =
+    process.platform === 'darwin'
+      ? spawnSync('/usr/sbin/sysctl', ['-n', 'hw.optional.arm64'], {
+          encoding: 'utf8'
+        }).stdout?.trim()
+      : undefined;
+  const armHardware = hardwareFlag === '1' ? true : hardwareFlag === '0' ? false : null;
+  const virtualFlag = spawnSync('/usr/sbin/sysctl', ['-n', 'kern.hv_vmm_present'], {
+    encoding: 'utf8'
+  }).stdout?.trim();
+  const virtualized = virtualFlag === '0' ? false : virtualFlag === '1' ? true : null;
+  if (
+    !nativeAcceptanceAllowed({
+      platform: process.platform,
+      runtimeArch: process.arch,
+      targetArch: target.arch,
+      armHardware,
+      virtualized
+    })
+  )
+    fail('matching native architecture required for packaged runtime acceptance');
+  const packaged = macosPaths(process.cwd(), 'beta', target.arch).app;
   for (const required of [packaged, BETA_ENTITLEMENT_KEY]) {
     try {
       statSync(required);

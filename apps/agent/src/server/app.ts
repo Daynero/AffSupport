@@ -12,8 +12,11 @@ import {
   type AppEnvironment,
   type EntitlementPublicationRejection
 } from '@video-compressor/shared';
+import { readPackageTarget } from './package-identity.js';
+import { readStartupEvidence } from './startup-evidence.js';
+import { applicationSupportRoot } from '../files/support-dir.js';
 import { advertisedCapabilities } from './capabilities.js';
-import { hostPlatform } from '../platform/platform.js';
+import { hostPlatform, runtimeArchitecture } from '../platform/platform.js';
 import { registerStreamRoutes } from './stream.js';
 import { HEARTBEAT_MS, type ChannelHub } from './sse.js';
 import type { EntitlementGate } from '../entitlement/entitlement.js';
@@ -57,6 +60,8 @@ const TICKETABLE_PREFIXES = [
 ] as const;
 
 export interface ServerConfig {
+  nativeStartupId?: string | null;
+  installedReleasePath?: string | null;
   /** Which environment this process belongs to; surfaced on the health snapshot. */
   environment: AppEnvironment;
   host: string;
@@ -569,6 +574,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return reply.code(202).send({ accepted: true });
   });
 
+  const packageTarget = await readPackageTarget(config);
   const runtimeCapabilities = () =>
     advertisedCapabilities().filter(
       capability =>
@@ -587,6 +593,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     buildId: config.buildId,
     instanceId: deps.instanceId,
     platform: hostPlatform(),
+    nativeStartupId: config.nativeStartupId ?? undefined,
+    architecture: runtimeArchitecture(),
+    packageTarget,
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
@@ -611,6 +620,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     buildId: config.buildId,
     instanceId: deps.instanceId,
     platform: hostPlatform(),
+    nativeStartupId: config.nativeStartupId ?? undefined,
+    architecture: runtimeArchitecture(),
+    packageTarget,
     apiVersion: AGENT_API_VERSION,
     channel: config.channel,
     sourceRevision: config.sourceRevision,
@@ -652,6 +664,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       architecture: os.arch(),
       ffmpeg: tools.ffmpeg && tools.ffprobe ? 'ready' : 'unavailable',
       lastError: queue.warningMessage(),
+      startupEvidence:
+        hostPlatform() === 'macos'
+          ? await readStartupEvidence(path.join(applicationSupportRoot(), 'native-startup.json'))
+          : { status: 'unsupported_by_producer', records: [] },
       // Enough to answer "the button says busy and the panel says nothing is
       // happening" without reading the source. Counts and ids only — no file
       // names, no paths — because this page is meant to be sent to us.

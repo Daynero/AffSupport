@@ -53,6 +53,7 @@ function agentValue(manifest = releaseManifest()): AgentContextValue {
     setState: vi.fn(),
     connectedOnce: true,
     releaseBlocked: false,
+    agentRuntime: { platform: 'macos', architecture: 'arm64' },
     agentVersion: '0.6.1',
     agentBuildId: '0.6.1+13',
     agentChannel: 'stable',
@@ -139,10 +140,13 @@ describe('update notice on Windows', () => {
     return manifest;
   }
 
-  it('offers a Windows visitor the Windows build of the new version', () => {
+  it('offers a native Windows agent its Windows build despite browser identity', () => {
     mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
     const manifest = withWindowsArtifact();
-    renderNotice(agentValue(manifest));
+    renderNotice({
+      ...agentValue(manifest),
+      agentRuntime: { platform: 'windows', architecture: 'x64' }
+    });
 
     expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
       manifest.artifacts['windows-x64']?.url
@@ -159,14 +163,39 @@ describe('update notice on Windows', () => {
     );
   });
 
-  it('falls back to the macOS artifact for a Windows visitor on a macOS-only release', () => {
-    // A release that never shipped Windows must not hand out a dead link.
-    mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+  it('does not substitute macOS when the native Windows artifact is absent', () => {
     const manifest = releaseManifest();
-    renderNotice(agentValue(manifest));
+    renderNotice({
+      ...agentValue(manifest),
+      agentRuntime: { platform: 'windows', architecture: 'x64' }
+    });
+    expect(screen.queryByRole('link', { name: 'Завантажити оновлення' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Завантажити оновлення' })).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
 
+  it('requires explicit Mac choice without native architecture, regardless of user-agent', () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    renderNotice({ ...agentValue(), agentRuntime: { platform: 'macos' } });
+    expect(screen.getByRole('link', { name: 'Mac (Apple Silicon)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mac (Intel)' })).toHaveProperty('disabled', true);
+  });
+
+  it('never offers Windows to a connected legacy Mac agent', () => {
+    mockNavigator('Win32', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    renderNotice({ ...agentValue(withWindowsArtifact()), agentRuntime: { platform: 'macos' } });
+    expect(screen.getByRole('link', { name: 'Mac (Apple Silicon)' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Windows' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Windows' })).toBeNull();
+  });
+
+  it('updates a legacy Windows agent without architecture to the Windows build', () => {
+    const manifest = withWindowsArtifact();
+    renderNotice({ ...agentValue(manifest), agentRuntime: { platform: 'windows' } });
     expect(screen.getByRole('link', { name: 'Завантажити оновлення' }).getAttribute('href')).toBe(
-      manifest.artifacts['macos-arm64']?.url
+      manifest.artifacts['windows-x64']?.url
     );
   });
 });

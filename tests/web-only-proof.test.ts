@@ -252,7 +252,7 @@ describe('historical packaged-beta payload seal', () => {
     await git(['init', '--quiet']);
     await git(['config', 'user.name', 'Fixture']);
     await git(['config', 'user.email', 'fixture@example.test']);
-    await writeFile(path.join(root, '.gitignore'), 'release/\n');
+    await writeFile(path.join(root, '.gitignore'), 'release/\n.env.beta\n');
     await git(['add', '.gitignore']);
     await git(['commit', '--quiet', '-m', 'base']);
     const source = (await git(['rev-parse', 'HEAD'])).stdout.trim();
@@ -262,6 +262,12 @@ describe('historical packaged-beta payload seal', () => {
       path.join(resources, 'release.json'),
       JSON.stringify({ channel: 'beta', sourceRevision: source })
     );
+    await writeFile(
+      path.join(root, '.env.beta'),
+      'VITE_SUPABASE_URL=http://127.0.0.1:54321\nAGENT_ENTITLEMENT_PUBLIC_KEY=fixture-public\n'
+    );
+    await mkdir(path.join(resources, 'web/dist'), { recursive: true });
+    await writeFile(path.join(resources, 'web/dist/index.html'), 'fixture');
     await writeFile(path.join(resources, 'payload'), 'original');
     await expect(betaPackageProvenance({ cwd: root, action: 'verify' })).rejects.toThrow();
     const digest = await betaPackageProvenance({ cwd: root, action: 'record' });

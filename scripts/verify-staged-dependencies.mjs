@@ -1,3 +1,5 @@
+import { verifyMacosPayload } from './lib/macos-payload.mjs';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -82,12 +84,35 @@ for (const target of [browserExecutable, browserLicense]) {
     throw new Error(`The staged browser file is missing or empty: ${target}`);
   }
 }
+if (
+  browserManifest.executableSha256 !== undefined &&
+  createHash('sha256')
+    .update(await readFile(browserExecutable))
+    .digest('hex') !== browserManifest.executableSha256
+) {
+  throw new Error('The staged Chromium bytes differ from their recorded digest.');
+}
+const staticOnly = process.argv.slice(3).includes('--static');
+if (process.argv.slice(3).some(arg => arg !== '--static'))
+  throw new Error('STAGED_VERIFICATION_ARGUMENT_INVALID');
+if (staticOnly) {
+  if (!['arm64', 'x64'].includes(browserManifest.architecture))
+    throw new Error('STAGED_BROWSER_TARGET_UNKNOWN');
+  await verifyMacosPayload(path.join(stagedAgent, 'browser'), browserManifest.architecture);
+  process.stdout.write(
+    `Verified ${stagedManifest.dependencies.length} staged dependencies and static target browser; native execution remains unproven.\n`
+  );
+  process.exit(0);
+}
 const browserVersion = execFileSync(browserExecutable, ['--version'], {
   encoding: 'utf8',
   timeout: 15_000,
   windowsHide: true
 }).trim();
-if (!/(?:Chrome|Chromium)/iu.test(browserVersion)) {
+if (
+  !/(?:Chrome|Chromium)/iu.test(browserVersion) ||
+  (typeof browserManifest.version === 'string' && !browserVersion.includes(browserManifest.version))
+) {
   throw new Error(`The staged Chromium runtime returned an invalid version: ${browserVersion}`);
 }
 

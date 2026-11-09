@@ -15,6 +15,7 @@ let db: AnalyticsTestDb;
 const ALICE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const RUN = '20000000-0000-4000-8000-000000000001';
 const FLOW = '30000000-0000-4000-8000-000000000001';
+const INSTALL_FLOW = '30000000-0000-4000-8000-000000000002';
 const ATTEMPT = 'att_7f3a';
 const WORKFLOW = 'wf_01';
 // Envelope v3 (031 T012): the id in its own column, and the Agent's run and platform.
@@ -25,6 +26,11 @@ const INSTANCE_B = '50000000-0000-4000-8000-00000000000b';
 
 beforeAll(async () => {
   db = await createAnalyticsDb();
+  await db.exec(`
+    insert into public.analytics_events (user_id,event_name,flow_id,platform,architecture,properties,occurred_at,created_at)
+    values ('${ALICE}','install_download_clicked','${INSTALL_FLOW}','macos','x86_64',
+      '{"installer_target":"macos-x64"}','2026-10-07T08:00:00Z','2026-10-07T08:00:01Z');
+  `);
   await db.exec(`
     insert into public.analytics_events
       (user_id, event_name, tool, run_id, flow_id, local_app_version, local_app_build, web_build_id, platform, architecture, session_sequence, properties, occurred_at, created_at)
@@ -65,6 +71,14 @@ function found(data: InspectData): InspectFound {
 }
 
 describe('inspect · by run_id', () => {
+  it('exposes requested installer intent without inventing native installation or success', async () => {
+    const data = found(await getInspect(INSTALL_FLOW));
+    expect(data.requested_installer_targets).toEqual(['macos-x64']);
+    expect(data.agent.package_targets).toEqual([]);
+    expect(data.agent.agent_architectures).toEqual([]);
+    expect(data.agent.agent_platforms).toEqual([]);
+    expect(data.terminal).toBeNull();
+  });
   it('returns the run oldest first with stages, terminal, last proven stage and lag', async () => {
     const data = found(await getInspect(RUN));
     expect(data.matched_by).toEqual(['run_id']);

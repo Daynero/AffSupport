@@ -3,7 +3,12 @@
 // mis-signed manifests, so this must run before deploy:web whenever
 // stable.json changes.
 //
-//   node scripts/sign-release-manifest.mjs [--dmg path [--platform macos-arm64]]
+//   node scripts/sign-release-manifest.mjs [--dmg path [--platform macos-arm64]] [--historical]
+//
+// A current-version manifest missing a required platform gets that platform's
+// canonical URL with a zero sha256 placeholder (the prepare convention: the web
+// treats zeros as unavailable and the `manifest` step records the real digest).
+// `--historical` re-signs an older channel exactly with its own platform set.
 //
 // The private key is read from RELEASE_SIGNING_KEY_PATH or the default
 // config/keys/release-manifest.private.pem (gitignored; generated once via
@@ -14,6 +19,11 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   releaseManifestSigningPayload
 } from '../packages/shared/dist/release.js';
+import {
+  completeManifestArtifacts,
+  declaresCompletePlatformSet,
+  manifestArtifactFor
+} from './lib/release/manifest-artifacts.mjs';
 
 const manifestPath = 'apps/web/public/.well-known/wishly/stable.json';
 const keyPath = process.env.RELEASE_SIGNING_KEY_PATH || 'config/keys/release-manifest.private.pem';
@@ -42,17 +52,20 @@ if (derivedPublic !== RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64) {
 
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
-const dmgPath = option('dmg');
-if (dmgPath) {
-  const platform = option('platform') ?? 'macos-arm64';
-  const artifact = manifest.artifacts?.[platform];
-  if (!artifact) {
-    process.stderr.write(`Manifest has no ${platform} artifact to attach the checksum to.\n`);
-    process.exit(1);
+try {
+  completeManifestArtifacts(manifest, { historical: args.includes('--historical') });
+  const dmgPath = option('dmg');
+  if (dmgPath) {
+    const platform = option('platform') ?? 'macos-arm64';
+    const artifact = manifestArtifactFor(manifest, dmgPath, platform);
+    artifact.sha256 = await hashFile(dmgPath);
+    process.stdout.write(`${platform} sha256 = ${artifact.sha256}\n`);
   }
-  artifact.sha256 = await hashFile(dmgPath);
-  process.stdout.write(`${platform} sha256 = ${artifact.sha256}\n`);
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(1);
 }
+if (declaresCompletePlatformSet(manifest)) manifest.platformSetVersion = 2;
 
 const payload = Buffer.from(releaseManifestSigningPayload(manifest), 'utf8');
 manifest.signature = sign('sha256', payload, {

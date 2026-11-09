@@ -640,12 +640,43 @@ function isFailureEvent(row: EventRow): boolean {
 
 function environmentOf(rows: EventRow[], newest: string | null): InvestigateEnvironment {
   return {
+    requested_installer_targets: sortedUnique(
+      rows.map(row =>
+        ['macos-arm64', 'macos-x64', 'windows-x64'].includes(String(row.props.installer_target))
+          ? text(row.props.installer_target)
+          : null
+      )
+    ),
     web_builds: sortedUnique(rows.map(r => r.web_build_id)),
     local_app_versions: sortedUnique(rows.map(r => r.local_app_version)).sort(compareVersions),
     local_app_builds: sortedUnique(rows.map(r => r.local_app_build)),
     agent_platforms: sortedUnique(rows.map(r => r.agent_platform)),
     browser_platforms: sortedUnique(rows.map(r => r.platform)),
     architectures: sortedUnique(rows.map(r => r.architecture)),
+    native_startup_ids: sortedUnique(
+      rows.map(r =>
+        typeof r.props.native_startup_id === 'string' &&
+        /^[a-f0-9-]{36}$/iu.test(r.props.native_startup_id)
+          ? r.props.native_startup_id
+          : null
+      )
+    ),
+    agent_architectures: sortedUnique(
+      rows.map(r =>
+        ['arm64', 'x64', 'unknown'].includes(String(r.props.agent_architecture))
+          ? text(r.props.agent_architecture)
+          : null
+      )
+    ),
+    package_targets: sortedUnique(
+      rows.map(r =>
+        ['macos-arm64', 'macos-x64', 'windows-x64', 'unknown'].includes(
+          String(r.props.package_target)
+        )
+          ? text(r.props.package_target)
+          : null
+      )
+    ),
     browser_families: sortedUnique(rows.map(r => text(r.props.browser_family))),
     link_origins: sortedUnique(rows.map(r => text(r.props.link_origin))),
     first_seen_at: rows[0]?.occurred_at ?? null,
@@ -1510,6 +1541,21 @@ function blindSpotsOf(input: {
   const { rows, journal, schema } = input;
   const journalReadable = schema.tables.agent_journal_records;
   const spots: InvestigateBlindSpot[] = [];
+  if (
+    rows.some(
+      row =>
+        row.agent_instance_id &&
+        row.props.agent_architecture !== 'arm64' &&
+        row.props.agent_architecture !== 'x64'
+    )
+  ) {
+    spots.push({
+      kind: 'native_architecture_unobserved',
+      detail:
+        'Some connected-agent observations lack native runtime architecture. Browser architecture is separate; physical Intel host, preboot failure and installer delivery cannot be inferred.',
+      values: []
+    });
+  }
   if (
     rows.some(row => row.agent_platform === 'windows' || row.platform === 'windows') ||
     journal.some(record => record.category === 'boot' && record.props.platform === 'win32')

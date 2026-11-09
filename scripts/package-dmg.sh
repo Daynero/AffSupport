@@ -1,16 +1,24 @@
 #!/bin/zsh
 set -euo pipefail
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch production "$@")
+macho=$(node scripts/lib/macos-target.mjs macho production "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift production "$@")
+target_root=$(node scripts/lib/macos-target.mjs root production "$@")
 source "$PWD/scripts/release-admission.zsh"
 release_require_admission
-root="$PWD/release"; app="$root/Soty.app"; dmg_name=$(node scripts/release-meta.mjs artifact-name); dmg="$root/$dmg_name"
+root="$target_root"; app="$root/Soty.app"; dmg_name=$(node scripts/release-meta.mjs "$([[ "$arch" == x64 ]] && print intel-artifact-name || print artifact-name)"); dmg="$root/$dmg_name"
 [[ -d "$app" ]] || { print -u2 "Build the app first with npm run package:mac"; exit 1; }
 [[ ! -e "$dmg" ]] || { print -u2 "$dmg already exists. Published build identities are immutable; bump PRODUCT_VERSION and BUILD_NUMBER."; exit 1; }
+volume_name="Soty"; [[ "$arch" == x64 ]] && volume_name="Soty-x64"
+[[ ! -e "/Volumes/$volume_name" ]] || { print -u2 "The target DMG volume is already mounted. Eject it before packaging."; exit 1; }
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 stage="$root/dmg-stage"; rw="$root/Soty-rw.dmg"; rm -rf "$stage"; rm -f "$rw"; mkdir -p "$stage/.background"
 cp -R "$app" "$stage/"; ln -s /Applications "$stage/Applications"
-swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png" "$root/apps/web/public/soty-header-logo-light.svg"
-hdiutil create -quiet -srcfolder "$stage" -volname "Soty" -fs HFS+ -format UDRW "$rw"
+swiftc packaging/DmgBackground.swift -o "$root/DmgBackground" -framework AppKit; "$root/DmgBackground" "$stage/.background/background.png" "$PWD/apps/web/public/soty-header-logo-light.svg"
+hdiutil create -quiet -srcfolder "$stage" -volname "$volume_name" -fs HFS+ -format UDRW "$rw"
 device=$(hdiutil attach -readwrite -noverify -noautoopen "$rw" | awk '/Apple_HFS/{print $1; exit}')
-mount="/Volumes/Soty"
+mount="/Volumes/$volume_name"
 # Disk Arbitration reports the device before Finder has registered the mounted
 # volume. Wait for the mount point so the Finder layout script cannot race it.
 for _ in {1..40}; do
@@ -20,7 +28,7 @@ done
 [[ -d "$mount" ]] || { print -u2 "DMG volume did not mount at $mount"; hdiutil detach -quiet "$device" || true; exit 1; }
 osascript <<APPLESCRIPT
 tell application "Finder"
-  tell disk "Soty"
+  tell disk "$volume_name"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false

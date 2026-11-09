@@ -285,6 +285,10 @@ export const DELIVERY_REPORT_WINDOW_MAX_MS = 86_400_000;
 const PROPERTY_VALUE_MAX_LENGTH = 128;
 
 export type AnalyticsProperties = {
+  native_startup_id?: string;
+  agent_architecture?: 'arm64' | 'x64' | 'unknown';
+  package_target?: 'macos-arm64' | 'macos-x64' | 'windows-x64' | 'unknown';
+  installer_target?: 'macos-arm64' | 'macos-x64' | 'windows-x64';
   flow_id?: string;
   run_id?: string;
   tool_identifier?: AnalyticsTool;
@@ -488,6 +492,7 @@ export type AnalyticsEventProperties = {
 export type AnalyticsPropertyRule =
   | { kind: 'token' }
   | { kind: 'id' }
+  | { kind: 'uuid' }
   | { kind: 'boolean' }
   | { kind: 'number'; range: readonly [number, number] }
   | { kind: 'enum'; values: readonly string[] }
@@ -499,6 +504,10 @@ const ONE_YEAR_MS = 31_536_000_000;
 export const ANALYTICS_PROPERTY_RULES: Readonly<
   Record<keyof AnalyticsProperties, AnalyticsPropertyRule>
 > = {
+  native_startup_id: { kind: 'uuid' },
+  agent_architecture: { kind: 'enum', values: ['arm64', 'x64', 'unknown'] },
+  package_target: { kind: 'enum', values: ['macos-arm64', 'macos-x64', 'windows-x64', 'unknown'] },
+  installer_target: { kind: 'enum', values: ['macos-arm64', 'macos-x64', 'windows-x64'] },
   flow_id: { kind: 'id' },
   run_id: { kind: 'id' },
   revision_id: { kind: 'id' },
@@ -689,6 +698,11 @@ function sanitizeAnalyticsValue(rule: AnalyticsPropertyRule, raw: unknown): Json
   switch (rule.kind) {
     case 'token':
       return safeTokenValue(raw) ? raw : undefined;
+    case 'uuid':
+      return typeof raw === 'string' &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(raw)
+        ? raw
+        : undefined;
     case 'id':
       return typeof raw === 'string' && safeOpaqueId.test(raw) ? raw : undefined;
     case 'boolean':
@@ -716,7 +730,18 @@ export function sanitizeAnalyticsProperties(
   eventName?: AnalyticsEventName
 ): Record<string, Json> {
   if (eventName && (TEAM_ANALYTICS_EVENT_NAMES as readonly string[]).includes(eventName)) {
-    return sanitizeTeamAnalyticsProperties(input) as Record<string, Json>;
+    const output = sanitizeTeamAnalyticsProperties(input) as Record<string, Json>;
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+      for (const key of ['agent_architecture', 'package_target', 'native_startup_id'] as const) {
+        if (!(key in input)) continue;
+        const clean = sanitizeAnalyticsValue(
+          ANALYTICS_PROPERTY_RULES[key],
+          Reflect.get(input, key)
+        );
+        if (clean !== undefined) output[key] = clean;
+      }
+    }
+    return output;
   }
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const output: Record<string, Json> = {};

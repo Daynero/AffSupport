@@ -1,16 +1,17 @@
 import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_DOWNLOAD_URL,
+  REQUIRED_RELEASE_PLATFORMS,
   RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   compareProductVersions,
   isPinnedReleaseArtifact,
   releaseManifestSigningPayload,
+  releaseArtifactName,
   type ReleaseSummaryLanguage,
   type AppEnvironment,
   type StableReleaseManifest
 } from '@video-compressor/shared';
-import { currentBrowserPlatform, platformFromAgentCapabilities } from './lib/platform';
 import { configuredEnvironment } from './lib/config';
 
 export type ReleaseManifestState =
@@ -108,7 +109,81 @@ export function installedReleaseStatus(input: {
   return minimum !== null && minimum < 0 ? 'update_required' : 'update_available';
 }
 
-export type DownloadPlatform = 'macos-arm64' | 'windows-x64';
+export type DownloadPlatform = 'macos-arm64' | 'macos-x64' | 'windows-x64';
+
+export type InstallerDownload =
+  | { status: 'choice-required' }
+  | { status: 'unavailable'; platform: DownloadPlatform }
+  | { status: 'available'; platform: DownloadPlatform; url: string };
+
+/** Input manifest is authenticated by loadStableReleaseManifest; native identity wins. */
+export function resolveInstallerDownload(
+  manifest: StableReleaseManifest | null,
+  runtime?: {
+    platform?: string | null;
+    architecture?: string | null;
+    packageTarget?: string | null;
+  },
+  choice?: DownloadPlatform
+): InstallerDownload {
+  let platform = choice;
+  if (
+    runtime?.platform === 'macos' &&
+    (runtime.architecture === 'x64' || runtime.architecture === 'arm64')
+  ) {
+    platform = runtime.architecture === 'x64' ? 'macos-x64' : 'macos-arm64';
+  } else if (
+    runtime?.platform === 'macos' &&
+    (runtime.packageTarget === 'macos-x64' || runtime.packageTarget === 'macos-arm64')
+  ) {
+    // The installed package names its own target even when the runtime CPU is unreported.
+    platform = runtime.packageTarget;
+  } else if (runtime?.platform === 'windows') {
+    // Windows ships one x64 installer; ARM64 Windows runs it under emulation, and an
+    // agent older than 049 reports no architecture at all.
+    platform = 'windows-x64';
+  }
+  if (!platform) return { status: 'choice-required' };
+  if (
+    runtime?.packageTarget &&
+    runtime.packageTarget !== 'unknown' &&
+    runtime.packageTarget !== platform
+  )
+    return { status: 'unavailable', platform };
+  const artifact = manifest?.artifacts[platform];
+  const expected = manifest
+    ? `/v${manifest.version}/${releaseArtifactName(platform, manifest.version)}`
+    : null;
+  if (!manifest && platform === 'macos-arm64')
+    // Unchanged pre-049 behaviour: while the signed channel is loading, unreachable or
+    // (beta) never consulted, Apple Silicon keeps the release pinned into this web build.
+    // Intel and Windows stay unavailable rather than guessing an unverified asset.
+    return { status: 'available', platform, url: RELEASE_DOWNLOAD_URL };
+  const legacyArm =
+    platform === 'macos-arm64' && manifest
+      ? `/v${manifest.version}/Soty-v${manifest.version}.dmg`
+      : null;
+  if (
+    !isPinnedReleaseArtifact(artifact) ||
+    /^0+$/u.test(artifact.sha256) ||
+    !expected ||
+    !(artifact.url.endsWith(expected) || (legacyArm && artifact.url.endsWith(legacyArm)))
+  )
+    return { status: 'unavailable', platform };
+  return { status: 'available', platform, url: artifact.url };
+}
+
+/**
+ * Processor choices when the native target is unknown. A connected Mac agent
+ * (even a legacy one without architecture) rules Windows out; the browser's
+ * platform only orders the options, it never selects one.
+ */
+export function installerChoices(nativeMac: boolean, browserWindows: boolean): DownloadPlatform[] {
+  if (nativeMac) return ['macos-arm64', 'macos-x64'];
+  return browserWindows
+    ? ['windows-x64', 'macos-arm64', 'macos-x64']
+    : ['macos-arm64', 'macos-x64', 'windows-x64'];
+}
 
 /**
  * Resolves the download for a platform from the signed manifest. When the
@@ -123,34 +198,17 @@ export function downloadUrlForPlatform(
   const artifact = manifest?.artifacts[platform];
   // Checked again here, not only at load: a manifest can reach this function from somewhere
   // other than `loadStableReleaseManifest`, and an unpinned URL must never become a link.
+  if (platform === 'macos-x64') {
+    const result = resolveInstallerDownload(manifest, undefined, platform);
+    return {
+      url: result.status === 'available' ? result.url : '',
+      available: result.status === 'available'
+    };
+  }
   if (isPinnedReleaseArtifact(artifact)) return { url: artifact.url, available: true };
   return platform === 'windows-x64'
     ? { url: RELEASE_DOWNLOAD_URL_WINDOWS, available: false }
     : { url: RELEASE_DOWNLOAD_URL, available: true };
-}
-
-/**
- * The installer a visitor should be offered by default: the Windows build when
- * the host reports Windows and the manifest actually ships one, otherwise the
- * Mac (Apple Silicon) build exactly as before.
- *
- * A connected agent's capabilities are consulted before the browser, because
- * they come from the machine that will run the installer rather than from a
- * string the visitor's browser profile is free to invent.
- */
-export function preferredDownload(
-  manifest: StableReleaseManifest | null,
-  agentCapabilities?: readonly string[] | null
-): {
-  url: string;
-  platform: DownloadPlatform;
-} {
-  const host = platformFromAgentCapabilities(agentCapabilities) ?? currentBrowserPlatform();
-  if (host === 'windows') {
-    const windows = downloadUrlForPlatform(manifest, 'windows-x64');
-    if (windows.available) return { url: windows.url, platform: 'windows-x64' };
-  }
-  return { url: downloadUrlForPlatform(manifest, 'macos-arm64').url, platform: 'macos-arm64' };
 }
 
 export function macAppleSiliconDownloadUrl(manifest: StableReleaseManifest | null): string {
@@ -171,6 +229,11 @@ function validManifest(value: unknown): value is StableReleaseManifest {
   return (
     source.schemaVersion === 1 &&
     source.channel === 'stable' &&
+    (source.platformSetVersion === undefined ||
+      (source.platformSetVersion === 2 &&
+        REQUIRED_RELEASE_PLATFORMS.every(platform =>
+          isPinnedReleaseArtifact(source.artifacts?.[platform])
+        ))) &&
     typeof source.version === 'string' &&
     typeof source.buildNumber === 'string' &&
     typeof source.buildId === 'string' &&

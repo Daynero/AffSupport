@@ -190,7 +190,12 @@ const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
 }).trim();
 const releaseJson = execFileSync(
   process.execPath,
-  [path.join(repositoryRoot, 'scripts/release-meta.mjs'), '--json', sourceRevision],
+  [
+    path.join(repositoryRoot, 'scripts/release-meta.mjs'),
+    '--json',
+    sourceRevision,
+    '--platform=windows-x64'
+  ],
   { cwd: repositoryRoot, encoding: 'utf8' }
 );
 await writeFile(path.join(destination, 'release.json'), releaseJson, 'utf8');

@@ -1,3 +1,5 @@
+import { lookupCodeLocations } from './code-map.js';
+import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidence.js';
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
 /**
@@ -106,6 +108,7 @@ export const HELP = `Soty analytics CLI (read-only)
 Usage: npm run analytics -- <command> [options]
 
 Commands:
+  startup <file>      Read bounded local native startup evidence (no database)
   overview            High-level product metrics
   compressor          Compressor funnel + size/ratio metrics
   users               User totals + recently active
@@ -152,7 +155,7 @@ Options:
   --as-of <iso>  fix the window's end to this instant (repeatable analysis)
   --by <field>   top-users: activity | compressions (default compressions)
   --limit <n>    row limit (default 10)
-  --cohort-by <v> local-app-version | platform | web-build
+  --cohort-by <v> local-app-version | platform | web-build | agent-architecture
   --write        audit: save specs/031-platform-autoanalytics/analysis/<date>.json
   --management   database-health only: privileged aggregates via read-only Supabase API
   --html <path> catalog-trends: write an offline visual HTML report
@@ -299,6 +302,27 @@ export async function executeCommand(
   });
 
   switch (command) {
+    case 'startup': {
+      const file = requireArg(args, 0, 'startup <local-native-startup.json>');
+      const observed = await readStartupEvidence(resolve(file), {
+        start: period.start,
+        end: period.end
+      });
+      const last = observed.records.at(-1);
+      const data = {
+        ...observed,
+        findings: [
+          {
+            kind: last && last.code !== 'STARTUP_BEGIN' ? 'fact' : 'insufficient',
+            title: last
+              ? `Launcher recorded ${last.code}`
+              : 'No local startup evidence in this window',
+            code_locations: last ? [lookupCodeLocations(`native:macos:${last.code}`)] : []
+          }
+        ]
+      };
+      return done(data, JSON.stringify(data, null, 2));
+    }
     case 'database-performance': {
       const data = await getDatabasePerformance();
       return done(data, JSON.stringify(data, null, 2));
@@ -425,11 +449,21 @@ export async function executeCommand(
     }
     case 'cohorts': {
       const cohortBy: CohortsData['cohort_by'] =
-        args.cohortBy === 'platform' || args.cohortBy === 'web-build'
+        args.cohortBy === 'platform' ||
+        args.cohortBy === 'web-build' ||
+        args.cohortBy === 'agent-architecture'
           ? args.cohortBy
           : 'local-app-version';
       const [cohorts, delivery_lag_ms] = await Promise.all([getCohorts(period, cohortBy), lag()]);
-      const full = { cohort_by: cohortBy, cohorts, note: NO_AGENT_CONTEXT_NOTE, delivery_lag_ms };
+      const full = {
+        cohort_by: cohortBy,
+        cohorts,
+        note:
+          cohortBy === 'agent-architecture'
+            ? 'Observed native platform:runtime CPU:build; physical host and translation remain unknown. Browser architecture is separate.'
+            : NO_AGENT_CONTEXT_NOTE,
+        delivery_lag_ms
+      };
       return done(full, formatCohorts(full, period));
     }
     case 'retention': {

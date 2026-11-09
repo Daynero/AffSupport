@@ -4,6 +4,7 @@
 // makes it release-blocking here too.
 import {
   RELEASE_DOWNLOAD_URLS,
+  historicalReleasePlatforms,
   REQUIRED_RELEASE_PLATFORMS
 } from '../packages/shared/dist/release.js';
 import { BETA_MARKERS } from '../packages/shared/dist/environment.js';
@@ -50,7 +51,9 @@ for (const [platform, url] of Object.entries(RELEASE_DOWNLOAD_URLS)) {
 const binding = activeBinding();
 
 const manifest = JSON.parse(readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8'));
-for (const platform of REQUIRED_RELEASE_PLATFORMS) {
+for (const platform of process.argv.includes('--historical')
+  ? historicalReleasePlatforms(manifest)
+  : REQUIRED_RELEASE_PLATFORMS) {
   const url = RELEASE_DOWNLOAD_URLS[platform];
   if (!url) fail(`No download URL is defined for the required platform ${platform}.`);
   if (!url.startsWith(`${binding.artifactUrlBase}/`)) {

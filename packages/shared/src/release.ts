@@ -37,13 +37,17 @@ export const HELP_URL = `${PRODUCTION_SITE_ORIGIN}/help`;
 
 export const BUILD_ID = `${PRODUCT_VERSION}+${BUILD_NUMBER}`;
 export const RELEASE_TAG = `v${PRODUCT_VERSION}`;
-export const RELEASE_ARTIFACT_NAME = `Soty-v${PRODUCT_VERSION}-macOS-arm64.dmg`;
+export const RELEASE_ARTIFACT_NAME = releaseArtifactName('macos-arm64');
 export const RELEASE_DOWNLOAD_URL = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`;
+/** Intel availability still requires an authenticated channel artifact. */
+export const RELEASE_ARTIFACT_NAME_MACOS_X64 = releaseArtifactName('macos-x64');
+export const RELEASE_DOWNLOAD_URL_MACOS_X64 = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME_MACOS_X64}`;
+
 /**
  * Windows installer produced by packaging/windows-installer.iss, attached to the
  * same immutable tag as the DMG (docs/WINDOWS.md).
  */
-export const RELEASE_ARTIFACT_NAME_WINDOWS = `Soty-v${PRODUCT_VERSION}-Windows-x64.exe`;
+export const RELEASE_ARTIFACT_NAME_WINDOWS = releaseArtifactName('windows-x64');
 export const RELEASE_DOWNLOAD_URL_WINDOWS = `https://github.com/Daynero/AffSupport/releases/download/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME_WINDOWS}`;
 
 /**
@@ -58,12 +62,20 @@ export const RELEASE_DOWNLOAD_URL_WINDOWS = `https://github.com/Daynero/AffSuppo
  */
 export const REQUIRED_RELEASE_PLATFORMS: readonly ReleasePlatform[] = [
   'macos-arm64',
+  'macos-x64',
   'windows-x64'
 ];
+
+/** Historical signed channels keep their authenticated platform set. Never invent Intel in old releases. */
+export function historicalReleasePlatforms(manifest: StableReleaseManifest): ReleasePlatform[] {
+  if (manifest.platformSetVersion === 2) return [...REQUIRED_RELEASE_PLATFORMS];
+  return REQUIRED_RELEASE_PLATFORMS.filter(platform => Object.hasOwn(manifest.artifacts, platform));
+}
 
 /** Download URL for each platform, derived so no gate hard-codes a link. */
 export const RELEASE_DOWNLOAD_URLS: Partial<Record<ReleasePlatform, string>> = {
   'macos-arm64': RELEASE_DOWNLOAD_URL,
+  'macos-x64': RELEASE_DOWNLOAD_URL_MACOS_X64,
   'windows-x64': RELEASE_DOWNLOAD_URL_WINDOWS
 };
 
@@ -140,6 +152,19 @@ export type ToolContractName = keyof typeof AGENT_TOOL_CONTRACTS;
 export type ToolContracts = Partial<Record<ToolContractName, number>>;
 export type SotyToolId = keyof typeof WEB_TOOL_REQUIREMENTS;
 export type ReleasePlatform = 'macos-arm64' | 'macos-x64' | 'windows-x64';
+
+/** Canonical public artifact names for current and authenticated historical releases. */
+export function releaseArtifactName(platform: ReleasePlatform, version = PRODUCT_VERSION): string {
+  switch (platform) {
+    case 'macos-arm64':
+      return `Soty-v${version}-macOS-arm64.dmg`;
+    case 'macos-x64':
+      return `Soty-v${version}-macOS-x64.dmg`;
+    case 'windows-x64':
+      return `Soty-v${version}-Windows-x64.exe`;
+  }
+}
+
 export type ReleaseSummaryLanguage = 'en' | 'uk';
 
 export interface ReleaseArtifact {
@@ -230,6 +255,8 @@ function sortKeysDeep(value: unknown): unknown {
 }
 
 export interface StableReleaseManifest {
+  /** Revision 2 binds the complete ARM + Intel + Windows distribution. */
+  platformSetVersion?: 2;
   schemaVersion: 1;
   channel: 'stable';
   version: string;

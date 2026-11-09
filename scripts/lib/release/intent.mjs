@@ -59,7 +59,8 @@ export function resolveIntent(value) {
   if ('commitRange' in notes && (typeof notes.commitRange !== 'string' || !/^[a-f0-9]{7,64}\.\.[a-f0-9]{7,64}$/u.test(notes.commitRange))) throw new IntentError('notes.commitRange is invalid');
   if (typeof input.targetId !== 'string' || !/^[a-z0-9][a-z0-9-]{2,63}$/u.test(input.targetId)) throw new IntentError('targetId is invalid');
   if (input.targetKind !== 'production' && input.targetKind !== 'sandbox') throw new IntentError('targetKind is invalid');
-  if (!Array.isArray(input.platforms) || input.platforms.length === 0 || new Set(input.platforms).size !== input.platforms.length || !input.platforms.every(platform => platform === 'macos-arm64' || platform === 'windows-x64')) throw new IntentError('platforms is invalid');
+  if (!Array.isArray(input.platforms) || input.platforms.length === 0 || new Set(input.platforms).size !== input.platforms.length || !input.platforms.every(platform => platform === 'macos-arm64' || platform === 'macos-x64' || platform === 'windows-x64')) throw new IntentError('platforms is invalid');
+  if (input.targetKind === 'production' && !['macos-arm64','macos-x64','windows-x64'].every(platform => input.platforms.includes(platform))) throw new IntentError('A new production intent requires all three platforms');
   const resourceProfile = object(input.resourceProfile, 'resourceProfile');
   if (Object.values(resourceProfile).some(entry => !['string', 'number', 'boolean'].includes(typeof entry))) throw new IntentError('resourceProfile contains an invalid value');
   iso(input.createdAt, 'createdAt');

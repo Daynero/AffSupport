@@ -1,8 +1,14 @@
 #!/bin/zsh
 set -euo pipefail
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch dev "$@")
+macho=$(node scripts/lib/macos-target.mjs macho dev "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift dev "$@")
+target_root=$(node scripts/lib/macos-target.mjs root dev "$@")
 
-app="$PWD/release/dev/Soty Dev.app"
+app="$target_root/Soty Dev.app"
 finder_extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 finder_binary="$finder_extension/Contents/MacOS/SotyFinderExtension"
 [[ -d "$app" ]]
 [[ -d "$finder_extension" && -x "$finder_binary" ]]
@@ -14,13 +20,13 @@ finder_binary="$finder_extension/Contents/MacOS/SotyFinderExtension"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$finder_extension/Contents/Info.plist")" == "com.wishly.dev.finder-extension" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 grep -q '"channel": "development"' "$app/Contents/Resources/release.json"
-grep -q 'private let agentPort = 43130' "$PWD/release/dev/Launcher.generated.swift"
-grep -q 'private let instanceLockName = "wishly-dev-agent.lock"' "$PWD/release/dev/Launcher.generated.swift"
-grep -q 'private let supportDirectoryName = "Soty Dev"' "$PWD/release/dev/Launcher.generated.swift"
-grep -q 'private let finderServiceName = "Soty Dev Finder Action"' "$PWD/release/dev/FinderSync.generated.swift"
-grep -q 'private let finderMenuSuffix = " — Soty Dev"' "$PWD/release/dev/FinderSync.generated.swift"
-! grep -q '__[A-Z0-9_]*__' "$PWD/release/dev/FinderSync.generated.swift"
-! grep -qiE 'case heic|case heif|\"heic\"|\"heif\"' "$PWD/release/dev/FinderSync.generated.swift"
+grep -q 'private let agentPort = 43130' "$target_root/Launcher.generated.swift"
+grep -q 'private let instanceLockName = "wishly-dev-agent.lock"' "$target_root/Launcher.generated.swift"
+grep -q 'private let supportDirectoryName = "Soty Dev"' "$target_root/Launcher.generated.swift"
+grep -q 'private let finderServiceName = "Soty Dev Finder Action"' "$target_root/FinderSync.generated.swift"
+grep -q 'private let finderMenuSuffix = " — Soty Dev"' "$target_root/FinderSync.generated.swift"
+! grep -q '__[A-Z0-9_]*__' "$target_root/FinderSync.generated.swift"
+! grep -qiE 'case heic|case heif|\"heic\"|\"heif\"' "$target_root/FinderSync.generated.swift"
 grep -q 'VITE_ANALYTICS_ENABLED=false' scripts/package-dev-mac.sh
 grep -q 'VITE_LOCAL_DEV_AUTH=true' scripts/package-dev-mac.sh
 codesign --verify --deep --strict "$app"
@@ -29,17 +35,25 @@ finder_entitlements=$(codesign -d --entitlements - "$finder_extension" 2>/dev/nu
 print -r -- "$finder_entitlements" | grep -q 'com.apple.security.app-sandbox'
 print -r -- "$finder_entitlements" | grep -q 'com.apple.security.files.user-selected.read-only'
 for binary in "$app/Contents/MacOS/SotyDevAgent" "$finder_binary" "$app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/whisper-cli"; do
-  file "$binary" | grep -q arm64
+  file "$binary" | grep -q "$macho"
 done
 for binary in "$app/Contents/MacOS/SotyDevAgent" "$finder_binary"; do
   vtool -show-build "$binary" | grep -q 'minos 13.0'
 done
 [[ -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
-node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
+if [[ "$(node -p process.arch)" == "$arch" ]]; then
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
+else
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+fi
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
   [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]
 done
+if [[ "$(node -p process.arch)" != "$arch" ]]; then
+  print "Soty Dev static identity, isolation, dependencies and signatures verified. Native runtime acceptance requires a matching host."
+  exit 0
+fi
 "$app/Contents/Resources/runtime/node" --version >/dev/null
 (
   cd "$app/Contents/Resources/agent"

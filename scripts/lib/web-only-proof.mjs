@@ -8,7 +8,8 @@ import { loadEnv } from 'vite';
 import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   releaseManifestSigningPayload,
-  RELEASE_TAG
+  RELEASE_TAG,
+  historicalReleasePlatforms
 } from '../../packages/shared/dist/release.js';
 import { outputDigest, readWebFile } from '../release-web-meta.mjs';
 import { atomicRecord } from './release/task-store.mjs';
@@ -246,12 +247,48 @@ export async function inspectPackagedBeta(cwd, { backendPaths = [] } = {}) {
     timeout: 30_000,
     maxBuffer: 16_384
   });
+  const channel = JSON.parse(await readFile(path.join(cwd, MANIFEST_PATH), 'utf8'));
+  let platformBaselines;
+  if (historicalReleasePlatforms(channel).includes('macos-x64')) {
+    const { assertMacosBetaEvidence, macosEvidenceQualification } =
+      await import('./release/platform-evidence.mjs');
+    platformBaselines = [];
+    for (const target of ['macos-arm64', 'macos-x64']) {
+      const root = target === 'macos-x64' ? 'release/beta/x64' : 'release/beta';
+      const targetRecord = JSON.parse(
+        await readFile(path.join(cwd, root, 'verification.json'), 'utf8')
+      );
+      const proof = await assertMacosBetaEvidence(cwd, target, {
+        sourceSha: targetRecord.sourceRevision
+      });
+      platformBaselines.push({
+        ...macosEvidenceQualification(proof),
+        target,
+        sourceSha: proof.sourceRevision,
+        payloadDigest: proof.packagePayloadDigest,
+        webPayloadDigest: proof.webPayloadDigest,
+        proofDigest: valueDigest(proof)
+      });
+    }
+  }
+  let aggregateBaselineDigest;
+  if (platformBaselines) {
+    const { assertPlatformBaseline } = await import('./release/platform-baseline.mjs');
+    aggregateBaselineDigest = await assertPlatformBaseline(
+      cwd,
+      await readFile(path.join(cwd, MANIFEST_PATH)),
+      platformBaselines
+    );
+  }
   return {
     directory,
+    ...(platformBaselines ? { platformBaselines } : {}),
     sourceSha: metadata.sourceRevision,
     buildId: metadata.buildId,
     payloadDigest: await packagePayloadDigest(directory),
-    baselineDigest: valueDigest(record)
+    baselineDigest: platformBaselines
+      ? valueDigest({ record, platformBaselines, aggregateBaselineDigest })
+      : valueDigest(record)
   };
 }
 

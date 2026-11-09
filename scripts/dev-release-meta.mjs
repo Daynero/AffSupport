@@ -1,5 +1,7 @@
 const [version, bundleVersion, buildNumber, buildId, apiVersion, sourceRevision, artifact] =
   process.argv.slice(2);
+const target = process.argv[9] ?? 'arm64';
+if (!['arm64', 'x64'].includes(target)) throw new Error('MACOS_TARGET_INVALID');
 
 if (
   ![version, bundleVersion, buildNumber, buildId, apiVersion, sourceRevision, artifact].every(
@@ -20,6 +22,8 @@ process.stdout.write(
       apiVersion: Number(apiVersion),
       supportedAgentApi: { min: Number(apiVersion), max: Number(apiVersion) },
       channel: 'development',
+      target: `macos-${target}`,
+      architecture: target,
       tag: null,
       artifact,
       downloadUrl: null,

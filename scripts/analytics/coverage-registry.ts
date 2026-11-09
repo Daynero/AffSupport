@@ -120,6 +120,29 @@ const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
   {
+    id: 'onboarding.macos_architecture',
+    tool: 'onboarding',
+    title: 'Mac · architecture-specific installer and native readiness',
+    stages: ['choice', 'download_requested', 'native_boot', 'link_ready', 'result_visible'],
+    stageEvents: {
+      download_requested: ['install_download_clicked'],
+      link_ready: ['agent_connected']
+    },
+    start: [{ event: 'install_download_clicked', correlate: 'none' }],
+    terminal: [],
+    platforms: ['macos'],
+    unobservable: [
+      'download_bytes',
+      'install',
+      'native_boot',
+      'physical_host_architecture',
+      'result_visible'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'Native runtime architecture and package_target are closed properties separate from browser architecture and installer_target request intent. Requested installer targets do not establish native installation; disabled-option intent remains unobserved. A click does not prove installer bytes, boot or delivery; there is no supported cross-device download→boot join. Legacy records remain unknown. Bounded pre-server startup records are available locally through diagnostics and the startup CLI; native_startup_id joins subsequent signals when collection is enabled. Intel qualification follows owner-ratified intel-user-feedback-v1: static checks precede release without an Intel host; native runtime confirmation is first-user feedback and remains unverified until observed. Apple public trust and other required release evidence remain independent gates.'
+  },
+  {
     id: 'onboarding.windows_launcher',
     tool: 'onboarding',
     title: 'Windows · native launcher readiness and shutdown',

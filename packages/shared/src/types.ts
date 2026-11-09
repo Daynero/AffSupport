@@ -38,9 +38,12 @@ export {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_ARTIFACT_NAME,
   RELEASE_ARTIFACT_NAME_WINDOWS,
+  RELEASE_ARTIFACT_NAME_MACOS_X64,
+  REQUIRED_RELEASE_PLATFORMS,
   RELEASE_CHANNEL,
   RELEASE_DOWNLOAD_URL,
   RELEASE_DOWNLOAD_URL_WINDOWS,
+  RELEASE_DOWNLOAD_URL_MACOS_X64,
   RELEASE_TAG
 } from './release.js';
 
@@ -51,6 +54,8 @@ export {
   normalizeToolContracts,
   powerThrottleSupported,
   releaseManifestSigningPayload,
+  releaseArtifactName,
+  historicalReleasePlatforms,
   restitchSourcesSupported,
   teamPosterFrameSupported,
   teamProcessPauseSupported,
@@ -778,6 +783,10 @@ export interface HealthResponse {
    * Absent on agents older than 031 and on hosts outside the three named.
    */
   platform?: AgentHostPlatform;
+  /** Native runtime CPU; browser architecture and physical host are independent. */
+  architecture?: 'arm64' | 'x64' | 'unknown';
+  packageTarget?: 'macos-arm64' | 'macos-x64' | 'windows-x64' | 'unknown';
+  nativeStartupId?: string | null;
   ok: boolean;
   tools: QueueState['tools'];
   version: string;
@@ -2082,3 +2091,32 @@ export const HISTORICAL_TRANSCRIPTION_ERROR_CODES = [
   'TRANSLATION_FAILED',
   'TRANSLATOR_UNAVAILABLE'
 ] as const;
+
+/** Native launcher evidence is local and bounded; it never implies remote OS rejection. */
+export const MACOS_STARTUP_CODES = [
+  'STARTUP_BEGIN',
+  'STARTUP_NODE_MISSING',
+  'STARTUP_RUNTIME_MISSING',
+  'STARTUP_WRONG_ARCHITECTURE',
+  'STARTUP_SPAWN_FAILED',
+  'STARTUP_EXITED_BEFORE_READY',
+  'STARTUP_INTERRUPTED',
+  'STARTUP_READY'
+] as const;
+export type MacosStartupCode = (typeof MACOS_STARTUP_CODES)[number];
+export const MACOS_STARTUP_STAGES = [
+  'boot',
+  'runtime_check',
+  'spawn',
+  'readiness',
+  'terminal'
+] as const;
+export interface MacosStartupRecord {
+  schemaVersion: 1;
+  attemptId: string;
+  timeMs: number;
+  stage: (typeof MACOS_STARTUP_STAGES)[number];
+  code: MacosStartupCode;
+  architecture: 'arm64' | 'x64';
+  buildId: string;
+}

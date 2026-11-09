@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createStepAdapter } from '../scripts/lib/release/step-adapter.mjs';
+import { releaseArtifactName } from '../packages/shared/src/release';
 import { STEP_IDS } from '../scripts/lib/release/steps.mjs';
 import { itRequiring, requirePlatform } from './support/requires.js';
 
@@ -74,9 +75,9 @@ describe('the step adapter runs the runbook', () => {
         const result = await adapter.execute(stepId);
         // Remote steps are refused by configuration, not missing; every other
         // step must have something real behind it.
-        expect(`${stepId}:${result.ok || result.error.code === 'ACCESS_UNAVAILABLE'}`).toBe(
-          `${stepId}:true`
-        );
+        expect(
+          `${stepId}:${result.ok || ['ACCESS_UNAVAILABLE', 'GATE_FAILED'].includes(result.error.code)}`
+        ).toBe(`${stepId}:true`);
         expect(`${stepId}:${result.error?.code ?? 'ok'}`).not.toContain('no adapter for');
       }
     } finally {
@@ -122,13 +123,21 @@ describe('the step adapter runs the runbook', () => {
           binding,
           allowRemote: false
         });
-        for (const stepId of ['candidate_gate', 'beta_package', 'beta_verify', 'macos_package']) {
+        for (const stepId of ['candidate_gate', 'beta_package', 'macos_package']) {
           expect(await adapter.execute(stepId)).toMatchObject({ ok: true });
         }
+        // Shell stand-ins cannot produce physical, sealed ARM/Intel evidence.
+        expect(await adapter.execute('beta_verify')).toMatchObject({
+          ok: false,
+          error: { code: 'GATE_FAILED' }
+        });
         const calls = await readFile(log, 'utf8');
         expect(calls).toContain('npm run release:check');
         expect(calls).toContain('npm run beta:package');
         expect(calls).toContain(`zsh ${process.cwd()}/scripts/verify-beta-package.sh`);
+        // Intel static qualification is re-run at the current HEAD by the runner
+        // itself, not left to a hand-run record from an earlier commit.
+        expect(calls).toContain(`zsh ${process.cwd()}/scripts/verify-beta-package.sh --arch=x64`);
         expect(calls).toContain('npm run package:mac');
         expect(calls).toContain('npm run package:dmg');
       } finally {
@@ -252,3 +261,67 @@ describe('the step adapter runs the runbook', () => {
     }
   }, 30_000);
 });
+
+itRequiring(
+  posixReleaseHost,
+  'reconciles partial Mac publication only after exact tag and immutable asset readback',
+  async () => {
+    const version = '9.9.9';
+    const armName = releaseArtifactName('macos-arm64', version);
+    const intelName = releaseArtifactName('macos-x64', version);
+    for (const scenario of ['matching', 'changed-bytes', 'wrong-tag']) {
+      const { root, bin, log } = await fakeProject();
+      const previousPath = process.env.PATH;
+      try {
+        await mkdir(join(root, 'release/x64'), { recursive: true });
+        await writeFile(join(root, 'release', armName), 'arm fixture');
+        await writeFile(join(root, 'release/x64', intelName), 'intel fixture');
+        await writeFile(
+          join(root, 'scripts/verify-macos-release-trust.mjs'),
+          '// Trust is a separate gate; this fixture exercises publication adoption.\n'
+        );
+        await writeFile(
+          join(bin, 'git'),
+          `#!/usr/bin/env node
+const fs=require('node:fs');const a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},'git '+a.join(' ')+'\\n');if(a[0]==='rev-parse')process.stdout.write(${JSON.stringify(scenario === 'wrong-tag' ? 'b'.repeat(40) : sourceSha)}+'\\n');
+`
+        );
+        await chmod(join(bin, 'git'), 0o755);
+        await writeFile(
+          join(bin, 'gh'),
+          `#!/usr/bin/env node
+const fs=require('node:fs');const path=require('node:path');const a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},'gh '+a.join(' ')+'\\n');if(a[0]==='release'&&a[1]==='view')process.stdout.write(JSON.stringify({assets:[{name:${JSON.stringify(armName)}}]}));else if(a[0]==='release'&&a[1]==='download'){const dir=a[a.indexOf('--dir')+1];fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,${JSON.stringify(armName)}),${JSON.stringify(scenario === 'changed-bytes' ? 'changed fixture' : 'arm fixture')});}else if(a[0]==='run')process.stdout.write('not-json');else if(a[0]==='workflow')process.exit(1);
+`
+        );
+        process.env.PATH = `${bin}:${previousPath ?? ''}`;
+        const adapter = await createStepAdapter({
+          runId: 'run',
+          version,
+          sourceSha,
+          cwd: root,
+          env: { PATH: process.env.PATH },
+          binding,
+          allowRemote: true
+        });
+        const result = await adapter.execute('publish');
+        expect(result.ok).toBe(false); // Hosted Windows evidence is deliberately absent.
+        const calls = await readFile(log, 'utf8');
+        expect(calls).not.toContain('--clobber');
+        expect(calls).not.toContain('release create');
+        if (scenario === 'matching') {
+          expect(calls).toContain(`release download v${version} --pattern ${armName}`);
+          expect(calls).toContain(`release upload v${version} release/x64/${intelName}`);
+          expect(calls).not.toContain(`release upload v${version} release/${armName}`);
+        } else {
+          expect(result).toMatchObject({ error: { code: 'EFFECT_AMBIGUOUS' } });
+          expect(calls).not.toContain('release upload');
+        }
+      } finally {
+        if (previousPath === undefined) delete process.env.PATH;
+        else process.env.PATH = previousPath;
+        await removeTemporaryDirectory(root);
+      }
+    }
+  },
+  30000
+);

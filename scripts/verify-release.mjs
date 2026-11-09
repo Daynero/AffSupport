@@ -17,6 +17,7 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   RELEASE_TAG,
   REQUIRED_RELEASE_PLATFORMS,
+  historicalReleasePlatforms,
   WEB_TOOL_REQUIREMENTS,
   releaseManifestSigningPayload,
   toolContractCompatible
@@ -125,6 +126,8 @@ if (!RELEASE_DOWNLOAD_URL.endsWith(`/${RELEASE_TAG}/${RELEASE_ARTIFACT_NAME}`)) 
 const stableManifest = JSON.parse(
   readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
 );
+if (stableManifest.platformSetVersion !== undefined && stableManifest.platformSetVersion !== 2)
+  fail('unsupported signed release platform set version');
 if (
   stableManifest.schemaVersion !== 1 ||
   stableManifest.channel !== 'stable' ||
@@ -157,7 +160,11 @@ if (stableManifest.summary !== undefined) {
 }
 // Every platform the release must ship (REQUIRED_RELEASE_PLATFORMS in the
 // shared contract) has to be present and point at its own immutable artifact.
-for (const platform of REQUIRED_RELEASE_PLATFORMS) {
+if (process.argv.includes('--historical') && mode !== 'final')
+  fail('--historical is only supported for preserved signed-channel final validation');
+for (const platform of mode === 'contract' || process.argv.includes('--historical')
+  ? historicalReleasePlatforms(stableManifest)
+  : REQUIRED_RELEASE_PLATFORMS) {
   const artifact = stableManifest.artifacts?.[platform];
   if (!artifact) {
     fail(`stable release manifest is missing the required ${platform} artifact`);

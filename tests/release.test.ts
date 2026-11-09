@@ -24,8 +24,10 @@ import { productionBinding } from '../scripts/lib/release/bindings.mjs';
 import {
   downloadUrlForPlatform,
   installedReleaseStatus,
+  loadStableReleaseManifest,
   localizedReleaseSummary,
-  macAppleSiliconDownloadUrl
+  macAppleSiliconDownloadUrl,
+  RELEASE_MANIFEST_UNAVAILABLE_IN_BETA
 } from '../apps/web/src/release-manifest';
 
 describe('release identity', () => {
@@ -230,9 +232,16 @@ describe('release identity', () => {
     });
     expect(providerGate).toContain('drive-connect/readiness');
     expect(providerGate).toContain('missingTeamProductionSecrets');
-    for (const script of ['deploy:web', 'release:check', 'package:mac', 'package:dmg']) {
+    for (const script of ['deploy:web', 'release:check']) {
       expect(rootPackage.scripts[script]).toContain('verify:team-production');
     }
+    const wrapper = readFileSync('scripts/package-macos.mjs', 'utf8');
+    expect(rootPackage.scripts['package:mac']).toBe('node scripts/package-macos.mjs production');
+    expect(rootPackage.scripts['package:dmg']).toBe(
+      'node scripts/package-macos.mjs production-dmg'
+    );
+    expect(wrapper.match(/verify:team-production/g)).toHaveLength(2);
+    expect(wrapper).toContain('scripts/verify-release.mjs');
     // beta packaging leaves its beta web bundle in dist. release:check must
     // rebuild the production bundle before verify-release scans it.
     expect(rootPackage.scripts['release:check']).toContain('npm run build');
@@ -307,5 +316,26 @@ describe('release identity', () => {
     expect(readFileSync('scripts/verify-dmg.sh', 'utf8')).toContain(
       'WISHLY_ALLOW_UNINSTALLED_AGENT=1'
     );
+  });
+});
+
+describe('stable manifest loading refuses what it cannot trust', () => {
+  const reply = (status: number, body: unknown) =>
+    (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  it('never reads the stable manifest in beta', async () => {
+    await expect(loadStableReleaseManifest(reply(200, {}), 'key', 'beta')).rejects.toThrow(
+      RELEASE_MANIFEST_UNAVAILABLE_IN_BETA
+    );
+  });
+  it('reports the HTTP status, an invalid body and an unverifiable signature', async () => {
+    await expect(loadStableReleaseManifest(reply(503, {}), 'key', 'production')).rejects.toThrow(
+      'RELEASE_MANIFEST_503'
+    );
+    await expect(
+      loadStableReleaseManifest(reply(200, { version: 'x' }), 'key', 'production')
+    ).rejects.toThrow('RELEASE_MANIFEST_INVALID');
+  });
+  it('offers no Intel link without a pinned signed artifact', () => {
+    expect(downloadUrlForPlatform(null, 'macos-x64')).toEqual({ url: '', available: false });
   });
 });

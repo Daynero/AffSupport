@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
-import { installedBrowserCandidates } from '../platform/platform.js';
+import { currentPlatform, installedBrowserCandidates } from '../platform/platform.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
 
 /**
@@ -570,8 +570,11 @@ async function closeServer(server: Server) {
 }
 
 async function resolveChromiumExecutable(): Promise<string> {
+  // A packaged Mac must render with its own target-architecture browser, never a host
+  // install (049). Windows keeps its pre-049 fallback to an installed browser.
+  const packagedMac = process.env.PACKAGED_APP === '1' && currentPlatform() === 'darwin';
   const configured = process.env.WISHLY_CHROMIUM_PATH?.trim();
-  if (configured) {
+  if (configured && !packagedMac) {
     await access(configured);
     return configured;
   }
@@ -586,7 +589,11 @@ async function resolveChromiumExecutable(): Promise<string> {
       await access(bundled);
       return bundled;
     }
-  } catch {
+  } catch (error) {
+    if (packagedMac)
+      throw new Error('Chromium renderer is not installed. Reinstall Soty to restore it.', {
+        cause: error
+      });
     // Source runs use Playwright's platform cache below.
   }
   const playwrightExecutable = chromium.executablePath();

@@ -197,3 +197,37 @@ describe('a browser that cannot see an Agent it has met before', () => {
     expect(screen.queryByRole('link', { name: 'Відкрити Soty' })).toBeNull();
   });
 });
+
+describe('local app download analytics (049)', () => {
+  it('records which installer was requested, keeping the tool', async () => {
+    mockNavigator('MacIntel', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+    const intelUrl =
+      'https://github.com/Daynero/AffSupport/releases/download/v0.9.0/Soty-v0.9.0-macOS-x64.dmg';
+    const { analytics } = await import('../apps/web/src/analytics/service');
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    render(
+      <AgentContextOverride
+        value={{
+          ...agentValue(),
+          releaseManifest: {
+            status: 'ready',
+            manifest: manifestWith({
+              'macos-arm64': { url: MAC_ARTIFACT_URL, sha256: 'a'.repeat(64) },
+              'macos-x64': { url: intelUrl, sha256: 'b'.repeat(64) }
+            })
+          }
+        }}
+      >
+        <LocalAppDialog tool="transcription" connection="not_installed_or_not_running" />
+      </AgentContextOverride>
+    );
+    const intel = screen.getByRole('link', { name: 'Mac (Intel)' });
+    expect(intel.getAttribute('href')).toBe(intelUrl);
+    intel.addEventListener('click', event => event.preventDefault());
+    await userEvent.click(intel);
+    expect(track).toHaveBeenCalledWith('install_download_clicked', {
+      tool_identifier: 'transcription',
+      installer_target: 'macos-x64'
+    });
+  });
+});

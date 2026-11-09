@@ -988,14 +988,18 @@ export async function diagnoseFingerprint(
  */
 export async function getCohorts(
   period: ResolvedPeriod,
-  by: 'local-app-version' | 'platform' | 'web-build'
+  by: 'local-app-version' | 'platform' | 'web-build' | 'agent-architecture'
 ): Promise<CohortMetric[]> {
+  const nativePlatform =
+    by === 'agent-architecture' ? eventColumnSql(await getSchema()).agentPlatform : 'null::text';
   const dimension =
-    by === 'platform'
-      ? 'e.platform'
-      : by === 'web-build'
-        ? 'e.web_build_id'
-        : 'coalesce(e.local_app_version, e.agent_version)';
+    by === 'agent-architecture'
+      ? `concat(coalesce(${nativePlatform}, 'unknown'), ':', coalesce(e.properties ->> 'agent_architecture', 'unknown'), ':', coalesce(e.local_app_build, 'unknown'))`
+      : by === 'platform'
+        ? 'e.platform'
+        : by === 'web-build'
+          ? 'e.web_build_id'
+          : 'coalesce(e.local_app_version, e.agent_version)';
   const fallback = by === 'local-app-version' ? NO_AGENT_CONTEXT_COHORT : 'unknown';
   return query<CohortMetric>(
     `select coalesce(${dimension}, $5::text) as cohort,
@@ -2651,12 +2655,34 @@ async function getEventInspect(id: string, asOf?: string, limit = 500): Promise<
     first_seen_at: isoUtc(rows[0]?.occurred_at),
     last_seen_at: isoUtc(rows[rows.length - 1]?.occurred_at),
     delivery_lag_ms: deliveryLagOf(rows),
+    requested_installer_targets: distinct(row =>
+      ['macos-arm64', 'macos-x64', 'windows-x64'].includes(String(row.properties?.installer_target))
+        ? String(row.properties.installer_target)
+        : null
+    ),
     agent: {
       local_app_versions: distinct(row => row.local_app_version),
       local_app_builds: distinct(row => row.local_app_build),
       web_build_ids: distinct(row => row.web_build_id),
       platforms: distinct(row => row.platform),
       architectures: distinct(row => row.architecture),
+      native_startup_ids: distinct(row =>
+        typeof row.properties?.native_startup_id === 'string' &&
+        /^[a-f0-9-]{36}$/iu.test(row.properties.native_startup_id)
+          ? row.properties.native_startup_id
+          : null
+      ),
+      agent_architectures: distinct(row =>
+        row.properties?.agent_architecture === 'arm64' ||
+        row.properties?.agent_architecture === 'x64'
+          ? String(row.properties.agent_architecture)
+          : null
+      ),
+      package_targets: distinct(row =>
+        ['macos-arm64', 'macos-x64', 'windows-x64'].includes(String(row.properties?.package_target))
+          ? String(row.properties.package_target)
+          : null
+      ),
       // The Agent run that saw the attempt last: a restart mid-attempt shows as a change here.
       agent_instance_id:
         [...rows].reverse().find(row => row.agent_instance_id)?.agent_instance_id ?? null,

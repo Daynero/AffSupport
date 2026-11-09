@@ -168,6 +168,7 @@ private struct AgentHealth: Decodable {
   let buildId: String?
   let apiVersion: Int?
   let sourceRevision: String?
+  let nativeStartupId: String?
   let busy: Bool?
 }
 
@@ -202,7 +203,62 @@ private struct FinderActionStateResponse: Decodable {
   let jobs: [FinderActionJob]
 }
 
+// Native startup evidence: closed fields only; no exception text or user paths.
+private enum NativeStartupCode: String, Codable {
+  case begin = "STARTUP_BEGIN", nodeMissing = "STARTUP_NODE_MISSING", runtimeMissing = "STARTUP_RUNTIME_MISSING"
+  case wrongArchitecture = "STARTUP_WRONG_ARCHITECTURE", spawnFailed = "STARTUP_SPAWN_FAILED"
+  case exited = "STARTUP_EXITED_BEFORE_READY", interrupted = "STARTUP_INTERRUPTED", ready = "STARTUP_READY"
+}
+private enum NativeStartupStage: String, Codable { case boot, runtime_check, spawn, readiness, terminal }
+private struct NativeStartupRecord: Codable {
+  let schemaVersion: Int
+  let attemptId: String
+  let timeMs: Int64
+  let stage: NativeStartupStage
+  let code: NativeStartupCode
+  let architecture: String
+  let buildId: String
+}
+private func recordNativeStartup(_ stage: NativeStartupStage, _ code: NativeStartupCode, _ attempt: UUID) {
+  let manager = FileManager.default
+  guard let base = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+  let directory = base.appendingPathComponent(supportDirectoryName, isDirectory: true)
+  let file = directory.appendingPathComponent("native-startup.json")
+  do {
+    try manager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    var records: [NativeStartupRecord] = []
+    if let attributes = try? manager.attributesOfItem(atPath: file.path), let size = attributes[.size] as? NSNumber, size.intValue <= 32768,
+       let bytes = try? Data(contentsOf: file), let decoded = try? JSONDecoder().decode([NativeStartupRecord].self, from: bytes) {
+      records = decoded.filter { $0.schemaVersion == 1 && UUID(uuidString: $0.attemptId) != nil && ["arm64", "x64"].contains($0.architecture) && $0.buildId.range(of: "^[A-Za-z0-9.+-]{1,128}$", options: .regularExpression) != nil }.suffix(31).map { $0 }
+    }
+    #if arch(x86_64)
+    let architecture = "x64"
+    #else
+    let architecture = "arm64"
+    #endif
+    records.append(NativeStartupRecord(schemaVersion: 1, attemptId: attempt.uuidString.lowercased(), timeMs: Int64(Date().timeIntervalSince1970 * 1000), stage: stage, code: code, architecture: architecture, buildId: expectedBuildID))
+    try JSONEncoder().encode(records).write(to: file, options: .atomic)
+    try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+  } catch { /* Missing local evidence remains unknown, never a guessed startup cause. */ }
+}
+private func nativeStartupFailureCode(_ error: Error) -> NativeStartupCode {
+  var failure: NSError? = error as NSError
+  for _ in 0..<8 {
+    guard let current = failure else { break }
+    if current.domain == NSPOSIXErrorDomain && current.code == Int(EBADARCH) { return .wrongArchitecture }
+    failure = current.userInfo[NSUnderlyingErrorKey] as? NSError
+  }
+  return .spawnFailed
+}
+private func recordInterruptedNativeStartup(_ child: Process?, _ ready: Bool, _ attempt: UUID) {
+  if child != nil && !ready { recordNativeStartup(.terminal, .interrupted, attempt) }
+}
+// End native startup evidence.
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  func applicationWillTerminate(_ notification: Notification) {
+    recordInterruptedNativeStartup(process, agentReady, nativeStartupAttempt)
+  }
   private var process: Process?
   private var stderrText = ""
   private var readinessTimer: Timer?
@@ -222,6 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var restartingIntoInstalledBuild = false
   private var runtimeRestartAttempts = 0
   private var pendingFinderActions: [FinderActionPayload] = []
+  private var nativeStartupAttempt = UUID()
   private var agentReady = false
   private var pendingFinderJobIDs = Set<String>()
   private var finderPollScheduled = false
@@ -784,6 +841,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func spawnAgent() {
+    nativeStartupAttempt = UUID()
+    let startupAttempt = nativeStartupAttempt
+    recordNativeStartup(.boot, .begin, startupAttempt)
     agentReady = false
     let resources = Bundle.main.resourceURL!
     let executable = resources.appendingPathComponent("runtime/node")
@@ -796,6 +856,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         FileManager.default.isExecutableFile(atPath: $0.path)
       })
     else {
+      recordNativeStartup(.runtime_check, FileManager.default.isExecutableFile(atPath: executable.path) ? .runtimeMissing : .nodeMissing, startupAttempt)
       showFailure(
         "The bundled media runtime is unavailable.",
         details:
@@ -812,6 +873,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     child.standardError = output
     var packagedEnvironment = [
       "PACKAGED_APP": "1",
+      "AGENT_NATIVE_STARTUP_ID": startupAttempt.uuidString.lowercased(),
       "NO_OPEN": "1",
       // Release channel and application environment are distinct at build time,
       // but every packaged channel must supply its runtime environment explicitly.
@@ -847,6 +909,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     child.terminationHandler = { [weak self] finished in
       DispatchQueue.main.async {
         guard let self, !self.isTerminating else { return }
+        if !self.agentReady { recordNativeStartup(.terminal, .exited, startupAttempt) }
         self.agentReady = false
         self.stopBusyMonitoring()
         self.readinessTimer?.invalidate()
@@ -882,10 +945,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
     do {
+      recordNativeStartup(.spawn, .begin, startupAttempt)
       try child.run()
       process = child
       beginReadinessChecks()
     } catch {
+      recordNativeStartup(.spawn, nativeStartupFailureCode(error), startupAttempt)
       showFailure(
         "The bundled agent runtime could not be started.", details: error.localizedDescription)
     }
@@ -902,10 +967,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func checkReadiness() {
     readinessAttempts += 1
+    let startupAttempt = nativeStartupAttempt
     probeHealth(timeout: 1) { [weak self] health in
-      guard let self, !self.isTerminating else { return }
-      if let health, self.matchesExpectedBuild(health), health.ready {
+      guard let self, !self.isTerminating, self.nativeStartupAttempt == startupAttempt else { return }
+      if let health, self.matchesExpectedBuild(health), health.ready,
+          self.process?.isRunning == true,
+          let observedAttempt = health.nativeStartupId,
+          UUID(uuidString: observedAttempt) == startupAttempt
+      {
         self.readinessTimer?.invalidate()
+        recordNativeStartup(.readiness, .ready, startupAttempt)
         self.agentReady = true
         self.beginBusyMonitoring()
         self.flushFinderActions()

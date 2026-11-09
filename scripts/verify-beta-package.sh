@@ -1,5 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch beta "$@")
+macho=$(node scripts/lib/macos-target.mjs macho beta "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift beta "$@")
+target_root=$(node scripts/lib/macos-target.mjs root beta "$@")
 
 # Packaged-beta smoke.
 #
@@ -8,11 +13,13 @@ set -euo pipefail
 # writes the verification record the promotion gate reads. A failed smoke
 # leaves no record, so a stale pass can never be reused.
 
-app="$PWD/release/beta/Soty Beta.app"
+app="$target_root/Soty Beta.app"
 finder_extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
-record_dir="$PWD/release/beta"
+record_dir="$target_root"
 record="$record_dir/verification.json"
 rm -f "$record"
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
+[[ "$arch" == x64 || "$(node -p process.arch)" == "$arch" ]] || { print -u2 "Matching native runtime required; static payload checks passed but runtime acceptance is unproven."; exit 1; }
 
 [[ -d "$app" ]] || { print -u2 "No packaged beta build at $app. Run: npm run beta:package"; exit 1; }
 
@@ -68,6 +75,12 @@ fi
 
 codesign --verify --deep --strict "$app"
 [[ -d "$finder_extension" ]] || true
+if [[ "$arch" == x64 ]]; then
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  node "${0:A:h}/record-macos-beta-proof.mjs" --arch="$arch"
+  print "Recorded Intel static qualification under intel-user-feedback-v1. Native execution remains unverified; user feedback follows release."
+  exit 0
+fi
 "$app/Contents/Resources/runtime/node" --version >/dev/null
 
 # Structure proven; now prove it runs. The record below is only written after a
@@ -75,34 +88,7 @@ codesign --verify --deep --strict "$app"
 # build that cannot actually work cannot be promoted.
 # The release runner owns the verification harness; the package, keys and
 # exact-SHA record still belong to the candidate working directory.
-node "${0:A:h}/verify-beta-runtime.mjs"
+node "${0:A:h}/verify-beta-runtime.mjs" --arch="$arch"
 
-package_payload_digest=$(node "${0:A:h}/beta-package-provenance.mjs" --verify)
-source_revision=$(git rev-parse HEAD)
-package_digest=$(shasum -a 256 "$app/Contents/Resources/release.json" | awk '{print $1}')
-build_id=$(/usr/bin/plutil -extract buildId raw "$app/Contents/Resources/release.json" 2>/dev/null \
-  || grep -o '"buildId": *"[^"]*"' "$app/Contents/Resources/release.json" | head -1 | cut -d'"' -f4)
-# Untracked files count, exactly as they do in verify-release.mjs. A new source
-# file that is in the build but not in the commit is the clearest case of a
-# package that corresponds to no revision, and `git diff` alone never sees it.
-# Ignored paths (.env.*, release/) are not untracked, so this stays quiet in
-# ordinary use.
-if [[ -z "$(git status --porcelain)" ]]; then dirty=false; else dirty=true; fi
-verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-mkdir -p "$record_dir"
-temporary_record="$record.$$.tmp"
-cat > "$temporary_record" <<JSON
-{
-  "sourceRevision": "$source_revision",
-  "buildId": "$build_id",
-  "packageDigest": "$package_digest",
-  "packagePayloadDigest": "$package_payload_digest",
-  "verifiedAt": "$verified_at",
-  "dirty": $dirty
-}
-JSON
-mv "$temporary_record" "$record"
-
-print "Soty Beta identity, isolation, real authentication, and enforced entitlement verified."
-print "Recorded verification of $source_revision (dirty: $dirty) at $record."
+node "${0:A:h}/record-macos-beta-proof.mjs" --arch="$arch"
+print "Recorded native target-bound beta verification at $record."

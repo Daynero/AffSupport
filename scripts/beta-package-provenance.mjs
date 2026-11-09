@@ -1,19 +1,28 @@
 #!/usr/bin/env node
+import { outputDigest } from './release-web-meta.mjs';
+import { parseMacosTarget, macosPaths } from './lib/macos-target.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { betaPublicConfigDigest } from './lib/release/platform-evidence.mjs';
 import { packagePayloadDigest } from './lib/web-only-proof.mjs';
 const exec = promisify(execFile);
 
 /** Written by packaging, then independently matched after the real runtime verification. */
-export async function betaPackageProvenance({ cwd, action }) {
-  const app = path.join(cwd, 'release/beta/Soty Beta.app');
-  const file = path.join(cwd, 'release/beta/package-provenance.json');
+export async function betaPackageProvenance({ cwd, action, arch = 'arm64' }) {
+  const paths = macosPaths(cwd, 'beta', arch);
+  const app = paths.app;
+  const file = path.join(paths.root, 'package-provenance.json');
   const metadata = JSON.parse(
     await readFile(path.join(app, 'Contents/Resources/release.json'), 'utf8')
   );
+  if (
+    (metadata.architecture ?? 'arm64') !== arch ||
+    (metadata.target ?? 'macos-arm64') !== `macos-${arch}`
+  )
+    throw new Error('BETA_PACKAGE_TARGET_MISMATCH');
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
   );
@@ -29,8 +38,11 @@ export async function betaPackageProvenance({ cwd, action }) {
     if (metadata.sourceRevision !== head) throw new Error('BETA_PACKAGE_SOURCE_MISMATCH');
     const record = {
       schemaVersion: 1,
+      publicConfigDigest: await betaPublicConfigDigest(cwd),
+      target: `macos-${arch}`,
       sourceRevision: head,
       payloadDigest,
+      webPayloadDigest: await outputDigest(path.join(app, 'Contents/Resources/web/dist')),
       dirty: Boolean(await git(['status', '--porcelain', '--untracked-files=all'])),
       recordedAt: new Date().toISOString()
     };
@@ -44,8 +56,12 @@ export async function betaPackageProvenance({ cwd, action }) {
   const record = JSON.parse(await readFile(file, 'utf8'));
   if (
     record.schemaVersion !== 1 ||
+    record.publicConfigDigest !== (await betaPublicConfigDigest(cwd)) ||
+    (record.target ?? 'macos-arm64') !== `macos-${arch}` ||
     record.dirty !== false ||
     record.sourceRevision !== metadata.sourceRevision ||
+    record.webPayloadDigest !==
+      (await outputDigest(path.join(app, 'Contents/Resources/web/dist'))) ||
     record.payloadDigest !== payloadDigest
   )
     throw new Error('BETA_PACKAGE_PAYLOAD_CHANGED');
@@ -64,7 +80,9 @@ export async function betaPackageProvenance({ cwd, action }) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const action = process.argv[2]?.replace(/^--/u, '');
-    process.stdout.write(`${await betaPackageProvenance({ cwd: process.cwd(), action })}\n`);
+    process.stdout.write(
+      `${await betaPackageProvenance({ cwd: process.cwd(), action, arch: parseMacosTarget(process.argv.slice(3)).arch })}\n`
+    );
   } catch {
     process.stderr.write(
       'BETA_PACKAGE_PROVENANCE_UNPROVEN: package the exact clean beta once before reusing it.\n'

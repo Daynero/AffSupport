@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "architecture": "x64",
+  "minimumMacos": "13.0",
+  "cpuBaseline": "x86-64-v2",
+  "node": {
+    "version": "22.23.4",
+    "url": "https://nodejs.org/dist/v22.23.4/node-v22.23.4-darwin-x64.tar.gz",
+    "sha256": "efcc2b0db6f94bf53eddb038fe2b370277a042bd29e4f19b8f8e23598795b819"
+  },
+  "ffmpeg": {
+    "version": "7.1.1",
+    "url": "https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz",
+    "sha256": "733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1"
+  },
+  "x264": {
+    "revision": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
+    "repository": "https://github.com/mirror/x264.git"
+  },
+  "whisper": {
+    "version": "1.9.1",
+    "revision": "f049fff95a089aa9969deb009cdd4892b3e74916",
+    "repository": "https://github.com/ggml-org/whisper.cpp.git"
+  },
+  "vad": {
+    "version": "5.1.2",
+    "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin",
+    "sha256": "29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf"
+  },
+  "chromium": {
+    "playwright": "1.62.1",
+    "revision": "1234",
+    "version": "151.0.7922.34",
+    "minimumMacosObserved": "13.0"
+  },
+  "vadLicense": {
+    "url": "https://raw.githubusercontent.com/snakers4/silero-vad/6478567951ae5c9979ad7b234185b5515f4be7a1/LICENSE",
+    "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
+  }
+}

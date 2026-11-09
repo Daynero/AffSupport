@@ -133,6 +133,10 @@ export function hostPlatform(): 'macos' | 'windows' | 'linux' | undefined {
   }
 }
 
+export function runtimeArchitecture(arch = currentArch()): 'arm64' | 'x64' | 'unknown' {
+  return arch === 'arm64' || arch === 'x64' ? arch : 'unknown';
+}
+
 export function currentArch(): string {
   return process.arch;
 }
