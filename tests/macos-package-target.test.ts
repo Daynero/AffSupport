@@ -33,6 +33,12 @@ describe('recursive macOS payload compatibility', () => {
   it('rejects absent or too new deployment evidence', () => {
     expect(() => validateMachOInspection({ ...valid, minimums: ['14.0'] }, 'x64')).toThrow('OS');
     expect(() => validateMachOInspection({ ...valid, minimums: [] }, 'x64')).toThrow('OS');
+    expect(() =>
+      validateMachOInspection({ ...valid, slices: ['arm64'], minimums: ['15.5'] }, 'arm64')
+    ).not.toThrow();
+    expect(() =>
+      validateMachOInspection({ ...valid, slices: ['arm64'], minimums: [] }, 'arm64')
+    ).toThrow('OS');
   });
   it('refuses nonportable dependencies and unsafe runtime search paths', () => {
     expect(() =>

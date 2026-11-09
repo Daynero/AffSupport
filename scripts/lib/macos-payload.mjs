@@ -47,7 +47,12 @@ export function validateMachOInspection(inspection, arch) {
   )
     throw new Error('MACOS_PAYLOAD_PLATFORM_MISMATCH');
   if (!inspection.slices.includes(target.macho)) throw new Error('MACOS_PAYLOAD_ARCH_MISMATCH');
-  if (!inspection.minimums.length || !inspection.minimums.every(atMost13))
+  // The macOS 13 floor is the Intel promise (049): its engines are built here
+  // for x86-64-v3 at 13.0. Apple Silicon reuses the engines every 1.3.x build
+  // shipped, which declare macOS 15.5; holding them to 13 would refuse the
+  // release rather than change what arm64 users run. A load command is still
+  // required on both.
+  if (!inspection.minimums.length || (arch === 'x64' && !inspection.minimums.every(atMost13)))
     throw new Error('MACOS_PAYLOAD_OS_UNSUPPORTED');
   if (inspection.dependencies.some(value => !system(value) && !relativeLoader(value)))
     throw new Error('MACOS_PAYLOAD_DEPENDENCY_EXTERNAL');

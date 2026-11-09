@@ -486,6 +486,13 @@ export async function createStepAdapter({
         else if (['NODE_BINARY', 'FFMPEG_BINARY', 'FFPROBE_BINARY', 'WHISPER_BINARY'].includes(key))
           delete next[key];
       }
+    // The beta runtime source is an installed app of one architecture (the
+    // ARM production Soty). Intel takes its own, or its approved inputs.
+    if (arch === 'x64') {
+      if (childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64)
+        next.BETA_RUNTIME_SOURCE_APP = childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64;
+      else delete next.BETA_RUNTIME_SOURCE_APP;
+    }
     const inputRoot = path.join(cwd, 'release/inputs', arch);
     if (existsSync(path.join(inputRoot, 'approved-inputs.json'))) {
       next.MACOS_RUNTIME_INPUT_ROOT = inputRoot;
