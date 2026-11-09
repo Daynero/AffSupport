@@ -118,7 +118,11 @@ describe('current required-platform set', () => {
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
     ) as StableReleaseManifest;
     expect(artifactFailures(manifest, historicalReleasePlatforms(manifest))).toEqual([]);
-    expect(artifactFailures(manifest)).toContain('missing required macos-x64 artifact');
+    // A channel signed before 049 has no Intel slot: the current required set names the gap.
+    // From 1.4.0 on the tracked channel carries the slot itself, so nothing is missing.
+    if (!manifest.artifacts['macos-x64'])
+      expect(artifactFailures(manifest)).toContain('missing required macos-x64 artifact');
+    else expect(artifactFailures(manifest)).not.toContain('missing required macos-x64 artifact');
   });
 
   it('flipping Windows on is what makes it block a release', () => {
