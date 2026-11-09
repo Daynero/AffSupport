@@ -76,7 +76,6 @@ swiftc "$root/Launcher.generated.swift" \
 cp "$node_binary" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
-codesign --force --sign - "$app/Contents/Resources/runtime/node"
 cp "$FFMPEG_BINARY" "$app/Contents/Resources/runtime/bin/ffmpeg"; cp "$FFPROBE_BINARY" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp "$WHISPER_BINARY" "$app/Contents/Resources/runtime/bin/whisper-cli"; chmod +x "$app/Contents/Resources/runtime/bin/whisper-cli"; cp "$WHISPER_VAD_MODEL" "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin"
 [[ -n "$WHISPER_MODEL" ]] && cp "$WHISPER_MODEL" "$app/Contents/Resources/runtime/models/ggml-large-v3.bin" || print "WHISPER_MODEL not set — large-v3 will be downloaded on first use"
@@ -103,4 +102,16 @@ if [[ -n "${MACOS_RUNTIME_INPUT_ROOT:-}" ]]; then
 fi
 node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
-codesign --force --deep --preserve-metadata=entitlements --sign - "$app"; ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
+# 048 (T010): sign through the chain — inside-out, hardened runtime, one measured
+# entitlement profile per binary, and with a Developer ID a timestamp, notarization and
+# a stapled ticket — after every file the resource seal covers (release.json,
+# runtime-inputs.json, AppIcon.icns) is in place and before the archive, so the ZIP
+# carries the signed bundle. An ad-hoc production package is the owner's explicit
+# pre-048 choice; there is no silent fallback from Developer ID to ad-hoc.
+if [[ "${SOTY_SIGNING_IDENTITY:--}" == "-" ]]; then
+  [[ "${SOTY_MACOS_TRUST_POLICY:-}" == adhoc-pre-048 || "${SOTY_SKIP_NOTARIZATION:-}" == 1 ]] \
+    || { print -u2 "SIGN_IDENTITY_REQUIRED: set SOTY_SIGNING_IDENTITY to the Developer ID Application identity, or explicitly SOTY_MACOS_TRUST_POLICY=adhoc-pre-048 to package ad-hoc as before 048"; exit 1; }
+  export SOTY_SKIP_NOTARIZATION=1
+fi
+zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
+ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")

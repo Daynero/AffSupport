@@ -60,7 +60,6 @@ describeRequiring(requirePlatform('darwin'), 'Intel static qualification', () =>
         const target = path.join(app, relative);
         await mkdir(path.dirname(target), { recursive: true });
         await copyFile(binary, target);
-        execFileSync('codesign', ['--force', '--sign', '-', target], { stdio: 'pipe' });
       }
       for (const [directory, executable, identifier, kind] of [
         [app, 'SotyBetaAgent', 'com.wishly.beta', 'APPL'],
@@ -84,7 +83,15 @@ describeRequiring(requirePlatform('darwin'), 'Intel static qualification', () =>
           buildId: '1.3.3+79'
         })
       );
-      execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'pipe' });
+      // 048 T008: the fixture is signed the way the beta packager signs — through the
+      // chain, ad-hoc — and the chain's summary sits beside it for the proof to audit.
+      const summary = execFileSync('zsh', [path.resolve('scripts/sign-mac-app.sh'), app], {
+        env: { ...env, SOTY_SIGNING_IDENTITY: '-', SOTY_SKIP_NOTARIZATION: '1' },
+        encoding: 'utf8',
+        stdio: 'pipe',
+        timeout: 60000
+      });
+      await writeFile(path.join(root, 'signing.json'), summary);
       await betaPackageProvenance({ cwd, action: 'record', arch: 'x64' });
       execFileSync(
         process.execPath,
@@ -98,7 +105,10 @@ describeRequiring(requirePlatform('darwin'), 'Intel static qualification', () =>
         acceptancePolicy: 'intel-user-feedback-v1',
         runtimeStatus: 'unverified',
         hardwareStatus: 'unverified',
-        nativeFileCount: 6
+        nativeFileCount: 6,
+        // Launcher, Finder extension, node and three engines: all hardened; the chain's
+        // own count leaves the extension's binary to its nested bundle.
+        codeSigning: { identity: 'adhoc', hardenedMachO: 6, machO: 5, profiles: { node: 1 } }
       });
       expect(proof).not.toHaveProperty('runtimeArchitecture');
       await expect(access(marker)).rejects.toThrow();

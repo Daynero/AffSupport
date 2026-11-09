@@ -11,6 +11,8 @@
 #   SOTY_SKIP_NOTARIZATION=1      sign only; mandatory with the ad-hoc identity
 #   SOTY_NOTARY_KEYCHAIN_PROFILE  `xcrun notarytool store-credentials` profile
 #   SOTY_ENTITLEMENTS_DIR         profile directory (default packaging/macos/entitlements)
+#   SOTY_NOTARY_TIMEOUT           how long to wait for Apple (default 30m; the release
+#                                 runner's packaging step allows 45m for build and wait)
 #
 # Prints one JSON line on success. Every failure exits non-zero with a closed
 # code on stderr; there is no fallback between identities or policies.
@@ -170,7 +172,7 @@ if [[ "$skip_notarization" != 1 ]]; then
   work=$(mktemp -d "${TMPDIR:-/tmp}/soty-notarize-XXXXXX")
   archive="$work/${app:t:r}.zip"
   ditto -c -k --keepParent "$app" "$archive"
-  notary_args=(--keychain-profile "$notary_profile" --wait --timeout 45m)
+  notary_args=(--keychain-profile "$notary_profile" --wait --timeout "${SOTY_NOTARY_TIMEOUT:-30m}")
   [[ -n "$keychain" ]] && notary_args+=(--keychain "$keychain")
   if ! submission=$(xcrun notarytool submit "$archive" "${notary_args[@]}" 2>&1); then
     print -u2 -- "$submission"; rm -rf "$work"; fail NOTARIZE_FAILED "submission did not complete"

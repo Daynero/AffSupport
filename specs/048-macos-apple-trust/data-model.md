@@ -53,7 +53,11 @@
 | notarized     | `true`                                                             | `false`         |
 | stapled       | `true` лише якщо застосунок і DMG                                  | `false`         |
 
-Інваріант: `adhoc-pre-048` ніколи не має `notarized: true`.
+Інваріант: `adhoc-pre-048` ніколи не має `notarized: true`. З T013 запис і підсумок підпису лежать у `release/beta/platform-baseline.json` як `macos[target].trust` і `macos[target].signing` (`app` лише базове ім'я).
+
+## Аудит підпису в доказі бети
+
+Доказ `verification.json` (схеми 2 і 3) з 048 несе обов'язкове поле `codeSigning`: `chain` = `sign-mac-app`, `identity`, `hardenedMachO` (кожен Mach-O бандла, не менше 3), `machO` (підсумок ланцюжка, не більше `hardenedMachO`), `profiles` з рівно одним `node`. Без нього доказ відкидається (`MACOS_BETA_SIGNING_UNPROVEN`).
 
 ## Подання нотаризації
 

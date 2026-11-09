@@ -74,6 +74,10 @@ fi
 ! grep -q 'sign-release-manifest' "$PWD/scripts/package-beta-mac.sh"
 
 codesign --verify --deep --strict "$app"
+# 048 FR-008: every Mach-O hardened with its measured entitlement profile, described by
+# the chain's own summary beside the package; a beta pass without this says nothing
+# about the production chain.
+node scripts/audit-macos-signing.mjs "$app" --signing="$record_dir/signing.json"
 [[ -d "$finder_extension" ]] || true
 if [[ "$arch" == x64 ]]; then
   node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static

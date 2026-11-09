@@ -1,4 +1,12 @@
 import { writePlatformBaseline } from './platform-baseline.mjs';
+import { macosTrustPreflight } from './macos-trust-preflight.mjs';
+import {
+  assertSigningMatchesPolicy,
+  lastJsonObjectLine,
+  parseTrustRecord,
+  readSigningSummary
+} from '../macos-signing-summary.mjs';
+import { macosTrustPolicy } from '../../verify-macos-release-trust.mjs';
 import { releaseArtifactName } from '../../../packages/shared/dist/release.js';
 import { macosPaths } from '../macos-target.mjs';
 import {
@@ -495,6 +503,36 @@ export async function createStepAdapter({
   // started the run.
   const childEnv = { ...env, ...releaseEnvironment(cwd), SOTY_RELEASE_RUN_ID: runId };
 
+  /**
+   * 048 T013: what publish found out about each Mac artifact's signature — the gate's
+   * trust record and the chain's summary — kept for the platform baseline. A resumed
+   * run reads them back from the journal instead of trusting memory it no longer has.
+   * @type {Record<string, {trust: Record<string, unknown>, signing: Record<string, unknown> | null}>}
+   */
+  const macosTrust = {};
+  const collectMacosTrust = async () => {
+    if (macArtifacts.every(([, target]) => macosTrust[target])) return macosTrust;
+    if (journal?.journalPath) {
+      try {
+        for (const event of await readJournal(journal.journalPath, runId)) {
+          const payload = /** @type {Record<string, unknown> | null} */ (
+            event.type === 'macos_trust' && event.payload && typeof event.payload === 'object'
+              ? event.payload
+              : null
+          );
+          if (payload && typeof payload.target === 'string' && payload.trust)
+            macosTrust[payload.target] = {
+              trust: /** @type {Record<string, unknown>} */ (payload.trust),
+              signing: /** @type {Record<string, unknown> | null} */ (payload.signing ?? null)
+            };
+        }
+      } catch {
+        /* An unreadable journal is reported where its evidence is required. */
+      }
+    }
+    return macosTrust;
+  };
+
   const targetEnv = arch => {
     /** @type {NodeJS.ProcessEnv} */
     const next = { ...childEnv };
@@ -678,6 +716,14 @@ export async function createStepAdapter({
       }),
 
     macos_package: async () => {
+      // 048 T019: the trust inputs a developer-id release needs at publish are proven
+      // before the first build, not discovered after forty minutes of packaging.
+      try {
+        const inputs = await macosTrustPreflight(childEnv);
+        if (journal) await journal.append('macos_trust_preflight', inputs);
+      } catch (error) {
+        return fail('GATE_FAILED', messageOf(error));
+      }
       // A retry after a later failure finds the earlier target sealed in this
       // run's own worktree; its identities are immutable, so keep it rather
       // than refuse the whole step. Sealed = zip and DMG beside matching digests.
@@ -739,6 +785,28 @@ export async function createStepAdapter({
           { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }
         );
         if (!trust.ok) return trust;
+        // 048 T013: the gate's record and the chain's summary beside the image must agree
+        // with the policy before anything leaves the machine, and both go to the journal.
+        const record = parseTrustRecord(lastJsonObjectLine(trust.output));
+        if (!record.ok)
+          return fail('GATE_FAILED', `MACOS_TRUST_RECORD_INVALID: ${record.error} (${file})`);
+        if (record.value.target !== target)
+          return fail('GATE_FAILED', `MACOS_TRUST_RECORD_INVALID: ${record.value.target} for ${file}`);
+        const signing = await readSigningSummary(
+          path.join(cwd, path.dirname(file), 'signing.json')
+        );
+        try {
+          assertSigningMatchesPolicy(signing, record.value, childEnv.MACOS_EXPECTED_TEAM_ID);
+        } catch (error) {
+          return fail('GATE_FAILED', `${messageOf(error)} (${file})`);
+        }
+        macosTrust[target] = {
+          trust: record.value,
+          // The summary names the bundle by its absolute build path; the baseline keeps
+          // the name only.
+          signing: signing.ok ? { ...signing.value, app: path.basename(signing.value.app) } : null
+        };
+        if (journal) await journal.append('macos_trust', { target, ...macosTrust[target] });
       }
       // An existing release is not an error to overwrite: it is evidence this
       // step already ran. Creating it twice is what must never happen.
@@ -1020,7 +1088,14 @@ export async function createStepAdapter({
         const head = (
           await exec('git', ['rev-parse', 'HEAD'], { cwd, shell: false })
         ).stdout.trim();
-        await writePlatformBaseline(cwd, head, windowsPublishedEvidence);
+        // 048 T013: a developer-id release carries publish's trust evidence into the
+        // baseline for both Mac targets; without it the baseline would claim less than
+        // the policy did.
+        const trust = await collectMacosTrust();
+        const missing = macArtifacts.map(([, target]) => target).filter(target => !trust[target]);
+        if (missing.length && macosTrustPolicy(childEnv.SOTY_MACOS_TRUST_POLICY) === 'developer-id')
+          return fail('GATE_FAILED', `MACOS_TRUST_RECORD_MISSING: ${missing.join(', ')}`);
+        await writePlatformBaseline(cwd, head, windowsPublishedEvidence, { macosTrust: trust });
         return { ok: true };
       } catch (error) {
         return fail('GATE_FAILED', messageOf(error));

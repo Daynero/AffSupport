@@ -26,10 +26,40 @@ const proof = {
   runtimeArchitecture: 'x64',
   physicalHost: 'intel',
   macosVersion: '13.6.9',
+  codeSigning: {
+    chain: 'sign-mac-app',
+    identity: 'adhoc',
+    hardenedMachO: 11,
+    machO: 10,
+    profiles: { node: 1, chromium: 1, hardened: 7 }
+  },
   dirty: false,
   verifiedAt: '2026-11-07T00:00:00Z'
 };
 describe('platform-bound release evidence', () => {
+  it('requires the signing chain audit in every beta proof, so a pass speaks for 048 (T008)', () => {
+    expect(validateMacosBetaEvidence(proof, 'macos-x64', binding)).toMatchObject({
+      codeSigning: { chain: 'sign-mac-app', identity: 'adhoc', hardenedMachO: 11 }
+    });
+    const withoutAudit = Object.fromEntries(
+      Object.entries(proof).filter(([key]) => key !== 'codeSigning')
+    );
+    for (const broken of [
+      withoutAudit,
+      { ...proof, codeSigning: { ...proof.codeSigning, chain: 'codesign --deep' } },
+      { ...proof, codeSigning: { ...proof.codeSigning, identity: 'none' } },
+      { ...proof, codeSigning: { ...proof.codeSigning, hardenedMachO: 2 } },
+      { ...proof, codeSigning: { ...proof.codeSigning, machO: 12 } },
+      {
+        ...proof,
+        codeSigning: { ...proof.codeSigning, profiles: { node: 0, chromium: 1, hardened: 8 } }
+      }
+    ])
+      expect(() => validateMacosBetaEvidence(broken, 'macos-x64', binding)).toThrow(
+        'MACOS_BETA_SIGNING_UNPROVEN'
+      );
+  });
+
   it('accepts owner-ratified static Intel qualification without inventing native execution', () => {
     const staticProof = {
       schemaVersion: 3,
@@ -48,6 +78,7 @@ describe('platform-bound release evidence', () => {
       packagePayloadDigest: binding.payloadDigest,
       packageDigest: binding.packageDigest,
       webPayloadDigest: binding.webPayloadDigest,
+      codeSigning: proof.codeSigning,
       dirty: false,
       verifiedAt: '2026-11-07T00:00:00Z'
     };

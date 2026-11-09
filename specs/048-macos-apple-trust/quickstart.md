@@ -41,8 +41,8 @@ unset SOTY_MACOS_TRUST_POLICY                       # типова developer-id
 Підпис і нотаризація застосунку, потім DMG, потім гейт:
 
 ```zsh
-zsh scripts/sign-mac-app.sh release/Soty.app        # до T010 вручну; після T010 це робить npm run package:mac
-npm run package:dmg                                 # після T011 нотаризує і степлить DMG
+npm run package:mac -- --arch=arm64                 # T010: сам викликає ланцюжок і пише release/signing.json
+npm run package:dmg -- --arch=arm64                 # T011: підписує, нотаризує і степлить образ; хеш після staple
 node scripts/verify-macos-release-trust.mjs release/Soty-v<version>-macOS-arm64.dmg --arch=arm64
 # Intel: release/x64/Soty.app, release/x64/Soty-v<version>-macOS-x64.dmg, --arch=x64
 ```

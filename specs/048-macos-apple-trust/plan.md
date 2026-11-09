@@ -15,7 +15,7 @@
 **Testing**: `tests/mac-signing-chain.test.ts` на фікстурі і на реальному Node через `SOTY_TEST_NODE_BINARY`; `tests/macos-trust-evidence.test.ts` для гейта; пакетна бета для приймання запуску.
 **Target Platform**: macOS 13+ arm64 і x64; Windows не змінюється.
 **Project Type**: release tooling навколо desktop agent.
-**Performance Goals**: нотаризація з `--wait` до 45 хвилин як окремий крок; підпис бандла зі стейджем агента в межах хвилин.
+**Performance Goals**: очікування нотаризації типово до 30 хвилин (`SOTY_NOTARY_TIMEOUT`) усередині 45-хвилинного бюджету кроку пакування раннера; підпис бандла зі стейджем агента в межах хвилин.
 **Constraints**: одна слабка машина, один важкий процес; мережа для timestamp і нотаризації; секрети лише keychain/env; жодного fallback між політиками.
 **Scale/Scope**: 3 історії, 11 FR, 5 SC; два Mac-артефакти на реліз.
 

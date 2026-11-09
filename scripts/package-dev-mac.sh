@@ -94,7 +94,6 @@ swiftc "$root/Launcher.generated.swift" \
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
-codesign --force --sign - "$app/Contents/Resources/runtime/node"
 cp "$source_app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffmpeg"
 cp "$source_app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp "$source_app/Contents/Resources/runtime/bin/whisper-cli" "$app/Contents/Resources/runtime/bin/whisper-cli"
@@ -130,7 +129,8 @@ node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "
 node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
-codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
+# 048: the dev build is signed the way production is, through the chain, ad-hoc.
+SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
 archive="$root/$archive_name"
 rm -f "$root"/Soty-Dev-*-macOS-$arch.zip(N) "$root"/Soty-Dev-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"
