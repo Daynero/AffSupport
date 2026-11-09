@@ -77,6 +77,8 @@ export function assertMacosMachOSigner(details, expectedTeam, relative) {
  * entitlements; with `expectedTeam` (the `developer-id` gate) also that team's Developer
  * ID signature and a secure timestamp. Signing `--deep` leaves the loose ones out, so
  * each is inspected. Returns the number inspected. Never executes payload.
+ * @param {string} app
+ * @param {{ expectedTeam?: string | null }} [options]
  */
 export async function assertMacosHardenedMachOs(app, { expectedTeam = null } = {}) {
   const files = [];

@@ -10,6 +10,9 @@ import { readSigningSummary } from './lib/macos-signing-summary.mjs';
  * own summary beside the package describes this bundle. With `expectedTeam` every
  * Mach-O must also carry that team's Developer ID signature and a timestamp. Returns
  * the record the beta proof embeds as `codeSigning`. Never executes payload.
+ * @param {string} app
+ * @param {string} signingFile
+ * @param {{ expectedTeam?: string | null }} [options]
  */
 export async function auditMacosSigning(app, signingFile, { expectedTeam = null } = {}) {
   const signing = await readSigningSummary(signingFile);
