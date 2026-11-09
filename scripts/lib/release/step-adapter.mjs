@@ -502,6 +502,8 @@ export async function createStepAdapter({
   // read out of the checkout being released rather than out of whichever shell
   // started the run.
   const childEnv = { ...env, ...releaseEnvironment(cwd), SOTY_RELEASE_RUN_ID: runId };
+  /** The same environment read as what it is: the release machine's variables (048). */
+  const trustEnv = /** @type {NodeJS.ProcessEnv} */ (childEnv);
 
   /**
    * 048 T013: what publish found out about each Mac artifact's signature — the gate's
@@ -719,7 +721,7 @@ export async function createStepAdapter({
       // 048 T019: the trust inputs a developer-id release needs at publish are proven
       // before the first build, not discovered after forty minutes of packaging.
       try {
-        const inputs = await macosTrustPreflight(childEnv);
+        const inputs = await macosTrustPreflight(trustEnv);
         if (journal) await journal.append('macos_trust_preflight', inputs);
       } catch (error) {
         return fail('GATE_FAILED', messageOf(error));
@@ -796,7 +798,7 @@ export async function createStepAdapter({
           path.join(cwd, path.dirname(file), 'signing.json')
         );
         try {
-          assertSigningMatchesPolicy(signing, record.value, childEnv.MACOS_EXPECTED_TEAM_ID);
+          assertSigningMatchesPolicy(signing, record.value, trustEnv.MACOS_EXPECTED_TEAM_ID);
         } catch (error) {
           return fail('GATE_FAILED', `${messageOf(error)} (${file})`);
         }
@@ -1093,7 +1095,7 @@ export async function createStepAdapter({
         // the policy did.
         const trust = await collectMacosTrust();
         const missing = macArtifacts.map(([, target]) => target).filter(target => !trust[target]);
-        if (missing.length && macosTrustPolicy(childEnv.SOTY_MACOS_TRUST_POLICY) === 'developer-id')
+        if (missing.length && macosTrustPolicy(trustEnv.SOTY_MACOS_TRUST_POLICY) === 'developer-id')
           return fail('GATE_FAILED', `MACOS_TRUST_RECORD_MISSING: ${missing.join(', ')}`);
         await writePlatformBaseline(cwd, head, windowsPublishedEvidence, { macosTrust: trust });
         return { ok: true };
