@@ -38,16 +38,21 @@ const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 // interactions are downloaded only upon entering Accounts. This revises route
 // budget accounting; it does not claim the complete application became smaller.
 const ACCOUNTS_INCREMENTAL_ALLOWANCE = 56_000;
-const ACCOUNTS_EXCLUSIVE_CEILING = 80_000;
+// Owner approved 2026-11-09 for 049 installer choice (measured 80 009).
+const ACCOUNTS_EXCLUSIVE_CEILING = 81_000;
 const LAUNCH_ROOT_CEILING = 20_000;
 // Owner-approved 1.3.0 route allowances. The root chunk and global download
 // ratchets remain unchanged; historical 1.2.10 evidence retains its original cap.
-const LAUNCH_EXCLUSIVE_CEILING = 49_000;
+// Owner approved 2026-11-09 for 047+049: +2 000 for Launch reliability (measured 50 447).
+const LAUNCH_EXCLUSIVE_CEILING = 51_000;
 // Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
 // measured shared growth is 30,145 B against the unchanged clean 045 base.
 const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
 // Owner approved for 1.3.0: relative growth only, without increasing the global cap.
-const RELEASE_130_SHARED_GROWTH_CEILING = 38_000;
+// Owner approved 2026-11-09 for 047+049 (measured 61 022 integrated): relative growth only.
+const RELEASE_130_SHARED_GROWTH_CEILING = 62_000;
+// Owner approved 2026-11-09: global ratchet allowance for 047+049 (measured +22 268 B).
+const RELEASE_047_049_ALLOWANCE = 23_000;
 
 /**
  * How far the total may drift before this fails.
@@ -189,7 +194,9 @@ describeRequiring(
       expect(
         existingBytes,
         `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
-      ).toBeLessThanOrEqual(ceiling + FEATURE_045_INCREMENTAL_ALLOWANCE);
+      ).toBeLessThanOrEqual(
+        ceiling + FEATURE_045_INCREMENTAL_ALLOWANCE + RELEASE_047_049_ALLOWANCE
+      );
     });
 
     it('has not grown the entry chunk beyond tolerance', () => {
