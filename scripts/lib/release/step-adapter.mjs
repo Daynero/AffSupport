@@ -491,7 +491,9 @@ export async function createStepAdapter({
     if (arch === 'x64') {
       if (childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64)
         next.BETA_RUNTIME_SOURCE_APP = childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64;
-      else delete next.BETA_RUNTIME_SOURCE_APP;
+      // Empty, not deleted: execute() layers this over the worker's own
+      // environment, which carries the ARM source app.
+      else next.BETA_RUNTIME_SOURCE_APP = '';
     }
     const inputRoot = path.join(cwd, 'release/inputs', arch);
     if (existsSync(path.join(inputRoot, 'approved-inputs.json'))) {
