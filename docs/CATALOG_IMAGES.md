@@ -39,6 +39,49 @@ The worker route accepts only the named secret, without JWT fallback. Local impo
 Google OAuth. Drive import uses existing scoped credentials, source live ancestry, download/share
 capabilities and before/after source identity checks.
 
+## Browser upload diagnosis
+
+The explicit upload action now opens its live status immediately. Browser input delivery and
+server publication are separate: transferred bytes never count as ready pictures. The status
+shows ready/reused pictures against the full manifest total; healthy per-file details start
+collapsed, while rejected files remain visible. Keep the browser page open during local file
+transfer; only acknowledged input delivery permits the background-processing/close message.
+An uncertain reply retains the selected sources and offers a read-only status check beside the
+warning. Confirmed completion of that same import clears the stale uncertainty and selection;
+partial progress and a different historical import cannot establish its completion.
+An input-transfer error does not hide or disable an independently confirmed ready pool. A failed
+pool read still marks its availability unknown; retained counts are never proof of a fresh read.
+
+Acceptance coverage: `catalog-image-import-ui.test.tsx` covers automatic status navigation,
+in-flight transfer, publication progress for 300 files, missing input after reload, capacity
+waiting, per-file rejection and reconciliation without a second upload. Existing correlated
+`catalog_image_import` lifecycle signals and immutable server receipts remain the diagnostic
+seams; these UI states add no file names, URLs or other content to telemetry.
+
+`IMAGE_WRITE_UNCERTAIN` during local input delivery does not identify the cause: the browser
+maps HTTP rejection, network failure, timeout and policy refusal to the same code. Check the
+affected session's hosted/local origin before comparing users. The hosted site's response CSP
+must allow the exact production R2 account in `connect-src` and
+`https://catalog-images.soty.pp.ua` in `img-src`. Provider CORS alone cannot permit a request
+that CSP blocks. Update `scripts/generate-csp-headers.mjs` and regenerate `_headers`; never
+patch only the generated header or widen the policy to all R2 accounts.
+
+On 2026-11-05, the live hosted policy lacked both origins. A browser regression reproduced
+blocked upload and image requests under that policy and passed after the exact origins were
+added, while unrelated storage remained blocked. This is synthetic policy evidence, not proof
+of the affected user's recovery. `waiting_source` / repeated `validating` receipts without a
+`staged` or `ready` receipt do not prove bytes arrived. Reconcile the existing import before
+any source reselection; a policy fix does not restore files held by a closed browser page.
+
+Diagnostic follow-up tasks:
+
+- Distinguish a correlated CSP refusal from unknown transport outcomes using a closed signal,
+  without recording signed URLs, provider payloads or file names.
+- Route `catalog_image_import` client lifecycle evidence to its own capability in `inspect` /
+  `investigate`; the current generic matcher can mislabel it as `stitcher.input` and treat an
+  accepted stage as a successful terminal. Until fixed, read the image journal and raw bounded
+  lifecycle events together rather than trusting that inferred terminal.
+
 ## Provider setup required before sandbox acceptance
 
 - Set the default storage class to **R2 Standard** for both environment buckets; verify the actual class in provider acceptance before enable.

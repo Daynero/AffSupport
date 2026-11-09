@@ -101,6 +101,7 @@ export function CatalogImageImport({
   const [revoking, setRevoking] = useState<CatalogImageDictionaryEntry | null>(null);
   const [shownFiles, setShownFiles] = useState(10);
   const [shownEntries, setShownEntries] = useState(10);
+  const [fileDetailsOpen, setFileDetailsOpen] = useState<boolean | null>(null);
   const [surface, setSurface] = useState<
     'upload' | 'help' | 'storage' | 'history' | 'status' | null
   >(null);
@@ -179,10 +180,11 @@ export function CatalogImageImport({
   );
   useEffect(() => {
     if (state.capabilities?.mode === 'v2')
-      onPool(state.error !== null || !state.inventory ? null : state.inventory.total);
-  }, [onPool, state.capabilities?.mode, state.inventory, state.error]);
+      onPool(state.readError !== null || !state.inventory ? null : state.inventory.total);
+  }, [onPool, state.capabilities?.mode, state.inventory, state.readError]);
   useEffect(() => {
     setShownEntries(10);
+    setFileDetailsOpen(null);
   }, [state.job?.id]);
 
   const copyPrompt = async () => {
@@ -209,6 +211,27 @@ export function CatalogImageImport({
   const jobDone =
     state.job &&
     ['completed', 'partial', 'failed', 'cancelled', 'expired'].includes(state.job.state);
+  const preparing = state.inputDelivery.phase === 'preparing';
+  const currentInput = state.job?.id === state.inputDelivery.jobId;
+  const transferring =
+    currentInput && state.busy && !jobDone && state.inputDelivery.phase === 'uploading';
+  const inputDelivered = currentInput && state.inputDelivery.phase === 'delivered';
+  const statusJob =
+    preparing || (state.inputDelivery.phase === 'attention' && !state.inputDelivery.jobId)
+      ? null
+      : state.job;
+  const ready = statusJob ? statusJob.counts.ready + statusJob.counts.reused : 0;
+  const readyLabel = t('catalogImagesReadyProgress', {
+    ready,
+    total: statusJob?.counts.total ?? 0
+  });
+  const statusDetailsOpen =
+    fileDetailsOpen ?? Boolean(statusJob && statusJob.counts.failed + statusJob.counts.expired > 0);
+  const startUpload = (sources?: () => Promise<readonly string[]>) => {
+    setFileDetailsOpen(null);
+    setSurface('status');
+    void state.start(sources);
+  };
   const revocationLabel = t(
     revoking && 'publicationState' in revoking
       ? 'catalogImagesDeletePicture'
@@ -222,7 +245,7 @@ export function CatalogImageImport({
         titleId="catalog-r2-images-title"
         title={t('catalogImagesTitle')}
         aside={
-          state.inventory && state.error === null ? (
+          state.inventory && state.readError === null ? (
             <span className="catalog-image-aside">
               {t('productCatalogImagesPool', { count: state.inventory.total })}
               {state.storage && state.storageError === null && (
@@ -494,7 +517,7 @@ export function CatalogImageImport({
           {state.dictionary &&
             state.dictionary.items.length === 0 &&
             !state.loading &&
-            state.error === null && (
+            state.readError === null && (
               <div className="catalog-image-empty">
                 <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                 <p>{t('catalogImagesGalleryEmpty')}</p>
@@ -532,7 +555,7 @@ export function CatalogImageImport({
                   <GalleryPicture
                     key={entry.id}
                     entry={entry}
-                    busy={state.busy || state.error !== null}
+                    busy={state.busy || state.readError !== null}
                     canManage={Boolean(state.capabilities?.canManage)}
                     onRemove={() => void state.removePicture(entry)}
                     onRevoke={() => setRevoking(entry)}
@@ -665,10 +688,14 @@ export function CatalogImageImport({
                     variant="primary"
                     loading={state.busy}
                     disabled={state.busy || (!state.folder && state.files.length === 0)}
-                    onClick={() => void state.start()}
+                    onClick={() => startUpload()}
                   >
                     <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    {t('catalogImagesAnalyzeUpload')}
+                    {t(
+                      state.job && !jobDone && state.job.sourceKind === 'local'
+                        ? 'catalogImagesContinueUpload'
+                        : 'catalogImagesAnalyzeUpload'
+                    )}
                   </Button>
                 </div>
                 {state.folder && (
@@ -723,7 +750,7 @@ export function CatalogImageImport({
                   type="button"
                   variant="secondary"
                   disabled={state.busy}
-                  onClick={() => void state.start(legacySources)}
+                  onClick={() => startUpload(legacySources)}
                 >
                   {t('catalogImagesMigrateExisting')}
                 </Button>
@@ -1229,16 +1256,93 @@ export function CatalogImageImport({
               >
                 <X />
               </IconButton>
-            </div>{' '}
-            {state.job && (
+            </div>
+            <div className="catalog-image-progress-summary" role="status" aria-live="polite">
+              <strong>
+                {t(
+                  preparing
+                    ? 'catalogImagesStageCollecting'
+                    : transferring
+                      ? 'catalogImagesUploadingFiles'
+                      : statusJob
+                        ? stageKeys[statusJob.state]
+                        : 'catalogImagesNeedsAttention'
+                )}
+              </strong>
+              {statusJob && <p className="catalog-image-progress-count">{readyLabel}</p>}
+              {(preparing || statusJob) && (
+                <Progress
+                  label={t(
+                    preparing
+                      ? 'catalogImagesStageCollecting'
+                      : transferring
+                        ? 'catalogImagesUploadingFiles'
+                        : 'catalogImagesStageReady'
+                  )}
+                  valueText={preparing || !statusJob || transferring ? undefined : readyLabel}
+                  value={
+                    preparing
+                      ? undefined
+                      : transferring
+                        ? state.totalBytes > 0
+                          ? (state.uploadedBytes / state.totalBytes) * 100
+                          : undefined
+                        : statusJob && statusJob.counts.total > 0
+                          ? (ready / statusJob.counts.total) * 100
+                          : undefined
+                  }
+                  color={jobDone && statusJob?.state === 'completed' ? 'success' : 'primary'}
+                />
+              )}
+              {transferring && (
+                <>
+                  <p>
+                    {t('catalogImagesTransferSize', {
+                      loaded: sizeLabel(state.uploadedBytes),
+                      total: sizeLabel(state.totalBytes)
+                    })}
+                  </p>
+                  <p className="field-hint">{t('catalogImagesKeepOpen')}</p>
+                </>
+              )}
+              {state.waitingUploads > 0 && <p>{t('catalogImagesWaitingCapacity')}</p>}
+              {inputDelivered && !jobDone && (
+                <p className="field-hint">{t('catalogImagesBackgroundProcessing')}</p>
+              )}
+              {statusJob && statusJob.counts.failed + statusJob.counts.expired > 0 && (
+                <p>
+                  {t('catalogImagesUnfinishedCount', {
+                    count: statusJob.counts.failed + statusJob.counts.expired
+                  })}
+                </p>
+              )}
+            </div>
+            {state.error !== null && (
+              <div className="catalog-image-confirm-warning" role="alert">
+                <p>{teamErrorMessageFor(state.error, t)}</p>
+                <Button
+                  variant="secondary"
+                  loading={state.refreshing}
+                  disabled={state.loading || state.refreshing || state.busy}
+                  onClick={() => void checkStatus()}
+                >
+                  {t('catalogImagesReconcile')}
+                </Button>
+              </div>
+            )}
+            {!statusJob && !state.busy && (
+              <Button variant="secondary" onClick={() => setSurface('upload')}>
+                {t('catalogImagesBackToUpload')}
+              </Button>
+            )}
+            {statusJob && (
               <section aria-label={t('catalogImagesImportStatus')}>
-                <p role="status">{t(stageKeys[state.job.state])}</p>
-                {state.job.errorCode && (
+                {statusJob.errorCode && (
                   <p role="alert" className="team-inline-error">
-                    {teamErrorMessageFor({ code: state.job.errorCode }, t)}
+                    {teamErrorMessageFor({ code: statusJob.errorCode }, t)}
                   </p>
                 )}
-                {state.job.hasMoreSources && enabled && jobDone && (
+                {statusJob.hasMoreSources && enabled && jobDone && (
                   <Button
                     type="button"
                     variant="secondary"
@@ -1248,56 +1352,77 @@ export function CatalogImageImport({
                     {t('catalogImagesContinueImport')}
                   </Button>
                 )}
-                <p>
-                  {t('catalogImagesJobCounts', {
-                    ready: state.job.counts.ready,
-                    reused: state.job.counts.reused,
-                    random: state.job.counts.unclassified,
-                    failed: state.job.counts.failed,
-                    expired: state.job.counts.expired
-                  })}
-                </p>
-                {state.job.sourceKind === 'local' &&
-                  state.job.entries.some(entry => entry.state === 'waiting_source') && (
+                {statusJob.sourceKind === 'local' &&
+                  !state.busy &&
+                  !inputDelivered &&
+                  !jobDone &&
+                  statusJob.entries.some(entry => entry.state === 'waiting_source') && (
                     <>
                       <p className="team-inline-note">{t('catalogImagesReselect')}</p>
                       <Button onClick={() => setSurface('upload')}>
-                        {t('catalogImagesChooseFiles')}
+                        {t('catalogImagesContinueUpload')}
                       </Button>
                     </>
                   )}
-                <ul className="catalog-image-job-list">
-                  {state.job.entries.slice(0, shownEntries).map(entry => (
-                    <li key={entry.id}>
-                      <span className="catalog-image-job-name">{entry.displayName}</span>
-                      <small>
-                        {t(stageKeys[entry.state])} ·{' '}
-                        {entry.classification.mode === 'matched'
-                          ? `${entry.classification.garment} / ${entry.classification.color}`
-                          : t('catalogImagesRandomMode')}
-                      </small>
-                      {entry.errorCode && (
-                        <p role="alert" className="team-inline-error">
-                          {teamErrorMessageFor({ code: entry.errorCode }, t)}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {shownEntries < state.job.entries.length && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    onClick={() => setShownEntries(count => count + 50)}
-                  >
-                    {t('catalogImagesShowMore')}
-                  </Button>
-                )}
-                {state.job.hasMore && (
-                  <Button type="button" variant="link" onClick={() => void state.moreEntries()}>
-                    {t('catalogImagesShowMore')}
-                  </Button>
-                )}
+                <Accordion
+                  openIds={new Set(statusDetailsOpen ? ['files'] : [])}
+                  onToggle={() => setFileDetailsOpen(!statusDetailsOpen)}
+                  items={[
+                    {
+                      id: 'files',
+                      title: t('catalogImagesFileDetails'),
+                      content: (
+                        <>
+                          <p>
+                            {t('catalogImagesJobCounts', {
+                              ready: statusJob.counts.ready,
+                              reused: statusJob.counts.reused,
+                              random: statusJob.counts.unclassified,
+                              failed: statusJob.counts.failed,
+                              expired: statusJob.counts.expired
+                            })}
+                          </p>
+                          <ul className="catalog-image-job-list">
+                            {statusJob.entries.slice(0, shownEntries).map(entry => (
+                              <li key={entry.id}>
+                                <span className="catalog-image-job-name">{entry.displayName}</span>
+                                <small>
+                                  {t(stageKeys[entry.state])} ·{' '}
+                                  {entry.classification.mode === 'matched'
+                                    ? `${entry.classification.garment} / ${entry.classification.color}`
+                                    : t('catalogImagesRandomMode')}
+                                </small>
+                                {entry.errorCode && (
+                                  <p role="alert" className="team-inline-error">
+                                    {teamErrorMessageFor({ code: entry.errorCode }, t)}
+                                  </p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          {shownEntries < statusJob.entries.length && (
+                            <Button
+                              type="button"
+                              variant="link"
+                              onClick={() => setShownEntries(count => count + 50)}
+                            >
+                              {t('catalogImagesShowMore')}
+                            </Button>
+                          )}
+                          {statusJob.hasMore && (
+                            <Button
+                              type="button"
+                              variant="link"
+                              onClick={() => void state.moreEntries()}
+                            >
+                              {t('catalogImagesShowMore')}
+                            </Button>
+                          )}
+                        </>
+                      )
+                    }
+                  ]}
+                />
                 {state.capabilities?.canManage && (
                   <div className="settings-section-actions">
                     {!jobDone && (
@@ -1305,22 +1430,22 @@ export function CatalogImageImport({
                         {t('catalogImagesCancel')}
                       </Button>
                     )}
-                    {(state.job.counts.failed > 0 ||
-                      state.job.counts.expired > 0 ||
-                      state.job.state === 'failed' ||
-                      state.job.state === 'awaiting_reconciliation') && (
+                    {(statusJob.counts.failed > 0 ||
+                      statusJob.counts.expired > 0 ||
+                      statusJob.state === 'failed' ||
+                      statusJob.state === 'awaiting_reconciliation') && (
                       <Button
                         type="button"
                         variant="secondary"
                         disabled={state.busy}
                         onClick={() =>
-                          void (state.job?.state === 'awaiting_reconciliation'
+                          void (statusJob?.state === 'awaiting_reconciliation'
                             ? state.refresh()
                             : state.retry())
                         }
                       >
                         {t(
-                          state.job.state === 'awaiting_reconciliation'
+                          statusJob.state === 'awaiting_reconciliation'
                             ? 'catalogImagesReconcile'
                             : 'catalogImagesRetry'
                         )}

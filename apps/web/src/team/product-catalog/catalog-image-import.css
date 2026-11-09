@@ -87,6 +87,19 @@
   justify-content: flex-end;
 }
 
+.catalog-image-progress-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+}
+.catalog-image-progress-count {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
 .catalog-image-library-list,
 .catalog-image-job-list {
   padding: 0;

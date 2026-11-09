@@ -73,19 +73,26 @@ const LOCAL_APP = 'http://127.0.0.1:* http://localhost:*';
 const PICKER_SCRIPT = 'https://apis.google.com';
 const PICKER_FRAME = 'https://docs.google.com';
 
+// Public deployment identifiers, never credentials. Keep these exact and
+// independent of build-time secrets: granting every R2 account would also
+// permit uploads to an unrelated tenant. Catalog previews use the public
+// media origin; uploads use the private bucket's presigned S3 endpoint.
+const CATALOG_UPLOAD_ORIGIN = 'https://d7c5658154bdbb4fb78abc8f624d0dc1.r2.cloudflarestorage.com';
+const CATALOG_MEDIA_ORIGIN = 'https://catalog-images.soty.pp.ua';
+
 const policy = [
   "default-src 'self'",
   `script-src 'self' ${scriptHashes.join(' ')} ${PICKER_SCRIPT}`,
   // The stylesheet is a file; inline styles assigned through `element.style`
   // are CSSOM writes and are not covered by this directive.
   "style-src 'self' 'unsafe-inline'",
-  `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP} ${PICKER_SCRIPT}`,
+  `connect-src 'self' ${SUPABASE_ORIGINS} ${LOCAL_APP} ${PICKER_SCRIPT} ${CATALOG_UPLOAD_ORIGIN}`,
   // `data:` for an inline SVG in the stylesheet, `blob:` for a generated
   // download preview, and the avatar host for signed-in users. Ticketed
   // Google Drive image previews are served by the Supabase transfer endpoint,
   // while Agent previews come from loopback, so both origins are required for
   // the browser's `<img>` fetch rather than only for fetch/XHR.
-  `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co ${LOCAL_APP}`,
+  `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co ${LOCAL_APP} ${CATALOG_MEDIA_ORIGIN}`,
   // Video previews play straight from the Supabase transfer endpoint, a
   // ticketed `Range` stream (`drive-transfer/range`). `<video>` is governed by
   // media-src, not connect-src, so without the Supabase origin here the

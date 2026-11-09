@@ -198,6 +198,10 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
   const [readError, setReadError] = useState<unknown>(null);
   const [uploadedBytes, setUploadedBytes] = useState(0);
   const [waitingUploads, setWaitingUploads] = useState(0);
+  const [inputDelivery, setInputDelivery] = useState<{
+    phase: 'idle' | 'preparing' | 'uploading' | 'delivered' | 'attention';
+    jobId: string | null;
+  }>({ phase: 'idle', jobId: null });
   const active = useRef(0);
   const read = useRef({ pending: false, dirty: false });
   const selected = useRef<string | null>(null);
@@ -205,6 +209,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
   const transfer = useRef<AbortController | null>(null);
   const actionKeys = useRef(new Map<string, string>());
   const observedFlows = useRef(new Map<string, string>());
+  const inputFailureJob = useRef<string | null>(null);
   const actionKey = (key: string) => {
     const existing = actionKeys.current.get(key);
     if (existing) return existing;
@@ -219,6 +224,19 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
       setJob(previous =>
         previous?.id === next.id && previous.revision > next.revision ? previous : next
       );
+      // An authoritative successful terminal supersedes a lost upload reply.
+      // Partial progress alone cannot establish delivery of the remaining files.
+      if (next.state === 'completed' && inputFailureJob.current === next.id) {
+        inputFailureJob.current = null;
+        setFiles([]);
+        setInputDelivery({ phase: 'delivered', jobId: next.id });
+        setError((previous: unknown) =>
+          previous instanceof TeamApiError &&
+          ['IMAGE_WRITE_UNCERTAIN', 'IMAGE_DICTIONARY_COMMIT_FAILED'].includes(previous.code)
+            ? null
+            : previous
+        );
+      }
     },
     [teamId]
   );
@@ -303,6 +321,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     intent.current = crypto.randomUUID();
     actionKeys.current.clear();
     observedFlows.current.clear();
+    inputFailureJob.current = null;
     setCapabilities(null);
     setInventory(null);
     setDictionary(null);
@@ -325,6 +344,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     setFolder(null);
     setBusy(false);
     setWaitingUploads(0);
+    setInputDelivery({ phase: 'idle', jobId: null });
     setLoading(true);
     setError(null);
     setReadError(null);
@@ -394,6 +414,8 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     }
     setFolder(null);
     setFiles(all);
+    inputFailureJob.current = null;
+    setInputDelivery({ phase: 'idle', jobId: null });
     setError(null);
     intent.current = crypto.randomUUID();
   };
@@ -406,6 +428,8 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     if (busy) return;
     setFiles([]);
     setFolder(next);
+    inputFailureJob.current = null;
+    setInputDelivery({ phase: 'idle', jobId: null });
     setError(null);
     intent.current = crypto.randomUUID();
   };
@@ -446,6 +470,8 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     setError(null);
     setUploadedBytes(0);
     setWaitingUploads(0);
+    setInputDelivery({ phase: 'preparing', jobId: null });
+    inputFailureJob.current = null;
     const flowId = intent.current;
     const sourceKind = folder || loadDriveSources ? 'drive' : 'local';
     imageInputSignal('operation_started', flowId, 'requested', sourceKind);
@@ -492,6 +518,10 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
             });
       if (generation !== active.current || abort.signal.aborted) return;
       acceptJob(current);
+      setInputDelivery({
+        phase: sourceKind === 'local' ? 'uploading' : 'delivered',
+        jobId: current.id
+      });
       observedFlows.current.set(current.id, flowId);
       imageInputSignal(
         'operation_stage_completed',
@@ -596,6 +626,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
           current.id
         );
         setFiles([]);
+        setInputDelivery({ phase: 'delivered', jobId: current.id });
         intent.current = crypto.randomUUID();
       }
     } catch (cause) {
@@ -609,7 +640,11 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
           current?.id,
           cause instanceof TeamApiError ? cause.code : 'UNKNOWN'
         );
-      if (generation === active.current && !abort.signal.aborted) setError(cause);
+      if (generation === active.current && !abort.signal.aborted) {
+        inputFailureJob.current = current?.id ?? null;
+        setInputDelivery({ phase: 'attention', jobId: current?.id ?? null });
+        setError(cause);
+      }
     } finally {
       if (generation === active.current) {
         setBusy(false);
@@ -635,6 +670,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
             });
       if (generation !== active.current) return;
       if (kind === 'cancel') transfer.current?.abort();
+      if (kind === 'retry') setInputDelivery({ phase: 'idle', jobId: null });
       acceptJob(snapshot);
       await refresh();
     } catch (cause) {
@@ -928,8 +964,10 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     loading,
     refreshing,
     error: error ?? readError,
+    readError,
     uploadedBytes,
     waitingUploads,
+    inputDelivery,
     totalBytes: files.reduce((sum, item) => sum + item.file.size, 0),
     queueFiles,
     removeFile,

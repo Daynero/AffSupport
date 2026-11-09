@@ -248,6 +248,192 @@ it('explains public publication before the explicit upload action', async () => 
   expect(client.beginImport).not.toHaveBeenCalled();
   expect(transfer.upload).not.toHaveBeenCalled();
 });
+
+it('opens live progress immediately and distinguishes transfer from server processing', async () => {
+  const client = fixture();
+  let finishTransfer!: () => void;
+  transfer.upload.mockImplementationOnce(
+    () =>
+      new Promise<void>(resolve => {
+        finishTransfer = resolve;
+      })
+  );
+  const processing: CatalogImageImportJob = {
+    ...job('running'),
+    revision: 2,
+    entries: [{ ...job().entries[0]!, state: 'staged' }]
+  };
+  vi.mocked(client.getImport).mockResolvedValue(processing);
+  mount(client);
+  await openUpload();
+  fireEvent.drop(screen.getByRole('group', { name: 'Drop pictures here' }), {
+    dataTransfer: { files: [new File(['abc'], 'IMG_2031.png', { type: 'image/png' })] }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze and upload' }));
+  const progress = await screen.findByRole('dialog', { name: 'Picture upload status' });
+  await waitFor(() => expect(transfer.upload).toHaveBeenCalledTimes(1));
+  expect(within(progress).getByText('Uploading files')).toBeTruthy();
+  expect(within(progress).getByText('Ready: 0 of 1')).toBeTruthy();
+  expect(within(progress).getByText(/Keep Soty open/)).toBeTruthy();
+  expect(within(progress).queryByText('Queued: 1')).toBeNull();
+  expect(within(progress).queryByRole('list')).toBeNull();
+  expect(within(progress).queryByRole('button', { name: 'Analyze and upload' })).toBeNull();
+  expect(within(progress).queryByText(/Select them again/)).toBeNull();
+  await act(async () => finishTransfer());
+  expect(await within(progress).findByText(/Files transferred.*you can close/)).toBeTruthy();
+  expect(within(progress).getByText('Processing pictures')).toBeTruthy();
+  expect(
+    within(progress).getByRole('progressbar', { name: 'Ready' }).getAttribute('aria-valuenow')
+  ).toBe('0');
+  expect(within(progress).queryByText(/Keep Soty open/)).toBeNull();
+  expect(within(progress).queryByText(/Select them again/)).toBeNull();
+  fireEvent.click(within(progress).getByRole('button', { name: 'File details' }));
+  expect(within(progress).getByRole('list')).toBeTruthy();
+  expect(within(progress).getByText('IMG_2031.png')).toBeTruthy();
+});
+
+it('places reconciliation next to a lost transfer reply and retires it only after confirmed completion', async () => {
+  const client = fixture();
+  transfer.upload.mockRejectedValueOnce(new TeamApiError('IMAGE_WRITE_UNCERTAIN', true));
+  mount(client);
+  await openUpload();
+  fireEvent.drop(screen.getByRole('group', { name: 'Drop pictures here' }), {
+    dataTransfer: { files: [new File(['abc'], 'IMG_2031.png', { type: 'image/png' })] }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze and upload' }));
+  const progress = await screen.findByRole('dialog', { name: 'Picture upload status' });
+  const warning = await within(progress).findByRole('alert');
+  expect(within(warning).getByRole('button', { name: 'Check status' })).toBeTruthy();
+  expect(within(progress).getByText('Ready: 0 of 1')).toBeTruthy();
+  const completed: CatalogImageImportJob = {
+    ...job('completed'),
+    revision: 5,
+    counts: { ...job().counts, ready: 1 },
+    entries: [{ ...job().entries[0]!, state: 'ready' }]
+  };
+  vi.mocked(client.getImport).mockResolvedValue(completed);
+  await waitFor(() =>
+    expect(
+      (within(warning).getByRole('button', { name: 'Check status' }) as HTMLButtonElement).disabled
+    ).toBe(false)
+  );
+  fireEvent.click(within(warning).getByRole('button', { name: 'Check status' }));
+  expect(await within(progress).findByText('Ready: 1 of 1')).toBeTruthy();
+  expect(within(progress).getByText('Completed')).toBeTruthy();
+  expect(within(progress).queryByRole('alert')).toBeNull();
+  expect(within(progress).queryByRole('button', { name: 'Continue upload' })).toBeNull();
+  expect(client.beginImport).toHaveBeenCalledTimes(1);
+  expect(transfer.upload).toHaveBeenCalledTimes(1);
+  closeSurface();
+  await openUpload();
+  expect(screen.queryByText('Queued: 1')).toBeNull();
+});
+
+it('shows aggregate progress instead of a page-sized file list for a large running import', async () => {
+  const client = fixture();
+  const running = {
+    ...job('running'),
+    counts: { ...job().counts, total: 300, ready: 36 }
+  };
+  vi.mocked(client.listImports).mockResolvedValue({
+    items: [running],
+    hasMore: false,
+    nextCursor: null
+  });
+  vi.mocked(client.getImport).mockResolvedValue(running);
+  mount(client);
+  await openStatus();
+  const progress = screen.getByRole('dialog', { name: 'Picture upload status' });
+  expect(within(progress).getByText('Ready: 36 of 300')).toBeTruthy();
+  expect(
+    within(progress).getByRole('progressbar', { name: 'Ready' }).getAttribute('aria-valuenow')
+  ).toBe('12');
+  expect(within(progress).queryByRole('list')).toBeNull();
+  expect(
+    within(progress).getByRole('button', { name: 'File details' }).getAttribute('aria-expanded')
+  ).toBe('false');
+});
+
+it('does not present a previous completed import as the result of a new pending request', async () => {
+  const client = fixture();
+  const previous = {
+    ...job('completed'),
+    id: 'previous-job',
+    counts: { ...job().counts, ready: 1 }
+  };
+  vi.mocked(client.listImports).mockResolvedValue({
+    items: [previous],
+    hasMore: false,
+    nextCursor: null
+  });
+  vi.mocked(client.getImport).mockResolvedValue(previous);
+  let rejectBegin!: (error: Error) => void;
+  vi.mocked(client.beginImport).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectBegin = reject;
+      })
+  );
+  mount(client);
+  await openUpload();
+  fireEvent.drop(screen.getByRole('group', { name: 'Drop pictures here' }), {
+    dataTransfer: { files: [new File(['abc'], 'new.png', { type: 'image/png' })] }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze and upload' }));
+  const progress = await screen.findByRole('dialog', { name: 'Picture upload status' });
+  expect(within(progress).getByText('Preparing file list')).toBeTruthy();
+  expect(within(progress).queryByText('Ready: 1 of 1')).toBeNull();
+  await act(async () => rejectBegin(new TeamApiError('IMAGE_PROVIDER_UNAVAILABLE', true)));
+  expect(await within(progress).findByRole('alert')).toBeTruthy();
+  expect(within(progress).queryByRole('progressbar')).toBeNull();
+  fireEvent.click(within(progress).getByRole('button', { name: 'Back to adding images' }));
+  expect(await screen.findByText('Queued: 1')).toBeTruthy();
+  expect(transfer.upload).not.toHaveBeenCalled();
+});
+
+it('keeps confirmed ready pictures usable after a separate transfer failure but fences a failed pool read', async () => {
+  const client = fixture();
+  vi.mocked(client.inventory).mockResolvedValue({
+    revision: 1,
+    pairs: [],
+    unclassified: 36,
+    total: 36
+  });
+  vi.mocked(client.dictionary).mockResolvedValue({
+    items: [
+      {
+        id: 'ready-picture',
+        publicationId: 'ready-publication',
+        publicUrl: 'https://media.example/picture.png',
+        classification: classifyCatalogImageName('IMG_2031.png'),
+        revision: 1
+      }
+    ],
+    total: 36,
+    revision: 1,
+    hasMore: true,
+    nextCursor: 'next'
+  });
+  const onPool = vi.fn();
+  transfer.upload.mockRejectedValueOnce(new TeamApiError('IMAGE_WRITE_UNCERTAIN', true));
+  mount(client, { onPool });
+  await openUpload();
+  fireEvent.drop(screen.getByRole('group', { name: 'Drop pictures here' }), {
+    dataTransfer: { files: [new File(['abc'], 'IMG_2031.png', { type: 'image/png' })] }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze and upload' }));
+  const progress = await screen.findByRole('dialog', { name: 'Picture upload status' });
+  await within(progress).findByRole('alert');
+  await waitFor(() => expect(onPool).toHaveBeenLastCalledWith(36));
+  closeSurface();
+  const pictureActions = await screen.findByRole('button', { name: /^Image actions:/ });
+  await waitFor(() => expect((pictureActions as HTMLButtonElement).disabled).toBe(false));
+  vi.mocked(client.inventory).mockRejectedValue(
+    new TeamApiError('IMAGE_PROVIDER_UNAVAILABLE', true)
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+  await waitFor(() => expect(onPool).toHaveBeenLastCalledWith(null));
+});
 beforeEach(() => {
   localStorage.setItem('language', 'en');
   transfer.upload.mockClear();
@@ -734,7 +920,7 @@ describe('catalog image import', () => {
     fireEvent.drop(await screen.findByRole('group', { name: 'Drop pictures here' }), {
       dataTransfer: { files: [new File(['abc'], 'later.png', { type: 'image/png' })] }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze and upload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue upload' }));
     await waitFor(() =>
       expect(client.grant).toHaveBeenCalledWith(
         'job',

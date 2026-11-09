@@ -151,5 +151,77 @@ describeRequiring(
       await page.close();
       await site.close();
     }, 120_000);
+
+    it('allows catalog uploads and published pictures while blocking unrelated storage', async () => {
+      const headers = await deployedHeaders();
+      browser ??= await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      const uploadOrigin = 'https://d7c5658154bdbb4fb78abc8f624d0dc1.r2.cloudflarestorage.com';
+      const mediaOrigin = 'https://catalog-images.soty.pp.ua';
+      const received: string[] = [];
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==',
+        'base64'
+      );
+      await page.route('https://**/*', async route => {
+        const url = route.request().url();
+        if (url === 'https://soty-csp.test/') {
+          await route.fulfill({
+            headers,
+            contentType: 'text/html',
+            body: '<!doctype html><html><body></body></html>'
+          });
+          return;
+        }
+        received.push(url);
+        await route.fulfill({
+          headers: { 'Access-Control-Allow-Origin': '*' },
+          contentType: 'image/png',
+          body: png
+        });
+      });
+      try {
+        await page.goto('https://soty-csp.test/');
+        const result = await page.evaluate(
+          async ({ uploadOrigin, mediaOrigin }) => {
+            const upload = (origin: string) =>
+              new Promise<boolean>(resolve => {
+                const request = new XMLHttpRequest();
+                request.open('PUT', `${origin}/catalog-fixture`);
+                request.setRequestHeader('Content-Type', 'image/png');
+                request.onload = () => resolve(request.status === 200);
+                request.onerror = request.ontimeout = () => resolve(false);
+                request.timeout = 5_000;
+                request.send(new Blob(['synthetic fixture'], { type: 'image/png' }));
+              });
+            const picture = (origin: string) =>
+              new Promise<boolean>(resolve => {
+                const image = new Image();
+                image.onload = () => resolve(image.naturalWidth === 1);
+                image.onerror = () => resolve(false);
+                image.src = `${origin}/catalog-fixture`;
+              });
+            return {
+              upload: await upload(uploadOrigin),
+              picture: await picture(mediaOrigin),
+              foreignUpload: await upload('https://untrusted.r2.cloudflarestorage.com'),
+              foreignPicture: await picture('https://untrusted.soty.pp.ua')
+            };
+          },
+          { uploadOrigin, mediaOrigin }
+        );
+        expect(result).toEqual({
+          upload: true,
+          picture: true,
+          foreignUpload: false,
+          foreignPicture: false
+        });
+        expect(received.sort()).toEqual(
+          [`${mediaOrigin}/catalog-fixture`, `${uploadOrigin}/catalog-fixture`].sort()
+        );
+      } finally {
+        await page.close();
+      }
+    }, 30_000);
   }
 );
