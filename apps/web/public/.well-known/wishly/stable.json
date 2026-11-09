@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.4.0",
-  "buildNumber": "80",
-  "buildId": "1.4.0+80",
+  "version": "1.4.1",
+  "buildNumber": "81",
+  "buildId": "1.4.1+81",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-09T08:10:01.274Z",
+  "publishedAt": "2026-11-09T22:43:47.970Z",
   "summary": {
-    "uk": "Підтримка Mac з Intel, надійніші каталоги й запуски, зрозуміліші помилки.",
-    "en": "Intel Mac support, more reliable catalogs and launches, clearer errors."
+    "uk": "Кілька відео на каталог і відкладені посилання тепер доступні всім.",
+    "en": "Multiple videos per catalog and deferred links are now available to everyone."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-macOS-arm64.dmg",
-      "sha256": "f5c4dd3465548d936b41af50c9ca9f2a7e22ab2d57dc521efa6af0b13a11ee70"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-macOS-x64.dmg",
-      "sha256": "8693baaf48272403bf897b76613c620880121bbce5e2940cdd764e4b38eaa461"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-Windows-x64.exe",
-      "sha256": "c803bcbc1a398bcdfb28fd9486afebbe152f5bc4b58f1ea7ac91b51a709cdf62"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -47,6 +47,6 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "bNSTY9mXDx_SQwl3KirYA_xb3DDKdER967Zz9RSzUiff7_g8W4KdJnwmAMdVXEdhmuPUBh3PYN-jzprlrR-QaA",
+  "signature": "ryC_SL2nX3Clmtmv9OobwqHZTCUvKX9XkPV_g2uuiz_B9g1tZ3Gdap1_Bqjps-vvJYvQeC3xyIch7LliGpHtFg",
   "platformSetVersion": 2
 }
