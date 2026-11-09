@@ -1,24 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.3.3",
-  "buildNumber": "79",
-  "buildId": "1.3.3+79",
+  "version": "1.4.0",
+  "buildNumber": "80",
+  "buildId": "1.4.0+80",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-05T10:55:33.820Z",
+  "publishedAt": "2026-11-09T08:10:01.274Z",
   "summary": {
-    "uk": "Покращено відновлення каталогів і повторні спроби. Додано закриття панелей кошика.",
-    "en": "Improved catalog recovery and retries. Trash panels can now be dismissed."
+    "uk": "Підтримка Mac з Intel, надійніші каталоги й запуски, зрозуміліші помилки.",
+    "en": "Intel Mac support, more reliable catalogs and launches, clearer errors."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.3/Soty-v1.3.3-macOS-arm64.dmg",
-      "sha256": "e0c3377ba948827029f69858ca61e7389e45140c33b5071113ffa65a35bb6a12"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "macos-x64": {
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.3.3/Soty-v1.3.3-Windows-x64.exe",
-      "sha256": "ee095ecf2b28236d905cb47296b71fc1143550673780c8b87ffbb088ac0ac4d6"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.0/Soty-v1.4.0-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -43,5 +47,5 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "WAG3GnoRwHdZO5r0aSa8nw8zuJU3nNI8dlPy_KMtaid5sn9bhaXRn1HWBbRaDdY_rF-KW8W38ZrirtKDFbktvw"
+  "signature": "3phIGMqWDwWTP92N2-EVkCxEN6sgmDQMbrcMgPdkiLQOgyv9aNAUmBkEFMC0e3X-BywIOtGJMlI8CzsKcUJYPQ"
 }
