@@ -367,6 +367,10 @@ describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => 
         notarized: expectNotarized,
         stapled: expectNotarized
       });
+      // Apple's receipt travels with the summary; without notarization there is none.
+      expect(summary.submissionId).toEqual(
+        expectNotarized ? expect.stringMatching(/^[0-9a-f-]{36}$/u) : null
+      );
     },
     120_000
   );
@@ -379,6 +383,40 @@ describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => 
       })
     ).rejects.toMatchObject({ stderr: expect.stringContaining('SIGN_ADHOC_CANNOT_NOTARIZE') });
   });
+
+  it.skipIf(!chainExists)(
+    'stops with a closed code before the first codesign call when a trust input is missing',
+    async () => {
+      // 048 FR-006: a missing input is refused up front, not discovered after a build.
+      // All three refusals happen before the chain touches a binary, so they need no
+      // certificate; the runtime's CDHash proves nothing was re-signed on the way.
+      const { app } = await fixtureBundle();
+      const runtime = path.join(app, 'Contents', 'Resources', 'runtime', 'node');
+      const cdhash = async () =>
+        (await codesign(['-dvv', runtime])).output.match(/^CDHash=(\S+)/mu)?.[1] ?? null;
+      const before = await cdhash();
+      const base = { ...process.env, SOTY_SIGNING_IDENTITY: '-', SOTY_SKIP_NOTARIZATION: '1' };
+      await expect(
+        run('zsh', [CHAIN, app], {
+          env: {
+            ...base,
+            SOTY_SIGNING_IDENTITY: 'Developer ID Application: Fixture (ABCDEFGHIJ)',
+            SOTY_SKIP_NOTARIZATION: '',
+            SOTY_NOTARY_KEYCHAIN_PROFILE: ''
+          }
+        })
+      ).rejects.toMatchObject({ stderr: expect.stringContaining('NOTARY_PROFILE_REQUIRED') });
+      const empty = await mkdtemp(path.join(os.tmpdir(), 'soty-no-profiles-'));
+      directories.push(empty);
+      await expect(
+        run('zsh', [CHAIN, app], { env: { ...base, SOTY_ENTITLEMENTS_DIR: empty } })
+      ).rejects.toMatchObject({ stderr: expect.stringContaining('SIGN_ENTITLEMENTS_MISSING') });
+      await expect(run('zsh', [CHAIN, empty], { env: base })).rejects.toMatchObject({
+        stderr: expect.stringContaining('SIGN_INPUT_INVALID')
+      });
+      expect(await cdhash()).toBe(before);
+    }
+  );
 
   it.skipIf(!chainExists)(
     'strips a foreign signature and its entitlements before signing',

@@ -55,12 +55,30 @@ export function assertMacosSigner(details, expectedTeam) {
 }
 
 /**
+ * One Mach-O's `codesign -dvv` details under `developer-id` (048 FR-005, SC-002): the
+ * owner's team and a Developer ID authority on every binary, not only on the bundle, and
+ * a secure timestamp on each. A nested binary left with another team's signature, or
+ * signed without `--timestamp`, is what notarization would reject later and offline
+ * Gatekeeper would distrust; the gate refuses it first.
+ */
+export function assertMacosMachOSigner(details, expectedTeam, relative) {
+  if (
+    !/^[A-Z0-9]{10}$/u.test(expectedTeam ?? '') ||
+    !details.split(/\r?\n/u).includes(`TeamIdentifier=${expectedTeam}`) ||
+    !/^Authority=Developer ID Application:/mu.test(details) ||
+    !/^Timestamp=/mu.test(details)
+  )
+    throw new Error(`MACOS_MACHO_SIGNER_MISMATCH: ${relative}`);
+}
+
+/**
  * Every Mach-O in the bundle — the launcher, the loose runtime and engines in Resources,
  * the Finder extension — carries the hardened runtime and none of the forbidden
- * entitlements. Signing `--deep` leaves the loose ones out, so each is inspected.
- * Returns the number inspected. Never executes payload.
+ * entitlements; with `expectedTeam` (the `developer-id` gate) also that team's Developer
+ * ID signature and a secure timestamp. Signing `--deep` leaves the loose ones out, so
+ * each is inspected. Returns the number inspected. Never executes payload.
  */
-export async function assertMacosHardenedMachOs(app) {
+export async function assertMacosHardenedMachOs(app, { expectedTeam = null } = {}) {
   const files = [];
   for (const entry of await readdir(app, { withFileTypes: true, recursive: true })) {
     if (!entry.isFile()) continue;
@@ -76,6 +94,7 @@ export async function assertMacosHardenedMachOs(app) {
     });
     if (details.status !== 0 || !/\bflags=[^\n]*\bruntime\b/u.test(details.stderr))
       throw new Error(`MACOS_HARDENED_RUNTIME_MISSING: ${relative}`);
+    if (expectedTeam !== null) assertMacosMachOSigner(details.stderr, expectedTeam, relative);
     const entitlements = spawnSync(
       '/usr/bin/codesign',
       ['-d', '--entitlements', '-', '--xml', file],
@@ -133,7 +152,7 @@ export async function verifyMacosReleaseTrust(dmg, arch, expectedTeam, policy = 
     });
     if (identity.status !== 0) throw new Error('MACOS_SIGNER_INSPECTION_FAILED');
     assertMacosSigner(identity.stderr, expectedTeam);
-    const hardenedMachO = await assertMacosHardenedMachOs(app);
+    const hardenedMachO = await assertMacosHardenedMachOs(app, { expectedTeam });
     run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=2', app]);
     // The ticket must travel with the app, not only the image: after the drag to
     // Applications the first offline launch has nothing else to consult.
