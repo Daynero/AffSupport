@@ -276,9 +276,12 @@ itRequiring(
         await mkdir(join(root, 'release/x64'), { recursive: true });
         await writeFile(join(root, 'release', armName), 'arm fixture');
         await writeFile(join(root, 'release/x64', intelName), 'intel fixture');
+        // Trust is a separate gate; this fixture exercises publication adoption,
+        // and records where the gate would mount the DMG.
         await writeFile(
           join(root, 'scripts/verify-macos-release-trust.mjs'),
-          '// Trust is a separate gate; this fixture exercises publication adoption.\n'
+          `import { appendFileSync } from 'node:fs';\n` +
+            `appendFileSync(${JSON.stringify(log)}, 'trust TMPDIR=' + process.env.TMPDIR + '\\n');\n`
         );
         await writeFile(
           join(bin, 'git'),
@@ -306,6 +309,8 @@ const fs=require('node:fs');const path=require('node:path');const a=process.argv
         const result = await adapter.execute('publish');
         expect(result.ok).toBe(false); // Hosted Windows evidence is deliberately absent.
         const calls = await readFile(log, 'utf8');
+        // macOS refuses a mountpoint on the external release volume; 1.4.0 stopped on it.
+        expect(calls).toContain('trust TMPDIR=/tmp\n');
         expect(calls).not.toContain('--clobber');
         expect(calls).not.toContain('release create');
         if (scenario === 'matching') {
@@ -324,4 +329,44 @@ const fs=require('node:fs');const path=require('node:path');const a=process.argv
     }
   },
   30000
+);
+
+itRequiring(
+  posixReleaseHost,
+  'never dispatches a Windows workflow when the existing runs cannot be listed',
+  async () => {
+    const { root, bin, log } = await fakeProject();
+    // The run listing resolves `gh` from the process PATH, like the publication test above.
+    const previousPath = process.env.PATH;
+    try {
+      // `gh run list` fails (an unanswered lookup); every other gh call is recorded.
+      await writeFile(
+        join(bin, 'gh'),
+        `#!/bin/sh\necho "gh $*" >> ${log}\nif [ "$1" = run ] && [ "$2" = list ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi\nexit 0\n`
+      );
+      await chmod(join(bin, 'gh'), 0o755);
+      process.env.PATH = `${bin}:${previousPath ?? ''}`;
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version: '9.9.9',
+        sourceSha,
+        cwd: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+        binding,
+        allowRemote: true
+      });
+      const result = await adapter.execute('windows_smoke');
+      expect(result).toMatchObject({ ok: false, error: { code: 'ACCESS_UNAVAILABLE' } });
+      const calls = await readFile(log, 'utf8');
+      expect(calls).toContain('gh run list');
+      // A lookup that went unanswered is not "no run exists": dispatching on it
+      // is how 1.4.0 queued a duplicate build behind the one already running.
+      expect(calls).not.toContain('gh workflow run');
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+      await removeTemporaryDirectory(root);
+    }
+  },
+  30_000
 );

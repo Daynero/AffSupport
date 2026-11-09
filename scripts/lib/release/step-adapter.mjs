@@ -188,10 +188,22 @@ const betaVerification = [
  * ambiguous, which is the truth and is what the step already says.
  */
 const TRANSIENT =
-  /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|502|503|rate limit/iu;
+  /timeout|timed out|TLS|handshake|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|connection reset|i\/o timeout|502|503|504|rate limit/iu;
+const LIST_ATTEMPTS = 5;
+
+/**
+ * "GitHub could not be asked" is not "GitHub has no such run".
+ *
+ * findWorkflowRun used to return null for both. Before a dispatch, null means
+ * "nothing to adopt, go ahead" -- so a lookup that merely timed out started a
+ * second workflow beside one already building, and the concurrency group queued
+ * it behind the first. 1.4.0 lost forty minutes to exactly that. An unanswered
+ * lookup is now its own value, and nothing is dispatched on it.
+ */
+const RUNS_UNKNOWN = Symbol('RUNS_UNKNOWN');
 
 async function listWorkflowRuns({ cwd, workflow }) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < LIST_ATTEMPTS; attempt += 1) {
     try {
       const { stdout } = await exec(
         'gh',
@@ -209,7 +221,7 @@ async function listWorkflowRuns({ cwd, workflow }) {
       );
       return JSON.parse(stdout);
     } catch (error) {
-      if (attempt === 2 || !TRANSIENT.test(messageOf(error))) return null;
+      if (attempt === LIST_ATTEMPTS - 1 || !TRANSIENT.test(messageOf(error))) return null;
       // The backoff policy is `retry.mjs`, which was written for exactly this
       // and had no caller -- the same shape as every other defect this release
       // turned up, and one I walked straight into by hand-rolling a fixed delay
@@ -225,7 +237,7 @@ async function listWorkflowRuns({ cwd, workflow }) {
 
 async function findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt }) {
   const listed = await listWorkflowRuns({ cwd, workflow });
-  if (!listed) return null;
+  if (!listed) return RUNS_UNKNOWN;
   const runs = listed.filter(candidate => Date.parse(candidate.createdAt) >= dispatchedAt - 60_000);
   // The workflow names itself "Windows <release id> publish|build-only", so the
   // two dispatches one release makes are told apart as well as one release is
@@ -313,6 +325,11 @@ async function dispatchAndWatch(
     publish,
     dispatchedAt: 0
   });
+  if (started === RUNS_UNKNOWN)
+    return fail(
+      'ACCESS_UNAVAILABLE',
+      `could not list ${workflow} runs; not dispatching a possible duplicate`
+    );
   if (started && !['failure', 'cancelled', 'timed_out'].includes(started.conclusion ?? '')) {
     await journal?.append('remote_progress', {
       stepId,
@@ -365,7 +382,15 @@ async function dispatchAndWatch(
   let found = null;
   for (let attempt = 0; attempt < 10 && !found; attempt += 1) {
     if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 6000));
-    found = await findWorkflowRun({ cwd, workflow, sourceSha, releaseId, publish, dispatchedAt });
+    const lookup = await findWorkflowRun({
+      cwd,
+      workflow,
+      sourceSha,
+      releaseId,
+      publish,
+      dispatchedAt
+    });
+    found = lookup === RUNS_UNKNOWN ? null : lookup;
   }
   if (!found)
     return fail('EFFECT_AMBIGUOUS', `dispatched ${workflow} for ${sourceSha} but no run was found`);
@@ -707,7 +732,11 @@ export async function createStepAdapter({
             path.join(cwd, file),
             `--arch=${target === 'macos-x64' ? 'x64' : 'arm64'}`
           ],
-          { cwd, env: childEnv, admission }
+          // The gate mounts the DMG under TMPDIR, and macOS refuses (EACCES) a
+          // mountpoint on the external release volume the runner's TMPDIR points
+          // at -- which is how 1.4.0 stopped at publish. beta_verify already
+          // mounts under /tmp for the same reason.
+          { cwd, env: { ...childEnv, TMPDIR: '/tmp' }, admission }
         );
         if (!trust.ok) return trust;
       }
@@ -870,6 +899,8 @@ export async function createStepAdapter({
             publish: true,
             dispatchedAt: 0
           });
+          if (existing === RUNS_UNKNOWN)
+            return fail('ACCESS_UNAVAILABLE', 'could not list release-windows.yml runs');
           if (!existing) return fail('GATE_FAILED', 'Windows publication evidence unavailable');
           const adopted = await watchWindowsEvidence('manifest', existing.databaseId, {
             cwd,
@@ -974,6 +1005,8 @@ export async function createStepAdapter({
             publish: true,
             dispatchedAt: 0
           });
+          if (existing === RUNS_UNKNOWN)
+            return fail('ACCESS_UNAVAILABLE', 'could not list release-windows.yml runs');
           if (!existing) return fail('GATE_FAILED', 'Windows baseline evidence unavailable');
           const adopted = await watchWindowsEvidence('manifest_beta_verify', existing.databaseId, {
             cwd,
