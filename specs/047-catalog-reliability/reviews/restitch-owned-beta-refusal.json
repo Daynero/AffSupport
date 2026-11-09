@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T02:45:02.488Z",
+  "project": "r2beta045",
+  "schema": 443,
+  "scope": "Actual authenticated local beta REST refusal, not native processing or manual acceptance",
+  "observations": [
+    {
+      "rpc": "service_read_restitch_selection_slot",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_cas_restitch_selection_slot",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_settle_restitch_selection_range",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_restitch_selection_source",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_accept_manual_restitch_download",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_manual_restitch_download",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_claim_restitch_executor",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_restitch_executor_claim",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_quiesce_restitch_executor",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_cas_restitch_selection_slot_owned",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_active_restitch_selection_slot",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_restitch_selection_source_owned",
+      "status": 403,
+      "code": "42501"
+    }
+  ],
+  "privateStorageCounts": {
+    "roots": 0,
+    "slots": 0,
+    "candidates": 0,
+    "versions": 0,
+    "namespaces": 0,
+    "executors": 0,
+    "claims": 0
+  },
+  "privateStorageUnchanged": true,
+  "productionTouched": false
+}

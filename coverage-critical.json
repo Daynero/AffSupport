@@ -86,12 +86,26 @@
     "packages/shared/src/team/text-search.ts": 85,
     "packages/shared/src/team/bulk-trash.ts": 90,
     "packages/shared/src/team/catalog-updater.ts": 90,
+    "packages/shared/src/team/catalog-command.ts": 95,
     "packages/shared/src/team/recovery.ts": 90,
     "packages/shared/src/team/task-cleanup.ts": 90,
     "packages/shared/src/team/launches/notes.ts": 90,
     "packages/shared/src/team/launch-assignment.ts": 90,
     "apps/agent/src/transcription/segmentation.ts": 95,
     "apps/agent/src/transcription/diagnostics.ts": 95,
-    "packages/shared/src/team/catalog-images.ts": 90
+    "packages/shared/src/team/catalog-images.ts": 90,
+    "packages/shared/src/team/restitch-recovery-errors.ts": 100,
+    "packages/shared/src/team/restitch-screen-policy.ts": 100,
+    "packages/shared/src/team/restitch-selection.ts": 90,
+    "packages/shared/src/stitch-errors.ts": 90,
+    "packages/shared/src/team/catalog-publication-api.ts": 90,
+    "packages/shared/src/team/catalog-publication-lifecycle.ts": 90,
+    "packages/shared/src/team/catalog-publication-runner.ts": 90,
+    "packages/shared/src/team/catalog-publication-source.ts": 90,
+    "packages/shared/src/team/catalog-publication.ts": 90,
+    "packages/shared/src/team/catalog-video-foreground.ts": 90,
+    "packages/shared/src/team/catalog-video-progress.ts": 90,
+    "packages/shared/src/team/catalog-video-set.ts": 90,
+    "packages/shared/src/team/launches/catalog-video.ts": 90
   }
 }

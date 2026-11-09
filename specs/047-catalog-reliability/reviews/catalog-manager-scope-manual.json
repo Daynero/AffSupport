@@ -1,0 +1,30 @@
+{
+  "scope": "Actual local beta UI, real Auth and existing provider-backed catalog manager",
+  "crossTabSignOut": {
+    "managerPrivateRowsCleared": true,
+    "originalTabReturnedToLogin": true
+  },
+  "memberSignIn": {
+    "readableManager": true,
+    "allFiveSettingsDisabledWithPermissionExplanation": true,
+    "ownerRunControlAbsent": true
+  },
+  "restoration": {
+    "ownerSignedInAgain": true,
+    "ownerRunAndScheduleControlsEnabled": true,
+    "temporarySecondBetaTabClosed": true
+  },
+  "unsavedDraft": {
+    "imagesChangedOnlyInDraft": true,
+    "closeAskedBeforeDiscard": true,
+    "keepEditingPreservedDraft": true,
+    "explicitDiscardReturnedToManager": true,
+    "originalImagesSettingStillEnabled": true,
+    "completeProfileRowDigestUnchanged": true
+  },
+  "productionTouched": false,
+  "limits": [
+    "The cross-tab session and unsaved-draft paths were manual; lost replies, late callbacks and client replacement use focused regressions.",
+    "This walkthrough did not revoke the real provider connection or simulate a network partition."
+  ]
+}

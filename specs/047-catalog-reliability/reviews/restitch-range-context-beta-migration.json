@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "observed_at": "2026-11-07T00:43:15.974883+00:00",
+  "scope": "Only the Edge-quiesced local beta migration window, before later Auth API smoke. No production action.",
+  "before_schema": 438,
+  "after_schema": 439,
+  "applied": ["20261207156000"],
+  "protected_table_count": 17,
+  "all_full_row_snapshots_matched": true,
+  "changed": [],
+  "protected_tables": [
+    "private.team_material_group_intents",
+    "auth.users",
+    "public.profiles",
+    "public.teams",
+    "public.team_members",
+    "public.team_drive_connections",
+    "private.google_drive_credentials",
+    "private.drive_credential_references",
+    "private.team_recovery_credentials",
+    "private.team_recovery_delegations",
+    "public.team_materials",
+    "public.team_product_catalogs",
+    "public.team_catalog_update_profiles",
+    "public.team_catalog_restitch_copies",
+    "private.restitch_selection_roots",
+    "private.restitch_selection_slots",
+    "private.restitch_selection_candidates"
+  ],
+  "private_selection_storage_empty_before_and_after": true,
+  "owned_edge_quiesced_and_restored": true,
+  "db_types": {
+    "generated_from_actual_beta_schema": 439,
+    "cli_version": "2.117.0",
+    "canonical_wrapper_preserved": true,
+    "generator_transport_delta": "Only --network-id soty-beta-r2beta045-loopback, the existing owned isolated network; then repository Prettier. No manual type edits."
+  },
+  "production_touched": false
+}

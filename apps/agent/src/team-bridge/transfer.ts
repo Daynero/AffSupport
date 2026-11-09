@@ -14,10 +14,23 @@ const UPLOAD_CHUNK_MULTIPLE = 256 * 1024;
 // each upload buffer bounded and retaining progress between acknowledgements.
 const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 
+/** Safe local diagnostic detail; contains no source identity or content. */
+export type TeamSourceIntegrityReason = 'checksum_invalid' | 'checksum_mismatch' | 'size_mismatch';
+export class TeamSourceIntegrityError extends Error {
+  readonly reason: TeamSourceIntegrityReason;
+  constructor(reason: TeamSourceIntegrityReason) {
+    super(reason === 'checksum_invalid' ? 'INVALID_RESPONSE' : 'SOURCE_CHANGED');
+    this.reason = reason;
+  }
+}
+
 export interface TeamSourceDownloadRequest {
   operationId: string;
   transferUrl: string;
   grant: TeamTransferGrant;
+  /** A narrower consumer ceiling, checked before reading or writing provider bytes. */
+  maxTotalBytes?: number;
+  maxRetries?: number;
   /**
    * How much of the source is here, as it arrives.
    *
@@ -67,8 +80,20 @@ export class TeamTransferClient {
     request: TeamSourceDownloadRequest,
     signal: AbortSignal
   ): Promise<DownloadedTeamSource> {
+    request = { ...request, grant: { ...request.grant } };
     validateOperationId(request.operationId);
     validateTransferGrant(request.grant, ['process_input', 'download_range']);
+    const maximumBytes = request.maxTotalBytes ?? MAX_TRANSFER_BYTES;
+    const maximumRetries = request.maxRetries ?? 4;
+    if (
+      !Number.isSafeInteger(maximumBytes) ||
+      maximumBytes < 1 ||
+      maximumBytes > MAX_TRANSFER_BYTES ||
+      !Number.isSafeInteger(maximumRetries) ||
+      maximumRetries < 0 ||
+      maximumRetries > 4
+    )
+      throw new Error('INVALID_INPUT');
     const endpoint = transferUrl(request.transferUrl);
     await mkdir(this.#temporaryRoot, { recursive: true });
     const workspace = await mkdtemp(path.join(this.#temporaryRoot, 'soty-team-process-'));
@@ -81,14 +106,18 @@ export class TeamTransferClient {
     let uses = 0;
     let retries = 0;
     let identityKnown = false;
+    // Drive's binary identity is MD5. Commit only complete ranges to this hash:
+    // an interrupted prefix is truncated and must not be counted twice on retry.
+    let sourceDigest = createHash('md5');
     try {
       while (totalBytes === null || offset < totalBytes) {
         throwIfAborted(signal);
         let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        let body: ReadableStream<Uint8Array> | null = null;
         try {
           uses += 1;
           if (uses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
-          const end = Math.min(offset + request.grant.maxRangeBytes - 1, MAX_TRANSFER_BYTES - 1);
+          const end = Math.min(offset + request.grant.maxRangeBytes - 1, maximumBytes - 1);
           if (end < offset) throw new Error('TOO_LARGE');
           const response = await this.#fetch(endpoint, {
             method: 'GET',
@@ -100,6 +129,7 @@ export class TeamTransferClient {
             redirect: 'error',
             signal
           });
+          body = response.body;
           if (response.status !== 200 && response.status !== 206) {
             const payload: unknown = await response.json().catch(() => null);
             const retryable =
@@ -114,6 +144,8 @@ export class TeamTransferClient {
           }
           const responseVersion = response.headers.get('x-wishly-source-version');
           const responseChecksum = response.headers.get('x-wishly-source-checksum');
+          if (responseChecksum !== null && !/^[a-f0-9]{32}$/iu.test(responseChecksum))
+            throw new TeamSourceIntegrityError('checksum_invalid');
           if (!identityKnown) {
             identityKnown = true;
             sourceVersion = responseVersion;
@@ -135,12 +167,10 @@ export class TeamTransferClient {
               responseEnd < offset ||
               responseEnd > end ||
               declaredTotal <= responseEnd ||
-              declaredTotal > MAX_TRANSFER_BYTES ||
+              declaredTotal > maximumBytes ||
               length !== responseEnd - offset + 1
             ) {
-              throw new Error(
-                declaredTotal > MAX_TRANSFER_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE'
-              );
+              throw new Error(declaredTotal > maximumBytes ? 'TOO_LARGE' : 'INVALID_RESPONSE');
             }
             if (totalBytes !== null && totalBytes !== declaredTotal)
               throw new Error('SOURCE_CHANGED');
@@ -148,6 +178,7 @@ export class TeamTransferClient {
             const requiredUses = Math.ceil(totalBytes / request.grant.maxRangeBytes);
             if (requiredUses > request.grant.maxUses) throw new Error('PERMISSION_DENIED');
           } else {
+            if (length !== null && length > maximumBytes) throw new Error('TOO_LARGE');
             if (offset !== 0 || length === null || length > request.grant.maxRangeBytes) {
               throw new Error('INVALID_RESPONSE');
             }
@@ -157,6 +188,7 @@ export class TeamTransferClient {
           reader = response.body?.getReader();
           if (!reader || length === null || length < 1) throw new Error('INVALID_RESPONSE');
           let responseBytes = 0;
+          const rangeDigest = sourceDigest.copy();
           while (true) {
             throwIfAborted(signal);
             const { done, value } = await reader.read();
@@ -165,19 +197,28 @@ export class TeamTransferClient {
             if (
               responseBytes > request.grant.maxRangeBytes ||
               responseBytes > length ||
-              offset + responseBytes > MAX_TRANSFER_BYTES
+              offset + responseBytes > maximumBytes
             ) {
               await reader.cancel();
               throw new Error('TOO_LARGE');
             }
-            await handle.write(
-              value,
-              0,
-              value.byteLength,
-              offset + responseBytes - value.byteLength
-            );
+            let written = 0;
+            while (written < value.byteLength) {
+              throwIfAborted(signal);
+              const result = await handle.write(
+                value,
+                written,
+                value.byteLength - written,
+                offset + responseBytes - value.byteLength + written
+              );
+              if (result.bytesWritten < 1 || result.bytesWritten > value.byteLength - written)
+                throw new Error('INVALID_RESPONSE');
+              written += result.bytesWritten;
+            }
+            rangeDigest.update(value);
           }
           if (responseBytes !== length) throw new Error('INVALID_RESPONSE');
+          sourceDigest = rangeDigest;
           offset += responseBytes;
           request.onProgress?.(offset, totalBytes);
         } catch (error) {
@@ -191,7 +232,7 @@ export class TeamTransferClient {
           if (
             uses + remainingUses > request.grant.maxUses ||
             !transientTransferError(error) ||
-            retries >= 4 ||
+            retries >= maximumRetries ||
             uses >= request.grant.maxUses
           ) {
             throw error instanceof TypeError ? new Error('DRIVE_UNAVAILABLE') : error;
@@ -199,12 +240,20 @@ export class TeamTransferClient {
           retries += 1;
           await transferRetryDelay(Math.min(retries, 2) * 1000, signal);
         } finally {
-          await reader?.cancel().catch(() => undefined);
+          if (reader) {
+            await reader.cancel().catch(() => undefined);
+            reader.releaseLock();
+          } else await body?.cancel().catch(() => undefined);
         }
       }
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {
         throw new Error('INVALID_RESPONSE');
       }
+      throwIfAborted(signal);
+      if (sourceChecksum !== null && sourceDigest.digest('hex') !== sourceChecksum.toLowerCase())
+        throw new TeamSourceIntegrityError('checksum_mismatch');
+      if ((await handle.stat()).size !== totalBytes)
+        throw new TeamSourceIntegrityError('size_mismatch');
       let cleaned = false;
       return {
         workspace,
@@ -219,6 +268,8 @@ export class TeamTransferClient {
         }
       };
     } catch (error) {
+      // Windows cannot remove an open source file. Close before failed-download cleanup.
+      await handle.close().catch(() => undefined);
       await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       throw error;
     } finally {

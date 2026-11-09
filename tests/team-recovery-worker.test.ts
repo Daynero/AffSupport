@@ -7,7 +7,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TeamRecoveryWorker,
-  recoveryEndpoint
+  recoveryEndpoint,
+  type RecoveryWorkerOptions
 } from '../apps/agent/src/team-bridge/recovery-worker';
 import {
   RecoveryJournal,
@@ -57,7 +58,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
   for (const dir of dirs.splice(0)) await removeTemporaryDirectory(dir);
 });
-async function fixture(stage: 'claiming' | 'running' = 'claiming') {
+async function fixture(
+  stage: 'claiming' | 'running' = 'claiming',
+  overrides: Partial<Pick<RecoveryWorkerOptions, 'catalogVariants' | 'allowed'>> = {}
+) {
   vi.useFakeTimers({
     toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
   });
@@ -119,7 +123,8 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
     process,
     secrets,
     fetch: fetcher,
-    record
+    record,
+    ...overrides
   });
   workers.push(worker);
   return {
@@ -135,6 +140,76 @@ async function fixture(stage: 'claiming' | 'running' = 'claiming') {
   };
 }
 describe('background recovery worker', () => {
+  it('retains the original dispatch credential for closure-only bookkeeping after rights and current credentials change', async () => {
+    let allowed = true,
+      release!: () => void;
+    const wait = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const protectedProcess = vi.fn<
+      NonNullable<NonNullable<RecoveryWorkerOptions['catalogVariants']>['protectedProcess']>
+    >(async (request, _enroll, _signal, _authorize, complete) => {
+      await wait;
+      expect((_signal.reason as Error).message).toBe('PERMISSION_DENIED');
+      const closed = await complete('failed', 'RESTITCH_NO_SCREENS');
+      expect(closed.kind).toBe('terminal');
+      throw Error('RESTITCH_NO_SCREENS');
+    });
+    const f = await fixture('claiming', {
+      allowed: () => allowed,
+      catalogVariants: { nativeInstanceId: INSTALL, protectedProcess }
+    });
+    let snapshot = {
+      setId: JOB,
+      revision: 0,
+      children: [
+        {
+          index: 0,
+          requestId: REQUEST,
+          operationId: null as string | null,
+          state: 'queued',
+          outputId: null
+        }
+      ]
+    };
+    const completionHeaders: string[] = [];
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      let value: unknown;
+      if (body.action === 'variant_claim') value = { setId: JOB };
+      else if (body.action === 'variant_load') value = snapshot;
+      else if (body.action === 'variant_save') {
+        snapshot = body.snapshot;
+        value = { saved: true };
+      } else if (body.action === 'variant_reconcile') value = { kind: 'absent' };
+      else if (body.action === 'variant_admit') value = { operationId: OP };
+      else if (body.action === 'variant_dispatch') value = { executionAllowed: true };
+      else if (body.action === 'variant_process')
+        value = {
+          state: 'running',
+          agentContractVersion: 1,
+          ...brokerClaim().job,
+          transferUrl: 'http://127.0.0.1:54321/functions/v1/drive-transfer/range',
+          cloudBaseUrl: 'http://127.0.0.1:54321/functions/v1/drive-ops'
+        };
+      else if (body.action === 'variant_complete') {
+        completionHeaders.push(new Headers(init?.headers).get('x-team-recovery-credential') ?? '');
+        value = { kind: 'terminal', operationId: OP, state: 'failed' };
+      } else throw Error('unexpected private test action');
+      return new Response(JSON.stringify({ ok: true, value }));
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.waitFor(() => expect(protectedProcess).toHaveBeenCalledOnce());
+    f.getSecrets().claim = 'n'.repeat(43);
+    allowed = false;
+    await f.worker.prepareActorChange(null);
+    release();
+    await f.worker.idle();
+    expect(completionHeaders).toEqual(['c'.repeat(43)]);
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
+
   it('resends a durable screen failure after restart without executing the operation', async () => {
     const f = await fixture('running');
     f.setSecrets({
@@ -232,6 +307,7 @@ describe('background recovery worker', () => {
     await vi.advanceTimersByTimeAsync(0);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(f.fetcher.mock.calls[0][1]?.body)).restitchContractVersion).toBe(2);
     await vi.advanceTimersByTimeAsync(29000);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);
@@ -709,33 +785,47 @@ describe('background recovery worker', () => {
       });
     }
   );
-  it.each(['AUTH_REQUIRED', 'PERMISSION_DENIED', 'INVALID_INPUT', 'INVALID_RESPONSE'])(
-    'persists permanent %s without retries or execution after restart',
-    async code => {
-      const f = await fixture();
-      f.fetcher.mockResolvedValue(
-        new Response(JSON.stringify({ ok: false, error: { code } }), { status: 403 })
-      );
-      await f.worker.load();
-      await vi.advanceTimersByTimeAsync(0);
-      await f.worker.idle();
-      const reason = code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup';
-      expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason });
-      await vi.advanceTimersByTimeAsync(3_600_000);
-      await f.worker.idle();
-      expect(f.fetcher).toHaveBeenCalledOnce();
-      await f.worker.shutdown();
-      const restarted = new TeamRecoveryWorker(f.worker.options);
-      workers.push(restarted);
-      await restarted.load();
-      await vi.advanceTimersByTimeAsync(0);
-      await restarted.idle();
-      await expect(restarted.retry(TEAM)).rejects.toThrow('WRONG_STATE');
-      expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
-      expect(f.fetcher).toHaveBeenCalledOnce();
-      expect(f.process.process).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    'AUTH_REQUIRED',
+    'PERMISSION_DENIED',
+    'INVALID_INPUT',
+    'INVALID_RESPONSE',
+    'AGENT_UPDATE_REQUIRED'
+  ])('persists permanent %s without retries or execution after restart', async code => {
+    const f = await fixture();
+    f.fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code } }), { status: 403 })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    const reason = code === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup';
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_state',
+      expect.objectContaining({
+        team_id: TEAM,
+        stage: 'blocked',
+        reason,
+        error_code: code,
+        restitch_contract_version: 2,
+        request_id: expect.any(String)
+      })
+    );
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await f.worker.shutdown();
+    const restarted = new TeamRecoveryWorker(f.worker.options);
+    workers.push(restarted);
+    await restarted.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await restarted.idle();
+    await expect(restarted.retry(TEAM)).rejects.toThrow('WRONG_STATE');
+    expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
   it('cancels active work before removing its durable registration and never restores it', async () => {
     const f = await fixture();
     const order: string[] = [];

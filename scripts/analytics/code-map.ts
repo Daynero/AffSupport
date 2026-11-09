@@ -1,3 +1,5 @@
+import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
+import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
@@ -291,6 +293,31 @@ const PLAN_CHECK = (what: string) =>
   `Which input the stitch planner refused for ${what} and whether the rule is right.`;
 
 export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
+  ...Object.fromEntries(
+    RESTITCH_RECOVERY_ERROR_CODES.map(code => [
+      code,
+      {
+        stage: 'stitch',
+        agent: [
+          'apps/agent/src/team-bridge/screen-recovery.ts',
+          'supabase/functions/drive-ops/restitch-root.ts',
+          'supabase/migrations/20261207157000_restitch_candidate_versions.sql',
+          'supabase/migrations/20261207158000_restitch_pool_admission.sql',
+          'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-issue.ts',
+          'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+          'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
+          'supabase/functions/drive-ops/restitch-range-reader.ts',
+          'supabase/functions/drive-ops/restitch-range-source.ts',
+          'supabase/functions/drive-ops/restitch-selection-store.ts',
+          'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
+          'packages/shared/src/team/restitch-selection.ts'
+        ],
+        check:
+          'Inspect the bound slot budget and last confirmed acquisition. Complete pool exhaustion, remembered defects, resource limits and uncertain accounting are distinct; an unknown reservation never permits another transfer.'
+      }
+    ])
+  ),
   STITCH_INTERRUPTED: {
     stage: 'stitch',
     agent: [AGENT_STITCH_QUEUE],
@@ -388,8 +415,13 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
   },
   RESTITCH_SCREEN_UNSUPPORTED: {
     stage: 'stitch',
-    agent: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/agent/src/team-bridge/restitch.ts'],
-    check: 'Check that the selected picture is a supported static image within the size limit.'
+    agent: [
+      'apps/agent/src/team-bridge/screen-cache.ts',
+      'apps/agent/src/team-bridge/screen-decode.ts',
+      'apps/agent/src/team-bridge/restitch.ts'
+    ],
+    check:
+      'Check the strict managed decode, frame and pixel ceiling; metadata alone does not establish usable image bytes.'
   },
   STITCH_IMAGE_UNAVAILABLE: {
     stage: 'stitch',
@@ -814,6 +846,285 @@ function unique(files: string[]): string[] {
 
 function build(): Record<string, CodeLocation> {
   const map: Record<string, CodeLocation> = {};
+  for (const [code, source] of Object.entries(STITCH_CODES)) {
+    map[`team:process:${code}`] = {
+      files: [
+        ...source.agent,
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/web/src/team/restitch/useRestitchDelivery.ts'
+      ],
+      check: source.check
+    };
+  }
+  for (const code of ['AGENT_UPDATE_REQUIRED', 'RESTITCH_CLIENT_OUTDATED']) {
+    map[`team:process:${code}`] = {
+      files: [
+        'apps/web/src/api/client.ts',
+        'apps/web/src/team/restitch/claim.ts',
+        'apps/web/src/team/catalog-updater/useRestitchPreparer.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts',
+        'supabase/functions/team-recovery/handler.ts',
+        'apps/agent/src/team-bridge/recovery-worker.ts'
+      ],
+      check:
+        'Inspect the actual installed executor probe before the cloud claim. For native background claims inspect the installed executor declaration and durable replay, rather than assuming the broker version. An old local app and an old page need different recovery; refusal and idle claims do not prove processing or video delivery.'
+    };
+  }
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:RESTITCH_INVALID`] = {
+      files: [
+        'supabase/functions/drive-ops/restitch-root.ts',
+        'supabase/migrations/20261207158000_restitch_pool_admission.sql',
+        'apps/web/src/team/restitch/useRestitchDelivery.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts'
+      ],
+      check:
+        'The accepted settings or requested preparation are invalid. Confirm source mode, enabled slots and the immutable recipe; this refusal is not proof that every image is broken.'
+    };
+  map['restitch:selection:accounting'] = {
+    files: [
+      'supabase/functions/drive-ops/restitch-executor.ts',
+      'supabase/migrations/20261207160000_restitch_owned_executor.sql',
+      'supabase/functions/drive-ops/restitch-selection-store.ts',
+      'supabase/functions/drive-ops/restitch-range-reader.ts',
+      'supabase/functions/drive-ops/restitch-range-authority.ts',
+      'supabase/functions/drive-ops/restitch-range-issue.ts',
+      'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+      'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
+      'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
+      'supabase/functions/drive-ops/restitch-range-source.ts',
+      'supabase/migrations/20261207155000_restitch_selection_storage.sql',
+      'packages/shared/src/team/restitch-selection.ts'
+    ],
+    check:
+      'Inspect the original executor epoch, slot and exact reservation. Superseded claims never authorize new reads. A held range proves neither an upstream read nor its absence. Preserve unknown accounting and confirm recorded measurements before issuing more work.'
+  };
+  const materialLinkFiles = [
+    'supabase/functions/library-ops/share-resolution.ts',
+    'supabase/functions/library-ops/index.ts',
+    'supabase/migrations/20261207140000_material_share_intents.sql',
+    'apps/web/src/team/materials/useMaterialLink.ts',
+    'apps/web/src/team/materials/MaterialActionHost.tsx'
+  ];
+  for (const code of [
+    'CATALOG_LINK_UNAVAILABLE',
+    'CATALOG_LINK_SHARING_UNCERTAIN',
+    'CATALOG_LINK_REQUEST_EXPIRED',
+    'CATALOG_LINK_UPDATE_REQUIRED'
+  ])
+    map[`team:library:${code}`] = {
+      files: materialLinkFiles,
+      check:
+        'Separate the verified provider URL from visibility and permission intent. Inspect the retained per-file share receipt and opaque authority version. Unknown acknowledgement never permits another POST; read status with the original actor. An expired or legacy confirmation needs a fresh read, not an old mutation fallback.'
+    };
+  map['catalog:stop:*'] = {
+    files: [
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'apps/web/src/api/team.ts',
+      'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
+      'supabase/migrations/20261207137000_catalog_legacy_stop_hold.sql'
+    ],
+    check:
+      'Separate the browser Stop reply, read-only Check, visible feedback and current target attempt. Preserve provider and execution holds; never repeat a write to infer its result. Missing or conflicting evidence is unknown.'
+  };
+  map['team:library:PROCESS_RESULT_UNCERTAIN'] = {
+    files: [
+      'supabase/functions/drive-ops/mutation-preflight.ts',
+      'supabase/functions/drive-ops/index.ts',
+      'supabase/migrations/20261207149000_bulk_trash_overlap_fence.sql',
+      'apps/web/src/team/materials/file-operation-outcome.ts',
+      'apps/web/src/team/materials/tail.ts',
+      'apps/web/src/team/catalog/useMaterialActions.ts',
+      'apps/web/src/team/explorer/ExplorerShell.tsx',
+      'apps/web/src/team/catalog/TrashView.tsx'
+    ],
+    check:
+      'Inspect the exact file operation receipt and its accepted generation. Historical success does not confirm the material is still in that state. A fulfilled request with a non-success state does not confirm trash or restore, permit companion mutation or establish quiescence. A replacement bulk group cannot bypass unresolved overlapping files, folders or frozen members; reconcile the original group.'
+  };
+  map['team:library:CLIPBOARD_UNAVAILABLE'] = {
+    files: [
+      'apps/web/src/team/materials/useMaterialLink.ts',
+      'apps/web/src/team/materials/link-analytics.ts'
+    ],
+    check:
+      'Clipboard refused after URL resolution. The selectable URL must remain visible; Copy retries clipboard only, never provider sharing. Clipboard contents and use elsewhere remain unobservable.'
+  };
+  map['team:library:TEAM_TRANSPORT_UNAVAILABLE'] = {
+    files: [
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/useCatalogCommands.ts',
+      'apps/web/src/team/materials/useMaterialLink.ts'
+    ],
+    check:
+      'The browser fetch failed without a server response. Reconcile the retained command identity; connectivity failure does not prove an in-flight mutation was absent.'
+  };
+  const claimQuarantine = {
+    files: [
+      'supabase/functions/catalog-updater/claim-preparation.ts',
+      'supabase/migrations/20261207139000_catalog_claim_quarantine.sql'
+    ],
+    check:
+      'The current lease found an open round without a running matching attempt. Its old terminal and provider receipts were preserved; review them before releasing the quarantine. Healthy sibling claims may continue.'
+  };
+  map['team:library:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
+  map['catalog:update:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
+  const publicationPending = {
+    files: [
+      'supabase/functions/catalog-updater/worker.ts',
+      'supabase/functions/catalog-updater/nonvideo-writer.ts',
+      'supabase/functions/drive-ops/catalog-publication.ts',
+      'supabase/migrations/20261207169000_catalog_publication_jobs.sql',
+      'supabase/migrations/20261207177000_catalog_nonvideo_preservation.sql',
+      'supabase/migrations/20261207178000_catalog_growth_video_recipes.sql'
+    ],
+    check:
+      'Inspect the original ordinary attempt, frozen growth recipe and publication reservation. Nonvideo changes preserve stored video cells; pending row growth waits for its exact ready recipe. Read due time, hold and verified active delivery before retrying; a refusal proves no new delivery.'
+  };
+  const variantAuthority = {
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'apps/agent/src/team-bridge/native-restitch-controller.ts',
+      'supabase/functions/drive-ops/updater-variants.ts',
+      'supabase/functions/drive-ops/catalog-video-set-admission.ts',
+      'supabase/migrations/20261207168000_catalog_video_sets.sql',
+      'supabase/migrations/20261207172000_catalog_updater_video_variants.sql'
+    ],
+    check:
+      'Inspect the accepted set and original child request and server process identities. A provider-proof failure after admission retains the original manager command. Registered outputs do not prove catalog cells or browser delivery; unknown native work remains fenced.'
+  };
+  map['catalog:variants:*'] = variantAuthority;
+  for (const code of [
+    'UNKNOWN',
+    'SOURCE_CHANGED',
+    'PERMISSION_DENIED',
+    'RESTITCH_INVALID',
+    'DRIVE_UNAVAILABLE',
+    'RATE_LIMITED',
+    'PROCESS_RESULT_UNCERTAIN',
+    'INVALID_RESPONSE',
+    'SHARE_NOT_ALLOWED'
+  ])
+    map[`catalog:variants:${code}`] = variantAuthority;
+  map['team:library:CATALOG_PUBLICATION_PENDING'] = publicationPending;
+  map['catalog:update:CATALOG_PUBLICATION_PENDING'] = publicationPending;
+  const unsupportedPublication = {
+    files: [
+      'supabase/functions/catalog-updater/publication-authority.ts',
+      'supabase/functions/catalog-updater/publication-io.ts',
+      'supabase/functions/catalog-updater/publication-cells.ts',
+      'supabase/functions/catalog-updater/index.ts',
+      'supabase/migrations/20261207176000_catalog_video_cell_publication.sql'
+    ],
+    check:
+      'No supported cell writer is enabled for this target. Preserve the current delivery and inspect the job and writer capability; a saved schedule is not published delivery and does not authorize a whole-file replacement.'
+  };
+  map['team:library:CATALOG_WRITE_UNSUPPORTED'] = unsupportedPublication;
+  map['catalog:update:CATALOG_WRITE_UNSUPPORTED'] = unsupportedPublication;
+  map['catalog:update:PROCESS_RESULT_UNCERTAIN'] = {
+    files: [
+      'supabase/functions/catalog-updater/nonvideo-writer.ts',
+      'supabase/functions/catalog-updater/publication-cells.ts',
+      'supabase/functions/catalog-updater/index.ts',
+      'supabase/migrations/20261207177000_catalog_nonvideo_preservation.sql',
+      'supabase/migrations/20261207178000_catalog_growth_video_recipes.sql'
+    ],
+    check:
+      'Read the original attempt, exact cell receipt and current row binding. An atomic marker alone does not prove current cell delivery; reconcile cells without replaying a dispatched write or releasing its reservation.'
+  };
+
+  map['team:library:CATALOG_STOP_TARGET_UNKNOWN'] = {
+    files: [
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql'
+    ],
+    check:
+      'Stop was refused before dispatch because the manager had no observed round. Refresh the catalog state and target that exact round; never fall back to stopping an unobserved current operation.'
+  };
+  map['team:library:CATALOG_COMMAND_UNSUPPORTED'] = {
+    files: [
+      'apps/web/src/api/team.ts',
+      'supabase/migrations/20261207138000_catalog_command_receipts.sql'
+    ],
+    check:
+      'The command RPC is absent from the server schema cache. This rejected request did not start work; apply the matching backend contract before retrying. Never fall back to an untracked writer.'
+  };
+  map['team:library:CATALOG_COMMAND_STORAGE_UNAVAILABLE'] = {
+    files: [
+      'apps/web/src/team/catalog-updater/catalogCommandJournal.ts',
+      'apps/web/src/team/catalog-updater/catalogCommandCoordinator.ts',
+      'apps/web/src/team/workspace/mutationJournal.ts',
+      'apps/web/src/team/explorer/useBulkTrash.ts',
+      'apps/web/src/team/catalog/TrashView.tsx'
+    ],
+    check:
+      'The browser refused bounded pending-intent storage. A new request is not dispatched without its saved identity. A failure clearing a confirmed receipt is a local storage failure, not proof that the provider action failed. Do not infer that older unknown commands failed; reconcile their retained IDs.'
+  };
+  map['team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'] = {
+    files: [
+      'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
+      'supabase/migrations/20261207137000_catalog_legacy_stop_hold.sql',
+      'apps/web/src/api/team.ts',
+      'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx'
+    ],
+    check:
+      'The provider outcome is still being reconciled. Refresh the authoritative attempt; do not claim it stopped or replay a write.'
+  };
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:SOURCE_CHANGED`] = {
+      files: [
+        'apps/agent/src/team-bridge/transfer.ts',
+        'apps/agent/src/team-bridge/restitch-screen-download.ts',
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/agent/src/team-bridge/download.ts'
+      ],
+      check:
+        'Compare the accepted source with the native terminal stage and safe integrity reason. A checksum mismatch refuses the bytes before processing; metadata identity changes remain distinct. Missing checksum or historical detail does not prove byte verification, and a failed source is not evidence that every image is broken.'
+    };
+  map['team:download:CATALOG_EXPORT_TOO_LARGE'] = {
+    files: [
+      'supabase/functions/drive-transfer/catalog-export.ts',
+      'supabase/functions/_shared/drive.ts',
+      'supabase/functions/drive-transfer/index.ts',
+      'apps/web/src/team/catalog/useMaterialActions.ts'
+    ],
+    check:
+      'The authorized native catalog export exceeded the provider ceiling; changing the local downloader cannot increase that export limit.'
+  };
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:RESTITCH_SCREEN_SELECTION_LIMIT`] = {
+      files: [
+        'apps/agent/src/team-bridge/screen-decode.ts',
+        'apps/agent/src/team-bridge/screen-cache.ts',
+        'apps/web/src/team/restitch/screens.ts',
+        'supabase/functions/drive-ops/updater-restitch.ts'
+      ],
+      check:
+        'Inspect the consumed selection or scaled decode budget. A resource limit does not prove every image is broken and does not blacklist the source.'
+    };
+
+  for (const stage of ['download', 'process'])
+    for (const code of RESTITCH_RECOVERY_ERROR_CODES)
+      map[`team:${stage}:${code}`] = {
+        files: [
+          'apps/agent/src/team-bridge/screen-recovery.ts',
+          'apps/agent/src/team-bridge/restitch-screen-download.ts',
+          'supabase/functions/drive-ops/restitch-root.ts',
+          'supabase/functions/drive-ops/restitch-executor.ts',
+          'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-issue.ts',
+          'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+          'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
+          'supabase/functions/drive-ops/restitch-range-reader.ts',
+          'supabase/functions/drive-ops/restitch-range-source.ts',
+          'supabase/functions/drive-ops/restitch-selection-store.ts',
+          'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
+          'packages/shared/src/team/restitch-selection.ts'
+        ],
+        check:
+          'Inspect the original slot and acquisition, exact reservation and frozen provider mapping. A missing or canceled provider response cannot prove zero cost. Unknown accounting stops new transfers; only a complete eligible snapshot establishes exhaustion.'
+      };
+
   map['catalog:video:*'] = {
     files: [
       'apps/agent/src/team-bridge/restitch.ts',
@@ -823,14 +1134,30 @@ function build(): Record<string, CodeLocation> {
     check:
       'Inspect the correlated local journal and job operation. A generic processing failure does not prove native quiescence; retain provider and execution fences until the outcome is known.'
   };
+  map['journal:team:catalog_variant_stage'] = {
+    files: [
+      'apps/agent/src/team-bridge/catalog-variant-executor.ts',
+      'supabase/functions/drive-ops/catalog-video-set-store.ts',
+      'supabase/migrations/20261207168000_catalog_video_sets.sql'
+    ],
+    check:
+      'Read the original video set, child identity and bounded ready count. A prepared output is not a verified catalog publication; missing admission or dispatch evidence remains unknown.'
+  };
   map['journal:team:process_terminal'] = {
     files: [
+      'apps/agent/src/team-bridge/transfer.ts',
       'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/native-restitch-controller.ts',
       'supabase/functions/drive-ops/process-finalize.ts',
       'supabase/functions/drive-ops/handler.ts'
     ],
     check:
-      'Inspect operationId, last native stage and safe errorCode. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. Missing journal delivery leaves the cause unknown.'
+      'Inspect operationId, last native stage, safe errorCode and optional sourceIntegrityReason. Missing binary integrity detail stays unknown. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. The beta manual native controller correlates its terminal to the cloud root and preserves the trusted delivery phase when observed; an unknown phase must not be reconstructed. Missing journal delivery leaves the cause unknown.'
+  };
+  map['journal:team:screen_candidate_rejected'] = {
+    files: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/web/src/team/restitch/screens.ts'],
+    check:
+      'A confirmed file-specific image failure was persisted for the next random draw. Correlate the operation and material; network and disk failures do not blacklist candidates. Repaired versions and changed settings can be checked again.'
   };
   map['journal:team:screen_fetch_failed'] = {
     files: [
@@ -913,7 +1240,7 @@ function build(): Record<string, CodeLocation> {
     [
       'team:transfer',
       ['apps/agent/src/team-bridge/transfer.ts', 'apps/web/src/team/catalog/useMaterialActions.ts'],
-      'The upload or new-version transfer between the local app and team storage.'
+      'Inspect source range identity, measured binary checksum and upload acknowledgements between the local app and team storage.'
     ],
     [
       'team:process',
@@ -1002,6 +1329,10 @@ function build(): Record<string, CodeLocation> {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
   }
   const catalogGenerationFiles = [
+    'supabase/functions/drive-ops/catalog-initial-video-authority.ts',
+    'supabase/functions/drive-ops/catalog-initial-publication.ts',
+    'supabase/functions/drive-ops/catalog-initial-recovery.ts',
+    'supabase/migrations/20261207169000_catalog_publication_jobs.sql',
     'supabase/functions/drive-ops/product-catalog.ts',
     'supabase/functions/drive-ops/catalog-durable.ts',
     'supabase/functions/_shared/drive.ts',
@@ -1060,6 +1391,8 @@ function build(): Record<string, CodeLocation> {
   );
   map['launches:generation:LAUNCH_RESULT_UNCERTAIN'] = {
     files: [
+      'supabase/functions/drive-ops/launch-catalog-video.ts',
+      'supabase/migrations/20261207171000_launch_catalog_video_protocol.sql',
       'apps/web/src/team/launches/reply.ts',
       'apps/web/src/team/launches/useLaunchProgressWatch.ts',
       'apps/web/src/team/launches/preparation.ts',
@@ -1081,11 +1414,15 @@ function build(): Record<string, CodeLocation> {
   };
   map['launches:generation:AGENT_REQUIRED'] = {
     files: [
+      'supabase/functions/drive-ops/launch-catalog-video.ts',
+      'apps/agent/src/team-bridge/catalog-video-foreground.ts',
+      'apps/web/src/api/catalog-video-foreground-client.ts',
+      'supabase/migrations/20261207180000_catalog_foreground_authority.sql',
       'apps/web/src/team/launches/restitch-runner.ts',
       'supabase/migrations/20261201153000_launch_restitch_waiting_reason.sql'
     ],
     check:
-      'The frozen preparation is waiting for the paired local agent. Connect the agent and resume the same generation; do not create another Launch or redraw screens.'
+      'Before admission, distinguish a missing paired session executor from a transport failure using the original enrollment and request. Verified READY reuse needs no new executor. Manual work has a one-set native proof; do not enable broad recovery. Inspect current session validity, exact set binding, native redemption and physical child receipts separately. Preserve frozen identities and unknown provider outcomes during recovery.'
   };
   map['launches:generation:UNKNOWN'] = {
     files: [
@@ -1103,6 +1440,8 @@ function build(): Record<string, CodeLocation> {
     'RESTITCH_INVALID',
     'RESTITCH_NO_SCREENS',
     'RESTITCH_POOL_EMPTY',
+    'RESTITCH_SCREEN_SELECTION_LIMIT',
+    ...RESTITCH_RECOVERY_ERROR_CODES,
     'RESTITCH_SOURCES_INVALID',
     'RESTITCH_CLIENT_OUTDATED',
     'RESTITCH_SCREEN_UNAVAILABLE',
@@ -1127,6 +1466,37 @@ function build(): Record<string, CodeLocation> {
         'Inspect the bound child operation and its last proven stage. For missing screens, verify the effective shared or personal pool and source version; the Launch recovery link opens restitch settings. Retry explicitly with the frozen preparation; never restart a running or successful child.'
     };
   }
+  // 047: a catalog video variant child reports its exact stitch/body/screen failure to Launch.
+  for (const code of STITCH_ERROR_CODES) {
+    const fingerprint = `launches:generation:${code}`;
+    if (map[fingerprint]) continue;
+    map[fingerprint] = {
+      files: [
+        'apps/agent/src/stitcher/plan.ts',
+        'apps/agent/src/stitcher/run.ts',
+        'apps/agent/src/stitcher/verify.ts',
+        'apps/agent/src/stitcher/body-cache.ts',
+        'apps/agent/src/stitcher/silence.ts',
+        'apps/agent/src/team-bridge/process.ts',
+        'packages/shared/src/stitch-errors.ts',
+        'supabase/functions/drive-ops/catalog-video-generation.ts',
+        'supabase/functions/drive-ops/launch-catalog-video.ts'
+      ],
+      check:
+        'A variant child failed with this exact stitch code; the Launch keeps it instead of a generic wait. Inspect the child operation and its source (codec, frame rate, container) before retrying. Retrying the same source with an unsupported codec fails the same way; cancel and choose a compatible source.'
+    };
+  }
+  if (!map['launches:generation:PROCESS_RESULT_UNCERTAIN'])
+    map['launches:generation:PROCESS_RESULT_UNCERTAIN'] = {
+      files: [
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/agent/src/team-bridge/catalog-video-foreground.ts',
+        'supabase/functions/drive-ops/launch-catalog-video.ts',
+        'supabase/migrations/20261207181000_catalog_video_cancellation_settlement.sql'
+      ],
+      check:
+        'A variant child outcome is unknown. Reconcile the original operation and its upload receipt with the same key; never rerun media for an unknown child.'
+    };
   map['launches:generation:WRONG_STATE'] = {
     files: [
       'supabase/migrations/20261206148000_launch_current_assignments.sql',
@@ -1361,8 +1731,26 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
     check:
       'Inspect the captured new-output identity, grant deadline, cleanup lease, durable mutation and adoption reservation and conditional v2 provider readback. A pending 404 or lost upload reply does not prove absence. Preserve original, published, moved or modified files; never retry the processing operation blindly.'
   },
+  'material:group:execution': {
+    files: [
+      'supabase/migrations/20261207161000_material_group_claim_epochs.sql',
+      'supabase/migrations/20261207151000_material_group_execution.sql',
+      'supabase/migrations/20261207152000_confirmed_material_group_reconciliation.sql',
+      'supabase/migrations/20261207153000_material_group_late_failure.sql',
+      'supabase/migrations/20261207154000_material_group_observed_completion.sql',
+      'supabase/functions/_shared/library.ts',
+      'supabase/functions/_shared/operations.ts',
+      'supabase/functions/drive-ops/index.ts',
+      'supabase/functions/library-ops/index.ts'
+    ],
+    check:
+      'Inspect immutable managed nonce, executor closure, pending member and confirmed counts. A reserved member is not proof that a provider write started; a lost reply cannot authorize another PATCH. Legacy unclassified execution remains unknown. A positive no-pending closure permits only the original intent to resume after current rights and source checks. Provider-confirmed members do not prove registration or browser delivery.'
+  },
   'workspace:receipt': {
     files: [
+      'supabase/functions/drive-ops/material-historical-receipt.ts',
+      'supabase/migrations/20261207167000_material_historical_receipts.sql',
+      'apps/web/src/team/explorer/BulkTrashPanel.tsx',
       'supabase/migrations/20261205122000_task_attachment_cleanup.sql',
       'supabase/migrations/20261206140500_launch_offer_defaults_reference_fence.sql',
       'supabase/migrations/20261205121000_bulk_trash_receipts.sql',
@@ -1371,10 +1759,14 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'supabase/functions/drive-ops/index.ts',
       'supabase/functions/drive-ops/task-cleanup.ts',
       'apps/web/src/team/tasks/TaskEditor.tsx',
-      'apps/web/src/team/explorer/useBulkTrash.ts'
+      'apps/web/src/team/explorer/useBulkTrash.ts',
+      'apps/web/src/team/catalog/TrashView.tsx',
+      'supabase/functions/drive-ops/handler.ts',
+      'supabase/migrations/20261207146000_restore_diagnostic_projection.sql',
+      'supabase/migrations/20261207147000_bulk_trash_retry_provenance.sql'
     ],
     check:
-      'For bulk trash inspect source_kind: trash_prepare (hosted retry preparation), trash_mark_request (request marker), trash_request (file-operation call including companion cleanup), trash_reconcile (receipt read), trash_refresh (initial read), trash_overlap (existing in-flight selection), trash_start (group acceptance). A call error cannot prove provider nonexecution. Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals become failed only while the operation remains pending without a lifecycle intent. An advanced or previously unknown write retains reconciliation. A refusal before Soty authorization has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
+      'For restore inspect its actor-bound request, hosted operation state and committed visible result; a missing reply is unknown and cannot prove nonexecution. For bulk trash inspect source_kind: trash_prepare (hosted retry preparation), trash_mark_request (request marker), trash_request (file-operation call including companion cleanup), trash_reconcile (receipt read), trash_refresh (initial read), trash_overlap (existing in-flight selection), trash_start (group acceptance). A call error cannot prove provider nonexecution. Reconcile the durable receipt, current rights and known references before retrying. Fresh trash metadata refusals record preflight_refused only while the operation remains pending without a lifecycle intent. A historical failed or canceled receipt alone cannot authorize a new provider key. An advanced or previously unknown write retains reconciliation. A refusal before Soty approval has no new receipt. Missing or disabled consumer fences retain files as cleanup_unverified; an existing reference yields cleanup_referenced. A late reference after a cleanup claim is rejected with WRONG_STATE. Missing provider or visible delivery remains unknown.'
   },
   ...Object.fromEntries(
     RECOVERY_REASONS.map(reason => [
@@ -1492,8 +1884,12 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'Inspect shared eligibility predicates, lease deadlines and retained operation receipts. Preserve execution and upload fences; a current snapshot cannot establish a historical rejection.'
   },
   'journal:team:recovery_state': {
-    files: ['apps/agent/src/team-bridge/recovery-worker.ts'],
-    check: 'Inspect the persisted recovery checkpoint and current dependency.'
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'supabase/functions/team-recovery/handler.ts'
+    ],
+    check:
+      'Inspect the correlated request, installed restitch_contract_version and closed error_code alongside the persisted checkpoint. A proven pre-lease executor refusal closes only its no-job receipt; lost bookkeeping or unknown Drive outcomes remain fenced. Older producers may omit the cause, which remains unknown.'
   },
   'tariff:recovery:execution_reserved': {
     files: [

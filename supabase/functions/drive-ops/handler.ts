@@ -4,6 +4,15 @@ import { isRecord } from '../_shared/validation.ts';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const IDEMPOTENCY_KEY = /^[a-z0-9][a-z0-9._:-]{7,199}$/iu;
 const MAX_NAME_LENGTH = 255;
+
+/** The request's actor is fixed before the client's asynchronous token acquisition. */
+export function assertExpectedMutationActor(expected: unknown, authenticatedActor: string): void {
+  if (typeof expected !== 'string' || !UUID.test(expected))
+    throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
+  if (expected.toLowerCase() !== authenticatedActor.toLowerCase())
+    throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+}
+
 export const MAX_TEXT_EDIT_BYTES = 1024 * 1024;
 export const UPLOAD_CHUNK_MULTIPLE_BYTES = 256 * 1024;
 export const BROWSER_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024;

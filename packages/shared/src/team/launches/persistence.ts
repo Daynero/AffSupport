@@ -1,3 +1,5 @@
+import { parseLaunchCatalogVideoConfig } from './catalog-video.js';
+import { parseCatalogVideoRowProgress } from '../catalog-video-progress.js';
 import { parseLaunchNotes } from './notes.js';
 import { parseLaunchAssignmentState } from '../launch-assignment.js';
 import { isRecord } from '../contract.js';
@@ -65,6 +67,7 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
       isRecord(v) &&
       typeof v.productCount === 'number' &&
       typeof v.restitchEnabled === 'boolean' &&
+      parseLaunchCatalogVideoConfig(v, false) !== null &&
       (v.finalDurationMode === 'random-30-40' ||
         v.finalDurationMode === 'random-40-50' ||
         v.finalDurationMode === 'random-50-60' ||
@@ -81,6 +84,7 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
           v.finalDurationRangeSeconds[0] <= v.finalDurationRangeSeconds[1]))
     )
       result.catalog = {
+        ...parseLaunchCatalogVideoConfig(v, false)!,
         productCount: v.productCount,
         restitchEnabled: v.restitchEnabled,
         finalDurationMode: v.finalDurationMode,
@@ -234,6 +238,9 @@ export function parseLaunchGeneration(value: unknown): LaunchGeneration | null {
     return null;
   const state = LAUNCH_GENERATION_STATES.find(s => s === value.state);
   if (!state) return null;
+  const videoGeneration =
+    value.videoGeneration == null ? null : parseCatalogVideoRowProgress(value.videoGeneration);
+  if (value.videoGeneration != null && !videoGeneration) return null;
   let steps: LaunchGenerationStep[] | undefined;
   if (value.steps !== undefined) {
     if (!Array.isArray(value.steps) || value.steps.length > 50) return null;
@@ -262,6 +269,7 @@ export function parseLaunchGeneration(value: unknown): LaunchGeneration | null {
   }
   return {
     id: value.id,
+    ...(value.videoGeneration === undefined ? {} : { videoGeneration }),
     ...(typeof value.attemptNo === 'number' ? { attemptNo: value.attemptNo } : {}),
     ...(typeof value.requestKey === 'string' ? { requestKey: value.requestKey } : {}),
     ...(typeof value.inputVersion === 'string' ? { inputVersion: value.inputVersion } : {}),

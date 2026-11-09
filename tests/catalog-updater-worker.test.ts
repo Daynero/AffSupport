@@ -992,3 +992,68 @@ describe('R2 ready dictionary integration', () => {
     expect(deps.retry).toHaveBeenCalledWith('a', 'IMAGE_TEXT_PAIRING_CONFLICT', expect.any(Date));
   });
 });
+
+it('refuses legacy video replacement before any provider IO when publication owns the catalog', async () => {
+  const h = setup({ batches: [[claimedRow('a')]] });
+  h.deps.authorizeLegacyVideoWrite = vi.fn(async () => false);
+  const result = await runCatalogUpdaterTick(h.deps, { budgetMs: 8000 });
+  expect(result.updated).toBe(0);
+  expect(result.failed).toBe(1);
+  expect(h.deps.driveFor).not.toHaveBeenCalled();
+  expect(h.deps.retry).toHaveBeenCalledWith('a', 'CATALOG_PUBLICATION_PENDING', expect.any(Date));
+});
+
+it('refreshes ordinary fields before due while preserving exact stored old video cells and leaving policy/spare alone', async () => {
+  const h = setup({
+    batches: [
+      [
+        claimedRow('a', {
+          refresh_texts: true,
+          spare_material_id: 'pending-copy',
+          spare_link: 'https://fixture.invalid/PENDING'
+        })
+      ]
+    ]
+  });
+  h.deps.authorizeLegacyVideoWrite = vi.fn(async () => false);
+  const write = vi.fn(async () => {}),
+    verify = vi.fn(async () => {});
+  h.deps.prepareNonVideoUpdate = vi.fn(async () => ({
+    contextToken: 'sealed',
+    productCount: 3,
+    videoCells: Array.from({ length: 3 }, (_, i) => `https://fixture.invalid/ACTIVE?row=${i}`),
+    write,
+    verify
+  }));
+  const result = await runCatalogUpdaterTick(h.deps, { budgetMs: 8000 });
+  expect(result.updated).toBe(1);
+  expect(h.drive.updateConvertedFile).not.toHaveBeenCalled();
+  expect(write).toHaveBeenCalledTimes(1);
+  expect(verify).toHaveBeenCalledTimes(1);
+  const rows = write.mock.calls[0][0],
+    column = 25;
+  expect(rows.slice(2).map(row => row[column].v)).toEqual(
+    Array.from({ length: 3 }, (_, i) => `https://fixture.invalid/ACTIVE?row=${i}`)
+  );
+  expect(JSON.stringify(rows)).not.toContain('/PENDING');
+  expect(h.deps.beginWrite).toHaveBeenCalledWith(
+    'a',
+    expect.objectContaining({ nonVideoContextToken: 'sealed', swappedCopy: null })
+  );
+  expect(h.deps.complete).toHaveBeenCalledWith('a', expect.any(Number), null, expect.any(Object));
+});
+it('waits for a frozen row recipe before growth rather than silently dropping the profile flag', async () => {
+  const h = setup({ batches: [[claimedRow('a', { grow_products: true })]] });
+  h.deps.authorizeLegacyVideoWrite = vi.fn(async () => false);
+  h.deps.prepareNonVideoUpdate = vi.fn(async () => ({
+    contextToken: 'sealed',
+    productCount: 3,
+    videoCells: Array(3).fill(''),
+    write: vi.fn(),
+    verify: vi.fn()
+  }));
+  const result = await runCatalogUpdaterTick(h.deps, { budgetMs: 8000 });
+  expect(result.updated).toBe(0);
+  expect(h.deps.retry).toHaveBeenCalledWith('a', 'CATALOG_PUBLICATION_PENDING', expect.any(Date));
+  expect(h.deps.beginWrite).not.toHaveBeenCalled();
+});

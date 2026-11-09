@@ -1,3 +1,26 @@
+import { catalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
+import type { CatalogForegroundExecutor } from './catalog-video-foreground';
+import {
+  isCatalogUpdaterVariantsSnapshot,
+  type CatalogUpdaterVariantsSnapshot
+} from './catalog-updater-variants';
+import {
+  parseCatalogVideoRowProgress,
+  type CatalogVideoRowProgress
+} from './catalog-video-row-progress';
+import {
+  isCatalogCreatedVideoProgress,
+  type CatalogCreatedVideoProgress,
+  isCatalogVideoPreparingResult,
+  type CatalogVideoCreationPreferences,
+  type CatalogVideoPreparingResult
+} from './catalog-video-creation';
+import {
+  parseCatalogPublicationSnapshot,
+  type CatalogPublicationCommand
+} from '@video-compressor/shared';
+import { privateCacheActor } from '../team/private-cache-scope';
+import { FunctionsFetchError } from '@supabase/supabase-js';
 import {
   executeTariffGrant,
   pendingTariffGrant,
@@ -6,10 +29,16 @@ import {
 import { catalogImageClient } from './team-catalog-images';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
+  normalizeCatalogCommandRequest,
+  parseCatalogCommandReceipt,
+  isCatalogCommandUuid,
+  type CatalogCommandRequest,
+  type CatalogCommandReceipt,
   isTaskCleanupReceipt,
   type TaskCleanupReceipt,
   isBulkTrashGroup,
   type BulkTrashGroup,
+  RESTITCH_CONTRACT_VERSION,
   MATERIAL_CATEGORIES,
   TEAM_BASE_ROLES,
   TEAM_ERROR_CODES,
@@ -127,7 +156,6 @@ import {
   parseMaterialRestitchPrep,
   parseRestitchDrawResult,
   parseRestitchSourcesListing,
-  RESTITCH_CONTRACT_VERSION,
   parseTeamRestitchDefaults,
   type MaterialRestitchPrep,
   type TeamRestitchDefaults,
@@ -204,6 +232,20 @@ export class TeamApiError extends Error {
     this.retryable = retryable;
     this.details = details;
   }
+}
+
+export interface CatalogMutationOptions {
+  expectedActorId: string;
+  signal?: AbortSignal;
+}
+/** Capture before session acquisition; the server refuses a replacement account. */
+function catalogMutationActor(options?: CatalogMutationOptions): string {
+  if (options !== undefined && (!options || typeof options.expectedActorId !== 'string'))
+    throw new TeamApiError('INVALID_INPUT', false);
+  const actor = options?.expectedActorId ?? privateCacheActor();
+  if (actor === null || actor === undefined) throw new TeamApiError('AUTH_REQUIRED', false);
+  if (!isCatalogCommandUuid(actor)) throw new TeamApiError('INVALID_INPUT', false);
+  return actor.toLowerCase();
 }
 
 export interface TeamContextSnapshot {
@@ -285,6 +327,8 @@ export interface ProductCatalogText {
 }
 
 export interface ProductCatalogCreateResult {
+  videoGeneration?: CatalogCreatedVideoProgress;
+  videoGenerationObservation?: CatalogCreatedVideoProgress;
   outcome: 'created' | 'recreated' | 'existing';
   /** The server names the sheet by `materialId`; a sheet it just made has no `createdAt` yet. */
   catalog: {
@@ -299,8 +343,29 @@ export interface ProductCatalogCreateResult {
   videoShared: boolean;
 }
 
+export interface CatalogListSnapshot<T> {
+  rows: T[];
+  invalidRowCount: number;
+}
+
+function catalogListSnapshotFrom<T>(
+  data: unknown,
+  parse: (value: unknown) => T | null
+): CatalogListSnapshot<T> {
+  if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+  const rows: T[] = [];
+  let invalidRowCount = 0;
+  for (const value of data) {
+    const row = parse(value);
+    if (row) rows.push(row);
+    else invalidRowCount++;
+  }
+  return { rows, invalidRowCount };
+}
+
 /** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
 export interface CatalogRegistryRow {
+  videoGeneration?: CatalogVideoRowProgress | null;
   catalogId: string;
   name: string;
   sheetUrl: string;
@@ -322,6 +387,12 @@ export interface CatalogRegistryRow {
   /** The stage the background worker last confirmed; survives page reloads. */
   updateStage: CatalogUpdateStage | null;
   /** Live progress of the video copy, reported by the member's local app. */
+  /** Missing on older servers; null means the new snapshot observed no active identity. */
+  runtimeObservedAt?: string;
+  activeRoundAt?: string | null;
+  activeAttemptId?: string | null;
+  progressAttemptId?: string | null;
+  restitchOperationId?: string | null;
   restitchProgress: number | null;
   restitchStage: 'downloading' | 'processing' | 'uploading' | 'finalizing' | null;
   /** The provider id of the folder the sheet is in; null at the space root. */
@@ -339,6 +410,7 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
   const growProducts = get('growProducts', 'grow_products');
   const randomLinkVariation = get('randomLinkVariation', 'random_link_variation');
   const restitch = row.restitch;
+  const videoVariantCount = get('videoVariantCount', 'video_variant_count');
   const updatedAt = get('updatedAt', 'updated_at');
   const lastErrorAt = get('lastErrorAt', 'last_error_at');
   const lastResult = get('lastResult', 'last_result');
@@ -357,7 +429,13 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
     typeof restitch !== 'boolean' ||
     typeof row.version !== 'number' ||
     !Number.isSafeInteger(row.version) ||
-    typeof updatedAt !== 'string'
+    row.version < 1 ||
+    (videoVariantCount !== undefined &&
+      (!Number.isSafeInteger(videoVariantCount) ||
+        Number(videoVariantCount) < 1 ||
+        Number(videoVariantCount) > 400)) ||
+    typeof updatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(updatedAt))
   )
     return null;
   const schedule = asRecord(row.schedule);
@@ -387,6 +465,7 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
     growProducts,
     randomLinkVariation,
     restitch,
+    ...(typeof videoVariantCount === 'number' ? { videoVariantCount } : {}),
     version: row.version,
     updatedAt,
     lastErrorAt: typeof lastErrorAt === 'string' ? lastErrorAt : null,
@@ -532,8 +611,25 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     typeof row.video_id !== 'string' ||
     typeof row.video_name !== 'string' ||
     typeof row.product_count !== 'number' ||
+    !Number.isSafeInteger(row.product_count) ||
+    row.product_count < 0 ||
     typeof row.created_at !== 'string' ||
+    !Number.isFinite(Date.parse(row.created_at)) ||
     typeof row.update_count !== 'number' ||
+    !Number.isSafeInteger(row.update_count) ||
+    row.update_count < 0 ||
+    (row.last_updated_at != null &&
+      (typeof row.last_updated_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.last_updated_at)))) ||
+    (row.next_run_at != null &&
+      (typeof row.next_run_at !== 'string' || !Number.isFinite(Date.parse(row.next_run_at)))) ||
+    (row.update_interval != null && parseUpdaterInterval(row.update_interval) === null) ||
+    (Object.prototype.hasOwnProperty.call(row, 'update_pending') &&
+      typeof row.update_pending !== 'boolean') ||
+    (Object.prototype.hasOwnProperty.call(row, 'active_round_at') &&
+      row.active_round_at !== null &&
+      (typeof row.active_round_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.active_round_at)))) ||
     typeof row.in_updater !== 'boolean'
   ) {
     return null;
@@ -565,6 +661,19 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
       row.update_stage === 'finalizing'
         ? row.update_stage
         : null,
+    ...(Object.prototype.hasOwnProperty.call(row, 'active_round_at')
+      ? {
+          activeRoundAt: typeof row.active_round_at === 'string' ? row.active_round_at : null,
+          activeAttemptId: typeof row.active_attempt_id === 'string' ? row.active_attempt_id : null,
+          progressAttemptId:
+            typeof row.progress_attempt_id === 'string' ? row.progress_attempt_id : null,
+          restitchOperationId:
+            typeof row.restitch_operation_id === 'string' ? row.restitch_operation_id : null
+        }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(row, 'video_generation')
+      ? { videoGeneration: parseCatalogVideoRowProgress(row.video_generation) }
+      : {}),
     restitchProgress:
       typeof row.restitch_progress === 'number' &&
       Number.isInteger(row.restitch_progress) &&
@@ -616,6 +725,14 @@ function productCatalogCreateGuard(value: unknown): value is ProductCatalogCreat
     catalog &&
     ['created', 'recreated', 'existing'].includes(String(row.outcome)) &&
     typeof row.videoShared === 'boolean' &&
+    (row.videoGeneration === undefined ||
+      (isCatalogCreatedVideoProgress(row.videoGeneration) &&
+        row.videoGeneration.requestedCount <= Number(catalog.productCount))) &&
+    (row.videoGenerationObservation === undefined ||
+      (isCatalogCreatedVideoProgress(row.videoGenerationObservation) &&
+        row.videoGenerationObservation.requestedCount <= Number(catalog.productCount) &&
+        (row.videoGeneration === undefined ||
+          row.videoGeneration.videoSetId === row.videoGenerationObservation.videoSetId))) &&
     typeof catalog.materialId === 'string' &&
     typeof catalog.name === 'string' &&
     typeof catalog.sheetUrl === 'string' &&
@@ -651,18 +768,24 @@ export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
   guard: UnknownGuard<T>,
-  options: { method?: 'GET' | 'POST' } = {}
+  options: { method?: 'GET' | 'POST'; signal?: AbortSignal } = {}
 ): Promise<T> {
   const supabase = requireSupabaseClient();
   const { data, error } = await supabase.functions.invoke(
     functionName,
-    options.method === 'GET' ? { method: 'GET' } : { body }
+    options.method === 'GET'
+      ? { method: 'GET', ...(options.signal ? { signal: options.signal } : {}) }
+      : { body, ...(options.signal ? { signal: options.signal } : {}) }
   );
   let payload = data;
   if (error && data === null) {
     payload = await envelopeFromInvokeError(error);
     // A transport failure carries no envelope at all; that alone is retryable.
-    if (payload === null) throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    if (payload === null) {
+      if (error instanceof FunctionsFetchError)
+        throw new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
+      throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+    }
   }
   const parsed = parseTeamEdgeResult(payload);
   if (!parsed.ok) {
@@ -1367,6 +1490,15 @@ function abortable<T extends { abortSignal: (signal: AbortSignal) => T }>(
 function throwRpc(error: { message: string; code?: string } | null): void {
   if (!error) return;
   if (/^AbortError\b/.test(error.message)) throw new RequestAbortedError();
+  // PostgREST wraps rejected fetches as a status-0 error with an empty code.
+  // Recognize only its known browser transport messages, never SQL text alone.
+  if (
+    !error.code &&
+    /^TypeError: (?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/u.test(
+      error.message
+    )
+  )
+    throw new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
   // A unique index that fired before the function's own check could — two
   // people naming the same account in the same second — arrives as bare
   // SQLSTATE 23505 with no uppercase token in it. It means the same thing.
@@ -1556,6 +1688,7 @@ function mapTrashedMaterial(value: unknown): TeamTrashedMaterial | null {
     typeof row.name !== 'string' ||
     !isMaterialKind(row.kind) ||
     typeof row.trashed_at !== 'string' ||
+    !Number.isFinite(Date.parse(row.trashed_at)) ||
     (row.parent_path_hint !== null && typeof row.parent_path_hint !== 'string')
   ) {
     return null;
@@ -2312,6 +2445,71 @@ export const teamApi = {
     });
   },
 
+  async listCatalogManagerSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogRegistryRow>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_manager_snapshot', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    const payload = asRecord(data);
+    if (!payload) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (
+      payload.observed_at !== undefined &&
+      (typeof payload.observed_at !== 'string' || !Number.isFinite(Date.parse(payload.observed_at)))
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    const observation =
+      typeof payload.observed_at === 'string' ? { runtimeObservedAt: payload.observed_at } : {};
+    const catalogs = catalogListSnapshotFrom(payload.catalogs, catalogRegistryRowFrom);
+    const profiles = catalogListSnapshotFrom(payload.profiles, value =>
+      catalogUpdateProfileFrom(value, true)
+    );
+    const byId = new Map(profiles.rows.map(profile => [profile.catalogId, profile]));
+    let invalidRowCount = catalogs.invalidRowCount + profiles.invalidRowCount;
+    const rows = catalogs.rows.flatMap(row => {
+      const profile = byId.get(row.catalogId);
+      if (!profile) {
+        invalidRowCount += 1;
+        return [];
+      }
+      return [{ ...row, profile, ...observation }];
+    });
+    return { rows, invalidRowCount };
+  },
+
+  async listTeamProductCatalogSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogRegistryRow>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_product_catalogs', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    return catalogListSnapshotFrom(data, catalogRegistryRowFrom);
+  },
+
+  async listCatalogUpdateProfileSnapshot(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogListSnapshot<CatalogUpdateProfile>> {
+    const { data, error } = await withFreshSession(() =>
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_update_profiles', { p_team: teamId }),
+        options
+      )
+    );
+    throwRpc(error);
+    return catalogListSnapshotFrom(data, value => catalogUpdateProfileFrom(value, true));
+  },
+
   async listTeamProductCatalogs(
     teamId: string,
     options: { signal?: AbortSignal } = {}
@@ -2324,9 +2522,10 @@ export const teamApi = {
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
-    return data.flatMap(row => {
+    return data.map(row => {
       const parsed = catalogRegistryRowFrom(row);
-      return parsed ? [parsed] : [];
+      if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+      return parsed;
     });
   },
 
@@ -2342,36 +2541,52 @@ export const teamApi = {
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
-    return data
-      .map(row => catalogUpdateProfileFrom(row, true))
-      .filter((profile): profile is CatalogUpdateProfile => profile !== null);
+    return data.map(row => {
+      const profile = catalogUpdateProfileFrom(row, true);
+      if (!profile) throw new TeamApiError('INVALID_RESPONSE', false);
+      return profile;
+    });
   },
 
   async listCatalogUpdateAttempts(
     teamId: string,
-    catalogId: string
+    catalogId: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<CatalogUpdateAttempt[]> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_catalog_update_attempts', {
-        p_team: teamId,
-        p_catalog: catalogId,
-        p_limit: 10
-      })
+      abortable(
+        requireSupabaseClient().rpc('list_team_catalog_update_attempts', {
+          p_team: teamId,
+          p_catalog: catalogId,
+          p_limit: 10
+        }),
+        options
+      )
     );
     throwRpc(error);
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     const allowed = new Set(['running', 'success', 'partial', 'failed', 'cancelled', 'unknown']);
-    return data.flatMap(value => {
+    const attempts = data.flatMap<CatalogUpdateAttempt>(value => {
       const row = asRecord(value);
       if (
         !row ||
         typeof row.attempt_id !== 'string' ||
-        typeof row.catalog_material_id !== 'string' ||
+        row.catalog_material_id !== catalogId ||
         (row.trigger_kind !== 'schedule' &&
           row.trigger_kind !== 'manual' &&
           row.trigger_kind !== 'retry' &&
           row.trigger_kind !== 'unknown') ||
         typeof row.started_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.started_at)) ||
+        (row.ended_at != null &&
+          (typeof row.ended_at !== 'string' || !Number.isFinite(Date.parse(row.ended_at)))) ||
+        (row.delivery_verified_at != null &&
+          (typeof row.delivery_verified_at !== 'string' ||
+            !Number.isFinite(Date.parse(row.delivery_verified_at)))) ||
+        (row.profile_version != null &&
+          (typeof row.profile_version !== 'number' ||
+            !Number.isSafeInteger(row.profile_version) ||
+            row.profile_version < 1)) ||
         typeof row.result !== 'string' ||
         !allowed.has(row.result)
       )
@@ -2397,7 +2612,8 @@ export const teamApi = {
                     'verifying',
                     'finalizing'
                   ].includes(stage.stage) &&
-                  typeof stage.at === 'string'
+                  typeof stage.at === 'string' &&
+                  Number.isFinite(Date.parse(stage.at))
                   ? [
                       {
                         stage: stage.stage as NonNullable<
@@ -2453,22 +2669,36 @@ export const teamApi = {
         }
       ];
     });
+    if (attempts.length !== data.length) throw new TeamApiError('INVALID_RESPONSE', false);
+    return attempts;
   },
 
   async patchCatalogUpdateProfile(
     teamId: string,
     catalogId: string,
     expectedVersion: number,
-    patch: CatalogUpdateProfilePatch
+    patch: CatalogUpdateProfilePatch,
+    options?: CatalogMutationOptions
   ): Promise<CatalogUpdateProfile> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('patch_team_catalog_update_profile', {
-        p_team: teamId,
-        p_catalog: catalogId,
-        p_expected_version: expectedVersion,
-        p_patch: { ...patch, schedule: patch.schedule ? { ...patch.schedule } : patch.schedule }
-      })
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('patch_team_catalog_update_profile_as_actor', {
+            p_team: teamId,
+            p_catalog: catalogId,
+            p_expected_version: expectedVersion,
+            p_patch: {
+              ...patch,
+              schedule: patch.schedule ? { ...patch.schedule } : patch.schedule
+            },
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     const parsed = catalogUpdateProfileFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2492,11 +2722,33 @@ export const teamApi = {
   },
 
   /** The next spare copy this member's computer should prepare, or null (023). */
-  async claimRestitchJob(teamId: string): Promise<RestitchClaim | null> {
+  async claimRestitchJob(
+    teamId: string,
+    screenRefusals: Array<{
+      slot: 'start' | 'end';
+      materialId: string;
+      checksum: string;
+      settingsRevision?: string;
+    }> = [],
+    installedContractVersion = 1,
+    options?: CatalogMutationOptions
+  ): Promise<RestitchClaim | null> {
+    if (
+      !Number.isSafeInteger(installedContractVersion) ||
+      installedContractVersion < 1 ||
+      installedContractVersion > RESTITCH_CONTRACT_VERSION
+    )
+      throw new TeamApiError('INVALID_INPUT', false);
+    const actor = catalogMutationActor(options);
     const value = await invokeTeamFunction(
-      'drive-ops/updater/claim',
-      // Says which claim this tab speaks (030): a space on Drive pools refuses an older one.
-      { teamId, restitchContractVersion: RESTITCH_CONTRACT_VERSION },
+      'drive-ops/updater/claim-as-actor',
+      // Advertise only the intersection of this page and its actual installed executor.
+      {
+        teamId,
+        expectedActorId: actor,
+        restitchContractVersion: installedContractVersion,
+        ...(screenRefusals.length ? { screenRefusals } : {})
+      },
       restitchClaimGuard
     );
     const job = value.job;
@@ -2568,6 +2820,81 @@ export const teamApi = {
     return parsed;
   },
 
+  /** Records exactly one actor-bound intent. Acceptance is not provider delivery. */
+  async requestCatalogUpdateCommand(
+    teamId: string,
+    actorId: string,
+    input: CatalogCommandRequest
+  ): Promise<CatalogCommandReceipt> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request || !isCatalogCommandUuid(actorId)) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('request_team_catalog_update_command', {
+        p_team: teamId,
+        p_command: request.commandId,
+        p_catalogs: request.catalogIds,
+        p_expected_actor: actorId.toLowerCase(),
+        p_source_attempt: request.sourceAttemptId ?? null
+      })
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
+  },
+
+  /** Null means no committed receipt was observed, not that an in-flight write cannot commit. */
+  async getCatalogUpdateCommand(
+    teamId: string,
+    input: CatalogCommandRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<CatalogCommandReceipt | null> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('get_team_catalog_update_command', {
+            p_team: teamId,
+            p_command: request.commandId
+          }),
+          options
+        ),
+      options
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    if (data === null) return null;
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
+  },
+
+  /** Seals a not-yet-accepted intent, or returns its already accepted work unchanged. */
+  async cancelCatalogCommandIntent(
+    teamId: string,
+    actorId: string,
+    input: CatalogCommandRequest
+  ): Promise<CatalogCommandReceipt> {
+    const request = normalizeCatalogCommandRequest(input);
+    if (!request || !isCatalogCommandUuid(actorId)) throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('cancel_team_catalog_command_intent', {
+        p_team: teamId,
+        p_command: request.commandId,
+        p_catalogs: request.catalogIds,
+        p_expected_actor: actorId.toLowerCase(),
+        p_source_attempt: request.sourceAttemptId ?? null
+      })
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    const receipt = parseCatalogCommandReceipt(data, request);
+    if (!receipt) throw new TeamApiError('INVALID_RESPONSE', false);
+    return receipt;
+  },
+
   /** Opens an update for catalogs this minute; resolves with how many were not already waiting. */
   async runCatalogUpdateNow(teamId: string, catalogIds: string[]): Promise<number> {
     const { data, error } = await withFreshSession(() =>
@@ -2577,18 +2904,50 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return typeof data === 'number' ? data : 0;
+    if (
+      typeof data !== 'number' ||
+      !Number.isSafeInteger(data) ||
+      data < 0 ||
+      data > new Set(catalogIds).size
+    ) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
   },
 
-  async cancelCatalogUpdate(teamId: string, catalogId: string): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('cancel_team_catalog_update', {
-        p_team: teamId,
-        p_catalog: catalogId
-      })
+  async cancelCatalogUpdate(
+    teamId: string,
+    catalogId: string,
+    observed?: { roundAt: string; attemptId: string | null },
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    if (observed === undefined) throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
+    if (
+      !observed ||
+      typeof observed.roundAt !== 'string' ||
+      !Number.isFinite(Date.parse(observed.roundAt)) ||
+      (observed.attemptId !== null && !isCatalogCommandUuid(observed.attemptId))
+    )
+      throw new TeamApiError('INVALID_INPUT', false);
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('cancel_team_catalog_update_attempt_as_actor', {
+            p_team: teamId,
+            p_catalog: catalogId,
+            p_expected_round: observed.roundAt,
+            p_expected_attempt: observed.attemptId,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async retryCatalogUpdate(
@@ -2604,16 +2963,31 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return typeof data === 'number' ? data : 0;
+    if (typeof data !== 'number' || !Number.isSafeInteger(data) || data < 0 || data > 1) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
+    return data;
   },
 
-  async setCatalogUpdaterRestitch(teamId: string, restitch: boolean): Promise<CatalogUpdaterState> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_restitch', {
-        p_team: teamId,
-        p_restitch: restitch
-      })
+  async setCatalogUpdaterRestitch(
+    teamId: string,
+    restitch: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<CatalogUpdaterState> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_restitch_as_actor', {
+            p_team: teamId,
+            p_restitch: restitch,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     const parsed = catalogUpdaterStateFrom(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -2788,18 +3162,32 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_refresh_images', { p_team: teamId })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRefreshImages(teamId: string, refresh: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images', {
-        p_team: teamId,
-        p_refresh: refresh
-      })
+  async setCatalogUpdaterRefreshImages(
+    teamId: string,
+    refresh: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_refresh_images_as_actor', {
+            p_team: teamId,
+            p_refresh: refresh,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterRefreshTexts(teamId: string): Promise<boolean> {
@@ -2807,18 +3195,32 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_refresh_texts', { p_team: teamId })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRefreshTexts(teamId: string, refresh: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts', {
-        p_team: teamId,
-        p_refresh: refresh
-      })
+  async setCatalogUpdaterRefreshTexts(
+    teamId: string,
+    refresh: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_refresh_texts_as_actor', {
+            p_team: teamId,
+            p_refresh: refresh,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterRandomLinkVariation(teamId: string): Promise<boolean> {
@@ -2828,18 +3230,32 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterRandomLinkVariation(teamId: string, enabled: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_random_link_variation', {
-        p_team: teamId,
-        p_enabled: enabled
-      })
+  async setCatalogUpdaterRandomLinkVariation(
+    teamId: string,
+    enabled: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_random_link_variation_as_actor', {
+            p_team: teamId,
+            p_enabled: enabled,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data !== false;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
   async getCatalogUpdaterGrow(teamId: string): Promise<boolean> {
@@ -2847,18 +3263,318 @@ export const teamApi = {
       requireSupabaseClient().rpc('get_team_catalog_updater_grow', { p_team: teamId })
     );
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
   },
 
-  async setCatalogUpdaterGrow(teamId: string, grow: boolean): Promise<boolean> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('set_team_catalog_updater_grow', {
-        p_team: teamId,
-        p_grow: grow
-      })
+  async setCatalogUpdaterGrow(
+    teamId: string,
+    grow: boolean,
+    options?: CatalogMutationOptions
+  ): Promise<boolean> {
+    const actor = catalogMutationActor(options);
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('set_team_catalog_updater_grow_as_actor', {
+            p_team: teamId,
+            p_grow: grow,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    return data === true;
+    if (typeof data !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    return data;
+  },
+
+  async readCatalogPublication(
+    teamId: string,
+    catalogId: string,
+    requestId?: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/read',
+      { teamId, catalogId, ...(requestId ? { requestId } : {}) },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> | null =>
+        value === null || parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async verifyCatalogPublication(
+    teamId: string,
+    catalogId: string,
+    expectedRevision: number,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/verify',
+      { teamId, catalogId, expectedRevision, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async changeCatalogPublication(
+    teamId: string,
+    input: {
+      catalogId: string;
+      requestId: string;
+      expectedRevision: number;
+      action: 'add_now' | 'reschedule' | 'cancel';
+      publication?: Extract<
+        CatalogVideoCreationPreferences['videoPublication'],
+        { mode: 'scheduled' }
+      >;
+    },
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/action',
+      { teamId, ...input, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async readCatalogPublicationVerification(
+    teamId: string,
+    catalogId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/verify/read',
+      { teamId, catalogId, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> | null =>
+        value === null || parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async saveCatalogPublication(
+    teamId: string,
+    command: CatalogPublicationCommand,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/save',
+      { teamId, ...command, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+
+  async startCatalogUpdaterVariants(
+    input: {
+      teamId: string;
+      catalogMaterialId: string;
+      sourceMaterialId?: string;
+      requestId: string;
+      requestedCount: number;
+      profileVersion: number;
+      expectedExecutorId?: string;
+      foregroundExecutor?: CatalogForegroundExecutor;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    const current = catalogForegroundScope(options?.signal);
+    const run = (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
+      current();
+      return invokeTeamFunction(
+        'drive-ops/updater/variants',
+        {
+          ...input,
+          ...(foregroundExecutor ? { foregroundExecutor, expectedExecutorId: undefined } : {}),
+          expectedActorId: catalogMutationActor()
+        },
+        isCatalogUpdaterVariantsSnapshot,
+        { signal: options?.signal }
+      );
+    };
+    const result = input.sourceMaterialId
+      ? await catalogForeground.admit(
+          {
+            kind: 'updater',
+            teamId: input.teamId,
+            sourceMaterialId: input.sourceMaterialId!,
+            catalogMaterialId: input.catalogMaterialId,
+            requestId: input.requestId,
+            profileVersion: input.profileVersion
+          },
+          run,
+          options?.signal,
+          input.foregroundExecutor
+        )
+      : await run(undefined);
+
+    current();
+    await catalogForeground.attach(input.teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async resumeCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/updater/variants/resume',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      isCatalogUpdaterVariantsSnapshot,
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async readCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId?: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot | null> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/updater/variants/read',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is CatalogUpdaterVariantsSnapshot | null =>
+        value === null || isCatalogUpdaterVariantsSnapshot(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async cancelCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    return invokeTeamFunction(
+      'drive-ops/updater/variants/cancel',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      isCatalogUpdaterVariantsSnapshot,
+      { signal: options?.signal }
+    );
+  },
+
+  async resumeProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/product-catalog/video/resume',
+      { teamId, idempotencyKey, expectedActorId: catalogMutationActor() },
+      (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult =>
+        productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async readProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult | null> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/product-catalog/video/read',
+      { teamId, idempotencyKey, expectedActorId: catalogMutationActor() },
+      (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult | null =>
+        value === null || productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async cancelProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogVideoPreparingResult | ProductCatalogCreateResult> {
+    return invokeTeamFunction(
+      'drive-ops/product-catalog/video/cancel',
+      { teamId, idempotencyKey, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is CatalogVideoPreparingResult | ProductCatalogCreateResult =>
+        isCatalogVideoPreparingResult(value) || productCatalogCreateGuard(value),
+      { signal: options?.signal }
+    );
+  },
+
+  /** Opt-in beta protocol. Pending progress is never passed to legacy completed-catalog callers. */
+  async createProductCatalogVideo(
+    input: CatalogVideoCreationPreferences & {
+      teamId: string;
+      videoMaterialId: string;
+      sourceLink: string;
+      productCount: number;
+      randomLinkVariation?: boolean;
+      replacesMaterialId: string | null;
+      idempotencyKey: string;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult> {
+    const current = catalogForegroundScope(options?.signal);
+    const run = (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
+      current();
+      return invokeTeamFunction(
+        'drive-ops/product-catalog/create',
+        {
+          ...input,
+          ...(foregroundExecutor ? { foregroundExecutor, expectedExecutorId: undefined } : {}),
+          catalogImageContractVersion: 2,
+          expectedActorId: catalogMutationActor()
+        },
+        (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult =>
+          productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+        { signal: options?.signal }
+      );
+    };
+    const result = input.restitchEnabled
+      ? await catalogForeground.admit(
+          {
+            kind: 'create',
+            teamId: input.teamId,
+            sourceMaterialId: input.videoMaterialId,
+            idempotencyKey: input.idempotencyKey
+          },
+          run,
+          options?.signal,
+          input.foregroundExecutor
+        )
+      : await run(undefined);
+
+    current();
+    await catalogForeground.attach(input.teamId, result, options?.signal);
+    current();
+    return result;
   },
 
   async createProductCatalog(input: {
@@ -3888,10 +4604,15 @@ export const teamApi = {
     teamId: string;
     materialId: string;
     idempotencyKey: string;
+    expectedActorId?: string;
+    receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
+    const actor = catalogMutationActor(
+      input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
+    );
     const value = await invokeTeamFunction(
-      'drive-ops/trash',
-      { ...input, confirmed: true },
+      'drive-ops/trash-as-actor',
+      { ...input, expectedActorId: actor, confirmed: true },
       fileOperationGuard
     );
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
@@ -3902,8 +4623,17 @@ export const teamApi = {
     materialId: string;
     destinationFolderId?: string | null;
     idempotencyKey: string;
+    expectedActorId?: string;
+    receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
-    const value = await invokeTeamFunction('drive-ops/restore', { ...input }, fileOperationGuard);
+    const actor = catalogMutationActor(
+      input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
+    );
+    const value = await invokeTeamFunction(
+      'drive-ops/restore-as-actor',
+      { ...input, expectedActorId: actor },
+      fileOperationGuard
+    );
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
 
@@ -4205,17 +4935,38 @@ export const teamApi = {
   async startBulkTrash(
     teamId: string,
     groupId: string,
-    materialIds: string[]
+    materialIds: string[],
+    options?: CatalogMutationOptions
   ): Promise<BulkTrashGroup> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('start_team_bulk_trash', {
-        p_team: teamId,
-        p_group: groupId,
-        p_materials: materialIds
-      })
+    const actor = catalogMutationActor(options);
+    const intendedIds = [...materialIds];
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('start_team_bulk_trash_as_actor', {
+            p_team: teamId,
+            p_group: groupId,
+            p_materials: intendedIds,
+            p_expected_actor: actor
+          }),
+          options ?? {}
+        ),
+      options
     );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
-    if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const intended = new Set(intendedIds.map(id => id.toLowerCase()));
+    if (
+      !isBulkTrashGroup(data) ||
+      data.id.toLowerCase() !== groupId.toLowerCase() ||
+      data.teamId.toLowerCase() !== teamId.toLowerCase() ||
+      data.actorId.toLowerCase() !== actor ||
+      data.items.length === 0 ||
+      data.items.length > intended.size ||
+      new Set(data.items.map(item => item.materialId.toLowerCase())).size !== data.items.length ||
+      data.items.some(item => !intended.has(item.materialId.toLowerCase()))
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
     return data;
   },
   async listBulkTrash(
@@ -4724,14 +5475,18 @@ export const teamApi = {
     return { allowLinkOnCopy: row.allowLinkOnCopy, remembered: row.remembered };
   },
 
-  async shareLibraryMaterial(request: LibraryShareCopyRequest): Promise<LibraryShareCopyResult> {
+  async shareLibraryMaterial(
+    request: LibraryShareCopyRequest,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<LibraryShareCopyResult> {
     const normalized = parseLibraryShareCopyRequest(request);
     if (!normalized) throw new TeamApiError('INVALID_INPUT', false);
     const value = await invokeTeamFunction(
       'library-ops/share/copy',
       { action: 'share_copy', ...normalized },
       (candidate): candidate is LibraryShareCopyResult =>
-        parseLibraryShareCopyResult(candidate) !== null
+        parseLibraryShareCopyResult(candidate) !== null,
+      { signal: options.signal ?? AbortSignal.timeout(25_000) }
     );
     return parseLibraryShareCopyResult(value) as LibraryShareCopyResult;
   },
@@ -5325,7 +6080,7 @@ export const teamApi = {
   },
 
   /**
-   * Newest-first page of trashed materials. `before` is the `trashedAt` of the
+   * Newest-first page of trashed materials. The timestamp and ID identify the
    * last row already shown — keyset paging, so a restore happening mid-scroll
    * cannot shift the window and hide a row.
    */
@@ -5333,16 +6088,25 @@ export const teamApi = {
     teamId: string;
     limit?: number;
     before?: string | null;
+    beforeId?: string | null;
+    signal?: AbortSignal;
   }): Promise<TeamTrashedMaterial[]> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('list_team_trashed_materials', {
-        p_team: input.teamId,
-        p_limit: input.limit ?? 50,
-        p_before: input.before ?? undefined
-      })
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('list_team_trashed_materials_v2', {
+            p_team: input.teamId,
+            p_limit: input.limit ?? 50,
+            p_before: input.before ?? undefined,
+            p_before_id: input.beforeId ?? undefined
+          }),
+          input
+        ),
+      input
     );
     throwRpc(error);
-    const rows = (data ?? []).map(mapTrashedMaterial);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    const rows = data.map(mapTrashedMaterial);
     if (rows.some(row => row === null)) throw new TeamApiError('INVALID_RESPONSE', false);
     return rows.filter((row): row is TeamTrashedMaterial => row !== null);
   },

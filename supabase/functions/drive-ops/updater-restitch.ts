@@ -3,7 +3,10 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
 import { videoShareLink } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
-import { RESTITCH_CONTRACT_VERSION as SHARED_RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/restitch.js';
+import {
+  RESTITCH_CONTRACT_VERSION as SHARED_RESTITCH_CONTRACT_VERSION,
+  RESTITCH_SCREEN_REFUSAL_LIMIT
+} from '../../../packages/shared/dist/team/restitch.js';
 
 /**
  * The catalog updater's spare copies, prepared by a member's open tab (feature 023).
@@ -163,6 +166,26 @@ function errorCode(error: unknown): string {
   return error instanceof TeamFunctionError ? error.code : 'UNKNOWN';
 }
 
+/** Older settings and the opposite slot cannot consume this slot's refusal window. */
+function screenRefusalsForSettings(history: unknown, revision: string): unknown[] {
+  if (!Array.isArray(history)) return [];
+  const counts = { start: 0, end: 0 };
+  return history.filter(item => {
+    if (
+      !isRecord(item) ||
+      item.settingsRevision !== revision ||
+      (item.slot !== 'start' && item.slot !== 'end') ||
+      typeof item.materialId !== 'string' ||
+      typeof item.checksum !== 'string' ||
+      !/^[0-9a-f]{32}$/iu.test(item.checksum)
+    )
+      return false;
+    if (counts[item.slot] >= RESTITCH_SCREEN_REFUSAL_LIMIT) return false;
+    counts[item.slot]++;
+    return true;
+  });
+}
+
 /**
  * One picture per enabled slot from the space's pools, each with a grant the claimer's app can
  * fetch it on. An empty pool defers the job for an hour without spending an attempt; a refused
@@ -174,14 +197,17 @@ async function drawScreens(
   actorId: string,
   jobId: string,
   leaseHash: string,
-  teamId: string
+  teamId: string,
+  refusalHistory: unknown[] = [],
+  settingsRevision = ''
 ): Promise<unknown[] | null> {
   if (!deps.screenGrant) {
     await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
     return null;
   }
   const excluded: string[] = [];
-  for (let round = 0; round < 2; round += 1) {
+  let grantFailures = 0;
+  for (let round = 0; round < 32; round += 1) {
     let drawn: unknown;
     try {
       drawn = await deps.rpc('service_draw_restitch_screens', {
@@ -208,6 +234,31 @@ async function drawScreens(
       return null;
     }
     const picked = isRecord(drawn) && Array.isArray(drawn.screens) ? drawn.screens : [];
+    const remembered = picked.filter(
+      entry =>
+        isRecord(entry) &&
+        typeof entry.materialId === 'string' &&
+        typeof entry.checksum === 'string' &&
+        refusalHistory.some(
+          item =>
+            isRecord(item) &&
+            item.settingsRevision === settingsRevision &&
+            item.slot === entry.slot &&
+            item.materialId === entry.materialId &&
+            item.checksum === entry.checksum
+        )
+    );
+    if (remembered.length) {
+      for (const entry of remembered)
+        if (isRecord(entry) && typeof entry.materialId === 'string') {
+          if (excluded.includes(entry.materialId)) {
+            await fail(deps, actorId, jobId, leaseHash, 'INVALID_RESPONSE');
+            return null;
+          }
+          excluded.push(entry.materialId);
+        }
+      continue;
+    }
     const screens: unknown[] = [];
     let refused: { materialId: string; code: string } | null = null;
     for (const entry of picked) {
@@ -222,11 +273,13 @@ async function drawScreens(
     }
     if (!refused) return screens;
     excluded.push(refused.materialId);
-    if (round === 1 || refused.code === 'RESTITCH_SOURCE_FORBIDDEN') {
+    grantFailures++;
+    if (grantFailures >= 2 || refused.code === 'RESTITCH_SOURCE_FORBIDDEN') {
       await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SOURCE_FORBIDDEN');
       return null;
     }
   }
+  await fail(deps, actorId, jobId, leaseHash, 'RESTITCH_SCREEN_SELECTION_LIMIT');
   return null;
 }
 
@@ -275,7 +328,18 @@ export async function claimRestitchJob(
   // The pictures, drawn by the server from the space's pools and granted to this member's app.
   let screens: unknown[] | null = null;
   if (driveMode) {
-    const drawn = await drawScreens(deps, actorId, job.jobId, leaseHash, teamId);
+    const drawn = await drawScreens(
+      deps,
+      actorId,
+      job.jobId,
+      leaseHash,
+      teamId,
+      screenRefusalsForSettings(
+        body.screenRefusals,
+        typeof defaults?.updatedAt === 'string' ? defaults.updatedAt : ''
+      ),
+      typeof defaults?.updatedAt === 'string' ? defaults.updatedAt : ''
+    );
     if (drawn === null) return { job: null };
     screens = drawn;
   }

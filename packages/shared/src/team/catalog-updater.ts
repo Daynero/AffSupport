@@ -14,6 +14,8 @@ export interface CatalogUpdateProfile {
   growProducts: boolean;
   randomLinkVariation: boolean;
   restitch: boolean;
+  /** Missing on legacy servers; defaults to one physical variant. */
+  videoVariantCount?: number;
   version: number;
   updatedAt: string;
   /** Missing on legacy servers; null retains the legacy elapsed schedule. */
@@ -31,7 +33,12 @@ export interface CatalogUpdateProfile {
 export type CatalogUpdateProfilePatch = Partial<
   Pick<
     CatalogUpdateProfile,
-    'refreshImages' | 'refreshTexts' | 'growProducts' | 'randomLinkVariation' | 'restitch'
+    | 'refreshImages'
+    | 'refreshTexts'
+    | 'growProducts'
+    | 'randomLinkVariation'
+    | 'restitch'
+    | 'videoVariantCount'
   >
 > & { updateInterval?: '1d' | '1w' | `${number}h` | null; schedule?: CatalogUpdateSchedule | null };
 

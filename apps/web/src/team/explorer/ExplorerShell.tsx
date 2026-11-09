@@ -1,3 +1,5 @@
+import { createRestoreBatch } from '../materials/restore-batch';
+import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
 import {
   useCallback,
   useEffect,
@@ -157,6 +159,7 @@ export type { ExplorerView };
  * forward, which is what the panel needs.
  */
 const RESTITCH_PHASE_KEYS = {
+  checking: 'teamRestitchPhaseChecking',
   choosing: 'teamRestitchPhaseChoosing',
   transferring: 'teamRestitchPhaseTransferring',
   inspecting: 'teamRestitchPhaseInspecting',
@@ -173,6 +176,7 @@ const RESTITCH_PHASE_KEYS = {
  * the rest are moments.
  */
 const RESTITCH_PHASE_SPAN = {
+  checking: { from: 0, to: 0 },
   choosing: { from: 0, to: 5 },
   transferring: { from: 5, to: 45 },
   inspecting: { from: 45, to: 50 },
@@ -1358,6 +1362,8 @@ function ExplorerBody({
           .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
         return;
       }
+      const owner = captureCatalogMutationOwner(() => true);
+      if (!owner.current()) return;
       const trashed: string[] = [];
       const selectedFolders = new Set(
         rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
@@ -1370,13 +1376,17 @@ function ExplorerBody({
           continue;
         try {
           // The transcript goes with its video, here as everywhere else.
+          if (!owner.current()) return;
           await trashMaterialWithTail({
+            owner,
             teamId,
             material: { id: row.id, name: row.name, category: row.category },
             client: tailClient
           });
+          if (!owner.current()) return;
           trashed.push(row.id);
         } catch (cause) {
+          if (!owner.current()) return;
           push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
           continue;
         }
@@ -1385,29 +1395,27 @@ function ExplorerBody({
       select(null);
       clearSelection();
       changed();
-      const restore = async () => {
-        for (const materialId of trashed) {
-          try {
-            await actionsClient.restoreMaterial({
-              teamId,
-              materialId,
-              idempotencyKey: crypto.randomUUID()
-            });
-          } catch (cause) {
-            push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-            break;
-          }
+      const restore = createRestoreBatch({
+        materialIds: trashed,
+        current: owner.current,
+        restore: (materialId, idempotencyKey) =>
+          actionsClient.restoreMaterial({ teamId, materialId, idempotencyKey, ...owner.options() }),
+        failed: cause => {
+          changed();
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        },
+        completed: () => {
+          changed();
+          push({ tone: 'success', text: t('teamToastRestored') });
         }
-        changed();
-        push({ tone: 'success', text: t('teamToastRestored') });
-      };
+      });
       push({
         tone: 'success',
         text:
           trashed.length === 1
             ? t('teamToastTrashed')
             : t('teamExplorerTrashedCount', { count: trashed.length }),
-        action: { label: t('teamUndo'), run: () => void restore() }
+        action: { label: t('teamUndo'), run: () => void restore.run() }
       });
     },
     [
@@ -2255,6 +2263,7 @@ function ExplorerBody({
             <BulkTrashPanel
               key={group.id}
               group={group}
+              historicalReceipts={workspaceOperations.bulkTrash?.historicalReceipts?.get(group.id)}
               rows={page.rows}
               uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
               onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}

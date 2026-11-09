@@ -1,0 +1,24 @@
+{
+  "scope": "Early restitch reads, cancellation and actor-safe telemetry",
+  "focusedTests": {
+    "passed": 38,
+    "files": 5,
+    "causalRedFailures": 4
+  },
+  "checks": {
+    "webTypes": true,
+    "testTypes": true,
+    "targetedLint": true,
+    "diffCheck": true
+  },
+  "manualAcceptance": "Pending runtime import-graph remount; current failure proved worker BOOT_ERROR for newly exported shared module",
+  "sourceHashes": {
+    "apps/web/src/analytics/service.ts": "6313ab5b170e72f49ef49791b15622424fc2417df33e34532775a6742f344e48",
+    "apps/web/src/team/restitch/useRestitchDelivery.ts": "b5c7d731ef43f06df162942fd3bfc0a71245adf5a7f743ac4bef0e0c1f988634",
+    "apps/web/src/team/explorer/ExplorerShell.tsx": "5067b8f4f0e297f6ed83a2af98a93e32a27abe6374a361570cb43e1a60a3b042",
+    "tests/native-restitch-hook.test.tsx": "8a39c575b8155f41765c430e678bbcfc96384a9e2c17b386926f6ec2669c24d5",
+    "tests/analytics.test.ts": "22c252aebbf28c0ff0cd23828d274a8cedb26542e4174033e135ade1c3874365",
+    "tests/restitch-picker-progress.test.tsx": "36b181b4ca995b2c26e8baf459ff8cb306a63cafac639ca9ed12f286d95e0a08"
+  },
+  "productionTouched": false
+}

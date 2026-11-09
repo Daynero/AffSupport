@@ -1,3 +1,10 @@
+import { isCatalogForegroundPreparationFailure } from '../../api/catalog-video-foreground';
+import { teamErrorCodeOf } from '../errors';
+import { catalogForeground } from '../../api/catalog-video-foreground-client';
+import type { CatalogForegroundExecutor } from '../../api/catalog-video-foreground';
+import { recoveryInstallation } from '../../api/recovery-installation';
+import { privateCacheActor, privateCacheEpoch } from '../private-cache-scope';
+import { launchCatalogVideoEnabled } from './catalogVideoProtocol';
 import { launchReply, whileLaunchActive } from './reply';
 import { launchIntent, launchAction, launchLocalStage } from './analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -87,6 +94,7 @@ export function useLaunchGeneration(
       !parsed.ok ||
       parsed.value.method !== 'catalog' ||
       !parsed.value.catalog.restitchEnabled ||
+      parsed.value.catalog.catalogVideoProtocolVersion === 1 ||
       !detail.generation ||
       !['accepted', 'waiting_dependency'].includes(detail.generation.state)
     )
@@ -154,6 +162,7 @@ export function useLaunchGeneration(
     // The save may have committed with its reply still in flight. Its existing
     // idempotent receipt must be reconciled before cancellation can be fenced.
     if (!pending || cancelSubmitting.current) return;
+    requireRequestOwner();
     if (cancelRequestIntent.current?.key !== pending.key)
       cancelRequestIntent.current = { key: pending.key, cancelKey: crypto.randomUUID() };
     cancelSubmitting.current = true;
@@ -167,7 +176,9 @@ export function useLaunchGeneration(
           cancelRequestIntent.current.cancelKey
         )
       );
+      requireRequestOwner();
       const latest = receipt?.detail ?? (await launchReply(launchApi.detail(teamId, pending.id)));
+      requireRequestOwner();
       const canceledGenerationId =
         typeof receipt?.id === 'string' ? receipt.id : activeReceipt.current?.generationId;
       if (
@@ -196,7 +207,7 @@ export function useLaunchGeneration(
           { flowId: pending.key, launchId: pending.id },
           'cancel',
           'failure',
-          error instanceof TeamApiError ? error.code : undefined
+          teamErrorCodeOf(error) ?? undefined
         );
       throw error;
     } finally {
@@ -229,7 +240,28 @@ export function useLaunchGeneration(
   const savedDraft = useRef<{ id: string; version: string; baseVersion: string | null } | null>(
     null
   );
-  const request = useRef<{ id: string; version: string; key: string } | null>(null);
+  const requestOwner = useRef<{ teamId: string; actor: string | null; epoch: number } | null>(null);
+  const request = useRef<{
+    id: string;
+    version: string;
+    key: string;
+    expectedExecutorId?: string;
+    foregroundExecutor?: CatalogForegroundExecutor;
+    foregroundPrepared?: boolean;
+    admissionDispatched?: boolean;
+    foregroundRequired?: boolean;
+    sourceMaterialId?: string;
+  } | null>(null);
+  const requireRequestOwner = () => {
+    const owner = requestOwner.current;
+    if (
+      owner &&
+      (owner.teamId !== teamId ||
+        owner.actor !== privateCacheActor() ||
+        owner.epoch !== privateCacheEpoch())
+    )
+      throw new TeamApiError('PERMISSION_DENIED', false);
+  };
   const generate = async (
     detail: LaunchDetail | null,
     config: LaunchDraft,
@@ -237,12 +269,16 @@ export function useLaunchGeneration(
     expectedVersion: string | null
   ) => {
     if (submitting.current) return;
+    if (request.current || saveIntent.current) requireRequestOwner();
     const attempt = ++execution.current;
     const controller = new AbortController();
     executionController.current = controller;
     const active = <T>(work: Promise<T>) => whileLaunchActive(work, controller.signal);
     activeReceipt.current = null;
-    if (!request.current && !saveIntent.current) cancelRequested.current = false;
+    if (!request.current && !saveIntent.current) {
+      cancelRequested.current = false;
+      requestOwner.current = { teamId, actor: privateCacheActor(), epoch: privateCacheEpoch() };
+    }
     const flowId = intent(config.method ?? 'other', detail?.id);
     submitting.current = true;
     setBusy(true);
@@ -259,7 +295,18 @@ export function useLaunchGeneration(
               ? savedDraft.current.version
               : (expectedVersion ?? savedDraft.current?.version ?? null),
           requestKey: crypto.randomUUID(),
-          config,
+          config:
+            launchCatalogVideoEnabled() && config.method === 'catalog' && config.catalog
+              ? {
+                  ...config,
+                  catalog: {
+                    ...config.catalog,
+                    catalogVideoProtocolVersion: 1,
+                    videoVariationCount: config.catalog.videoVariationCount ?? 1,
+                    videoPublication: config.catalog.videoPublication ?? { mode: 'immediate' }
+                  }
+                }
+              : config,
           sources
         };
       if (!request.current) {
@@ -267,8 +314,21 @@ export function useLaunchGeneration(
         const intended = saveIntent.current;
         const saved = await active(launchReply(launchApi.save(intended)));
         if (attempt !== execution.current) return;
+        requireRequestOwner();
         savedDraft.current = { ...saved, baseVersion: intended.version };
-        request.current = { id: saved.id, version: saved.version, key: flowId };
+        request.current = {
+          id: saved.id,
+          version: saved.version,
+          key: flowId,
+          sourceMaterialId: intended.config.materialId,
+          foregroundRequired:
+            intended.config.catalog?.catalogVideoProtocolVersion === 1 &&
+            intended.config.catalog.restitchEnabled,
+          ...(intended.config.catalog?.catalogVideoProtocolVersion === 1 &&
+          intended.config.catalog.restitchEnabled
+            ? { expectedExecutorId: recoveryInstallation() ?? undefined }
+            : {})
+        };
         saveIntent.current = null;
         if (!mounted.current) return;
         savedHandler.current?.({ ...saved, config: intended.config, sources: intended.sources });
@@ -280,12 +340,49 @@ export function useLaunchGeneration(
         await cancelPending();
         return;
       }
-      setPendingStage('preparing');
-      launchLocalStage({ flowId, launchId: pending.id }, 'preparing');
+      const dispatch = async (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
+        requireRequestOwner();
+        if (cancelRequested.current) {
+          await cancelPending();
+          throw new TeamApiError('PROCESS_CANCELED', false);
+        }
+        pending.foregroundExecutor = foregroundExecutor;
+        pending.foregroundPrepared = true;
+        setPendingStage('preparing');
+        launchLocalStage({ flowId, launchId: pending.id }, 'preparing');
+        pending.admissionDispatched = true;
+        return launchReply(
+          pending.expectedExecutorId || foregroundExecutor
+            ? launchApi.generate(
+                teamId,
+                pending.id,
+                pending.version,
+                pending.key,
+                foregroundExecutor ? undefined : pending.expectedExecutorId,
+                foregroundExecutor
+              )
+            : launchApi.generate(teamId, pending.id, pending.version, pending.key)
+        );
+      };
       await active(
-        launchReply(launchApi.generate(teamId, pending.id, pending.version, pending.key))
+        pending.foregroundRequired && !pending.foregroundPrepared
+          ? catalogForeground.admit(
+              {
+                kind: 'launch',
+                teamId,
+                launchId: pending.id,
+                sourceMaterialId: pending.sourceMaterialId!,
+                requestKey: pending.key,
+                expectedVersion: pending.version
+              },
+              dispatch,
+              controller.signal,
+              pending.foregroundExecutor
+            )
+          : dispatch(pending.foregroundExecutor)
       );
       if (attempt !== execution.current) return;
+      requireRequestOwner();
       acceptanceConfirmed = true;
       acceptedWork.current = true;
       if (mounted.current) setPendingStage('accepted');
@@ -318,11 +415,29 @@ export function useLaunchGeneration(
           { flowId, launchId: request.current?.id ?? detail?.id },
           'generate',
           'failure',
-          error instanceof TeamApiError ? error.code : undefined
+          teamErrorCodeOf(error) ?? undefined
         );
+      const owner = requestOwner.current;
+      // The wrapper brands a local failure only after a proved server refusal.
+      // Unknown admission replies retain the original intent and keys.
+      if (
+        isCatalogForegroundPreparationFailure(error) &&
+        request.current &&
+        !cancelRequested.current &&
+        owner?.teamId === teamId &&
+        owner.actor === privateCacheActor() &&
+        owner.epoch === privateCacheEpoch()
+      ) {
+        request.current = null;
+        saveIntent.current = null;
+        flow.current = null;
+      }
       // A proved rejection before acceptance allows correction; an uncertain network outcome retains the same keys and payload.
       if (
         !acceptanceConfirmed &&
+        owner?.teamId === teamId &&
+        owner.actor === privateCacheActor() &&
+        owner.epoch === privateCacheEpoch() &&
         error instanceof TeamApiError &&
         !error.retryable &&
         [
@@ -331,6 +446,7 @@ export function useLaunchGeneration(
           'SOURCE_CHANGED',
           'LAUNCH_VERSION_CONFLICT',
           'NO_WORK',
+          'AGENT_REQUIRED',
           'WRONG_STATE'
         ].includes(error.code)
       ) {
@@ -394,7 +510,8 @@ export function useLaunchGeneration(
         gen.stage === 'restitch_processing' &&
         parsed.ok &&
         parsed.value.method === 'catalog' &&
-        parsed.value.catalog.restitchEnabled
+        parsed.value.catalog.restitchEnabled &&
+        parsed.value.catalog.catalogVideoProtocolVersion !== 1
       ) {
         if (retryIntent.current?.generationId !== gen.id || retryIntent.current.kind !== 'restitch')
           retryIntent.current = {
@@ -442,7 +559,7 @@ export function useLaunchGeneration(
           { launchId: detail.id, generationId: gen.id },
           'retry',
           'failure',
-          error instanceof TeamApiError ? error.code : undefined
+          teamErrorCodeOf(error) ?? undefined
         );
       throw error;
     } finally {
@@ -462,7 +579,29 @@ export function useLaunchGeneration(
     cancelSubmitting.current = true;
     setBusy(true);
     setPendingStage('cancel');
+    let ownsVideoReply: (() => boolean) | undefined;
     try {
+      if (detail.generation.state === 'succeeded' && detail.generation.videoGeneration) {
+        const actor = privateCacheActor(),
+          epoch = privateCacheEpoch();
+        const ownsReply = () =>
+          mounted.current && privateCacheActor() === actor && privateCacheEpoch() === epoch;
+        ownsVideoReply = ownsReply;
+        const receipt = await launchReply(
+          launchApi.cancelCatalogVideoGeneration(teamId, generationId, cancelIntent.current.key)
+        );
+        if (!ownsReply()) return;
+        const operationId = detail.generation.videoGeneration.activeChildOperationId;
+        if (operationId && ['cancel_requested', 'canceled'].includes(receipt.state))
+          void launchReply(cancelTeamAgentProcess(operationId)).catch(() => false);
+        const latest = await launchReply(launchApi.detail(teamId, detail.id));
+        if (!ownsReply()) return;
+        notify(latest);
+        cancelIntent.current = null;
+        if (mounted.current)
+          launchAction({ launchId: detail.id, generationId }, 'cancel', 'success');
+        return;
+      }
       const receipt = await launchReply(
         launchApi.cancel(teamId, detail.id, generationId, cancelIntent.current.key)
       );
@@ -500,12 +639,13 @@ export function useLaunchGeneration(
       cancelIntent.current = null;
       if (mounted.current) launchAction({ launchId: detail.id, generationId }, 'cancel', 'success');
     } catch (error) {
+      if (ownsVideoReply && !ownsVideoReply()) return;
       if (mounted.current)
         launchAction(
           { launchId: detail.id, generationId },
           'cancel',
           'failure',
-          error instanceof TeamApiError ? error.code : undefined
+          teamErrorCodeOf(error) ?? undefined
         );
       throw error;
     } finally {
@@ -524,6 +664,7 @@ export function useLaunchGeneration(
     expectedVersion: string | null
   ) => {
     if (submitting.current || cancelSubmitting.current) return;
+    requireRequestOwner();
     const pending = request.current;
     if (pending && !cancelRequested.current) {
       const reconciliation = ++execution.current;
@@ -539,7 +680,7 @@ export function useLaunchGeneration(
             { flowId: pending.key, launchId: pending.id },
             'retry',
             'failure',
-            error instanceof TeamApiError ? error.code : undefined
+            teamErrorCodeOf(error) ?? undefined
           );
         throw error;
       } finally {
@@ -575,6 +716,15 @@ export function useLaunchGeneration(
             older(detail.generation?.stateVersion, known.generation?.stateVersion)))
       )
         return false;
+      const owner = requestOwner.current;
+      if (
+        cancelRequested.current &&
+        (!owner ||
+          owner.teamId !== teamId ||
+          owner.actor !== privateCacheActor() ||
+          owner.epoch !== privateCacheEpoch())
+      )
+        return false;
       lastObserved.current = detail;
       const terminal =
         detail.generation &&
@@ -590,6 +740,22 @@ export function useLaunchGeneration(
         activeReceipt.current?.generationId === detail.generation?.id;
       const released = Boolean(terminal && submitting.current && (activeMatches || pendingMatches));
       if (released) releaseSubmission();
+      // An exact terminal receipt resolves a lost cancel reply. Success can win
+      // the race; observing it must not dispatch cancellation or another run.
+      if (
+        cancelRequested.current &&
+        pendingMatches &&
+        ['canceled', 'succeeded'].includes(detail.generation!.state)
+      ) {
+        if (!released) releaseSubmission();
+        request.current = null;
+        saveIntent.current = null;
+        flow.current = null;
+        cancelRequestIntent.current = null;
+        cancelRequested.current = false;
+        if (mounted.current) refreshIntentState(value => value + 1);
+        return true;
+      }
       if (
         !request.current ||
         cancelRequested.current ||

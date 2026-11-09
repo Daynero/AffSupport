@@ -1,3 +1,8 @@
+import { privateClientId, usePrivateCacheEpoch } from '../private-cache-scope';
+import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
+import { TeamApiError, type CatalogMutationOptions } from '../../api/team';
+import { withReadDeadline } from '../readCoordinator';
+import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { useEffect, useRef, useState } from 'react';
 import { CircleHelp, Settings2 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -13,20 +18,40 @@ import {
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
-import { teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { beginCatalogUiFlow, type CatalogUiFlow } from './analytics';
 
 export interface CatalogDefaultsClient {
   getCatalogUpdaterRestitchDefault?: (teamId: string) => Promise<boolean>;
-  setCatalogUpdaterRestitch?: (teamId: string, value: boolean) => Promise<unknown>;
+  setCatalogUpdaterRestitch?: (
+    teamId: string,
+    value: boolean,
+    options?: CatalogMutationOptions
+  ) => Promise<unknown>;
   getCatalogUpdaterRandomLinkVariation?: (teamId: string) => Promise<boolean>;
-  setCatalogUpdaterRandomLinkVariation?: (teamId: string, value: boolean) => Promise<boolean>;
+  setCatalogUpdaterRandomLinkVariation?: (
+    teamId: string,
+    value: boolean,
+    options?: CatalogMutationOptions
+  ) => Promise<boolean>;
   getCatalogUpdaterRefreshImages?: (teamId: string) => Promise<boolean>;
-  setCatalogUpdaterRefreshImages?: (teamId: string, value: boolean) => Promise<boolean>;
+  setCatalogUpdaterRefreshImages?: (
+    teamId: string,
+    value: boolean,
+    options?: CatalogMutationOptions
+  ) => Promise<boolean>;
   getCatalogUpdaterRefreshTexts?: (teamId: string) => Promise<boolean>;
-  setCatalogUpdaterRefreshTexts?: (teamId: string, value: boolean) => Promise<boolean>;
+  setCatalogUpdaterRefreshTexts?: (
+    teamId: string,
+    value: boolean,
+    options?: CatalogMutationOptions
+  ) => Promise<boolean>;
   getCatalogUpdaterGrow?: (teamId: string) => Promise<boolean>;
-  setCatalogUpdaterGrow?: (teamId: string, value: boolean) => Promise<boolean>;
+  setCatalogUpdaterGrow?: (
+    teamId: string,
+    value: boolean,
+    options?: CatalogMutationOptions
+  ) => Promise<boolean>;
 }
 
 const FIELDS = [
@@ -69,7 +94,16 @@ const FIELDS = [
 type Defaults = Record<(typeof FIELDS)[number][0], boolean>;
 
 /** Space-level defaults are a draft until Save. No registry/profile mutation is used here. */
-export function CatalogDefaultsEditor({
+export function CatalogDefaultsEditor(props: Parameters<typeof CatalogDefaultsEditorScope>[0]) {
+  const epoch = usePrivateCacheEpoch();
+  return (
+    <CatalogDefaultsEditorScope
+      key={`${props.teamId}:${privateClientId(props.client)}:${epoch}`}
+      {...props}
+    />
+  );
+}
+function CatalogDefaultsEditorScope({
   teamId,
   client,
   onDraftChange,
@@ -82,6 +116,16 @@ export function CatalogDefaultsEditor({
   onOpenChange?: (open: boolean) => void;
   onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
+  const mounted = useRef(true);
+  const [owner] = useState(() => captureCatalogMutationOwner(() => mounted.current));
+  const controllers = useRef(new Set<AbortController>());
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      for (const controller of controllers.current) controller.abort();
+    };
+  }, []);
   const { t } = useI18n();
   const { can } = useTeam();
   const editable = can('process');
@@ -90,6 +134,7 @@ export function CatalogDefaultsEditor({
   const [draft, setDraft] = useState<Defaults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const saveLocked = useRef(false);
   const [confirmed, setConfirmed] = useState(false);
   const [readVisibleAttempt, setReadVisibleAttempt] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -115,6 +160,8 @@ export function CatalogDefaultsEditor({
   useEffect(() => {
     if (!supported) return;
     let active = true;
+    const controller = new AbortController();
+    controllers.current.add(controller);
     flow.current?.cancel();
     flow.current = beginCatalogUiFlow('template');
     const readFlow = flow.current;
@@ -125,23 +172,29 @@ export function CatalogDefaultsEditor({
     setFieldResults({});
     setConfirmed(false);
     void Promise.all(
-      FIELDS.map(async ([field, get]) => [field, await client[get]!(teamId)] as const)
+      FIELDS.map(async ([field, get]) => {
+        const value = await withReadDeadline(() => client[get]!(teamId), controller.signal);
+        if (typeof value !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+        return [field, value] as const;
+      })
     )
       .then(values => {
-        if (!active) return;
+        if (!active || !owner.current()) return;
         const loaded = Object.fromEntries(values) as Defaults;
         setSaved(loaded);
         setDraft(loaded);
         setReadVisibleAttempt(readFlow.id);
       })
       .catch(cause => {
-        if (active) {
+        if (active && owner.current()) {
           setError(teamErrorMessageFor(cause, t));
-          readFlow.fail('READ_FAILED');
+          readFlow.fail(teamErrorCodeOf(cause) ?? 'READ_FAILED');
         }
       });
     return () => {
       active = false;
+      controller.abort();
+      controllers.current.delete(controller);
     };
   }, [client, teamId, supported, revision, t]);
 
@@ -159,18 +212,32 @@ export function CatalogDefaultsEditor({
   useEffect(() => {
     if (!dirty && !saving) return;
     const prevent = (event: BeforeUnloadEvent) => {
+      if (!owner.current()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
-  }, [dirty, saving]);
+  }, [dirty, saving, owner]);
   if (!supported) return null;
   const save = async () => {
-    if (!draft || !saved || saving || !editable || !changed.length) return;
+    if (
+      !owner.current() ||
+      !draft ||
+      !saved ||
+      saving ||
+      saveLocked.current ||
+      !editable ||
+      !changed.length
+    )
+      return;
+    saveLocked.current = true;
     flow.current?.cancel();
     flow.current = beginCatalogUiFlow('template');
-    flow.current.stage('save_requested');
+    const saveFlow = flow.current;
+    saveFlow.stage('save_requested');
+    const controller = new AbortController();
+    controllers.current.add(controller);
     setSaving(true);
     setConfirmed(false);
     setError(null);
@@ -178,13 +245,25 @@ export function CatalogDefaultsEditor({
     // failure remains a retryable draft instead of reporting an all-or-nothing success.
     const results = await Promise.allSettled(
       changed.map(async ([field, get, set]) => {
-        if (!client[set]) throw new Error('Defaults setting unavailable');
-        await client[set]!(teamId, draft[field]);
-        if ((await client[get]!(teamId)) !== draft[field])
-          throw new Error('Defaults save unconfirmed');
+        if (!client[set]) throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+        await withCatalogCommandDeadline(
+          signal => client[set]!(teamId, draft[field], owner.options(signal)),
+          controller.signal
+        );
+        if (!owner.current()) throw new DOMException('Catalog scope changed', 'AbortError');
+        if (
+          (await withReadDeadline(() => client[get]!(teamId), controller.signal)) !== draft[field]
+        )
+          throw new TeamApiError('INVALID_RESPONSE', false);
         return field;
       })
     );
+    controllers.current.delete(controller);
+    saveLocked.current = false;
+    if (!owner.current()) {
+      saveFlow.cancel();
+      return;
+    }
     const next = { ...saved };
     let failure: unknown;
     const statuses: typeof fieldResults = {};
@@ -202,9 +281,9 @@ export function CatalogDefaultsEditor({
     setSaved(next);
     if (results.some(result => result.status === 'rejected')) {
       setError(teamErrorMessageFor(failure, t));
-      flow.current.fail('SAVE_FAILED');
+      saveFlow.fail(teamErrorCodeOf(failure) ?? 'SAVE_FAILED');
     } else {
-      flow.current.stage('save_confirmed');
+      saveFlow.stage('save_confirmed');
       setConfirmed(true);
     }
     setSaving(false);

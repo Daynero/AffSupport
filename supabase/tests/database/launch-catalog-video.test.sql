@@ -1,0 +1,11 @@
+begin;
+select plan(7);
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.launch_catalog_video_contexts'::regclass),'Launch video acceptance context has forced RLS');
+select ok(not has_table_privilege('service_role','private.launch_catalog_video_contexts','select,insert,update,delete') and not has_table_privilege('authenticated','private.launch_catalog_video_contexts','select,insert,update,delete'),'frozen Launch context is available only through scoped service functions');
+select ok(has_function_privilege('service_role','public.service_accept_launch_catalog_video_generation(uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb,jsonb)','execute') and not has_function_privilege('authenticated','public.service_accept_launch_catalog_video_generation(uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb,jsonb)','execute'),'atomic N Launch acceptance is service only');
+select ok(not has_function_privilege('service_role','public.service_accept_launch_generation_before_video(uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb)','execute'),'legacy inner admission cannot bypass the new protocol guard');
+select ok(has_function_privilege('authenticated','public.get_launch(uuid,uuid,uuid)','execute'),'protected Launch read remains available through its ACL boundary');
+select throws_ok($$select public.service_accept_launch_generation('c1710000-0000-4000-8000-000000000001','c1710000-0000-4000-8000-000000000002','c1710000-0000-4000-8000-000000000003','1','native-legacy-protocol-refusal','synthetic','{"method":"catalog","catalog":{"catalogVideoProtocolVersion":1}}','{}','{}')$$,'55000','AGENT_UPDATE_REQUIRED','new protocol cannot enter legacy admission');
+select ok(private.task_cleanup_coverage_verified(),'all new immutable material references remain fenced against cleanup races');
+select * from finish();
+rollback;

@@ -1,0 +1,113 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-06T04:07:44.595Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1671938,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 8911,
+      "skipped_tests": 63,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 15,
+        "disposable PostgreSQL container": 14,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "platform:darwin": 3,
+        "disposable PostgreSQL": 4,
+        "apps/web/dist/index.html": 2,
+        "apps/web/public/_headers": 2,
+        "apps/web/dist": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "apps/web/dist/assets": 4,
+        "/Users/daynero/RiderProjects/AffSupport-047-beta/apps/web/dist/.vite/manifest.json": 4,
+        "/Users/daynero/RiderProjects/AffSupport-047-beta/specs/038-unified-accounts/reviews/bundle-budget-baseline.json": 4,
+        "/Users/daynero/RiderProjects/AffSupport-047-beta/specs/045-catalog-r2-images/bundle-budget-comparison.json": 4,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1940
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 27538
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 24838
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 25226
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 32470
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 3915
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 146
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2153
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 127
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 121
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 121
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 83
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 6700
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1546534
+      }
+    ]
+  }
+}

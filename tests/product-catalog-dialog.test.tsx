@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
+import { catalogForegroundPreparationFailure } from '../apps/web/src/api/catalog-video-foreground';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -937,4 +938,152 @@ describe('a catalog re-stitched with pictures from the space (030)', () => {
     await waitFor(() => expect(screen.queryByText('The catalog is ready')).toBeNull());
     expect(client.runAgentProcess).not.toHaveBeenCalled();
   });
+});
+
+describe('beta durable video creation', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+    vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const pending = {
+    outcome: 'preparing_video',
+    catalogIntentId: '47000000-0000-4000-8000-000000000001',
+    videoSetId: '47000000-0000-4000-8000-000000000002',
+    requestedCount: 5,
+    registeredCount: 2,
+    state: 'preparing'
+  };
+  async function startVideo(client) {
+    renderDialog(client);
+    await userEvent.type(
+      screen.getByLabelText(/^Link(?: · Required)?$/),
+      'https://offer.example.test/'
+    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    const variations = await screen.findByLabelText('Video variations');
+    await userEvent.clear(variations);
+    await userEvent.type(variations, '5');
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await userEvent.click(confirm());
+  }
+  it('shows admitted K/N without a completed catalog and cancels the original operation', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      cancelProductCatalogVideo: vi.fn().mockResolvedValue({ ...pending, state: 'canceled' })
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(screen.queryByText('Catalog ready')).toBeNull();
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    const input = client.createProductCatalogVideo.mock.calls[0][0];
+    expect(input).toMatchObject({
+      catalogVideoProtocolVersion: 1,
+      restitchEnabled: true,
+      videoVariationCount: 5
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
+    expect(await screen.findByText('Catalog creation canceled.')).toBeTruthy();
+    expect(client.cancelProductCatalogVideo).toHaveBeenCalledWith(
+      TEAM_ID,
+      input.idempotencyKey,
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+  it('unlocks the original inputs after a proved missing paired executor without retaining an unknown request', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('AGENT_REQUIRED', false))
+    });
+    await startVideo(client);
+    await screen.findByText(/open the latest Soty app and connect it to this browser/);
+    expect(screen.getByLabelText(/^Link(?: · Required)?$/).disabled).toBe(false);
+    expect(screen.getByLabelText('Video variations').disabled).toBe(false);
+    expect(confirm().disabled).toBe(false);
+    const originalKey = client.createProductCatalogVideo.mock.calls[0][0].idempotencyKey;
+    expect(Object.values(localStorage)).not.toContain(originalKey);
+    expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+  });
+  it('unlocks after a locally proved preparation failure without treating an unknown provider response as rejected', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(catalogForegroundPreparationFailure(Error('INVALID_RESPONSE')))
+    });
+    await startVideo(client);
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    expect(screen.getByLabelText('Video variations').disabled).toBe(false);
+    const originalKey = client.createProductCatalogVideo.mock.calls[0][0].idempotencyKey;
+    expect(Object.values(localStorage)).not.toContain(originalKey);
+    expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1);
+  });
+  it('recovers a lost reply on reopen through read only using the original key', async () => {
+    const read = vi.fn().mockResolvedValue(pending);
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockRejectedValue(Error('PROCESS_RESULT_UNCERTAIN')),
+      readProductCatalogVideo: read
+    });
+    await startVideo(client);
+    await screen.findByText(/result is not confirmed/);
+    const key = client.createProductCatalogVideo.mock.calls[0][0].idempotencyKey;
+    cleanup();
+    renderDialog(client);
+    await waitFor(() => expect(read).toHaveBeenCalledWith(TEAM_ID, key, expect.any(Object)));
+    expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+  });
+});
+
+it('shows current N progress after the scheduled blank catalog was already created', async () => {
+  vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
+  try {
+    const setId = '47000000-0000-4000-8000-000000000002';
+    const generation = {
+      videoSetId: setId,
+      requestedCount: 5,
+      registeredCount: 0,
+      state: 'preparing',
+      catalogVideoCells: 'deferred_blank',
+      providerCas: 'unsupported'
+    };
+    const observation = { ...generation, registeredCount: 2 };
+    const response = {
+      ...created,
+      videoGeneration: generation,
+      videoGenerationObservation: observation
+    };
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(response),
+      cancelProductCatalogVideo: vi.fn().mockResolvedValue({
+        ...response,
+        videoGenerationObservation: { ...observation, state: 'canceled', publicationHeld: true }
+      })
+    });
+    localStorage.setItem(
+      `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+      'product-catalog:47000000-0000-4000-8000-000000000010'
+    );
+    renderDialog(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(screen.getByText(catalog.name)).toBeTruthy();
+    expect(screen.getByText(/catalog is created with empty video fields/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
+    expect(
+      await screen.findByText('Video generation canceled. The created catalog is preserved.')
+    ).toBeTruthy();
+    expect(screen.getByText(catalog.name)).toBeTruthy();
+    expect(client.createProductCatalogVideo).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });

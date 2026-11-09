@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select has_function('public','service_read_material_historical_receipt',array['uuid','uuid','uuid','uuid','text','uuid'],'historical receipt reader exists');
+select is((select provolatile::text from pg_proc where oid='public.service_read_material_historical_receipt(uuid,uuid,uuid,uuid,text,uuid)'::regprocedure),'s','historical observation is read-only stable');
+select ok(not has_function_privilege('authenticated','public.service_read_material_historical_receipt(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE'),'browser cannot impersonate an original actor through service readback');
+select ok(not has_function_privilege('anon','private.material_historical_receipt(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE'),'private snapshot helper is not anonymous authority');
+select ok(has_function_privilege('service_role','public.service_read_material_historical_receipt(uuid,uuid,uuid,uuid,text,uuid)','EXECUTE'),'trusted service can read exact historical evidence');
+select ok(not has_function_privilege('authenticated','public.service_read_material_historical_receipt_by_key(uuid,uuid,uuid,text,text,uuid)','EXECUTE'),'browser cannot impersonate read-by-key authority');
+select is((select provolatile::text from pg_proc where oid='public.service_read_material_historical_receipt_by_key(uuid,uuid,uuid,text,text,uuid)'::regprocedure),'s','read-by-key cannot admit an operation');
+select has_view('public','analytics_material_historical_observations','safe current catalog observation projection exists');
+select ok(not has_table_privilege('authenticated','public.analytics_material_historical_observations','SELECT'),'browser cannot read cross-actor diagnostic projection');
+select columns_are('public','analytics_material_historical_observations',array['id','operation_id','team_id','actor_id','action','basis','observed_at','state','member_count','matching_count','missing_count','created_at','updated_at'],'diagnostic projection contains no names paths provider identities or credentials');
+select * from finish();
+rollback;

@@ -16,6 +16,13 @@ import {
   TEAM_PROCESS_ERROR_CODES,
   TEAM_RETIREMENT_ERROR_CODES,
   TEAM_COMMERCIAL_ERROR_CODES,
+  TEAM_CATALOG_RELIABILITY_ERROR_CODES,
+  TEAM_CATALOG_MANAGER_ERROR_CODES,
+  TEAM_CATALOG_POLISH_ERROR_CODES,
+  TEAM_CATALOG_LINK_ERROR_CODES,
+  TEAM_CATALOG_MUTATION_ERROR_CODES,
+  TEAM_CATALOG_PUBLICATION_ERROR_CODES,
+  RESTITCH_RECOVERY_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
@@ -38,6 +45,10 @@ const defaultProcessExtensionOutput = resolve(
   root,
   'supabase/migrations/20261206139000_process_error_codes.sql'
 );
+const defaultPublicationExtensionOutput = resolve(
+  root,
+  'supabase/migrations/20261207179000_catalog_publication_error_codes.sql'
+);
 const defaultImageExtensionOutput = resolve(
   root,
   'supabase/migrations/20261206153000_catalog_image_error_codes.sql'
@@ -48,6 +59,13 @@ const extensionCodes = new Set([
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,
   ...TEAM_COMMERCIAL_ERROR_CODES,
+  ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
+  ...TEAM_CATALOG_MANAGER_ERROR_CODES,
+  ...TEAM_CATALOG_POLISH_ERROR_CODES,
+  ...TEAM_CATALOG_LINK_ERROR_CODES,
+  ...TEAM_CATALOG_MUTATION_ERROR_CODES,
+  ...TEAM_CATALOG_PUBLICATION_ERROR_CODES,
+  ...RESTITCH_RECOVERY_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
@@ -61,6 +79,13 @@ if (
       TEAM_PROCESS_ERROR_CODES.length +
       TEAM_RETIREMENT_ERROR_CODES.length +
       TEAM_COMMERCIAL_ERROR_CODES.length +
+      TEAM_CATALOG_RELIABILITY_ERROR_CODES.length +
+      TEAM_CATALOG_MANAGER_ERROR_CODES.length +
+      TEAM_CATALOG_POLISH_ERROR_CODES.length +
+      TEAM_CATALOG_LINK_ERROR_CODES.length +
+      TEAM_CATALOG_MUTATION_ERROR_CODES.length +
+      TEAM_CATALOG_PUBLICATION_ERROR_CODES.length +
+      RESTITCH_RECOVERY_ERROR_CODES.length +
       CATALOG_IMAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
@@ -219,6 +244,7 @@ let output = defaultOutput;
 let extensionOutput = defaultExtensionOutput;
 let processExtensionOutput = defaultProcessExtensionOutput;
 let imageExtensionOutput = defaultImageExtensionOutput;
+let publicationExtensionOutput = defaultPublicationExtensionOutput;
 for (let index = 0; index < args.length; index += 1) {
   if (args[index] === '--check') check = true;
   else if (args[index] === '--output' && args[index + 1]) output = resolve(args[++index]);
@@ -228,6 +254,8 @@ for (let index = 0; index < args.length; index += 1) {
     processExtensionOutput = resolve(args[++index]);
   else if (args[index] === '--image-extension-output' && args[index + 1])
     imageExtensionOutput = resolve(args[++index]);
+  else if (args[index] === '--publication-extension-output' && args[index + 1])
+    publicationExtensionOutput = resolve(args[++index]);
   else fail(`Unknown argument: ${args[index]}`);
 }
 
@@ -268,6 +296,76 @@ const commercialCodes = [...commercialInsert.matchAll(/\('([^']+)'\)/gu)].map(ma
 if (JSON.stringify(commercialCodes) !== JSON.stringify([...TEAM_COMMERCIAL_ERROR_CODES]))
   fail('Commercial error catalog is out of date: ' + commercialPath);
 
+const catalogReliabilityPath = resolve(
+  root,
+  'supabase/migrations/20261207132000_catalog_reliability_error_codes.sql'
+);
+const catalogReliabilitySql = readFileSync(catalogReliabilityPath, 'utf8');
+const catalogReliabilityInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    catalogReliabilitySql
+  )?.[1] ?? '';
+const catalogReliabilityCodes = [...catalogReliabilityInsert.matchAll(/\('([^']+)'\)/gu)].map(
+  match => match[1]
+);
+if (
+  JSON.stringify(catalogReliabilityCodes) !==
+  JSON.stringify([...TEAM_CATALOG_RELIABILITY_ERROR_CODES])
+)
+  fail('Catalog reliability error catalog is out of date: ' + catalogReliabilityPath);
+
+const catalogManagerPath = resolve(
+  root,
+  'supabase/migrations/20261207138100_catalog_command_codes.sql'
+);
+const catalogManagerSql = readFileSync(catalogManagerPath, 'utf8');
+const catalogManagerInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    catalogManagerSql
+  )?.[1] ?? '';
+const catalogManagerCodes = [...catalogManagerInsert.matchAll(/\('([^']+)'\)/gu)].map(
+  match => match[1]
+);
+if (JSON.stringify(catalogManagerCodes) !== JSON.stringify([...TEAM_CATALOG_MANAGER_ERROR_CODES]))
+  fail('Catalog command error catalog is out of date: ' + catalogManagerPath);
+
+const catalogPolishPath = resolve(
+  root,
+  'supabase/migrations/20261207139000_catalog_claim_quarantine.sql'
+);
+const catalogPolishSql = readFileSync(catalogPolishPath, 'utf8');
+const catalogPolishInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    catalogPolishSql
+  )?.[1] ?? '';
+const catalogPolishCodes = [...catalogPolishInsert.matchAll(/\('([^']+)'\)/gu)].map(
+  match => match[1]
+);
+if (JSON.stringify(catalogPolishCodes) !== JSON.stringify([...TEAM_CATALOG_POLISH_ERROR_CODES]))
+  fail('Catalog polish error catalog is out of date: ' + catalogPolishPath);
+
+const linkPath = resolve(root, 'supabase/migrations/20261207140000_material_share_intents.sql');
+const linkInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    readFileSync(linkPath, 'utf8')
+  )?.[1] ?? '';
+const linkCodes = [...linkInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(linkCodes) !== JSON.stringify([...TEAM_CATALOG_LINK_ERROR_CODES]))
+  fail('Material link error catalog is out of date: ' + linkPath);
+
+// The applied actor-bound mutation batch is a fixed, single-code catalog.
+const mutationPath = resolve(
+  root,
+  'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql'
+);
+const mutationInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    readFileSync(mutationPath, 'utf8')
+  )?.[1] ?? '';
+const mutationCodes = [...mutationInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(mutationCodes) !== JSON.stringify([...TEAM_CATALOG_MUTATION_ERROR_CODES]))
+  fail('Historical catalog mutation error catalog is out of date: ' + mutationPath);
+
 const next = generatedSql();
 const extension = generatedExtensionSql();
 const processExtension = `-- GENERATED by scripts/generate-team-contract-sql.mjs. DO NOT EDIT BY HAND.
@@ -286,18 +384,29 @@ ${values(CATALOG_IMAGE_ERROR_CODES.map(code => [sqlLiteral(code)]))}
 on conflict (code) do nothing;
 commit;
 `;
+const publicationExtension = `-- GENERATED by scripts/generate-team-contract-sql.mjs. DO NOT EDIT BY HAND.
+-- Additive 047 publication codes; all previously applied contract batches remain immutable.
+begin;
+insert into public.team_error_codes (code) values
+${values(TEAM_CATALOG_PUBLICATION_ERROR_CODES.map(code => [sqlLiteral(code)]))}
+on conflict (code) do nothing;
+commit;
+`;
 if (check) {
   checkCurrent(output, next);
   checkCurrent(extensionOutput, extension);
   checkCurrent(processExtensionOutput, processExtension);
   checkCurrent(imageExtensionOutput, imageExtension);
+  checkCurrent(publicationExtensionOutput, publicationExtension);
   process.stdout.write(`Team contract is current: ${output} + ${extensionOutput}\n`);
 } else {
   // Applied migration identity is immutable. An explicit temporary --output can
   // render the baseline for tooling/tests; normal generation never rewrites it.
   if (output === defaultOutput) checkCurrent(defaultOutput, next);
   else writeFileSync(output, next);
-  writeFileSync(extensionOutput, extension);
+  if (extensionOutput === defaultExtensionOutput && existsSync(extensionOutput))
+    checkCurrent(extensionOutput, extension);
+  else writeFileSync(extensionOutput, extension);
   // Once created, this migration is a fixed batch too. Future codes need a new
   // additive migration rather than silently rewriting this applied catalog.
   if (
@@ -309,6 +418,12 @@ if (check) {
   if (imageExtensionOutput === defaultImageExtensionOutput && existsSync(imageExtensionOutput))
     checkCurrent(imageExtensionOutput, imageExtension);
   else writeFileSync(imageExtensionOutput, imageExtension);
+  if (
+    publicationExtensionOutput === defaultPublicationExtensionOutput &&
+    existsSync(publicationExtensionOutput)
+  )
+    checkCurrent(publicationExtensionOutput, publicationExtension);
+  else writeFileSync(publicationExtensionOutput, publicationExtension);
   process.stdout.write(
     `Team contract extensions: ${extensionOutput} + ${processExtensionOutput}\n`
   );

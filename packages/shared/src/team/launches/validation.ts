@@ -1,3 +1,5 @@
+import { parseLaunchCatalogVideoConfig } from './catalog-video.js';
+import { CATALOG_PRODUCT_COUNT_MAX } from '../catalog-video-set.js';
 import { parseLaunchNotes } from './notes.js';
 import { clampStitchEndDuration } from '../../stitcher.js';
 import { isRecord } from '../contract.js';
@@ -68,10 +70,12 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
     !isRecord(value) ||
     typeof value.productCount !== 'number' ||
     !Number.isFinite(value.productCount) ||
-    (required && !positive(value.productCount, 400)) ||
+    (required && !positive(value.productCount, CATALOG_PRODUCT_COUNT_MAX)) ||
     typeof value.restitchEnabled !== 'boolean'
   )
     return null;
+  const video = parseLaunchCatalogVideoConfig(value, required);
+  if (!video) return null;
   const mode = value.finalDurationMode;
   if (
     mode !== 'random-30-40' &&
@@ -105,6 +109,7 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
   if (activeDuration && (mode === 'custom' || mode === 'random-centered') && seconds === null)
     return null;
   return {
+    ...video,
     productCount: value.productCount,
     restitchEnabled: value.restitchEnabled,
     finalDurationMode: mode,

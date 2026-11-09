@@ -64,7 +64,7 @@ function renderPool(props: Partial<Parameters<typeof RestitchSourcePool>[0]> = {
 describe('a slot’s pool', () => {
   it('says how many pictures it gives and why the rest were skipped', () => {
     renderPool();
-    expect(screen.getByRole('status').textContent).toContain('4 pictures ready to draw from');
+    expect(screen.getByRole('status').textContent).toContain('4 pictures in the selection pool');
     expect(screen.getByRole('status').textContent).toContain('2 files skipped.');
     expect(screen.getByText('Finals')).toBeTruthy();
     expect(screen.getByText(/4 images/).textContent).toContain(

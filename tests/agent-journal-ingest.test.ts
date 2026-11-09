@@ -1,13 +1,26 @@
-import { randomUUID } from 'node:crypto';
-import { DiagnosticsLog } from '../apps/agent/src/server/diagnostics-log';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  DiagnosticsLog,
+  setActiveDiagnosticsLog,
+  activeDiagnosticsLogOrNull
+} from '../apps/agent/src/server/diagnostics-log';
 import { TranscriptionAttemptJournal } from '../apps/agent/src/transcription/diagnostics';
 import { setQueryExecutor } from '../scripts/analytics/db';
 import { getJournal } from '../scripts/analytics/investigate';
 import { getInspect } from '../scripts/analytics/queries';
 import { readFileSync } from 'node:fs';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DIAGNOSTIC_CATEGORIES } from '../packages/shared/src/types.js';
 import { createTeamTestDb, type TeamTestDb } from './support/team-db.js';
+
+import { mkdtemp, readdir } from 'node:fs/promises';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
+import os from 'node:os';
+import path from 'node:path';
+import { TeamTransferClient } from '../apps/agent/src/team-bridge/transfer';
+import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process';
+import { TeamOperationEvents } from '../apps/agent/src/team-bridge/events';
+import { assertReadOnlySql } from '../scripts/analytics/db';
 
 /**
  * 033 US2 / FR-001, FR-002, FR-004, FR-011 — the agent journal's server-side
@@ -402,5 +415,155 @@ it('retains empty native claim evidence through the privacy fence, ingestion and
     });
   } finally {
     setQueryExecutor(null);
+  }
+});
+
+it('retains a pre-claim executor refusal and installed version through SQL ingestion and the read-only journal CLI', async () => {
+  const instance = randomUUID();
+  const props = {
+    team_id: randomUUID(),
+    delegation_id: randomUUID(),
+    request_id: randomUUID(),
+    stage: 'blocked',
+    reason: 'needs_agent_setup',
+    error_code: 'AGENT_UPDATE_REQUIRED',
+    restitch_contract_version: 2
+  };
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  expect(log.record('team', 'recovery_state', props)).toBe(true);
+  expect(await ingest(log.since(0), { instance })).toEqual({
+    accepted: 1,
+    duplicates: 0,
+    rejected: []
+  });
+  let chain: Promise<unknown> = Promise.resolve();
+  setQueryExecutor((sql, params) => {
+    const read = chain.then(async () => {
+      await harness.db.exec('begin read only;set local role wishly_analytics_ro');
+      try {
+        const result = await harness.db.query(sql, params);
+        await harness.db.exec('commit');
+        return result.rows as Record<string, unknown>[];
+      } catch (error) {
+        await harness.db.exec('rollback');
+        throw error;
+      }
+    });
+    chain = read.catch(() => {});
+    return read;
+  });
+  try {
+    const evidence = await getJournal(instance, {
+      token: 'all',
+      start: null,
+      end: new Date(Date.now() + 1000).toISOString(),
+      label: 'all'
+    });
+    expect(evidence.records[0]).toMatchObject({ category: 'team', code: 'recovery_state', props });
+    expect(JSON.stringify(evidence)).not.toContain('operationCredential');
+  } finally {
+    await chain;
+    setQueryExecutor(null);
+  }
+});
+
+it('diagnoses actual corrupt source bytes before the tool through sanitizer, ingestion and SELECT-only inspect', async () => {
+  const instance = randomUUID(),
+    operationId = randomUUID();
+  const root = await mkdtemp(path.join(os.tmpdir(), 'source-integrity-ingest-'));
+  const log = new DiagnosticsLog({ now: () => Date.now() - 1000 });
+  const previous = activeDiagnosticsLogOrNull();
+  const sourceChecksum = createHash('md5').update('good').digest('hex');
+  const transfer = new TeamTransferClient({
+    temporaryRoot: root,
+    fetchImpl: async () =>
+      new Response('evil', {
+        headers: {
+          'content-length': '4',
+          'x-wishly-source-version': 'accepted',
+          'x-wishly-source-checksum': sourceChecksum
+        }
+      })
+  });
+  const delegate = vi.fn();
+  const upload = vi.spyOn(transfer, 'uploadResult');
+  const events = new TeamOperationEvents();
+  const bridge = new TeamProcessBridge({ transfer, delegates: { compressor: delegate }, events });
+  const grant = {
+    purpose: 'process_input' as const,
+    ticket: 'synthetic-grant-with-enough-entropy',
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+    maxUses: 1,
+    maxRangeBytes: 4
+  };
+  let chain: Promise<unknown> = Promise.resolve();
+  setActiveDiagnosticsLog(log);
+  try {
+    await expect(
+      bridge.process({
+        operationId,
+        toolId: 'compressor',
+        options: { mode: 'optimal' },
+        sourceGrant: grant,
+        finalizeGrant: { ...grant, purpose: 'finalize' },
+        transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+        cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops'
+      })
+    ).rejects.toThrow('SOURCE_CHANGED');
+    expect(delegate).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(await readdir(root)).toEqual([]);
+    expect(events.snapshot().operations).toEqual([
+      expect.objectContaining({ operationId, state: 'failed', errorCode: 'SOURCE_CHANGED' })
+    ]);
+    const records = log.since(0);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      category: 'team',
+      code: 'process_terminal',
+      props: {
+        operationId,
+        stage: 'downloading',
+        errorCode: 'SOURCE_CHANGED',
+        sourceIntegrityReason: 'checksum_mismatch'
+      }
+    });
+    expect(JSON.stringify(records)).not.toContain(sourceChecksum);
+    expect(await ingest(records, { instance })).toEqual({
+      accepted: 1,
+      duplicates: 0,
+      rejected: []
+    });
+    setQueryExecutor((sql, params) => {
+      assertReadOnlySql(sql);
+      const read = chain.then(async () => {
+        await harness.db.exec('begin read only;set local role wishly_analytics_ro');
+        try {
+          const result = await harness.db.query(sql, params);
+          await harness.db.exec('commit');
+          return result.rows as Record<string, unknown>[];
+        } catch (error) {
+          await harness.db.exec('rollback');
+          throw error;
+        }
+      });
+      chain = read.catch(() => {});
+      return read;
+    });
+    const result = await getInspect(operationId, new Date(Date.now() + 1000).toISOString());
+    expect(result.found).toBe(true);
+    if (!result.found) throw new Error('MISSING_SOURCE_DIAGNOSIS');
+    expect(result.team_native?.records[0]).toMatchObject({
+      stage: 'downloading',
+      error_code: 'SOURCE_CHANGED',
+      source_integrity_reason: 'checksum_mismatch'
+    });
+    expect(result.stages.missing).toContain('result_visible');
+    expect(JSON.stringify(result)).not.toContain(sourceChecksum);
+  } finally {
+    await chain;
+    setQueryExecutor(null);
+    setActiveDiagnosticsLog(previous);
+    await removeTemporaryDirectory(root);
   }
 });

@@ -19,6 +19,27 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
 } {
   const verifying = row.profile?.reconciliationRequired && row.profile.lastResult === 'running';
   if (verifying) return { active: true, value: 0.94, label: 'catalogUpdaterStageVerifying' };
+  const generation = row.videoGeneration;
+  if (generation && ['accepted', 'preparing', 'cancel_requested'].includes(generation.state)) {
+    const childFraction =
+      generation.activeChildOperationId != null &&
+      generation.activeChildOperationId === row.restitchOperationId &&
+      typeof row.restitchProgress === 'number' &&
+      Number.isFinite(row.restitchProgress)
+        ? Math.max(0, Math.min(99, row.restitchProgress)) / 100
+        : 0;
+    return {
+      active: true,
+      value:
+        0.08 +
+        0.32 *
+          Math.min(1, (generation.registeredCount + childFraction) / generation.requestedCount),
+      label:
+        generation.state === 'cancel_requested'
+          ? 'catalogVideoCreationCanceling'
+          : 'catalogRunPreparingVideo'
+    };
+  }
   if (!row.updatePending) return { active: false, value: 0, label: 'catalogUpdaterUpdatingNow' };
   if (row.updateStage === 'waiting_video')
     return { active: true, value: 0.04, label: 'catalogUpdaterVideoWaiting' };
@@ -29,13 +50,22 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
         0.08 +
         Math.max(
           0,
-          Math.min(100, Number.isFinite(row.restitchProgress) ? row.restitchProgress! : 0)
+          Math.min(
+            100,
+            (row.restitchOperationId === undefined || row.restitchOperationId !== null) &&
+              Number.isFinite(row.restitchProgress)
+              ? row.restitchProgress!
+              : 0
+          )
         ) *
           0.0032,
       label: 'catalogRunPreparingVideo'
     };
+  const belongsToAttempt =
+    row.activeRoundAt === undefined ||
+    (row.activeAttemptId != null && row.progressAttemptId === row.activeAttemptId);
   const stage =
-    row.updateStage && row.updateStage in STAGES
+    belongsToAttempt && row.updateStage && row.updateStage in STAGES
       ? STAGES[row.updateStage as keyof typeof STAGES]
       : STAGES.preparing;
   return { active: true, value: stage[0], label: stage[1] };
@@ -50,14 +80,31 @@ export function CatalogProgressRow({
 }: HTMLAttributes<HTMLTableRowElement> & { row: CatalogRegistryRow }) {
   const { t } = useI18n();
   const current = catalogRowProgress(row);
-  const last = useRef({ active: current.active, success: row.profile?.lastSuccessfulAt });
+  const identity = `${row.catalogId}:${row.videoGeneration?.setId ?? row.activeAttemptId ?? row.activeRoundAt ?? 'legacy'}`;
+  const child = row.videoGeneration?.activeChildOperationId ?? row.restitchOperationId;
+  const progressLabel = row.videoGeneration
+    ? `${t('catalogVideoCreationProgress', {
+        ready: row.videoGeneration.registeredCount,
+        total: row.videoGeneration.requestedCount
+      })}. ${t(current.label)}`
+    : t(current.label);
+
+  const last = useRef({
+    active: current.active,
+    success: row.profile?.lastSuccessfulAt,
+    identity,
+    child
+  });
   const [fill, setFill] = useState(current.value);
   const [complete, setComplete] = useState(false);
   const success = row.profile?.lastSuccessfulAt;
   const confirmed = !row.profile?.reconciliationRequired && row.profile?.lastResult === 'success';
   useEffect(() => {
-    const wasActive = last.current.active;
+    const sameAttempt = identity === last.current.identity;
+    const newChild = child != null && last.current.child != null && child !== last.current.child;
+    const wasActive = last.current.active && sameAttempt && !newChild;
     const finished =
+      !current.active &&
       confirmed &&
       Boolean(success) &&
       success !== last.current.success &&
@@ -69,8 +116,13 @@ export function CatalogProgressRow({
       setFill(previous => (wasActive ? Math.max(previous, current.value) : current.value));
       setComplete(false);
     } else if (!complete) setFill(0);
-    last.current = { active: current.active, success };
-  }, [current.active, current.value, confirmed, success, complete]);
+    last.current = {
+      active: current.active,
+      success,
+      identity,
+      child: sameAttempt ? (child ?? last.current.child) : child
+    };
+  }, [current.active, current.value, confirmed, success, complete, identity, child]);
   return (
     <tr
       {...props}
@@ -78,7 +130,8 @@ export function CatalogProgressRow({
         .filter(Boolean)
         .join(' ')}
       aria-busy={current.active || undefined}
-      data-tip={current.active ? t(current.label) : undefined}
+      data-tip={current.active ? progressLabel : undefined}
+      aria-label={current.active && row.videoGeneration ? progressLabel : props['aria-label']}
       style={
         {
           ...props.style,

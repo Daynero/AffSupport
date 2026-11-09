@@ -1,0 +1,12 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(6);
+select ok(to_regclass('public.analytics_catalog_stop_parent_idx') is not null,'Stop target lookup has its partial index');
+select ok(to_regclass('public.analytics_catalog_stop_origin_idx') is not null,'Stop Check lookup has its partial index');
+select ok(to_regclass('public.analytics_catalog_stop_actor_idx') is not null,'Stop actor discovery has its partial index');
+select ok((select indisvalid and not indisunique and indpred is not null from pg_index where indexrelid='public.analytics_catalog_stop_parent_idx'::regclass),'target index is valid, nonunique and partial');
+select ok((select indisvalid and not indisunique and indpred is not null from pg_index where indexrelid='public.analytics_catalog_stop_origin_idx'::regclass),'origin index is valid, nonunique and partial');
+select ok((select indisvalid and not indisunique and indpred is not null from pg_index where indexrelid='public.analytics_catalog_stop_actor_idx'::regclass),'actor index is valid, nonunique and partial');
+select * from finish();
+rollback;

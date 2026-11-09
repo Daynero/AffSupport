@@ -51,6 +51,19 @@ function renderChip(state: CatalogUpdaterState | null, offsetMs = 0) {
 }
 
 describe('the updater chip', () => {
+  it('labels the scheduled subset instead of presenting it as the total catalog count', () => {
+    renderChip({ ...running, catalogCount: 3, activeCount: 2 });
+    expect(document.querySelector('.catalog-chip-title')?.textContent).toBe('Scheduled3');
+    expect(screen.getByRole('link').getAttribute('aria-label')).toContain('Scheduled catalogs: 3');
+    expect(screen.getByRole('link').textContent).toContain('Updating 2 catalogs');
+  });
+  it('uses the actual active count for one-off work and leaves legacy unknown counts absent', () => {
+    renderChip({ ...running, state: 'stopped', nextRunAt: null, catalogCount: 0, activeCount: 1 });
+    expect(document.querySelector('.catalog-chip-title')?.textContent).toBe('One-off update1');
+    cleanup();
+    renderChip({ ...running, nextRunAt: null, activeCount: undefined });
+    expect(document.querySelector('.catalog-chip-count')).toBeNull();
+  });
   it('distinguishes an unscheduled round and an unknown deadline from an hour-scale schedule', () => {
     renderChip({ ...running, nextRunAt: null });
     expect(screen.getByRole('link').textContent).toContain('Updating…');
@@ -72,7 +85,9 @@ describe('the updater chip', () => {
 
   it('shows the countdown and the number of catalogs while running', () => {
     renderChip(running);
-    const link = screen.getByRole('link', { name: /Open the catalog manager: 3 catalogs/ });
+    const link = screen.getByRole('link', {
+      name: /Open the catalog manager: Scheduled catalogs: 3/
+    });
     expect(link.className).not.toContain('ui-chip-busy');
     expect(link.querySelector('.ui-chip-spinner')).toBeNull();
     expect(link.textContent).toContain('Next update in 2 min');
@@ -97,7 +112,7 @@ describe('the updater chip', () => {
     const link = screen.getByRole('link');
     expect(link.className).toContain('ui-chip-warn');
     expect(link.textContent).toContain('needs attention');
-    expect(link.getAttribute('aria-label')).toContain('1 catalog');
+    expect(link.getAttribute('aria-label')).toContain('Scheduled catalogs: 1');
   });
 });
 

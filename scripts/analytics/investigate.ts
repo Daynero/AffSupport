@@ -1,3 +1,5 @@
+import { getCatalogPublicationEvidence } from './catalog-publications.js';
+import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
 import { getCommercialAccessEvidence } from './commercial-access.js';
 import { getTranslationRetirementEvidence } from './library-retirement.js';
@@ -9,6 +11,7 @@ import { getWorkspaceEvidence } from './workspace.js';
 import { diagnoseAccountEvents } from './accounts.js';
 import { getLaunchEvidence } from './launches.js';
 import { getCatalogGenerationEvidence } from './catalog-generations.js';
+import { getMaterialSharingEvidence, getOwnedMaterialSharingEvidence } from './material-sharing.js';
 /**
  * 033 — `journal` and `investigate`: everything the database knows about one user's problem,
  * in one read-only call (FR-005, FR-006).
@@ -374,6 +377,15 @@ async function resolveSubject(
         or e.properties ->> 'workflow_id' = $1::text)`
     );
     if (attempt) return scopeOf('attempt', value, attempt, value);
+    const sharing = await getMaterialSharingEvidence(value, period.end);
+    const receipt = sharing.items[0];
+    if (receipt)
+      return scopeOf(
+        receipt.command_id === value.toLowerCase() ? 'flow' : 'attempt',
+        value,
+        { user_id: receipt.actor_id, installation_id: null },
+        value
+      );
   } else {
     // `$2::uuid is null` (always true here) also gives Postgres the type of the unused $2.
     const attempt = await owner(
@@ -688,6 +700,7 @@ interface OperationGroup {
   id: string;
   id_kind: InvestigateOperation['id_kind'];
   rows: EventRow[];
+  nativeLastSeenAt?: string;
 }
 
 function operationGroups(rows: EventRow[]): OperationGroup[] {
@@ -757,11 +770,15 @@ async function operationsOf(
   focus: string | null
 ): Promise<InvestigateOperation[]> {
   const candidates = groups
-    .filter(group => group.id === focus || !endedInSuccess(group))
+    .filter(
+      group => group.id === focus || group.nativeLastSeenAt !== undefined || !endedInSuccess(group)
+    )
     .sort(
       (a, b) =>
         Number(b.id === focus) - Number(a.id === focus) ||
-        (b.rows.at(-1)?.occurred_at ?? '').localeCompare(a.rows.at(-1)?.occurred_at ?? '') ||
+        (b.rows.at(-1)?.occurred_at ?? b.nativeLastSeenAt ?? '').localeCompare(
+          a.rows.at(-1)?.occurred_at ?? a.nativeLastSeenAt ?? ''
+        ) ||
         a.id.localeCompare(b.id)
     )
     .slice(0, OPERATION_LIMIT);
@@ -786,6 +803,17 @@ async function operationsOf(
       group.rows.find(row => row.tool)?.tool ??
       (found.capability ? (capabilityById(found.capability)?.tool ?? null) : null);
     const error = errorOf(group.rows, tool);
+    const nativeCode = found.team_native?.records.at(-1)?.error_code;
+    if (
+      nativeCode &&
+      !found.team_native?.blind_spots.some(note => note.startsWith('Conflicting'))
+    ) {
+      if (!error.code || error.code === 'unknown') {
+        error.code = nativeCode;
+        error.stage = 'process';
+        error.fingerprint = `team:process:${nativeCode}`;
+      }
+    }
     const stageOf = (event: string) =>
       found.stages.expected.find(stage =>
         found.capability ? stageEventsOf(found, stage).includes(event) : false
@@ -798,16 +826,26 @@ async function operationsOf(
       tool,
       stages: found.stages,
       last_proven_stage: found.last_proven_stage,
-      chain: found.events.map(event => ({
-        event: event.event_name,
-        at: iso(event.occurred_at),
-        stage: stageOf(event.event_name)
-      })),
+      chain: [
+        ...found.events.map(event => ({
+          event: event.event_name,
+          at: iso(event.occurred_at),
+          stage: stageOf(event.event_name)
+        })),
+        ...(found.team_native?.records ?? []).map(record => ({
+          event: 'journal:team:process_terminal',
+          at: record.at,
+          stage: record.stage
+        }))
+      ],
       terminal: found.terminal,
       error_code: status === 'failed' ? (error.code ?? 'unknown') : error.code,
       error_stage: error.stage,
       fingerprint: status === 'failed' ? error.fingerprint : null,
-      agent_instance_ids: sortedUnique(group.rows.map(row => row.agent_instance_id)),
+      agent_instance_ids: sortedUnique([
+        ...group.rows.map(row => row.agent_instance_id),
+        ...found.agent.agent_instance_ids
+      ]),
       started_at: found.first_seen_at,
       last_seen_at: found.last_seen_at
     });
@@ -1639,6 +1677,25 @@ export async function getInvestigation(
 
   const environment = environmentOf(rows, newest);
   const groups = operationGroups(rows);
+  for (const record of journal) {
+    const operationId = record.props.operationId;
+    if (
+      record.category !== 'team' ||
+      record.code !== 'process_terminal' ||
+      typeof operationId !== 'string' ||
+      !UUID.test(operationId)
+    )
+      continue;
+    const existing = groups.find(group => group.id === operationId);
+    if (existing) existing.nativeLastSeenAt = record.recorded_at;
+    else
+      groups.push({
+        id: operationId,
+        id_kind: 'run_id',
+        rows: [],
+        nativeLastSeenAt: record.recorded_at
+      });
+  }
   const operations = await operationsOf(groups, period, scope.focus);
   const link = linkOf(rows);
   const errors = errorClusters(rows);
@@ -1855,8 +1912,157 @@ export async function getInvestigation(
             : 'Inspect the safe receipt; retain unverified files and reconcile unknown operations before retrying.'
     });
   }
+  const groupLocation = lookupCodeLocations('material:group:execution');
+  for (const group of workspace.material_groups?.records ?? []) {
+    if (group.state === 'registered') continue;
+    findings.push({
+      id: hashId(['material_group_execution', group.id, group.state]),
+      kind: group.state === 'legacy_unknown' ? 'insufficient' : 'fact',
+      severity: group.state === 'dispatch_unconfirmed' ? 'high' : 'medium',
+      rule: 'workspace_receipt',
+      title:
+        'File ' + group.action + ': ' + group.state + (group.code ? ' (' + group.code + ')' : ''),
+      evidence: ['material_group:' + group.id],
+      code_locations: groupLocation ? [groupLocation] : [],
+      next_step:
+        group.state === 'dispatch_unconfirmed'
+          ? 'Retain the original key and held member. A reservation does not prove provider nonexecution; reconcile without issuing another PATCH.'
+          : group.state === 'provider_confirmed'
+            ? 'All member acknowledgements are recorded. Read the existing group completion and current material generation; do not repeat provider writes.'
+            : group.state === 'retryable_no_pending'
+              ? 'The original executor closed with no pending member. Revalidate current rights and source before resuming the same intent.'
+              : 'Inspect the original execution marker. Missing legacy or browser evidence remains unknown; do not rotate its request key.'
+    });
+  }
+  const selectionLocation = lookupCodeLocations('restitch:selection:accounting');
+  for (const selection of workspace.restitch_selections?.records ?? []) {
+    if (!['range_unconfirmed', 'candidate_rejected'].includes(selection.state)) continue;
+    findings.push({
+      id: hashId(['restitch_selection', selection.operation_id, selection.slot, selection.state]),
+      kind: selection.state === 'range_unconfirmed' ? 'fact' : 'insufficient',
+      severity: selection.state === 'range_unconfirmed' ? 'high' : 'medium',
+      rule: 'workspace_receipt',
+      title: 'Restitch ' + selection.slot + ': ' + selection.state,
+      evidence: ['restitch_selection:' + selection.operation_id + ':' + selection.slot],
+      code_locations: selectionLocation ? [selectionLocation] : [],
+      next_step:
+        selection.state === 'range_unconfirmed'
+          ? 'Retain the original root and request. A reserved range does not prove whether upstream work began; confirm accounting without issuing another read.'
+          : 'The candidate was rejected, but this storage foundation has no recorded cause. Inspect a correlated native failure; do not infer corruption, access denial or a whole-pool outage.'
+    });
+  }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
+  let catalog_publications: Awaited<ReturnType<typeof getCatalogPublicationEvidence>> | undefined;
+  if (
+    schema.tables.analytics_catalog_video_publications &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      scope.userId ?? input
+    )
+  ) {
+    try {
+      catalog_publications = await getCatalogPublicationEvidence({
+        id: scope.userId ?? input,
+        asOf: period.as_of,
+        limit: 50
+      });
+    } catch {
+      blindSpots.push({
+        kind: 'workspace_evidence_gap',
+        detail: 'Catalog publication authority could not be read; delivery remains unknown.',
+        values: []
+      });
+    }
+  }
+  if (period.as_of && catalog_publications?.records.length)
+    blindSpots.push({
+      kind: 'workspace_evidence_gap',
+      detail:
+        'Historical publication blocking state is not reconstructed; only immutable verification times are compared with the cutoff.',
+      values: []
+    });
+  for (const job of period.as_of ? [] : (catalog_publications?.records ?? [])) {
+    if (job.job_state !== 'blocked' || !job.job_id) continue;
+    const unsupported = job.blocked_reason === 'writer_unsupported';
+    const fingerprint = unsupported
+      ? 'team:library:CATALOG_WRITE_UNSUPPORTED'
+      : 'team:library:CATALOG_PUBLICATION_PENDING';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['catalog_publication_blocked', job.job_id]),
+      kind: 'fact',
+      severity: unsupported ? 'high' : 'medium',
+      rule: 'catalog_publication_blocked',
+      title: unsupported
+        ? 'Video-link publication is blocked because a safe provider writer is unavailable.'
+        : 'Video-link publication requires dependency or existing-link verification.',
+      evidence: [`catalog_publication:${job.job_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: unsupported
+        ? 'Preserve existing catalog cells and the pending target. A saved schedule or ready videos cannot bypass the missing conditional provider writer.'
+        : 'Read the exact publication job and verify its selected dependency before rescheduling or requesting publication. Missing browser delivery remains unknown.'
+    });
+  }
+
+  const material_sharing = await getOwnedMaterialSharingEvidence(scope.userId, period);
+  for (const detail of material_sharing.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const receipt of material_sharing.items) {
+    if (!['write_started', 'acknowledged', 'blocked'].includes(receipt.request_state)) continue;
+    const fingerprint = 'team:library:CATALOG_LINK_SHARING_UNCERTAIN';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['material_share_pending', receipt.intent_id]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'material_sharing_currently_pending',
+      title: `Sharing request currently requires reconciliation: ${receipt.request_state}.`,
+      evidence: [`material_share:${receipt.intent_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read the existing file permissions using Check. A consumed permit does not prove a provider write; do not repeat permission creation. This is current receipt state, not reconstructed historical state.'
+    });
+  }
+  const catalog_stops = await getCatalogStopEvidence(
+    scope.userId ?? '',
+    period.as_of,
+    50,
+    scope.userId ?? undefined
+  );
+  for (const detail of catalog_stops.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const stop of catalog_stops.flows) {
+    const conflicting =
+      ['invalid', 'conflicting'].includes(stop.correlation) ||
+      stop.ui_terminal === 'conflicting' ||
+      (stop.browser_reported_readback === 'inactive' && stop.target?.result === 'running');
+    const resolved =
+      stop.ui_terminal === 'operation_completed' &&
+      stop.visible_result_observed &&
+      stop.browser_reported_readback === 'inactive';
+    if (resolved && !conflicting) continue;
+    const failure = [...stop.stages].reverse().find(stage => stage.code);
+    const fingerprint = `catalog:stop:${failure?.code ?? 'UNKNOWN'}`;
+    const location = lookupCodeLocations(fingerprint);
+    const evidence = stop.stages.flatMap(stage =>
+      stage.event_id ? [`event:${stage.event_id}`] : []
+    );
+    findings.push({
+      id: hashId(['catalog_stop_observation', stop.flow_id]),
+      kind: conflicting || failure ? 'fact' : 'insufficient',
+      severity: conflicting || failure ? 'medium' : 'low',
+      rule: 'catalog_stop_unconfirmed',
+      title: conflicting
+        ? 'Stop browser evidence has conflicting target or terminal observations.'
+        : `Stop browser result is not confirmed: reply ${stop.browser_reported_reply}, readback ${stop.browser_reported_readback}.`,
+      evidence: evidence.length ? evidence : ['blind_spot:catalog_stop_event_identity_missing'],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: `Inspect Stop flow ${stop.flow_id} and its recorded target. Check reads state without another Stop RPC; preserve pending provider and execution fences. Browser acknowledgement and current target state do not prove causal Stop execution or native termination.`
+    });
+  }
   const catalog_claims = await getOwnedCatalogClaimEvidence(scope.userId, period.as_of);
   for (const detail of catalog_claims.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
@@ -1886,11 +2092,65 @@ export async function getInvestigation(
         'Inspect current eligibility and native claimant blockers. This snapshot does not prove the cause of a historical empty claim; never replay uncertain execution.'
     });
   }
+  const catalogVideo = catalog_generations.video_sets;
+  if (catalogVideo && catalogVideo.status !== 'available')
+    blindSpots.push({
+      kind: 'workspace_evidence_gap',
+      detail:
+        'Catalog video generation authority is unavailable or historical state is unknown; missing evidence does not prove zero work.',
+      values: []
+    });
+  for (const command of catalogVideo?.commands ?? []) {
+    if (!command.failure_observed || command.canceled) continue;
+    const code = command.safe_failure_code ?? 'UNKNOWN';
+    const location = lookupCodeLocations(`catalog:variants:${code}`);
+    findings.push({
+      id: hashId([
+        'catalog_variant_admission',
+        command.request_id,
+        command.last_proven_stage,
+        code
+      ]),
+      kind: code === 'UNKNOWN' ? 'insufficient' : 'fact',
+      severity: 'medium',
+      rule: 'catalog_variant_admission',
+      title: `Video variation request stopped after ${command.last_proven_stage}; recorded cause: ${code}.`,
+      evidence: [`catalog_variant_request:${command.request_id}`],
+      fingerprint: `catalog:variants:${code}`,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read or resume the original accepted request after correcting its dependency. Preserve the original request and process identity; missing set admission is not proof that a new request is safe.'
+    });
+  }
+  for (const set of (catalogVideo?.records ?? [])
+    .filter(set => set.state === 'unknown' || set.state === 'cancel_requested')
+    .slice(0, 10)) {
+    const location = lookupCodeLocations('catalog:variants:PROCESS_RESULT_UNCERTAIN');
+    findings.push({
+      id: hashId(['catalog_variant_state', set.video_set_id, set.state]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'catalog_variant_state',
+      title: `Video generation is ${set.state}; ${set.registered_count} of ${set.requested_count} outputs registered.`,
+      evidence: [`catalog_video_set:${set.video_set_id}`],
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect each original child process and its native quiescence receipt. Registered outputs do not prove catalog publication or browser delivery; do not create replacement children for an unknown process.'
+    });
+  }
   for (const detail of catalog_generations.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
   for (const record of catalog_generations.records.filter(
     record =>
-      record.origin === 'standalone' && ['interrupted', 'cleanup_pending'].includes(record.state)
+      record.origin === 'standalone' &&
+      ['interrupted', 'cleanup_pending'].includes(record.state) &&
+      !catalogVideo?.records.some(
+        set =>
+          set.catalog_intent_id === record.intent_id &&
+          ['accepted', 'preparing'].includes(set.state) &&
+          set.unknown_count === 0 &&
+          record.safe_error_code === null
+      )
   )) {
     const code = record.safe_error_code ?? 'UNKNOWN';
     const location = lookupCodeLocations(`catalog:generation:${code}`);
@@ -2021,7 +2281,10 @@ export async function getInvestigation(
     workspace,
     launches,
     catalog_generations,
+    ...(catalog_publications ? { catalog_publications } : {}),
+    material_sharing,
     catalog_claims,
+    catalog_stops,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,

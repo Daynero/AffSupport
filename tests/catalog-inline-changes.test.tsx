@@ -15,6 +15,8 @@ import { TeamApiError, type CatalogRegistryRow } from '../apps/web/src/api/team'
 import { useCatalogInlineChanges } from '../apps/web/src/team/catalog-updater/useCatalogInlineChanges';
 import { analytics } from '../apps/web/src/analytics/service';
 import { CatalogIconControls } from '../apps/web/src/team/catalog-updater/CatalogIconControls';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
+const ACTOR = '47000000-0000-4000-8000-000000000001';
 const profile: CatalogUpdateProfile = {
   catalogId: 'one',
   version: 1,
@@ -26,7 +28,10 @@ const profile: CatalogUpdateProfile = {
   growProducts: true
 };
 const row = { catalogId: 'one', profile, updateInterval: null } as CatalogRegistryRow;
-beforeEach(() => localStorage.setItem('language', 'en'));
+beforeEach(() => {
+  localStorage.setItem('language', 'en');
+  setPrivateCacheScope(ACTOR, 'owner');
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -59,7 +64,13 @@ it('writes exactly one field and synchronously blocks a second mutation of the s
   });
   expect(result.current.blocked('one')).toBe(true);
   expect(patch).toHaveBeenCalledTimes(1);
-  expect(patch).toHaveBeenCalledWith('team', 'one', 1, { restitch: true });
+  expect(patch).toHaveBeenCalledWith(
+    'team',
+    'one',
+    1,
+    { restitch: true },
+    expect.objectContaining({ expectedActorId: ACTOR, signal: expect.any(AbortSignal) })
+  );
   await act(async () => {
     resolve({ ...profile, restitch: true, version: 2 });
     await first;
@@ -88,6 +99,75 @@ it('keeps an unknown write locked when readback also fails', async () => {
   });
   expect(result.current.states.one?.phase).toBe('unknown');
   expect(result.current.blocked('one')).toBe(true);
+});
+it('does not clear an unknown write after reading its unchanged old version, and recovers its Undo after actual commit', async () => {
+  const patch = vi.fn().mockRejectedValue(new TypeError('reply lost'));
+  const { result, client } = setup(patch);
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  expect(result.current.blocked('one')).toBe(true);
+  expect(patch).toHaveBeenCalledTimes(1);
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, version: 2, restitch: true }]);
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('saved');
+  expect(result.current.undo).toMatchObject([{ before: false, after: true, version: 2 }]);
+  expect(patch).toHaveBeenCalledTimes(1);
+});
+it('blocks another write while the previous result is unknown', async () => {
+  const patch = vi.fn().mockRejectedValue(new TypeError('reply lost'));
+  const { result } = setup(patch);
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  await act(async () => {
+    await result.current.change('one', 'refreshTexts', false);
+  });
+  expect(patch).toHaveBeenCalledTimes(1);
+  expect(result.current.states.one?.phase).toBe('unknown');
+});
+it('rechecks an unknown Undo without sending the inverse twice', async () => {
+  const { result, client } = setup();
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, restitch: true, version: 2 }]);
+  client.patchCatalogUpdateProfile.mockRejectedValue(new TypeError('reply lost'));
+  await act(async () => {
+    await result.current.undoChange(result.current.undo[0]!);
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('unknown');
+  client.listCatalogUpdateProfiles.mockResolvedValue([{ ...profile, version: 3 }]);
+  await act(async () => {
+    await result.current.reconcile('one');
+  });
+  expect(result.current.states.one?.phase).toBe('saved');
+  expect(result.current.undo).toHaveLength(0);
+  expect(client.patchCatalogUpdateProfile).toHaveBeenCalledTimes(2);
+});
+it('keeps a failed Undo preflight retryable because no inverse was sent', async () => {
+  const { result, client } = setup();
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  client.listCatalogUpdateProfiles.mockRejectedValue(new TypeError('offline'));
+  await act(async () => {
+    await result.current.undoChange(result.current.undo[0]!);
+  });
+  expect(result.current.states.one?.phase).toBe('error');
+  expect(result.current.blocked('one')).toBe(false);
+  expect(client.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
 });
 it('loads the actual version after conflict without overwriting it', async () => {
   const patch = vi.fn().mockRejectedValue(new TeamApiError('STALE_RESULT', false));
@@ -129,9 +209,15 @@ it('undo restores only the changed field with the verified version', async () =>
   await act(async () => {
     await result.current.undoChange(entry);
   });
-  expect(client.patchCatalogUpdateProfile).toHaveBeenLastCalledWith('team', 'one', 2, {
-    restitch: false
-  });
+  expect(client.patchCatalogUpdateProfile).toHaveBeenLastCalledWith(
+    'team',
+    'one',
+    2,
+    {
+      restitch: false
+    },
+    expect.objectContaining({ expectedActorId: ACTOR })
+  );
   expect(result.current.undo).toHaveLength(0);
 });
 it('keeps a known refusal at the confirmed value', async () => {
@@ -182,7 +268,7 @@ it('accepts fresh runtime facts from the registry when the profile version is un
         profile: {
           ...profile,
           version: 2,
-          restitch: true,
+          restitch: false,
           restitchStatus: 'ready',
           lastSuccessfulAt: '2026-10-18T10:00:00Z',
           lastResult: 'success'
@@ -190,6 +276,7 @@ it('accepts fresh runtime facts from the registry when the profile version is un
       }
     ]
   });
+  expect(result.current.snapshotFor('one')?.profile.restitch).toBe(true);
   expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
   expect(result.current.snapshotFor('one')?.profile.lastSuccessfulAt).toBe('2026-10-18T10:00:00Z');
 });
@@ -213,11 +300,17 @@ it('saves schedule atomically and reconciles an uncertain response including its
     confirmed = await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
   expect(confirmed).toBe(true);
-  expect(patch).toHaveBeenCalledWith('team', 'one', 1, { updateInterval: '1w', schedule });
+  expect(patch).toHaveBeenCalledWith(
+    'team',
+    'one',
+    1,
+    { updateInterval: '1w', schedule },
+    expect.objectContaining({ expectedActorId: ACTOR })
+  );
   expect(result.current.snapshotFor('one')?.profile.schedule).toEqual(schedule);
   expect(result.current.undo[0]?.before).toEqual({ interval: null, schedule: null });
 });
-it('does not confirm a schedule when readback has a different clock', async () => {
+it('reports a conflict when readback has a different clock', async () => {
   const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
   const { result, client } = setup(vi.fn().mockRejectedValue(new TypeError('network')));
   client.listCatalogUpdateProfiles.mockResolvedValue([
@@ -229,49 +322,30 @@ it('does not confirm a schedule when readback has a different clock', async () =
     confirmed = await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
   expect(confirmed).toBe(false);
-  expect(result.current.states.one.phase).toBe('unknown');
+  expect(result.current.states.one.phase).toBe('conflict');
 });
 
-it('retains one immediate schedule forecast until authoritative registry readback replaces it', async () => {
+it('uses the authoritative calendar due time rather than forecasting a confirmed result', async () => {
   const schedule = { timeZone: 'Europe/Kyiv', weekday: 7, time: '18:00' };
-  const oldNext = '2026-10-26T07:00:00Z';
-  let rows = [
-    {
-      ...row,
-      updateInterval: '1w',
-      nextRunAt: oldNext,
-      profile: { ...profile, schedule: { ...schedule, weekday: 1, time: '09:00' } }
-    }
-  ] as CatalogRegistryRow[];
-  const patch = vi.fn().mockResolvedValue({ ...profile, schedule, version: 2 });
+  const nextRunAt = '2026-11-08T16:00:00Z';
+  const saved = { ...profile, schedule, version: 2 };
   const client = {
     getCatalogUpdater: vi.fn(),
-    listTeamProductCatalogs: vi.fn(),
-    patchCatalogUpdateProfile: patch
+    listTeamProductCatalogs: vi
+      .fn()
+      .mockResolvedValue([{ ...row, profile: saved, updateInterval: '1w', nextRunAt }]),
+    listCatalogUpdateProfiles: vi.fn().mockResolvedValue([saved]),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue(saved)
   };
-  const { result, rerender } = renderHook(() =>
-    useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() })
+  const { result } = renderHook(() =>
+    useCatalogInlineChanges({ teamId: 'team', client, rows: [row], reload: vi.fn() })
   );
   await act(async () => {
     await result.current.change('one', 'schedule', { interval: '1w', schedule });
   });
-  const forecast = result.current.snapshotFor('one')?.nextRunAt;
-  expect(forecast).toBeTruthy();
-  expect(forecast).not.toBe(oldNext);
-  expect(
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/Kyiv',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23'
-    }).format(new Date(forecast!))
-  ).toBe('18:00');
-  rerender();
-  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(forecast);
-  const authoritative = new Date(Date.parse(forecast!) + 7 * 86400000).toISOString();
-  rows = [{ ...rows[0], profile: { ...profile, schedule, version: 2 }, nextRunAt: authoritative }];
-  rerender();
-  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(authoritative);
+  expect(result.current.states.one.phase).toBe('saved');
+  expect(result.current.snapshotFor('one')?.nextRunAt).toBe(nextRunAt);
+  expect(client.listTeamProductCatalogs).toHaveBeenCalledTimes(1);
 });
 
 it('keeps a typed server refusal in the correlated diagnostic flow and the schedule picker', async () => {
@@ -291,4 +365,268 @@ it('keeps a typed server refusal in the correlated diagnostic flow and the sched
     flow_id: expect.any(String)
   });
   expect(result.current.states.one).toMatchObject({ phase: 'error', code: 'PERMISSION_DENIED' });
+});
+
+it('ignores late save acknowledgement from the previous team and clears its undo/state', async () => {
+  let resolve!: (profile: CatalogUpdateProfile) => void;
+  const patch = vi.fn().mockReturnValue(
+    new Promise<CatalogUpdateProfile>(r => {
+      resolve = r;
+    })
+  );
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: patch
+  };
+  const reload = vi.fn();
+  const onChanged = vi.fn();
+  const hook = renderHook(
+    ({ teamId }) => useCatalogInlineChanges({ teamId, client, rows: [row], reload, onChanged }),
+    { initialProps: { teamId: 'old' } }
+  );
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = hook.result.current.change('one', 'restitch', true);
+  });
+  hook.rerender({ teamId: 'new' });
+  await act(async () => {
+    resolve({ ...profile, version: 2, restitch: true });
+    await pending;
+  });
+  expect(await pending).toBe(false);
+  expect(hook.result.current.undo).toEqual([]);
+  expect(hook.result.current.states).toEqual({});
+  expect(reload).not.toHaveBeenCalled();
+  expect(onChanged).not.toHaveBeenCalled();
+});
+it('does not refresh or publish a save result after unmount', async () => {
+  let resolve!: (profile: CatalogUpdateProfile) => void;
+  const patch = vi.fn().mockReturnValue(
+    new Promise<CatalogUpdateProfile>(r => {
+      resolve = r;
+    })
+  );
+  const hook = setup(patch);
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = hook.result.current.change('one', 'restitch', true);
+  });
+  hook.unmount();
+  resolve({ ...profile, version: 2, restitch: true });
+  expect(await pending).toBe(false);
+});
+
+it('does not confirm a save acknowledgement with an unexpected settings version', async () => {
+  const hook = setup(vi.fn().mockResolvedValue({ ...profile, restitch: true, version: 1 }));
+  let confirmed = true;
+  await act(async () => {
+    confirmed = await hook.result.current.change('one', 'restitch', true);
+  });
+  expect(confirmed).toBe(false);
+  expect(hook.client.listCatalogUpdateProfiles).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.undo).toHaveLength(0);
+});
+
+it('does not replace a newer readback runtime with an older same-version registry response', async () => {
+  const saved = { ...profile, version: 2, restitch: true, restitchStatus: 'ready' as const };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    listCatalogManagerSnapshot: vi.fn().mockResolvedValue({
+      rows: [{ ...row, profile: saved, runtimeObservedAt: '2026-11-05T12:02:00Z' }],
+      invalidRowCount: 0
+    }),
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('lost reply'))
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [row] } }
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'waiting' },
+        runtimeObservedAt: '2026-11-05T12:01:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('ready');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'blocked' },
+        runtimeObservedAt: '2026-11-05T12:03:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('blocked');
+  rerender({
+    rows: [
+      {
+        ...row,
+        profile: { ...saved, restitchStatus: 'waiting' },
+        runtimeObservedAt: '2026-11-05T12:01:00Z'
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')?.profile.restitchStatus).toBe('blocked');
+});
+
+it('does not present an older acknowledgement as the visible settings after a newer version was observed', async () => {
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn(
+      () =>
+        new Promise<CatalogUpdateProfile>(resolve => {
+          finish = resolve;
+        })
+    )
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [row] } }
+  );
+  let save!: Promise<boolean>;
+  act(() => {
+    save = result.current.change('one', 'restitch', true);
+  });
+  rerender({ rows: [{ ...row, profile: { ...profile, version: 3, restitch: false } }] });
+  expect(result.current.snapshotFor('one')?.profile.version).toBe(3);
+  let confirmed = true;
+  await act(async () => {
+    finish({ ...profile, version: 2, restitch: true });
+    confirmed = await save;
+  });
+  expect(confirmed).toBe(false);
+  expect(result.current.states.one.phase).toBe('conflict');
+  expect(result.current.snapshotFor('one')?.profile).toMatchObject({ version: 3, restitch: false });
+  expect(result.current.undo).toEqual([]);
+});
+
+it('retains observed runtime facts when a newer settings acknowledgement has no runtime observation', async () => {
+  const initial = {
+    ...row,
+    runtimeObservedAt: '2026-11-05T12:00:00Z',
+    profile: {
+      ...profile,
+      lastResult: 'partial' as const,
+      lastSuccessfulAt: '2026-11-04T12:00:00Z'
+    }
+  };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue({ ...profile, version: 2, restitch: true })
+  };
+  const { result } = renderHook(() =>
+    useCatalogInlineChanges({ teamId: 'team', client, rows: [initial], reload: vi.fn() })
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  expect(result.current.snapshotFor('one')).toMatchObject({
+    runtimeObservedAt: initial.runtimeObservedAt,
+    profile: {
+      version: 2,
+      restitch: true,
+      lastResult: 'partial',
+      lastSuccessfulAt: '2026-11-04T12:00:00Z'
+    }
+  });
+});
+it('accepts a newer runtime observation independently of an older embedded settings version', async () => {
+  const initial = {
+    ...row,
+    runtimeObservedAt: '2026-11-05T12:00:00Z',
+    profile: { ...profile, lastResult: 'running' as const }
+  };
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn(),
+    patchCatalogUpdateProfile: vi.fn().mockResolvedValue({ ...profile, version: 2, restitch: true })
+  };
+  const { result, rerender } = renderHook(
+    ({ rows }) => useCatalogInlineChanges({ teamId: 'team', client, rows, reload: vi.fn() }),
+    { initialProps: { rows: [initial as CatalogRegistryRow] } }
+  );
+  await act(async () => {
+    await result.current.change('one', 'restitch', true);
+  });
+  rerender({
+    rows: [
+      {
+        ...initial,
+        runtimeObservedAt: '2026-11-05T12:01:00Z',
+        profile: { ...profile, lastResult: 'success' }
+      } as CatalogRegistryRow
+    ]
+  });
+  expect(result.current.snapshotFor('one')).toMatchObject({
+    runtimeObservedAt: '2026-11-05T12:01:00Z',
+    profile: { version: 2, restitch: true, lastResult: 'success' }
+  });
+});
+
+it('refuses a retained inline callback immediately after an actor switch', async () => {
+  const { result, client } = setup();
+  const oldChange = result.current.change;
+  act(() => setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner'));
+  await act(async () => {
+    expect(await oldChange('one', 'restitch', true)).toBe(false);
+  });
+  expect(client.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+});
+
+it('keeps a current mutation usable after StrictMode effect cleanup and restart', async () => {
+  const patch = vi.fn().mockResolvedValue({ ...profile, restitch: true, version: 2 });
+  const client = {
+    getCatalogUpdater: vi.fn(),
+    listTeamProductCatalogs: vi.fn().mockResolvedValue([row]),
+    patchCatalogUpdateProfile: patch
+  };
+  const { result } = renderHook(
+    () => useCatalogInlineChanges({ teamId: 'team', client, rows: [row], reload: vi.fn() }),
+    { wrapper: ({ children }) => <React.StrictMode>{children}</React.StrictMode> }
+  );
+  await act(async () => {
+    expect(await result.current.change('one', 'restitch', true)).toBe(true);
+  });
+  expect(patch).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the pending-exit guard in its initiating actor scope even before React cleanup', async () => {
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const patch = vi.fn(
+    () =>
+      new Promise<CatalogUpdateProfile>(resolve => {
+        finish = resolve;
+      })
+  );
+  const { result } = setup(patch);
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = result.current.change('one', 'restitch', true);
+  });
+  const ownExit = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(ownExit);
+  expect(ownExit.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const replacementExit = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(replacementExit);
+    expect(replacementExit.defaultPrevented).toBe(false);
+  });
+  await act(async () => {
+    finish({ ...profile, version: 2, restitch: true });
+    await pending;
+  });
 });

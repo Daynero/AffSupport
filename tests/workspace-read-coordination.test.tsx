@@ -170,3 +170,28 @@ it('does not hide a failed confirmation behind a later successful background rea
   second.resolve('later recovery');
   expect(await later).toBe('later recovery');
 });
+
+it('confirms only a registry read begun after the fresh request', async () => {
+  const old = deferred<string>();
+  const fresh = deferred<string>();
+  const load = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
+  const view = renderHook(() => useScopedRefresh({ scope: 'a', load, revision: 0 }));
+  await act(async () => {});
+  let confirmed = false;
+  let pending!: Promise<boolean>;
+  act(() => {
+    pending = view.result.current.reloadFresh().then(value => {
+      confirmed = value;
+      return value;
+    });
+  });
+  await act(async () => old.resolve('before acceptance'));
+  expect(confirmed).toBe(false);
+  expect(load).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    fresh.resolve('after acceptance');
+    await pending;
+  });
+  expect(confirmed).toBe(true);
+  expect(view.result.current.value).toBe('after acceptance');
+});

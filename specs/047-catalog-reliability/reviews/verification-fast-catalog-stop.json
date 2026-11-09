@@ -1,0 +1,146 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-06T09:56:59.999Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1307276,
+    "totals": {
+      "gates": 14,
+      "passed": 14,
+      "failed": 0,
+      "tests": 9049,
+      "skipped_tests": 66,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 15,
+        "disposable PostgreSQL container": 17,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "platform:darwin": 3,
+        "disposable PostgreSQL": 4,
+        "apps/web/dist/index.html": 2,
+        "apps/web/public/_headers": 2,
+        "apps/web/dist": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 5,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "apps/web/dist/assets": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/apps/web/dist/.vite/manifest.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/specs/038-unified-accounts/reviews/bundle-budget-baseline.json": 4,
+        "/Volumes/LaCie/DevData/Soty/Worktrees/AffSupport-047-beta/specs/045-catalog-r2-images/bundle-budget-comparison.json": 4,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 2800
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 22565
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 21087
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 19224
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 22461
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 2499
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 153
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 1757
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 104
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 187
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 102
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 92
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 6051
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1208140
+      }
+    ]
+  },
+  "source_snapshot": {
+    "at": "2026-11-06T09:17:33.479173+00:00",
+    "base": "dedc9d13d408ef80b4cb4d9c1dd30ebfb59ae070",
+    "files": {
+      "apps/web/src/locales/en.ts": "92fcc98892a9339e7bb864b760d1454566d99c0ec22247903b7b98cfc2daafd1",
+      "apps/web/src/locales/uk.ts": "e08fd07f190b7ec637c535b7e1763606f9a83ba425655912a4a49928d35312d5",
+      "apps/web/src/team/catalog-updater/CatalogBulkEditor.tsx": "425721b5b8475d460695cf86fbe4296625c240f5b042f410c2a396b89c397898",
+      "apps/web/src/team/catalog-updater/CatalogDefaultsEditor.tsx": "572116b32149241f2a4828050c2c477e6eccc98158daa43f3cacccbd05a566bc",
+      "apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx": "16aa53757be683d68eaaad18a0ac26f14ce99dc39c95010a6bcf28f56d645c2f",
+      "apps/web/src/team/catalog-updater/analytics.ts": "4fea89afbf2faaff2f80ae460f3687bf6b196f9fd1f78325753b6473aaa5040b",
+      "apps/web/src/team/catalog-updater/useCatalogInlineChanges.ts": "4fba3b6b6c130368d848f2e77325353f9cfe091903a6ef05104bce935d98dc5c",
+      "scripts/analytics/catalog-stops.ts": "a817b0af56445f72bb6d7b7ef71a11166c3e7c20d9eb0b89f17762c20eeb35b3",
+      "scripts/analytics/code-map.ts": "68b700ab505674ab3b4ec70af7656526a3d410da7bde26bdc7cd6a3458eae78a",
+      "scripts/analytics/coverage-registry.ts": "b78fe2695b49a884a5be3cf2d6eb93cd87bbdbffaa28a1c85e564247ac89fa6c",
+      "scripts/analytics/investigate.ts": "f9e9e2c058b4b6c96799c98fd79b3c985b0bf122685a10bf8f11eee433cf0030",
+      "scripts/analytics/material-sharing.ts": "67059624c01dca64ad041e4cc46683c51cb4b733fb67672bf98e90a6bcf9483e",
+      "scripts/analytics/queries.ts": "bdae70ff9e6856ef1c799279b94dfa1166c00f1db1e361aa84510f40d3cf5629",
+      "scripts/analytics/types.ts": "1590e2b080058e6fa0a09926329595dd0de79c61aae4566502c94afe8ec092ca",
+      "supabase/migrations/20261207144000_catalog_stop_diagnostic_indexes.sql": "4626f7ef126b8bd61679722cde378c588b5a3da30fe35c9fe20f2b0cd28c5674",
+      "supabase/migrations/ROLLBACK.md": "58455b111f69e6b5cfd58d5e1182ad7c48b5b82993a5005abc5ceb9e4e7890fc",
+      "supabase/tests/database/catalog-stop-diagnostics.test.sql": "bdcd8e2be682d634b51a92729e3c4f19a35947d40f2b6ad17cf73a32a64045b4",
+      "tests/analytics-code-map.test.ts": "383c418e1a9997c4f69996e46cdad0fcbb987f1a4bfde4e72be993e80cd01d71",
+      "tests/analytics-investigate-command.test.ts": "fa63572bcb29ee8339e32e3dbdfac401446f1afec67c524bb353b0c25d09b7c4",
+      "tests/catalog-bulk-editor.test.tsx": "62e7149c0833378dd066e69f622e1a05228db2868cedf657f06db661127237d7",
+      "tests/catalog-defaults-editor.test.tsx": "4456a4505dc3d22e0f0d0a6e2dc2de71e1e5152782d602e787b23597d46766e5",
+      "tests/catalog-inline-changes.test.tsx": "b8ea7df92a1127e5e8eeb2aa8e8f8355cf81ca694a836396e023eb2cec74add0",
+      "tests/catalog-manager-ui-analytics.test.ts": "a7c0420e1c01477a259227f48a27d744c1738f4350acd884f061a20ec1791e93",
+      "tests/catalog-stop-diagnostics.test.ts": "d475b1448e68e7b50c583b4332eb60d7b0817587175373cca6b73e54611bc613",
+      "tests/catalog-updater-dialog.test.tsx": "678d85734c71576061a9480a6897dad4d80426eff475237e5967c213debbb4d3",
+      "tests/material-link-diagnostics.test.ts": "3923dd9cae476e3e811e308a73882feafc08810328213d7f03794240af2833b9"
+    },
+    "unchanged_after_verification": true
+  }
+}

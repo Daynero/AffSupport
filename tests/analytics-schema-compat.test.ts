@@ -120,6 +120,11 @@ describe.each([
     expect(data.catalog_generations?.blind_spots).toContain(
       'Restricted catalog generation view is unavailable to this role.'
     );
+    expect(data.workspace?.material_groups).toMatchObject({ supported: false, records: [] });
+    expect(data.workspace?.material_groups?.blind_spots.join(' ')).toContain(
+      'Material-group execution projection is unavailable'
+    );
+    expect(data.schema.missing).not.toContain('analytics_material_group_execution');
     expect(data.coverage.events).toBe(4);
     expect(data.operations.map(op => op.id)).toContain(RUN);
     expect(data.findings.some(f => f.fingerprint === 'transcription:model:MODEL_MISSING')).toBe(

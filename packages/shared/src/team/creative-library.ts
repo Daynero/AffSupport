@@ -5,6 +5,7 @@ import {
   normalizeMimeType,
   normalizeTeamFreeText
 } from './contract.js';
+import { TEAM_ERROR_CODES, type TeamErrorCode } from './transport.js';
 import { MATERIAL_CATEGORIES, type MaterialCategory } from './material-category.js';
 
 /** Creative Library placement, batch, enrichment and sharing contracts. */
@@ -378,6 +379,9 @@ export interface LibraryShareCopyRequest {
   allowIfRestricted: boolean;
   rememberChoice: boolean;
   idempotencyKey: string;
+  /** Modern UI captures its intended actor before any refresh/session await. */
+  expectedActorId?: string;
+  expectedShareVersion?: string | null;
 }
 
 export function parseLibraryShareCopyRequest(value: unknown): LibraryShareCopyRequest | null {
@@ -388,70 +392,159 @@ export function parseLibraryShareCopyRequest(value: unknown): LibraryShareCopyRe
       'materialId',
       'allowIfRestricted',
       'rememberChoice',
-      'idempotencyKey'
+      'idempotencyKey',
+      'expectedActorId',
+      'expectedShareVersion'
     ]) ||
     !isUuid(value.teamId) ||
     !isUuid(value.materialId) ||
     typeof value.allowIfRestricted !== 'boolean' ||
     typeof value.rememberChoice !== 'boolean' ||
-    (value.rememberChoice && value.allowIfRestricted !== true) ||
+    (value.rememberChoice && !value.allowIfRestricted) ||
     typeof value.idempotencyKey !== 'string' ||
-    !IDEMPOTENCY_KEY.test(value.idempotencyKey)
-  ) {
+    !IDEMPOTENCY_KEY.test(value.idempotencyKey) ||
+    (value.expectedActorId !== undefined && !isUuid(value.expectedActorId)) ||
+    (value.expectedShareVersion !== undefined &&
+      value.expectedShareVersion !== null &&
+      !isUuid(value.expectedShareVersion))
+  )
     return null;
-  }
   return {
     teamId: value.teamId,
     materialId: value.materialId,
     allowIfRestricted: value.allowIfRestricted,
     rememberChoice: value.rememberChoice,
-    idempotencyKey: value.idempotencyKey
+    idempotencyKey: value.idempotencyKey,
+    ...(value.expectedActorId !== undefined ? { expectedActorId: value.expectedActorId } : {}),
+    ...(value.expectedShareVersion !== undefined
+      ? { expectedShareVersion: value.expectedShareVersion }
+      : {})
   };
 }
 
-export type LibraryShareCopyResult =
-  | {
-      state: 'ready';
-      url: string;
-      public: boolean;
-      permissionChanged: boolean;
-    }
-  | {
-      state: 'confirmation_required';
-      url: string;
-      public: false;
-      canShare: boolean;
-    };
-
-export function parseLibraryShareCopyResult(value: unknown): LibraryShareCopyResult | null {
-  if (!isRecord(value) || typeof value.url !== 'string' || !/^https:\/\//u.test(value.url)) {
+export function trustedMaterialUrl(value: unknown): string | null {
+  if (
+    typeof value !== 'string' ||
+    value.length < 1 ||
+    value.length > 8192 ||
+    value.trim() !== value ||
+    /\p{Cc}/u.test(value)
+  )
+    return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      ['drive.google.com', 'docs.google.com'].includes(url.hostname) &&
+      !url.username &&
+      !url.password &&
+      !url.port
+      ? value
+      : null;
+  } catch {
     return null;
   }
+}
+interface MaterialLinkEvidence {
+  /** Missing is an older read-only server; never authorizes a mutation fallback. */
+  linkProtocol?: 2;
+  serverNow?: string;
+  shareVersion?: string | null;
+  sharing?: 'unchanged' | 'confirmed' | 'uncertain';
+  visibilityCode?: TeamErrorCode;
+  preferenceSaved?: boolean;
+  preferenceCode?: TeamErrorCode;
+  /** Returned only to the original actor, never another member's private ID. */
+  pendingCommandId?: string;
+}
+export type LibraryShareCopyResult = MaterialLinkEvidence &
+  (
+    | {
+        state: 'ready';
+        url: string;
+        public: boolean | null;
+        permissionChanged: boolean | null;
+        canShare?: boolean;
+      }
+    | {
+        state: 'confirmation_required';
+        url: string;
+        public: false;
+        canShare: boolean;
+        permissionChanged?: false;
+      }
+  );
+const shareErrorCodes = new Set<string>(TEAM_ERROR_CODES);
+export function parseLibraryShareCopyResult(value: unknown): LibraryShareCopyResult | null {
+  if (!isRecord(value)) return null;
+  const url = trustedMaterialUrl(value.url);
   if (
-    value.state === 'ready' &&
-    typeof value.public === 'boolean' &&
-    typeof value.permissionChanged === 'boolean'
-  ) {
-    return {
-      state: 'ready',
-      url: value.url,
-      public: value.public,
-      permissionChanged: value.permissionChanged
-    };
+    !url ||
+    (value.linkProtocol !== undefined && value.linkProtocol !== 2) ||
+    (value.canShare !== undefined && typeof value.canShare !== 'boolean') ||
+    (value.sharing !== undefined &&
+      (typeof value.sharing !== 'string' ||
+        !['unchanged', 'confirmed', 'uncertain'].includes(value.sharing))) ||
+    (value.serverNow !== undefined &&
+      (typeof value.serverNow !== 'string' ||
+        value.serverNow.length !== 24 ||
+        !Number.isFinite(Date.parse(value.serverNow)) ||
+        new Date(value.serverNow).toISOString() !== value.serverNow)) ||
+    (value.linkProtocol === 2 &&
+      (value.serverNow === undefined || value.shareVersion === undefined)) ||
+    (value.shareVersion !== undefined &&
+      value.shareVersion !== null &&
+      !isUuid(value.shareVersion)) ||
+    (value.pendingCommandId !== undefined && !isUuid(value.pendingCommandId)) ||
+    (value.preferenceSaved !== undefined && typeof value.preferenceSaved !== 'boolean')
+  )
+    return null;
+  for (const key of ['visibilityCode', 'preferenceCode'] as const) {
+    if (
+      value[key] !== undefined &&
+      (typeof value[key] !== 'string' || !shareErrorCodes.has(value[key]))
+    )
+      return null;
   }
+  if (value.preferenceCode !== undefined && value.preferenceSaved !== false) return null;
+  if (value.public === null && (value.linkProtocol !== 2 || value.visibilityCode === undefined))
+    return null;
   if (
-    value.state === 'confirmation_required' &&
-    value.public === false &&
-    typeof value.canShare === 'boolean'
-  ) {
-    return {
-      state: 'confirmation_required',
-      url: value.url,
-      public: false,
-      canShare: value.canShare
-    };
+    value.permissionChanged === null &&
+    (value.linkProtocol !== 2 ||
+      typeof value.sharing !== 'string' ||
+      !['confirmed', 'uncertain'].includes(value.sharing))
+  )
+    return null;
+  if (value.state === 'ready') {
+    if (
+      (typeof value.public !== 'boolean' && value.public !== null) ||
+      (typeof value.permissionChanged !== 'boolean' && value.permissionChanged !== null)
+    )
+      return null;
+  } else if (value.state === 'confirmation_required') {
+    if (
+      value.public !== false ||
+      typeof value.canShare !== 'boolean' ||
+      (value.permissionChanged !== undefined && value.permissionChanged !== false)
+    )
+      return null;
+  } else return null;
+  const result: Record<string, unknown> = { state: value.state, url, public: value.public };
+  for (const key of [
+    'permissionChanged',
+    'canShare',
+    'linkProtocol',
+    'serverNow',
+    'shareVersion',
+    'sharing',
+    'visibilityCode',
+    'preferenceSaved',
+    'preferenceCode',
+    'pendingCommandId'
+  ] as const) {
+    if (value[key] !== undefined) result[key] = value[key];
   }
-  return null;
+  return result as unknown as LibraryShareCopyResult;
 }
 
 export const CREATIVE_LIBRARY_CONTRIBUTION_CATEGORIES = [

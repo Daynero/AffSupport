@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T04:26:46.975Z",
+  "schema": 444,
+  "observations": [
+    {
+      "rpc": "service_read_material_group_execution",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_claim_material_group_execution_v2",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_begin_material_group_dispatch_v2",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_checkpoint_material_group_execution_v2",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_mark_material_group_execution_reconciling_v2",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_end_material_group_execution_v2",
+      "status": 403,
+      "code": "42501"
+    }
+  ],
+  "groupRowsUnchanged": true,
+  "productionTouched": false,
+  "scope": "Actual authenticated local beta REST access control. No manual UI or provider acceptance."
+}

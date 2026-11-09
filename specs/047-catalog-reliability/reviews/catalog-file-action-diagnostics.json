@@ -1,0 +1,50 @@
+{
+  "task": "T006",
+  "scope": "File actions from manager and Explorer; separate synthetic diagnostics and real beta UX acceptance",
+  "syntheticAcceptance": {
+    "log": "scratchpad/catalog-file-hook-diagnostics.log",
+    "passed": 29,
+    "files": 4,
+    "actualHooks": true,
+    "surfaces": [
+      "material",
+      "catalog_manager"
+    ],
+    "outcomes": [
+      "browser_handoff",
+      "CATALOG_EXPORT_TOO_LARGE"
+    ],
+    "path": [
+      "typed producer",
+      "sanitizer",
+      "real ingest_analytics_events",
+      "stored query under SELECT-only role",
+      "inspect diagnosis"
+    ],
+    "oneStartAndTerminalPerAttempt": true,
+    "telemetryFailureDoesNotBlockDownload": true,
+    "noUserContentOrProviderUrlInDiagnosis": true
+  },
+  "clientTimeoutFollowup": {
+    "causalRedFailures": 3,
+    "otherIntegrationScenariosPassed": 38,
+    "correctedDriverCasesPassed": 4,
+    "detail": "Initial follow-up had one incorrect assertion field (receipts instead of items); fixed assertion and reran all four driver cases. No failing assertion is presented as a green run.",
+    "serverDeadlineMs": 30000,
+    "clientDeadlineMs": 30000,
+    "nativeAndSharingReadersPreserveUnknown": true,
+    "actualNetworkPartitionInjected": false
+  },
+  "checks": {
+    "testTypes": "passed",
+    "lint": "passed",
+    "format": "passed",
+    "diff": "passed"
+  },
+  "realBetaAcceptance": "catalog-manager-manual-download-link.json",
+  "blindSpots": [
+    "A browser anchor handoff proves handoff only; the client cannot prove the browser wrote or opened the file. Manual file opening is separate evidence.",
+    "Beta production telemetry stays disabled; the synthetic ingestion database is isolated and is not production evidence."
+  ],
+  "fullCurrentSourceVerification": "pending"
+}

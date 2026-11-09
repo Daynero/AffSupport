@@ -255,3 +255,44 @@ it.each(['', '#preview'])(
     expect(link.hash).toBe(fragment);
   }
 );
+
+it('keeps video cells and their copied columns empty for a deferred delivery', () => {
+  const rows = buildProductCatalogRows({
+    settings,
+    videoLink,
+    sourceLink,
+    count: 2,
+    videoDelivery: { kind: 'deferred' }
+  });
+  const columns = PRODUCT_CATALOG_TEMPLATE.filter(c => c.source.kind === 'videoLink');
+  expect(columns.length).toBeGreaterThan(0);
+  for (const column of columns)
+    for (const row of [3, 4]) {
+      expect(cellAt(rows, column.column, row).v).toBe('');
+      for (const copy of PRODUCT_CATALOG_TEMPLATE.filter(
+        c => c.source.kind === 'copyOf' && c.source.column === column.column
+      ))
+        expect(cellAt(rows, copy.column, row).v).toBe('');
+    }
+});
+it('uses the frozen exact row assignments without appending legacy random parameters', () => {
+  const links = ['https://example.test/video/b', 'https://example.test/video/a'];
+  const rows = buildProductCatalogRows({
+    settings,
+    videoLink,
+    sourceLink,
+    count: 2,
+    videoDelivery: { kind: 'assigned', videoLinks: links }
+  });
+  for (const column of PRODUCT_CATALOG_TEMPLATE.filter(c => c.source.kind === 'videoLink'))
+    expect([cellAt(rows, column.column, 3).v, cellAt(rows, column.column, 4).v]).toEqual(links);
+  expect(() =>
+    buildProductCatalogRows({
+      settings,
+      videoLink,
+      sourceLink,
+      count: 2,
+      videoDelivery: { kind: 'assigned', videoLinks: [links[0]] }
+    })
+  ).toThrow('INVALID_INPUT');
+});

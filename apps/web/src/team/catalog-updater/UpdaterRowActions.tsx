@@ -4,7 +4,7 @@ import { DropdownMenu, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { materialMenuEntries } from '../materials/MaterialActionMenu';
-import type { TeamPermissions } from '@video-compressor/shared';
+import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/shared';
 import type { CatalogRegistryRow } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { useOptionalAgent } from '../../AgentContext';
@@ -38,18 +38,24 @@ export function UpdaterRowActions({
   row,
   teamId,
   permissions,
+  storageKind = null,
   onChanged,
   onReveal,
   onHistory,
+  onPublication,
+  onVideoVariations,
   onConfigure
 }: {
   row: CatalogRegistryRow;
   teamId: string;
   permissions: TeamPermissions;
+  storageKind?: TeamAnalyticsStorage | null;
   onChanged: () => void;
   /** Close the dialog and show the sheet where it lives. */
   onReveal?: (row: CatalogRegistryRow) => void;
   onHistory?: () => void;
+  onPublication?: () => void;
+  onVideoVariations?: () => void;
   onConfigure?: () => void;
 }) {
   const { t } = useI18n();
@@ -83,6 +89,8 @@ export function UpdaterRowActions({
     material: ref,
     permissions,
     browseClient: teamApi,
+    storageKind,
+    surface: 'catalog_manager',
     replaceMaterialId: row.catalogId,
     onChanged
   });
@@ -118,6 +126,18 @@ export function UpdaterRowActions({
         onClose={() => setOpen(false)}
         label={t('materialActionsFor', { name: row.name })}
         items={[
+          ...(onVideoVariations
+            ? [
+                {
+                  id: 'video_variations',
+                  label: t('catalogVideoVariationCount'),
+                  onSelect: onVideoVariations
+                }
+              ]
+            : []),
+          ...(onPublication
+            ? [{ id: 'publication', label: t('catalogPublicationTitle'), onSelect: onPublication }]
+            : []),
           ...(onConfigure
             ? [{ id: 'configure', label: t('catalogUpdaterConfigure'), onSelect: onConfigure }]
             : []),

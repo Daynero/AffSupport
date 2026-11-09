@@ -2245,7 +2245,6 @@ bulk items, operation keys and material-group checkpoints. A missing/newer RPC
 leaves the operation nonterminal rather than asserting a false failure. No
 automatic rollback or production repair is authorized.
 
-
 ### 20261207124000 — Catalog claim eligibility and retained receipts
 
 Retain the handoff actor, extended expiry and output-observed markers: removing
@@ -2259,7 +2258,6 @@ The new view is optional for the CLI, which reports unavailable coverage if abse
 Native empty-claim telemetry requires an agent release. No automatic rollback or
 production data repair is authorized.
 
-
 ### 20261207125000 — Scope manual retries to accepted attempts
 
 The RPC signature and authorization are unchanged. Preserve accepted attempt
@@ -2267,3 +2265,436 @@ snapshots and existing retry diagnostics. Reverting the function to its older
 implementation reintroduces resets for pending selections in mixed bulk requests;
 use an explicitly reviewed forward correction instead. Do not rewrite attempts
 or clear uncertain-operation fences as rollback.
+
+## 047 catalog file action analytics
+
+`20261207130000_catalog_file_action_analytics.sql` extends the closed diagnostic
+vocabulary with `action=share`, `file_surface=material|catalog_manager` and an explicit
+`storage_kind=unknown` when connection metadata is unavailable. It does
+not change application rows or permissions. To withdraw the candidate before any
+production activation, revert its producers with it. A reviewed forward migration
+can restore the exact `analytics_properties_are_safe_v2` definition from
+`20261207114000_workspace_read_analytics_guard.sql`; already applied history stays
+immutable. Old clients omit the optional surface and remain accepted. Restoring the
+old guard while new producers still run would reject their events.
+
+`20261207131000_catalog_manager_snapshot.sql` adds an invoker-only read RPC that
+combines the existing authorized projections in one statement snapshot. The
+previous RPCs and their grants are unchanged. Withdraw its web consumer before a
+reviewed forward migration drops `public.list_team_catalog_manager_snapshot(uuid)`.
+No application rows need restoration.
+
+047 follow-up deltas remain additive and unactivated in production:
+
+- `20261207132000_catalog_reliability_error_codes.sql` adds closed failure codes.
+  Retain their reader mappings while historical diagnostics may reference them.
+- `20261207133000_catalog_export_context.sql` adds a service-only live catalog/actor
+  download authorization check. Withdraw the XLSX grant/range consumer before any
+  reviewed forward removal; do not issue native Sheets media grants as a fallback.
+- `20261207134000_catalog_progress_identity.sql` enriches the invoker snapshot
+  through an explicitly view-authorized helper. Withdraw identity-dependent UI,
+  restore the preceding snapshot definition in a reviewed forward migration, then
+  remove the helper. No attempt, catalog or provider data is rewritten.
+- `20261207135000_catalog_cancel_observed_round.sql` adds a process-authorized,
+  row-locked stop bound to an observed round/attempt. Withdraw its web consumer
+  before forward removal. An error in the new route must never fall back to the
+  unfenced legacy route. Existing in-flight provider lease protection remains.
+
+The 047 analytics guard also admits `file_delivery=browser_handoff|agent_saved|
+url_visible`. Withdraw those producers before narrowing the guard. Browser handoff
+must never be relabeled as a proven disk save during withdrawal. None of these
+notes authorizes automatic rollback, deletion of evidence or production repair.
+
+`20261207136000_catalog_snapshot_observation.sql` adds the database statement's
+observation time to the same authorized snapshot. To withdraw it, restore the
+preceding snapshot definition through a reviewed forward migration. New clients
+explicitly treat an omitted legacy observation as unknown; never manufacture a
+server observation time from response arrival or settings version.
+
+## 20261207137000–20261207138100 — catalog holds and command receipts
+
+137000 preserves authoritative pending provider-reconciliation holds even when an
+updater item's cached flag or round is missing. It also makes legacy Stop obey the
+same hold and lock order as observed Stop. Keep these safety checks during a UI
+rollback; restoring the previous legacy body would permit discarding unresolved
+provider work. This migration creates no replacement round and rewrites no user
+settings.
+
+138000 adds actor-bound manager Run/Retry acceptance receipts, cancellation
+intent tombstones and exact attempt bindings. Roll back the new client first and
+retain the private command ledger, its attempt FK and restricted analytics views.
+Pending browser identities and already accepted work must still be reconcilable;
+never remove their evidence merely to retry. Any later explicit schema removal
+requires proving that no retained client command or protected run depends on it.
+138100 adds closed storage/unsupported error codes. Retain these codes when
+reverting UI so historical diagnosis remains readable. No provider file, account,
+Drive connection, schedule or credential is removed by these migrations.
+
+## 20261207143000–20261207144000 — actor fences and Stop diagnosis
+
+143000 adds actor-bound profile/default/observed-Stop entry points while preserving
+existing entry points. Keep the actor fence and closed Stop error code during a
+client rollback; old deployed clients still have their original RPCs. Withdrawal
+must never make a stale intent execute as the replacement account or fall back to
+unqualified Stop. No provider hold, schedule, last-success or attempt terminal is
+removed by these wrappers.
+
+144000 adds three nonunique partial analytics indexes for Stop target, original
+request and actor discovery. They can remain when reverting the new web/CLI
+consumer. Any later index removal is a reviewed forward migration; it does not
+remove event or attempt evidence. Stop diagnostics use the existing attempt
+projection and keep browser acknowledgement distinct from server state. There is
+no new Stop queue/receipt ledger to reset or replay. These notes authorize no
+production change or automatic rollback.
+
+## 20261207145000 — actor-bound bulk-trash acceptance
+
+New callers bind the initial batch group to its originating actor before session
+refresh. Keep this wrapper and the original group-owned prepare/mark functions
+during a client rollback. Missing support must refuse the new request, never
+fall back to an unbound writer. No group/item receipt, operation key, provider
+state or ACL is changed by this migration. Retain accepted and uncertain batch
+evidence; this note authorizes no production mutation or automatic rollback.
+
+## 20261207146000 — restore diagnostic projection
+
+This adds restore receipts to the restricted workspace analytics view. Reverting
+the web consumer needs no schema rollback. Retain the projection and existing
+service/analytics-only grants so interrupted restore requests remain diagnosable.
+Unknown legacy reason text is exposed only as UNKNOWN; do not broaden the view
+to user content or grant it to browser roles. No operation, provider state or
+restored material is changed. Removal, if necessary, requires a reviewed forward
+migration preserving the earlier view branches and grants.
+
+## 20261207147000 — proved preflight retry provenance
+
+Retain this retry fence when reverting the UI. Historical failed/canceled
+operations do not establish provider quiescence and must not be backfilled with
+the new preflight_refused marker. Only the service-only locked fresh metadata
+preflight sink creates that marker before any lifecycle intent or provider write.
+A new bulk attempt requires that explicit marker, the same source, a closed cause
+and no lifecycle intent; other terminals remain uncertain and retain their keys.
+Existing ACLs and attempt limits are preserved. Never restore the terminal-only
+retry condition or delete receipts to enable a new write. No production action
+or automatic rollback is authorized by this note.
+
+## 20261207148000 — bounded screen recovery outcomes
+
+Keep the additive closed error codes during a client rollback so retained failure
+receipts remain readable. This migration changes no operation, screen selection,
+provider file or grant. Do not delete historical receipts or reset uncertain
+accounting to enable a retry. No production action is authorized by this note.
+
+## 20261207149000 — overlapping bulk-trash acceptance fence
+
+Retain the team-scoped acceptance lock and unresolved-item overlap check during
+client rollback. A replacement group UUID must not bypass an older accepted,
+running, failed or uncertain request, including folders and frozen lifecycle
+members. Recover through the original group and its provenance checks; do not
+delete evidence, rotate its key or infer quiescence from a historical terminal.
+Confirmed successful receipts do not permanently block restored active files.
+The index and function replacement change no provider file or operation state.
+Existing authenticated grants and the actor-bound wrapper remain intact. No
+production action or automatic rollback is authorized by this note.
+
+## 20261207150000 — tied trash-page cursor
+
+The new authenticated-only read RPC uses the exact timestamp and material UUID
+as one cursor. Keep the legacy three-argument function unchanged for older
+clients. New clients require the versioned RPC and must surface a read failure
+instead of silently returning to timestamp-only paging. This migration writes
+no material, lifecycle receipt or provider data. A web rollback needs no schema
+rollback; removal requires a reviewed forward migration after dependent clients
+are retired. No production action is authorized by this note.
+
+## 20261207151000 — material-group dispatch ownership
+
+Keep the four nullable execution fields, overlap fence, immutable managed nonce
+and service-only execution RPCs during a client rollback. Existing rows remain
+legacy unknown; never backfill them as unexecuted or clear a pending member after
+an elapsed timeout. A provider reply lost after dispatch is held for explicit
+reconciliation through the same intent. The old checkpoint refuses managed
+intents, so an older Edge instance cannot acknowledge them without ownership.
+An old request nonce cannot adopt a new managed operation. Before applying this
+migration, quiesce owned old beta Edge instances and retain exact history,
+function definitions and old-row snapshots. No down migration, evidence deletion,
+production action or automatic rollback is authorized here.
+
+## 20261207152000 — confirmed active-group completion
+
+Retain this service-only reconciliation function during web rollback. It can
+complete only the existing managed active intent after every frozen member is
+acknowledged and no dispatch remains pending. It rechecks actor/source/action/
+destination bindings, the active parent under its lock and the original pending
+material placement/lifecycle. It never grants a provider write or treats an old
+terminal receipt as a current generation. Cancellation committed first remains
+canceled. The additive function changes no rows during migration. Removal needs
+a reviewed forward migration after dependent clients retire; no automatic down
+migration, production change or deletion of held evidence is authorized.
+
+## 20261207153000 — late material-group failures
+
+Keep the private failure guard and service-only owner-bound wrapper during client
+rollback. Legacy failure writers cannot mutate managed execution. A closed,
+replacement or terminal executor cannot change material placement or its parent.
+Active legacy failure reporting remains available. Registration of an already
+fully acknowledged group closes its completed marker atomically without clearing
+an unknown dispatch or granting provider execution. The migration changes no
+application rows. Keep original receipts and new function definitions; any
+removal needs a reviewed forward migration after dependent clients retire.
+No production action or automatic rollback is authorized.
+
+## 20261207154000 — observed material-group completion
+
+Retain this service-only active-intent reconciliation change during client
+rollback. An authorized catalog observation may already match the acknowledged
+trash or restore result before the original receipt completes. The original
+managed pending placement, complete member acknowledgements, no pending dispatch,
+actor/source/action/destination and cancellation fences still apply. Missing or
+replaced placement and terminal-generation replay remain refused. Fresh writes
+still require live provider preflight. This migration changes no application
+rows and grants no provider execution. No production action or automatic rollback
+is authorized.
+
+### 20261207155000 — restitch selection storage foundation
+
+This additive private storage has no public root initializer, advertised native
+capability or wired product path. Browser table/RPC access is revoked; only the
+service can read exact scope, CAS a canonical transition or settle an issued
+measurement. The diagnostic projection is content-free and SELECT-only.
+
+Before reverting a future producer, stop accepting new roots and keep all held
+ranges and original identities. Cancellation/access revocation cannot delete
+accounting or prevent its exact late settlement. Confirmed history and snapshots
+must not reset; unknown reservations never expire into new dispatch permission.
+Do not drop live storage, erase receipts, rotate keys or run a destructive down
+migration to recover a read. Retain the additive schema while reconciling any
+issued work. Candidate/pool/recipe acceptance, aliases and retention must be
+completed and verified before exposing a producer.
+
+### 20261207156000 — frozen restitch range context
+
+Adds immutable provider mapping to the disabled selection foundation. Existing
+rows adopt context only when their frozen content/version identity still agrees;
+otherwise the entire migration refuses. The candidate trigger derives mapping
+from the team material/connection, and rejects caller substitutions. The existing
+reservation CAS also checks that mapping and connection root. A new service-only
+read returns context for the exact active candidate acquisition; browser roles
+have no execute privilege. No initializer, grant or capability is introduced.
+
+Keep both the additive columns and the original reservations while reconciling
+issued work. Disabling a future producer must not remove measured prefixes or
+turn unknown ranges into fresh permits. Do not restore weaker CAS definitions,
+delete ledger rows or run an automatic destructive down migration. Root/recipe
+acceptance, stable version handles, retention and product-path integration still
+require their own verification before enabling a producer.
+
+### 20261207157000 — stable restitch candidate identities (source work)
+
+Adds an internal opaque-version registry keyed by team, actual connection/file
+and checksum/MIME/size. Renaming or metadata-only provider versions do not reset
+a candidate; changed bytes and independent provider copies get distinct handles.
+No actor or browser can read/write the registry directly, and its private factory
+is not a public RPC or a new permission. No roots or product producer are enabled.
+
+Do not remap existing root snapshots or ledger IDs while adopting this registry.
+Existing foundation roots retain their original handles; a future accepted-root
+factory must use registered handles for new snapshots. Keep live references when
+reconciling failures. Do not erase an unknown range or use registry expiry as
+permission for another draw. Retention/root retirement still needs its own proof
+before a producer can be enabled. This source migration is not yet applied to beta.
+
+### 20261207158000 — manual root admission and bounded pools (source work)
+
+Service-only acceptance atomically binds a cloud download operation to a local
+display UUID, immutable recipe, actor-private source namespace and candidate list.
+It samples duration once using the renderer's policy and permits metadata-only
+versions only for the new content-bound manual-download protocol. Legacy process
+source/finalize ownership is unchanged. The paired read RPC is nonmutating;
+missing accounting cannot initialize another budget. The namespace uses native
+PostgreSQL SHA256 and has no direct browser/service table privileges.
+
+This migration also bounds folder and image observations, preserves unknown or
+truncated coverage, keeps independent provider copies and projects disabled slots.
+No provider/network action, product route, native capability or execution lease
+is enabled. It is source-only, pending native concurrency and beta verification.
+Do not drop accepted roots, rewrite their recipes or use a failed read as fresh
+acceptance. Keep the additive schema during any future producer rollback.
+
+### 20261207159000 — ledger deletion fence (source work)
+
+Held ranges and active roots refuse deletion, including cascades. The guard uses
+NOWAIT in reverse-order deletion paths; contention preserves the deletion
+transaction rather than racing an issued-range writer. A protocol1 terminal
+parent still lacks native-quiescence proof and remains conservatively retained.
+This is not completed retirement support. Complete the owned native executor and
+verified retirement lifecycle before enabling a producer; never disable the
+fence or erase unknown accounting to make cleanup appear successful.
+
+### 20261207160000_restitch_owned_executor.sql
+
+Internal ownership and claim receipts only; no product producer is enabled.
+Do not drop executor or claim records while an accepted protocol 1 root exists.
+A missing owner ledger is unknown and cannot be recreated as unclaimed. Preserve
+exact late settlement after cancellation or ACL revocation. Retain the private
+CAS/source cores and service-only wrappers together; removing only the ownership
+checks would allow stale executors to mint new I/O. Forward repair must keep the
+original epoch and claims, and must not infer native quiescence from a timeout or
+parent terminal state. No production application or down migration is authorized.
+
+### 20261207161000_material_group_claim_epochs.sql
+
+Keep each adopted lifecycle intent's claim protocol and monotonic epoch together
+with its versioned begin/checkpoint/close/failure RPCs. Do not reset an epoch,
+reactivate a legacy UUID or clear an unconfirmed provider dispatch. Old callbacks
+must continue to refuse an adopted scope, including when an executor UUID repeats.
+A readback loss permits no second claim mutation. Forward repair must retain the
+original operation, actor and member snapshot. The new default epoch0 is not an
+observed historical claim count; the restricted projection returns null for that
+legacy boundary. Preserve all pre-existing intent columns and only add the two
+owned fields. Native restitch still requires its independent quiescence proof.
+No automated down migration or production application is authorized.
+
+### 20261207162000 — private screen range authority (not yet applied)
+
+The additive grant row is bound to an existing root, slot, immutable candidate,
+original executor epoch, native instance and exact reserved request. It stores a
+32-byte ticket hash, never the bearer. Issuance commits budget and row together;
+consumption gives one server invocation permission, not proof of provider I/O or
+native delivery. Unconsumed abandonment records authoritative zero; consumed
+unknown ranges stay held and may settle after cancellation. Expiry cannot renew
+a consumed permit or reset its budget. Replacing an expired unused ticket also
+requires its same-candidate durable refresh entry, within the existing limits.
+Current roles/source/owner are rechecked
+before consumption. Raw table access and all six public-schema RPCs are refused
+to browser roles. The cryptographic helper is purpose-separated from existing
+landing and generic transfer tickets; no user route or capability is enabled.
+
+Do not delete rows, clear a consumed marker, roll budgets backwards or recreate a
+root to undo this migration. The existing protocol1 root-retention fence remains
+conservative. If a candidate fails acceptance, keep it unexposed and repair
+forward; inspect the issued row and exact settlement without sending another
+provider request. Native concurrency, canonical types, diagnostic coverage and
+paired beta/controller acceptance remain required before activation. No
+production migration or promotion is authorized by this source-only increment.
+
+### Material selection direct-parent lookup (20261207163000)
+
+Forward-only performance change. To reverse it in a later migration, restore the
+SQL definition of `private.team_material_selection_for(uuid, uuid, text)` from
+20260827103000 and retain the revoked application-role execute privileges.
+No rows, selection state, ancestry bound or public RPC contract changes.
+
+### 20261207164000 — internal native control draft
+
+Adds private bounded native enrollment/control records and six service-only RPCs.
+Actor/session/native boot and proof/token hashes are immutable. The first claim
+and control binding commit atomically; another grant cannot adopt an existing
+claim UUID. Current Auth session/access are required for new I/O. Exact late
+claim readback and closure remain available after logout/cancellation. No control
+credential is returned by SQL, browser route or installed capability. The full
+447-migration disposable gate passes1320 pgTAP assertions,3 real Auth tests and71
+native tests. Local beta447 preserves all23 protected table digests; actual owner
+JWTs cannot invoke any of its6 service RPCs. This is internal schema acceptance,
+not routed/installed controller or product acceptance.
+
+Do not drop or rewrite records to recover an unknown native claim. Retain the
+existing conservative root/material deletion fence. Roll forward through the
+canonical beta/release workflow after full native and diagnostic acceptance.
+
+
+### 20261207165000 — controlled screen ranges (local beta449)
+
+Adds private immutable leaf/control binding and seven service-only wrappers.
+Issue commits binding with the original reservation; consume and protected
+upstream checks validate current session/owner. Exact readback and known-zero
+unconsumed abandon remain available after logout; consumed cost stays held.
+Existing unbound internal grants cannot enter this controlled transport.
+
+The disposable 449 chain passes1339 pgTAP assertions,3 real Auth checks and73
+native scenarios. Local beta applies448+449 with25 preexisting row projections
+unchanged; the only projection exclusion is449's new nullable claim outcome.
+Do not remove bindings or range ledgers to recover unknown I/O. Keep the original
+root/material retention fence and use forward canonical migrations.
+
+### 20261207166000 — control-bound selection and atomic native finish
+
+Adds service-only read/CAS adapters over the existing frozen selection ledger and
+an atomic native/root terminal, plus a nullable closed terminal_outcome on private
+claims. Existing claim values remain unchanged. No new queue or data rewrite.
+Exact same-nonce/outcome closure works after logout; conflicting outcome or nonce
+is refused. Delivered requires every enabled frozen slot to be accepted, and held
+range costs prevent closure. Parent cancellation is retained.
+
+Rollback must not delete owners or infer termination from absence. Keep unknown
+claims and receipts for reconciliation, disable the experimental beta flag if
+needed, and roll forward. Installed/manual and packaged acceptance are separate
+from the migration proof.
+
+### 047 additive historical receipts and video publication authority (167000–169000)
+
+These beta-only additions do not authorize production activation. Historical
+receipt protocol 2 is optional: older callers retain the conservative refusal.
+Its catalog observation is separate from original completion and never proves
+current provider delivery. Missing diagnostic projections stay unknown. Disable
+new callers to stop opting into the protocol; preserve original operation,
+material-group and receipt evidence. Do not replay old writes, erase uncertain
+state or run a down migration as recovery.
+
+Video sets and publication jobs retain immutable owners, original request keys,
+registered outputs and catalog-wide fences. An unknown provider outcome requires
+readback by its original owner. Turning off dispatch must retain active and
+pending delivery references; it must not remove an existing signed agent channel,
+clear a dispatched fence or delete an output still referenced by a pending job.
+The new publication policy fences legacy video writers until preservation-aware
+integration is verified. Configured source metadata is not publication evidence.
+
+### 20261207170000 — frozen process aliases and delegated native control
+
+New video sets capture original source identity, version and configured image
+pools once. Do not backfill legacy sets from today's defaults or replace missing
+capture with a new random selection. Process aliases retain the original process
+operation UUID and request binding; replay cannot sample another duration or
+borrow another set's authority. Browser session controls and delegated process
+controls use separate authentication modes.
+
+Disabling variant admission stops new work but must preserve aliases, leases,
+selection receipts and outstanding native accounting. Revocation or cancellation
+refuses new I/O while allowing exact late bookkeeping and quiescence receipts.
+Process selection finish can close accounting only after canonical processing and
+upload finalization are terminal; it cannot declare the original process complete.
+Never delete an alias or reset held accounting to recover an uncertain outcome.
+These additions require the complete native migration gate and packaged beta
+acceptance before activation; isolated SQL tests alone are insufficient.
+
+### 20261207173000 — catalog video diagnostic projections
+
+Adds only content-free restricted views. Dropping their read grants makes native
+set/child evidence unavailable; CLI readers must report this as unknown. Do not
+interpret registered outputs as a completed or visibly delivered catalog. The
+views expose current state and never reconstruct historical transitions at an
+`as-of` instant. Preserve underlying sets, requests and original process receipts.
+
+### 20261207184000 — catalog video variant output retention
+
+Adds a `private.catalog_video_variants` exclusion to the hourly Restitched-folder
+sweep and to `private.launch_output_retained`, and un-retires already retired
+variant outputs. Do not roll back: without it every N-variant output is retired
+after one hour and then permanently deleted (`files.delete`) by the updater.
+A retained variant output can leak storage; a deleted one cannot be restored.
+
+### 20261207185000 — catalog publication absent requeue
+
+`service_settle_catalog_publication` also accepts `absent` (no receipt marker of
+the fence in the sheet). Before 2 minutes after dispatch it is stored as
+`unknown`; afterwards the same job returns to `retry_wait` with no fence,
+dispatch or validation epoch, and its reconciliation row is removed. Rolling
+back restores the earlier body from 20261207169000 lineage; workers must then
+stop sending `absent` (the settle call would raise `PROCESS_RESULT_UNCERTAIN`).
+
+### 20261207186000 — launch_code restitch analytics
+
+Redefines `public.analytics_properties_are_safe_v2` as the 20261207141000 body plus
+38 `launch_code` values (STITCH_*, RESTITCH_SCREEN_*, BODY_*, PROCESS_RESULT_UNCERTAIN).
+Rolling back means re-running the 20261207141000 definition; those events are then refused again.
+Any later full redefinition of the guard (e.g. 049's native identity keys) must start from this body.

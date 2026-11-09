@@ -37,6 +37,7 @@ import {
   STITCH_ERROR_CODES
 } from '@video-compressor/shared';
 import { ScreenCacheError, type ResolvedScreen, type TeamScreenCache } from './screen-cache.js';
+import { resolveScreensWithRecovery, type ScreenRecoveryProvider } from './screen-recovery.js';
 import { runStitchPipeline, type StitchPipeline } from '../stitcher/pipeline.js';
 import { detectStitching, screensFromEmbedding } from '../stitcher/plan.js';
 import { probeSource } from '../stitcher/probe.js';
@@ -66,6 +67,12 @@ export interface RestitchDelegateDeps {
   imagePathFor: (id: string) => Promise<string | null>;
   /** Where the space's own pictures live on this computer (030). */
   screenCache?: TeamScreenCache;
+  /** Trusted native factory. A request body can never supply its own provider.
+   * Null retains the legacy path; a refused protected authority must throw. */
+  screenRecovery?: (
+    input: Readonly<TeamProcessDelegateInput>,
+    options: Readonly<RestitchDelegateOptions>
+  ) => Promise<ScreenRecoveryProvider | null>;
   bodies?: PreparedBodyCache;
   pipeline?: StitchPipeline;
   threads?: () => number | null;
@@ -230,6 +237,17 @@ export function createRestitchDelegate(
     // a pause it did not perform.
     input.pausable(null);
 
+    let recovery: ScreenRecoveryProvider | null | undefined;
+    try {
+      recovery = await deps.screenRecovery?.(input, options);
+      if (deps.screenRecovery && input.signal.aborted) throw new Error('PROCESS_CANCELED');
+    } catch (error) {
+      if (input.signal.aborted) throw new Error('PROCESS_CANCELED', { cause: error });
+      throw new Error(
+        error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED',
+        { cause: error }
+      );
+    }
     const looked = await inspect(input.sourceFile, options.prepared, input.signal);
     if (!looked) throw unsupported(refusalReason(options.prepared?.unsupportedReason ?? null));
     if (!options.prepared) {
@@ -244,15 +262,29 @@ export function createRestitchDelegate(
 
     // Drive pools (030) or the compressor's library (legacy): one of the two, never both.
     let resolved: ResolvedScreen[] | null = null;
-    if (options.screens && options.screens.length > 0) {
-      if (!deps.screenCache) throw new Error('RESTITCH_SCREEN_UNAVAILABLE');
+    if (recovery || (options.screens && options.screens.length > 0)) {
       try {
-        resolved = await deps.screenCache.resolve(
-          options.teamId ?? input.teamId ?? 'unknown',
-          options.screens,
-          input.signal
-        );
+        input.signal.throwIfAborted();
+        if (recovery) {
+          resolved = await resolveScreensWithRecovery(
+            (['start', 'end'] as const).filter(
+              slot => options.defaults[slot === 'start' ? 'startEnabled' : 'endEnabled'] !== false
+            ),
+            recovery,
+            input.signal
+          );
+        } else {
+          if (!deps.screenCache) throw new ScreenCacheError('RESTITCH_SCREEN_UNAVAILABLE');
+          resolved = await deps.screenCache.resolve(
+            options.teamId ?? input.teamId ?? 'unknown',
+            options.screens!,
+            input.signal,
+            options.defaults.updatedAt,
+            input.operationId
+          );
+        }
       } catch (error) {
+        input.signal.throwIfAborted();
         throw new Error(
           error instanceof ScreenCacheError ? error.code : 'RESTITCH_SCREEN_FETCH_FAILED',
           { cause: error }
@@ -369,7 +401,9 @@ export function createRestitchDelegate(
       imagePathFor: async id =>
         id === automaticFrameId && automaticFramePath
           ? automaticFramePath
-          : (deps.screenCache?.pathFor(id) ?? (await deps.imagePathFor(id))),
+          : (resolved?.find(screen => screen.id === id)?.path ??
+            deps.screenCache?.pathFor(id) ??
+            (await deps.imagePathFor(id))),
       bodies
     });
     if (!produced.ok) {

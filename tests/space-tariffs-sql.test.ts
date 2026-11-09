@@ -1730,10 +1730,20 @@ describe('letters (R9)', () => {
     const { tariff } = await fixedSpace('late', '2030-03-14');
     await queue('2030-03-11T10:00:00Z');
     await queue('2030-03-13T10:00:00Z'); // 1 day: the 3-day letter is stale
-    expect(await notices(tariff)).toEqual([
-      { kind: 'warn_3d', period_end: '2030-03-14', state: 'superseded' },
-      { kind: 'warn_1d', period_end: '2030-03-14', state: 'pending' }
-    ]);
+    // PGlite's clock can give both notices the same timestamp. The queue's
+    // supersession rule must still hold independently of timestamp tie order.
+    await harness.root(
+      "update public.space_tariff_notices set created_at='2030-03-11T10:00:00Z' where tariff_id=$1",
+      [tariff]
+    );
+    const queued = await notices(tariff);
+    expect(queued).toHaveLength(2);
+    expect(queued).toEqual(
+      expect.arrayContaining([
+        { kind: 'warn_3d', period_end: '2030-03-14', state: 'superseded' },
+        { kind: 'warn_1d', period_end: '2030-03-14', state: 'pending' }
+      ])
+    );
     await setTariff(tariff, `ends_on = '2030-04-14'`);
     await queue('2030-03-13T11:00:00Z');
     expect((await notices(tariff)).map(row => row.state)).toEqual(['superseded', 'superseded']);

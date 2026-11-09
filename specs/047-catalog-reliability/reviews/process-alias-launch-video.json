@@ -1,0 +1,114 @@
+{
+  "scope": "US2 delegated N process aliases and T036 optional Launch N/publication integration candidate; final native/beta acceptance pending",
+  "productionTouched": false,
+  "betaMigrationApplied": false,
+  "schemaFrozenForParentNativeGate": false,
+  "implemented": [
+    "New N set source/settings/Drive pool captured atomically at original admission, exact candidate versions retained",
+    "Protocol1 process aliases require original accepted intent and delegated native authority; manual browser controls remain download-only",
+    "Strict process raw source-version policy retained; sampled-once duration honors accepted centered bounds",
+    "Current cancellation/revocation blocks new I/O; exact historical reads/quiescence remain available",
+    "Process selection completion cannot replace canonical processing/upload/finalization result",
+    "Launch optional protocol fields persist through defaults/drafts/revisions with legacy absence retained",
+    "New beta generation freezes exact executor/clock/plan/assignments/settings and accepts N set with canonical catalog intent in same transaction",
+    "Existing R2 catalog resources frozen before N admission; later factory consumes original frozen defaults and accepted N set",
+    "Pending N outcomes cannot attach/publish a Launch result; scheduler releases lease and resumes original intent",
+    "Original SUB/profile outer fences retained; inner N attachment requires canonical registration and verified initial publication",
+    "Read-only registered-count projection avoids parent/set lock inversion",
+    "Launch cancellation fences native children and holds only original pending initial schedule via canonical CAS; dispatched uncertainty remains pending"
+  ],
+  "checks": [
+    {
+      "log": "scratchpad/process-alias-launch-schema-first.log",
+      "passed": 103,
+      "failed": 1,
+      "note": "12 alias +91 manual passed; remaining actual CLI privacy then fixed and rerun separately."
+    },
+    {
+      "log": "scratchpad/process-alias-privacy-green.log",
+      "passed": 1,
+      "skippedUnrelated": 91
+    },
+    {
+      "log": "scratchpad/launch-video-first-red.log",
+      "passed": 5,
+      "failed": 5,
+      "note": "Stale shared/dist normalized the original saved proof and UI assertion used different copy; shared rebuild and correction followed."
+    },
+    {
+      "log": "scratchpad/launch-video-second.log",
+      "passed": 10,
+      "failed": 1,
+      "note": "Actual first generation stage accepted had no count projection; fixed to include accepted."
+    },
+    {
+      "log": "scratchpad/launch-video-regression-green.log",
+      "passed": 54,
+      "files": 7
+    },
+    {
+      "log": "scratchpad/launch-video-recovery-green.log",
+      "passed": 5,
+      "files": 1,
+      "note": "Includes added actual SQL pending lease/recovery case; supersedes previous4 storage cases."
+    },
+    {
+      "log": "scratchpad/launch-video-owned-types.log",
+      "result": "passed",
+      "scope": "owned new tests plus imported actual UI/Edge/shared paths"
+    },
+    {
+      "log": "scratchpad/launch-video-owned-lint.log",
+      "result": "passed"
+    },
+    {
+      "log": "scratchpad/launch-video-shared-build.log",
+      "result": "passed"
+    }
+  ],
+  "nativeContractAssertions": {
+    "processAlias": 9,
+    "launchProtocol": 7,
+    "executed": false
+  },
+  "remainingAcceptance": [
+    "Parent canonical native migration chain and pgTAP assertions",
+    "Whole current integration static/release checks",
+    "Actual final registered N output to verified catalog attachment and provider readback",
+    "Preserved held/unknown operations on exact beta runtime",
+    "Manual packaged beta all entrypoints, cancellation, reopen and scheduled publication acceptance"
+  ],
+  "sourceSha256": {
+    "supabase/migrations/20261207170000_restitch_process_aliases.sql": "a43acd887aeacabeecf6e1bf1a1b737de888062bce0988e2642bb01d9d29c38d",
+    "supabase/migrations/20261207171000_launch_catalog_video_protocol.sql": "3c4c2e5589efdd682dd944e92584347103b41ac682951382bd1d3d2f89e9a22a",
+    "supabase/tests/database/restitch-process-aliases.test.sql": "0b266bb2f05404823f69f02db79e53a186b48ad9a152a8cd2d2c896abb28c8ab",
+    "supabase/tests/database/launch-catalog-video.test.sql": "601be17193b451b3e0d7c8d26a14db358fda1efcefd1f6c0826844f9f4b0965b",
+    "supabase/functions/drive-ops/catalog-video-restitch-alias.ts": "99042da7992fed587a7cc48bdab085e082b0912ba0404cc32c08b2da6617157b",
+    "supabase/functions/drive-ops/restitch-root.ts": "024e97abfbd37556d0838ba988e784c2e558c222502d6535550091da62293ff2",
+    "supabase/functions/drive-ops/launch-catalog-video.ts": "8534d597755392ba8e825900d46ca70581491adcd6c9d08612e08b160550759b",
+    "supabase/functions/drive-ops/launches.ts": "bbf3d106013d98022ee1f458f51917b2be8e5f5e51ef8f9693441b66d16cfda2",
+    "supabase/functions/drive-ops/launch-catalog.ts": "5f2bd9ad56f06e11f9676734b88bd9967259257f33e40811fb45e40ac44e826c",
+    "packages/shared/src/team/launches.ts": "4dcacc43fe399acdbfb2d8ddc045d84171bd3e69f2f6d1a584211b80ec9c0112",
+    "packages/shared/src/team/launches/catalog-video.ts": "c43a311d1e886fd34d567b525dc737253599305ae7d74bb6912da9b8a7045339",
+    "packages/shared/src/team/launches/validation.ts": "f4f2ce3ec3492b45057512fb7a079224558743953f5e6434f0f83e7b6168264c",
+    "packages/shared/src/team/launches/persistence.ts": "d8648fc9fa1c041d7bb3ff008abe0d40019001ef64832a660ceb4a1b53feea60",
+    "packages/shared/src/team/launches/revisions.ts": "8fdc112900773082ca6e65a94b1f85e9c2928ac65b2899ed44de88ac98f33455",
+    "apps/web/src/team/launches/LaunchCatalogVideoFields.tsx": "48f5fc0b081bdfd699cd4b7bdd61cfe1e720405433a8794fe7ec9c98a3f9aa90",
+    "apps/web/src/team/launches/catalogVideoProtocol.ts": "3084ed956a652d9a374c289a41ae80f0c0bb68c1afc2d85c738fb04d934ee8ef",
+    "apps/web/src/team/launches/LaunchEditor.tsx": "b2276802f091c0e10cc2175251ba2ea139bf8508194a9fcf026adde0b1a85fde",
+    "apps/web/src/team/launches/LaunchDefaultsReview.tsx": "a13a0c24bb3f31ccf7e6a03e5f312127daae964025b61c6a2f29e02221348de0",
+    "apps/web/src/team/launches/LaunchGenerationProgress.tsx": "055a51907c25571e7058371068437c362655886ed0d572362f7fc10440dec7fb",
+    "apps/web/src/team/launches/useLaunchGeneration.ts": "2316b2679302317b9c836e0d8c1d4d8c573c16ae69fa11f9118fd22560143873",
+    "apps/web/src/api/launches.ts": "342b5817da6280515977920109ecb0672c1a788bf95241a8ffc704c718540fc8",
+    "tests/catalog-video-restitch-alias.test.ts": "25701516bb526d0ece8ca83ee1fb65f76315900aa15fe9a01afac2c130151603",
+    "tests/launch-catalog-video-storage.test.ts": "08090f6c243e546a336e710f53fb84ef4b12e7311be6d6e1724bec895f08b903",
+    "tests/launch-catalog-video-config.test.ts": "713e0b62586a32b1959a408048c49d0d00ee953c14b11232b7c439b9ed8ad217",
+    "tests/launch-catalog-video-fields.test.tsx": "89886899359743e3532e713fc245bfbd0ff5cd4f248f0182e35bb40090b2d6e7",
+    "tests/launch-catalog-video-execution.test.ts": "2ba9d7bd93f5a3496d317a7011d159f4a267220d173ecf9ce0a9c94f70a25a78"
+  },
+  "postFreezeContractCorrection": {
+    "cause": "Video172 full-chain81327 revealed170 used library instead of the canonical legacy source mode. Native gate had not started.",
+    "fix": "170 now validates legacy or drive; legacy follows the existing trusted local-image capability and does not fabricate a protected Drive alias. Video confirms grant factory already branches correctly.",
+    "proof": "Video agent owns immediate targeted rerun; new13th owned alias regression drafted, not yet run."
+  }
+}

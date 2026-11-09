@@ -1,3 +1,11 @@
+import {
+  parseTeamRestitchDefaults,
+  type TeamRestitchDefaults
+} from '../../../packages/shared/dist/team/restitch.js';
+import {
+  parseCatalogVideoGenerationProgress,
+  type CatalogInitialVideoAuthority
+} from './catalog-video-generation.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import {
   parseLaunchConfig,
@@ -21,6 +29,21 @@ import type { ProductCatalogDeps } from './product-catalog.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 export interface LaunchCatalogExecutionDeps {
   service: ServiceRpcClient;
+  createInitialVideoAuthority?: (identity: {
+    teamId: string;
+    actorId: string;
+    sourceMaterialId: string;
+    expectedExecutorId?: string;
+    readyVideoSetId?: string;
+    restitchEnabled: boolean;
+    frozenRestitchDefaults?: TeamRestitchDefaults;
+  }) => Promise<CatalogInitialVideoAuthority>;
+  readCatalogVideoFailure?: (scope: {
+    teamId: string;
+    actorId: string;
+    sourceMaterialId: string;
+    setId: string;
+  }) => Promise<import('./catalog-video-failure.ts').CatalogVideoFailureCode | null>;
   catalog: ProductCatalogDeps;
   driveFor: (credentialId: string) => Promise<DurableCatalogDrive>;
   /** Must prove current source identity before the first provider side effect. */
@@ -64,6 +87,18 @@ export async function executeLaunchCatalog(
   const parsed = parseLaunchConfig(claimed.config);
   if (!parsed.ok || parsed.value.method !== 'catalog') throw new TeamFunctionError('INVALID_INPUT');
   const config = parsed.value;
+  const protocolVideo = config.catalog.catalogVideoProtocolVersion === 1;
+  const frozenVideo = protocolVideo
+    ? await call(deps.service, 'service_read_launch_catalog_video_context', {
+        p_team: teamId,
+        p_generation: generationId,
+        p_actor: actorId,
+        p_owner: owner,
+        p_fence: claimed.fence
+      })
+    : null;
+  if (protocolVideo && (!isRecord(frozenVideo) || !isRecord(frozenVideo.requestPayload)))
+    throw new TeamFunctionError('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
   const fence = claimed.fence;
   const authority = {
     p_team: teamId,
@@ -77,7 +112,48 @@ export async function executeLaunchCatalog(
     await call(deps.service, 'service_touch_launch_generation', { ...authority, p_stage: value });
     currentStage = value;
   };
+  const waitForRegisteredVideoDependency = async () => {
+    if (
+      !protocolVideo ||
+      !config.catalog.restitchEnabled ||
+      config.catalog.videoPublication?.mode !== 'scheduled'
+    )
+      return false;
+    const original = await call(deps.service, 'service_read_initial_catalog_video', {
+      p_team: teamId,
+      p_actor: actorId,
+      p_key: `launch:${generationId}:catalog`
+    });
+    if (!isRecord(original) || original.outcome !== 'created') return false;
+    const progress = parseCatalogVideoGenerationProgress(
+      original.videoGenerationObservation ?? original.videoGeneration
+    );
+    if (!progress) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+    if (progress.state === 'ready') return false;
+    if (progress.state === 'unknown' && deps.readCatalogVideoFailure) {
+      const cause = await deps.readCatalogVideoFailure({
+        teamId,
+        actorId,
+        sourceMaterialId: config.materialId,
+        setId: progress.videoSetId
+      });
+      if (cause) {
+        await call(deps.service, 'service_interrupt_launch_generation', {
+          ...authority,
+          p_code: cause
+        });
+        return 'failed' as const;
+      }
+    }
+    await call(deps.service, 'service_wait_launch_catalog_video', authority);
+    return progress.state === 'unknown' ? ('failed' as const) : ('waiting' as const);
+  };
   try {
+    // A verified blank catalog may precede its N outputs. Retain that exact receipt
+    // and release the parent lease instead of attempting the ready-only attach.
+    const pendingVideo = await waitForRegisteredVideoDependency();
+    if (pendingVideo)
+      return { id: generationId, state: pendingVideo === 'failed' ? 'interrupted' : 'accepted' };
     // Reconcile an already registered child before checking mutable source metadata.
     // Its immutable candidate belongs to this exact generation; no provider work is repeated.
     const restored = await call(
@@ -100,6 +176,7 @@ export async function executeLaunchCatalog(
     const sources = parseLaunchSources(claimed.sources);
     const preview = sources ? launchPreview(config, sources) : null;
     if (
+      !protocolVideo &&
       previous?.catalog &&
       !Object.values(config.subConfig).some(
         value => Array.isArray(value) && value.includes('catalogName')
@@ -130,7 +207,7 @@ export async function executeLaunchCatalog(
     let restitchOperationId: string | null = null;
     let restitchMaterialId: string | null = null;
     let restitchIdentity: unknown = null;
-    if (config.catalog.restitchEnabled) {
+    if (config.catalog.restitchEnabled && !protocolVideo) {
       const receipt = await call(deps.service, 'service_launch_restitch_receipt', authority);
       if (
         !isRecord(receipt) ||
@@ -184,6 +261,27 @@ export async function executeLaunchCatalog(
         await store.permission(intent, childOwner, fileId, credentialId, permissionId, state);
       }
     };
+    let initialVideoAuthority: CatalogInitialVideoAuthority | undefined;
+    if (protocolVideo) {
+      if (!deps.createInitialVideoAuthority || !isRecord(frozenVideo))
+        throw new TeamFunctionError('WRONG_STATE');
+      const frozenDefaults =
+        frozenVideo.settings === null ? null : parseTeamRestitchDefaults(frozenVideo.settings);
+      if (frozenDefaults && !frozenDefaults.ok) throw new TeamFunctionError('RESTITCH_INVALID');
+      initialVideoAuthority = await deps.createInitialVideoAuthority({
+        teamId,
+        actorId,
+        sourceMaterialId: config.materialId,
+        restitchEnabled: config.catalog.restitchEnabled,
+        ...(typeof frozenVideo.readyVideoSetId === 'string'
+          ? { readyVideoSetId: frozenVideo.readyVideoSetId }
+          : {}),
+        ...(typeof frozenVideo.executorId === 'string'
+          ? { expectedExecutorId: frozenVideo.executorId }
+          : {}),
+        ...(frozenDefaults?.ok ? { frozenRestitchDefaults: frozenDefaults.value } : {})
+      });
+    }
     const catalog: ProductCatalogDeps =
       restitchOperationId && restitchMaterialId
         ? {
@@ -234,9 +332,10 @@ export async function executeLaunchCatalog(
             }
           }
         : deps.catalog;
-    await createDurableProductCatalog(
+    const created = await createDurableProductCatalog(
       {
         ...catalog,
+        ...(initialVideoAuthority ? { initialVideoAuthority } : {}),
         ...(Object.values(config.subConfig).some(
           value => Array.isArray(value) && value.includes('catalogName')
         )
@@ -258,19 +357,48 @@ export async function executeLaunchCatalog(
       },
       guarded,
       deps.driveFor,
-      {
-        teamId,
-        videoMaterialId: config.materialId,
-        ...(claimed.catalogImageContractVersion === 2 ? { catalogImageContractVersion: 2 } : {}),
-        sourceLink: claimed.advertisingUrl,
-        productCount: config.catalog.productCount,
-        replacesMaterialId: null,
-        restitchOperationId,
-        idempotencyKey: `launch:${generationId}:catalog`,
-        randomLinkVariation: true
-      },
+      protocolVideo && isRecord(frozenVideo)
+        ? frozenVideo.requestPayload
+        : {
+            teamId,
+            videoMaterialId: config.materialId,
+            ...(claimed.catalogImageContractVersion === 2
+              ? { catalogImageContractVersion: 2 }
+              : {}),
+            sourceLink: claimed.advertisingUrl,
+            productCount: config.catalog.productCount,
+            replacesMaterialId: null,
+            restitchOperationId,
+            idempotencyKey: `launch:${generationId}:catalog`,
+            randomLinkVariation: true
+          },
       actorId
     );
+    if ('outcome' in created && created.outcome === 'preparing_video') {
+      if (created.state === 'unknown' && deps.readCatalogVideoFailure) {
+        const cause = await deps.readCatalogVideoFailure({
+          teamId,
+          actorId,
+          sourceMaterialId: config.materialId,
+          setId: created.videoSetId
+        });
+        if (cause) {
+          await call(deps.service, 'service_interrupt_launch_generation', {
+            ...authority,
+            p_code: cause
+          });
+          return { id: generationId, state: 'interrupted' };
+        }
+      }
+      await call(deps.service, 'service_wait_launch_catalog_video', authority);
+      return { id: generationId, state: 'accepted' };
+    }
+    const createdVideoPending = await waitForRegisteredVideoDependency();
+    if (createdVideoPending)
+      return {
+        id: generationId,
+        state: createdVideoPending === 'failed' ? 'interrupted' : 'accepted'
+      };
     await call(deps.service, 'service_attach_launch_catalog', authority);
     await stage('result_committing');
     return await call(deps.service, 'service_publish_launch_generation', {

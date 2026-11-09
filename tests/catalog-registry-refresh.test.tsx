@@ -98,3 +98,27 @@ describe('catalog registry first read', () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 });
+
+it('uses the single server snapshot instead of independently joining registry and profiles', async () => {
+  const snapshot = vi.fn().mockResolvedValue({
+    rows: [{ catalogId: 'one', profile: { version: 2 } }],
+    invalidRowCount: 1
+  });
+  const catalogs = vi.fn();
+  const profiles = vi.fn();
+  const client = {
+    listCatalogManagerSnapshot: snapshot,
+    listTeamProductCatalogs: catalogs,
+    listCatalogUpdateProfiles: profiles
+  } as unknown as CatalogUpdaterClient;
+  const hook = renderHook(() => useCatalogRegistry('team', true, client));
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(snapshot).toHaveBeenCalledTimes(1);
+  expect(catalogs).not.toHaveBeenCalled();
+  expect(profiles).not.toHaveBeenCalled();
+  expect(hook.result.current.rows?.[0].profile?.version).toBe(2);
+  expect(hook.result.current.invalidRowCount).toBe(1);
+});

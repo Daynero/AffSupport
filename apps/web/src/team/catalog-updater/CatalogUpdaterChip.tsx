@@ -25,9 +25,10 @@ export function CatalogUpdaterChip({
   if (!state || (state.state !== 'running' && !state.activeCount)) return null;
 
   const attention = state.failingCount > 0 || Boolean(state.restitchBlockedCode);
-  const oneOff = state.nextRunAt === null;
+  const oneOff = state.state === 'stopped' || state.nextRunAt === null;
   const active = (state.activeCount ?? 0) > 0;
-  const catalogs = t(catalogCountKey(language, state.catalogCount), { count: state.catalogCount });
+  const scheduled = !oneOff ? t('catalogChipScheduledCount', { count: state.catalogCount }) : null;
+  const titleCount = oneOff ? state.activeCount : state.catalogCount;
   const minutes =
     remaining !== null && Number.isFinite(remaining)
       ? Math.max(1, Math.ceil(remaining / 60000))
@@ -53,7 +54,7 @@ export function CatalogUpdaterChip({
             ? t('catalogChipWaiting')
             : t('catalogChipNext', { time: duration ?? '' });
   const details = [
-    catalogs,
+    scheduled,
     !oneOff && state.restitch && state.spareReadyCount !== null
       ? t('catalogChipReadyVideos', { count: state.spareReadyCount })
       : null,
@@ -72,15 +73,17 @@ export function CatalogUpdaterChip({
         className="team-updater-chip"
         href={href}
         onPress={onNavigate}
-        label={`${t('catalogUpdaterChipOpen')}: ${catalogs}. ${status}`}
+        label={`${t('catalogUpdaterChipOpen')}: ${scheduled ? `${scheduled}. ` : ''}${status}`}
       >
         {!(active || (oneOff && !attention)) && (
           <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         )}
         <span className="catalog-chip-copy">
           <span className="catalog-chip-title">
-            {t('catalogChipTitle')}
-            <span className="catalog-chip-count">{state.catalogCount}</span>
+            {t(oneOff ? 'catalogChipOneOffTitle' : 'catalogChipTitle')}
+            {typeof titleCount === 'number' && (
+              <span className="catalog-chip-count">{titleCount}</span>
+            )}
           </span>
           <span className="catalog-chip-status">{status}</span>
         </span>

@@ -3,6 +3,7 @@ import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import { ensureRestitchImages } from '../restitch/images';
 import {
   agentCanRestitchFromSpace,
+  getRestitchScreenRefusals,
   agentCanRestitch,
   startTeamAgentProcess
 } from '../../api/client';
@@ -25,13 +26,14 @@ export interface LaunchRestitchRunnerDeps {
   >;
   operation: typeof teamApi.getOperation;
   client: Parameters<typeof prepareCatalogRestitch>[0]['client'];
-  screens: Pick<RestitchScreensDeps, 'grant' | 'capable'>;
+  screens: Pick<RestitchScreensDeps, 'grant' | 'capable' | 'refusals'>;
 }
 const defaultDeps: LaunchRestitchRunnerDeps = {
   launches: launchApi,
   operation: (team, id) => teamApi.getOperation(team, id),
   client: {},
   screens: {
+    refusals: (team, scope) => getRestitchScreenRefusals(team, scope),
     grant: (team, id, consumer) => teamApi.requestDownload(team, id, consumer),
     capable: agentCanRestitchFromSpace
   }
@@ -87,6 +89,12 @@ export async function runLaunchRestitch(
   ) =>
     prepareRestitchScreens(team, defaults, {
       ...deps.screens,
+      ...(deps.screens.refusals
+        ? {
+            refusals: (team: string, scope: string) =>
+              request(() => deps.screens.refusals!(team, scope))
+          }
+        : {}),
       capable: () => request(deps.screens.capable),
       grant: (...args) => request(() => deps.screens.grant(...args)),
       draw: async (_team, options) => {

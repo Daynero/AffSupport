@@ -1,6 +1,6 @@
 begin;
 
-select plan(29);
+select plan(30);
 
 -- Feature 015. What is proved here is the posture, not the behaviour: that the three new
 -- tables cannot be read or written around their functions, and that each function asks for
@@ -97,15 +97,51 @@ select is_empty(
   'anonymous callers cannot execute any re-stitch function'
 );
 
+-- BEGIN caller ACL contract
+-- Public schema placement does not make a revoked legacy inner caller-facing.
+-- Resolve every original outer signature explicitly so missing/renamed functions
+-- cannot make a filtered aggregate pass vacuously.
 select ok(
-  (select bool_and(has_function_privilege('authenticated', p.oid, 'execute'))
-   from pg_catalog.pg_proc as p
-   join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname like '%restitch%'
-     and p.proname not like 'service_%'
-     and p.proname <> 'prepare_launch_restitch_unchecked'),
-  'signed-in callers may execute the caller-facing re-stitch functions'
+  (select bool_and(has_function_privilege('authenticated', entry.function_oid, 'execute'))
+   from unnest(array[
+     'public.bind_launch_restitch(uuid,uuid,uuid)'::regprocedure,
+     'public.draw_restitch_screens(uuid,uuid[])'::regprocedure,
+     'public.get_effective_restitch_defaults(uuid)'::regprocedure,
+     'public.get_launch_restitch_preparation(uuid,uuid)'::regprocedure,
+     'public.get_launch_restitch_reuse(uuid,uuid)'::regprocedure,
+     'public.get_material_restitch_prep(uuid,uuid[])'::regprocedure,
+     'public.get_member_restitch_preference(uuid)'::regprocedure,
+     'public.get_restitch_defaults(uuid)'::regprocedure,
+     'public.get_team_catalog_updater_restitch_default(uuid)'::regprocedure,
+     'public.list_restitch_sources(uuid,text)'::regprocedure,
+     'public.pause_launch_restitch(uuid,uuid,text)'::regprocedure,
+     'public.prepare_launch_restitch(uuid,uuid,uuid[])'::regprocedure,
+     'public.retry_launch_restitch(uuid,uuid,text)'::regprocedure,
+     'public.set_material_restitch_prep(uuid,text,jsonb)'::regprocedure,
+     'public.set_member_restitch_defaults(uuid,jsonb)'::regprocedure,
+     'public.set_member_restitch_sources(uuid,text,jsonb)'::regprocedure,
+     'public.set_member_restitch_use_owner(uuid,boolean)'::regprocedure,
+     'public.set_restitch_defaults(uuid,jsonb)'::regprocedure,
+     'public.set_restitch_sources(uuid,text,jsonb)'::regprocedure,
+     'public.set_team_catalog_updater_restitch(uuid,boolean)'::regprocedure,
+     'public.set_team_catalog_updater_restitch_as_actor(uuid,boolean,uuid)'::regprocedure,
+     'public.settle_launch_restitch(uuid,uuid)'::regprocedure
+   ]) as entry(function_oid)),
+  'signed-in callers may execute the explicit caller-facing re-stitch contract'
 );
+select ok(
+  (select bool_and(not has_function_privilege(role_name, entry.function_oid, 'execute'))
+   from unnest(array[
+     'public.prepare_launch_restitch_before_video(uuid,uuid,uuid[])'::regprocedure,
+     'public.get_launch_restitch_reuse_before_video(uuid,uuid)'::regprocedure,
+     'public.bind_launch_restitch_before_video(uuid,uuid,uuid)'::regprocedure,
+     'public.retry_launch_restitch_before_video(uuid,uuid,text)'::regprocedure,
+     'public.service_launch_restitch_receipt_before_video(uuid,uuid,uuid,text,text)'::regprocedure
+   ]) as entry(function_oid)
+   cross join unnest(array['anon','authenticated','service_role']) as roles(role_name)),
+  'legacy before-video inners remain revoked for every application role'
+);
+-- END caller ACL contract
 
 -- The value checks are the last line of defence against a direct call; the shared clamp is
 -- the rule the product actually uses.

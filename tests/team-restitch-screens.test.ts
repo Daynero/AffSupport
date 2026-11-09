@@ -162,3 +162,42 @@ it('starts both independent image grants before either completes and preserves s
     screens: [{ materialId: 'm1' }, { materialId: 'm2' }]
   });
 });
+
+it('skips a remembered broken version on the next random draw without requesting its bytes', async () => {
+  const draw = vi
+    .fn()
+    .mockResolvedValueOnce({ sourceMode: 'drive', pool: {}, screens: [drawn('m1')] })
+    .mockResolvedValueOnce({ sourceMode: 'drive', pool: {}, screens: [drawn('m3')] });
+  const grant = vi.fn(async (_team: string, id: string) => agentGrant(id));
+  const outcome = await prepareRestitchScreens(
+    TEAM,
+    defaults('drive'),
+    deps({
+      draw,
+      grant,
+      refusals: vi
+        .fn()
+        .mockResolvedValue([{ slot: 'start', materialId: 'm1', checksum: 'a'.repeat(32) }])
+    })
+  );
+  expect(draw).toHaveBeenNthCalledWith(2, TEAM, { exclude: ['m1'] });
+  expect(grant).not.toHaveBeenCalledWith(TEAM, 'm1', 'agent');
+  expect(outcome).toMatchObject({ kind: 'ready', screens: [{ materialId: 'm3' }] });
+});
+it('allows a repaired version of a previously rejected picture', async () => {
+  const grant = vi.fn(async (_team: string, id: string) => agentGrant(id));
+  const draw = vi.fn().mockResolvedValue({ sourceMode: 'drive', pool: {}, screens: [drawn('m1')] });
+  await prepareRestitchScreens(
+    TEAM,
+    defaults('drive'),
+    deps({
+      draw,
+      grant,
+      refusals: vi
+        .fn()
+        .mockResolvedValue([{ slot: 'start', materialId: 'm1', checksum: 'b'.repeat(32) }])
+    })
+  );
+  expect(draw).toHaveBeenCalledTimes(1);
+  expect(grant).toHaveBeenCalledWith(TEAM, 'm1', 'agent');
+});

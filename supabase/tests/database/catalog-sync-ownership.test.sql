@@ -24,7 +24,16 @@ select throws_ok($$insert into private.catalog_sync_jobs(connection_id, phase, j
   '23505', null, 'active duplicate rejected by unique index');
 update private.catalog_sync_jobs set next_attempt_at = now() + interval '1 day'
 where connection_id <> 'fc260000-0000-4000-8000-000000000004';
-create temp table ownership_claim as select * from public.service_claim_catalog_sync_work('ownership-test', 3, 60);
+-- Empty claims are permitted by the non-blocking lease boundary. Retry only
+-- that outcome; an unexpected identity or extra lease still fails below.
+create temp table ownership_claim as select * from public.service_claim_catalog_sync_work('ownership-test', 3, 60) with no data;
+do $$ begin
+  for retry in 1..10 loop
+    insert into ownership_claim select * from public.service_claim_catalog_sync_work('ownership-test',3,60);
+    exit when exists(select 1 from ownership_claim);
+    perform pg_sleep(0.01);
+  end loop;
+end $$;
 select is((select count(*)::int from ownership_claim), 1, 'one lease per connection in a batch');
 select ok(private.lock_catalog_sync_lease((select job_id from ownership_claim), 'ownership-test',
   (select lease_epoch from ownership_claim)), 'current lease is authoritative');
@@ -38,7 +47,14 @@ select is((select confirmed_cursor from private.catalog_sync_authority where con
   null::text, 'finite token is not a confirmed cursor');
 update private.catalog_sync_jobs set next_attempt_at = now() + interval '1 day'
 where connection_id = 'fc260000-0000-4000-8000-000000000004' and job_kind <> 'incremental';
-create temp table ownership_feed as select * from public.service_claim_catalog_sync_work('feed-test', 1, 60);
+create temp table ownership_feed as select * from public.service_claim_catalog_sync_work('feed-test', 1, 60) with no data;
+do $$ begin
+  for retry in 1..10 loop
+    insert into ownership_feed select * from public.service_claim_catalog_sync_work('feed-test',1,60);
+    exit when exists(select 1 from ownership_feed);
+    perform pg_sleep(0.01);
+  end loop;
+end $$;
 select ok(public.service_complete_catalog_sync_job((select job_id from ownership_feed), 'feed-test', 'confirmed-token'),
   'canonical feed commits its cursor');
 select is((select state from private.catalog_sync_jobs where id = (select job_id from ownership_claim)),

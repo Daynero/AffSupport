@@ -9,6 +9,12 @@ import type {
   CatalogUpdaterState,
   TeamContextSnapshot
 } from '../apps/web/src/api/team';
+import type { WorkspaceOperationsValue } from '../apps/web/src/team/explorer/WorkspaceOperationsProvider';
+
+const hostedWorkspace = vi.hoisted(() => ({ value: null as WorkspaceOperationsValue | null }));
+vi.mock('../apps/web/src/team/explorer/WorkspaceOperationsProvider', () => ({
+  useOptionalWorkspaceOperations: () => hostedWorkspace.value
+}));
 
 /**
  * Feature 023, and a schedule per catalog in 024: the catalog updater's dialog — the registry and
@@ -16,6 +22,11 @@ import type {
  * both of them across a selection.
  */
 
+vi.mock('../apps/web/src/auth/AuthContext', () => ({
+  useOptionalAuth: () => ({ user: { id: '47000000-0000-4000-8000-000000000001' } })
+}));
+
+const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope');
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
@@ -101,6 +112,8 @@ const running: CatalogUpdaterState = {
 };
 
 beforeEach(() => {
+  hostedWorkspace.value = null;
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   localStorage.setItem('language', 'en');
   localStorage.setItem('catalog-icon-legend-seen', '1');
@@ -118,7 +131,7 @@ function client(
   state: CatalogUpdaterState,
   overrides: Partial<DialogClient> = {}
 ): DialogClient {
-  return {
+  const api: DialogClient = {
     getCatalogUpdater: vi.fn().mockResolvedValue(state),
     listTeamProductCatalogs: vi.fn().mockResolvedValue(rows),
     setCatalogUpdateInterval: vi.fn().mockResolvedValue(running),
@@ -135,6 +148,27 @@ function client(
     setCatalogUpdaterRestitch: vi.fn().mockResolvedValue({ ...stopped, restitch: true }),
     ...overrides
   };
+  api.requestCatalogUpdateCommand ??= async (_team, _actor, intent) => {
+    const count = intent.sourceAttemptId
+      ? await api.retryCatalogUpdate!(_team, intent.catalogIds[0]!, intent.sourceAttemptId)
+      : await api.runCatalogUpdateNow(_team, intent.catalogIds);
+    return {
+      commandId: intent.commandId,
+      kind: intent.sourceAttemptId ? 'retry' : 'run',
+      status: 'accepted',
+      sourceAttemptId: intent.sourceAttemptId ?? null,
+      requestedCount: intent.catalogIds.length,
+      acceptedCount: Math.min(count, intent.catalogIds.length),
+      items: intent.catalogIds.map((catalogId, index) => ({
+        catalogId,
+        accepted: index < count,
+        attemptId: index < count ? crypto.randomUUID() : null,
+        reason: index < count ? 'accepted' : 'already_pending'
+      }))
+    };
+  };
+  api.getCatalogUpdateCommand ??= async () => null;
+  return api;
 }
 
 function renderDialog(api: DialogClient, team: TeamContextSnapshot = owned) {
@@ -216,6 +250,32 @@ it('keeps unsaved bulk changes until explicit discard and never sends cancelled 
   );
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Select first catalog')).toBeTruthy();
+});
+it('explains that closing an unknown bulk result does not discard an accepted write', async () => {
+  const api = client([row('1', 'first')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByLabelText('Select first catalog'));
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Selected catalogs' })).getByRole('button', {
+      name: 'Configure'
+    })
+  );
+  const bulk = screen.getByRole('dialog', { name: 'Edit selected update settings' });
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Images · On' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Off' }));
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Save settings' }));
+  await within(bulk).findByRole('button', { name: 'Check current settings' });
+  await userEvent.click(within(bulk).getByRole('button', { name: 'Close' }));
+  const prompt = screen.getByRole('dialog', { name: 'Result not confirmed' });
+  expect(within(prompt).getByText(/Closing does not cancel it/)).toBeTruthy();
+  expect(within(prompt).queryByRole('button', { name: 'Discard changes' })).toBeNull();
+  await userEvent.click(within(prompt).getByRole('button', { name: 'Close' }));
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'Edit selected update settings' })).toBeNull()
+  );
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
 });
 it('shows all five independent controls, with video first and IDs explained by the legend', async () => {
   renderDialog(client([row('1', 'polo.mp4')], stopped));
@@ -333,9 +393,15 @@ it('saves one toggle immediately for exactly one catalog', async () => {
     await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
   );
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      restitch: true
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        restitch: true
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
   expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('button', { name: 'Save settings' })).toBeNull();
@@ -353,14 +419,20 @@ it('saves a precise catalog schedule only after explicit confirmation', async ()
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      updateInterval: '1d',
-      schedule: expect.objectContaining({
-        time: expect.any(String),
-        timeZone: expect.any(String),
-        weekday: expect.any(Number)
-      })
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        updateInterval: '1d',
+        schedule: expect.objectContaining({
+          time: expect.any(String),
+          timeZone: expect.any(String),
+          weekday: expect.any(Number)
+        })
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
   expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
@@ -437,10 +509,16 @@ it('validates custom hours before the explicit numeric application', async () =>
   await userEvent.type(hours, '36');
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
-    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, 1, {
-      updateInterval: '36h',
-      schedule: null
-    })
+    expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(
+      TEAM_ID,
+      row('1', '').catalogId,
+      1,
+      {
+        updateInterval: '36h',
+        schedule: null
+      },
+      expect.objectContaining({ expectedActorId: '47000000-0000-4000-8000-000000000001' })
+    )
   );
 });
 it('updates a catalog now without changing its schedule', async () => {
@@ -613,15 +691,72 @@ it('shows one reconciliation status instead of running and stacked errors', asyn
   expect(screen.queryByRole('button', { name: /Needs attention/ })).toBeNull();
   expect(within(tableRow).queryByRole('button', { name: 'Cancel this update' })).toBeNull();
 });
-it('cancels an active run separately from the schedule', async () => {
+it('refuses a legacy Stop without an observed round and leaves the schedule unchanged', async () => {
   const api = client(
     [row('1', 'polo.mp4', { updatePending: true, updateInterval: '1d' })],
     running
   );
   renderDialog(api);
   await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
-  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId);
+  expect(api.cancelCatalogUpdate).not.toHaveBeenCalled();
+  expect(
+    await screen.findByText(
+      'The current attempt has not been verified. Refresh the catalog list before stopping this update.'
+    )
+  ).toBeTruthy();
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+});
+it('binds stop to the observed updater round on a modern snapshot', async () => {
+  const activeRoundAt = '2026-11-05T10:00:00Z';
+  const api = client(
+    [
+      row('1', 'polo.mp4', {
+        updatePending: true,
+        activeRoundAt,
+        activeAttemptId: 'observed-attempt'
+      })
+    ],
+    running
+  );
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledWith(
+    TEAM_ID,
+    row('1', '').catalogId,
+    {
+      roundAt: activeRoundAt,
+      attemptId: 'observed-attempt'
+    },
+    expect.objectContaining({
+      expectedActorId: '47000000-0000-4000-8000-000000000001',
+      signal: expect.any(AbortSignal)
+    })
+  );
+});
+it('explains a stop that arrived after the run had already ended without changing its schedule', async () => {
+  const api = client(
+    [
+      row('1', 'polo.mp4', {
+        updatePending: true,
+        updateInterval: '1d',
+        activeRoundAt: '2026-11-05T10:00:00Z',
+        activeAttemptId: null
+      })
+    ],
+    running,
+    { cancelCatalogUpdate: vi.fn().mockResolvedValue(false) }
+  );
+  vi.mocked(api.cancelCatalogUpdate!).mockImplementation(async () => {
+    vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+      row('1', 'polo.mp4', { updateInterval: '1d', activeRoundAt: null, activeAttemptId: null })
+    ]);
+    return false;
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
+  expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
 it('shows the server refusal from a manual run', async () => {
   const api = client([row('1', 'polo.mp4')], stopped, {
@@ -639,7 +774,9 @@ it('offers history and live settings inside the catalog overflow', async () => {
   await userEvent.click(await screen.findByRole('button', { name: /^Actions (for|on) polo/ }));
   expect(screen.getByRole('menuitem', { name: 'Configure' })).toBeTruthy();
   await userEvent.click(screen.getByRole('menuitem', { name: 'Update history' }));
-  expect(api.listCatalogUpdateAttempts).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId);
+  expect(api.listCatalogUpdateAttempts).toHaveBeenCalledWith(TEAM_ID, row('1', '').catalogId, {
+    signal: expect.any(AbortSignal)
+  });
 });
 it('opens the same live toggles in details without a separate Save form', async () => {
   const api = client([row('1', 'polo.mp4')], stopped);
@@ -662,6 +799,71 @@ it('exposes safe undo after a confirmed write', async () => {
   expect(await screen.findByRole('button', { name: 'Undo change' })).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: 'Recent changes (1)' }));
   expect(screen.getByRole('heading', { name: 'Recent changes' })).toBeTruthy();
+});
+it('renders numeric variation changes in recent changes and undoes the original count', async () => {
+  vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
+  try {
+    const item = row('1', 'polo.mp4');
+    let stored: CatalogUpdateProfile = { ...profileFor(item.catalogId), videoVariantCount: 1 };
+    const api = client([item], stopped, {
+      listCatalogUpdateProfiles: vi.fn(async () => [stored]),
+      patchCatalogUpdateProfile: vi.fn(async (_team, _id, version, patch) => {
+        if (version !== stored.version) throw new TeamApiError('STALE_RESULT', false);
+        stored = { ...stored, ...patch, version: version + 1 };
+        return stored;
+      })
+    });
+    renderDialog(api);
+    await userEvent.click(await screen.findByRole('button', { name: /^Actions (for|on) polo/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Configure' }));
+    const detail = screen.getAllByRole('dialog').at(-1)!;
+    fireEvent.change(within(detail).getByRole('textbox', { name: 'Video variations' }), {
+      target: { value: '3' }
+    });
+    await userEvent.click(within(detail).getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(stored.videoVariantCount).toBe(3));
+    await waitFor(() =>
+      expect(within(detail).queryByRole('button', { name: 'Save settings' })).toBeNull()
+    );
+    await userEvent.click(within(detail).getByRole('button', { name: 'Close' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Recent changes (1)' }));
+    const recent = screen.getAllByRole('dialog').at(-1)!;
+    expect(within(recent).getByText('Video variations: 3')).toBeTruthy();
+    await userEvent.click(within(recent).getByRole('button', { name: 'Undo change' }));
+    await waitFor(() => expect(stored.videoVariantCount).toBe(1));
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+it('closes an emptied recent-changes dialog after undo and restores focus to the affected catalog field', async () => {
+  const item = row('1', 'polo.mp4');
+  let stored: CatalogUpdateProfile = profileFor(item.catalogId);
+  const api = client([item], stopped, {
+    listCatalogUpdateProfiles: vi.fn(async () => [stored]),
+    patchCatalogUpdateProfile: vi.fn(async (_team, _id, version, patch) => {
+      if (version !== stored.version) throw new TeamApiError('STALE_RESULT', false);
+      stored = { ...stored, ...patch, version: version + 1 };
+      return stored;
+    })
+  });
+  renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+  );
+  await userEvent.click(await screen.findByRole('button', { name: 'Recent changes (1)' }));
+  const recent = screen.getAllByRole('dialog').at(-1)!;
+  await userEvent.click(within(recent).getByRole('button', { name: 'Undo change' }));
+  await waitFor(
+    () => expect(screen.queryByRole('heading', { name: 'Recent changes' })).toBeNull(),
+    { timeout: 1000 }
+  );
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+    )
+  );
+  expect(stored).toMatchObject({ version: 3, restitch: false });
 });
 it('shows explicit bulk video and schedule choices only after selecting catalogs', async () => {
   renderDialog(client([row('1', 'polo.mp4'), row('2', 'shirt.mp4')], stopped));
@@ -868,4 +1070,448 @@ it('keeps save feedback beside the name and reserves action/footer slots through
     });
   });
   await waitFor(() => expect(indicator.getAttribute('data-phase')).toBe('saved'));
+});
+
+it('keeps valid catalogs visible and explains partial reads without pretending the list is empty', async () => {
+  const item = row('1', 'polo.mp4');
+  const api = client([item], stopped, {
+    listTeamProductCatalogSnapshot: vi.fn().mockResolvedValue({ rows: [item], invalidRowCount: 2 })
+  });
+  renderDialog(api);
+  expect(await screen.findByText(/Some catalog data could not be read/)).toBeTruthy();
+  expect(await screen.findByLabelText('Select polo.mp4 catalog')).toBeTruthy();
+  expect(screen.queryByText(/No catalogs yet/)).toBeNull();
+});
+
+it('refreshes partial trash results and keeps failed and unstarted catalogs selected', async () => {
+  const { teamApi } = await import('../apps/web/src/api/team');
+  const catalogs = [row('1', 'first.mp4'), row('2', 'second.mp4'), row('3', 'third.mp4')];
+  const trash = vi
+    .spyOn(teamApi, 'trashMaterial')
+    .mockResolvedValueOnce({
+      operationId: 'trash-first',
+      state: 'succeeded',
+      materialId: catalogs[0].catalogId,
+      reused: false
+    })
+    .mockRejectedValueOnce(new TypeError('lost response'));
+  const api = client(catalogs, stopped);
+  renderDialog(api);
+  for (const name of ['first', 'second', 'third']) {
+    await userEvent.click(await screen.findByLabelText(`Select ${name}.mp4 catalog`));
+  }
+  await userEvent.click(screen.getByRole('button', { name: 'Catalog manager actions' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Delete selected' }));
+  const confirmation = screen.getAllByRole('dialog').at(-1)!;
+  const readsBefore = vi.mocked(api.listTeamProductCatalogs).mock.calls.length;
+  await userEvent.click(within(confirmation).getByRole('button', { name: 'Delete selected' }));
+  await waitFor(() => expect(trash).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(api.listTeamProductCatalogs).toHaveBeenCalledTimes(readsBefore + 1));
+  expect((screen.getByLabelText('Select first.mp4 catalog') as HTMLInputElement).checked).toBe(
+    false
+  );
+  expect((screen.getByLabelText('Select second.mp4 catalog') as HTMLInputElement).checked).toBe(
+    true
+  );
+  expect((screen.getByLabelText('Select third.mp4 catalog') as HTMLInputElement).checked).toBe(
+    true
+  );
+});
+
+it('rediscovers an unfinished hosted catalog batch after reopening without unrelated file batches', async () => {
+  const item = row('1', 'polo.mp4');
+  const group = {
+    id: '47000000-0000-4000-8000-000000000099',
+    teamId: TEAM_ID,
+    actorId: '47000000-0000-4000-8000-000000000001',
+    items: [
+      {
+        materialId: item.catalogId,
+        idempotencyKey: 'catalog-key',
+        state: 'unknown' as const,
+        errorCode: null
+      }
+    ]
+  };
+  hostedWorkspace.value = {
+    groups: [],
+    startUploadGroup: vi.fn(),
+    retryUploadGroup: vi.fn(),
+    cancelGroup: vi.fn(),
+    bulkTrash: {
+      groups: [
+        group,
+        { ...group, id: 'other-group', items: [{ ...group.items[0]!, materialId: 'other-file' }] }
+      ],
+      uncertain: true,
+      historicalReceipts: new Map(),
+      start: vi.fn(),
+      retry: vi.fn(),
+      refresh: vi.fn(),
+      dismiss: vi.fn(),
+      acknowledgeVisible: vi.fn(),
+      owns: () => true
+    }
+  };
+  renderDialog(client([item], stopped));
+  await screen.findByLabelText('polo.mp4 catalog');
+  expect(screen.getByText('Move files to trash')).toBeTruthy();
+  expect(screen.getAllByText('Move files to trash')).toHaveLength(1);
+  expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
+  expect(hostedWorkspace.value?.bulkTrash?.start).not.toHaveBeenCalled();
+});
+
+it.each([
+  { actor: 'new-actor', access: 'same-space-access' },
+  { actor: null, access: 'changed-permissions' }
+])(
+  'clears manager state and suppresses a late command after private scope changes: %j',
+  async ({ actor, access }) => {
+    let finish!: (count: number) => void;
+    const run = vi.fn(
+      () =>
+        new Promise<number>(resolve => {
+          finish = resolve;
+        })
+    );
+    const api = client([row('1', 'polo.mp4')], stopped, { runCatalogUpdateNow: run });
+    const { onChanged } = renderDialog(api);
+    const selected = await screen.findByLabelText('Select polo.mp4 catalog');
+    await userEvent.click(selected);
+    await userEvent.type(screen.getByRole('searchbox'), 'polo');
+    await userEvent.click(screen.getByRole('button', { name: 'Update polo.mp4 catalog now' }));
+    expect(run).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      setPrivateCacheScope(actor, access);
+    });
+    await waitFor(() => expect(screen.getByRole('searchbox')).toHaveProperty('value', ''));
+    expect(await screen.findByLabelText('Select polo.mp4 catalog')).toHaveProperty(
+      'checked',
+      false
+    );
+    await act(async () => {
+      finish(1);
+    });
+    expect(onChanged).not.toHaveBeenCalled();
+  }
+);
+
+it('keeps an unconfirmed command distinct from a new launch and explains its last known cause', async () => {
+  const item = row('1', 'polo.mp4');
+  let intent!: import('@video-compressor/shared').CatalogCommandRequest;
+  const request = vi.fn(async (_team: string, _actor: string, value: typeof intent) => {
+    intent = value;
+    throw new TeamApiError('DRIVE_UNAVAILABLE', true);
+  });
+  const read = vi
+    .fn()
+    .mockResolvedValueOnce(null)
+    .mockImplementation(async () => ({
+      commandId: intent.commandId,
+      kind: 'run',
+      status: 'accepted',
+      sourceAttemptId: null,
+      requestedCount: 1,
+      acceptedCount: 1,
+      items: [
+        {
+          catalogId: item.catalogId,
+          accepted: true,
+          attemptId: '47000000-0000-4000-8000-000000000009',
+          reason: 'accepted'
+        }
+      ]
+    }));
+  const api = client([item], stopped, {
+    requestCatalogUpdateCommand: request,
+    getCatalogUpdateCommand: read
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' }));
+  const notice = await screen.findByText(
+    /The result of the request for 1 catalogs is not confirmed/
+  );
+  expect(notice.textContent).toContain(item.name);
+  const panel = notice.closest<HTMLElement>('[role="status"]')!;
+  expect(within(panel).getByText(/Last observed problem:/)).toBeTruthy();
+  expect(
+    within(panel).getByRole('button', { name: 'Check status' }).getAttribute('aria-describedby')
+  ).toBe(notice.id);
+  await userEvent.click(within(panel).getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText(/Previous request confirmed. Accepted updates: 1/)).toBeTruthy();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(api.runCatalogUpdateNow).not.toHaveBeenCalled();
+});
+
+it('ends initial loading on a failed read and retries only the registry read', async () => {
+  const catalogs = [row('1', 'recoverable')];
+  const read = vi
+    .fn()
+    .mockRejectedValueOnce(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+    .mockResolvedValue(catalogs);
+  const api = client(catalogs, stopped, { listTeamProductCatalogs: read });
+  renderDialog(api);
+  await screen.findByText('Could not load catalogs.');
+  expect(screen.queryByText('Loading catalogs…')).toBeNull();
+  expect(screen.getByText('Catalogs unavailable')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await screen.findByLabelText('recoverable catalog');
+  expect(api.runCatalogUpdateNow).not.toHaveBeenCalled();
+  expect(api.cancelCatalogUpdate).not.toHaveBeenCalled();
+});
+
+it('explains a quarantined current round separately from its unchanged historical failure', async () => {
+  const item = row('1', 'quarantined', {
+    lastUpdateError: 'CATALOG_ATTEMPT_STATE_INCONSISTENT',
+    profile: {
+      ...profileFor('23000000-0000-4000-8000-000000000001'),
+      reconciliationRequired: true,
+      lastResult: 'failed'
+    }
+  });
+  const api = client([item], stopped, {
+    listCatalogUpdateAttempts: vi.fn().mockResolvedValue([
+      {
+        attemptId: '47000000-0000-4000-8000-000000000091',
+        catalogId: item.catalogId,
+        trigger: 'schedule',
+        startedAt: '2026-11-01T00:16:00Z',
+        endedAt: '2026-11-01T00:24:00Z',
+        stage: null,
+        result: 'failed',
+        failureCode: 'DRIVE_UNAVAILABLE',
+        deliveryVerifiedAt: null
+      }
+    ])
+  });
+  renderDialog(api);
+  await act(async () => {});
+  expect(screen.getByLabelText('quarantined catalog')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Requires review · details' }));
+  await act(async () => {});
+  const current = screen.getByRole('alert');
+  expect(current.textContent).toContain('This catalog needs a review of its previous update.');
+  expect(current.textContent).not.toContain('Google Drive is not responding');
+  expect(screen.getByText(/Google Drive is not responding\. Try again shortly\./)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Try again now' }).hasAttribute('disabled')).toBe(true);
+});
+
+it('replaces a client with fresh manager state while an old Stop is pending', async () => {
+  let finish!: (value: boolean) => void;
+  const stop = vi.fn(
+    () =>
+      new Promise<boolean>(resolve => {
+        finish = resolve;
+      })
+  );
+  const active = row('1', 'polo.mp4', {
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: null
+  });
+  const first = client([active], running, { cancelCatalogUpdate: stop });
+  const next = client([row('1', 'polo.mp4')], stopped);
+  const onChanged = vi.fn();
+  const surface = (api: DialogClient) => (
+    <TeamProvider initialTeams={[owned]} realtime={false}>
+      <ToastProvider>
+        <CatalogUpdaterDialog
+          teamId={TEAM_ID}
+          client={api}
+          onClose={vi.fn()}
+          onChanged={onChanged}
+        />
+      </ToastProvider>
+    </TeamProvider>
+  );
+  const view = render(surface(first));
+  await userEvent.type(await screen.findByRole('searchbox'), 'polo');
+  await userEvent.click(screen.getByLabelText('Select polo.mp4 catalog'));
+  await userEvent.click(screen.getByRole('button', { name: 'Stop this update' }));
+  expect(stop).toHaveBeenCalledTimes(1);
+  view.rerender(surface(next));
+  expect(screen.getByRole('searchbox')).toHaveProperty('value', '');
+  expect(await screen.findByLabelText('Select polo.mp4 catalog')).toHaveProperty('checked', false);
+  await act(async () => {
+    finish(true);
+  });
+  expect(onChanged).not.toHaveBeenCalled();
+  expect(await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' })).toHaveProperty(
+    'disabled',
+    false
+  );
+  expect(next.cancelCatalogUpdate).not.toHaveBeenCalled();
+});
+
+it('does not report Stop delivery before a fresh authoritative read and visible feedback', async () => {
+  const { analytics } = await import('../apps/web/src/analytics/service');
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const attemptId = '47000000-0000-4000-8000-000000000099';
+  const active = {
+    ...row('1', 'polo.mp4'),
+    profile: profileFor(row('1', '').catalogId),
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: attemptId
+  };
+  let resolve!: (value: { rows: CatalogRegistryRow[]; invalidRowCount: number }) => void;
+  let stopped = false;
+  const read = vi.fn(() =>
+    stopped
+      ? new Promise<{ rows: CatalogRegistryRow[]; invalidRowCount: number }>(done => {
+          resolve = done;
+        })
+      : Promise.resolve({ rows: [active], invalidRowCount: 0 })
+  );
+  const api = client([active], running, {
+    listCatalogManagerSnapshot: read,
+    cancelCatalogUpdate: vi.fn(async () => {
+      stopped = true;
+      return true;
+    })
+  });
+  renderDialog(api);
+  await userEvent.click(await screen.findByRole('button', { name: 'Stop this update' }));
+  await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(1));
+  const stopCalls = () =>
+    track.mock.calls.filter(
+      ([, p]) => (p && 'flow_step' in p ? p.flow_step : undefined) === 'catalog_manager_stop'
+    );
+  expect(
+    stopCalls().some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_accepted'
+    )
+  ).toBe(true);
+  expect(stopCalls().some(([event]) => event === 'operation_completed')).toBe(false);
+  await act(async () => {
+    resolve({
+      rows: [{ ...active, updatePending: false, activeRoundAt: null, activeAttemptId: null }],
+      invalidRowCount: 0
+    });
+  });
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  const completed = stopCalls().filter(([event]) => event === 'operation_completed');
+  expect(completed).toHaveLength(1);
+  expect(completed[0]?.[1]).toMatchObject({
+    parent_flow_id: attemptId,
+    production_completed: false
+  });
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+});
+
+it('checks an uncertain Stop without repeating the RPC and compares round timestamps by instant', async () => {
+  const { analytics } = await import('../apps/web/src/analytics/service');
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const active = row('1', 'polo.mp4', {
+    updatePending: true,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: '47000000-0000-4000-8000-000000000099'
+  });
+  const api = client([active], running, {
+    cancelCatalogUpdate: vi
+      .fn()
+      .mockRejectedValue(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+  });
+  renderDialog(api);
+  await screen.findByRole('button', { name: 'Stop this update' });
+  vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+    { ...active, activeRoundAt: '2026-11-05T12:00:00+02:00' }
+  ]);
+  await userEvent.click(screen.getByRole('button', { name: 'Stop this update' }));
+  expect(
+    await screen.findByText('The stop result is not confirmed yet. Check the current status.')
+  ).toBeTruthy();
+  expect(screen.queryByText('The observed update is no longer active.')).toBeNull();
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+  vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+    { ...active, updatePending: false, activeRoundAt: null, activeAttemptId: null }
+  ]);
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  expect(api.cancelCatalogUpdate).toHaveBeenCalledTimes(1);
+  const stop = track.mock.calls.filter(
+    ([, p]) => (p && 'flow_step' in p ? p.flow_step : undefined) === 'catalog_manager_stop'
+  );
+  expect(
+    stop.some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_reply_unknown'
+    )
+  ).toBe(true);
+  expect(
+    stop.some(
+      ([, p]) =>
+        (p && 'action_identifier' in p ? p.action_identifier : undefined) === 'stop_check_requested'
+    )
+  ).toBe(true);
+  expect(stop.filter(([name]) => name === 'operation_completed')).toHaveLength(1);
+});
+
+it('does not keep the previous actor navigation guard before its effect cleanup', async () => {
+  const { BEFORE_NAVIGATION_EVENT } = await import('../apps/web/src/lib/navigation');
+  let finish!: (value: CatalogUpdateProfile) => void;
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn(
+      () =>
+        new Promise<CatalogUpdateProfile>(resolve => {
+          finish = resolve;
+        })
+    )
+  });
+  const { onChanged } = renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Replace video · Off: polo.mp4 catalog' })
+  );
+  const own = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+  window.dispatchEvent(own);
+  expect(own.defaultPrevented).toBe(true);
+  act(() => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'owner');
+    const other = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+    window.dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+  });
+  await act(async () => {
+    finish({ ...profileFor(row('1', '').catalogId), version: 2, restitch: true });
+  });
+  expect(onChanged).not.toHaveBeenCalled();
+});
+
+it('guards an unconfirmed inline save when closing the manager', async () => {
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  const { onClose } = renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Images · On: polo.mp4 catalog' })
+  );
+  await screen.findByText('Save result unknown. Check current settings before continuing.');
+  await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(onClose).not.toHaveBeenCalled();
+  const prompt = screen.getByRole('dialog', { name: 'Result not confirmed' });
+  expect(within(prompt).getByText(/Closing does not cancel it/)).toBeTruthy();
+  await userEvent.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
+  expect(
+    screen.getByText('Save result unknown. Check current settings before continuing.')
+  ).toBeTruthy();
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledOnce();
+});
+it('guards an unconfirmed inline save during app navigation with the correct explanation', async () => {
+  const { BEFORE_NAVIGATION_EVENT } = await import('../apps/web/src/lib/navigation');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Images · On: polo.mp4 catalog' })
+  );
+  await screen.findByText('Save result unknown. Check current settings before continuing.');
+  const navigation = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+  window.dispatchEvent(navigation);
+  expect(navigation.defaultPrevented).toBe(true);
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Closing does not cancel it/));
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledOnce();
 });

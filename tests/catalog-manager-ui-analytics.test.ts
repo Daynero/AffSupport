@@ -57,6 +57,18 @@ describe('catalog manager UI evidence', () => {
     );
     expect(() => flow.complete()).not.toThrow();
   });
+  it('keeps the closed cause on a failed undo stage without collecting settings or names', () => {
+    const track = vi.fn();
+    const flow = beginCatalogUiFlow('bulk', { count: 2 }, { track });
+    flow.stage('undo_requested');
+    flow.stage('conflict', 'CONFLICT');
+    expect(track.mock.calls.at(-1)?.[1]).toMatchObject({
+      action_identifier: 'conflict',
+      error_code: 'CONFLICT',
+      item_count: 2
+    });
+    expect(track.mock.calls.at(-1)?.[1]).not.toHaveProperty('settings');
+  });
   it('registers every UI action separately for bounded read-only diagnosis', () => {
     for (const action of ['list', 'filter', 'profile', 'bulk', 'template']) {
       const capability = COVERAGE_REGISTRY.find(
@@ -84,4 +96,35 @@ it('diagnoses a creation-period result without collecting date bounds', () => {
   });
   expect(track.mock.calls.at(-1)![1]).not.toHaveProperty('from');
   expect(track.mock.calls.at(-1)![1]).not.toHaveProperty('to');
+});
+
+it('never attaches a previous actor’s manager flow to a replacement actor', () => {
+  let userId: string | null = 'actor-a';
+  const tracker = { track: vi.fn(), journalContext: () => ({ userId }) };
+  const flow = beginCatalogUiFlow('profile', {}, tracker);
+  userId = 'actor-b';
+  flow.stage('save_confirmed');
+  flow.complete();
+  flow.cancel();
+  expect(tracker.track).toHaveBeenCalledTimes(1);
+});
+
+it('gives Stop its own lifecycle and relates the observed attempt without replacing either flow', () => {
+  const target = '47000000-0000-4000-8000-000000000099';
+  const track = vi.fn();
+  const flow = beginCatalogUiFlow('stop', { count: 1, relatedFlowId: target }, { track });
+  flow.stage('stop_requested');
+  flow.stage('stop_accepted');
+  expect(
+    track.mock.calls.every(([, p]) => p.flow_id === flow.id && p.parent_flow_id === target)
+  ).toBe(true);
+  expect(flow.id).not.toBe(target);
+  expect(track.mock.calls.every(([, p]) => p.production_completed === false)).toBe(true);
+  expect(track.mock.calls.some(([event]) => event === 'operation_completed')).toBe(false);
+  flow.complete();
+  expect(track.mock.calls.at(-1)?.[1]).toMatchObject({
+    flow_step: 'catalog_manager_stop',
+    action_identifier: 'result_visible'
+  });
+  expect(COVERAGE_REGISTRY.find(entry => entry.id === 'team.catalog_manager_stop')).toBeDefined();
 });

@@ -1,3 +1,5 @@
+export { STITCH_ERROR_CODES, type StitchErrorCode } from './stitch-errors.js';
+
 export type JobStatus =
   | 'analyzing'
   | 'ready'
@@ -531,46 +533,6 @@ export const TRANSCRIPTION_ERROR_CODES = [
 ] as const;
 export type TranscriptionErrorCode = (typeof TRANSCRIPTION_ERROR_CODES)[number];
 
-/**
- * Why a stitch failed (033 FR-007). The stitcher's `error` was already a code, but an open
- * one (`STITCH_PLAN_VIDEO-CODEC`); this is the closed list it is normalised into.
- */
-export const STITCH_ERROR_CODES = [
-  'RESTITCH_SCREEN_UNAVAILABLE',
-  'RESTITCH_SCREEN_FETCH_FAILED',
-  'RESTITCH_SCREEN_UNSUPPORTED',
-  'STITCH_INTERRUPTED',
-  'STITCH_TOOL_FAILED',
-  'STITCH_PATH_INVALID',
-  'STITCH_PLAN_VIDEO_CODEC',
-  'STITCH_PLAN_AUDIO_CODEC',
-  'STITCH_PLAN_VARIABLE_FRAME_RATE',
-  'STITCH_PLAN_CONTAINER',
-  'STITCH_PLAN_UNREADABLE',
-  'STITCH_PLAN_NOTHING_TO_REMOVE',
-  'STITCH_PLAN_NO_SCREENS',
-  'STITCH_OUTPUT_UNWRITABLE',
-  'STITCH_VERIFICATION_FAILED',
-  'STITCH_IMAGE_UNAVAILABLE',
-  'STITCH_JOIN_FAILED',
-  'STITCH_AUDIO_MISMATCH',
-  'MEDIA_TOOL_UNAVAILABLE',
-  'SILENCE_BANK_FAILED',
-  'SCREEN_ENCODE_FAILED',
-  'SCREEN_SILENCE_FAILED',
-  'SCREEN_MUX_FAILED',
-  'BODY_PREPARE_FAILED',
-  'BODY_REMUX_FAILED',
-  'BODY_HEAD_FAILED',
-  'BODY_TAIL_FAILED',
-  'BODY_AUDIO_MISMATCH',
-  'BODY_RECOVERY_FAILED',
-  'BODY_RECOVERY_VERIFICATION_FAILED',
-  'BODY_TIMING_UNREADABLE',
-  'BODY_JOIN_FAILED'
-] as const;
-export type StitchErrorCode = (typeof STITCH_ERROR_CODES)[number];
-
 /** Why a landing optimization failed as a whole (033 FR-007). Per-file notes stay notes. */
 export const LANDING_ERROR_CODES = [
   /** The prepared working copy is gone before the run could start. */
@@ -814,6 +776,7 @@ export interface HealthResponse {
 export const AGENT_CAPABILITIES = [
   'team-background-recovery',
   'team-background-recovery-actor-bound',
+  'catalog-video-foreground-v1',
   /**
    * One connection carries every channel, instead of one connection per tool.
    *

@@ -1,0 +1,274 @@
+// @vitest-environment jsdom
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import {
+  ProductAnalytics,
+  startTeamFileAttempt,
+  completeTeamFileAttempt
+} from '../apps/web/src/analytics/service';
+import { trackToolError } from '../apps/web/src/analytics/errors';
+import { getInspect } from '../scripts/analytics/queries';
+import { assertReadOnlySql, setQueryExecutor } from '../scripts/analytics/db';
+import { lookupCodeLocations } from '../scripts/analytics/code-map';
+import { beginCatalogUiFlow } from '../apps/web/src/team/catalog-updater/analytics';
+const USER = '47000000-0000-4000-8000-000000000001';
+let db: TeamTestDb;
+let chain: Promise<unknown> = Promise.resolve();
+beforeAll(async () => {
+  db = await createTeamTestDb();
+  await createUser(db, { id: USER, email: 'synthetic-catalog@example.invalid' });
+  await db.root('create role catalog_diagnostics_reader bypassrls');
+  await db.root('grant usage on schema public to catalog_diagnostics_reader');
+  await db.root('grant select on all tables in schema public to catalog_diagnostics_reader');
+  setQueryExecutor((sql, params) => {
+    assertReadOnlySql(sql);
+    const read = chain.then(async () => {
+      await db.db.exec('begin read only; set local role catalog_diagnostics_reader');
+      try {
+        const result = await db.db.query(sql, params);
+        await db.db.exec('commit');
+        return result.rows as Record<string, unknown>[];
+      } catch (cause) {
+        await db.db.exec('rollback');
+        throw cause;
+      }
+    });
+    chain = read.catch(() => undefined);
+    return read;
+  });
+}, 30000);
+afterAll(async () => {
+  setQueryExecutor(null);
+  await db.close();
+});
+
+it('delivers typed file production, browser handoff and exact export cause through real ingestion to read-only inspect', async () => {
+  const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const browser = startTeamFileAttempt(
+    { action: 'download', storageKind: 'unknown', surface: 'catalog_manager', sizeBucket: 'tiny' },
+    { tracker: service }
+  );
+  completeTeamFileAttempt(
+    browser,
+    { outcome: 'success', retryable: false, delivery: 'browser_handoff' },
+    { tracker: service }
+  );
+  const native = startTeamFileAttempt(
+    { action: 'download', storageKind: 'shared_drive', surface: 'material', sizeBucket: 'tiny' },
+    { tracker: service }
+  );
+  completeTeamFileAttempt(
+    native,
+    { outcome: 'success', retryable: false, delivery: 'agent_saved' },
+    { tracker: service }
+  );
+  const failure = startTeamFileAttempt(
+    {
+      action: 'download',
+      storageKind: 'shared_drive',
+      surface: 'catalog_manager',
+      sizeBucket: 'tiny'
+    },
+    { tracker: service }
+  );
+  trackToolError(
+    {
+      tool: 'team',
+      stage: 'download',
+      code: 'CATALOG_EXPORT_TOO_LARGE',
+      attemptId: failure.attemptId,
+      retryable: false
+    },
+    service
+  );
+  completeTeamFileAttempt(failure, { outcome: 'failure', retryable: false }, { tracker: service });
+  await service.flush();
+  expect(ingestions).toHaveLength(7);
+  expect(
+    ingestions.every(row => row.accepted),
+    JSON.stringify(ingestions)
+  ).toBe(true);
+  const asOf = new Date(Date.now() + 1000).toISOString();
+  const browserInspect = await getInspect(browser.attemptId, asOf);
+  const nativeInspect = await getInspect(native.attemptId, asOf);
+  const failedInspect = await getInspect(failure.attemptId, asOf);
+  expect(
+    browserInspect.found &&
+      browserInspect.events.find(row => row.event_name === 'team_file_attempt_completed')
+        ?.properties
+  ).toMatchObject({
+    file_surface: 'catalog_manager',
+    file_delivery: 'browser_handoff',
+    production_completed: false
+  });
+  expect(
+    nativeInspect.found &&
+      nativeInspect.events.find(row => row.event_name === 'team_file_attempt_completed')?.properties
+  ).toMatchObject({ file_delivery: 'agent_saved', production_completed: true });
+  expect(
+    failedInspect.found &&
+      failedInspect.events.some(row => row.properties.error_code === 'CATALOG_EXPORT_TOO_LARGE')
+  ).toBe(true);
+  expect(lookupCodeLocations('team:download:CATALOG_EXPORT_TOO_LARGE')?.matched).toBe(
+    'team:download:CATALOG_EXPORT_TOO_LARGE'
+  );
+  expect(JSON.stringify([browserInspect, nativeInspect, failedInspect])).not.toContain(
+    'synthetic-catalog@example.invalid'
+  );
+});
+
+it('retains bulk undo stages and a conflict cause through the real guard, ingestion and SELECT-only CLI', async () => {
+  const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const conflict = beginCatalogUiFlow('bulk', { count: 2 }, service);
+  conflict.stage('undo_requested');
+  conflict.stage('conflict', 'CONFLICT');
+  conflict.fail('CONFLICT');
+  const restored = beginCatalogUiFlow('bulk', { count: 2 }, service);
+  restored.stage('undo_requested');
+  restored.stage('readback_requested');
+  restored.stage('save_confirmed');
+  restored.complete();
+  await service.flush();
+  expect(ingestions).toHaveLength(9);
+  expect(
+    ingestions.every(row => row.accepted),
+    JSON.stringify(ingestions)
+  ).toBe(true);
+  const asOf = new Date(Date.now() + 1000).toISOString();
+  const failed = await getInspect(conflict.id, asOf);
+  const completed = await getInspect(restored.id, asOf);
+  expect(
+    failed.found && failed.events.some(row => row.properties.action_identifier === 'undo_requested')
+  ).toBe(true);
+  expect(failed.found && failed.events.some(row => row.properties.error_code === 'CONFLICT')).toBe(
+    true
+  );
+  expect(failed.found && failed.events.some(row => row.event_name === 'operation_completed')).toBe(
+    false
+  );
+  expect(
+    completed.found &&
+      completed.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.properties.action_identifier === 'result_visible'
+      )
+  ).toBe(true);
+  expect(JSON.stringify([failed, completed])).not.toContain('synthetic-catalog@example.invalid');
+});
+
+it('retains pre-claim refusal, idle and accepted evidence without claiming video delivery', async () => {
+  const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    ingestions.push(...rows);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const refused = beginCatalogUiFlow('restitch_claim', {}, service);
+  refused.stage('executor_check_requested');
+  refused.fail('AGENT_UPDATE_REQUIRED', 'claim_refused');
+  const idle = beginCatalogUiFlow('restitch_claim', {}, service);
+  idle.stage('executor_check_requested');
+  idle.stage('executor_checked');
+  idle.stage('claim_requested');
+  idle.claimResult(null);
+  const accepted = beginCatalogUiFlow('restitch_claim', {}, service);
+  accepted.stage('executor_checked');
+  accepted.stage('claim_requested');
+  const operationId = '47000000-0000-4000-8000-000000000099';
+  accepted.claimResult(operationId);
+  await service.flush();
+  expect(ingestions).toHaveLength(12);
+  expect(
+    ingestions.every(row => row.accepted),
+    JSON.stringify(ingestions)
+  ).toBe(true);
+  const asOf = new Date(Date.now() + 1000).toISOString();
+  const details = [];
+  for (const flow of [refused, idle, accepted]) details.push(await getInspect(flow.id, asOf));
+  const [failure, empty, claimed] = details;
+  expect(
+    failure?.found &&
+      failure.events.some(
+        row => row.properties.error_fingerprint === 'team:process:AGENT_UPDATE_REQUIRED'
+      )
+  ).toBe(true);
+  expect(
+    empty?.found &&
+      empty.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.properties.action_identifier === 'claim_idle'
+      )
+  ).toBe(true);
+  expect(
+    claimed?.found &&
+      claimed.events.some(
+        row =>
+          row.event_name === 'operation_completed' &&
+          row.run_id === operationId &&
+          row.properties.action_identifier === 'claim_accepted'
+      )
+  ).toBe(true);
+  for (const detail of details) {
+    expect(detail.found).toBe(true);
+    if (!detail.found) continue;
+    expect(detail.events.every(row => row.properties.production_completed === false)).toBe(true);
+    expect(detail.events.some(row => row.properties.action_identifier === 'result_visible')).toBe(
+      false
+    );
+  }
+  expect(lookupCodeLocations('team:process:AGENT_UPDATE_REQUIRED')?.files).toContain(
+    'apps/web/src/team/restitch/claim.ts'
+  );
+  expect(JSON.stringify(details)).not.toContain('synthetic-catalog@example.invalid');
+});
+
+it('diagnoses visible publication settings without claiming that a video reached the catalog', async () => {
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    expect(rows.every(row => row.accepted)).toBe(true);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const flow = beginCatalogUiFlow('publication', { count: 1 }, service);
+  flow.stage('save_requested');
+  flow.stage('save_confirmed');
+  flow.complete();
+  await service.flush();
+  const result = await getInspect(flow.id, new Date(Date.now() + 1000).toISOString());
+  expect(result.found).toBe(true);
+  if (!result.found) throw Error('MISSING_PUBLICATION_CONFIGURATION_EVIDENCE');
+  expect(result.capability).toBe('team.catalog_manager_publication');
+  expect(result.terminal?.event).toBe('operation_completed');
+  expect(result.events.every(event => event.properties.production_completed === false)).toBe(true);
+});

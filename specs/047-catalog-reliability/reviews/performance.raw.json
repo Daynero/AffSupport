@@ -1,0 +1,16 @@
+{
+  "status": "not_measured",
+  "fixtureSeed": 47,
+  "sizes": [0, 60, 500, 2000],
+  "viewport": { "width": 1440, "height": 900 },
+  "warmupsPerAction": 10,
+  "samplesPerAction": 50,
+  "coldLoadsPerSize": 10,
+  "measurementBoundary": "input_handler_to_verified_paint",
+  "latencyTarget": { "rows": 500, "eachActionP95MsAtMost": 200 },
+  "baseline": { "status": "not_measured", "source": null, "bundleDigest": null, "environment": null, "runs": [] },
+  "after": { "status": "not_measured", "source": null, "bundleDigest": null, "environment": null, "runs": [] },
+  "secondOsParity": { "status": "not_measured", "environment": null, "runs": [] },
+  "p50Ms": null,
+  "p95Ms": null
+}

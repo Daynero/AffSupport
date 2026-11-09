@@ -1,3 +1,8 @@
+import {
+  resolveMaterialShare,
+  parseShareReservation,
+  parseShareStatus
+} from './share-resolution.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 // Narrow module imports rather than the `types.js` barrel — see the note in
 // drive-ops/index.ts: the barrel drags the whole shared package into this
@@ -23,6 +28,7 @@ import {
   type ServiceRpcClient
 } from '../_shared/credentials.ts';
 import { GoogleDriveClient, proveLiveAncestry, requireDriveCapability } from '../_shared/drive.ts';
+import { materialGroupRequestNonce } from '../_shared/operations.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -43,12 +49,7 @@ interface RpcFailure {
   message?: string;
 }
 
-interface RpcClient extends ServiceRpcClient {
-  rpc: (
-    name: string,
-    parameters: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: RpcFailure | null }>;
-}
+type RpcClient = ServiceRpcClient;
 
 function clients(request: Request): { caller: RpcClient; service: RpcClient } {
   const url = Deno.env.get('SUPABASE_URL');
@@ -318,7 +319,7 @@ async function movePlacement(input: {
           p_actor: input.actorId,
           p_kind: 'move',
           p_idempotency_key: operationKey,
-          p_request_nonce: `request.${operationKey}`,
+          p_request_nonce: await materialGroupRequestNonce(operationKey),
           p_source_material: materialId,
           p_destination_folder: destination.materialId,
           p_reserved_name_key: null,
@@ -409,68 +410,114 @@ async function shareMaterial(input: {
     oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
     productionSignals: productionSignals(input.requestContext)
   });
-  const drive = new GoogleDriveClient(access.accessToken);
-  let live = await proveLiveAncestry({
+  // One deadline covers the entire metadata/permissions walk. POST is never retried.
+  const deadline = AbortSignal.timeout(20_000);
+  const drive = new GoogleDriveClient(access.accessToken, (url, init) =>
+    fetch(url, {
+      ...init,
+      signal: AbortSignal.any([deadline, ...(init?.signal ? [init.signal] : [])])
+    })
+  );
+  const sourceFile = requiredString(context, 'drive_file_id');
+  const sourceConnection = requiredString(context, 'connection_id');
+  const live = await proveLiveAncestry({
     client: drive,
-    fileId: requiredString(context, 'drive_file_id'),
+    fileId: sourceFile,
     resourceKey: typeof context.resource_key === 'string' ? context.resource_key : null,
     rootFolderId: requiredString(context, 'root_folder_id')
   });
-  const permissions = await drive.listAnyonePermissions(live.id);
-  const publicPermission = permissions.some(permission => permission.role === 'reader');
-  if (!live.webViewLink) throw new TeamFunctionError('INVALID_RESPONSE');
-  if (publicPermission) {
-    return {
-      state: 'ready',
-      url: live.webViewLink,
-      public: true,
-      permissionChanged: false
-    };
-  }
-  if (!input.request.allowIfRestricted) {
-    return {
-      state: 'confirmation_required',
-      url: live.webViewLink,
-      public: false,
-      canShare: live.capabilities.canShare === true
-    };
-  }
-
-  const editable = firstRecord(
-    await serviceRpc('service_get_material_operation_context', {
-      p_team: input.request.teamId,
-      p_material: input.request.materialId,
-      p_actor: input.actorId,
-      p_permission: 'edit',
-      p_allow_trashed: false
-    })
-  );
-  if (!editable || live.capabilities.canShare !== true) {
-    throw new TeamFunctionError('PERMISSION_DENIED');
-  }
-  await drive.createAnyoneReaderPermission(live.id);
-  const verified = await drive.listAnyonePermissions(live.id);
-  if (!verified.some(permission => permission.role === 'reader')) {
-    throw new TeamFunctionError('INVALID_RESPONSE');
-  }
-  live = await drive.getFile(
-    live.id,
-    typeof context.resource_key === 'string' ? context.resource_key : null
-  );
-  if (!live.webViewLink) throw new TeamFunctionError('INVALID_RESPONSE');
-  if (input.request.rememberChoice) {
-    const { error } = await input.caller.rpc('set_share_preference', {
-      p_team: input.request.teamId,
-      p_allow: true
-    });
-    if (error) throw mappedRpcError(error);
-  }
-  return {
-    state: 'ready',
-    url: live.webViewLink,
-    public: true,
-    permissionChanged: true
+  if (live.id !== sourceFile) throw new TeamFunctionError('SOURCE_CHANGED');
+  const identity = {
+    p_team: input.request.teamId,
+    p_actor: input.actorId,
+    p_material: input.request.materialId,
+    p_file: sourceFile
   };
+  return resolveMaterialShare(
+    {
+      fileId: live.id,
+      webViewLink: live.webViewLink,
+      canShare: live.capabilities.canShare === true,
+      shareVersion: input.request.expectedShareVersion ?? null,
+      allowIfRestricted: input.request.allowIfRestricted,
+      rememberChoice: input.request.rememberChoice
+    },
+    {
+      listAnyonePermissions: id => drive.listAnyonePermissions(id),
+      pending: async () =>
+        parseShareStatus(await serviceRpc('service_material_share_status', identity)),
+      observePublic: async () => {
+        await serviceRpc('service_observe_material_share_public', identity);
+      },
+      authorizeWrite: async () => {
+        const fresh = firstRecord(
+          await serviceRpc('service_get_material_operation_context', {
+            p_team: input.request.teamId,
+            p_material: input.request.materialId,
+            p_actor: input.actorId,
+            p_permission: 'edit',
+            p_allow_trashed: false
+          })
+        );
+        if (!fresh) throw new TeamFunctionError('PERMISSION_DENIED');
+        for (const key of ['drive_file_id', 'connection_id', 'credential_id', 'root_folder_id'])
+          if (requiredString(fresh, key) !== requiredString(context, key))
+            throw new TeamFunctionError('STALE_RESULT');
+        const current = await proveLiveAncestry({
+          client: drive,
+          fileId: sourceFile,
+          resourceKey: typeof fresh.resource_key === 'string' ? fresh.resource_key : null,
+          rootFolderId: requiredString(fresh, 'root_folder_id')
+        });
+        if (current.id !== sourceFile || current.capabilities.canShare !== true)
+          throw new TeamFunctionError('PERMISSION_DENIED');
+      },
+      reserve: async publicObserved =>
+        parseShareReservation(
+          await serviceRpc('service_begin_material_share', {
+            ...identity,
+            p_connection: sourceConnection,
+            p_key: input.request.idempotencyKey,
+            p_remember: input.request.rememberChoice,
+            p_public_observed: publicObserved,
+            p_expected_share_version: input.request.expectedShareVersion ?? null
+          })
+        ),
+      createReader: id => drive.createAnyoneReaderPermission(id),
+      recordAcknowledgement: async (intentId, permissionId) => {
+        if (
+          (await serviceRpc('service_acknowledge_material_share', {
+            p_team: input.request.teamId,
+            p_actor: input.actorId,
+            p_intent: intentId,
+            p_permission: permissionId
+          })) !== true
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+      },
+      confirmPublic: async (intentId, permissionId, noWrite) => {
+        if (
+          (await serviceRpc('service_confirm_material_share', {
+            p_team: input.request.teamId,
+            p_actor: input.actorId,
+            p_intent: intentId,
+            p_file: sourceFile,
+            p_permission: permissionId,
+            p_no_write: noWrite
+          })) !== true
+        )
+          throw new TeamFunctionError('CATALOG_LINK_SHARING_UNCERTAIN');
+      },
+      remember: async () => {
+        const { error } = await input.caller.rpc('set_share_preference', {
+          p_team: input.request.teamId,
+          p_allow: true
+        });
+        if (error) throw mappedRpcError(error);
+      },
+      now: () => new Date().toISOString()
+    }
+  );
 }
 
 Deno.serve(async request => {

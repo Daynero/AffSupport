@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T04:27:37.202Z",
+  "schema": 444,
+  "stages": [
+    "group_accepted",
+    "void_marker_confirmed_read_only",
+    "trash_confirmed",
+    "restore_confirmed",
+    "hosted_group_confirmed",
+    "modern_epoch_receipts_verified",
+    "restored_bytes_verified"
+  ],
+  "scope": "Actual authenticated local beta API and provider synthetic bulk-trash/restore/download. No manual UI acceptance.",
+  "productionTouched": false
+}

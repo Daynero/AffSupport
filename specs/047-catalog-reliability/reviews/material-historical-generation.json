@@ -1,0 +1,82 @@
+{
+  "scope": "T023 historical/current material receipt and partial recovery working implementation; T029 diagnostic support",
+  "productionTouched": false,
+  "betaMigrationApplied": false,
+  "nativeFullChainGate": "pending parent execution",
+  "manualBetaAcceptance": "pending exact installed migration/runtime",
+  "causalRegression": {
+    "missingHostedReceipt": "bulk-stale-receipt-red.log: retry resolved after dispatch instead of refusing; fixed 23/23 same-file green",
+    "failureReplayGuard": "A retained browser group is never substituted for a missing hosted receipt",
+    "queuedHistoricalRead": "A lateral WHERE did not fence helper evaluation for an unstarted NULL operation; new queued test failed PERMISSION_DENIED. CASE guards the function invocation; all SQL cases now green."
+  },
+  "protocol": {
+    "oldClients": "Historical terminal mutation replay remains PROCESS_RESULT_UNCERTAIN; no provider writes",
+    "newOptIn": 2,
+    "historicalReceipt": "Immutable original succeeded completion, separate catalog_snapshot observation; generic completed-file helper rejects it as current success",
+    "earlyLookup": "Exact actor/team/action/source/destination/idempotency-key read before current-context access; absent keys do not create operations",
+    "hostedReopen": "Changed/unknown current observations survive remount through bulk snapshot; normal matching confirmations retain old payload behavior",
+    "snapshotLimit": 5000,
+    "diagnosticGroupLimit": 100,
+    "currentProviderVerification": false,
+    "visibleHistory": "Visible historical explanation emits correlated result_visible unknown, never a fresh operation_completed; original provider completion and current catalog observation remain separate.",
+    "newIntent": "A changed old receipt does not prevent a fresh request key; original siblings and keys are not replayed."
+  },
+  "focusedChecks": {
+    "latest": {
+      "passed": 20,
+      "files": 2,
+      "log": "scratchpad/material-historical-queued-fix.log",
+      "includes": [
+        "9 actual historical SQL/SELECT-only CLI cases",
+        "11 independent diagnosis cases"
+      ]
+    },
+    "targetedLint": "passed",
+    "diffCheck": "passed",
+    "sharedBuild": "passed in preceding 31-test durable acceptance",
+    "wholeCurrentSourceTypeChecks": "parent integration pending",
+    "uiAcceptance": {
+      "passed": 28,
+      "log": "scratchpad/material-historical-acceptance-final.log",
+      "note": "That 48-case command had one queued-SQL failure and 47 passes, including all 28 UI/hook cases. The causal SQL failure was then fixed and all 20 SQL/diagnosis cases reran green; no failed command is presented as entirely green."
+    },
+    "realInvestigationPrivacy": {
+      "log": "scratchpad/process-alias-privacy-green.log",
+      "passed": 1,
+      "skippedUnrelatedInFile": 91,
+      "note": "Actual SQL reservation to SELECT-only CLI investigation; lifecycle/placement wording was rejected as a path and changed to lifecycle and placement. The privacy guard remains strict."
+    }
+  },
+  "diagnostics": {
+    "view": "analytics_material_historical_observations",
+    "originalReceiptMetricsRemainSeparate": true,
+    "fields": "opaque correlations, original action, current catalog basis/state/counts/timestamps only",
+    "asOf": "Original receipt selection window only; current material observation is never reconstructed as historical state",
+    "readerBound": "Only previously validated original group IDs, maximum 100; no actor-wide nested-manifest query",
+    "missingOrFailedSource": "explicit unknown with original receipt evidence retained",
+    "nativeContractAssertions": 10
+  },
+  "remainingAcceptance": [
+    "Native full migration chain and 10 pgTAP assertions",
+    "Exact beta application with preserved held/unknown operations and scope snapshots",
+    "Actual old-receipt recovery after restore, partial companion generation change, fresh new intent after dismissal, and reopened UI acceptance",
+    "Parent whole web/test/script types and full release checks"
+  ],
+  "sourceSha256": {
+    "apps/web/src/team/explorer/useBulkTrash.ts": "27a8b6c277b790680087e75594c4bf4a24b73cd73a46c23bffdbcf69cddde34f",
+    "apps/web/src/team/explorer/BulkTrashPanel.tsx": "83752a01a28b2f4a5bbc844f3233a19451da078be36cfcb0f70df29c864dce16",
+    "apps/web/src/team/materials/tail.ts": "787020a0c75a811356b421403a294df6e4402a5d40a44db2a35d941f201567ac",
+    "packages/shared/src/team/bulk-trash.ts": "0602e7dd57250437a8c4c47ad6e477f87ff844a901422ce8335149d1d5daeca2",
+    "supabase/functions/drive-ops/material-historical-receipt.ts": "f908518edbce46e29aab07b12b90c5c271da2221861d2c12b05fa6292bb8f452",
+    "supabase/functions/drive-ops/index.ts": "1be1a6b4b4caae11afeea390fcc914809233fab7488269a5304135e233c1ab44",
+    "supabase/migrations/20261207167000_material_historical_receipts.sql": "d0b2e26e1bda84d72a599ab1017eee1f99de1dc68a17e689df44c6436b8fa9fc",
+    "supabase/tests/database/material-historical-receipts.test.sql": "1e5116a8f7e45d6aec8cd43e64439e4cdf5ee4188427f5b3022e7fdfec012e3f",
+    "scripts/analytics/material-groups.ts": "7028f0adb9761c3e2794f8afc43714b29bcb8422274af3c0636335e49f666121",
+    "scripts/analytics/schema.ts": "0ecfdf2c37df3aaab20f662828996530d07ac3e8fa429a24c47cf9beb7a736c2",
+    "scripts/analytics/types.ts": "764a14d77388a1ec5dddb78454b11dd0b2fb4773ceb00cdbdb0ea97f969edf5a",
+    "tests/material-historical-receipt.test.ts": "ee1f7ee28e6af14594a2bb17080006d39242496361d88485731453204a6ce7bc",
+    "tests/material-group-diagnostics.test.ts": "ff9845685b94cb7987a84dddc51fc09300a5e654062c2c5db138f86152f9e5a8",
+    "tests/team-explorer-operations.test.tsx": "12add89fbb57d7d6f9c10fb2256a46c25474c6def57d2af7f29f4ee5c66831b2"
+  },
+  "subsequentIntegrationNotes": "Other parent-owned shared/index/type files continue to evolve; their earlier hashes identify the earlier focused snapshot, not a claim that whole current integration was reverified. Parent final types/native/beta acceptance remains separate."
+}

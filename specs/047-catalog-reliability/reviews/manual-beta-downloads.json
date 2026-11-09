@@ -1,0 +1,36 @@
+{
+  "observed_at": "2026-11-05T20:39:35.262709+00:00",
+  "source_mime": "application/vnd.google-apps.spreadsheet",
+  "files": [
+    {
+      "file_name": "045_QA_video_v36_catalog.xlsx",
+      "bytes": 71109,
+      "modified_at": "2026-11-05T20:36:03.009556+00:00",
+      "sha256": "e1611e86470ec9828c973d02fe0632257e4f0d1eddeda1385a8b928faa6358ef",
+      "zip_crc_valid": true,
+      "xlsx_structure_valid": true,
+      "sheets": [
+        {
+          "formatted_rows": 1000,
+          "rows_with_values": 402,
+          "columns_in_first_row": 31
+        }
+      ]
+    },
+    {
+      "file_name": "045_QA_video_v36_catalog-2.xlsx",
+      "bytes": 71109,
+      "modified_at": "2026-11-05T20:38:01.101373+00:00",
+      "sha256": "cede85d0f5f1dfcf692f3f9d23710e0f227720850d23c3c113d3a4872e5a2ed1",
+      "zip_crc_valid": true,
+      "xlsx_structure_valid": true,
+      "sheets": [
+        {
+          "formatted_rows": 1000,
+          "rows_with_values": 402,
+          "columns_in_first_row": 31
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "scope": "Local beta only; manual native restitch path",
+  "productionTouched": false,
+  "observations": {
+    "sameClickFallback": {
+      "root": "d18aa03b-28ee-4882-8a2d-6bfab05ce09e",
+      "brokenCandidateRejected": true,
+      "healthyCandidateAccepted": true,
+      "laterBodyCacheFailureFixed": true
+    },
+    "nextAttempt": {
+      "root": "8551abc1-eabd-4eac-9d41-23a944e4e819",
+      "brokenCandidateNotSelected": true,
+      "uiSavedToastObserved": true,
+      "finderFileObserved": true,
+      "nativeOutcome": "delivered",
+      "executor": "quiescent",
+      "heldRanges": 0
+    }
+  },
+  "artifactVerification": {
+    "ok": true,
+    "fullDecodePassed": true,
+    "frames": 58,
+    "durationSeconds": 1.866667,
+    "expectedFromDetectedTrimSeconds": 1.8999993333333334,
+    "trimSeconds": {
+      "start": 0.066667,
+      "end": 0.066667
+    },
+    "durationWithinTwoFrames": true,
+    "originalSourceUnchanged": true,
+    "bytes": 40111,
+    "sha256": "abf6858f4d5dfcfb519cb2f504ab786a658fd30126ea8c3b59101d37b58dfad9",
+    "artifact": "/Volumes/LaCie/DevData/Soty/Temp/047/manual-native/qa047-native-video_restitched.mp4",
+    "movedToExternalDisk": true
+  },
+  "settingsRestoration": {
+    "ok": true,
+    "observedAt": "2026-11-07T18:46:41.729Z",
+    "logicalDefaultsRestored": true,
+    "bothSourcePoolsRestored": true,
+    "productionTouched": false
+  },
+  "limits": [
+    "Manual beta path only; updater/launch aliases remain open.",
+    "Latest all-bad message classification has focused SQL proof, not repeated manual UI acceptance.",
+    "Complete fault matrix, diagnostic CLI correlation, packaged beta and current-source canonical verification remain open."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "generated_at": "2026-11-07T00:46:05.552680+00:00",
+  "base_sha": "7593d630",
+  "source_dirty": true,
+  "static_only": true,
+  "static_gates": 13,
+  "focused_tests": 115,
+  "focused_files": 7,
+  "complete_fast_suite_run": false,
+  "source_sha256": {
+    "apps/web/src/lib/database.types.ts": "7eaf480db49fd7e942d7a505547077478f8dfe2f8225a634056c0dab33bb9999",
+    "scripts/analytics/code-map.ts": "b70a5cdbb87cbf8346f450c4e7d2f28965cec7529df77d91be2ca5a5599f0777",
+    "scripts/analytics/coverage-registry.ts": "d21ff3a5a410adfa766947b5606f1e59a58ed03a0df4af2c06aa1d60bcee3cc6",
+    "supabase/functions/drive-ops/restitch-range-authority.ts": "ae2d1862bdc835fb8803a0b00ab4f4e8c8659cecfbaaedce1029e1c3b72bd2b6",
+    "supabase/functions/drive-ops/restitch-range-reader.ts": "19f975070ce70db14fbd9eb4eafa0c36e200fc7e179fe873caf0964f070f4ece",
+    "supabase/functions/drive-ops/restitch-range-source.ts": "315e736678b1127d073248f1d7c725e1059993f9a42de0e38d89995a2667e154",
+    "supabase/functions/drive-ops/restitch-selection-store.ts": "fe26763a074e51d398a64e8b9bfc499553cc5a9499d5b9b7ff225521c0e7e2fa",
+    "supabase/migrations/20261207156000_restitch_frozen_range_context.sql": "af0bf0143541585f113ec035377715926b6814d37fbb524dcdef55d39fdb58e2",
+    "supabase/tests/database/restitch-selection-storage.test.sql": "8aecbac58972f61fd9fa4e399ff89b935e97c5583ff0f4395063486302d7b884",
+    "tests/restitch-range-authority.test.ts": "b9250e498578a05a0d0046f8c03c41d93f69a5827958cb51616cd6f3250cfe80",
+    "tests/restitch-range-reader.test.ts": "c3d075bac0717aed0063e0bd35251dbb1b8779a257aeae36e42f9188ab730f0c",
+    "tests/restitch-range-source.test.ts": "bca1ca32aa87280529bc8467efb1fd0b5e46ca0c9bf01411ce881e175c9c6a13",
+    "tests/restitch-selection-storage-sql.test.ts": "a897343518d48ec229d39479696f3ba4d32138d29a31bf2f5ae703e370db576c",
+    "tests/restitch-selection-store.test.ts": "c9f1095f6252c7682be3ac47809525cf0244d411ecaa741997618ae96d80c010"
+  },
+  "native_proof": "verification-db-restitch-range-context.json",
+  "beta_migration_proof": "restitch-range-context-beta-migration.json",
+  "beta_rpc_refusal_proof": "restitch-range-context-beta-refusal.json",
+  "manual_acceptance": false,
+  "scope": "Internal protected range boundary only. No root initializer, dedicated grant/capability, complete product wiring or whole-feature acceptance. Complete npm run verify is still required before committing.",
+  "production_touched": false
+}

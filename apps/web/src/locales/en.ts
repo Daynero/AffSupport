@@ -1,4 +1,61 @@
 export const en = {
+  catalogWriteUnsupported:
+    'Video-link publication is blocked because this storage cannot safely update catalog cells. Existing links are preserved.',
+  catalogVideoDeferredTableReady:
+    'The catalog is created with empty video fields; video generation and publication are separate.',
+  catalogVideoGenerationCanceled: 'Video generation canceled. The created catalog is preserved.',
+  catalogVideoResume: 'Continue catalog creation',
+  catalogVideoCreateVariations: 'Create video variations',
+  catalogVideoVariationsReady:
+    'All {total} videos are ready. Catalog publication requires a separate verified update.',
+  catalogVideoCancel: 'Cancel video generation',
+  catalogVideoCountFuture:
+    'Used when re-stitching is enabled. The current run keeps its video count.',
+  catalogVideoVariationCount: 'Video variations',
+  catalogVideoVariationLimit: 'Enter 1 to {count} variations, up to the number of products.',
+  catalogVideoCreationProgress: 'Videos ready: {ready} of {total}',
+  catalogVideoCreationUnknown:
+    'The result is not confirmed. Check the original operation before retrying.',
+  catalogVideoCreationCanceled: 'Catalog creation canceled.',
+  catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',
+
+  catalogPublicationStatusUnknown: 'Video-link publication status is not confirmed.',
+  catalogPublicationPreviouslyVerified: 'The last video-link publication was verified.',
+  catalogPublicationTableScheduled: 'Video-link publication is scheduled for {date}.',
+  catalogPublicationOverdue:
+    'The video-link publication time ({date}) has passed, but the write to the table is not confirmed yet. Soty keeps checking automatically.',
+  catalogPublicationTableHeld: 'Pending video-link publication is on hold.',
+  catalogPublicationAddNow: 'Request publication now',
+  catalogPublicationVerify: 'Verify existing links',
+
+  catalogPublicationSaved: 'Publication settings saved.',
+
+  catalogPublicationPending:
+    'Video-link updates are waiting for scheduled publication or verification of existing links. Check the catalog publication settings.',
+
+  catalogPublicationLegacyHold:
+    'Publication is on hold until this catalog’s existing links are verified. Existing links are preserved.',
+
+  catalogPublicationTitle: 'Scheduled video link',
+  catalogPublicationExplanation:
+    'The link is added at the selected time. Switching off holds pending publication; existing links remain.',
+  catalogPublicationStorageError:
+    'Could not retain this request in browser storage. Check local storage access.',
+  catalogPublicationAmbiguous:
+    'This time occurs twice when clocks change. Choose its earlier or later occurrence.',
+  catalogPublicationInvalid:
+    'Choose a future date, time and valid time zone. The local time must exist when clocks change.',
+  catalogPublicationUnknown:
+    'The save result is not confirmed. Check reads the original request without another write.',
+  catalogPublicationCheck: 'Check status',
+  catalogPublicationDelayed: 'Schedule the video link',
+  catalogPublicationDate: 'Link publication date',
+  catalogPublicationZone: 'Time zone',
+  catalogPublicationOccurrence: 'When local time repeats',
+  catalogPublicationChoose: 'Choose if needed',
+  catalogPublicationEarlier: 'Earlier occurrence',
+  catalogPublicationLater: 'Later occurrence',
+
   catalogTextScheduleTitle: 'Regenerate weekly',
   catalogTextScheduleCount: 'New variants',
   catalogTextScheduleSave: 'Save schedule',
@@ -298,6 +355,8 @@ export const en = {
   launchesProgressChecking: 'Checking current status…',
   launchesProgressStopped: 'Generation stopped',
   launchesProgressErrorUnconfirmed: 'Error — check the status',
+  launchesCatalogExecutorRequired:
+    'To restitch catalog videos, open the latest Soty app and connect it to this browser. The new generation has not started.',
   launchesProgressActionRequired: 'Action required',
   launchesProgressUnconfirmed: 'Status not confirmed',
   launchesProgressUnconfirmedHint:
@@ -723,6 +782,7 @@ export const en = {
   teamProcessCollapse: 'Collapse to a strip',
   teamProcessExpand: 'Show the details',
   teamRestitchDownloadTitle: 'Re-stitched download',
+  teamRestitchPhaseChecking: 'Checking settings…',
   teamRestitchPhaseChoosing: 'Waiting for you to choose a folder…',
   powerUsageHolding: 'held to {limit}%',
   powerUsageGraphics: 'the computer’s graphics: {graphics}%',
@@ -1281,6 +1341,12 @@ export const en = {
   teamTaskCleanupTrashed: 'Unused attachment file moved to the space trash.',
   teamBulkTrashFile: 'File {number}',
   teamBulkTrashHide: 'Hide this panel',
+  teamBulkTrashHistoricalMatches:
+    'The earlier operation completed. The current catalog snapshot matches; current provider state has not been verified.',
+  teamBulkTrashHistoricalChanged:
+    'The earlier operation completed, but the current catalog snapshot has since changed. Refresh the list before a new action.',
+  teamBulkTrashHistoricalUnknown:
+    'The earlier operation completed. The current file could not be matched in the catalog snapshot; check status before a new action.',
   teamBulkTrashTitle: 'Move files to trash',
   teamBulkTrashQueued: 'Queued',
   teamBulkTrashRunning: 'In progress',
@@ -2648,7 +2714,15 @@ export const en = {
   catalogUpdaterApply: 'Set',
   catalogUpdaterOff: 'Off',
   catalogUpdaterOffLong: 'Don’t update automatically',
+  catalogStopTargetUnknown:
+    'The current attempt has not been verified. Refresh the catalog list before stopping this update.',
+  catalogStopObservedInactive: 'The observed update is no longer active.',
+  catalogStopUnconfirmed: 'The stop result is not confirmed yet. Check the current status.',
+  catalogUpdaterCancelAlready: 'This update has already finished or stopped.',
   catalogUpdaterCancelUpdate: 'Stop this update',
+  catalogUpdaterPartialRead:
+    'Some catalog data could not be read ({count} records). Available catalogs are shown. Refresh to try again.',
+  catalogUpdaterNoWorkAccepted: 'No new update was accepted. Checking the current status…',
   catalogUpdaterNowAlready: 'Already updating',
   catalogUpdaterNowStarted: 'Updating now: {count}',
   catalogUpdaterStatusScheduled: 'On a schedule: {count} · next in',
@@ -2696,6 +2770,11 @@ export const en = {
   catalogUpdaterBulkResults: 'Results for {count} catalogs',
   catalogUpdaterBulkResultSaved: 'Saved',
   catalogUpdaterBulkResultFailed: 'Failed',
+  catalogUpdaterBulkUndo: 'Undo saved changes',
+  catalogUpdaterBulkRestored: 'Settings restored: {count}',
+  catalogUpdaterBulkRestoring: 'Restoring…',
+  catalogUpdaterBulkResultRestored: 'Restored',
+  catalogUpdaterBulkUndoResults: 'Undo results: {count}',
   catalogUpdaterIntervalForSelected: 'How often the selected catalogs update',
   catalogUpdaterNow: 'Update now',
   catalogUpdaterClearSelection: 'Clear selection',
@@ -2736,6 +2815,7 @@ export const en = {
   catalogIconsSaving: 'Saving…',
   catalogIconsSaved: 'Saved',
   catalogIconsUndo: 'Undo change',
+  catalogIconsClearRecent: 'Clear list',
   catalogIconsRecent: 'Recent changes',
   catalogIconsUndoInvalid: 'A newer change prevents undo. Edit the current settings.',
   catalogIconsUnknown: 'Save result unknown. Check current settings before continuing.',
@@ -2781,6 +2861,9 @@ export const en = {
   catalogUpdaterWhen: 'When to update',
   catalogUpdaterWhat: 'What to update',
   catalogUpdaterDetails: 'Details',
+  catalogUpdaterUncertainCloseTitle: 'Result not confirmed',
+  catalogUpdaterUncertainCloseBody:
+    'The server may still apply this change. Closing does not cancel it. Check current settings when you reopen the editor.',
   catalogUpdaterDiscardTitle: 'Discard changes?',
   catalogUpdaterDiscardDraft: 'Discard unsaved changes?',
   catalogUpdaterDiscardBody: 'Your unsaved settings will be lost.',
@@ -2794,6 +2877,9 @@ export const en = {
   catalogUpdaterClose: 'Close',
   catalogUpdaterSearch: 'Search by video or catalog',
   catalogUpdaterClearSearch: 'Clear search',
+  catalogUpdaterUnavailable: 'Catalogs unavailable',
+  catalogRunNeedsReview: 'Requires review · details',
+  catalogUpdaterCurrentProblem: 'Current problem:',
   catalogUpdaterLoading: 'Loading catalogs…',
   catalogUpdaterEmpty: 'No catalogs yet. Create one from a video.',
   catalogUpdaterNoMatches: 'Nothing matches the search.',
@@ -2897,7 +2983,9 @@ export const en = {
   catalogUpdaterPreparingHere: 'This computer is preparing a copy now.',
   catalogUpdaterNoPermission: 'Only members who can process materials can run catalog updates.',
   catalogUpdaterLastFailed: 'Last update failed',
-  catalogChipTitle: 'Catalogs',
+  catalogChipTitle: 'Scheduled',
+  catalogChipScheduledCount: 'Scheduled catalogs: {count}',
+  catalogChipOneOffTitle: 'One-off update',
   catalogChipNext: 'Next update in {time}',
   catalogChipHours: '{hours} hr {minutes} min',
   catalogChipMinutes: '{minutes} min',
@@ -2926,6 +3014,41 @@ export const en = {
   teamRestitchAgentTooOld: 'The Soty app on this computer is too old to re-stitch.',
   teamRestitchAgentTooOldForSources:
     'The Soty app on this computer is too old to take pictures from the space. Update it to re-stitch with these settings.',
+  catalogCommandAlreadyAccepted:
+    'This request was already accepted. To stop its active update, use Stop on the catalog.',
+  catalogCommandRecovered:
+    'Previous request confirmed. Accepted updates: {count}. Refreshing current status…',
+  catalogCommandLastProblem: 'Last observed problem: {message}',
+  catalogCommandMore: 'and {count} more',
+  catalogCommandCancelled: 'The request was cancelled before acceptance. No update was started.',
+  catalogCommandChecking: 'Checking the update request for {count} catalogs…',
+  catalogCommandUnknown:
+    'The result of the request for {count} catalogs is not confirmed. Check its status before starting again. Closing this window does not cancel the request.',
+  catalogCommandCheck: 'Check status',
+  catalogCommandCancel: 'Cancel unaccepted request',
+  catalogCommandRefresh: 'Refreshing catalog status before another launch.',
+  teamTransportUnavailable:
+    'Could not reach the server. Check your connection, then check the request status before starting again.',
+  catalogAttemptStateInconsistent:
+    'This catalog needs a review of its previous update. Contact support to restore updates; other catalogs can continue.',
+  catalogCommandUnsupported:
+    'This server cannot confirm catalog commands yet. Refresh after the server update.',
+  catalogCommandStorageUnavailable:
+    'The request could not be saved in this browser. Your new request was not sent. Check available browser storage.',
+  catalogExportTooLarge:
+    'The catalog exceeds Google’s 10 MB export limit. Reduce the product count or open the spreadsheet in Google Sheets.',
+  teamRestitchScreenCandidatesExhausted:
+    'All checked images are unusable for restitching. Add different images in the space settings and try again.',
+  teamRestitchScreenPreviousFailures:
+    'Previously checked images in this set were unusable and are being skipped. Add new images or replace the damaged files.',
+  teamRestitchScreenByteLimit:
+    'This attempt reached the image download limit. Reduce image sizes and start a new attempt.',
+  teamRestitchScreenIoLimit:
+    'This attempt reached the image download time limit. Check the connection and start a new attempt.',
+  teamRestitchScreenAccountingUncertain:
+    'The image download outcome could not be confirmed. Wait for the operation state to recover before starting it again.',
+  teamRestitchScreenSelectionLimit:
+    'The image check limit was reached. Replace or reduce the image pool and try again.',
   teamRestitchPoolEmpty:
     'No pictures are available for re-stitching: every source of the pool is unavailable or empty. Open the space settings to check them.',
   teamRestitchSourceForbidden:
@@ -2949,7 +3072,7 @@ export const en = {
   teamRestitchSourcePending: 'Waiting for the catalog',
   teamRestitchSourceSkipped: 'skipped: {format} by format, {size} by size, {animated} animated',
   teamRestitchPoolNone: 'No sources yet: this slot is off until you add pictures from the space.',
-  teamRestitchPoolEligible: '{count} pictures ready to draw from',
+  teamRestitchPoolEligible: '{count} pictures in the selection pool',
   teamRestitchPoolPartial: '{count} sources are unavailable.',
   teamRestitchPoolSkipped: '{count} files skipped.',
   teamRestitchPoolOverlap: 'Overlapping sources count once.',
@@ -3593,8 +3716,30 @@ export const en = {
   teamExplorerSortFolders: 'Folders',
   teamExplorerSortFoldersSeparate: 'Apart from files',
   teamExplorerSortFoldersMixed: 'Mixed with files',
+  materialLinkTitle: 'File link',
+  materialLinkUrl: 'Link',
+  materialLinkPublic: 'Anyone with the link has access.',
+  materialLinkRestricted:
+    'Access is restricted. This link works for people who already have access.',
+  materialLinkVisibilityUnknown:
+    'The link is available, but access for other people could not be checked.',
+  materialLinkPending:
+    'The access change is not confirmed yet. Check its status before sharing again.',
+  materialLinkReceiptPending:
+    'Anyone with the link has access. Soty could not record the confirmation yet; check the status later.',
+  materialLinkCheck: 'Check status',
+  materialLinkUpdateRequired:
+    'Refresh the page to use the updated sharing flow. You can still copy the existing link.',
+  materialLinkPreferenceFailed:
+    'The link is ready, but your choice could not be remembered. Soty will ask again next time.',
+  materialLinkUnavailable:
+    'Could not obtain a valid link for this file. Refresh its status or check access in Google Drive.',
+  materialLinkExpired:
+    'The confirmation has expired. Refresh the link status and confirm sharing again.',
   teamShareAction: 'Share {name}',
   teamShareCopied: 'Link copied',
+  teamShareClipboardUnavailable:
+    'Clipboard access was denied. Select and copy the link from the field.',
   teamShareReady: 'Shareable link:',
   teamShareFailed: 'Could not create a share link.',
   teamExplorerSearchOpen: 'Search files',
@@ -4034,7 +4179,7 @@ export const en = {
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
   teamErrorProcessFailed: 'This file could not be processed on this computer.',
   teamErrorProcessResultUncertain:
-    'The result could not be confirmed. The created file needs to be checked before trying again.',
+    'The result could not be confirmed. Check the file state before retrying.',
   teamTranscribeFailedFile:
     'Nothing could be transcribed from “{name}” — it may have no speech, or no sound at all.',
   teamErrorProcessCanceled: 'The run was stopped.',
@@ -4457,5 +4602,25 @@ export const en = {
   adminTariffLegacyConfirmTitle: 'Switch off the old rule?',
   adminTariffLegacyConfirmBody:
     'Spaces without a plan ({count}) will be paused at once. Their data stays.',
-  adminTariffLegacyConfirm: 'Switch off and pause'
+  adminTariffLegacyConfirm: 'Switch off and pause',
+  catalogZoneKyiv: 'Kyiv',
+  catalogZoneLondon: 'London',
+  catalogZoneBerlin: 'Berlin',
+  catalogZoneParis: 'Paris',
+  catalogZoneWarsaw: 'Warsaw',
+  catalogZonePrague: 'Prague',
+  catalogZoneBucharest: 'Bucharest',
+  catalogZoneIstanbul: 'Istanbul',
+  catalogZoneBaku: 'Baku',
+  catalogZoneTbilisi: 'Tbilisi',
+  catalogZoneDubai: 'Dubai',
+  catalogZoneKolkata: 'Kolkata',
+  catalogZoneBangkok: 'Bangkok',
+  catalogZoneSingapore: 'Singapore',
+  catalogZoneTokyo: 'Tokyo',
+  catalogZoneSydney: 'Sydney',
+  catalogZoneNewYork: 'New York',
+  catalogZoneChicago: 'Chicago',
+  catalogZoneLosAngeles: 'Los Angeles',
+  catalogZoneSaoPaulo: 'São Paulo'
 } as const;

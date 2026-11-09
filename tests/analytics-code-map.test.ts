@@ -220,3 +220,35 @@ it('maps every closed browser session mutation failure to its ownership seam', (
     expect(lookupCodeLocations(`auth:library:${code}`)?.matched).toBe(`auth:library:${code}`);
   }
 });
+
+it('maps native catalog export and selection budgets to their concrete producers', () => {
+  for (const code of ['CATALOG_EXPORT_TOO_LARGE', 'RESTITCH_SCREEN_SELECTION_LIMIT'])
+    expect(lookupCodeLocations(`team:download:${code}`)?.matched).toBe(`team:download:${code}`);
+});
+
+it('maps an uncertain catalog stop to its guarded database boundary', () => {
+  expect(lookupCodeLocations('team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED')?.matched).toBe(
+    'team:library:CATALOG_UPDATE_RECONCILIATION_REQUIRED'
+  );
+});
+
+it('points native team restitch failures at the actual image preparation origin', () => {
+  const entry = lookupCodeLocations('team:process:RESTITCH_SCREEN_FETCH_FAILED');
+  expect(entry?.matched).toBe('team:process:RESTITCH_SCREEN_FETCH_FAILED');
+  expect(entry?.files).toContain('apps/agent/src/team-bridge/screen-cache.ts');
+  expect(entry?.files).toContain('apps/agent/src/team-bridge/restitch.ts');
+});
+
+it('maps native source byte refusals to the real downloader before processing', () => {
+  for (const stage of ['download', 'process']) {
+    const entry = lookupCodeLocations(`team:${stage}:SOURCE_CHANGED`);
+    expect(entry?.matched).toBe(`team:${stage}:SOURCE_CHANGED`);
+    expect(entry?.files).toContain('apps/agent/src/team-bridge/transfer.ts');
+  }
+});
+
+it('points unknown restitch admission and claim acknowledgements at their exact readback adapters', () => {
+  const entry = lookupCodeLocations('team:download:RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(entry?.files).toContain('supabase/functions/drive-ops/restitch-root.ts');
+  expect(entry?.files).toContain('supabase/functions/drive-ops/restitch-executor.ts');
+});

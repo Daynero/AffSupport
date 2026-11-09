@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-11-06T20:03:09.189Z",
+  "local_project": "r2beta045",
+  "before_migrations": 436,
+  "after_migrations": 437,
+  "pending_applied": ["20261207154000"],
+  "history_exact": true,
+  "old_edge_quiescent_before_baseline": true,
+  "protected_tables": 14,
+  "unchanged_tables": 14,
+  "changed_tables": [],
+  "window": {
+    "before": "2026-11-06T19:59:47.345Z",
+    "after": "2026-11-06T19:59:50.996Z"
+  },
+  "scope": "154000 local beta application window only. Earlier151000 mutable-row exceptions remain separately recorded.",
+  "production_touched": false
+}

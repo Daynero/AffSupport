@@ -1,5 +1,6 @@
 // @ts-self-types="./transport.d.ts"
 import { CATALOG_IMAGE_ERROR_CODES } from './catalog-images.js';
+import { RESTITCH_RECOVERY_ERROR_CODES } from './restitch-recovery-errors.js';
 import {
   LANGUAGE_CODES,
   TEAM_OPERATION_KINDS,
@@ -38,7 +39,47 @@ export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 /** Installed with the commercial access boundary; keep the historical seed immutable. */
 export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
 
+export const TEAM_CATALOG_RELIABILITY_ERROR_CODES = [
+  'RESTITCH_SCREEN_SELECTION_LIMIT',
+  'CATALOG_EXPORT_TOO_LARGE',
+  'CATALOG_UPDATE_RECONCILIATION_REQUIRED'
+] as const;
+
+export const TEAM_CATALOG_MANAGER_ERROR_CODES = [
+  'CATALOG_COMMAND_STORAGE_UNAVAILABLE',
+  'CATALOG_COMMAND_UNSUPPORTED'
+] as const;
+
+/** Runtime findings from the 047 manual beta walkthrough; additive SQL batch. */
+export const TEAM_CATALOG_POLISH_ERROR_CODES = [
+  'TEAM_TRANSPORT_UNAVAILABLE',
+  'CATALOG_ATTEMPT_STATE_INCONSISTENT'
+] as const;
+
+export const TEAM_CATALOG_LINK_ERROR_CODES = [
+  'CATALOG_LINK_UNAVAILABLE',
+  'CATALOG_LINK_SHARING_UNCERTAIN',
+  'CATALOG_LINK_REQUEST_EXPIRED',
+  'CLIPBOARD_UNAVAILABLE',
+  'CATALOG_LINK_UPDATE_REQUIRED'
+] as const;
+
+/** Historical 143000 batch is immutable; new publication codes use 179000. */
+export const TEAM_CATALOG_MUTATION_ERROR_CODES = ['CATALOG_STOP_TARGET_UNKNOWN'] as const;
+
+export const TEAM_CATALOG_PUBLICATION_ERROR_CODES = [
+  'CATALOG_PUBLICATION_PENDING',
+  'CATALOG_WRITE_UNSUPPORTED'
+] as const;
+
 export const TEAM_ERROR_CODES = [
+  ...RESTITCH_RECOVERY_ERROR_CODES,
+  ...TEAM_CATALOG_MUTATION_ERROR_CODES,
+  ...TEAM_CATALOG_PUBLICATION_ERROR_CODES,
+  ...TEAM_CATALOG_LINK_ERROR_CODES,
+  ...TEAM_CATALOG_POLISH_ERROR_CODES,
+  ...TEAM_CATALOG_MANAGER_ERROR_CODES,
+  ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES,
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
@@ -628,7 +669,20 @@ export interface TeamUploadSession {
   relayUrl: string | null;
 }
 
+export interface TeamHistoricalFileReceipt {
+  protocolVersion: 1;
+  action: 'trash' | 'restore';
+  basis: 'catalog_snapshot';
+  observedAt: string;
+  state: 'matches' | 'changed' | 'unknown';
+  memberCount: number;
+  matchingCount: number;
+  missingCount: number;
+}
+
 export interface TeamFileOperationResult {
+  /** Historical completion is separate from current provider delivery. */
+  historicalReceipt?: TeamHistoricalFileReceipt;
   operationId: string;
   state: TeamOperationState;
   materialId: string | null;
@@ -646,12 +700,14 @@ export interface TeamFileOperationResult {
 export type TeamDownloadGrantResult =
   | {
       kind: 'browser';
+      fileName?: string;
       rangeUrl: string;
       expiresAt: string;
       disposition: 'attachment';
     }
   | {
       kind: 'agent';
+      fileName?: string;
       transferUrl: string;
       grant: TeamTransferGrant;
     };
@@ -1029,18 +1085,54 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
   ) {
     return null;
   }
+  const historical = value.historicalReceipt;
+  if (
+    historical !== undefined &&
+    (!isRecord(historical) ||
+      historical.protocolVersion !== 1 ||
+      !['trash', 'restore'].includes(String(historical.action)) ||
+      historical.basis !== 'catalog_snapshot' ||
+      typeof historical.observedAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/u.test(historical.observedAt) ||
+      value.materialId === null ||
+      !Number.isFinite(Date.parse(historical.observedAt)) ||
+      !['matches', 'changed', 'unknown'].includes(String(historical.state)) ||
+      ![historical.memberCount, historical.matchingCount, historical.missingCount].every(
+        n => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= 5000
+      ) ||
+      Number(historical.matchingCount) + Number(historical.missingCount) >
+        Number(historical.memberCount) ||
+      (Number(historical.missingCount) > 0 && historical.state !== 'unknown') ||
+      historical.memberCount === 0 ||
+      value.state !== 'succeeded' ||
+      !value.reused ||
+      (historical.state === 'matches' && historical.matchingCount !== historical.memberCount))
+  )
+    return null;
   const sourceLanguage = normalizeSourceLanguage(value.sourceLanguage);
   return {
     operationId: value.operationId,
     state: value.state as TeamOperationState,
     materialId: value.materialId,
     reused: value.reused,
-    ...(sourceLanguage ? { sourceLanguage } : {})
+    ...(sourceLanguage ? { sourceLanguage } : {}),
+    ...(historical !== undefined
+      ? { historicalReceipt: { ...historical } as unknown as TeamHistoricalFileReceipt }
+      : {})
   };
 }
 
 export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantResult | null {
   if (!isRecord(value)) return null;
+  if (
+    value.fileName !== undefined &&
+    (typeof value.fileName !== 'string' ||
+      !value.fileName ||
+      value.fileName.length > 255 ||
+      /[\\/\p{Cc}]/u.test(value.fileName))
+  )
+    return null;
+  const fileName = typeof value.fileName === 'string' ? { fileName: value.fileName } : {};
   if (
     value.kind === 'browser' &&
     typeof value.rangeUrl === 'string' &&
@@ -1051,6 +1143,7 @@ export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantR
   ) {
     return {
       kind: 'browser',
+      ...fileName,
       rangeUrl: value.rangeUrl,
       expiresAt: value.expiresAt,
       disposition: 'attachment'
@@ -1063,7 +1156,7 @@ export function parseTeamDownloadGrantResult(value: unknown): TeamDownloadGrantR
     /^https?:\/\//u.test(value.transferUrl) &&
     grant?.purpose === 'download_range'
   ) {
-    return { kind: 'agent', transferUrl: value.transferUrl, grant };
+    return { kind: 'agent', ...fileName, transferUrl: value.transferUrl, grant };
   }
   return null;
 }

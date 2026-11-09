@@ -1,0 +1,17 @@
+{
+  "tested_at": "2026-11-05T17:12:44.422Z",
+  "local_project": "r2beta045",
+  "source": "xlsx",
+  "target": "native_spreadsheet",
+  "conditional_method": "v2_multipart_put",
+  "success": false,
+  "matching_status": 200,
+  "matching_cells_verified": true,
+  "stale_status": 412,
+  "last_observed_synthetic_state": "MUST_NOT_APPLY",
+  "stale_preserved_cells": false,
+  "failed_stage": "stale_etag_write",
+  "reason": "STALE_WRITE_NOT_FENCED",
+  "fixture_trashed": true,
+  "unknown_mutation": false
+}

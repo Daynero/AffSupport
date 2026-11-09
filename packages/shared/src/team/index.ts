@@ -4,12 +4,17 @@ export * from './agent-finance-report.js';
 export * from './analytics.js';
 export * from './catalog-search.js';
 export * from './catalog-updater.js';
+export * from './catalog-command.js';
+export * from './catalog-video-set.js';
+export * from './catalog-publication.js';
 export * from './contract.js';
 export * from './creative-library.js';
 export * from './landing-gallery.js';
 export * from './library-processing.js';
 export * from './material-category.js';
 export * from './restitch.js';
+export * from './restitch-selection.js';
+export * from './restitch-recovery-errors.js';
 export * from './task-labels.js';
 export * from './tariffs.js';
 export * from './tasks.js';
@@ -29,3 +34,10 @@ export * from './task-cleanup.js';
 
 export * from './launch-assignment.js';
 export * from './catalog-images.js';
+export * from './catalog-publication-api.js';
+export * from './catalog-publication-lifecycle.js';
+export * from './catalog-publication-runner.js';
+export * from './catalog-publication-source.js';
+export * from './catalog-video-progress.js';
+
+export * from './catalog-video-foreground.js';

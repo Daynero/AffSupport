@@ -30,6 +30,15 @@ export interface AnalyticsSchema {
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
     analytics_workspace_operations?: boolean;
+    analytics_material_group_execution?: boolean;
+    analytics_material_historical_observations?: boolean;
+    analytics_catalog_video_sets?: boolean;
+    analytics_catalog_growth_video_recipes?: boolean;
+    analytics_catalog_video_session_authorities?: boolean;
+    analytics_catalog_video_children?: boolean;
+    analytics_catalog_video_publications?: boolean;
+    analytics_catalog_video_baselines?: boolean;
+    analytics_restitch_selection_slots?: boolean;
     analytics_process_output_cleanup?: boolean;
     analytics_workspace_recovery?: boolean;
     analytics_recovery_execution?: boolean;
@@ -153,11 +162,11 @@ export interface AuditCapability {
   /** Expected signals (and `correlation`) not observed in the period. */
   missing: string[];
   /** Start events observed; `0` with `status: uncovered` means nothing arrived. */
-  samples: number;
+  samples: number | null;
   /** Start ids with no terminal carrying the same id inside the period. */
-  orphan_starts: number;
+  orphan_starts: number | null;
   /** Start ids that do meet a terminal with the same id. */
-  correlated_pairs: number;
+  correlated_pairs: number | null;
   observed: Array<{
     event: string;
     role: 'start' | 'terminal' | 'readiness' | 'error';
@@ -179,11 +188,11 @@ export interface AuditUnknownCode {
 }
 
 export interface AuditDelivery {
-  reports: number;
-  rejected: number;
-  evicted: number;
-  expired: number;
-  by_event: Array<{ event_name: string; rejected_reports: number; evicted_reports: number }>;
+  reports: number | null;
+  rejected: number | null;
+  evicted: number | null;
+  expired: number | null;
+  by_event: Array<{ event_name: string; rejected_reports: number | null; evicted_reports: number }>;
   note: string;
 }
 
@@ -200,6 +209,12 @@ export interface AuditFinding {
 }
 
 export interface AuditData {
+  completeness?: 'complete' | 'partial';
+  sources?: Array<{
+    id: string;
+    status: 'available' | 'unavailable';
+    reason?: 'timeout' | 'permission' | 'schema';
+  }>;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   registry_size: number;
   capabilities: AuditCapability[];
@@ -255,6 +270,15 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
+  catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
+  catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
+  restitch_selections?: import('./restitch-selections.js').RestitchSelectionEvidence;
+  material_groups?: import('./material-groups.js').MaterialGroupEvidence;
+  catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
+  catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
+  material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
+  team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
@@ -282,6 +306,15 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
+  catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
+  catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
+  restitch_selections?: import('./restitch-selections.js').RestitchSelectionEvidence;
+  material_groups?: import('./material-groups.js').MaterialGroupEvidence;
+  catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
+  catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
+  material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
+  team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   found: false;
@@ -920,6 +953,11 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
+  catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
+  material_sharing?: Awaited<
+    ReturnType<typeof import('./material-sharing.js').getOwnedMaterialSharingEvidence>
+  >;
   catalog_claims?: Awaited<
     ReturnType<typeof import('./catalog-updates.js').getOwnedCatalogClaimEvidence>
   >;
@@ -961,7 +999,8 @@ const INVESTIGATE_FORBIDDEN_KEYS = new Set([
 ]);
 
 /** A repo-relative source file: the one kind of path `investigate` may print (`code_locations`). */
-const REPO_FILE = /^(apps|packages|supabase)\/[\w.@-]+(\/[\w.@-]+)*$/;
+const REPO_FILE =
+  /^(?:(?:apps|packages|supabase)\/[\w.@-]+(?:\/[\w.@-]+)*|scripts\/analytics\/[\w.@-]+(?:\/[\w.@-]+)*)$/;
 const CREDENTIAL = /bearer|oauth|token=|authorization/i;
 
 /**

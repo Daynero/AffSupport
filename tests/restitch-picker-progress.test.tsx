@@ -42,6 +42,7 @@ vi.mock('../apps/web/src/team/restitch/screens', () => ({
 vi.mock('../apps/web/src/team/restitch/images', () => ({ ensureRestitchImages: vi.fn() }));
 vi.mock('../apps/web/src/analytics/service', () => ({
   startTeamWorkflow: () => ({ workflowId: 'opaque-workflow' }),
+  isTeamWorkflowCurrent: () => true,
   completeTeamWorkflow: seams.complete
 }));
 vi.mock('../apps/web/src/analytics/errors', () => ({ trackToolError: seams.error }));

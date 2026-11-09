@@ -1,3 +1,4 @@
+import { requireCompletedFileOperation } from './file-operation-outcome';
 import { teamApi } from '../../api/team';
 import type { TeamFileOperationResult } from '@video-compressor/shared';
 
@@ -49,6 +50,8 @@ export interface TailClient {
     teamId: string;
     materialId: string;
     idempotencyKey: string;
+    expectedActorId?: string;
+    receiptProtocol?: 2;
   }) => Promise<unknown>;
 }
 
@@ -371,21 +374,27 @@ export async function trashMaterialWithTail(input: {
   material: TailMaterial;
   client: TrashTailClient;
   idempotencyKey?: string;
+  owner?: { options(): { expectedActorId: string } };
 }): Promise<void> {
   const { teamId, material, client } = input;
   const tail = await tailOf(teamId, material);
-  await client.trashMaterial({
-    teamId,
-    materialId: material.id,
-    idempotencyKey: input.idempotencyKey ?? key()
-  });
+  requireCompletedFileOperation(
+    await client.trashMaterial({
+      teamId,
+      materialId: material.id,
+      idempotencyKey: input.idempotencyKey ?? key(),
+      ...input.owner?.options()
+    })
+  );
   for (const companion of [tail.transcript, ...tail.catalogs]) {
     if (!companion) continue;
+    const options = input.owner?.options();
     await client
       .trashMaterial({
         teamId,
         materialId: companion.id,
-        idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:${companion.id}` : key()
+        idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:${companion.id}` : key(),
+        ...options
       })
       .catch(() => undefined);
   }

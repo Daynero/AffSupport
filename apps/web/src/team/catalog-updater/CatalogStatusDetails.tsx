@@ -1,3 +1,5 @@
+import { usePrivateCacheEpoch } from '../private-cache-scope';
+import { createReadCoordinator, withReadDeadline } from '../readCoordinator';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateAttempt } from '@video-compressor/shared';
 import { Button } from '../../components/ui/index';
@@ -16,10 +18,19 @@ const STAGE_LABELS = {
   TranslationKey
 >;
 
-export function CatalogStatusDetails({
+export function CatalogStatusDetails(props: Parameters<typeof CatalogStatusDetailsScope>[0]) {
+  const epoch = usePrivateCacheEpoch();
+  return (
+    <CatalogStatusDetailsScope key={`${props.teamId}:${props.catalogId}:${epoch}`} {...props} />
+  );
+}
+
+function CatalogStatusDetailsScope({
   teamId,
   catalogId,
   currentProfileVersion,
+  activeAttemptId,
+  currentFailureCode,
   load,
   onClose,
   onRetry,
@@ -29,7 +40,15 @@ export function CatalogStatusDetails({
   teamId: string;
   catalogId: string;
   currentProfileVersion?: number;
-  load: (teamId: string, catalogId: string) => Promise<CatalogUpdateAttempt[]>;
+  /** Undefined is a legacy server; null explicitly means no active attempt. */
+  activeAttemptId?: string | null;
+  /** Current runtime problem; never rewrites the immutable historical terminal. */
+  currentFailureCode?: string | null;
+  load: (
+    teamId: string,
+    catalogId: string,
+    options?: { signal?: AbortSignal }
+  ) => Promise<CatalogUpdateAttempt[]>;
   onClose: () => void;
   onRetry?: (sourceAttemptId: string) => Promise<void> | void;
   retryDisabled?: boolean;
@@ -53,6 +72,9 @@ export function CatalogStatusDetails({
       setRevision(value => value + 1);
     } catch (cause) {
       setRetryError(teamErrorMessageFor(cause, t));
+      // A lost command reply must be reconciled before offering another mutation.
+      setAttempts(null);
+      setRevision(value => value + 1);
     } finally {
       retryLock.current = false;
       setRetryPending(false);
@@ -60,29 +82,37 @@ export function CatalogStatusDetails({
   };
   useEffect(() => {
     let active = true;
-    let inFlight = false;
-    const refresh = () => {
-      if (inFlight) return;
-      inFlight = true;
-      void load(teamId, catalogId)
-        .then(rows => {
-          if (active) {
-            setAttempts(rows);
-            setError(false);
-          }
-        })
-        .catch(() => {
-          if (active) setError(true);
-        })
-        .finally(() => {
-          inFlight = false;
-        });
+    setAttempts(null);
+    setError(false);
+    const reader = createReadCoordinator(async signal => {
+      const rows = await withReadDeadline(
+        child => load(teamId, catalogId, { signal: child }),
+        signal
+      );
+      if (active && !signal.aborted) {
+        setAttempts(rows);
+        setError(false);
+      }
+    });
+    const refresh = (foreground = false) => {
+      if (document.hidden || (reader.isRunning() && !foreground)) return;
+      reader.start();
+      void reader.request().catch(() => {
+        if (active && !document.hidden) setError(true);
+      });
+    };
+    const visibility = () => {
+      if (document.hidden) reader.stop();
+      else refresh(true);
     };
     refresh();
+    document.addEventListener('visibilitychange', visibility);
     const timer = checkingDelivery ? window.setInterval(refresh, 5000) : null;
     return () => {
-      if (timer !== null) window.clearInterval(timer);
       active = false;
+      reader.stop();
+      document.removeEventListener('visibilitychange', visibility);
+      if (timer !== null) window.clearInterval(timer);
     };
   }, [teamId, catalogId, load, revision, checkingDelivery]);
   const date = new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
@@ -94,6 +124,10 @@ export function CatalogStatusDetails({
     ? [...attempts].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
     : null;
   const latest = orderedAttempts?.[0];
+  const activeAttempt =
+    activeAttemptId === undefined
+      ? latest
+      : orderedAttempts?.find(attempt => attempt.attemptId === activeAttemptId);
   const retrySource =
     latest && (latest.result === 'failed' || latest.result === 'partial') ? latest : null;
   return (
@@ -104,6 +138,11 @@ export function CatalogStatusDetails({
           {t('catalogUpdaterClose')}
         </Button>
       </div>
+      {currentFailureCode && (
+        <p role="alert" className="team-inline-error">
+          {t('catalogUpdaterCurrentProblem')} {teamErrorMessageFor({ code: currentFailureCode }, t)}
+        </p>
+      )}
       {error && (
         <div role="alert" className="team-inline-error">
           {t('catalogUpdaterHistoryFailed')}{' '}
@@ -119,7 +158,7 @@ export function CatalogStatusDetails({
       )}
       {!error && attempts === null && <p>{t('catalogUpdaterLoading')}</p>}
       {attempts?.length === 0 && <p>{t('catalogUpdaterHistoryEmpty')}</p>}
-      {checkingDelivery && latest?.result === 'running' && (
+      {checkingDelivery && activeAttempt?.result === 'running' && (
         <p className="field-hint">{t('catalogDeliveryCheckingHint')}</p>
       )}
       {attempts && attempts.length > 0 && (
@@ -139,7 +178,7 @@ export function CatalogStatusDetails({
               </span>
               {' · '}
               <strong>
-                {checkingDelivery && attempt === latest && attempt.result === 'running'
+                {checkingDelivery && attempt === activeAttempt && attempt.result === 'running'
                   ? t('catalogDeliveryChecking')
                   : t(
                       `catalogUpdaterResult_${attempt.result}` as
@@ -188,7 +227,7 @@ export function CatalogStatusDetails({
               {attempt.result === 'unknown' && (
                 <p className="field-hint">
                   {t(
-                    checkingDelivery && attempt === latest
+                    checkingDelivery && attempt === activeAttempt
                       ? 'catalogDeliveryUncertainHint'
                       : 'catalogUpdaterUnknownDelivery'
                   )}

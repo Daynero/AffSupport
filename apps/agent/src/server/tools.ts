@@ -1,3 +1,6 @@
+import type { CatalogVideoForegroundController } from '../team-bridge/catalog-video-foreground.js';
+import type { NativeRestitchController } from '../team-bridge/native-restitch-controller.js';
+import type { TeamScreenCache } from '../team-bridge/screen-cache.js';
 import { registerRecoveryRoutes } from '../team-bridge/recovery-enrollment.js';
 import type { TeamRecoveryWorker } from '../team-bridge/recovery-worker.js';
 import type { FastifyInstance } from 'fastify';
@@ -103,6 +106,9 @@ export interface ToolModulesDeps {
     embedding: () => ImageEmbeddingSettings;
   };
   teamWorkspace: {
+    nativeRestitch?: NativeRestitchController;
+    catalogForeground?: CatalogVideoForegroundController;
+    screenCache?: TeamScreenCache;
     preview: TeamPreviewBridge;
     process: TeamProcessBridge;
     recovery?: TeamRecoveryWorker;
@@ -231,6 +237,9 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         if (teamWorkspace.recovery)
           registerRecoveryRoutes(app, teamWorkspace.recovery, ctx.acceptingNewTasks);
         registerTeamBridgeRoutes(app, {
+          screenCache: teamWorkspace.screenCache,
+          nativeRestitch: teamWorkspace.nativeRestitch,
+          catalogForeground: teamWorkspace.catalogForeground,
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
           poster: teamWorkspace.poster,
@@ -249,12 +258,16 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.download.busy() ||
         teamWorkspace.landings.busy() ||
         teamWorkspace.library.busy() ||
-        teamWorkspace.restitch.busy(),
+        teamWorkspace.restitch.busy() ||
+        (teamWorkspace.nativeRestitch?.busy() ?? false) ||
+        (teamWorkspace.catalogForeground?.busy() ?? false),
       // Cancellation belongs to whichever tool is doing the work; the bridge holds nothing
       // to stop. Reported as "no such run" rather than pretended away.
-      cancel: async () => false,
-      cancelAll: async () => 0,
+      cancel: async id => teamWorkspace.nativeRestitch?.cancelOperation(id) ?? false,
+      cancelAll: async () => teamWorkspace.nativeRestitch?.cancelAll() ?? 0,
       shutdown: async () => {
+        await teamWorkspace.catalogForeground?.shutdown();
+        await teamWorkspace.nativeRestitch?.shutdown();
         await teamWorkspace.recovery?.shutdown();
         await teamWorkspace.restitch.shutdown();
         await teamWorkspace.poster.shutdown();

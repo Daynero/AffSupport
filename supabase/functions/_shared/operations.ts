@@ -1,4 +1,4 @@
-import { TeamFunctionError } from './errors.ts';
+import { mapUnknownError, TeamFunctionError } from './errors.ts';
 import type { ServiceRpcClient } from './credentials.ts';
 import { isRecord } from './validation.ts';
 
@@ -50,6 +50,12 @@ export function requireIdempotencyKey(value: unknown): string {
     throw new TeamFunctionError('INVALID_INPUT');
   }
   return value;
+}
+
+/** Immutable protocol binding: an older executor cannot replay a managed group operation. */
+export async function materialGroupRequestNonce(key: string): Promise<string> {
+  const hash = await sha256(`group-v1:${requireIdempotencyKey(key)}`);
+  return `group-v1:${byteaHex(hash).slice(2)}`;
 }
 
 function parseOperationAuthority(value: unknown): OperationAuthority | null {
@@ -123,6 +129,33 @@ export async function transitionOperation(input: {
     p_retryable: input.retryable ?? false
   });
   if (error) throw operationRpcError(error);
+}
+
+export async function withOperationFailure<T>(
+  service: ServiceRpcClient,
+  operationId: string,
+  run: () => Promise<T>
+): Promise<T> {
+  try {
+    return await run();
+  } catch (cause) {
+    const mapped = mapUnknownError(cause);
+    // Another invocation or an unacknowledged provider write still owns the result.
+    // A terminal failure here would retire its active parent and permit false recovery.
+    if (mapped.code === 'GROUP_RECONCILING' || mapped.code === 'PROCESS_RESULT_UNCERTAIN')
+      throw cause;
+    await transitionOperation({
+      service,
+      operationId,
+      state: 'failed',
+      stage: 'failed',
+      progress: 100,
+      resultMaterialId: null,
+      errorCode: mapped.code,
+      retryable: mapped.retryable
+    }).catch(() => undefined);
+    throw cause;
+  }
 }
 
 export async function releaseNameReservation(

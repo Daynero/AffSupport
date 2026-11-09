@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-05T14:59:30.324Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 41825,
+    "totals": {
+      "gates": 13,
+      "passed": 13,
+      "failed": 0,
+      "tests": 0,
+      "skipped_tests": 0,
+      "skip_reasons": {},
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1443
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 37547
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 33922
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 32784
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 40379
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 7500
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 360
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 5045
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 363
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 355
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 396
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 251
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 8199
+      }
+    ]
+  }
+}

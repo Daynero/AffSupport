@@ -213,11 +213,23 @@ describe('preparing a space', () => {
   });
 
   it('keeps what it already found when it is stopped', async () => {
+    let enteredSecond!: () => void, releaseSecond!: () => void;
+    const secondStarted = new Promise<void>(resolve => {
+      enteredSecond = resolve;
+    });
+    const secondMayFinish = new Promise<void>(resolve => {
+      releaseSecond = resolve;
+    });
+    let probes = 0;
     probeSource.mockImplementation(async (input: string) => {
-      await new Promise(resolve => setTimeout(resolve, 15));
+      if (++probes === 2) {
+        enteredSecond();
+        await secondMayFinish;
+      }
       return { ok: true, value: profile(input) };
     });
-    const bridge = new RestitchPrepareBridge({ transfer: transfer([]) });
+    const cleaned: string[] = [];
+    const bridge = new RestitchPrepareBridge({ transfer: transfer(cleaned) });
     bridge.start({
       operationId: 'prep-5',
       teamId: 'team',
@@ -225,18 +237,23 @@ describe('preparing a space', () => {
       materials: [material('a'), material('b'), material('c')],
       audio: null
     });
-    // Long enough for the first to land, nowhere near long enough for all three.
-    await new Promise(resolve => setTimeout(resolve, 40));
-    expect(bridge.cancel('prep-5')).toBe(true);
-
-    const report = await settle(bridge, 'prep-5');
-    expect(report.state).toBe('canceled');
-    expect(report.done).toBeGreaterThanOrEqual(1);
-    expect(report.done).toBeLessThan(3);
-    // A stop is a stop, not an undo (FR-020).
-    expect(report.findings.filter(finding => finding.state === 'prepared').length).toBe(
-      report.done
-    );
+    try {
+      // Cancel during the second inspection, with the first finding already retained.
+      await secondStarted;
+      expect(bridge.cancel('prep-5')).toBe(true);
+      releaseSecond();
+      const report = await settle(bridge, 'prep-5');
+      expect(report.state).toBe('canceled');
+      expect(report.done).toBe(2);
+      expect(probes).toBe(2);
+      expect(cleaned).toHaveLength(2);
+      expect(report.findings.filter(finding => finding.state === 'prepared').length).toBe(
+        report.done
+      );
+    } finally {
+      releaseSecond();
+      await bridge.shutdown();
+    }
   });
 
   it('refuses a second run under the same name while one is going', async () => {
@@ -272,6 +289,193 @@ describe('preparing a space', () => {
     // The channel is a broadcast: a file's name has no business on it.
     expect(published).not.toContain('a.mp4');
     expect(published).toContain('"progress"');
+  });
+});
+
+describe('preparation lifetime', () => {
+  function gate() {
+    let resolve!: () => void;
+    const promise = new Promise<void>(done => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+  const request = (operationId: string) => ({
+    operationId,
+    teamId: 'team',
+    transferUrl: 'https://transfer.example',
+    materials: [material('a')],
+    audio: null
+  });
+
+  it('keeps cancellation pending and busy until the original transport and cleanup stop', async () => {
+    const entered = gate(),
+      release = gate(),
+      cleaned: string[] = [];
+    const base = transfer(cleaned);
+    let calls = 0;
+    const bridge = new RestitchPrepareBridge({
+      transfer: {
+        downloadSource: async input => {
+          calls++;
+          entered.resolve();
+          await release.promise;
+          return base.downloadSource(input);
+        }
+      }
+    });
+    bridge.start(request('cancel-pending'));
+    await entered.promise;
+    try {
+      expect(bridge.cancel('cancel-pending')).toBe(true);
+      expect(bridge.busy()).toBe(true);
+      expect(bridge.report('cancel-pending')?.state).toBe('running');
+      release.resolve();
+      await vi.waitFor(() => expect(bridge.busy()).toBe(false));
+      expect(bridge.report('cancel-pending')?.state).toBe('canceled');
+    } finally {
+      release.resolve();
+      await vi.waitFor(() => expect(cleaned).toHaveLength(calls));
+      await bridge.shutdown();
+    }
+  });
+
+  it('refuses same-ID reuse after cancel while the original work is still alive', async () => {
+    const entered = gate(),
+      release = gate(),
+      cleaned: string[] = [];
+    const base = transfer(cleaned);
+    let calls = 0;
+    const bridge = new RestitchPrepareBridge({
+      transfer: {
+        downloadSource: async input => {
+          calls++;
+          entered.resolve();
+          await release.promise;
+          return base.downloadSource(input);
+        }
+      }
+    });
+    const input = request('cancel-reuse');
+    bridge.start(input);
+    await entered.promise;
+    try {
+      bridge.cancel(input.operationId);
+      expect(() => bridge.start(input)).toThrow('WRONG_STATE');
+    } finally {
+      release.resolve();
+      await vi.waitFor(() => expect(cleaned).toHaveLength(calls));
+      await bridge.shutdown();
+    }
+  });
+
+  it('waits for original transport and cleanup during shutdown and refuses new starts', async () => {
+    const entered = gate(),
+      release = gate(),
+      cleanupEntered = gate(),
+      cleanupRelease = gate(),
+      cleaned: string[] = [];
+    const base = transfer([]);
+    let calls = 0;
+    const bridge = new RestitchPrepareBridge({
+      transfer: {
+        downloadSource: async input => {
+          calls++;
+          entered.resolve();
+          await release.promise;
+          const source = await base.downloadSource(input);
+          return {
+            ...source,
+            cleanup: async () => {
+              cleanupEntered.resolve();
+              await cleanupRelease.promise;
+              cleaned.push(source.file);
+            }
+          };
+        }
+      }
+    });
+    bridge.start(request('shutdown-pending'));
+    await entered.promise;
+    let finished = false;
+    const closing = bridge.shutdown().then(() => {
+      finished = true;
+    });
+    try {
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(finished).toBe(false);
+      expect(bridge.busy()).toBe(true);
+      expect(() => bridge.start(request('after-shutdown'))).toThrow('WRONG_STATE');
+      release.resolve();
+      await cleanupEntered.promise;
+      await Promise.resolve();
+      expect(finished).toBe(false);
+      expect(bridge.busy()).toBe(true);
+      cleanupRelease.resolve();
+      await closing;
+      expect(bridge.busy()).toBe(false);
+      expect(bridge.report('shutdown-pending')).toBeNull();
+    } finally {
+      release.resolve();
+      cleanupRelease.resolve();
+      await closing;
+      await vi.waitFor(() => expect(cleaned).toHaveLength(calls));
+    }
+  });
+
+  it('retains a canceled live operation when remembered finished results are evicted', async () => {
+    const entered = gate(),
+      release = gate(),
+      cleaned: string[] = [];
+    const base = transfer(cleaned);
+    let calls = 0;
+    const bridge = new RestitchPrepareBridge({
+      transfer: {
+        downloadSource: async input => {
+          calls++;
+          if (input.operationId.startsWith('pending-eviction:')) {
+            entered.resolve();
+            await release.promise;
+          }
+          return base.downloadSource(input);
+        }
+      }
+    });
+    bridge.start(request('pending-eviction'));
+    await entered.promise;
+    bridge.cancel('pending-eviction');
+    try {
+      for (let n = 0; n < 4; n++) {
+        const name = 'finished-' + n;
+        bridge.start(request(name));
+        await vi.waitFor(() => expect(bridge.report(name)?.state).toBe('finished'));
+      }
+      expect(bridge.report('pending-eviction')).not.toBeNull();
+      expect(bridge.busy()).toBe(true);
+    } finally {
+      release.resolve();
+      await vi.waitFor(() => expect(cleaned).toHaveLength(calls));
+      await bridge.shutdown();
+    }
+  });
+
+  it('does not strand preparation when its progress sink throws', async () => {
+    const update = vi.fn(() => {
+      throw Error('SYNTHETIC_DIAGNOSTIC_SINK_FAILURE');
+    });
+    const bridge = new RestitchPrepareBridge({
+      transfer: transfer([]),
+      events: { update } as never
+    });
+    try {
+      expect(() => bridge.start(request('diagnostics-failure'))).not.toThrow();
+      const report = await settle(bridge, 'diagnostics-failure');
+      expect(report.done).toBe(1);
+      expect(report.findings[0]?.state).toBe('prepared');
+    } finally {
+      await bridge.shutdown();
+    }
   });
 });
 

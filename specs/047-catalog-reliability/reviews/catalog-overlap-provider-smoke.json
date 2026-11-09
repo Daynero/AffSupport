@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-06T15:09:34.088Z",
+  "teamId": "22222222-2222-4222-8222-222222222222",
+  "materialId": "13c1fa9a-a8c7-4660-9e9d-c3a2b37dc780",
+  "groupId": "27e1a85b-a1b1-464a-815f-572401f2a1e4",
+  "stages": [
+    "group_accepted",
+    "same_key_replay_acknowledged",
+    "replacement_group_refused",
+    "item_prepared",
+    "request_marker_readback",
+    "request_marked",
+    "trash_confirmed",
+    "hosted_group_confirmed",
+    "restore_confirmed",
+    "restored_provider_link_available",
+    "restored_provider_bytes_verified"
+  ],
+  "scope": "Actual local beta/provider API; no manual UI claim",
+  "productionTouched": false,
+  "receipts": {
+    "count": 2,
+    "succeeded": true
+  },
+  "manualBrowserAccepted": false,
+  "bootRefusalReconciliation": {
+    "oldExecutorRemoved": true,
+    "priorFileOperationAbsent": true,
+    "sameRetainedKey": true,
+    "newExecutorGuardVerified": true
+  }
+}

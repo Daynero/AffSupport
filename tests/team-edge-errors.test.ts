@@ -1,3 +1,4 @@
+import { FunctionsFetchError } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const invoke = vi.fn();
@@ -108,5 +109,25 @@ describe('re-stitch source edge statuses', () => {
     const response = errorResponse(new TeamFunctionError(code));
     expect(response.status).toBe(status);
     expect(await response.json()).toMatchObject({ ok: false, error: { code, retryable: false } });
+  });
+});
+
+it('classifies an actual SDK fetch failure separately from a provider refusal', async () => {
+  invoke.mockResolvedValue({
+    data: null,
+    error: new FunctionsFetchError(new TypeError('Failed to fetch'))
+  });
+  await expect(invokeTeamFunction('library-ops/share/copy', {}, anything)).rejects.toMatchObject({
+    code: 'TEAM_TRANSPORT_UNAVAILABLE',
+    retryable: true
+  });
+});
+it('passes an explicit finite caller signal without changing other function request shapes', async () => {
+  invoke.mockResolvedValue({ data: { ok: true, value: {} }, error: null });
+  const controller = new AbortController();
+  await invokeTeamFunction('library-ops/share/copy', {}, anything, { signal: controller.signal });
+  expect(invoke).toHaveBeenCalledWith('library-ops/share/copy', {
+    body: {},
+    signal: controller.signal
   });
 });

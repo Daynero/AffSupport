@@ -371,6 +371,30 @@
       "note": "Read by the web-env gate to decide which deploy command is legal. Must agree with the function secret of the same name."
     },
     {
+      "name": "SOTY_NATIVE_RESTITCH_CONTROL",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Off by default. Experimental manual native restitch requires beta environment, testing OAuth and the exact beta loopback web origin. Production never activates this route."
+    },
+    {
+      "name": "VITE_CATALOG_VIDEO_VARIANTS",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Off by default. Shows catalog video variants only in beta builds; the server independently enforces beta authority."
+    },
+    {
+      "name": "SOTY_CATALOG_VIDEO_VARIANTS",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Off by default. Catalog video variants require beta environment, testing OAuth and the exact beta loopback web origin; production cannot activate them."
+    },
+    {
       "name": "CATALOG_NATIVE_SHEETS_BETA",
       "surface": "functions",
       "required": [],

@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T04:26:26.417Z",
+  "project": "r2beta045",
+  "fromSchema": 443,
+  "toSchema": 444,
+  "applied": ["20261207161000_material_group_claim_epochs.sql"],
+  "fullRowTablesUnchanged": 16,
+  "priorGroupColumnsUnchanged": true,
+  "newColumnsAreLegacyDefaults": true,
+  "edgeQuiescedBeforeBaseline": true,
+  "coordinatorPairedWithSchema": true,
+  "coordinatorSha256": "784f25e5566e45728c1766a39b666b7eb5fdccc3fcd7ea698a897e6e965c193e",
+  "productionTouched": false,
+  "scope": "Local beta additive schema and paired lifecycle coordinator. No manual UI acceptance or complete generation reconciliation."
+}

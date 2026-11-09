@@ -1,0 +1,34 @@
+{
+  "task": "T024",
+  "scope": "Run/Stop/Retry implementation and focused acceptance; full manager acceptance remains T030",
+  "currentTests": {
+    "passed": 104,
+    "files": 5,
+    "log": "scratchpad/catalog-command-current-acceptance.log"
+  },
+  "covered": [
+    "Immutable command identity and exact retry source",
+    "Synchronous overlapping-command lock and four-command bound",
+    "Durable intent before dispatch",
+    "Unknown receipt read-only recovery",
+    "Accepted-count and no-op outcomes",
+    "Stop bound to observed round and attempt",
+    "Stopped or finished round leaves schedule unchanged",
+    "Readback before delivered Stop feedback",
+    "Actor/client replacement and late response suppression"
+  ],
+  "nativeConcurrency": "Retained full-chain PostgreSQL proof includes independent-session same-key replay, cancellation tombstone winning, accepted run winning, different-command serialization and a racing Stop; these scenarios were not replaced with mocks.",
+  "actualBeta": {
+    "result": "success",
+    "endedAt": "2026-11-07T21:08:39.149784+00:00",
+    "attemptId": "25c14117-60b5-4eed-b14b-10ad1b1d5096",
+    "startedAt": "2026-11-07T21:08:31.964709+00:00",
+    "failureCode": null,
+    "deliveryVerifiedAt": "2026-11-07T21:08:39.149784+00:00"
+  },
+  "uiUpdatedResultVisible": true,
+  "earlierOfflineReopenAndSameIntentRecovery": "manual-beta-claim-recovery.md/json",
+  "manualLimits": "The latest QA run completed before Stop could be exercised. No successful latest manual Stop or forced two-browser race is claimed; controlled SQL/UI race regressions supply that evidence.",
+  "commandCoordinatorSourceUnchangedFromVerifiedHead": true,
+  "productionTouched": false
+}

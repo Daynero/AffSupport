@@ -8,9 +8,13 @@
  * excluded, and then named for what it is.
  */
 
-import type { RestitchScreen, TeamRestitchDefaults } from '@video-compressor/shared';
+import {
+  RESTITCH_SCREEN_SELECTION_MAX_CANDIDATES,
+  type RestitchScreen,
+  type TeamRestitchDefaults
+} from '@video-compressor/shared';
 import { TeamApiError, teamApi } from '../../api/team';
-import { agentCanRestitchFromSpace } from '../../api/client';
+import { agentCanRestitchFromSpace, getRestitchScreenRefusals } from '../../api/client';
 
 export type RestitchScreensOutcome =
   /** The space still points at a library: the caller goes the old way. */
@@ -21,11 +25,13 @@ export type RestitchScreensOutcome =
 
 export interface RestitchScreensDeps {
   draw: typeof teamApi.drawRestitchScreens;
+  refusals?: typeof getRestitchScreenRefusals;
   grant: typeof teamApi.requestDownload;
   capable: () => Promise<'yes' | 'too-old' | 'unreachable'>;
 }
 
 const defaultDeps: RestitchScreensDeps = {
+  refusals: (teamId, scope) => getRestitchScreenRefusals(teamId, scope),
   draw: (teamId, options) => teamApi.drawRestitchScreens(teamId, options),
   grant: (teamId, materialId, consumer) => teamApi.requestDownload(teamId, materialId, consumer),
   capable: agentCanRestitchFromSpace
@@ -46,13 +52,36 @@ export async function prepareRestitchScreens(
   if (known.sourceMode !== 'drive') return { kind: 'legacy' };
   if ((await deps.capable()) !== 'yes') return { kind: 'too-old' };
 
+  const refused = (await deps.refusals?.(teamId, known.updatedAt)) ?? [];
+  const excluded = new Set<string>();
+  const accepted = new Map<RestitchScreen['slot'], RestitchScreen>();
   let drawn = await deps.draw(teamId);
   if (drawn.sourceMode !== 'drive') return { kind: 'legacy' };
   // At most two slots. Request independent grants together and wait for both
   // outcomes before a redraw, so a late old grant cannot enter the new draw.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < RESTITCH_SCREEN_SELECTION_MAX_CANDIDATES; attempt += 1) {
+    const remembered = drawn.screens.filter(
+      screen =>
+        !accepted.has(screen.slot) &&
+        refused.some(
+          item =>
+            item.slot === screen.slot &&
+            item.materialId === screen.materialId &&
+            item.checksum.toLowerCase() === screen.checksum.toLowerCase()
+        )
+    );
+    if (remembered.length) {
+      const before = excluded.size;
+      remembered.forEach(screen => excluded.add(screen.materialId));
+      if (excluded.size === before) throw new TeamApiError('RESTITCH_POOL_EMPTY', false);
+      drawn = await deps.draw(teamId, { exclude: [...excluded] });
+      if (drawn.sourceMode !== 'drive') return { kind: 'legacy' };
+      continue;
+    }
     const results = await Promise.allSettled(
       drawn.screens.map(async screen => {
+        const previous = accepted.get(screen.slot);
+        if (previous) return previous;
         const grant = await deps.grant(teamId, screen.materialId, 'agent');
         if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
         return {
@@ -71,13 +100,18 @@ export async function prepareRestitchScreens(
         ? [{ error: result.reason as unknown, materialId: drawn.screens[index]!.materialId }]
         : []
     );
-    if (failures.length === 0)
-      return {
-        kind: 'ready',
-        screens: results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []))
-      };
-    if (attempt === 0 && failures.every(failure => RETRY_CODES.has(codeOf(failure.error)))) {
-      drawn = await deps.draw(teamId, { exclude: failures.map(failure => failure.materialId) });
+    for (const result of results)
+      if (result.status === 'fulfilled') accepted.set(result.value.slot, result.value);
+    if (failures.length === 0) return { kind: 'ready', screens: [...accepted.values()] };
+    if (failures.every(failure => RETRY_CODES.has(codeOf(failure.error)))) {
+      const before = excluded.size;
+      failures.forEach(failure => excluded.add(failure.materialId));
+      if (before === excluded.size) {
+        if (failures.some(failure => codeOf(failure.error) === 'PERMISSION_DENIED'))
+          throw new TeamApiError('RESTITCH_SOURCE_FORBIDDEN', false);
+        throw new TeamApiError('RESTITCH_POOL_EMPTY', false);
+      }
+      drawn = await deps.draw(teamId, { exclude: [...excluded] });
       if (drawn.sourceMode !== 'drive') return { kind: 'legacy' };
       continue;
     }
@@ -86,5 +120,5 @@ export async function prepareRestitchScreens(
       throw new TeamApiError('RESTITCH_SOURCE_FORBIDDEN', false);
     throw failure.error;
   }
-  throw new TeamApiError('RESTITCH_POOL_EMPTY', false);
+  throw new TeamApiError('RESTITCH_SCREEN_SELECTION_LIMIT', false);
 }

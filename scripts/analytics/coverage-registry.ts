@@ -61,7 +61,7 @@ export interface CapabilitySignal {
   outcome?: string;
   /** Closed discriminator for a capability sharing generic 031 operation events. */
   flowStep?:
-    | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash'}`
+    | `workspace_${'task_copy' | 'task_detach' | 'task_cleanup' | 'bulk_trash' | 'restore'}`
     | 'theme'
     | 'catalog_image_prompt'
     | 'catalog_image_pool'
@@ -81,7 +81,8 @@ export interface CapabilitySignal {
     | 'member_permissions_save'
     | 'member_remove'
     | 'member_access_refresh'
-    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template'}`;
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop' | 'restitch_claim' | 'publication' | 'video_create'}`
+    | `material_link_${'get_link' | 'share' | 'confirm' | 'readback' | 'clipboard'}`;
 }
 
 export interface Capability {
@@ -119,6 +120,33 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  {
+    id: 'team.restitch_selection',
+    tool: 'team',
+    title: 'Restitch · bounded selection storage',
+    stages: [
+      'context_observed',
+      'candidate_recorded',
+      'range_reserved',
+      'range_accounted',
+      'screen_validation_recorded',
+      'video_processed',
+      'result_visible'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'authoritative_table',
+    unobservable: [
+      'No public root initializer or product path is enabled in this storage foundation.',
+      'A held reservation is not proof of upstream execution or nonexecution. Dedicated issued/consumed/abandoned authority counters are current bookkeeping only; consumption is not provider I/O. Screen validation is not video creation or delivery.',
+      'Rejection causes, accepted automated recipes, executor aliases and product wiring of protected upstream measurement remain unimplemented. Current rows do not reconstruct historical state.'
+    ],
+    note: 'Service-only immutable scope, canonical CAS and exact late bookkeeping are verified independently. Internal manual admission and owned executor epochs preserve bounded pool observations and historical claims. Native control, observed quiescence, session binding and the complete product producer remain pending; this entry is not advertised executor support.'
+  },
+
   {
     id: 'onboarding.windows_launcher',
     tool: 'onboarding',
@@ -272,40 +300,112 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       note: 'Only opaque flow and attempt IDs and closed failure codes are collected. List requests cancel when obsolete. Mutation acceptance proves a valid server response; completion follows React commit of the member list and success feedback. An absent terminal remains unknown, never success or a proved cancellation. Beta analytics is disabled; producer and CLI regressions provide local evidence. Existing membership.updated and membership.removed server audits remain authoritative. No new SQL or production writes.'
     })
   ),
-  ...(['task_copy', 'task_detach', 'task_cleanup', 'bulk_trash'] as const).map(action => ({
-    id: `team.workspace_${action}`,
+  ...(['task_copy', 'task_detach', 'task_cleanup', 'bulk_trash', 'restore'] as const).map(
+    action => ({
+      id: `team.workspace_${action}`,
+      tool: 'team' as const,
+      title: `Workspace · ${action}`,
+      stages: ['requested', 'observed_stage', 'terminal'],
+      stageEvents: {
+        requested: ['operation_started' as const],
+        observed_stage: ['operation_stage_completed' as const],
+        terminal: ['operation_completed' as const, 'operation_failed' as const]
+      },
+      start: [
+        {
+          event: 'operation_started' as const,
+          correlate: 'attempt_id' as const,
+          flowStep: `workspace_${action}` as const
+        }
+      ],
+      terminal: (['operation_completed', 'operation_failed'] as const).map(event => ({
+        event,
+        correlate: 'attempt_id' as const,
+        flowStep: `workspace_${action}` as const
+      })),
+      platforms: BOTH,
+      producerStatus: 'emitted' as const,
+      source: 'events' as const,
+      unobservable: [
+        'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
+        'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.',
+        'Restore includes receipt-bound restore_request diagnostics and records visible delivery after feedback commits. A pending or running reply is not restoration. Unknown restore and bulk acceptance identities survive remount in bounded actor and team scoped browser storage. A local waiting deadline does not cancel hosted work; missing storage or receipt evidence remains unknown. Browser storage alone is not a cross-tab lease.',
+        'Bulk trash item diagnostics distinguish trash_prepare, trash_mark_request, trash_request, trash_reconcile, trash_refresh, trash_overlap and trash_start via source_kind with a closed error_code. They do not prove which provider substep failed or that a write did not apply; historical events without source_kind remain ambiguous. No names, paths or provider payloads are collected.',
+        'The SELECT-only material-group execution projection distinguishes legacy unknown, executor reservation, unconfirmed member dispatch, verified members and registration. Fenced operations expose their current claim protocol and epoch; legacy or missing ownership stays unknown. Epochs do not reconstruct earlier claims or individual lost replies. inspect and investigate retain missing, delayed and unavailable-source gaps; a reservation or server receipt does not prove browser delivery.',
+        'Bulk trash refusal before Soty authorization can create no operation receipt. Revoked access and older unknown requests remain unproven; a client permission error alone cannot establish no provider write.'
+      ],
+      note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
+    })
+  ),
+  ...(['get_link', 'share', 'confirm', 'readback', 'clipboard'] as const).map(action => ({
+    id: `team.material_link_${action}`,
     tool: 'team' as const,
-    title: `Workspace · ${action}`,
+    title: `File link · ${action}`,
     stages: ['requested', 'observed_stage', 'terminal'],
     stageEvents: {
       requested: ['operation_started' as const],
       observed_stage: ['operation_stage_completed' as const],
-      terminal: ['operation_completed' as const, 'operation_failed' as const]
+      terminal: [
+        'operation_completed' as const,
+        'operation_failed' as const,
+        'operation_cancelled' as const
+      ]
     },
     start: [
       {
         event: 'operation_started' as const,
         correlate: 'attempt_id' as const,
-        flowStep: `workspace_${action}` as const
+        flowStep: `material_link_${action}` as const
       }
     ],
-    terminal: (['operation_completed', 'operation_failed'] as const).map(event => ({
-      event,
-      correlate: 'attempt_id' as const,
-      flowStep: `workspace_${action}` as const
-    })),
+    terminal: (['operation_completed', 'operation_failed', 'operation_cancelled'] as const).map(
+      event => ({
+        event,
+        correlate: 'attempt_id' as const,
+        flowStep: `material_link_${action}` as const
+      })
+    ),
     platforms: BOTH,
     producerStatus: 'emitted' as const,
     source: 'events' as const,
     unobservable: [
-      'Missing visible completion is unknown. A retained cleanup is an observed retention outcome, never proof that a file was trashed.',
-      'A browser interrupted before rendering leaves its request unfinished; server receipts remain authoritative. Beta disables analytics.',
-      'Bulk trash item diagnostics distinguish trash_prepare, trash_mark_request, trash_request, trash_reconcile, trash_refresh, trash_overlap and trash_start via source_kind with a closed error_code. They do not prove which provider substep failed or that a write did not apply; historical events without source_kind remain ambiguous. No names, paths or provider payloads are collected.',
-      'Bulk trash refusal before Soty authorization can create no operation receipt. Revoked access and older unknown requests remain unproven; a client permission error alone cannot establish no provider write.'
+      'Clipboard contents and use in another application; access changes outside Soty after a provider observation.',
+      'A consumed write permit without a valid acknowledgement does not prove that a provider POST ran.',
+      'Beta disables event delivery; a manual walkthrough is fallback evidence, not a production telemetry proof.'
     ],
-    note: 'Typed workspace operation flows contain only opaque IDs, bounded counts and closed stage/reason values. investigate joins the restricted analytics_workspace_operations projection, including card duplication and native clipboard paste through the same task_copy lifecycle and idempotency receipt, copy replay, cleanup provenance/refusal/worker recovery and per-item trash receipts. Fresh bulk trash preflight denial is recorded through a service-only pending-operation fence before any provider write. The same operation row lock prevents late denial from failing a replay that advanced to running; existing lifecycle intents remain reconciling. A current projection cannot reconstruct state after as-of; that limitation and absent views stay explicit. New references are fenced while a cleanup provider result is unknown. All discovered consumer tables, including Launch offer defaults, must retain an enabled reference guard. Missing coverage remains cleanup_unverified; an existing reference remains cleanup_referenced. These receipts prove retention, not provider deletion. Neither a toast nor an emitted event substitutes for provider readback.'
+    note: 'Typed material-link flows distinguish URL availability, visibility, explicit/remembered consent, permission observation, preference persistence and clipboard outcome. Get-link never creates permission or saves consent. Permission uncertainty retains its immutable request and a per-file hold; Check is read-only. A URL-visible stage does not prove public access or clipboard success. The restricted analytics_material_share_intents projection adds server evidence without provider IDs, URLs or content. Its current state is not reconstructed history. UI producer-to-ingestion-to-SELECT-only diagnosis is verified separately from manual provider acceptance.'
   })),
-  ...(['list', 'filter', 'profile', 'bulk', 'template'] as const).map(action => ({
+  {
+    id: 'team.material_sharing',
+    tool: 'team',
+    title: 'File sharing · durable permission intent',
+    stages: ['request_recorded', 'permission_observed', 'browser_result'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    unobservable: [
+      'Provider dispatch before acknowledgement; browser visibility without its UI event; historical target after completed receipt compaction.'
+    ],
+    note: 'Service-only immutable share receipts and opaque per-file versions fence replay and stale preflight. Unknown permits are retained. Completed receipts keep hashes instead of material/provider pointers; a server confirmation proves a public-access observation, never clipboard delivery. Current projection and missing/expired evidence stay explicit.'
+  },
+  ...(
+    [
+      'list',
+      'filter',
+      'profile',
+      'bulk',
+      'template',
+      'run',
+      'retry',
+      'stop',
+      'restitch_claim',
+      'publication',
+      'video_create'
+    ] as const
+  ).map(action => ({
     id: `team.catalog_manager_${action}`,
     tool: 'team' as const,
     title: `Catalog manager · ${action}`,
@@ -336,12 +436,60 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: [
       'Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
-      'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics. Catalog settings editors reuse template flows; this bounded UI signal does not identify which content field changed. Server settings journal remains separate evidence.'
+      'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics. Catalog settings editors reuse template flows; this bounded UI signal does not identify which content field changed. Server settings journal remains separate evidence.',
+      ...(action === 'restitch_claim'
+        ? [
+            'A browser probe and claim acknowledgement prove neither native execution nor video delivery. Idle claims have no job; the native background recovery path has separate evidence. Missing or disabled browser analytics leaves this pre-claim stage unknown.'
+          ]
+        : []),
+      ...(action === 'stop'
+        ? [
+            'Stop has its own flow_id, an observed target in parent_flow_id and an optional original request in workflow_id for read-only Check. catalog_stops keeps browser replies, readback and visible feedback separate from current target state; no causal server Stop receipt, native child termination or provider quiescence is inferred.'
+          ]
+        : [])
     ],
     producerStatus: 'emitted' as const,
     source: 'events' as const,
-    note: 'Current catalog claim eligibility reuses the exact server predicates and exposes bounded native claimant blockers through catalog and investigate (owned teams only). Missing projections and historical decisions remain unknown. Empty native claims are sampled once per five minutes and survive the journal privacy fence, ingestion and CLI (team-recovery-worker and agent-journal-ingest tests). Durable handoff expiry and output receipts survive Stop and copy cleanup; uncertain execution and uploads remain fenced. Classified pre-upload browser media failures settle their operation and revoke grants with the matching job lease; unknown replies, native execution fences and provider uploads remain blocked. Specific media codes survive the delegate, pipeline_failed journal and catalog diagnosis (including retry_blocked_by_open_operation and code locations). Tests cover another member retrying, invalid tokens and protected uncertain execution. Hover/focus/selection preserve row progress; pointer observation is intentionally untracked. Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. Calendar validation resolves only the selected bounded IANA/UTC name rather than enumerating tzdata on every save; team-catalog-updater-sql verifies the name fence, DST and atomic schedule writes. Source-beta full save timing and browser acceptance are fallback evidence; no timing or timezone content is added to telemetry. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
+    note:
+      action === 'restitch_claim'
+        ? 'Browser pre-claim probe uses the installed tool contracts before requesting a cloud job. executor_checked and claim_requested precede idle or accepted acknowledgements; claim_refused retains the closed cause. The optional run ID joins an accepted job. Every outcome has production_completed=false and proves neither native execution nor visible video delivery. The native background executor has separate diagnostics. Missing, disabled or delayed browser signals remain unknown.'
+        : 'Current catalog claim eligibility reuses the exact server predicates and exposes bounded native claimant blockers through catalog and investigate (owned teams only). Missing projections and historical decisions remain unknown. Native executor refusals retain a closed error_code and installed protocol on recovery_state; actual worker assertions, SQL ingestion and a SELECT-only role journal read verify the composed path. Older producers may omit these fields, so a generic needs_agent_setup checkpoint does not prove an outdated binary. Known pre-lease incompatibility closes only a no-job claim receipt; unknown transport and missing bookkeeping acknowledgement remain fenced. Empty native claims are sampled once per five minutes and survive the journal privacy fence, ingestion and CLI (team-recovery-worker and agent-journal-ingest tests). Durable handoff expiry and output receipts survive Stop and copy cleanup; uncertain execution and uploads remain fenced. Classified pre-upload browser media failures settle their operation and revoke grants with the matching job lease; unknown replies, native execution fences and provider uploads remain blocked. Specific media codes survive the delegate, pipeline_failed journal and catalog diagnosis (including retry_blocked_by_open_operation and code locations). Tests cover another member retrying, invalid tokens and protected uncertain execution. Hover/focus/selection preserve row progress; pointer observation is intentionally untracked. Expired browser video handoffs record operation.failed/LEASE_EXPIRED before revoking transfer grants and permitting a new claim; execution reservations and provider upload receipts stay fenced. tests/team-catalog-restitch-sql.test.ts verifies these boundaries. catalog team discovers bounded current queue/lease evidence without names; it does not prove historical native execution or visible delivery. Transient local ownership reads are retried without guessing executor authority (tests/recovery-browser-ownership.test.tsx). Generic operation lifecycle is isolated by flow_step and correlated by flow_id/attempt_id. action_identifier is a closed UI stage; save_confirmed precedes result_visible. inspect reconstructs the UI observation separately from catalog update receipts. Creation-period filtering records setting_name=createdAt and visible result count, never date bounds; cleared ranges use the same filter lifecycle. Inline changes include only a closed setting_name field; undo_requested and readback_requested expose recovery attempts. Bulk settings Undo records undo_requested, save_requested, readback_requested, save_confirmed and result_visible through the same bounded lifecycle. Only version-checked confirmed rows are restored; unknown inverse writes are checked read-only. Conflict stages retain closed CONFLICT causes through sanitization, SQL ingestion and the read-only CLI (catalog-diagnostics-ingestion). Bulk stage counts do not identify individual catalog rows; per-item command/receipt attribution remains a diagnostic gap. A stalled settings acknowledgement is bounded, but timeout never proves the write was cancelled; unchanged old-version reads retain UNKNOWN and block another write. Runtime status is read independently of profile version. Launch-linked catalogs use the same explicit schedule/manual-run path as other catalogs. tests/launch-state.test.ts verifies worker delivery, unchanged Launch snapshots, names-only reuse after product growth, restitch replacement with retained historical video and URL-only reuse, and getCatalogUpdateDiagnosis receipts with a synthetic Google transport; those tests do not prove live Google delivery or browser visibility. Typed schedule rejections reach the inline row, picker and correlated error_code without being replaced by an unclassified error. tests/catalog-inline-changes.test.tsx covers the hook producer; tests/catalog-ui-diagnosis.test.ts persists the produced lifecycle and reads its exact cause through getInspect. Transport uncertainty remains UNKNOWN until authoritative readback. Calendar validation resolves only the selected bounded IANA/UTC name rather than enumerating tzdata on every save; team-catalog-updater-sql verifies the name fence, DST and atomic schedule writes. Source-beta full save timing and browser acceptance are fallback evidence; no timing or timezone content is added to telemetry. The catalog-trends read-only command separately projects authoritative committed schedule/option history, baseline observation, actor attribution, transitions and as-of state into JSON/offline charts; private journal event IDs and transaction IDs identify server evidence. Legacy/bulk/undo writers are covered at the DB boundary. Baselines do not prove historical choices, missing client completion remains unknown, and bounded user/timeline samples declare truncation. Counts contain no catalog names, queries or provider content. Completion is only emitted after visible UI commit; silence is unknown, never success.'
   })),
+  {
+    id: 'team.catalog_video_variants',
+    tool: 'team',
+    title: 'Catalog generated video variants',
+    stages: ['accepted', 'processing', 'registered', 'catalog_verified', 'ui_visible'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'events',
+    unobservable: [
+      'Restricted current set/child projections are joined by inspect and generation investigation. They do not reconstruct transitions or prove browser delivery.',
+      'Aggregate audit correlation of native variant journals remains unverified; missing source or historical state stays unknown.'
+    ],
+    note: 'Original child request UUID and actual server process UUID remain distinct. Registered K/N is output evidence, not a published catalog. Private source snapshots, names, URLs, grants and image contents are excluded.'
+  },
+  {
+    id: 'team.catalog_publication',
+    tool: 'team',
+    title: 'Catalog video publication',
+    stages: ['configuration_accepted', 'provider_verified', 'ui_visible'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'events',
+    unobservable: [
+      'inspect joins bounded publication and baseline authority when its restricted views are readable. Configuration feedback is not provider delivery.',
+      'Aggregate publication audit and complete worker delivery signal acceptance are pending; source absence and missing browser visibility remain unknown.',
+      'Current policy and active delivery are current observations, not reconstructed historical settings. Immutable job verification is bounded by the requested observation instant.'
+    ],
+    note: 'Do not infer publication coverage from unrelated catalog sync jobs or from a configured source URL.'
+  },
   {
     id: 'team.catalog_text_schedule',
     tool: 'team',
@@ -715,7 +863,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'authoritative_table',
-    note: 'Current Launch assignments reuse typed assign_account/release_account intent, acceptance and visible events, independent flow IDs, CAS and durable actor-scoped receipts. inspect/investigate read the bounded content-free analytics_launch_assignments view; missing snapshots, browser delivery and as-of history remain unknown. Availability is independent of financial dates, display truncation and generation state. Settings-editor loading uses generic 031 operation_started/completed/failed/cancelled with flow_step=launch_settings_editor, stable flow and distinct retry attempt IDs. Completion follows the committed editor subtree; pending close cancels. LAUNCH_EDITOR_LOAD_FAILED maps to team/library without collecting raw import messages or URLs. The launches.editor capability isolates these generic events by their closed flow_step discriminator in audit and inspect. inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Bounded workspace reads report the closed WORKSPACE_READ_TIMEOUT fingerprint without content; it proves a browser deadline, not server cancellation, domain identity or a failed mutation. Coalescing and hidden-tab cancellation are verified by synthetic regressions; remote per-domain in-flight counters remain unavailable. A manual confirmation settles after its own fresh read instead of waiting for unrelated future invalidations; same-scope snapshots invalidated by a local write defer confirmation until a replacement actually applies. core and explorer regressions cover continued indexing, replacement, real failure and unmount without claiming remote browser paint. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Recovery actions share the progress card. Repeat reconciles a lost acceptance reply before choosing the same generation retry, and a discovered terminal restitch child is bound before settlement. A stale waiting snapshot is settled before retry selection; cancellation and successful completion never authorize replacement. Hook and runner regressions cover Drive failure, lost replies, retained retry keys and same-click recovery. Retry acceptance is not result delivery; the protected generation/child receipt plus existing terminal and visible signals remain separate evidence. A red error notice distinguishes confirmed stopped execution from a lost response; disconnected observation remains warning/unknown. Presentation never emits an invented terminal or changes retry keys. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pre-acceptance generate clicks during upload, source refresh or dictionary save finish the existing flow as blocked/WRONG_STATE with visible preparation feedback; unexpected preflight failures surface through the same blocked seam. launch-workspace-ui verifies the correlated blocked signal and absence of a generation request. Unsaved budget keystrokes/focus are intentionally unobserved; launch-budget-editing verifies retained focus and deferred validation. Missing browser delivery remains unknown; a blocked client intent does not imply an accepted server run. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry. Versioned catalog SUBs stay pending in the editor; catalog_planning binds the durable name reservation, and catalog_registering commits the resolved URL only with a matching registered catalog. The intent checkpoint and revision baseline are fallback evidence; names and SUB contents are never telemetry. Missing registration cannot prove resolution reached the user. Restitched catalog registration validates its staged SUB binding before publication; launch-state covers the combined restitch/versioned-name path through SQL and getLaunchEvidence, rejecting absent bindings and stale URLs without collecting their values. Ad-account selection keeps stable row IDs and the existing source-refresh, save_draft and generation diagnostic path. Local search text, full advertising IDs and social names are never telemetry. Searching or abandoning a search is not a saved choice; missing/archived options remain explicit in the UI and source validation. Unsubmitted selection is an intentional blind spot; a protected draft/source snapshot plus its save receipt is the fallback evidence. Account-selector regressions cover colliding suffixes, exact full-ID selection, keyboard commit, abandoned search, revoked rows and disabled input. Defaults reads replayed on opening an existing Launch never propose replacing its inputs; generation/retry locks discard stale decisions, including responses arriving after unlock. launch-offer-defaults-ui and launch-defaults-actions verify the race without emitting apply success or collecting profile values. Save-before-leave reuses protected save_draft attempts and retains the editor on failure; outside/Back/section exits and in-flight saves are covered in launch-workspace-ui. Copy completion retains copy_launch receipts and a dated notice with a read-only reopen action; notification failure cannot repeat a confirmed copy. Local filter/search persistence and warning suppression do not collect their values or pointer activity. Missing save acknowledgment, UI delivery or an interrupted browser remains unknown, independently of server commit. Optional RK assignment reuses assign_account/release_account CAS receipts and visible confirmation; no reservation is required for generation or copying. Native team:process_terminal journal records correlate operationId, last stage and a closed error code; unavailable or delayed forwarding remains unknown. A proved SOURCE_CHANGED finalize rejection persists a failed child for settlement and explicit retry; transport/commit uncertainty never authorizes replacement. tests/process-finalize.test.ts, process-output-ownership-sql and launch-generation-hook cover metadata-only revisions, changed or unknown bytes, a legacy failed native child, and cancellation without waiting for native acknowledgment. Cancellation acceptance and cleanup completion remain separate outcomes; a receipt includes authoritative readback, not proof that the cleanup or result reached the browser. The leased cleanup worker can recover a lost agent acknowledgment from a complete exact marked binary; registered outputs are retained and incomplete proof stays unknown. analytics_launch_cleanup exposes only phase and receipt booleans with generation/operation IDs through inspect/investigate. Older servers explicitly report the missing projection; no missing receipt is treated as no side effect. launch-state verifies this path from actual SQL through getLaunchEvidence. The strip now retains confirmed phase receipts through partial/stale reads and disconnection without emitting new completion signals. Parent attemptNo, phase-specific step attempts and native child identity fence resets; launch-progress-memory, launch-progress and launch-operation-observation cover these transitions. Retained UI evidence never replaces the server terminal or browser visibility signal. Visible active launches reconcile parent and child automatically with bounded nonoverlapping reads; the persistent attempt clock is independent of stages and is not progress evidence. Original-video recovery uses the existing correlated cancel/save/generate seams and commits restitchEnabled=false for later catalog updates; launch-original-video covers confirmed cancellation, bounded cleanup waiting and changed-generation/draft fences. Uncommitted recovery selection and never-observed historical duration remain unknown. team-operation-recovery verifies failed/canceled process_terminal replay into the initial native SSE snapshot across restart, with original timestamp and safe code; absent or evicted records stay unknown. team-bridge preserves the existing closed media refusal reasons, with analytics-code-map lookup coverage. No timer tick is telemetry. Retained finalized-video receipts normalize an accepted retry to the catalog phase without rewriting the server stage. A request-level lease conflict while the generation is active remains reconciliation, with automatic reads and no claim of another device or terminal failure; launch-progress and launch-progress-memory verify that authoritative failure still stops progress.'
+    note: 'Current Launch assignments reuse typed assign_account/release_account intent, acceptance and visible events, independent flow IDs, CAS and durable actor-scoped receipts. inspect/investigate read the bounded content-free analytics_launch_assignments view; missing snapshots, browser delivery and as-of history remain unknown. Availability is independent of financial dates, display truncation and generation state. Settings-editor loading uses generic 031 operation_started/completed/failed/cancelled with flow_step=launch_settings_editor, stable flow and distinct retry attempt IDs. Completion follows the committed editor subtree; pending close cancels. LAUNCH_EDITOR_LOAD_FAILED maps to team/library without collecting raw import messages or URLs. The launches.editor capability isolates these generic events by their closed flow_step discriminator in audit and inspect. inspect joins the restricted Launch diagnostic projection. Server stages remain authoritative; missing browser events and unsettled child cleanup are not inferred as success. Launch creative preview reuses team.preview attempt correlation, safe error codes and protected media access; aliases, names and signed media URLs are never telemetry. Dictionary rename/archive/restore use closed action names and flow IDs without names or search content; permission, conflict and replay receipts prove commit, while missing UI delivery remains unknown. One persistent edit-status row exposes pending save and preparation state; Generate keeps its caption and links to this status, while copy waits for confirmed changes; indicator visibility is not commit evidence and URL content is never collected. The compact update review lists affected outputs and retains existing generate/abandon correlation; viewing it is not evidence that processing started, and no configuration content is collected. Autosave reuses save_draft action correlation and protected authoritative versions; retry reuses its request key, conflicts stop writes, and unacknowledged RAM edits remain an explicit reload blind spot. Literal SUB aliases sub1/sub_1 through sub3/sub_3 share the same detection and lossless patching; no URL content or credentials are added to diagnostics. Date shortcuts resolve in the launch timezone and use the existing saved revision, validation and generation lifecycle; unsaved date clicks are intentionally unobserved. Budget bounds share the typed preview and server validator; invalid or too narrow integer ranges stop at validation with LAUNCH_BUDGET_INVALID. Saved revisions prove the chosen bounds; unsaved field edits are intentionally unobserved. Unified Launch progress uses current-attempt durable receipts and matching native snapshots, never timer-estimated stage completion. Bounded workspace reads report the closed WORKSPACE_READ_TIMEOUT fingerprint without content; it proves a browser deadline, not server cancellation, domain identity or a failed mutation. Coalescing and hidden-tab cancellation are verified by synthetic regressions; remote per-domain in-flight counters remain unavailable. A manual confirmation settles after its own fresh read instead of waiting for unrelated future invalidations; same-scope snapshots invalidated by a local write defer confirmation until a replacement actually applies. core and explorer regressions cover continued indexing, replacement, real failure and unmount without claiming remote browser paint. Catalog cache invalidation is separate from connection health; a stale observation preserves confirmed fill without declaring failure or completion. Older generation versions are rejected, and observed fill resets for another attempt. Visual stability is verified by progress and workspace regressions, not inferred from telemetry. Recovery actions share the progress card. Repeat reconciles a lost acceptance reply before choosing the same generation retry, and a discovered terminal restitch child is bound before settlement. A stale waiting snapshot is settled before retry selection; cancellation and successful completion never authorize replacement. Hook and runner regressions cover Drive failure, lost replies, retained retry keys and same-click recovery. Retry acceptance is not result delivery; the protected generation/child receipt plus existing terminal and visible signals remain separate evidence. A red error notice distinguishes confirmed stopped execution from a lost response; disconnected observation remains warning/unknown. Presentation never emits an invented terminal or changes retry keys. Quiet/disconnected observations trigger one bounded status read and remain last-confirmed/unknown; native media work has no network-reply deadline. Lost mutation replies keep their exact keys with LAUNCH_RESULT_UNCERTAIN, and authoritative terminal receipts release old UI waits without replaying processing. Scroll gestures and quiet-time notices are not independent executor evidence. Launches without saved restitch settings freeze automatic source-frame mode; automatic_frame_started/completed/failed journal records correlate to the child operation without media content. Frame completion does not prove video or catalog delivery; existing finalized-material and registered-catalog receipts remain authoritative. A pre-acceptance RESTITCH_INVALID refusal records generate/failure with the flow and saved launch IDs, releases the pending request and preserves the draft for correction; there is no accepted run to infer. Beta disables analytics, so hook regressions and local UI checks provide evidence for this path. Reuse provenance is projected as opaque video operation and origin generation IDs plus the source catalog revision; launch-state exercises actual SQL receipts through the read-only CLI, while launch-analytics covers unavailable and malformed evidence. Historical duration reuse is rejected against the original processing revision. A receipt proves origin, not browser visibility or the reason for an absent child. Duration bounds are validated configuration; a random duration is drawn once into durable restitch preparation and reused on retry. Missing Launch images retain RESTITCH_POOL_EMPTY at restitch_preparing in the diagnostic projection; tests/launch-state.test.ts covers shared, inherited, personal and truly empty pools. Image recovery links consume that same closed code. Parallel grant reads do not claim a measured end-to-end speedup; bounded coordination timeouts remain LAUNCH_RESULT_UNCERTAIN, and late replies cannot start obsolete native work. Pre-acceptance generate clicks during upload, source refresh or dictionary save finish the existing flow as blocked/WRONG_STATE with visible preparation feedback; unexpected preflight failures surface through the same blocked seam. launch-workspace-ui verifies the correlated blocked signal and absence of a generation request. Unsaved budget keystrokes/focus are intentionally unobserved; launch-budget-editing verifies retained focus and deferred validation. Missing browser delivery remains unknown; a blocked client intent does not imply an accepted server run. Pointer gestures and unsaved duration edits are intentionally unobserved; validation regressions and saved revision/preparation evidence cover the outcome without collecting pointer telemetry. Versioned catalog SUBs stay pending in the editor; catalog_planning binds the durable name reservation, and catalog_registering commits the resolved URL only with a matching registered catalog. The intent checkpoint and revision baseline are fallback evidence; names and SUB contents are never telemetry. Missing registration cannot prove resolution reached the user. Restitched catalog registration validates its staged SUB binding before publication; launch-state covers the combined restitch/versioned-name path through SQL and getLaunchEvidence, rejecting absent bindings and stale URLs without collecting their values. Ad-account selection keeps stable row IDs and the existing source-refresh, save_draft and generation diagnostic path. Local search text, full advertising IDs and social names are never telemetry. Searching or abandoning a search is not a saved choice; missing/archived options remain explicit in the UI and source validation. Unsubmitted selection is an intentional blind spot; a protected draft/source snapshot plus its save receipt is the fallback evidence. Account-selector regressions cover colliding suffixes, exact full-ID selection, keyboard commit, abandoned search, revoked rows and disabled input. Defaults reads replayed on opening an existing Launch never propose replacing its inputs; generation/retry locks discard stale decisions, including responses arriving after unlock. launch-offer-defaults-ui and launch-defaults-actions verify the race without emitting apply success or collecting profile values. Save-before-leave reuses protected save_draft attempts and retains the editor on failure; outside/Back/section exits and in-flight saves are covered in launch-workspace-ui. Copy completion retains copy_launch receipts and a dated notice with a read-only reopen action; notification failure cannot repeat a confirmed copy. Local filter/search persistence and warning suppression do not collect their values or pointer activity. Missing save acknowledgment, UI delivery or an interrupted browser remains unknown, independently of server commit. Optional RK assignment reuses assign_account/release_account CAS receipts and visible confirmation; no reservation is required for generation or copying. Native team:process_terminal journal records correlate operationId, last stage and a closed error code; unavailable or delayed forwarding remains unknown. A proved SOURCE_CHANGED finalize rejection persists a failed child for settlement and explicit retry; transport/commit uncertainty never authorizes replacement. tests/process-finalize.test.ts, process-output-ownership-sql and launch-generation-hook cover metadata-only revisions, changed or unknown bytes, a legacy failed native child, and cancellation without waiting for native acknowledgment. Cancellation acceptance and cleanup completion remain separate outcomes; a receipt includes authoritative readback, not proof that the cleanup or result reached the browser. The leased cleanup worker can recover a lost agent acknowledgment from a complete exact marked binary; registered outputs are retained and incomplete proof stays unknown. analytics_launch_cleanup exposes only phase and receipt booleans with generation/operation IDs through inspect/investigate. Older servers explicitly report the missing projection; no missing receipt is treated as no side effect. launch-state verifies this path from actual SQL through getLaunchEvidence. The strip now retains confirmed phase receipts through partial/stale reads and disconnection without emitting new completion signals. Parent attemptNo, phase-specific step attempts and native child identity fence resets; launch-progress-memory, launch-progress and launch-operation-observation cover these transitions. Retained UI evidence never replaces the server terminal or browser visibility signal. Visible active launches reconcile parent and child automatically with bounded nonoverlapping reads; the persistent attempt clock is independent of stages and is not progress evidence. Original-video recovery uses the existing correlated cancel/save/generate seams and commits restitchEnabled=false for later catalog updates; launch-original-video covers confirmed cancellation, bounded cleanup waiting and changed-generation/draft fences. Uncommitted recovery selection and never-observed historical duration remain unknown. team-operation-recovery verifies failed/canceled process_terminal replay into the initial native SSE snapshot across restart, with original timestamp and safe code; absent or evicted records stay unknown. team-bridge preserves the existing closed media refusal reasons, with analytics-code-map lookup coverage. No timer tick is telemetry. Retained finalized-video receipts normalize an accepted retry to the catalog phase without rewriting the server stage. A request-level lease conflict while the generation is active remains reconciliation, with automatic reads and no claim of another device or terminal failure; launch-progress and launch-progress-memory verify that authoritative failure still stops progress. Missing native executor before catalog-video admission is the existing nonretryable AGENT_REQUIRED outcome, distinct from actual transport failure; launch-catalog-video-admission verifies no generation is accepted, READY reuse and source-only work remain available. The original attempt keys stay separate from an older successful generation, and known setup refusal releases only the unaccepted UI intent. No broad recovery opt-in is automatic. Without delivered browser failure evidence, a pre-admission refusal has no authoritative generation row and its cause remains unobserved.'
   },
   /* --------------------------------------------------------------------- *
    * Local tools
@@ -1063,9 +1211,12 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     start: [{ event: 'team_file_attempt_started', correlate: 'attempt_id' }],
     terminal: [{ event: 'team_file_attempt_completed', correlate: 'attempt_id' }],
     platforms: BOTH,
-    unobservable: ['share: Drive sharing dialog outcome'],
+    unobservable: [
+      'browser save-to-disk after download handoff; clipboard contents after copying and link use in another application'
+    ],
     producerStatus: 'emitted',
-    source: 'events'
+    source: 'events',
+    note: 'Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery.'
   },
   {
     id: 'team.browser_folder_upload',
@@ -1120,7 +1271,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: ['material content'],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Catalog restitch processing includes a Drive result upload. Explorer queue jobs also emit workflow start/terminal before requesting a grant; a late cloud receipt canceled before agent dispatch retains its run_id and workflow_id. tests/agent-queue-cancel.test.tsx covers early cancellation, local grant cancellation, fresh queued work and durable cancellation. A canceled pre-grant workflow has no operation id; final file delivery and provider cleanup remain separate evidence. Local acknowledged-byte progress is covered by tests/team-transfer-upload.test.ts and partial acknowledgements/terminal states by tests/team-bridge.test.ts. Workflow lifecycle events do not establish per-request latency or a measured upload speedup.'
+    note: 'Catalog restitch processing includes a Drive result upload. Explorer queue jobs also emit workflow start/terminal before requesting a grant; a late cloud receipt canceled before agent dispatch retains its run_id and workflow_id. tests/agent-queue-cancel.test.tsx covers early cancellation, local grant cancellation, fresh queued work and durable cancellation. A canceled pre-grant workflow has no operation id; final file delivery and provider cleanup remain separate evidence. Local acknowledged-byte progress is covered by tests/team-transfer-upload.test.ts and partial acknowledgements/terminal states by tests/team-bridge.test.ts. Workflow lifecycle events do not establish per-request latency or a measured upload speedup. Native source downloads validate advertised binary MD5 against actual complete-range bytes before tool dispatch, discarding interrupted prefixes from the digest. The process terminal carries only a safe sourceIntegrityReason; the journal sanitizer, real ingestion and SELECT-only inspect retain it. No checksums, paths or bytes are collected. A missing checksum remains unverified legacy input; absent forwarded terminal or reason remains a blind spot. This does not establish frozen-root authority or native restitch capability.'
   },
   {
     id: 'team.restitch',

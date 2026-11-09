@@ -368,7 +368,8 @@ export function WorkspaceShell({
       can('process') &&
       agent?.teamWorkspaceAvailable === true,
     // A page older than the space's re-stitch settings is told so once and stops claiming (030).
-    onOutdated: () => push({ tone: 'error', text: t('teamRestitchClientOutdated') })
+    onOutdated: () => push({ tone: 'error', text: t('teamRestitchClientOutdated') }),
+    onAgentOutdated: () => push({ tone: 'error', text: t('teamRestitchAgentTooOld') })
   });
 
   /** An explorer address that keeps the current folder and view. */

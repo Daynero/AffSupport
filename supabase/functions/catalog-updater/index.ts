@@ -1,3 +1,12 @@
+import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
+import { createTargetedCatalogPublicationIo } from './publication-io.ts';
+import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import {
+  settleCatalogUpdaterVariantTargets,
+  prepareScheduledCatalogVideoSets
+} from '../drive-ops/updater-variants.ts';
+import { runCatalogPublicationScheduler } from './publication-authority.ts';
+import { prepareCatalogClaims } from './claim-preparation.ts';
 import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
@@ -62,7 +71,8 @@ Deno.serve(async request => {
   try {
     await requireNamedWorkerSecret(request);
     const service = serviceClient();
-    const workerId = `catalog-updater:${crypto.randomUUID()}`;
+    const publicationWorkerId = crypto.randomUUID();
+    const workerId = `catalog-updater:${publicationWorkerId}`;
     // Text schedules must run even when no catalog is due or Drive OAuth is unavailable.
     await runCatalogTextScheduleTickSafely((name, parameters) =>
       rpcValue(service, name, parameters)
@@ -70,10 +80,26 @@ Deno.serve(async request => {
     // Recover already completed Launch children and provider-free cancellations even
     // when there are no updater rounds and no browser is connected. Unknown provider
     // outcomes remain unsettled for the ownership-aware recovery path.
+    await rpcValue(service, 'service_settle_catalog_video_cancellations', { p_limit: 3 });
     await rpcValue(service, 'service_settle_launch_restitch_cancellations', { p_limit: 3 });
     await rpcValue(service, 'service_settle_launch_restitch_batch', { p_limit: 3 });
     const launches = await rpcValue(service, 'service_settle_launch_batch', { p_limit: 3 });
 
+    const targetedNativeSheets =
+      Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
+      nativeRestitchBetaEnabled({
+        enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+        environment: Deno.env.get('SOTY_ENVIRONMENT'),
+        oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+        siteUrl: Deno.env.get('WISHLY_SITE_URL')
+      });
+    let publications: Awaited<ReturnType<typeof runCatalogPublicationScheduler>> | undefined;
+    if (!targetedNativeSheets)
+      publications = await runCatalogPublicationScheduler({
+        service,
+        workerId: publicationWorkerId,
+        io: null
+      });
     const signals = { siteUrl: Deno.env.get('WISHLY_SITE_URL') };
     const oauthMode = Deno.env.get('DRIVE_OAUTH_MODE');
     requireDriveOAuthGate(signals, oauthMode);
@@ -105,6 +131,13 @@ Deno.serve(async request => {
       }
       return drive;
     };
+    if (targetedNativeSheets)
+      publications = await runCatalogPublicationScheduler({
+        service,
+        workerId: publicationWorkerId,
+        io: createTargetedCatalogPublicationIo(service, publicationWorkerId, driveFor)
+      });
+    await settleCatalogUpdaterVariantTargets(service, driveFor);
     // Start the bounded one-file cleanup independently of catalog work. Always
     // join it below, including catalog failure, so it survives a quiet catalog
     // without becoming unobserved work after the request has returned.
@@ -134,12 +167,30 @@ Deno.serve(async request => {
             item.drive_file_id,
             typeof item.resource_key === 'string' ? item.resource_key : null
           );
-          const outcome = classifyCatalogReadback(file, {
-            fileId: item.drive_file_id,
-            marker: item.marker,
-            baselineVersion:
-              typeof item.baseline_version === 'string' ? item.baseline_version : null
-          });
+          const nativeNonVideo =
+            (await rpcValue(service, 'service_read_catalog_nonvideo_reconciliation', {
+              p_item: item.catalog_material_id,
+              p_marker: item.marker
+            })) === true;
+          const nativeMarker = nativeNonVideo
+            ? (
+                await drive.readNativeSpreadsheetMarkers(
+                  item.drive_file_id,
+                  CATALOG_NONVIDEO_MARKER
+                )
+              ).includes(item.marker)
+            : false;
+          const outcome =
+            nativeMarker &&
+            !file.trashed &&
+            file.mimeType === 'application/vnd.google-apps.spreadsheet'
+              ? 'delivered'
+              : classifyCatalogReadback(file, {
+                  fileId: item.drive_file_id,
+                  marker: item.marker,
+                  baselineVersion:
+                    typeof item.baseline_version === 'string' ? item.baseline_version : null
+                });
           if (outcome !== 'inconclusive') {
             await rpcValue(service, 'service_resolve_catalog_reconciliation', {
               p_item: item.catalog_material_id,
@@ -169,9 +220,18 @@ Deno.serve(async request => {
         pending: 1,
         unavailable: true
       }));
+      let claimQuarantined = 0;
+      let claimStale = 0;
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
+          ...(targetedNativeSheets
+            ? { prepareNonVideoUpdate: createCatalogNonVideoUpdater(service, workerId, driveFor) }
+            : {}),
+          authorizeLegacyVideoWrite: async catalogId =>
+            (await rpcValue(service, 'service_catalog_publication_allows_legacy_write', {
+              p_catalog: catalogId
+            })) === true,
           readImageLink: async teamId => {
             const rows = await rpcValue(service, 'service_get_team_product_catalog_settings', {
               p_team: teamId
@@ -231,37 +291,19 @@ Deno.serve(async request => {
           openRounds: async () =>
             Number(await rpcValue(service, 'service_open_catalog_updater_rounds', {})) || 0,
           claim: async (limit, leaseSeconds) => {
+            await prepareScheduledCatalogVideoSets(service, driveFor);
             const rows = await rpcValue(service, 'service_claim_catalog_updater_items', {
               p_worker: workerId,
               p_limit: limit,
               p_lease_seconds: leaseSeconds
             });
             if (!Array.isArray(rows)) return [];
-            return Promise.all(
-              rows.map(async row => {
-                if (
-                  !row ||
-                  typeof row !== 'object' ||
-                  !('team_id' in row) ||
-                  typeof row.team_id !== 'string' ||
-                  !('catalog_material_id' in row) ||
-                  typeof row.catalog_material_id !== 'string'
-                )
-                  return row;
-                const mode = await rpcValue(service, 'service_catalog_image_mode_v2', {
-                  p_team: row.team_id
-                });
-                if (mode !== 'v2') return row;
-                const imageAttempt = await rpcValue(
-                  service,
-                  'service_catalog_image_update_attempt_v2',
-                  { p_catalog: row.catalog_material_id, p_worker: workerId }
-                );
-                if (typeof imageAttempt !== 'string')
-                  throw new TeamFunctionError('INVALID_RESPONSE');
-                return { ...row, image_attempt_id: imageAttempt };
-              })
+            const prepared = await prepareCatalogClaims(rows, workerId, (name, parameters) =>
+              rpcValue(service, name, parameters)
             );
+            claimQuarantined += prepared.quarantined;
+            claimStale += prepared.stale;
+            return prepared.rows;
           },
           driveFor,
           progress: async (catalogId, stage) =>
@@ -271,16 +313,24 @@ Deno.serve(async request => {
               p_stage: stage
             })) === true,
           beginWrite: async (catalogId, input) =>
-            (await rpcValue(service, 'service_begin_catalog_update_write', {
-              p_item: catalogId,
-              p_worker: workerId,
-              p_marker: input.marker,
-              p_baseline_version: input.baselineVersion,
-              p_expected_count: input.expectedCount,
-              p_swapped_copy: input.swappedCopy,
-              p_product_count: input.became.productCount,
-              p_settings_snapshot: input.became.snapshot
-            })) === true,
+            (await rpcValue(
+              service,
+              input.nonVideoContextToken
+                ? 'service_begin_catalog_nonvideo_update_write'
+                : 'service_begin_catalog_update_write',
+              {
+                p_item: catalogId,
+                p_worker: workerId,
+                p_marker: input.marker,
+                p_baseline_version: input.baselineVersion,
+                p_expected_count: input.expectedCount,
+                ...(input.nonVideoContextToken
+                  ? { p_context_token: input.nonVideoContextToken }
+                  : { p_swapped_copy: input.swappedCopy }),
+                p_product_count: input.became.productCount,
+                p_settings_snapshot: input.became.snapshot
+              }
+            )) === true,
           finishWrite: async catalogId =>
             (await rpcValue(service, 'service_finish_catalog_update_write', {
               p_item: catalogId
@@ -357,7 +407,12 @@ Deno.serve(async request => {
       );
       return successResponse({
         ...summary,
+        claimed: summary.claimed + claimQuarantined + claimStale,
+        skipped: summary.skipped + claimQuarantined + claimStale,
+        claimQuarantined,
+        claimStale,
         launches,
+        publications,
         launchCleanup,
         launchVideoCleanup,
         processOutputCleanup: await processCleanup

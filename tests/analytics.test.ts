@@ -74,6 +74,71 @@ describe('privacy-minimized analytics', () => {
     });
   });
 
+  it('preserves typed share and surface through the delivery sanitizer', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    const flow = startTeamFileAttempt(
+      {
+        action: 'share',
+        surface: 'catalog_manager',
+        storageKind: 'shared_drive',
+        sizeBucket: 'tiny'
+      },
+      { tracker: service }
+    );
+    completeTeamFileAttempt(flow, { outcome: 'success', retryable: false }, { tracker: service });
+    await service.flush();
+    const events = sender.mock.calls[0][0];
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      attempt_id: flow.attemptId,
+      properties: { action: 'share', file_surface: 'catalog_manager', outcome: 'success' }
+    });
+  });
+
+  it('suppresses an old file terminal after the analytics actor changes', async () => {
+    const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
+      acceptedEventIds: events.map(event => event.event_id)
+    }));
+    const service = new ProductAnalytics(sender, new MemoryStorage());
+    service.setUser('11111111-1111-4111-8111-111111111111');
+    const flow = startTeamFileAttempt(
+      { action: 'download', storageKind: 'my_drive', sizeBucket: 'tiny' },
+      { tracker: service }
+    );
+    service.setUser('22222222-2222-4222-8222-222222222222');
+    completeTeamFileAttempt(
+      flow,
+      { outcome: 'success', delivery: 'agent_saved', retryable: false },
+      { tracker: service }
+    );
+    await service.flush();
+    expect(
+      sender.mock.calls
+        .flatMap(([events]) => events)
+        .filter(event => event.attempt_id === flow.attemptId)
+    ).toHaveLength(0);
+  });
+
+  it('keeps the file lifecycle callable when diagnostic tracking throws', () => {
+    const tracker = {
+      track: vi.fn(() => {
+        throw new Error('offline diagnostics');
+      })
+    };
+    const flow = startTeamFileAttempt(
+      { action: 'share', storageKind: 'my_drive', sizeBucket: 'tiny' },
+      { tracker }
+    );
+    expect(() =>
+      completeTeamFileAttempt(flow, { outcome: 'success', retryable: false }, { tracker })
+    ).not.toThrow();
+    expect(flow.completed).toBe(true);
+  });
+
   it('emits content-free file attempt and processing workflow lifecycles', async () => {
     const sender = vi.fn(async (events: PendingAnalyticsEvent[]) => ({
       acceptedEventIds: events.map(event => event.event_id)
@@ -126,6 +191,7 @@ describe('privacy-minimized analytics', () => {
     expect(delivered[1].attempt_id).toBe(fileAttempt.attemptId);
     expect(delivered[1].properties).toEqual({
       action: 'download',
+      file_surface: 'material',
       storage_kind: 'shared_drive',
       size_bucket: 'agent',
       cache_state: 'cold',
@@ -417,4 +483,49 @@ describe('privacy-minimized analytics', () => {
     expect(executableSql).toMatch(/on conflict do nothing/i);
     expect(executableSql).not.toMatch(/on conflict\s*\(\s*event_id\s*\)/i);
   });
+});
+
+it.each(['browser_handoff', 'agent_saved'] as const)(
+  'separates %s from proven file production',
+  delivery => {
+    const track = vi.fn();
+    const flow = startTeamFileAttempt(
+      { action: 'download', storageKind: 'unknown', sizeBucket: 'tiny' },
+      { tracker: { track } }
+    );
+    completeTeamFileAttempt(
+      flow,
+      { outcome: 'success', retryable: false, delivery },
+      { tracker: { track } }
+    );
+    expect(track.mock.calls.at(-1)?.[1]).toMatchObject({
+      file_delivery: delivery,
+      production_completed: delivery === 'agent_saved'
+    });
+  }
+);
+
+it('keeps team workflow telemetry failures out of the product operation', () => {
+  const tracker = {
+    track: vi.fn(() => {
+      throw Error('TELEMETRY_UNAVAILABLE');
+    })
+  };
+  let flow!: ReturnType<typeof startTeamWorkflow>;
+  expect(() => {
+    flow = startTeamWorkflow({ category: 'video' }, { tracker });
+  }).not.toThrow();
+  expect(() =>
+    completeTeamWorkflow(flow, { outcome: 'success', retryable: false }, { tracker })
+  ).not.toThrow();
+  expect(flow.completed).toBe(true);
+});
+it('does not attribute a late team workflow terminal to a replacement actor', () => {
+  let actor = '11111111-1111-4111-8111-111111111111';
+  const tracker = { track: vi.fn(), journalContext: () => ({ userId: actor }) };
+  const flow = startTeamWorkflow({ category: 'video' }, { tracker });
+  actor = '22222222-2222-4222-8222-222222222222';
+  completeTeamWorkflow(flow, { outcome: 'success', retryable: false }, { tracker });
+  expect(tracker.track).toHaveBeenCalledOnce();
+  expect(flow.completed).toBe(true);
 });

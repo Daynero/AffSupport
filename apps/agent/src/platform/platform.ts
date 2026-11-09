@@ -872,13 +872,17 @@ export function indexedFileSearch(root: string, fileName: string): Promise<strin
 }
 
 /** User-bound secret storage; plaintext travels on stdin, never process arguments. */
+export function isRecoveryCredentialAccount(account: unknown): account is string {
+  return typeof account === 'string' && /^soty-recovery-[a-z0-9-]{1,100}$/u.test(account);
+}
+
 export async function recoveryCredential(
   action: 'read' | 'write' | 'delete',
   account: string,
   value?: string
 ): Promise<string | null> {
   if (
-    !/^soty-recovery-[a-z0-9-]{1,100}$/u.test(account) ||
+    !isRecoveryCredentialAccount(account) ||
     (value !== undefined && !/^[A-Za-z0-9_-]{1,524288}$/u.test(value))
   )
     throw new Error('INVALID_INPUT');

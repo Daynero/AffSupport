@@ -1,3 +1,6 @@
+import type { CatalogVideoForegroundController } from './catalog-video-foreground.js';
+import type { NativeRestitchController } from './native-restitch-controller.js';
+import type { TeamScreenCache } from './screen-cache.js';
 import { createReadStream } from 'node:fs';
 import { recordRetiredCommand } from '../transcription/diagnostics.js';
 import path from 'node:path';
@@ -5,6 +8,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   LIBRARY_JOB_KINDS,
   STITCH_ERROR_CODES,
+  TEAM_ERROR_CODES,
   parseTeamTransferGrant,
   type TeamLandingRenderJob
 } from '@video-compressor/shared';
@@ -23,6 +27,9 @@ import type { RestitchPrepareBridge, RestitchPrepareRequest } from './restitch-p
 import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
 
 export interface TeamBridgeRoutesDeps {
+  screenCache?: TeamScreenCache;
+  nativeRestitch?: NativeRestitchController;
+  catalogForeground?: CatalogVideoForegroundController;
   preview: TeamPreviewBridge;
   process: TeamProcessBridge;
   poster: TeamPosterBridge;
@@ -37,6 +44,9 @@ export interface TeamBridgeRoutesDeps {
 export function registerTeamBridgeRoutes(
   app: FastifyInstance,
   {
+    screenCache,
+    nativeRestitch,
+    catalogForeground,
     preview,
     process,
     poster,
@@ -48,6 +58,117 @@ export function registerTeamBridgeRoutes(
     acceptingNewTasks
   }: TeamBridgeRoutesDeps
 ) {
+  app.get('/api/team/catalog-video/foreground/capabilities', async () => ({
+    protocolVersion: catalogForeground ? 1 : 0,
+    available: Boolean(catalogForeground)
+  }));
+  for (const action of ['prepare', 'attach'] as const)
+    app.post<{ Body: unknown }>(
+      '/api/team/catalog-video/foreground/' + action,
+      async (request, reply) => {
+        if (!catalogForeground) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+        if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+        try {
+          const result = await catalogForeground[action](request.body);
+          return reply.code(action === 'attach' ? 202 : 200).send(result);
+        } catch (error) {
+          const code =
+            error instanceof Error &&
+            [
+              'INVALID_INPUT',
+              'PERMISSION_DENIED',
+              'REQUEST_REUSE_CONFLICT',
+              'WRONG_STATE',
+              'PROCESS_RESULT_UNCERTAIN',
+              'INVALID_RESPONSE'
+            ].includes(error.message)
+              ? error.message
+              : 'PROCESS_RESULT_UNCERTAIN';
+          return reply.code(409).send({ error: code });
+        }
+      }
+    );
+  app.get<{ Querystring: { teamId?: unknown; scope?: unknown } }>(
+    '/api/team/restitch/screen-refusals',
+    async (request, reply) => {
+      if (!screenCache) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+      const { teamId, scope } = request.query;
+      if (
+        typeof teamId !== 'string' ||
+        !/^[0-9a-f-]{36}$/iu.test(teamId) ||
+        typeof scope !== 'string' ||
+        scope.length > 128
+      )
+        return reply.code(400).send({ error: 'INVALID_INPUT' });
+      return {
+        refusals:
+          scope === '*'
+            ? await screenCache.refusalHistory(teamId)
+            : await screenCache.refused(teamId, scope)
+      };
+    }
+  );
+  app.get('/api/team/restitch/native/capabilities', async () => ({
+    protocolVersion: nativeRestitch ? 1 : 0,
+    available: Boolean(nativeRestitch)
+  }));
+  app.post<{ Body?: unknown }>('/api/team/restitch/native/prepare', async (request, reply) => {
+    if (!nativeRestitch) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const body = request.body;
+    if (
+      !record(body) ||
+      typeof body.rootOperationId !== 'string' ||
+      typeof body.teamId !== 'string'
+    )
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await nativeRestitch.prepare({
+        rootOperationId: body.rootOperationId,
+        teamId: body.teamId
+      });
+    } catch (error) {
+      return routeFailure(reply, error, 'PROCESS_FAILED');
+    }
+  });
+  app.post<{ Body?: unknown }>('/api/team/restitch/native/redeem', async (request, reply) => {
+    if (!nativeRestitch) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const body = request.body;
+    if (!record(body) || typeof body.enrollmentId !== 'string')
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      await nativeRestitch.redeem(body.enrollmentId);
+      return { ready: true };
+    } catch (error) {
+      return routeFailure(reply, error, 'PROCESS_FAILED');
+    }
+  });
+  app.post<{ Body?: unknown }>('/api/team/restitch/native/download', async (request, reply) => {
+    if (!nativeRestitch) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    const body = request.body;
+    if (!record(body) || typeof body.enrollmentId !== 'string')
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
+    const input = downloadRequest(body.request);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await nativeRestitch.download(body.enrollmentId, input);
+    } catch (error) {
+      return routeFailure(reply, error, 'DOWNLOAD_FAILED');
+    }
+  });
+  app.post<{ Body?: unknown }>('/api/team/restitch/native/reconcile', async (request, reply) => {
+    if (!nativeRestitch) return reply.code(501).send({ error: 'AGENT_UPDATE_REQUIRED' });
+    const body = request.body;
+    if (!record(body) || typeof body.enrollmentId !== 'string')
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
+    try {
+      return await nativeRestitch.reconcile(body.enrollmentId);
+    } catch (error) {
+      return routeFailure(reply, error, 'PROCESS_FAILED');
+    }
+  });
   app.get('/api/team/events', events.handler);
   app.get('/api/team/landings/events', events.handler);
 
@@ -88,6 +209,10 @@ export function registerTeamBridgeRoutes(
   app.post<{ Params: { operationId: string } }>(
     '/api/team/download/:operationId/cancel',
     async (request, reply) => {
+      if (nativeRestitch?.cancelOperation(request.params.operationId)) {
+        await nativeRestitch.waitOperation(request.params.operationId);
+        return { canceled: true };
+      }
       const canceled = download.cancel(request.params.operationId);
       if (!canceled) return reply.code(404).send({ error: 'NOT_FOUND' });
       return { canceled: true };
@@ -608,6 +733,7 @@ function safeErrorCode(
 ) {
   const value = error instanceof Error ? error.message : '';
   return (STITCH_ERROR_CODES as readonly string[]).includes(value) ||
+    (TEAM_ERROR_CODES as readonly string[]).includes(value) ||
     [
       'FEATURE_RETIRED',
       'INVALID_INPUT',

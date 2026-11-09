@@ -107,11 +107,11 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
       });
     await sql(migrations.join('\n'), false);
     if (process.env.SOTY_GENERATE_RECOVERY_DB_TYPES === '1') {
-      const status = await run('npx', ['supabase', 'status', '--output', 'json'], {
-        maxBuffer: 1024 * 1024
-      });
-      const local = JSON.parse(status.stdout) as { DB_URL: string };
-      const url = new URL(local.DB_URL);
+      // The disposable acceptance DB has its own port. The running beta's status
+      // URL addresses a different database and must never be used for this read.
+      const isolated = process.env.SOTY_TEST_POSTGRES_URL;
+      if (!isolated) throw new Error('ISOLATED_TYPES_DATABASE_URL_REQUIRED');
+      const url = new URL(isolated);
       if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
         throw new Error('Local database required.');
       url.pathname = `/${database}`;

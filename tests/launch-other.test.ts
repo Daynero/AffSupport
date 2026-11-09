@@ -129,7 +129,9 @@ it('does not accept work after live source proof fails, and does not leak unknow
       details: { reason: 'UNKNOWN_CAUSE' }
     });
     expect(d.serviceSpy.mock.calls.map(([name]) => name)).toEqual(['service_launch_sources']);
-    expect(log).not.toHaveBeenCalled();
+    // A content-free diagnostic (error class and code frames) is allowed; the content is not.
+    expect(JSON.stringify(log.mock.calls)).not.toContain(secret);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('example.invalid');
   } finally {
     log.mockRestore();
   }

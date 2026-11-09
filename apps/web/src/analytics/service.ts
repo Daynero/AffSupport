@@ -1,3 +1,4 @@
+import { captureAnalyticsActor, type AnalyticsActorSource } from './actorScope';
 import {
   PRODUCT_VERSION,
   type MaterialCategory,
@@ -733,7 +734,7 @@ function safeAgentPlatform(value: unknown): AgentAnalyticsPlatform | null {
 export const analytics = new ProductAnalytics();
 bindJournalContext(() => analytics.journalContext());
 
-type AnalyticsTracker = Pick<ProductAnalytics, 'track'>;
+type AnalyticsTracker = Pick<ProductAnalytics, 'track'> & AnalyticsActorSource;
 
 /** 011 — a root (or a set of picked folders) was connected. */
 export function trackTeamStorageConnected(
@@ -828,9 +829,23 @@ export function trackTeamLandingRender(
   });
 }
 
+const fileAttemptActors = new WeakMap<TeamFileAttemptFlow, () => boolean>();
+const workflowActors = new WeakMap<TeamWorkflowFlow, () => boolean>();
+
+/** A processing terminal retains its original analytics actor. */
+export function isTeamWorkflowCurrent(flow: TeamWorkflowFlow): boolean {
+  return workflowActors.get(flow)?.() ?? true;
+}
+
+/** Late file errors and terminals cannot borrow a replacement user's analytics envelope. */
+export function isTeamFileAttemptCurrent(flow: TeamFileAttemptFlow): boolean {
+  return fileAttemptActors.get(flow)?.() ?? true;
+}
+
 export interface TeamFileAttemptFlow {
   attemptId: string;
   action: TeamAnalyticsAction;
+  surface?: 'material' | 'catalog_manager';
   storageKind: TeamAnalyticsStorage;
   sizeBucket: TeamAnalyticsSizeBucket;
   cacheState: TeamAnalyticsCacheState;
@@ -867,6 +882,7 @@ export function teamAnalyticsSizeBucket(
 export function startTeamFileAttempt(
   input: {
     action: TeamAnalyticsAction;
+    surface?: 'material' | 'catalog_manager';
     storageKind: TeamAnalyticsStorage;
     sizeBucket: TeamAnalyticsSizeBucket;
     cacheState?: TeamAnalyticsCacheState;
@@ -878,6 +894,7 @@ export function startTeamFileAttempt(
   const flow: TeamFileAttemptFlow = {
     attemptId: uuid(),
     action: input.action,
+    surface: input.surface ?? 'material',
     storageKind: input.storageKind,
     sizeBucket: input.sizeBucket,
     cacheState: input.cacheState ?? 'unknown',
@@ -885,15 +902,21 @@ export function startTeamFileAttempt(
     startedAt: options.now ?? Date.now(),
     completed: false
   };
-  (options.tracker ?? analytics).track('team_file_attempt_started', {
-    attempt_id: flow.attemptId,
-    action: flow.action,
-    storage_kind: flow.storageKind,
-    size_bucket: flow.sizeBucket,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    stage: input.stage ?? stageForFileAction(flow.action)
-  });
+  fileAttemptActors.set(flow, captureAnalyticsActor(options.tracker ?? analytics));
+  try {
+    (options.tracker ?? analytics).track('team_file_attempt_started', {
+      attempt_id: flow.attemptId,
+      action: flow.action,
+      file_surface: flow.surface ?? 'material',
+      storage_kind: flow.storageKind,
+      size_bucket: flow.sizeBucket,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      stage: input.stage ?? stageForFileAction(flow.action)
+    });
+  } catch {
+    // Diagnostics must not prevent the file operation or hide its result.
+  }
   return flow;
 }
 
@@ -901,6 +924,7 @@ export function completeTeamFileAttempt(
   flow: TeamFileAttemptFlow,
   result: {
     outcome: TeamAnalyticsOutcome;
+    delivery?: 'browser_handoff' | 'agent_saved' | 'url_visible';
     retryable: boolean;
     stage?: TeamAnalyticsStage;
   },
@@ -908,19 +932,28 @@ export function completeTeamFileAttempt(
 ): void {
   if (flow.completed) return;
   flow.completed = true;
-  (options.tracker ?? analytics).track('team_file_attempt_completed', {
-    attempt_id: flow.attemptId,
-    action: flow.action,
-    storage_kind: flow.storageKind,
-    size_bucket: flow.sizeBucket,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
-    stage: result.stage ?? stageForFileAction(flow.action),
-    outcome: result.outcome,
-    retryable: result.retryable,
-    production_completed: result.outcome === 'success'
-  });
+  if (!isTeamFileAttemptCurrent(flow)) return;
+  try {
+    (options.tracker ?? analytics).track('team_file_attempt_completed', {
+      attempt_id: flow.attemptId,
+      action: flow.action,
+      file_surface: flow.surface ?? 'material',
+      storage_kind: flow.storageKind,
+      size_bucket: flow.sizeBucket,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+      stage: result.stage ?? stageForFileAction(flow.action),
+      outcome: result.outcome,
+      retryable: result.retryable,
+      ...(result.delivery ? { file_delivery: result.delivery } : {}),
+      production_completed:
+        result.outcome === 'success' &&
+        (flow.action !== 'download' || result.delivery === 'agent_saved')
+    });
+  } catch {
+    // Diagnostics must not prevent the file operation or hide its result.
+  }
 }
 
 export function startTeamWorkflow(
@@ -940,13 +973,18 @@ export function startTeamWorkflow(
     startedAt: options.now ?? Date.now(),
     completed: false
   };
-  (options.tracker ?? analytics).track('team_workflow_started', {
-    workflow_id: flow.workflowId,
-    category: flow.category,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    stage: input.stage ?? 'downloading'
-  });
+  workflowActors.set(flow, captureAnalyticsActor(options.tracker ?? analytics));
+  try {
+    (options.tracker ?? analytics).track('team_workflow_started', {
+      workflow_id: flow.workflowId,
+      category: flow.category,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      stage: input.stage ?? 'downloading'
+    });
+  } catch {
+    /* Diagnostics must not prevent the processing operation. */
+  }
   return flow;
 }
 
@@ -961,17 +999,22 @@ export function completeTeamWorkflow(
 ): void {
   if (flow.completed) return;
   flow.completed = true;
-  (options.tracker ?? analytics).track('team_workflow_completed', {
-    workflow_id: flow.workflowId,
-    category: flow.category,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
-    stage: result.stage ?? 'finalizing',
-    outcome: result.outcome,
-    retryable: result.retryable,
-    production_completed: result.outcome === 'success'
-  });
+  if (!isTeamWorkflowCurrent(flow)) return;
+  try {
+    (options.tracker ?? analytics).track('team_workflow_completed', {
+      workflow_id: flow.workflowId,
+      category: flow.category,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+      stage: result.stage ?? 'finalizing',
+      outcome: result.outcome,
+      retryable: result.retryable,
+      production_completed: result.outcome === 'success'
+    });
+  } catch {
+    /* The delivered result is independent of telemetry availability. */
+  }
 }
 
 export type CreativeLibraryContributionEventName =

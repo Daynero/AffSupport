@@ -1,0 +1,66 @@
+{
+  "scope": "Actual local beta UI; generated Google Sheets catalog, 400 products",
+  "productionTouched": false,
+  "managerGetLink": {
+    "resolved": true,
+    "selectableUrlVisible": true,
+    "copyButtonClipboardMatchesUrl": true,
+    "existingPublicPermissionObserved": true
+  },
+  "downloads": [
+    {
+      "origin": "manager",
+      "bytes": 66737,
+      "sha256": "8919f07b41d0b44ab254a1abe9c9a6fa8927dd54ca39a2578ecd1e0338054f4d",
+      "xlsxArchiveValid": true,
+      "worksheetRows": 1000,
+      "artifact": "/Volumes/LaCie/DevData/Soty/Temp/047/manual-native/manager-045_QA_video_v36_catalog (1).xlsx",
+      "movedToExternalDisk": true
+    },
+    {
+      "origin": "explorer",
+      "bytes": 66737,
+      "sha256": "f99bd24b9348078393e620d084c7ce2f26ed03d00626721e26c9fa5dab1c2f0a",
+      "xlsxArchiveValid": true,
+      "worksheetRows": 1000,
+      "artifact": "/Volumes/LaCie/DevData/Soty/Temp/047/manual-native/explorer-045_QA_video_v36_catalog (2).xlsx",
+      "movedToExternalDisk": true
+    }
+  ],
+  "limits": [
+    "Restricted/revoked provider permission scenarios and denied clipboard are covered separately; not manually repeated in this walkthrough.",
+    "Manual acceptance of all remaining manager flows remains open."
+  ],
+  "explorerGetLink": {
+    "resolved": true,
+    "selectableUrlVisible": true,
+    "sameExpectedProviderUrl": true
+  },
+  "share": {
+    "manager": {
+      "resolved": true,
+      "selectableUrlVisible": true
+    },
+    "explorer": {
+      "resolved": true,
+      "selectableUrlVisible": true
+    },
+    "preexistingPublicPermission": true
+  },
+  "manualFileOpening": {
+    "manager": "macOS Quick Look rendered workbook table, 402 rows",
+    "explorer": "macOS Quick Look rendered workbook table, 402 rows"
+  },
+  "focusedVerification": {
+    "passed": 89,
+    "files": 7,
+    "log": "scratchpad/catalog-link-manual-followup-tests.log",
+    "includes": [
+      "19 shared UI cases including denied clipboard, double clicks and lost replies",
+      "24 provider resolution cases",
+      "12 SQL permission receipt/ACL cases",
+      "5 producer-to-ingestion/SELECT-only diagnostic cases",
+      "Action registry/surface and catalog permission cases"
+    ]
+  }
+}

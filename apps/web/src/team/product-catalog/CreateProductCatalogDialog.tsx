@@ -1,3 +1,26 @@
+import {
+  isCatalogForegroundAdmissionRefused,
+  isCatalogForegroundPreparationFailure
+} from '../../api/catalog-video-foreground';
+import { CatalogCreatedPublicationStatus } from './CatalogCreatedPublicationStatus';
+import { useOptionalAgent } from '../../AgentContext';
+import { useAgentEventStream } from '../../api/useAgentEventStream';
+import { toolEventUrl } from '../../api/client';
+import { withReadDeadline } from '../readCoordinator';
+import { withCatalogCommandDeadline } from '../catalog-updater/catalogCommandCoordinator';
+import { beginCatalogUiFlow } from '../catalog-updater/analytics';
+import { recoveryInstallation } from '../../api/recovery-installation';
+import {
+  CatalogCreationVideoFields,
+  type CatalogCreationVideoDraft
+} from './CatalogCreationVideoFields';
+import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
+import { builtForEnvironment } from '../../lib/config';
+import { privateCacheActor, privateCacheEpoch } from '../private-cache-scope';
+import type {
+  CatalogCreatedVideoProgress,
+  CatalogVideoPreparingResult
+} from '../../api/catalog-video-creation';
 import { prepareCatalogRestitch } from './catalog-orchestration';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Copy } from 'lucide-react';
@@ -22,7 +45,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { useBrowserRoute } from '../../lib/navigation';
 import { startTeamAgentProcess, agentCanRestitch } from '../../api/client';
 import { teamApi } from '../../api/team';
-import { teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
 import { parseTeamRoute } from '../routes';
@@ -46,6 +69,11 @@ import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
 
 export interface CreateProductCatalogClient {
+  readCatalogPublication?: typeof teamApi.readCatalogPublication;
+  createProductCatalogVideo?: typeof teamApi.createProductCatalogVideo;
+  readProductCatalogVideo?: typeof teamApi.readProductCatalogVideo;
+  cancelProductCatalogVideo?: typeof teamApi.cancelProductCatalogVideo;
+  resumeProductCatalogVideo?: typeof teamApi.resumeProductCatalogVideo;
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
   setProductCatalogSettings?: typeof teamApi.setProductCatalogSettings;
   getRestitchDefaults?: (teamId: string) => Promise<TeamRestitchDefaults | null>;
@@ -128,7 +156,9 @@ export function CreateProductCatalogDialog({
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const { can } = useTeam();
+  const { can, revision: workspaceRevision, updaterRevision } = useTeam();
+  const agent = useOptionalAgent();
+  const nativeTerminals = useRef('');
   const preferenceKey = catalogDurationPreferenceKey(useOptionalAuth()?.user?.id ?? null, teamId);
   const durationPreference = useRef<{
     key: string | null;
@@ -147,6 +177,32 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
+  const videoProtocol =
+    builtForEnvironment() === 'beta' &&
+    import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' &&
+    Boolean(client.createProductCatalogVideo);
+  const [videoDraft, setVideoDraft] = useState<CatalogCreationVideoDraft>({
+    variationCount: '1',
+    delayed: false,
+    date: '',
+    time: '12:00',
+    zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Kyiv'
+  });
+  const [videoPending, setVideoPending] = useState<CatalogVideoPreparingResult | null>(null);
+  const [videoUnknown, setVideoUnknown] = useState(false);
+  const [createdVideo, setCreatedVideo] = useState<CatalogCreatedVideoProgress | null>(null);
+  const createdCatalog = useRef<ProductCatalogCreateResult | null>(null);
+  const deliveredCatalog = useRef<string | null>(null);
+  const videoCommandBusy = useRef(false);
+  const videoReadDirty = useRef(false);
+  const videoFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
+  const videoKey = useRef<string | null>(null);
+  const videoOwner = useRef<{ actor: string | null; epoch: number } | null>(null);
+  const videoStorageKey = privateCacheActor()
+    ? `soty:catalog-video-create:v1:${privateCacheActor()}:${teamId}:${video.id}`
+    : null;
+  const videoCancelId = useRef<string | null>(null);
+
   // Once requested, a read belongs to this dialog, not to the checkbox's visibility.
   const [restitchRequested, setRestitchRequested] = useState(false);
   const [restitchLoadError, setRestitchLoadError] = useState(false);
@@ -272,18 +328,51 @@ export function CreateProductCatalogDialog({
         restitchDefaults !== null &&
         restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) &&
         durationValid)) &&
-    phase.kind === 'form';
+    phase.kind === 'form' &&
+    !videoPending &&
+    !videoUnknown &&
+    (!videoProtocol ||
+      !restitch ||
+      (/^\d+$/u.test(videoDraft.variationCount) &&
+        Number(videoDraft.variationCount) >= 1 &&
+        Number(videoDraft.variationCount) <= (countCheck.ok ? countCheck.value : 0)));
 
   const productTotal = countCheck.ok ? countCheck.value : 0;
+  const showCreated = (result: ProductCatalogCreateResult) => {
+    createdCatalog.current = result;
+    setCreatedVideo(result.videoGenerationObservation ?? result.videoGeneration ?? null);
+    setVideoPending(null);
+    setPhase({
+      kind: 'result',
+      heading:
+        result.outcome === 'existing' ? 'productCatalogAlreadyExists' : 'productCatalogReady',
+      catalog: result.catalog
+    });
+    const progress = result.videoGenerationObservation ?? result.videoGeneration;
+    if (!progress || progress.state === 'ready' || progress.state === 'canceled') {
+      if (videoStorageKey) localStorage.removeItem(videoStorageKey);
+      videoKey.current = null;
+    }
+    if (deliveredCatalog.current !== result.catalog.materialId) {
+      deliveredCatalog.current = result.catalog.materialId;
+      onCreated?.(result);
+    }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setTouched({ link: true, count: true });
     if (!linkCheck.ok || !countCheck.ok || !canConfirm || phase.kind !== 'form') return;
     const run = ++observationRun.current;
+    const submitOwner = { actor: privateCacheActor(), epoch: privateCacheEpoch() };
+    const submitOwns = () =>
+      submitOwner.actor === privateCacheActor() &&
+      submitOwner.epoch === privateCacheEpoch() &&
+      observationRun.current === run;
     setRestitchOperationId(null);
     setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
     setFailureNeedsSettings(false);
+    let submittedVideoKey: string | null = null;
     try {
       // The displayed price range is a usable default even before anyone has saved settings.
       if (settings === null) {
@@ -297,7 +386,81 @@ export function CreateProductCatalogDialog({
             priceMax: PRICE_RANGE_DEFAULT.max
           }
         );
+        if (!submitOwns()) return;
         setSettings(saved);
+      }
+      if (!submitOwns()) return;
+      if (videoProtocol && client.createProductCatalogVideo) {
+        const owner = submitOwner;
+        const owns = () =>
+          owner.actor === privateCacheActor() &&
+          owner.epoch === privateCacheEpoch() &&
+          observationRun.current === run;
+        let publication: Parameters<
+          typeof teamApi.createProductCatalogVideo
+        >[0]['videoPublication'] = { mode: 'immediate' };
+        if (videoDraft.delayed) {
+          const resolved = resolveCatalogPublicationDraft(
+            {
+              localDateTime: `${videoDraft.date}T${videoDraft.time}`,
+              timeZone: videoDraft.zone,
+              choice: videoDraft.occurrence
+            },
+            Date.now()
+          );
+          if (resolved.kind !== 'resolved') throw new Error('INVALID_INPUT');
+          publication = resolved.publication;
+        }
+        const input: Parameters<typeof teamApi.createProductCatalogVideo>[0] = {
+          teamId,
+          videoMaterialId: video.id,
+          sourceLink: linkCheck.value,
+          productCount: countCheck.value,
+          randomLinkVariation: true,
+          replacesMaterialId: replaces?.id ?? null,
+          idempotencyKey: `product-catalog:${crypto.randomUUID()}`,
+          catalogVideoProtocolVersion: 1,
+          restitchEnabled: restitch,
+          ...(restitch ? { expectedExecutorId: recoveryInstallation() ?? undefined } : {}),
+          videoVariationCount: restitch ? Number(videoDraft.variationCount) : 1,
+          videoPublication: publication,
+          ...(restitch
+            ? {
+                restitchDuration: {
+                  finalDurationMode: durationMode,
+                  customFinalDurationSeconds: customSeconds ?? 2700,
+                  ...(duration.finalDurationRangeSeconds
+                    ? { finalDurationRangeSeconds: duration.finalDurationRangeSeconds }
+                    : {})
+                }
+              }
+            : {})
+        };
+        if (!videoStorageKey) throw new Error('AUTH_REQUIRED');
+        localStorage.setItem(videoStorageKey, input.idempotencyKey);
+        videoKey.current = input.idempotencyKey;
+        submittedVideoKey = input.idempotencyKey;
+        videoOwner.current = owner;
+        setVideoUnknown(true);
+        videoFlow.current = beginCatalogUiFlow('video_create', {
+          parentFlowId: input.idempotencyKey.split(':')[1],
+          count: input.videoVariationCount
+        });
+        videoFlow.current.stage('command_requested');
+        const result = await withCatalogCommandDeadline(
+          signal => client.createProductCatalogVideo!(input, { signal }),
+          new AbortController().signal
+        );
+        if (!owns()) return;
+        setVideoUnknown(false);
+        if (result.outcome === 'preparing_video') {
+          videoFlow.current?.stage('command_accepted');
+          setVideoPending(result);
+          setPhase({ kind: 'form' });
+        } else {
+          showCreated(result);
+        }
+        return;
       }
       let restitchOperationId: string | null = null;
       let catalogKey = `product-catalog:${crypto.randomUUID()}`;
@@ -314,10 +477,11 @@ export function CreateProductCatalogDialog({
           catalogKey,
           previous: processed,
           onOperationStarted: id => {
-            if (observationRun.current === run) setRestitchOperationId(id);
+            if (submitOwns()) setRestitchOperationId(id);
           },
           client
         });
+        if (!submitOwns()) return;
         restitchOperationId = receipt.operationId;
         catalogKey = receipt.catalogKey;
         setProcessed(receipt);
@@ -335,6 +499,7 @@ export function CreateProductCatalogDialog({
         // A retry after the video finished must reuse the same catalog operation.
         idempotencyKey: catalogKey
       });
+      if (!submitOwns()) return;
       setPhase({
         kind: 'result',
         heading:
@@ -343,13 +508,202 @@ export function CreateProductCatalogDialog({
       });
       onCreated?.(result);
     } catch (error) {
+      if (!submitOwns()) return;
+      const localPreparationFailure = isCatalogForegroundPreparationFailure(error);
+      const refused =
+        (isCatalogForegroundAdmissionRefused(error) || localPreparationFailure) &&
+        submittedVideoKey !== null &&
+        videoKey.current === submittedVideoKey;
+      if (refused) {
+        if (videoStorageKey && localStorage.getItem(videoStorageKey) === submittedVideoKey)
+          localStorage.removeItem(videoStorageKey);
+        videoKey.current = null;
+        videoOwner.current = null;
+        videoCancelId.current = null;
+        setVideoUnknown(false);
+        setVideoPending(null);
+        videoFlow.current?.fail(teamErrorCodeOf(error) ?? 'PROCESS_RESULT_UNCERTAIN');
+      }
       const key = errorKey(error);
-      setFailure(key ? t(key) : teamErrorMessageFor(error, t));
+      setFailure(
+        refused && !localPreparationFailure
+          ? t('launchesCatalogExecutorRequired')
+          : key
+            ? t(key)
+            : teamErrorMessageFor(error, t)
+      );
       setFailureNeedsSettings(key === 'productCatalogErrorSettingsMissing');
       setPhase({ kind: 'form' });
     }
   };
 
+  const checkVideo = async (cancel = false, resume = false) => {
+    const key = videoKey.current;
+    const originalOwner = videoOwner.current;
+    if (
+      !key ||
+      !originalOwner ||
+      originalOwner.actor !== privateCacheActor() ||
+      originalOwner.epoch !== privateCacheEpoch()
+    )
+      return;
+    if (videoCommandBusy.current) {
+      videoReadDirty.current = true;
+      return;
+    }
+    videoCommandBusy.current = true;
+    const run = observationRun.current,
+      actor = privateCacheActor(),
+      epoch = privateCacheEpoch();
+    const owns = () =>
+      run === observationRun.current &&
+      actor === privateCacheActor() &&
+      epoch === privateCacheEpoch();
+    try {
+      videoFlow.current ??= beginCatalogUiFlow('video_create', { parentFlowId: key.split(':')[1] });
+      videoFlow.current.stage(cancel ? 'command_cancel_requested' : 'readback_requested');
+      let result = cancel
+        ? await withCatalogCommandDeadline(
+            signal =>
+              (client.cancelProductCatalogVideo ?? teamApi.cancelProductCatalogVideo)(
+                teamId,
+                key,
+                videoCancelId.current ?? (videoCancelId.current = crypto.randomUUID()),
+                { signal }
+              ),
+            new AbortController().signal
+          )
+        : await withReadDeadline(
+            signal =>
+              (client.readProductCatalogVideo ?? teamApi.readProductCatalogVideo)(teamId, key, {
+                signal
+              }),
+            new AbortController().signal
+          );
+      if (!owns()) return;
+      if (!result) {
+        setVideoUnknown(true);
+        return;
+      }
+      if (
+        !cancel &&
+        resume &&
+        result.outcome === 'preparing_video' &&
+        result.state === 'preparing' &&
+        result.registeredCount === result.requestedCount
+      ) {
+        result = await withCatalogCommandDeadline(
+          signal =>
+            (client.resumeProductCatalogVideo ?? teamApi.resumeProductCatalogVideo)(teamId, key, {
+              signal
+            }),
+          new AbortController().signal
+        );
+        if (!owns()) return;
+      }
+      setVideoUnknown(false);
+      if (
+        result.outcome === 'preparing_video' &&
+        (createdCatalog.current?.videoGenerationObservation ??
+          createdCatalog.current?.videoGeneration)
+      ) {
+        const progress: CatalogCreatedVideoProgress = {
+          ...(createdCatalog.current!.videoGenerationObservation ??
+            createdCatalog.current!.videoGeneration!),
+          videoSetId: result.videoSetId,
+          requestedCount: result.requestedCount,
+          registeredCount: result.registeredCount,
+          state: result.state
+        };
+        showCreated({ ...createdCatalog.current!, videoGenerationObservation: progress });
+      } else if (result.outcome === 'preparing_video') {
+        videoFlow.current?.stage(
+          result.state === 'canceled' ? 'command_cancelled' : 'command_accepted'
+        );
+        setVideoPending(result);
+      } else {
+        showCreated(result);
+      }
+    } catch (cause) {
+      if (owns()) {
+        setVideoUnknown(true);
+        setFailure(teamErrorMessageFor(cause, t));
+      }
+    } finally {
+      videoCommandBusy.current = false;
+      if (videoReadDirty.current) {
+        videoReadDirty.current = false;
+        queueMicrotask(() => void checkVideoRef.current());
+      }
+    }
+  };
+  useEffect(() => {
+    videoKey.current = null;
+    videoOwner.current = null;
+    setVideoPending(null);
+    setVideoUnknown(false);
+    setCreatedVideo(null);
+    createdCatalog.current = null;
+    deliveredCatalog.current = null;
+    if (!videoProtocol || !videoStorageKey) return;
+    try {
+      const key = localStorage.getItem(videoStorageKey);
+      if (key && /^product-catalog:[0-9a-f-]{36}$/iu.test(key)) {
+        videoKey.current = key;
+        videoOwner.current = { actor: privateCacheActor(), epoch: privateCacheEpoch() };
+        setVideoUnknown(true);
+        void checkVideo();
+      }
+    } catch {
+      setFailure(t('catalogPublicationStorageError'));
+    }
+  }, [videoProtocol, videoStorageKey]);
+  const checkVideoRef = useRef(checkVideo);
+  checkVideoRef.current = checkVideo;
+  useEffect(() => {
+    if (videoProtocol && videoKey.current) void checkVideoRef.current();
+  }, [videoProtocol, workspaceRevision, updaterRevision]);
+  useAgentEventStream<{
+    type: 'team:operations';
+    operations: Array<{ operationId: string; state: string }>;
+  }>({
+    url:
+      videoProtocol &&
+      (videoPending ||
+        videoUnknown ||
+        (createdVideo && !['ready', 'canceled'].includes(createdVideo.state)))
+        ? toolEventUrl('team')
+        : null,
+    channel: 'team',
+    multiplexed: Boolean(agent?.capabilities?.includes('event-stream')),
+    enabled: Boolean(
+      videoProtocol &&
+      (videoPending ||
+        videoUnknown ||
+        (createdVideo && !['ready', 'canceled'].includes(createdVideo.state)))
+    ),
+    onOpen: () => {
+      if (videoKey.current) void checkVideoRef.current();
+    },
+    onReconnect: () => {
+      if (videoKey.current) void checkVideoRef.current();
+    },
+    onMessage: event => {
+      if (event.type !== 'team:operations') return;
+      const signature = event.operations
+        .filter(row => row.state !== 'running')
+        .map(row => `${row.operationId}:${row.state}`)
+        .sort()
+        .join('|');
+      if (signature === nativeTerminals.current) return;
+      nativeTerminals.current = signature;
+      if (videoKey.current) void checkVideoRef.current();
+    }
+  });
+  useEffect(() => {
+    if (phase.kind === 'result') videoFlow.current?.complete();
+    else if (videoPending?.state === 'canceled') videoFlow.current?.cancel();
+  }, [phase, videoPending]);
   const copy = async (text: string, done: TranslationKey = 'productCatalogLinkCopied') => {
     try {
       await navigator.clipboard.writeText(text);
@@ -378,6 +732,48 @@ export function CreateProductCatalogDialog({
             </InventoryButton>
           </div>
           <p className="field-hint">{t('productCatalogProducts', { count: shown.productCount })}</p>
+          {videoProtocol && !createdVideo && (
+            <CatalogCreatedPublicationStatus
+              teamId={teamId}
+              catalogId={createdCatalog.current?.catalog.materialId ?? ''}
+              read={client.readCatalogPublication}
+            />
+          )}
+          {createdVideo && (
+            <>
+              <p role="status">
+                {t(
+                  createdVideo.state === 'canceled'
+                    ? 'catalogVideoGenerationCanceled'
+                    : createdVideo.state === 'cancel_requested'
+                      ? 'catalogVideoCreationCanceling'
+                      : 'catalogVideoCreationProgress',
+                  { ready: createdVideo.registeredCount, total: createdVideo.requestedCount }
+                )}
+              </p>
+              {createdVideo.catalogVideoCells === 'deferred_blank' && (
+                <p className="field-hint">{t('catalogVideoDeferredTableReady')}</p>
+              )}
+              {createdVideo.providerCas === 'unsupported' && (
+                <p role="status" className="team-inline-note">
+                  {t('catalogWriteUnsupported')}
+                </p>
+              )}
+              {videoKey.current && (
+                <div className="team-dialog-actions">
+                  <InventoryButton type="button" onClick={() => void checkVideo()}>
+                    {t('catalogPublicationCheck')}
+                  </InventoryButton>
+                  {!['ready', 'canceled', 'cancel_requested'].includes(createdVideo.state) && (
+                    <InventoryButton type="button" onClick={() => void checkVideo(true)}>
+                      {t('catalogVideoCancel')}
+                    </InventoryButton>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
           <div className="team-dialog-actions">
             <a
               className="soty-button button-secondary"
@@ -405,7 +801,7 @@ export function CreateProductCatalogDialog({
     );
   }
 
-  const busy = phase.kind === 'busy';
+  const busy = phase.kind === 'busy' || videoPending !== null || videoUnknown;
   // An empty field is not a mistake yet — Create simply waits for it. The dialog opened with
   // "Paste a link that starts with http://" in red before anything had been typed.
   const linkError = touched.link && link.trim() !== '' && !linkCheck.ok;
@@ -524,6 +920,15 @@ export function CreateProductCatalogDialog({
             </div>
           </div>
 
+          {videoProtocol && (
+            <CatalogCreationVideoFields
+              value={videoDraft}
+              onChange={setVideoDraft}
+              restitch={restitch}
+              productCount={productTotal}
+              disabled={busy}
+            />
+          )}
           <div className="product-catalog-restitch">
             <Checkbox
               checked={restitch}
@@ -604,6 +1009,49 @@ export function CreateProductCatalogDialog({
             active={phase.kind === 'busy' && phase.step === 'catalog'}
             productTotal={productTotal}
           />
+          {videoPending && (
+            <p role="status">
+              {t(
+                videoPending.state === 'canceled'
+                  ? 'catalogVideoCreationCanceled'
+                  : videoPending.state === 'cancel_requested'
+                    ? 'catalogVideoCreationCanceling'
+                    : 'catalogVideoCreationProgress',
+                { ready: videoPending.registeredCount, total: videoPending.requestedCount }
+              )}
+            </p>
+          )}
+          {videoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
+          {(videoPending ||
+            videoUnknown ||
+            (createdVideo && !['ready', 'canceled'].includes(createdVideo.state))) && (
+            <div className="team-dialog-actions">
+              <InventoryButton type="button" onClick={() => void checkVideo()}>
+                {t('catalogPublicationCheck')}
+              </InventoryButton>
+              {(videoUnknown ||
+                (videoPending?.state === 'preparing' &&
+                  videoPending.registeredCount === videoPending.requestedCount)) && (
+                <InventoryButton type="button" onClick={() => void checkVideo(false, true)}>
+                  {t('catalogVideoResume')}
+                </InventoryButton>
+              )}
+              {videoPending?.state !== 'canceled' && videoPending?.state !== 'cancel_requested' && (
+                <InventoryButton
+                  type="button"
+                  aria-label={t('catalogVideoCancel')}
+                  onClick={() => void checkVideo(true)}
+                >
+                  {t('productCatalogCancel')}
+                </InventoryButton>
+              )}
+              {videoPending?.state === 'canceled' && (
+                <InventoryButton type="button" onClick={onClose}>
+                  {t('productCatalogDone')}
+                </InventoryButton>
+              )}
+            </div>
+          )}
           {failure && (
             <p className="team-inline-error" role="alert">
               {failure}

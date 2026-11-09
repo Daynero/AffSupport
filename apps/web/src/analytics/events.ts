@@ -286,6 +286,8 @@ const PROPERTY_VALUE_MAX_LENGTH = 128;
 
 export type AnalyticsProperties = {
   flow_id?: string;
+  /** Related operation, without merging its terminal into this flow. */
+  parent_flow_id?: string;
   run_id?: string;
   tool_identifier?: AnalyticsTool;
   feature_identifier?: string;
@@ -358,6 +360,7 @@ export type AnalyticsProperties = {
 export interface TeamFileAttemptStartedProperties {
   attempt_id: string;
   action: TeamAnalyticsAction;
+  file_surface?: TeamAnalyticsProperties['file_surface'];
   storage_kind: TeamAnalyticsStorage;
   size_bucket: TeamAnalyticsSizeBucket;
   cache_state: TeamAnalyticsCacheState;
@@ -366,6 +369,7 @@ export interface TeamFileAttemptStartedProperties {
 }
 
 export interface TeamFileAttemptCompletedProperties extends TeamFileAttemptStartedProperties {
+  file_delivery?: TeamAnalyticsProperties['file_delivery'];
   duration_ms: number;
   outcome: TeamAnalyticsOutcome;
   retryable: boolean;
@@ -500,6 +504,7 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   Record<keyof AnalyticsProperties, AnalyticsPropertyRule>
 > = {
   flow_id: { kind: 'id' },
+  parent_flow_id: { kind: 'id' },
   run_id: { kind: 'id' },
   revision_id: { kind: 'id' },
   account_operation: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.account_operation },
@@ -572,6 +577,8 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   category: { kind: 'enum', values: MATERIAL_CATEGORIES },
   cue_category: { kind: 'enum', values: TEAM_ANALYTICS_CUES },
   action: { kind: 'enum', values: TEAM_ANALYTICS_ACTIONS },
+  file_surface: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.file_surface },
+  file_delivery: { kind: 'enum', values: TEAM_ANALYTICS_PROPERTY_ENUMS.file_delivery },
   storage_kind: { kind: 'enum', values: TEAM_ANALYTICS_STORAGES },
   size_bucket: { kind: 'enum', values: TEAM_ANALYTICS_SIZE_BUCKETS },
   cache_state: { kind: 'enum', values: TEAM_ANALYTICS_CACHE_STATES },

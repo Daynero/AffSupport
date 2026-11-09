@@ -1,0 +1,58 @@
+{
+  "at": "2026-11-06T23:39:52.843094+00:00",
+  "verified_base_sha": "5b674d0966166337c3a83fe1c1444a76b86f7b4d",
+  "source_was_dirty": true,
+  "verified_source_files": {
+    "apps/agent/src/team-bridge/recovery-worker.ts": "0fcf4b5cd50c0ae3038af8785bd4b61f9d465432d548a340c2f6055b0f6a96e5",
+    "apps/web/src/lib/database.types.ts": "faa120f786fc1dd97dec0681c46943801bef185d14e88eda0d8f8b9ee53eb99a",
+    "apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx": "c2cea2c77b282117c8c6356df580d5e57f362b69f3e83ef14179c648e734cadb",
+    "packages/shared/src/team/restitch-selection.ts": "a1beb34fd521eaa90017fbe2613d1a5e499cff5bc5d77aad35fb7bde19ce29d2",
+    "scripts/analytics/code-map.ts": "5bfd7b33b537af23cbbe10465f7add9def4ffc0918f094eee058a215d3ea54b8",
+    "scripts/analytics/coverage-registry.ts": "ebf710cf88b1a6d67d9bca138afad31f0190e130dec2ea6f151af86c475918bc",
+    "scripts/analytics/investigate.ts": "47819e4f3aaf4248682ba6d818ba14d2fbf3657a048745db9ea05810d6f7a679",
+    "scripts/analytics/queries.ts": "88841b07035d554ab499b6abe737ff674bda977e272e39c49435120d2ab7f93a",
+    "scripts/analytics/restitch-selections.ts": "80dfbe93bbb5727e48a91d96d3173dcfd0b466149c41ddb3ff85730b119d7a4e",
+    "scripts/analytics/schema.ts": "63407bcb174d9a879295f17682fbee4259f4f2aff0417d267067739228fe1a9f",
+    "scripts/analytics/types.ts": "923751c427b80b820bbbd6aea1832cb094cb11d8bb299db28bc570717a6a3abc",
+    "scripts/analytics/workspace.ts": "7c0cd155aec6aa8ca46d49fda284904cb98eb2ffac073864238b824748b6be5a",
+    "supabase/functions/drive-ops/restitch-selection-store.ts": "10af905d44fd5f57ccd1d3245059584275dfd6adb4eac96d287f97ad8458f7a5",
+    "supabase/functions/team-recovery/handler.ts": "1cacd3f4e826ad097b963e302587707619badb3863266f7f64150f2a320a4fcf",
+    "supabase/migrations/20261207155000_restitch_selection_storage.sql": "21a9b580303b6d942e0782bb6e5547b66095af554da469c45e5fdd02bfbd8a54",
+    "supabase/tests/database/restitch-selection-storage.test.sql": "8ff861d860b954e1ce3aaf0f2912558770c8f7ec061cf1a82433aa7dd530bce4",
+    "tests/agent-journal-ingest.test.ts": "9e84c8e8e945b542e2bb284e678d0f5b5af5bf15ab834aa8f1586852e4cb0a63",
+    "tests/analytics-investigate-command.test.ts": "dc47fd7b279bab41d36ef68950762be2b3a839225232677cfdc468118e4504f7",
+    "tests/catalog-command-postgres.test.ts": "360995a60aba61c2ecb8272716b3029b86a2c380a68576a01dfd8eaa00351b3c",
+    "tests/restitch-selection-budget.test.ts": "a4cc3bf0b18f22098c0d53d9cb84435e622dc6a854ae082f499175868d228949",
+    "tests/restitch-selection-diagnostics.test.ts": "24e5d1c9b49cc4b01e1dd7d67ebfad34fff15946408a903731dc0b6312b43ed0",
+    "tests/restitch-selection-storage-sql.test.ts": "7d0429ae015c742b835c810513338ba2adc192bc5d842b504915c292a216a0d2",
+    "tests/restitch-selection-store.test.ts": "dab1c64d23338f6abf85fa2ab926495edcaf3f6817892b56fa4aae29c7ffa552",
+    "tests/team-recovery-delegation.test.ts": "06a64e857fb5e976faee215d17425e5356c54307a2482cc1c197a5ccd2986b3c",
+    "tests/team-recovery-handler.test.ts": "21d0676d2097a6f0372823d83bd37ac0775f8b509a0dba2def7172727098eba5",
+    "tests/team-recovery-worker.test.ts": "982060faf64ecd34843216c13274b2e697d8d286101ed3b625e2ad37b751479c"
+  },
+  "suite": {
+    "numTotalTests": 9279,
+    "numPassedTests": 9200,
+    "numFailedTests": 0,
+    "numPendingTests": 79,
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 8,
+      "completedShards": 8,
+      "complete": true
+    }
+  },
+  "native_inputs_unchanged": 69,
+  "migration_inputs_unchanged": 438,
+  "selection_kernel_inputs_unchanged": 2,
+  "later_broker_source_changes_after_db_gate": [
+    "apps/agent/src/team-bridge/recovery-worker.ts",
+    "supabase/functions/team-recovery/handler.ts"
+  ],
+  "later_broker_sql_journal_validation": "145 focused tests across4 files, plus the complete current-source suite",
+  "native_proof": "verification-db-restitch-storage-prefix.json",
+  "beta_schema_proof": "restitch-storage-beta-migration.json",
+  "api_proof": "restitch-storage-beta-refusal.json",
+  "local_config_excluded": true,
+  "scope": "Unwired storage, bounded partial reacquisition, native executor compatibility and Stop guard only; no complete same-click recovery, complete047, manual UI or packaged promotion proof."
+}

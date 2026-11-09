@@ -152,7 +152,40 @@ describe('Creative Library transcript sidecars', () => {
         files.set(input.fileId, updated);
         return updated;
       });
-      const rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+      const accepted = lifecycleIntent(action);
+      const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => ({
+        data:
+          name === 'service_read_material_group_execution'
+            ? {
+                intentId: accepted.intentId,
+                teamId: accepted.teamId,
+                operationId: accepted.operationId,
+                sourceMaterialId: accepted.sourceMaterialId,
+                epoch: 0,
+                claimProtocol: 1,
+                executorId: null,
+                hasPendingDispatch: false,
+                acquired: false,
+                completed: false,
+                appliedMemberIds: []
+              }
+            : name === 'service_claim_material_group_execution_v2'
+              ? {
+                  intentId: accepted.intentId,
+                  teamId: accepted.teamId,
+                  operationId: accepted.operationId,
+                  sourceMaterialId: accepted.sourceMaterialId,
+                  epoch: 1,
+                  claimProtocol: 2,
+                  executorId: args.p_executor,
+                  hasPendingDispatch: false,
+                  acquired: true,
+                  completed: false,
+                  appliedMemberIds: []
+                }
+              : true,
+        error: null
+      }));
       await applyLibraryGroupMutation({
         service: { rpc } as never,
         drive: {
@@ -160,7 +193,7 @@ describe('Creative Library transcript sidecars', () => {
           updateFileMetadata
         } as never,
         rootFolderId: 'root',
-        intent: lifecycleIntent(action)
+        intent: accepted
       });
       expect(updateFileMetadata).toHaveBeenCalledTimes(2);
       expect(updateFileMetadata.mock.calls.map(([input]) => input.trashed)).toEqual([
@@ -168,7 +201,7 @@ describe('Creative Library transcript sidecars', () => {
         action === 'trash'
       ]);
       expect(
-        rpc.mock.calls.filter(([name]) => name === 'service_checkpoint_material_group_intent')
+        rpc.mock.calls.filter(([name]) => name === 'service_checkpoint_material_group_execution_v2')
       ).toHaveLength(2);
     }
   });

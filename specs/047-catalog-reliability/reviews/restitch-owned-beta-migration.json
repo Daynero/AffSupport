@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T02:44:12.649Z",
+  "project": "r2beta045",
+  "fromSchema": 439,
+  "toSchema": 443,
+  "applied": [
+    "20261207157000",
+    "20261207158000",
+    "20261207159000",
+    "20261207160000"
+  ],
+  "protectedTables": 17,
+  "changedTables": [],
+  "protectedRowsUnchanged": true,
+  "newStorageCounts": {
+    "versions": 0,
+    "namespaces": 0,
+    "executors": 0,
+    "claims": 0
+  },
+  "edgeQuiescedBeforeBaseline": true,
+  "productionTouched": false,
+  "scope": "Internal stable versions, manual admission and owned executor storage only; no public route, grant, installed capability or native controller"
+}

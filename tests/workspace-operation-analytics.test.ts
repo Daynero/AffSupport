@@ -2,6 +2,51 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { analytics } from '../apps/web/src/analytics/service';
 import { beginWorkspaceOperation } from '../apps/web/src/team/workspace/operationAnalytics';
 afterEach(() => vi.restoreAllMocks());
+
+it('keeps visible unknown feedback nonterminal until the same intent is confirmed', () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const flow = beginWorkspaceOperation('bulk_trash', crypto.randomUUID(), 1);
+  flow.visibleResult('unknown', 'PROCESS_RESULT_UNCERTAIN');
+  expect(track.mock.calls.at(-1)).toEqual([
+    'operation_stage_completed',
+    expect.objectContaining({
+      action_identifier: 'result_visible',
+      error_code: 'PROCESS_RESULT_UNCERTAIN'
+    })
+  ]);
+  expect(track.mock.calls.some(([event]) => event === 'operation_completed')).toBe(false);
+  flow.stage('confirmed');
+  flow.visibleResult('success');
+  flow.visibleResult('success');
+  expect(track.mock.calls.filter(([event]) => event === 'operation_completed')).toHaveLength(1);
+});
+
+it('records visible failed feedback without converting it to completion', () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const flow = beginWorkspaceOperation('bulk_trash', crypto.randomUUID(), 1);
+  flow.visibleResult('failure', 'PROCESS_FAILED');
+  flow.visible();
+  expect(track.mock.calls.at(-1)).toEqual([
+    'operation_failed',
+    expect.objectContaining({ action_identifier: 'result_visible', error_code: 'PROCESS_FAILED' })
+  ]);
+  expect(track.mock.calls.some(([event]) => event === 'operation_completed')).toBe(false);
+});
+
+it('never attributes an old workspace receipt to the replacement analytics actor', () => {
+  let actor = 'original-actor';
+  const tracker = {
+    track: vi.fn(),
+    journalContext: () => ({ userId: actor })
+  } as unknown as typeof analytics;
+  const flow = beginWorkspaceOperation('bulk_trash', crypto.randomUUID(), 1, tracker);
+  actor = 'replacement-actor';
+  flow.stage('confirmed');
+  flow.diagnostic('trash_reconcile', { code: 'PERMISSION_DENIED' });
+  flow.receipt(crypto.randomUUID());
+  flow.visible();
+  expect(tracker.track).toHaveBeenCalledTimes(1);
+});
 it('keeps uncertain delivery open for reconciliation and confirms visibility only once', () => {
   const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
   const flow = beginWorkspaceOperation('task_copy', crypto.randomUUID(), 10000);

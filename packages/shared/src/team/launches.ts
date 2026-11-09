@@ -2,6 +2,7 @@
 import type { LaunchNote } from './launches/notes.js';
 import type { LaunchAnalyticsStage } from './launches/lifecycle.js';
 import type { LaunchAssignmentState } from './launch-assignment.js';
+import type { CatalogVideoRowProgress } from './catalog-video-progress.js';
 export const LAUNCH_SCHEMA_VERSION = 1;
 export const LAUNCH_CAMPAIGN_MAX = 100;
 export const LAUNCH_BUDGET_MAX = 999999;
@@ -24,6 +25,10 @@ export interface LaunchSubConfig {
   sub3: LaunchSubVariable[];
 }
 export interface LaunchCatalogConfig {
+  /** Optional beta protocol; absence preserves original accepted Launch behavior. */
+  catalogVideoProtocolVersion?: 1;
+  videoVariationCount?: number;
+  videoPublication?: import('./catalog-publication.js').CatalogVideoPublicationRequest;
   productCount: number;
   restitchEnabled: boolean;
   finalDurationMode:
@@ -122,6 +127,8 @@ export interface LaunchGenerationStep {
   errorCode: string | null;
 }
 export interface LaunchGeneration {
+  /** Independent from catalog delivery; retained after a deferred blank table is ready. */
+  videoGeneration?: CatalogVideoRowProgress | null;
   id: string;
   /** Accepted parent retry; absent on older servers. */
   attemptNo?: number;
@@ -217,3 +224,5 @@ export * from './launches/lifecycle.js';
 export * from './launches/defaults.js';
 
 export * from './launches/notes.js';
+
+export * from './launches/catalog-video.js';

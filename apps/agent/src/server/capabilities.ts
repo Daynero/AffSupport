@@ -11,6 +11,7 @@ import { capabilities, type PlatformCapabilities } from '../platform/platform.js
  * serve it (which is exactly what a static list used to allow).
  */
 const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapabilities>> = {
+  'catalog-video-foreground-v1': 'recoveryCredentials',
   'team-background-recovery': 'recoveryCredentials',
   'team-background-recovery-actor-bound': 'recoveryCredentials',
   'finder-image-conversion': 'shellContextMenuIntegration',

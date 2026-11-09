@@ -1255,6 +1255,39 @@ describe('copies nothing uses leave Drive', () => {
     expect(await row(parent)).toBeNull();
   }, 60_000);
 
+  it('keeps catalog video variants: an N-video catalog must not lose its outputs after an hour', async () => {
+    // Beta 2026-11-08: 10/10 and 5/5 variant outputs were retired by this sweep and then deleted
+    // for good by the updater, before and after their links were written to the catalog.
+    const variant = await material(
+      'catalog_variant_set_0.mp4',
+      'video',
+      'video/mp4',
+      'restitched-r'
+    );
+    await age(variant);
+    // Only the output reference matters here; the set and its operation are out of scope.
+    await harness.root(`set session_replication_role = replica`);
+    try {
+      await harness.root(
+        `insert into private.catalog_video_variants
+           (video_set_id, team_id, video_variant_index, request_id, state, output_material_id)
+         values (gen_random_uuid(), $1, 0, gen_random_uuid(), 'registered', $2)`,
+        [teamId, variant]
+      );
+    } finally {
+      await harness.root(`set session_replication_role = origin`);
+    }
+
+    await sweep();
+
+    expect(await row(variant)).toBeNull();
+    const retained = await harness.root<{ retained: boolean }>(
+      'select private.launch_output_retained($1, $2) as retained',
+      [teamId, variant]
+    );
+    expect(retained[0]!.retained).toBe(true);
+  }, 60_000);
+
   it('runs where the worker is woken, so a space without an updater is swept too', async () => {
     const source = (
       await harness.root<{ source: string }>(

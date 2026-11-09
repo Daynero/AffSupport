@@ -16,7 +16,16 @@ values ('fc270000-0000-4000-8000-000000000004', 'fc270000-0000-4000-8000-0000000
 select private.enqueue_catalog_sync('fc270000-0000-4000-8000-000000000004', 'initial_scan', '{}', '["root"]');
 update private.catalog_sync_jobs set next_attempt_at = now() + interval '1 day'
 where connection_id <> 'fc270000-0000-4000-8000-000000000004';
-create temp table scan_claim as select * from public.service_claim_catalog_sync_work('scan-test', 1, 180);
+-- A non-blocking scheduler claim may legitimately be empty under contention.
+-- Retry only that result, retaining the same worker and all generation assertions.
+create temp table scan_claim as select * from public.service_claim_catalog_sync_work('scan-test', 1, 180) with no data;
+do $$ begin
+  for retry in 1..10 loop
+    insert into scan_claim select * from public.service_claim_catalog_sync_work('scan-test', 1, 180);
+    exit when exists(select 1 from scan_claim);
+    perform pg_sleep(0.01);
+  end loop;
+end $$;
 create temp table scan_generation as select g.* from scan_claim c,
   lateral public.service_begin_catalog_folder(c.job_id, 'scan-test', c.lease_epoch, 'root') g;
 select is((select count(*)::int from scan_generation), 1, 'lease opens one generation');

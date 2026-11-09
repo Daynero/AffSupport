@@ -223,6 +223,34 @@ describe('claiming', () => {
       });
     });
 
+    it('matches the claimed settings scope before bounding refusal history', async () => {
+      const allow = vi.fn(async () => ({ transferUrl: 'u', grant: { ticket: 'same-authority' } }));
+      const { deps } = setup({
+        effective: { ...drive, updatedAt: 'current' },
+        draws: [
+          { sourceMode: 'drive', pool: {}, screens: [picture('p1')] },
+          { sourceMode: 'drive', pool: {}, screens: [picture('p3')] }
+        ],
+        screenGrant: allow
+      });
+      const history = [
+        ...Array.from({ length: 512 }, (_, i) => ({
+          slot: 'start',
+          materialId: 'older-' + i,
+          checksum: 'a'.repeat(32),
+          settingsRevision: 'older'
+        })),
+        { slot: 'start', materialId: 'p1', checksum: 'a'.repeat(32), settingsRevision: 'current' }
+      ];
+      const result = await claimRestitchJob(deps, ACTOR, {
+        teamId: TEAM,
+        restitchContractVersion: 2,
+        screenRefusals: history
+      });
+      expect(allow).not.toHaveBeenCalledWith(TEAM, ACTOR, 'p1');
+      expect(result.job?.options.screens).toMatchObject([{ materialId: 'p3' }]);
+    });
+
     it('defers the job for an hour when the pool is empty, without spending an attempt', async () => {
       const { deps, call, rpc } = setup({
         effective: drive,
@@ -453,4 +481,40 @@ describe('the committed copy', () => {
   it('names copies after the video and the update they are for', () => {
     expect(restitchedCopyName('clip.mp4', 0)).toBe('clip restitched 1.mp4');
   });
+});
+
+it('skips remembered broken image versions before issuing grants for a background claim', async () => {
+  const picture = (id: string, checksum = 'a'.repeat(32)) => ({
+    slot: 'start',
+    materialId: id,
+    checksum,
+    mimeType: 'image/png',
+    fileName: 'image.png',
+    sizeBytes: 10
+  });
+  const screenGrant = vi.fn(async () => ({
+    transferUrl: 'https://edge.test/range',
+    grant: { ticket: 'opaque' }
+  }));
+  const { deps, rpc } = setup({
+    effective: { ...claimed.defaults, sourceMode: 'drive', updatedAt: 'revision-1' },
+    draws: [
+      { sourceMode: 'drive', pool: {}, screens: [picture('bad')] },
+      { sourceMode: 'drive', pool: {}, screens: [picture('good')] }
+    ],
+    screenGrant
+  });
+  const result = await claimRestitchJob(deps, ACTOR, {
+    teamId: TEAM,
+    restitchContractVersion: 2,
+    screenRefusals: [
+      { settingsRevision: 'revision-1', slot: 'start', materialId: 'bad', checksum: 'a'.repeat(32) }
+    ]
+  });
+  expect(screenGrant).not.toHaveBeenCalledWith(TEAM, ACTOR, 'bad');
+  expect(screenGrant).toHaveBeenCalledWith(TEAM, ACTOR, 'good');
+  expect(
+    rpc.mock.calls.filter(([name]) => name === 'service_draw_restitch_screens')[1][1]
+  ).toMatchObject({ p_exclude: ['bad'] });
+  expect(result.job).not.toBeNull();
 });

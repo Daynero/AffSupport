@@ -41,7 +41,7 @@ let fixtureSql = '';
 async function request(route: string, token?: string, body?: object) {
   if (
     !container ||
-    !['/health', '/signup', '/user'].includes(route) ||
+    !['/health', '/signup', '/user', '/logout'].includes(route) ||
     authUrl !== `http://${authContainer}:9999`
   )
     throw Error('ISOLATED_AUTH_ROUTE_INVALID');
@@ -72,7 +72,9 @@ async function request(route: string, token?: string, body?: object) {
   const split = response.stdout.lastIndexOf('\n');
   const status = Number(response.stdout.slice(split + 1));
   if (split < 0 || status < 100 || status > 599) throw Error('ISOLATED_AUTH_HTTP_INVALID');
-  return new Response(response.stdout.slice(0, split), { status });
+  return new Response(status === 204 || status === 205 ? null : response.stdout.slice(0, split), {
+    status
+  });
 }
 function withExpiry(token: string, expiresAt: number) {
   const [header, encoded] = token.split('.');
@@ -287,5 +289,31 @@ describe.skipIf(!container && !connection)(
         expect((await rejected.json()).error_code).toBe('bad_jwt');
       }
     );
+    it('047 stops native control authorization after actual Auth logout removes the original session', async () => {
+      // A signed access JWT can outlive logout; the private guard must consult
+      // the real current Auth session rather than trusting its unexpired exp.
+      const claims = JSON.parse(Buffer.from(accessToken.split('.')[1]!, 'base64url').toString());
+      const sessionId: unknown = claims.session_id;
+      if (typeof sessionId !== 'string' || !/^[a-f0-9-]{36}$/iu.test(sessionId))
+        throw Error('ISOLATED_AUTH_SESSION_ID_MISSING');
+      const count = async () =>
+        (
+          await admin!.query(
+            'select count(*)::integer n from auth.sessions where id=$1 and user_id=$2',
+            [sessionId, actorId]
+          )
+        ).rows[0].n as number;
+      expect(await count()).toBe(1);
+      await admin!.query('select private.require_restitch_control_session($1,$2)', [
+        sessionId,
+        actorId
+      ]);
+      const ended = await request('/logout', accessToken, {});
+      expect(ended.status).toBe(204);
+      expect(await count()).toBe(0);
+      await expect(
+        admin!.query('select private.require_restitch_control_session($1,$2)', [sessionId, actorId])
+      ).rejects.toMatchObject({ code: '42501', message: 'AUTH_REQUIRED' });
+    });
   }
 );

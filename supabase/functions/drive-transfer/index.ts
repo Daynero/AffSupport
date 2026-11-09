@@ -1,3 +1,17 @@
+import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import {
+  authorizeNativeRestitchSource,
+  type NativeRestitchSourceAuthority
+} from './restitch-source-authority.ts';
+import { dispatchControlledRestitchScreenRange } from '../drive-ops/restitch-controlled-range-dispatch.ts';
+import {
+  CATALOG_SHEET_MIME,
+  CATALOG_XLSX_MIME,
+  CATALOG_EXPORT_MAX_BYTES,
+  catalogExportFileName,
+  catalogExportTool,
+  prepareCatalogExport
+} from './catalog-export.ts';
 import { landingReuseKey, landingTicket } from './landing-ticket.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
@@ -40,6 +54,7 @@ import {
   authorizePreviewRange,
   boundedResponseBody,
   buildDownloadGrantResult,
+  resolveDownloadMaterial,
   buildPreviewResult,
   ensureLandingArtifactFolder,
   forwardedRangeHeaders,
@@ -488,7 +503,8 @@ async function issueDownloadGrant(
 ): Promise<TeamTransferGrant> {
   const ticket = randomTicket();
   const expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString();
-  const size = material.sizeBytes;
+  const exporting = material.mimeType === CATALOG_SHEET_MIME;
+  const size = exporting ? CATALOG_EXPORT_MAX_BYTES : material.sizeBytes;
   if (size === null || size < 0 || size > AGENT_INTAKE_MAX_BYTES) {
     throw new TeamFunctionError(
       size !== null && size > AGENT_INTAKE_MAX_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE',
@@ -509,7 +525,7 @@ async function issueDownloadGrant(
     p_purpose: 'download_range',
     p_material: material.materialId,
     p_destination: null,
-    p_tool: `download:${consumer}`,
+    p_tool: exporting ? catalogExportTool(consumer, material.driveVersion) : `download:${consumer}`,
     p_max_range_bytes: MAX_PREVIEW_RANGE_BYTES,
     p_expires_at: expiresAt,
     p_max_uses: maxUses
@@ -539,7 +555,12 @@ function productionSignals(request: Request): OAuthProductionSignals {
 const accessTokens = new Map<string, { refreshToken: string; token: string; expiresAt: number }>();
 const ACCESS_TOKEN_MARGIN_MS = 5 * 60_000;
 
-async function driveClient(service: RpcClient, credentialId: string, request: Request) {
+async function driveClient(
+  service: RpcClient,
+  credentialId: string,
+  request: Request,
+  fetchImpl: typeof fetch = fetch
+) {
   const credential = await readDriveCredential(service, credentialId);
   const held = accessTokens.get(credentialId);
   if (
@@ -547,7 +568,7 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
     held.refreshToken === credential.refreshToken &&
     held.expiresAt - ACCESS_TOKEN_MARGIN_MS > Date.now()
   ) {
-    return new GoogleDriveClient(held.token);
+    return new GoogleDriveClient(held.token, fetchImpl);
   }
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
@@ -560,14 +581,15 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
       clientId,
       clientSecret,
       oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-      productionSignals: productionSignals(request)
+      productionSignals: productionSignals(request),
+      fetchImpl
     });
     accessTokens.set(credentialId, {
       refreshToken: credential.refreshToken,
       token: token.accessToken,
       expiresAt: Date.now() + token.expiresIn * 1000
     });
-    return new GoogleDriveClient(token.accessToken);
+    return new GoogleDriveClient(token.accessToken, fetchImpl);
   } catch (error) {
     accessTokens.delete(credentialId);
     if (error instanceof TeamFunctionError && error.code === 'NEEDS_REAUTH') {
@@ -601,6 +623,7 @@ async function consumeGrant(
     actorId,
     materialId,
     maxRangeBytes,
+    operationId: stringValue(row, 'operation_id'),
     toolId: stringValue(row, 'tool_id'),
     purpose
   };
@@ -639,15 +662,25 @@ function materialFromTransfer(context: TransferContext): PreviewMaterialRecord {
   };
 }
 
-async function handleRange(request: Request, service: RpcClient, cors: Record<string, string>) {
+async function handleRange(
+  request: Request,
+  service: RpcClient,
+  cors: Record<string, string>,
+  sourceAuthority?: NativeRestitchSourceAuthority
+) {
   const url = new URL(request.url);
   const ticket =
     url.searchParams.get('grant') ?? request.headers.get('x-wishly-transfer-grant') ?? '';
   let liveDrive: GoogleDriveClient | null = null;
+  let exportBytes: Uint8Array<ArrayBuffer> | null = null;
   const authorized = await authorizePreviewRange(
     { ticket, rangeHeader: request.headers.get('range') },
     {
-      consumeGrant: value => consumeRangeGrant(service, value),
+      consumeGrant: async value => {
+        const grant = await consumeRangeGrant(service, value);
+        if (grant && sourceAuthority) await sourceAuthority.bindGrant(grant);
+        return grant;
+      },
       loadMaterial: async grant => {
         const context = transferContext(
           await rpcValue(service, 'service_get_material_transfer_context', {
@@ -667,7 +700,12 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
           })
         );
         if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
-        liveDrive = await driveClient(service, context.credentialId, request);
+        liveDrive = await driveClient(
+          service,
+          context.credentialId,
+          request,
+          sourceAuthority?.fetch
+        );
         const live = await proveLiveAncestry({
           client: liveDrive,
           fileId: material.driveFileId,
@@ -675,6 +713,50 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
           resourceKey: material.resourceKey
         });
         requireDriveCapability(live, 'canDownload');
+        sourceAuthority?.assertSource({
+          fileId: live.id,
+          sizeBytes: live.size ?? 0,
+          mimeType: live.mimeType,
+          sourceChecksum: live.checksum
+        });
+        if (live.mimeType === CATALOG_SHEET_MIME) {
+          exportBytes = await prepareCatalogExport({
+            purpose: grant.purpose,
+            toolId: grant.toolId,
+            source: { ...live, canDownload: live.capabilities.canDownload },
+            allowed: async () =>
+              (await rpcValue(service, 'service_catalog_export_allowed', {
+                p_team: grant.teamId,
+                p_material: grant.materialId,
+                p_actor: grant.actorId
+              })) === true,
+            export: () =>
+              liveDrive!.exportCatalogSpreadsheet({
+                fileId: live.id,
+                resourceKey: context.resourceKey,
+                signal: request.signal
+              }),
+            reload: async () => {
+              const after = await proveLiveAncestry({
+                client: liveDrive!,
+                fileId: live.id,
+                rootFolderId: context.rootFolderId,
+                resourceKey: context.resourceKey
+              });
+              return { ...after, canDownload: after.capabilities.canDownload };
+            },
+            signal: request.signal
+          });
+          return {
+            fileId: live.id,
+            resourceKey: live.resourceKey,
+            sizeBytes: exportBytes.length,
+            mimeType: CATALOG_XLSX_MIME,
+            canDownload: true,
+            sourceVersion: live.version,
+            sourceChecksum: null
+          };
+        }
         if (live.mimeType.startsWith('application/vnd.google-apps.')) {
           throw new TeamFunctionError('UNSUPPORTED_MEDIA', { retryable: false });
         }
@@ -694,18 +776,31 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
     }
   );
   if (!liveDrive) throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
-  const upstream = await liveDrive.fetchFileRange({
-    fileId: authorized.source.fileId,
-    resourceKey: authorized.source.resourceKey,
-    start: authorized.range.start,
-    end: authorized.range.end,
-    signal: request.signal,
-    // A file Drive has flagged as malware or spam still opens in Soty's own
-    // sandbox and renders on the paired agent — the owner can read it in
-    // Drive with a click-through, and neither consumer runs it as a program.
-    // A download to disk keeps Google's refusal (011, findings J3).
-    acknowledgeAbuse: authorized.grant.purpose === 'preview_range'
-  });
+  const exported = exportBytes as Uint8Array<ArrayBuffer> | null;
+  const upstream = exported
+    ? new Response(exported.slice(authorized.range.start, authorized.range.end + 1), {
+        status: request.headers.has('range') ? 206 : 200,
+        headers: {
+          'content-length': String(authorized.range.end - authorized.range.start + 1),
+          ...(request.headers.has('range')
+            ? {
+                'content-range': `bytes ${authorized.range.start}-${authorized.range.end}/${exported.length}`
+              }
+            : {})
+        }
+      })
+    : await liveDrive.fetchFileRange({
+        fileId: authorized.source.fileId,
+        resourceKey: authorized.source.resourceKey,
+        start: authorized.range.start,
+        end: authorized.range.end,
+        signal: request.signal,
+        // A file Drive has flagged as malware or spam still opens in Soty's own
+        // sandbox and renders on the paired agent — the owner can read it in
+        // Drive with a click-through, and neither consumer runs it as a program.
+        // A download to disk keeps Google's refusal (011, findings J3).
+        acknowledgeAbuse: authorized.grant.purpose === 'preview_range'
+      });
   let contentLength: number;
   try {
     contentLength = validateUpstreamRangeResponse(
@@ -722,7 +817,7 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
     upstream.headers,
     authorized.source.mimeType,
     authorized.grant.purpose === 'preview_range' ? 'inline' : 'attachment',
-    authorized.material.name
+    exported ? catalogExportFileName(authorized.material.name) : authorized.material.name
   );
   if (authorized.source.sourceVersion) {
     headers.set('x-wishly-source-version', authorized.source.sourceVersion);
@@ -1560,6 +1655,48 @@ Deno.serve(async request => {
   try {
     const url = new URL(request.url);
     const configured = clients(request);
+    if (
+      url.pathname.endsWith('/restitch/source-range') ||
+      url.pathname.endsWith('/restitch/screen-range')
+    ) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      if (request.method !== 'GET' || request.headers.has('origin') || url.search)
+        throw new TeamFunctionError('PERMISSION_DENIED');
+      if (url.pathname.endsWith('/restitch/source-range')) {
+        const authority = await authorizeNativeRestitchSource(request, configured.service);
+        return await handleRange(request, configured.service, {}, authority);
+      }
+      return await dispatchControlledRestitchScreenRange(
+        {
+          service: configured.service,
+          ticket: request.headers.get('x-restitch-screen-ticket') ?? '',
+          signal: request.signal
+        },
+        {
+          fetch,
+          readCredentials: async credentialId => {
+            const clientId = Deno.env.get('GOOGLE_CLIENT_ID'),
+              clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+            if (!clientId || !clientSecret) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+            return {
+              credential: await readDriveCredential(configured.service, credentialId),
+              clientId,
+              clientSecret,
+              oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+              productionSignals: productionSignals(request)
+            };
+          }
+        }
+      );
+    }
     if (request.method === 'GET' && url.pathname.endsWith('/render-range')) {
       return await handleLandingRenderRange(request, configured.service, cors);
     }
@@ -1664,8 +1801,38 @@ Deno.serve(async request => {
         })
       );
       if (!material) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
-      const result = await buildDownloadGrantResult(
+      const catalogExportAllowed =
+        (material.sizeBytes === null || material.mimeType === CATALOG_SHEET_MIME) &&
+        (await rpcValue(configured.service, 'service_catalog_export_allowed', {
+          p_team: teamId.value,
+          p_material: materialId.value,
+          p_actor: userId
+        })) === true;
+      const downloadable = await resolveDownloadMaterial(
         material,
+        async () => {
+          const context = transferContext(
+            await rpcValue(configured.service, 'service_get_material_transfer_context', {
+              p_team: teamId.value,
+              p_material: materialId.value,
+              p_actor: userId
+            })
+          );
+          if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+          const drive = await driveClient(configured.service, context.credentialId, request);
+          const live = await proveLiveAncestry({
+            client: drive,
+            fileId: context.driveFileId,
+            rootFolderId: context.rootFolderId,
+            resourceKey: context.resourceKey
+          });
+          requireDriveCapability(live, 'canDownload');
+          return { ...live, canDownload: live.capabilities.canDownload === true };
+        },
+        { allowCatalogExport: catalogExportAllowed }
+      );
+      const result = await buildDownloadGrantResult(
+        downloadable,
         { consumer: consumer.value, rangeEndpoint: rangeEndpoint(request) },
         value => issueDownloadGrant(configured.service, value, userId, consumer.value)
       );

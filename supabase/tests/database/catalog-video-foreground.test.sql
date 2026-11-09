@@ -1,0 +1,12 @@
+begin;
+select plan(8);
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.catalog_video_foreground_authorities'::regclass),'foreground authorities force RLS');
+select ok(not has_table_privilege('authenticated','private.catalog_video_foreground_authorities','select'),'browser cannot read private authority');
+select ok(not has_table_privilege('service_role','private.catalog_video_foreground_authorities','select'),'raw service cannot read private authority');
+select ok(not has_function_privilege('authenticated','public.service_redeem_catalog_video_foreground(uuid,uuid,uuid,bytea,uuid,uuid)','execute'),'proof redeem is not a browser RPC');
+select ok(has_function_privilege('service_role','public.service_redeem_catalog_video_foreground(uuid,uuid,uuid,bytea,uuid,uuid)','execute'),'verified Edge can redeem');
+select ok(not has_function_privilege('service_role','public.service_accept_catalog_video_set_before_foreground(uuid,uuid,uuid,jsonb,jsonb,jsonb)','execute'),'inner set admission is not an external bypass');
+select ok(not exists(select 1 from information_schema.columns where table_schema='public'and table_name='analytics_catalog_video_session_authorities'and column_name in('proof_hash','token_hash','session_id','original_key','native_instance_id')),'safe view excludes credentials and raw original keys');
+select ok(exists(select 1 from pg_trigger where tgrelid='private.catalog_video_foreground_authorities'::regclass and tgname='task_cleanup_reference_fence'),'new authority participates in cleanup fence');
+select *from finish();
+rollback;

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { resolvePeriod } from '../scripts/analytics/periods';
 import { setQueryExecutor } from '../scripts/analytics/db.js';
 import {
   getCatalogUpdateDiagnosis,
@@ -143,4 +144,39 @@ describe('catalog update diagnosis', () => {
   it('rejects identifiers before querying', async () => {
     await expect(getCatalogUpdateDiagnosis('not-an-id')).rejects.toThrow('Expected a catalog');
   });
+});
+
+it('pins attempt discovery and never presents a later receipt as as-of success', async () => {
+  const period = resolvePeriod('7d', undefined, '2026-11-05T12:00:00Z');
+  setQueryExecutor(async (sql, params) => {
+    if (sql.includes('information_schema.views')) return [{ present: true }];
+    expect(sql).toContain('started_at <= $4::timestamptz');
+    expect(params).toEqual([CATALOG, 10, period.start, period.end]);
+    return [
+      {
+        attempt_id: ATTEMPT,
+        catalog_material_id: CATALOG,
+        started_at: '2026-11-05T11:00:00Z',
+        ended_at: '2026-11-05T13:00:00Z',
+        result: 'success',
+        delivery_verified_at: '2026-11-05T13:00:00Z',
+        current_profile_version: 5,
+        stage_history: [
+          { stage: 'queued', at: '2026-11-05T11:00:00Z' },
+          { stage: 'complete', at: '2026-11-05T13:00:00Z' }
+        ]
+      }
+    ];
+  });
+  const data = await getCatalogUpdateDiagnosis(CATALOG, 10, period);
+  expect(data.attempts[0]).toMatchObject({
+    result: 'unknown',
+    ended_at: null,
+    delivery_verified_at: null,
+    delivery_proven: false,
+    actual_changes: null,
+    stages: [{ stage: 'queued', at: '2026-11-05T11:00:00Z' }]
+  });
+  expect(data.temporal_scope.current_fields_basis).toBe('current_snapshot_only');
+  expect(data.claim_eligibility.status).toBe('unavailable');
 });

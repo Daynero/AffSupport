@@ -1,0 +1,53 @@
+{
+  "scope": "Pure assignment and publication-time contracts only",
+  "tasks": [
+    "T032 pure core",
+    "T042 pure core"
+  ],
+  "sourceSha256": {
+    "packages/shared/src/team/catalog-video-set.ts": "51b03aa787adb2583ed7e0b1a039dd8337d5cbe35ffc7a381c3f0c6e1314ecaa",
+    "packages/shared/src/team/catalog-publication.ts": "8a9e1fa7c4eef1a1caf7ae65ede8b3b6b8c4290aab6fadd16e74ef1946a29316",
+    "packages/shared/src/team/launches/validation.ts": "6df3b83c08ab4d9e977c25533647ee56d4f58b63d950ec9a98c0d9f9dbfaf558",
+    "packages/shared/src/team/index.ts": "f2c5ad3e19a3a73686239075f5255d4bca2a0ba88449910102e9c045ab718b11",
+    "apps/web/src/team/product-catalog/catalogPublicationDraft.ts": "893cebc6da734021fef4eaea9aacfb24188a35e8a503851ebfc11cb5af57a4f0",
+    "tests/catalog-video-assignment.test.ts": "5bfe77d10d289754f6857df479d9239827d6d03d030d0b710b4f911209f7059b",
+    "tests/catalog-publication-time.test.ts": "a4932d4af43c8d2e87f802ff5215a4f1e2130aa603cb29c838bd997d39852e05"
+  },
+  "assignment": {
+    "algorithmVersion": 1,
+    "seedFormat": "64 hexadecimal characters, sampled once by the generation owner",
+    "rowIdentity": "Persisted internal recipe-row UUID; canonical lower case and stable ordering",
+    "cardinality": "1 <= N <= effective product count <= 400; every index appears and counts differ by at most one",
+    "retry": "Validate and reuse persisted assignment; changed recipe/revision/N/seed refuses reuse",
+    "noFreshRandomnessOrClock": true,
+    "legacyCount": "Missing read/create count defaults to one; missing PATCH field must remain preserved by its caller"
+  },
+  "publicationTime": {
+    "creationDefault": "immediate",
+    "clock": "Explicit trusted server epoch milliseconds",
+    "scheduled": "Local calendar minute + IANA zone + explicit resolved offset + matching UTC dueAt",
+    "dstGap": "Refused without normalization to a different chosen time",
+    "dstFold": "Explicit earlier/later choices, including elapsed-choice status; no silent default",
+    "timezoneSeam": "Existing launch date/zone validators and web @internationalized/date calendar seam",
+    "parity": "Read-only PostgreSQL timezone conversions in isolated PGlite; UTC midnight, +14, Nepal +05:45, Kyiv/New York folds and Lord Howe half-hour fold/gap"
+  },
+  "focusedVerification": {
+    "files": 4,
+    "passed": 61,
+    "log": "scratchpad/catalog-pure-features-focused.log"
+  },
+  "checks": {
+    "sharedBuild": "passed",
+    "agentTypes": "passed",
+    "webTypes": "passed",
+    "testTypes": "passed",
+    "lint": "passed",
+    "diff": "passed"
+  },
+  "limits": [
+    "No N input, calendar control or live product journey is enabled by these helpers.",
+    "No video-set/publication storage, physical child generation, delayed worker or provider write is implemented by this proof.",
+    "No provider conditional-write policy is bypassed; owner behavior choice remains pending.",
+    "No full canonical verification, packaged beta or production activation is claimed."
+  ]
+}

@@ -8,7 +8,7 @@
  */
 
 import type { ChildProcess } from 'node:child_process';
-import { spawnTracked } from '../power/spawn.js';
+import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
 
 /** Enough stderr to diagnose a failure, never enough to grow without bound. */
 const STDERR_TAIL_BYTES = 4_000;
@@ -26,7 +26,7 @@ export interface RunOptions {
   /** Called with the live child so a caller can stop it. */
   onChild?: (child: ChildProcess) => void;
   signal?: AbortSignal;
-  /** Milliseconds before SIGKILL follows SIGTERM. */
+  /** Already-scaled milliseconds before SIGKILL follows SIGTERM. */
   killAfterMs?: number;
   /**
    * Each complete line of stdout as it arrives.
@@ -43,14 +43,16 @@ export function runTool(
   args: readonly string[],
   options: RunOptions = {}
 ): Promise<ToolResult> {
+  options = { ...options };
   return new Promise(resolve => {
     let stdout = '';
     let stderr = '';
     let settled = false;
     let cancelled = false;
+    let terminationRequested = false;
+    let spawnErrorCode: string | null = null;
 
     const child = spawnTracked(command, args, { toolId: 'stitcher' });
-    options.onChild?.(child);
 
     const finish = (result: ToolResult) => {
       if (settled) return;
@@ -60,23 +62,27 @@ export function runTool(
     };
 
     let killTimer: ReturnType<typeof setTimeout> | null = null;
+    const terminate = () => {
+      if (settled || terminationRequested) return;
+      terminationRequested = true;
+      child.kill('SIGTERM');
+      if (settled) return;
+      killTimer = setTimeout(
+        () => child.kill('SIGKILL'),
+        options.killAfterMs ?? activeGovernorOrNull()?.scaleTimeout(4_000) ?? 4_000
+      );
+      killTimer.unref();
+    };
     const stop = () => {
       if (settled || cancelled) return;
       cancelled = true;
-      child.kill('SIGTERM');
-      killTimer = setTimeout(() => child.kill('SIGKILL'), options.killAfterMs ?? 4_000);
-      killTimer.unref();
+      terminate();
     };
 
     const cleanUp = () => {
       if (killTimer) clearTimeout(killTimer);
       options.signal?.removeEventListener('abort', stop);
     };
-
-    if (options.signal) {
-      if (options.signal.aborted) stop();
-      else options.signal.addEventListener('abort', stop, { once: true });
-    }
 
     let pending = '';
     child.stdout?.on('data', chunk => {
@@ -86,23 +92,41 @@ export function runTool(
       const lines = pending.split('\n');
       // The last piece may be half a line; it waits for the rest of it.
       pending = lines.pop() ?? '';
-      for (const line of lines) options.onLine(line.trim());
+      for (const line of lines) {
+        try {
+          options.onLine(line.trim());
+        } catch {
+          /* Progress observers cannot abandon the owned process. */
+        }
+      }
     });
     child.stderr?.on('data', chunk => {
       stderr = (stderr + chunk).slice(-STDERR_TAIL_BYTES);
     });
-    child.once('error', (error: NodeJS.ErrnoException) => {
-      finish({
-        code: null,
-        stdout,
-        stderr,
-        spawnErrorCode: error.code ?? 'SPAWN_FAILED',
-        cancelled
-      });
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      if (settled) return;
+      spawnErrorCode ??= error.code ?? 'SPAWN_FAILED';
+      if (typeof child.pid !== 'number' || child.pid < 1) {
+        finish({ code: null, stdout, stderr, spawnErrorCode, cancelled });
+      } else {
+        // A failed signal or pipe is not proof that an existing child exited.
+        // Preserve the original failure and join close, including repeated errors.
+        terminate();
+      }
     });
     child.once('close', code => {
-      finish({ code, stdout, stderr, spawnErrorCode: null, cancelled });
+      finish({ code, stdout, stderr, spawnErrorCode, cancelled });
     });
+    // Install ownership/exit listeners before calling any external observer.
+    try {
+      options.onChild?.(child);
+    } catch {
+      /* The returned promise still owns the actual child lifetime. */
+    }
+    if (!settled && options.signal) {
+      if (options.signal.aborted) stop();
+      else options.signal.addEventListener('abort', stop, { once: true });
+    }
   });
 }
 

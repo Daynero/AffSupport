@@ -1,3 +1,7 @@
+import {
+  parseCatalogVideoForegroundExecutor,
+  type CatalogVideoForegroundExecutor
+} from '../../../packages/shared/dist/team/catalog-video-foreground.js';
 import { nativeCatalogCellRows } from '../_shared/catalog-native-sheet.ts';
 import {
   catalogImageUrl,
@@ -27,6 +31,7 @@ import {
   type ProductCatalogSpaceSettings
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { RESTITCH_DURATION_MODES } from '../../../packages/shared/dist/team/restitch.js';
 import { buildXlsx, type XlsxCell } from '../_shared/xlsx.ts';
 
 /**
@@ -53,7 +58,14 @@ const BODY_KEYS = new Set([
   'replacesMaterialId',
   'restitchOperationId',
   'idempotencyKey',
-  'catalogImageContractVersion'
+  'catalogImageContractVersion',
+  'catalogVideoProtocolVersion',
+  'restitchEnabled',
+  'videoVariationCount',
+  'videoPublication',
+  'restitchDuration',
+  'expectedExecutorId',
+  'foregroundExecutor'
 ]);
 
 export type CatalogDrive = Pick<
@@ -105,6 +117,9 @@ export type CatalogLinkOutcome =
   | { linked: false; reason: 'NOT_ELIGIBLE' };
 
 export interface ProductCatalogDeps {
+  initialVideoAuthority?: import('./catalog-video-generation.ts').CatalogInitialVideoAuthority;
+  /** Supplied only by durable publication authority, never by a raw client flag. */
+  videoDelivery?: import('../_shared/product-catalog.ts').CatalogVideoCellDelivery;
   /** Local beta experiment; durable retries freeze the selected writer. */
   nativeSpreadsheet?: boolean;
   buildWorkbook?: (rows: XlsxCell[][]) => Promise<Uint8Array<ArrayBuffer>>;
@@ -199,7 +214,19 @@ export interface ProductCatalogDeps {
   log(message: string, detail: string): void;
 }
 
-export interface CreateProductCatalogRequest {
+export interface CatalogCreationVideoPreferences {
+  catalogVideoProtocolVersion: 1;
+  restitchEnabled: boolean;
+  expectedExecutorId?: string;
+  foregroundExecutor?: CatalogVideoForegroundExecutor;
+  videoVariationCount: number;
+  restitchDuration?: Pick<
+    import('../../../packages/shared/dist/team/restitch.js').TeamRestitchDefaults,
+    'finalDurationMode' | 'customFinalDurationSeconds'
+  > & { finalDurationRangeSeconds?: readonly [number, number] };
+  videoPublication: import('../../../packages/shared/dist/team/catalog-publication.js').CatalogVideoPublicationRequest;
+}
+export interface CreateProductCatalogRequest extends Partial<CatalogCreationVideoPreferences> {
   catalogImageContractVersion?: 2;
   teamId: string;
   videoMaterialId: string;
@@ -212,6 +239,9 @@ export interface CreateProductCatalogRequest {
 }
 
 export interface CreateProductCatalogResult {
+  videoGeneration?: import('./catalog-video-generation.ts').CatalogVideoGenerationProgress;
+  /** Read-only current observation; never rewrites the original created receipt. */
+  videoGenerationObservation?: import('./catalog-video-generation.ts').CatalogVideoGenerationProgress;
   outcome: 'created' | 'recreated' | 'existing';
   catalog: ExistingCatalog;
   videoShared: boolean;
@@ -257,7 +287,9 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
     invalid();
   if (body.catalogImageContractVersion !== undefined && body.catalogImageContractVersion !== 2)
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
+  const videoPreferences = parseCatalogCreationVideoPreferences(body, count.value);
   return {
+    ...videoPreferences,
     ...(body.catalogImageContractVersion === 2 ? { catalogImageContractVersion: 2 } : {}),
     teamId,
     videoMaterialId,
@@ -267,6 +299,135 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
     replacesMaterialId: typeof replacesMaterialId === 'string' ? replacesMaterialId : null,
     restitchOperationId: typeof restitchOperationId === 'string' ? restitchOperationId : null,
     idempotencyKey
+  };
+}
+
+/** Structural parsing deliberately does not reject a past accepted due time.
+ * The durable acceptance authority validates its first admission once. */
+export function parseCatalogCreationVideoPreferences(
+  body: Record<string, unknown>,
+  productCount: number
+): Partial<CatalogCreationVideoPreferences> {
+  const keys = [
+    'restitchEnabled',
+    'videoVariationCount',
+    'videoPublication',
+    'restitchDuration',
+    'expectedExecutorId',
+    'foregroundExecutor'
+  ];
+  if (body.catalogVideoProtocolVersion === undefined) {
+    if (keys.some(key => body[key] !== undefined)) invalid();
+    return {};
+  }
+  if (
+    body.catalogVideoProtocolVersion !== 1 ||
+    typeof body.restitchEnabled !== 'boolean' ||
+    body.restitchOperationId != null
+  )
+    invalid();
+  if (
+    body.expectedExecutorId !== undefined &&
+    (typeof body.expectedExecutorId !== 'string' || !UUID.test(body.expectedExecutorId))
+  )
+    invalid();
+  const foregroundExecutor =
+    body.foregroundExecutor === undefined
+      ? undefined
+      : parseCatalogVideoForegroundExecutor(body.foregroundExecutor);
+  if (
+    body.foregroundExecutor !== undefined &&
+    (!foregroundExecutor || body.expectedExecutorId !== undefined || body.restitchEnabled !== true)
+  )
+    invalid();
+  const n = body.videoVariationCount;
+  if (
+    typeof n !== 'number' ||
+    !Number.isSafeInteger(n) ||
+    n < 1 ||
+    n > productCount ||
+    (!body.restitchEnabled && n !== 1)
+  )
+    invalid('count');
+  let restitchDuration: CatalogCreationVideoPreferences['restitchDuration'];
+  if (body.restitchDuration !== undefined) {
+    const duration = body.restitchDuration;
+    if (
+      !isRecord(duration) ||
+      Object.keys(duration).some(
+        key =>
+          ![
+            'finalDurationMode',
+            'customFinalDurationSeconds',
+            'finalDurationRangeSeconds'
+          ].includes(key)
+      ) ||
+      !RESTITCH_DURATION_MODES.includes(
+        duration.finalDurationMode as (typeof RESTITCH_DURATION_MODES)[number]
+      ) ||
+      typeof duration.customFinalDurationSeconds !== 'number' ||
+      !Number.isInteger(duration.customFinalDurationSeconds) ||
+      duration.customFinalDurationSeconds < 60 ||
+      duration.customFinalDurationSeconds > 3600
+    )
+      invalid();
+    const range = duration.finalDurationRangeSeconds;
+    if (
+      range !== undefined &&
+      (duration.finalDurationMode !== 'random-centered' ||
+        !Array.isArray(range) ||
+        range.length !== 2 ||
+        range.some(v => !Number.isInteger(v) || v < 60 || v > 3600 || v % 60 !== 0) ||
+        range[0] > range[1])
+    )
+      invalid();
+    restitchDuration = {
+      finalDurationMode: duration.finalDurationMode as NonNullable<
+        typeof restitchDuration
+      >['finalDurationMode'],
+      customFinalDurationSeconds: duration.customFinalDurationSeconds,
+      ...(Array.isArray(range) ? { finalDurationRangeSeconds: [range[0], range[1]] as const } : {})
+    };
+  }
+  const publication = body.videoPublication;
+  if (!isRecord(publication)) invalid();
+  if (publication.mode === 'immediate') {
+    if (Object.keys(publication).some(key => key !== 'mode')) invalid();
+    return {
+      catalogVideoProtocolVersion: 1,
+      ...(foregroundExecutor ? { foregroundExecutor } : {}),
+      ...(restitchDuration ? { restitchDuration } : {}),
+      ...(typeof body.expectedExecutorId === 'string'
+        ? { expectedExecutorId: body.expectedExecutorId }
+        : {}),
+      restitchEnabled: body.restitchEnabled,
+      videoVariationCount: n,
+      videoPublication: { mode: 'immediate' }
+    };
+  }
+  if (
+    publication.mode !== 'scheduled' ||
+    Object.keys(publication).some(
+      key => !['mode', 'localDateTime', 'timeZone', 'resolvedOffset', 'dueAt'].includes(key)
+    ) ||
+    ['localDateTime', 'timeZone', 'resolvedOffset', 'dueAt'].some(
+      key => typeof publication[key] !== 'string'
+    )
+  )
+    invalid();
+  if (!Number.isFinite(Date.parse(publication.dueAt as string))) invalid();
+  return {
+    catalogVideoProtocolVersion: 1,
+    ...(foregroundExecutor ? { foregroundExecutor } : {}),
+    ...(restitchDuration ? { restitchDuration } : {}),
+    ...(typeof body.expectedExecutorId === 'string'
+      ? { expectedExecutorId: body.expectedExecutorId }
+      : {}),
+    restitchEnabled: body.restitchEnabled,
+    videoVariationCount: n,
+    videoPublication: structuredClone(
+      publication
+    ) as CatalogCreationVideoPreferences['videoPublication']
   };
 }
 
@@ -374,7 +535,10 @@ export async function createProductCatalog(
   if (liveCopy) assertLiveVideo(liveCopy);
 
   let videoShared = false;
-  if (videoPermissions.length === 0) {
+  if (
+    videoPermissions.length === 0 &&
+    !(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled)
+  ) {
     // Opening a video to anyone with the link changes the video, so it needs `edit` on it.
     await deps.loadVideo({ teamId, videoId, actorId, permission: 'edit' });
     if (liveVideo.capabilities.canShare !== true) {
@@ -480,6 +644,7 @@ export async function createProductCatalog(
       settings: first,
       sourceLink: request.sourceLink,
       videoLink,
+      videoDelivery: deps.videoDelivery,
       count: request.productCount,
       randomLinkVariation: request.randomLinkVariation,
       rows: planned

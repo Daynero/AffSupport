@@ -1,0 +1,10 @@
+{
+  "observedAt": "2026-11-07T05:42:06.632Z",
+  "confirmedRefusal": true,
+  "httpStatus": 409,
+  "errorCode": "PROCESS_RESULT_UNCERTAIN",
+  "protectedRowsUnchanged": true,
+  "fixtureStillRestored": true,
+  "scope": "Known completed synthetic trash key replay after confirmed restore. Updated beta returns a typed historical-current-state refusal without another provider mutation. No manual UI claim.",
+  "productionTouched": false
+}

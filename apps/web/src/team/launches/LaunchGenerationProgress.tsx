@@ -26,7 +26,9 @@ export function LaunchGenerationProgress({
   teamId,
   method = 'catalog',
   restitchEnabled = Boolean(
-    generation?.restitchOperationId || generation?.stage.startsWith('restitch_')
+    generation?.videoGeneration ||
+    generation?.restitchOperationId ||
+    generation?.stage.startsWith('restitch_')
   ),
   pendingStage,
   requestError,
@@ -54,6 +56,7 @@ export function LaunchGenerationProgress({
   onRefresh?: (signal: AbortSignal) => Promise<void>;
 }) {
   const { t } = useI18n();
+  const activeRestitch = Boolean(generation?.videoGeneration) || restitchEnabled;
   const workspace = useOptionalTeam();
   const observingRestitch = !pendingStage && generation?.state === 'waiting_dependency';
   const child = useTeamOperation({
@@ -62,10 +65,28 @@ export function LaunchGenerationProgress({
     workspaceObservation: true,
     workflowId: generation?.id
   });
-  const current = pendingStage ? null : generation;
-  const requestedStage = pendingStage ?? current?.stage ?? 'validation';
+  const retainedVideoInterruption = Boolean(
+    generation?.videoGeneration?.state === 'unknown' &&
+    ['failed', 'partial', 'interrupted'].includes(generation.state)
+  );
+  const canonicalCancellationPending = Boolean(
+    generation &&
+    (['cancel_requested', 'canceled_with_cleanup_pending'].includes(generation.state) ||
+      generation.videoGeneration?.state === 'cancel_requested')
+  );
+  const retainCanonicalStatus = retainedVideoInterruption || canonicalCancellationPending;
+  const current = pendingStage && !retainCanonicalStatus ? null : generation;
+  const videoGeneration = current?.videoGeneration;
+  const videoPending = Boolean(
+    videoGeneration &&
+    ['accepted', 'preparing', 'cancel_requested', 'unknown'].includes(videoGeneration.state)
+  );
+  const requestedStage = retainCanonicalStatus
+    ? generation!.stage
+    : (pendingStage ?? current?.stage ?? 'validation');
   const cancelling =
     pendingStage === 'cancel' ||
+    videoGeneration?.state === 'cancel_requested' ||
     current?.state === 'cancel_requested' ||
     current?.state === 'canceled_with_cleanup_pending';
   const cleanupPending = current?.state === 'canceled_with_cleanup_pending';
@@ -81,7 +102,7 @@ export function LaunchGenerationProgress({
   const stage = launchProgressDisplayStage({
     generation: current,
     stage: requestedStage,
-    restitch: restitchEnabled,
+    restitch: activeRestitch,
     childSucceeded
   });
   const reconciling = Boolean(
@@ -99,7 +120,21 @@ export function LaunchGenerationProgress({
     onFailedRestitch?.(failedChildId);
     return () => onFailedRestitch?.(null);
   }, [failedChildId, onFailedRestitch]);
+  const canonicalTerminalCause = Boolean(
+    current &&
+    ['failed', 'partial', 'interrupted'].includes(current.state) &&
+    current.errorCode &&
+    ![
+      'UNKNOWN',
+      'LAUNCH_BUSY',
+      'LEASE_MISMATCH',
+      'LEASE_EXPIRED',
+      'LAUNCH_RESULT_UNCERTAIN',
+      'PROCESS_RESULT_UNCERTAIN'
+    ].includes(current.errorCode)
+  );
   const code =
+    (canonicalTerminalCause ? current?.errorCode : null) ??
     (reconciling ? null : requestErrorCode) ??
     current?.errorCode ??
     (childFailed
@@ -125,6 +160,7 @@ export function LaunchGenerationProgress({
     current?.state,
     stage,
     current?.progress,
+    videoGeneration,
     current?.steps,
     child.operation?.id,
     child.operation?.state,
@@ -135,7 +171,7 @@ export function LaunchGenerationProgress({
     child.localProgress?.progress,
     childState
   ]);
-  const watching = !terminal && (cancelling || !needsAttention);
+  const watching = videoPending || (!terminal && (cancelling || !needsAttention));
   const refreshChild = child.refetch;
   const refresh = useCallback(
     async (signal: AbortSignal) => {
@@ -143,7 +179,12 @@ export function LaunchGenerationProgress({
     },
     [onRefresh, observingRestitch, refreshChild]
   );
-  const watch = useLaunchProgressWatch(watching, evidence, refresh);
+  const watch = useLaunchProgressWatch(
+    watching,
+    evidence,
+    refresh,
+    canonicalCancellationPending && onRefresh ? `${teamId ?? ''}:${generation!.id}` : undefined
+  );
   const uncertain = disconnected || watch.readFailed;
   const elapsedLabel = useLaunchElapsed(
     `${teamId ?? ''}:${launchId ?? 'new'}`,
@@ -200,7 +241,7 @@ export function LaunchGenerationProgress({
       generation: current,
       stage,
       method,
-      restitch: restitchEnabled,
+      restitch: activeRestitch,
       childSucceeded,
       // A stale observation does not undo completed work or turn it into a failure.
       attention: needsAttention || cancelling || uncertain,
@@ -222,9 +263,11 @@ export function LaunchGenerationProgress({
       : action;
   const statusLabel = cancelling
     ? t(cleanupPending ? 'launchesStageCleanup' : 'launchesStageCancel')
-    : uncertain || needsAttention
-      ? t('launchesProgressLastConfirmed', { stage: confirmedAction })
-      : confirmedAction;
+    : current?.state === 'canceled'
+      ? t('teamAuditCanceled')
+      : uncertain || needsAttention
+        ? t('launchesProgressLastConfirmed', { stage: confirmedAction })
+        : confirmedAction;
   const currentIndex = stages.findIndex(
     entry => entry.state === 'active' || entry.state === 'attention'
   );
@@ -235,7 +278,14 @@ export function LaunchGenerationProgress({
   const detail =
     !uncertain && !needsAttention && !cancelling
       ? validMeasured
-        ? `${measured.completed} / ${measured.total} ${measured.unit}`
+        ? measured.source === 'registered_video_variants'
+          ? videoGeneration
+            ? count
+            : t('catalogVideoCreationProgress', {
+                ready: measured.completed,
+                total: measured.total
+              })
+          : `${measured.completed} / ${measured.total} ${measured.unit}`
         : validChild
           ? `${Math.round(childPercent)}%`
           : count
@@ -249,9 +299,16 @@ export function LaunchGenerationProgress({
     current?.state !== 'succeeded' &&
     current?.state !== 'canceled';
   const unconfirmed =
-    showError && !failed && Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
+    showError &&
+    !failed &&
+    code !== 'AGENT_REQUIRED' &&
+    Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
   const showNotice =
-    cleanupPending || reconciling || (!showError && uncertain) || Boolean(current?.stepsTruncated);
+    canonicalCancellationPending ||
+    cleanupPending ||
+    reconciling ||
+    (!showError && uncertain) ||
+    Boolean(current?.stepsTruncated);
   return (
     <Card
       role="section"
@@ -282,7 +339,7 @@ export function LaunchGenerationProgress({
                 : 'launchesProgressActionRequired'
           )}
         >
-          {(!reconciling && requestError) ||
+          {(!canonicalTerminalCause && !reconciling && requestError) ||
             (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
           {unconfirmed && (
             <span className="launch-progress-error-hint">
@@ -296,14 +353,35 @@ export function LaunchGenerationProgress({
         stages={stages}
         label={statusLabel}
         detail={detail ?? '\u00a0'}
-        active={watching && !cancelling && !uncertain}
+        active={
+          watching &&
+          !cancelling &&
+          !uncertain &&
+          !needsAttention &&
+          videoGeneration?.state !== 'unknown'
+        }
         stepsLabel={t('launchesSteps')}
       />
+      {videoGeneration && (
+        <p role="status" className="field-hint">
+          {t('catalogVideoCreationProgress', {
+            ready: videoGeneration.registeredCount,
+            total: videoGeneration.requestedCount
+          })}
+          {videoGeneration.state === 'unknown'
+            ? ` · ${t('catalogVideoCreationUnknown')}`
+            : videoGeneration.state === 'cancel_requested'
+              ? ` · ${t('catalogVideoCreationCanceling')}`
+              : videoGeneration.state === 'canceled'
+                ? ` · ${t('teamAuditCanceled')}`
+                : ''}
+        </p>
+      )}
       {showNotice && (
         <div className="launch-progress-notice">
           {reconciling && !showError ? (
             <p role="status">{t('launchesProgressReconciling')}</p>
-          ) : cleanupPending ? (
+          ) : cleanupPending || canonicalCancellationPending ? (
             <p role="status">{t('launchesCleanupPending')}</p>
           ) : uncertain && !showError ? (
             <Alert color="warning" title={t('launchesProgressUnconfirmed')}>
@@ -319,7 +397,7 @@ export function LaunchGenerationProgress({
           {current?.stepsTruncated && <p>{t('launchesStepsTruncated')}</p>}
         </div>
       )}
-      {showError && restitchEnabled && restitchMediaError(code) && onUseOriginalVideo && (
+      {showError && activeRestitch && restitchMediaError(code) && onUseOriginalVideo && (
         <div className="flex flex-col items-start gap-3 rounded-control bg-surface p-3">
           <p className="m-0 text-caption text-muted">{t('launchesOriginalVideoHint')}</p>
           <Button disabled={disabled} onClick={onUseOriginalVideo}>
@@ -331,12 +409,19 @@ export function LaunchGenerationProgress({
         {onOpenRestitchSettings && restitchSettingsError(code) && (
           <Button onClick={onOpenRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
         )}
-        {!cancelling && current?.state !== 'succeeded' && current?.state !== 'canceled' && (
-          <Button disabled={disabled} onClick={onCancel}>
-            {t('launchesCancel')}
+        {!cancelling &&
+          (current?.state !== 'succeeded' || videoPending) &&
+          current?.state !== 'canceled' && (
+            <Button disabled={disabled} onClick={onCancel}>
+              {t(current?.state === 'succeeded' ? 'catalogVideoCancel' : 'launchesCancel')}
+            </Button>
+          )}
+        {canonicalCancellationPending && onRefresh && (
+          <Button disabled={watch.checking} onClick={() => void watch.refresh()}>
+            {t(watch.checking ? 'launchesProgressChecking' : 'launchesProgressRefresh')}
           </Button>
         )}
-        {(needsAttention || uncertain || terminal) && retryActions}
+        {!canonicalCancellationPending && (needsAttention || uncertain || terminal) && retryActions}
       </div>
     </Card>
   );

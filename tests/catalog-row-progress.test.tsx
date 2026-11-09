@@ -47,6 +47,40 @@ const view = (value: CatalogRegistryRow) => (
     </tbody>
   </table>
 );
+it('shows registered K/N for the current video set without reporting catalog completion', () => {
+  const value: CatalogRegistryRow = {
+    ...row,
+    updatePending: false,
+    videoGeneration: {
+      setId: '11111111-1111-4111-8111-111111111111',
+      requestedCount: 5,
+      registeredCount: 2,
+      state: 'preparing'
+    }
+  };
+  expect(catalogRowProgress(value).active).toBe(true);
+  expect(catalogRowProgress(value).value).toBeCloseTo(0.208);
+  const child = '11111111-1111-4111-8111-111111111112';
+  const runningChild = {
+    ...value,
+    restitchProgress: 50,
+    restitchOperationId: child,
+    videoGeneration: { ...value.videoGeneration!, activeChildOperationId: child }
+  };
+  expect(catalogRowProgress(runningChild).value).toBeCloseTo(0.24);
+  expect(catalogRowProgress({ ...runningChild, restitchOperationId: null }).value).toBeCloseTo(
+    0.208
+  );
+  const { rerender } = render(view(value));
+  expect(screen.getByRole('row').getAttribute('aria-label')).toContain('2');
+  rerender(
+    view({
+      ...value,
+      videoGeneration: { ...value.videoGeneration!, state: 'ready', registeredCount: 5 }
+    })
+  );
+  expect(screen.getByRole('row').className).not.toContain('is-update-complete');
+});
 it('advances only from observed stages and clamps real video progress', () => {
   expect(
     catalogRowProgress({ ...row, updateStage: 'restitching', restitchProgress: 50 }).value
@@ -91,4 +125,87 @@ it('fills and briefly highlights only a newly confirmed success, then clears the
   }
   expect(tr.className).not.toContain('is-update-complete');
   expect(tr.style.getPropertyValue('--catalog-row-progress-visible')).toBe('0');
+});
+
+it('resets progress between consecutive active attempts and native children', () => {
+  const first = {
+    ...row,
+    activeAttemptId: 'attempt-a',
+    progressAttemptId: 'attempt-a',
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    updateStage: 'uploading' as const
+  };
+  const { rerender } = render(view(first));
+  const tr = screen.getByRole('row');
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.82');
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'preparing'
+    })
+  );
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.12');
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'restitching',
+      restitchOperationId: 'child-a',
+      restitchProgress: 90
+    })
+  );
+  rerender(
+    view({
+      ...first,
+      activeAttemptId: 'attempt-b',
+      progressAttemptId: 'attempt-b',
+      updateStage: 'restitching',
+      restitchOperationId: 'child-b',
+      restitchProgress: 0
+    })
+  );
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.08');
+});
+it('ignores progress from another attempt and video progress with no live child', () => {
+  expect(
+    catalogRowProgress({
+      ...row,
+      activeRoundAt: '2026-11-05T10:00:00Z',
+      activeAttemptId: 'b',
+      progressAttemptId: 'a',
+      updateStage: 'uploading'
+    }).value
+  ).toBe(0.12);
+  expect(
+    catalogRowProgress({
+      ...row,
+      updateStage: 'restitching',
+      restitchOperationId: null,
+      restitchProgress: 99
+    }).value
+  ).toBe(0.08);
+});
+
+it('keeps the round progress when its finished video child leaves the snapshot', () => {
+  const current = {
+    ...row,
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: 'a',
+    progressAttemptId: 'a'
+  };
+  const { rerender } = render(
+    view({
+      ...current,
+      updateStage: 'restitching',
+      restitchOperationId: 'child-a',
+      restitchProgress: 100
+    })
+  );
+  const tr = screen.getByRole('row');
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.4');
+  rerender(view({ ...current, updateStage: 'preparing', restitchOperationId: null }));
+  expect(tr.style.getPropertyValue('--catalog-row-progress')).toBe('0.4');
 });

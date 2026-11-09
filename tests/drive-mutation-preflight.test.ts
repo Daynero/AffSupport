@@ -150,7 +150,7 @@ it.each(['pending', 'running'] as const)(
   }
 );
 
-it('replays a confirmed receipt without repeating provider permission checks', async () => {
+it('keeps a historical terminal distinct from the current material without repeating provider checks', async () => {
   const g = await group(1),
     item = g.items[0];
   await db.query(
@@ -159,7 +159,10 @@ it('replays a confirmed receipt without repeating provider permission checks', a
   );
   const ops = operation(item.key),
     preflight = vi.fn(async () => denied());
-  expect(await acceptMutationPreflight({ ...ops, preflight })).toMatchObject({ replayed: true });
+  await expect(acceptMutationPreflight({ ...ops, preflight })).rejects.toMatchObject({
+    code: 'PROCESS_RESULT_UNCERTAIN',
+    retryable: false
+  });
   expect(preflight).not.toHaveBeenCalled();
   expect(ops.fail).not.toHaveBeenCalled();
 });

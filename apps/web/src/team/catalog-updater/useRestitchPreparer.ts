@@ -1,3 +1,4 @@
+import { claimRestitchForInstalledAgent } from '../restitch/claim';
 import { useEffect, useRef, useState } from 'react';
 import {
   parseMaterialRestitchPrep,
@@ -49,7 +50,7 @@ export interface RestitchPreparerClient {
 }
 
 const defaultClient: RestitchPreparerClient = {
-  claimRestitchJob: teamId => teamApi.claimRestitchJob(teamId),
+  claimRestitchJob: claimRestitchForInstalledAgent,
   heartbeatRestitchJob: (jobId, leaseToken, progress) =>
     teamApi.heartbeatRestitchJob(jobId, leaseToken, progress),
   completeRestitchJob: input => teamApi.completeRestitchJob(input),
@@ -158,8 +159,11 @@ export function useRestitchPreparer(input: {
   client?: RestitchPreparerClient;
   /** Told once when the server says this page is too old to claim (030); claiming then stops. */
   onOutdated?: () => void;
+  onAgentOutdated?: () => void;
 }): { preparing: boolean } {
   const { teamId, enabled } = input;
+  const agentOutdatedRef = useRef(input.onAgentOutdated);
+  agentOutdatedRef.current = input.onAgentOutdated;
   const outdatedRef = useRef(input.onOutdated);
   outdatedRef.current = input.onOutdated;
   const clientRef = useRef(input.client ?? defaultClient);
@@ -266,6 +270,11 @@ export function useRestitchPreparer(input: {
       } catch (error) {
         // This page predates the space's settings (030): nothing it claims could be run, so it
         // stops asking until it is reloaded, and says so once.
+        if (errorCode(error) === 'AGENT_UPDATE_REQUIRED') {
+          stopped = true;
+          agentOutdatedRef.current?.();
+          return;
+        }
         if (errorCode(error) === 'RESTITCH_CLIENT_OUTDATED') {
           stopped = true;
           outdatedRef.current?.();
@@ -321,7 +330,7 @@ export function useRestitchPreparer(input: {
       if (timer !== null) window.clearTimeout(timer);
       setPreparing(false);
     };
-  }, [enabled, teamId, nativeSupported, nativeOwner, agentConnected]);
+  }, [enabled, teamId, nativeSupported, nativeOwner, agentConnected, nativeInstanceId]);
 
   return { preparing };
 }

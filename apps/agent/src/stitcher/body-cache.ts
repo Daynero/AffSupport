@@ -14,7 +14,6 @@
 
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
 import type { SourceProfile, StitchPlan } from '@video-compressor/shared';
@@ -29,7 +28,7 @@ import {
 } from '../ffmpeg/stitch-presets.js';
 import { audioShapeDisagreements, measureAudioShape } from './audio-shape.js';
 import { runTool, toolSucceeded } from './run.js';
-import { measureOutput } from './verify.js';
+import { measureOutput, toleranceSeconds, type MeasuredOutput } from './verify.js';
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 
@@ -47,7 +46,8 @@ const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 // 6: old average-FPS frame limits could cache only seconds of a minutes-long body.
 // 7: concat must wait for the last presented B-frame, not an early MP4 duration.
 // 8: reject copied bodies with a shifted audio track and recover by encoding the body.
-const PREPARED_BODY_FORMAT = 8;
+// 9: body A/V drift must fit the same AAC-plus-video quantum as final verification.
+const PREPARED_BODY_FORMAT = 9;
 
 export interface PreparedBody {
   path: string;
@@ -115,7 +115,8 @@ export class PreparedBodyCache {
     }
 
     await mkdir(this.directory, { recursive: true });
-    const workDir = await mkdtemp(path.join(os.tmpdir(), 'soty-stitch-body-'));
+    // Promotion is an atomic rename, so its work area must share the cache volume.
+    const workDir = await mkdtemp(path.join(this.directory, '.prepare-'));
     try {
       const built = await buildBody(workDir, options);
       if (!built.ok) return built;
@@ -137,13 +138,16 @@ export class PreparedBodyCache {
     let entries: { path: string; size: number; usedAtMs: number }[];
     try {
       const names = await readdir(this.directory);
-      entries = await Promise.all(
-        names.map(async name => {
-          const full = path.join(this.directory, name);
-          const stats = await stat(full);
-          return { path: full, size: stats.size, usedAtMs: stats.mtimeMs };
-        })
-      );
+      entries = (
+        await Promise.all(
+          names.map(async name => {
+            const full = path.join(this.directory, name);
+            const stats = await stat(full);
+            if (!stats.isFile()) return null;
+            return { path: full, size: stats.size, usedAtMs: stats.mtimeMs };
+          })
+        )
+      ).filter(entry => entry !== null);
     } catch {
       return;
     }
@@ -278,19 +282,33 @@ async function bodyNeedsRecovery(
   output: string,
   profile: SourceProfile,
   plan: Pick<StitchPlan, 'bodyStartSeconds' | 'bodyEndSeconds'>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  strict = true
 ): Promise<boolean> {
-  const measured = await measureOutput(output, { signal });
+  return preparedBodyNeedsRecovery(await measureOutput(output, { signal }), profile, plan, strict);
+}
+
+/** A copied body with more A/V drift than the final strict join accepts is re-encoded.
+ * A re-encoded body is accepted within the body tolerance: frame quantisation at a B-frame
+ * cut survives re-encoding, and the final join verification stays the authority. */
+export function preparedBodyNeedsRecovery(
+  measured: MeasuredOutput | null,
+  profile: SourceProfile,
+  plan: Pick<StitchPlan, 'bodyStartSeconds' | 'bodyEndSeconds'>,
+  strict = true
+): boolean {
   if (!measured) return true;
-  const tolerance = Math.max(0.25, 3 / profile.frameRate);
+  const bodyTolerance = Math.max(0.25, 3 / profile.frameRate);
   if (
-    Math.abs(measured.videoTrackSeconds - (plan.bodyEndSeconds - plan.bodyStartSeconds)) > tolerance
+    Math.abs(measured.videoTrackSeconds - (plan.bodyEndSeconds - plan.bodyStartSeconds)) >
+    bodyTolerance
   )
     return true;
   if (!profile.hasAudio) return false;
   return (
     measured.audioCodec === null ||
-    Math.abs(measured.videoTrackSeconds - measured.audioTrackSeconds) > tolerance
+    Math.abs(measured.videoTrackSeconds - measured.audioTrackSeconds) >
+      (strict ? toleranceSeconds(profile) : bodyTolerance)
   );
 }
 
@@ -325,7 +343,7 @@ async function reencodeWholeBody(
     });
     return { ok: false, error: failureOf(result, 'BODY_RECOVERY') };
   }
-  if (await bodyNeedsRecovery(output, profile, plan, options.signal)) {
+  if (await bodyNeedsRecovery(output, profile, plan, options.signal, false)) {
     diagnostics.record('stitcher', 'body_recovery_failed', { ...props, stage: 'verification' });
     return { ok: false, error: 'BODY_RECOVERY_VERIFICATION_FAILED' };
   }

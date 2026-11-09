@@ -1,3 +1,16 @@
+import { CatalogProfileVideoCount } from './CatalogProfileVideoCount';
+import { CatalogVideoVariationsDialog } from './CatalogVideoVariationsDialog';
+import { builtForEnvironment } from '../../lib/config';
+import { CatalogPublicationDialog } from '../product-catalog/CatalogPublicationDialog';
+import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
+import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
+import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
+import { privateClientId, usePrivateCacheEpoch } from '../private-cache-scope';
+import { withReadDeadline } from '../readCoordinator';
+import type { TeamAnalyticsStorage } from '@video-compressor/shared';
+import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
+import { BulkTrashPanel } from '../explorer/BulkTrashPanel';
+import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { TeamApiError } from '../../api/team';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -13,6 +26,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import type {
+  CatalogMutationOptions,
   CatalogRegistryRow,
   CatalogUpdaterInterval,
   CatalogUpdaterState
@@ -26,19 +40,19 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
 import { searchFieldEscape } from '../../lib/searchField';
-import { teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
 import { spaceRouteFor } from '../SpaceSettingsLink';
 import { DropdownMenu } from '../../components/ui/index';
-import { beginCatalogUiFlow } from './analytics';
+import { beginCatalogUiFlow, type CatalogUiFlow, type CatalogUiFailure } from './analytics';
 import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
 import { CatalogIconControls, CatalogIconLegend, CATALOG_FIELDS } from './CatalogIconControls';
-import { useCatalogInlineChanges } from './useCatalogInlineChanges';
+import { useCatalogInlineChanges, type CatalogField } from './useCatalogInlineChanges';
 import { CatalogCreatedFilter } from './CatalogCreatedFilter';
 import { matchesCatalogCreatedAt } from './catalogCreatedDate';
 import { CatalogStatusDetails } from './CatalogStatusDetails';
@@ -50,17 +64,24 @@ import {
   type CatalogUpdaterClient
 } from './useCatalogUpdater';
 
-export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient {
+export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, CatalogCommandClient {
+  getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
   setCatalogUpdateInterval: (
     teamId: string,
     catalogIds: string[],
     interval: CatalogUpdaterInterval | null
   ) => Promise<CatalogUpdaterState>;
   runCatalogUpdateNow: (teamId: string, catalogIds: string[]) => Promise<number>;
-  cancelCatalogUpdate?: (teamId: string, catalogId: string) => Promise<boolean>;
+  cancelCatalogUpdate?: (
+    teamId: string,
+    catalogId: string,
+    observed?: { roundAt: string; attemptId: string | null },
+    options?: CatalogMutationOptions
+  ) => Promise<boolean>;
   listCatalogUpdateAttempts?: (
     teamId: string,
-    catalogId: string
+    catalogId: string,
+    options?: { signal?: AbortSignal }
   ) => Promise<import('@video-compressor/shared').CatalogUpdateAttempt[]>;
   retryCatalogUpdate?: (
     teamId: string,
@@ -109,7 +130,17 @@ function needsAttention(row: CatalogRegistryRow) {
   );
 }
 
-export function CatalogUpdaterDialog({
+export function CatalogUpdaterDialog(props: Parameters<typeof CatalogUpdaterDialogScope>[0]) {
+  const epoch = usePrivateCacheEpoch();
+  return (
+    <CatalogUpdaterDialogScope
+      key={`${props.teamId}:${privateClientId(props.client ?? defaultClient)}:${epoch}`}
+      {...props}
+    />
+  );
+}
+
+function CatalogUpdaterDialogScope({
   teamId,
   client = defaultClient,
   onClose,
@@ -129,8 +160,63 @@ export function CatalogUpdaterDialog({
   /** Close the updater and show this catalog's sheet where it lives in the space. */
   onReveal?: (row: CatalogRegistryRow) => void;
 }) {
+  const mounted = useRef(true);
+  const stopControllers = useRef(new Set<AbortController>());
+  const stopFlows = useRef(new Set<CatalogUiFlow>());
+  const stopFeedback = useRef(new Map<number, { flow: CatalogUiFlow; error?: CatalogUiFailure }>());
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      for (const controller of stopControllers.current) controller.abort();
+      for (const flow of stopFlows.current) flow.cancel();
+      stopFlows.current.clear();
+      stopFeedback.current.clear();
+    };
+  }, []);
+  const sourceScope = useRef({ teamId, client });
+  if (sourceScope.current.teamId !== teamId || sourceScope.current.client !== client)
+    sourceScope.current = { teamId, client };
+  const owner = useMemo(() => {
+    const scope = sourceScope.current;
+    return captureCatalogMutationOwner(() => mounted.current && sourceScope.current === scope);
+  }, [teamId, client]);
+  const [storageContext, setStorageContext] = useState<{
+    teamId: string;
+    kind: TeamAnalyticsStorage | null;
+  } | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    setStorageContext(null);
+    if (client.getConnectionStatus) {
+      void withReadDeadline(() => client.getConnectionStatus!(teamId), controller.signal)
+        .then(status => {
+          if (!controller.signal.aborted)
+            setStorageContext({ teamId, kind: status.driveKind ?? null });
+        })
+        .catch(() => {
+          /* Unknown storage stays unknown; never infer My Drive. */
+        });
+    }
+    return () => controller.abort();
+  }, [client, teamId]);
   const { t, language } = useI18n();
-  const { push } = useToasts();
+  const { push, toasts } = useToasts();
+  useEffect(() => {
+    if (!owner.current()) return;
+    for (const toast of toasts) {
+      const delivered = stopFeedback.current.get(toast.id);
+      if (!delivered) continue;
+      if (delivered.error) delivered.flow.fail(delivered.error, 'result_visible');
+      else delivered.flow.complete();
+      stopFeedback.current.delete(toast.id);
+      stopFlows.current.delete(delivered.flow);
+    }
+  }, [toasts, owner]);
+  const workspaceOperations = useOptionalWorkspaceOperations();
+  const [trashGroups, setTrashGroups] = useState<Set<string>>(() => new Set());
+  const directTrashKeys = useRef(new Map<string, string>());
+  const observedTrash = useRef('');
   const { can, permissions } = useTeam();
   const titleId = useId();
   const searchId = useId();
@@ -148,6 +234,7 @@ export function CatalogUpdaterDialog({
   });
   const [legendOpen, setLegendOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
+  const recentReturnTarget = useRef<{ catalogId?: string; field?: CatalogField } | null>(null);
   const [excludedRuns, setExcludedRuns] = useState<string[] | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -158,7 +245,37 @@ export function CatalogUpdaterDialog({
   const [confirmDelete, setConfirmDelete] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   /** Rows with a change on its way, so their controls wait instead of taking a second press. */
-  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [localBusyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
+  const commands = useCatalogCommands({
+    teamId,
+    client,
+    reloadFresh: registry.reloadFresh,
+    onConfirmed: (receipt, mode) => {
+      push({
+        tone:
+          mode !== 'request' || receipt.status === 'cancelled' || receipt.acceptedCount === 0
+            ? 'info'
+            : 'success',
+        text:
+          receipt.status === 'cancelled'
+            ? t('catalogCommandCancelled')
+            : mode === 'cancel'
+              ? t('catalogCommandAlreadyAccepted')
+              : mode === 'read'
+                ? t('catalogCommandRecovered', { count: receipt.acceptedCount })
+                : receipt.acceptedCount === 0
+                  ? t('catalogUpdaterNoWorkAccepted')
+                  : t('catalogUpdaterNowStarted', { count: receipt.acceptedCount })
+      });
+      updater.reload();
+      onChanged?.();
+    }
+  });
+  const busyIds = new Set([
+    ...localBusyIds,
+    ...commands.refreshing,
+    ...commands.states.flatMap(state => state.intent.catalogIds)
+  ]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState<'all' | 'restitch' | 'schedule'>('all');
@@ -169,26 +286,34 @@ export function CatalogUpdaterDialog({
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [editorDirty, setEditorDirty] = useState(false);
   const [editorPending, setEditorPending] = useState(false);
+  const [editorUncertain, setEditorUncertain] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
+  const inlinePending = Object.values(inline.states).some(state => state.phase === 'pending');
+  const closeUncertain =
+    editorUncertain || Object.values(inline.states).some(state => state.phase === 'unknown');
   const guard = (action: () => void) => {
-    if (editorPending || Object.values(inline.states).some(state => state.phase === 'pending'))
-      return;
-    if (editorDirty) setDiscardAction(() => action);
+    if (!owner.current()) return;
+    if (editorPending || inlinePending) return;
+    if (editorDirty || closeUncertain) setDiscardAction(() => action);
     else action();
   };
 
   useEffect(() => {
     const prevent = (event: Event) => {
+      if (!owner.current()) return;
       if (
         editorPending ||
-        Object.values(inline.states).some(state => state.phase === 'pending') ||
-        (editorDirty && !window.confirm(t('catalogUpdaterDiscardDraft')))
+        inlinePending ||
+        ((editorDirty || closeUncertain) &&
+          !window.confirm(
+            t(closeUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardDraft')
+          ))
       )
         event.preventDefault();
     };
     window.addEventListener(BEFORE_NAVIGATION_EVENT, prevent);
     return () => window.removeEventListener(BEFORE_NAVIGATION_EVENT, prevent);
-  }, [editorDirty, editorPending, inline.hasPending, t]);
+  }, [editorDirty, editorPending, closeUncertain, inlinePending, t, owner]);
   const listFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   useEffect(() => {
     const flow = beginCatalogUiFlow('list');
@@ -198,10 +323,13 @@ export function CatalogUpdaterDialog({
   useEffect(() => {
     if (registry.rows !== null) {
       listFlow.current?.stage('result_visible');
-      listFlow.current?.complete();
+      if (registry.invalidRowCount > 0) listFlow.current?.fail('INVALID_RESPONSE');
+      else listFlow.current?.complete();
     } else if (registry.error) listFlow.current?.fail('READ_FAILED');
-  }, [registry.rows, registry.error]);
+  }, [registry.rows, registry.error, registry.invalidRowCount]);
   const [expandedCatalogId, setExpandedCatalogId] = useState<string | null>(null);
+  const [videoVariationsRow, setVideoVariationsRow] = useState<CatalogRegistryRow | null>(null);
+  const [publicationCatalogId, setPublicationCatalogId] = useState<string | null>(null);
   const [historyCatalogId, setHistoryCatalogId] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLSpanElement>(null);
 
@@ -216,13 +344,36 @@ export function CatalogUpdaterDialog({
         }
       : row;
   });
+  const rowsById = new Map(rows.map(row => [row.catalogId, row]));
+  const nameCounts = new Map<string, number>();
+  for (const row of rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
   const duplicateNames = new Set(
-    rows
-      .filter((row, index) => rows.findIndex(other => other.name === row.name) !== index)
-      .map(row => row.name)
+    [...nameCounts].filter(([, count]) => count > 1).map(([name]) => name)
   );
   const heldRows = useRef(new Map<string, CatalogRegistryRow>());
   const listRef = useRef<HTMLTableElement>(null);
+  useEffect(() => {
+    if (!recentOpen || inline.undo.length > 0) return;
+    recentReturnTarget.current ??= {};
+    setRecentOpen(false);
+  }, [recentOpen, inline.undo.length]);
+  useEffect(() => {
+    if (recentOpen || !recentReturnTarget.current) return;
+    const target = recentReturnTarget.current;
+    recentReturnTarget.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (!owner.current()) return;
+      const row = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
+      ).find(element => element.dataset.catalogId === target.catalogId);
+      const field = target.field === 'updateInterval' ? 'schedule' : target.field;
+      const control = field
+        ? row?.querySelector<HTMLElement>(`[data-catalog-field="${field}"]`)
+        : null;
+      (control ?? document.getElementById(searchId))?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [recentOpen, searchId]);
   const [changeNotice, setChangeNotice] = useState('');
   const [heldRevision, setHeldRevision] = useState(0);
   const shown = useMemo(
@@ -324,38 +475,56 @@ export function CatalogUpdaterDialog({
     });
 
   const busyRef = useRef(new Set<string>());
-  const withBusy = async (ids: string[], work: () => Promise<void>) => {
-    if (ids.some(id => busyRef.current.has(id))) return;
+  const withBusy = async (
+    ids: string[],
+    work: () => Promise<void>,
+    options: {
+      rethrow?: boolean;
+      refreshOnFailure?: boolean;
+      onFailure?: (error: unknown) => void;
+    } = {}
+  ) => {
+    if (!owner.current()) return;
+    if (ids.some(id => busyRef.current.has(id))) {
+      if (options.rethrow) throw new TeamApiError('WRONG_STATE', false);
+      return;
+    }
     ids.forEach(id => busyRef.current.add(id));
     setBusyIds(current => new Set([...current, ...ids]));
     try {
       await work();
+      if (!owner.current()) return;
       updater.reload();
       registry.reload();
       onChanged?.();
     } catch (error) {
-      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+      if (owner.current()) {
+        if (options.onFailure) options.onFailure(error);
+        else push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+        if (options.refreshOnFailure) {
+          updater.reload();
+          registry.reload();
+        }
+      }
+      if (options.rethrow) throw error;
     } finally {
       ids.forEach(id => busyRef.current.delete(id));
-      setBusyIds(current => new Set([...current].filter(id => !ids.includes(id))));
+      if (owner.current())
+        setBusyIds(current => new Set([...current].filter(id => !ids.includes(id))));
     }
   };
 
   const executeNow = (ids: string[]) => {
-    if (ids.some(id => inline.blocked(id) || busyRef.current.has(id))) return;
-    if (rows.some(row => ids.includes(row.catalogId) && row.profile?.reconciliationRequired)) {
+    if (!owner.current()) return;
+    if (ids.some(id => inline.blocked(id) || commands.blocked(id) || busyRef.current.has(id)))
+      return;
+    if (ids.some(id => rowsById.get(id)?.profile?.reconciliationRequired)) {
       push({ tone: 'error', text: t('catalogUpdaterReconciliationHold') });
       return;
     }
-    return withBusy(ids, async () => {
-      const opened = await client.runCatalogUpdateNow(teamId, ids);
-      push({
-        tone: 'success',
-        text:
-          opened === 0
-            ? t('catalogUpdaterNowAlready')
-            : t('catalogUpdaterNowStarted', { count: opened })
-      });
+    return commands.submit(ids).then(outcome => {
+      if (owner.current() && outcome.kind === 'rejected')
+        push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
     });
   };
 
@@ -364,8 +533,8 @@ export function CatalogUpdaterDialog({
       id =>
         inline.blocked(id) ||
         busyIds.has(id) ||
-        rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired ||
-        rows.find(row => row.catalogId === id)?.updatePending
+        rowsById.get(id)?.profile?.reconciliationRequired ||
+        rowsById.get(id)?.updatePending
     );
     if (excluded.length) {
       setExcludedRuns(ids);
@@ -379,7 +548,14 @@ export function CatalogUpdaterDialog({
     field: import('./useCatalogInlineChanges').CatalogField,
     value: import('./useCatalogInlineChanges').Value
   ) => {
-    if (!mayRun || inline.blocked(row.catalogId) || busyRef.current.has(row.catalogId)) return;
+    if (
+      !owner.current() ||
+      !mayRun ||
+      inline.blocked(row.catalogId) ||
+      commands.blocked(row.catalogId) ||
+      busyRef.current.has(row.catalogId)
+    )
+      return;
     heldRows.current.set(row.catalogId, row);
     void inline.change(row.catalogId, field, value);
   };
@@ -427,19 +603,256 @@ export function CatalogUpdaterDialog({
     for (const row of shown.slice(0, visibleCount)) inline.delivered(row.catalogId);
   });
 
-  const cancelNow = (id: string) =>
-    withBusy([id], async () => {
-      await client.cancelCatalogUpdate?.(teamId, id);
+  const showStopFeedback = (
+    flow: CatalogUiFlow,
+    input: Parameters<typeof push>[0],
+    error?: CatalogUiFailure
+  ) => {
+    if (!owner.current()) {
+      flow.cancel();
+      return;
+    }
+    const toastId = push(input);
+    stopFeedback.current.set(toastId, { flow, error });
+  };
+  const observeStop = async (
+    row: CatalogRegistryRow,
+    flow: CatalogUiFlow,
+    controller: AbortController,
+    requestFlowId: string
+  ) => {
+    flow.stage('stop_readback_requested');
+    let inactive = false;
+    let readCode: CatalogUiFailure = 'PROCESS_RESULT_UNCERTAIN';
+    try {
+      const fresh = await withReadDeadline(async signal => {
+        if (client.listCatalogManagerSnapshot)
+          return client.listCatalogManagerSnapshot(teamId, { signal });
+        if (client.listTeamProductCatalogSnapshot)
+          return client.listTeamProductCatalogSnapshot(teamId, { signal });
+        return {
+          rows: await client.listTeamProductCatalogs(teamId, { signal }),
+          invalidRowCount: 0
+        };
+      }, controller.signal);
+      if (!owner.current()) {
+        flow.cancel();
+        return;
+      }
+      const current = fresh?.rows.find(item => item.catalogId === row.catalogId);
+      const observedRound = Date.parse(row.activeRoundAt ?? '');
+      const currentRound = Date.parse(current?.activeRoundAt ?? '');
+      if (
+        current &&
+        (Number.isFinite(observedRound) || row.activeRoundAt === null) &&
+        (current.activeRoundAt === null ||
+          (Number.isFinite(currentRound) && currentRound !== observedRound))
+      ) {
+        inactive = true;
+        flow.stage('stop_target_inactive');
+      } else if (
+        Number.isFinite(observedRound) &&
+        Number.isFinite(currentRound) &&
+        currentRound === observedRound
+      ) {
+        flow.stage('stop_target_active');
+      } else flow.stage('stop_readback_unknown');
+    } catch (cause) {
+      if (!owner.current()) {
+        flow.cancel();
+        return;
+      }
+      readCode = teamErrorCodeOf(cause) ?? 'READ_FAILED';
+      flow.stage('stop_readback_unknown', readCode);
+    }
+    if (inactive) {
+      showStopFeedback(flow, { tone: 'info', text: t('catalogStopObservedInactive') });
+      return;
+    }
+    showStopFeedback(
+      flow,
+      {
+        tone: 'warning',
+        text: t('catalogStopUnconfirmed'),
+        action: { label: t('catalogCommandCheck'), run: () => checkStop(row, requestFlowId) }
+      },
+      readCode
+    );
+  };
+  const stopFailure = (flow: CatalogUiFlow, cause: unknown) => {
+    const code = teamErrorCodeOf(cause) ?? 'UNKNOWN';
+    flow.stage('stop_rejected', code);
+    showStopFeedback(flow, { tone: 'error', text: teamErrorMessageFor(cause, t) }, code);
+  };
+  const checkStop = (row: CatalogRegistryRow, requestFlowId: string) => {
+    if (!owner.current() || busyRef.current.has(row.catalogId)) return;
+    const flow = beginCatalogUiFlow('stop', {
+      count: 1,
+      relatedFlowId: row.activeAttemptId ?? undefined,
+      originFlowId: requestFlowId
     });
+    stopFlows.current.add(flow);
+    flow.stage('stop_check_requested');
+    return withBusy(
+      [row.catalogId],
+      async () => {
+        const controller = new AbortController();
+        stopControllers.current.add(controller);
+        try {
+          await observeStop(row, flow, controller, requestFlowId);
+        } finally {
+          stopControllers.current.delete(controller);
+        }
+      },
+      { onFailure: cause => stopFailure(flow, cause) }
+    );
+  };
+  const cancelNow = (row: CatalogRegistryRow) => {
+    if (
+      !owner.current() ||
+      busyRef.current.has(row.catalogId) ||
+      commands.blocked(row.catalogId) ||
+      inline.blocked(row.catalogId)
+    )
+      return;
+    const flow = beginCatalogUiFlow('stop', {
+      count: 1,
+      relatedFlowId: row.activeAttemptId ?? undefined
+    });
+    stopFlows.current.add(flow);
+    flow.stage('stop_requested');
+    return withBusy(
+      [row.catalogId],
+      async () => {
+        if (inline.blocked(row.catalogId) || commands.blocked(row.catalogId))
+          throw new TeamApiError('WRONG_STATE', false);
+        if (row.activeRoundAt === undefined)
+          throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
+        const controller = new AbortController();
+        stopControllers.current.add(controller);
+        try {
+          try {
+            const cancelled =
+              row.activeRoundAt === null
+                ? false
+                : await withCatalogCommandDeadline(signal => {
+                    if (!client.cancelCatalogUpdate)
+                      throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+                    return client.cancelCatalogUpdate(
+                      teamId,
+                      row.catalogId,
+                      { roundAt: row.activeRoundAt!, attemptId: row.activeAttemptId ?? null },
+                      owner.options(signal)
+                    );
+                  }, controller.signal);
+            if (!owner.current()) {
+              flow.cancel();
+              return;
+            }
+            flow.stage(cancelled ? 'stop_accepted' : 'stop_not_active');
+          } catch (cause) {
+            if (!owner.current()) {
+              flow.cancel();
+              return;
+            }
+            const code = teamErrorCodeOf(cause);
+            if (
+              !(cause instanceof TypeError) &&
+              code !== 'TEAM_TRANSPORT_UNAVAILABLE' &&
+              code !== 'PROCESS_RESULT_UNCERTAIN'
+            )
+              throw cause;
+            flow.stage('stop_reply_unknown', code ?? 'UNKNOWN');
+          }
+          await observeStop(row, flow, controller, flow.id);
+        } finally {
+          stopControllers.current.delete(controller);
+        }
+      },
+      { refreshOnFailure: true, onFailure: cause => stopFailure(flow, cause) }
+    );
+  };
 
+  const trashRows = rows.map(row => ({
+    id: row.catalogId,
+    name: row.name,
+    category: 'other' as const
+  }));
+  const managerTrash = workspaceOperations?.bulkTrash;
+  const currentCatalogIds = new Set(trashRows.map(row => row.id));
+  const receipts =
+    managerTrash?.groups.filter(
+      group =>
+        group.teamId === teamId &&
+        (trashGroups.has(group.id) ||
+          group.items.some(item => currentCatalogIds.has(item.materialId)))
+    ) ?? [];
+  const receiptFingerprint = receipts
+    .map(
+      group =>
+        `${group.id}:${group.items
+          .map(item => {
+            const history =
+              managerTrash?.historicalReceipts?.get(group.id)?.get(item.materialId) ??
+              item.historicalReceipt;
+            return `${item.materialId}:${item.state}:${history ? `${history.state}:${history.memberCount}:${history.matchingCount}:${history.missingCount}` : 'current'}`;
+          })
+          .join(',')}`
+    )
+    .join('|');
+  useEffect(() => {
+    if (!receiptFingerprint || observedTrash.current === receiptFingerprint) return;
+    observedTrash.current = receiptFingerprint;
+    const confirmed = new Set(
+      receipts.flatMap(group =>
+        group.items
+          .filter(
+            item =>
+              item.state === 'confirmed' &&
+              !managerTrash?.historicalReceipts?.get(group.id)?.has(item.materialId)
+          )
+          .map(item => item.materialId)
+      )
+    );
+    if (confirmed.size)
+      setSelected(current => new Set([...current].filter(id => !confirmed.has(id))));
+    registry.reload();
+    onChanged?.();
+  }, [receiptFingerprint, registry.reload, onChanged]);
   const deleteSelected = async () => {
     const ids = confirmDelete;
     await withBusy(ids, async () => {
-      for (const materialId of ids) {
-        await teamApi.trashMaterial({ teamId, materialId, idempotencyKey: crypto.randomUUID() });
+      if (managerTrash) {
+        const group = await managerTrash.start(
+          trashRows.filter(row => ids.includes(row.id)),
+          teamApi
+        );
+        if (!owner.current()) return;
+        setTrashGroups(current => new Set([...current, group.id]));
+        setConfirmDelete([]);
+        return;
       }
-      setSelected(current => new Set([...current].filter(id => !ids.includes(id))));
-      setConfirmDelete([]);
+      try {
+        for (const materialId of ids) {
+          if (!owner.current()) return;
+          const idempotencyKey = directTrashKeys.current.get(materialId) ?? crypto.randomUUID();
+          directTrashKeys.current.set(materialId, idempotencyKey);
+          const result = await teamApi.trashMaterial({ teamId, materialId, idempotencyKey });
+          if (!owner.current()) return;
+          if (result.state !== 'succeeded')
+            throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+          if (result.materialId !== null && result.materialId !== materialId)
+            throw new TeamApiError('INVALID_RESPONSE', false);
+          directTrashKeys.current.delete(materialId);
+          setSelected(current => new Set([...current].filter(id => id !== materialId)));
+        }
+        setConfirmDelete([]);
+      } finally {
+        if (owner.current()) {
+          registry.reload();
+          onChanged?.();
+        }
+      }
     });
   };
 
@@ -482,7 +895,7 @@ export function CatalogUpdaterDialog({
   const status = (
     <p className="team-updater-status">
       {registry.rows === null
-        ? t('catalogUpdaterLoading')
+        ? t(registry.error ? 'catalogUpdaterUnavailable' : 'catalogUpdaterLoading')
         : t('catalogUpdaterListSummary', {
             count: rows.length,
             scheduled: rows.filter(row => row.updateInterval !== null).length,
@@ -737,6 +1150,80 @@ export function CatalogUpdaterDialog({
           </Button>
         </div>
       ) : null}
+      {Boolean(commands.error) && (
+        <p className="team-inline-error" role="alert">
+          {teamErrorMessageFor(commands.error, t)}
+        </p>
+      )}
+      {commands.states.map(state => {
+        const captionId = `${titleId}-command-${state.intent.commandId}`;
+        const names = state.intent.catalogIds
+          .slice(0, 3)
+          .flatMap(id => {
+            const row = rowsById.get(id);
+            return row ? [row.name] : [];
+          })
+          .join(', ');
+        const code = teamErrorCodeOf(state.error);
+        const recover = async (kind: 'check' | 'cancel') => {
+          const outcome = await (kind === 'check'
+            ? commands.check(state.intent.commandId)
+            : commands.cancel(state.intent.commandId));
+          if (owner.current() && outcome?.kind === 'rejected')
+            push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+        };
+        return (
+          <div key={state.intent.commandId} className="team-inline-error" role="status">
+            <p id={captionId}>
+              {t(state.phase === 'working' ? 'catalogCommandChecking' : 'catalogCommandUnknown', {
+                count: state.intent.catalogIds.length
+              })}
+              {names && (
+                <>
+                  {' '}
+                  {names}
+                  {state.intent.catalogIds.length > 3
+                    ? ` ${t('catalogCommandMore', { count: state.intent.catalogIds.length - 3 })}`
+                    : ''}
+                </>
+              )}
+            </p>
+            {state.phase === 'unknown' && code && code !== 'PROCESS_RESULT_UNCERTAIN' && (
+              <p className="field-hint">
+                {t('catalogCommandLastProblem', { message: teamErrorMessageFor(state.error, t) })}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-describedby={captionId}
+              disabled={state.phase === 'working'}
+              onClick={() => void recover('check')}
+            >
+              {t('catalogCommandCheck')}
+            </Button>
+            {mayRun && (
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-describedby={captionId}
+                disabled={state.phase === 'working'}
+                onClick={() => void recover('cancel')}
+              >
+                {t('catalogCommandCancel')}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+      {commands.refreshing.length > 0 && (
+        <div className="team-inline-error" role="status">
+          <p>{t('catalogCommandRefresh')}</p>
+          <Button size="sm" variant="ghost" onClick={() => void commands.refresh()}>
+            {t('catalogCommandCheck')}
+          </Button>
+        </div>
+      )}
       {registry.error && registry.rows !== null && (
         <div className="team-inline-error" role="alert">
           {t('catalogUpdaterStale', {
@@ -744,6 +1231,14 @@ export function CatalogUpdaterDialog({
               ? when(registry.lastLoadedAt)
               : t('catalogUpdaterUnknownTime')
           })}{' '}
+          <Button type="button" size="sm" variant="ghost" onClick={registry.reload}>
+            {t('catalogUpdaterRetry')}
+          </Button>
+        </div>
+      )}
+      {registry.invalidRowCount > 0 && (
+        <div className="team-inline-error" role="alert">
+          {t('catalogUpdaterPartialRead', { count: registry.invalidRowCount })}
           <Button type="button" size="sm" variant="ghost" onClick={registry.reload}>
             {t('catalogUpdaterRetry')}
           </Button>
@@ -761,7 +1256,7 @@ export function CatalogUpdaterDialog({
             </Button>
           </div>
         )}
-        {registry.rows !== null && rows.length === 0 && (
+        {registry.rows !== null && rows.length === 0 && registry.invalidRowCount === 0 && (
           <div className="team-updater-empty">
             <p>{t('catalogUpdaterEmpty')}</p>
             <Button variant="secondary" onClick={() => guard(onClose)}>
@@ -835,11 +1330,11 @@ export function CatalogUpdaterDialog({
             </thead>
             <tbody>
               {shown.slice(0, visibleCount).map(filteredRow => {
-                const row =
-                  rows.find(row => row.catalogId === filteredRow.catalogId) ?? filteredRow;
+                const row = rowsById.get(filteredRow.catalogId) ?? filteredRow;
                 const busy = busyIds.has(row.catalogId) || inline.blocked(row.catalogId);
                 const successfulAt = lastSuccess(row);
                 const result = row.profile?.lastResult;
+                const requiresReview = row.lastUpdateError === 'CATALOG_ATTEMPT_STATE_INCONSISTENT';
                 const lastLabel = successfulAt
                   ? shortWhen(successfulAt)
                   : row.profile?.lastSuccessfulAt === null && row.profile?.lastResult
@@ -957,12 +1452,37 @@ export function CatalogUpdaterDialog({
                           {row.folderName ?? row.videoName} · {row.catalogId.slice(-6)}
                         </small>
                       )}
+                      {row.videoGeneration &&
+                        ['accepted', 'preparing', 'cancel_requested', 'unknown'].includes(
+                          row.videoGeneration.state
+                        ) && (
+                          <small role="status">
+                            {t('catalogVideoCreationProgress', {
+                              ready: row.videoGeneration.registeredCount,
+                              total: row.videoGeneration.requestedCount
+                            })}
+                            {row.videoGeneration.state === 'unknown'
+                              ? ` · ${t('catalogVideoCreationUnknown')}`
+                              : row.videoGeneration.state === 'cancel_requested'
+                                ? ` · ${t('catalogVideoCreationCanceling')}`
+                                : ''}
+                          </small>
+                        )}
                       <span
-                        className={`catalog-row-feedback${(row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked') ? ' sr-only' : ''}`}
+                        className={`catalog-row-feedback${!requiresReview && ((row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked')) ? ' sr-only' : ''}`}
                         role="status"
                       >
-                        {row.profile?.reconciliationRequired &&
-                        row.profile.lastResult === 'running' ? (
+                        {requiresReview ? (
+                          <button
+                            type="button"
+                            className="catalog-outcome-details"
+                            title={teamErrorMessageFor({ code: row.lastUpdateError }, t)}
+                            onClick={() => setHistoryCatalogId(row.catalogId)}
+                          >
+                            {t('catalogRunNeedsReview')}
+                          </button>
+                        ) : row.profile?.reconciliationRequired &&
+                          row.profile.lastResult === 'running' ? (
                           t('catalogUpdaterStageVerifying')
                         ) : row.profile?.reconciliationRequired ? (
                           <button
@@ -1069,6 +1589,7 @@ export function CatalogUpdaterDialog({
                     </td>
                     <td className="catalog-schedule-cell">
                       <UpdaterIntervalPicker
+                        clockOffsetMs={updater.offsetMs}
                         value={row.updateInterval}
                         label={t('catalogUpdaterIntervalFor', { name: row.name })}
                         disabled={
@@ -1132,7 +1653,7 @@ export function CatalogUpdaterDialog({
                             }
                             onClick={() =>
                               row.updatePending
-                                ? void cancelNow(row.catalogId)
+                                ? void cancelNow(row)
                                 : void updateNow([row.catalogId])
                             }
                           >
@@ -1153,9 +1674,24 @@ export function CatalogUpdaterDialog({
                         )}
                         {permissions && (
                           <UpdaterRowActions
+                            storageKind={
+                              storageContext?.teamId === teamId ? storageContext.kind : null
+                            }
                             row={row}
                             teamId={teamId}
                             permissions={permissions}
+                            onVideoVariations={
+                              builtForEnvironment() === 'beta' &&
+                              import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' &&
+                              mayRun
+                                ? () => setVideoVariationsRow(row)
+                                : undefined
+                            }
+                            onPublication={
+                              builtForEnvironment() === 'beta' && mayRun
+                                ? () => setPublicationCatalogId(row.catalogId)
+                                : undefined
+                            }
                             onChanged={registry.reload}
                             onReveal={onReveal}
                             onConfigure={
@@ -1291,6 +1827,7 @@ export function CatalogUpdaterDialog({
                     )}
                     <strong>{t('catalogUpdaterWhen')}</strong>
                     <UpdaterIntervalPicker
+                      clockOffsetMs={updater.offsetMs}
                       value={row.updateInterval}
                       label={t('catalogUpdaterIntervalFor', { name: row.name })}
                       disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
@@ -1331,6 +1868,26 @@ export function CatalogUpdaterDialog({
                       onChange={(field, value) => changeField(row, field, value)}
                       onReadiness={registry.reload}
                     />
+                    {builtForEnvironment() === 'beta' &&
+                      import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' && (
+                        <CatalogProfileVideoCount
+                          value={row.profile.videoVariantCount ?? 1}
+                          productCount={row.productCount}
+                          disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
+                          onSave={async value => {
+                            if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                            if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
+                              throw new TeamApiError('WRONG_STATE', false);
+                            const confirmed = await inline.change(
+                              row.catalogId,
+                              'videoVariantCount',
+                              value
+                            );
+                            if (!confirmed)
+                              throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+                          }}
+                        />
+                      )}
                     <CatalogIconLegend
                       teamId={teamId}
                       onOpenSettings={href =>
@@ -1422,6 +1979,8 @@ export function CatalogUpdaterDialog({
                   teamId={teamId}
                   catalogId={row.catalogId}
                   currentProfileVersion={row.profile?.version}
+                  activeAttemptId={row.activeAttemptId}
+                  currentFailureCode={row.lastUpdateError}
                   checkingDelivery={Boolean(row.profile?.reconciliationRequired)}
                   retryDisabled={
                     inline.blocked(row.catalogId) ||
@@ -1432,41 +1991,29 @@ export function CatalogUpdaterDialog({
                   load={client.listCatalogUpdateAttempts}
                   onClose={() => {
                     setHistoryCatalogId(null);
-                    requestAnimationFrame(() =>
-                      Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label]'))
-                        .find(
-                          button =>
-                            button.getAttribute('aria-label') ===
-                            t('materialActionsFor', { name: row.name })
-                        )
-                        ?.focus()
-                    );
+                    requestAnimationFrame(() => {
+                      if (!owner.current()) return;
+                      Array.from(
+                        listRef.current?.querySelectorAll<HTMLElement>('[data-catalog-id]') ?? []
+                      )
+                        .find(element => element.dataset.catalogId === row.catalogId)
+                        ?.querySelector<HTMLButtonElement>('.team-updater-row-actions button')
+                        ?.focus();
+                    });
                   }}
                   onRetry={
-                    mayRun && client.retryCatalogUpdate
+                    mayRun
                       ? async sourceAttemptId => {
-                          setBusyIds(current => new Set([...current, row.catalogId]));
-                          try {
-                            await client.retryCatalogUpdate!(
-                              teamId,
-                              row.catalogId,
-                              sourceAttemptId
-                            );
-                            push({
-                              tone: 'success',
-                              text: t('catalogUpdaterNowStarted', { count: 1 })
-                            });
-                            registry.reload();
-                            updater.reload();
-                            onChanged?.();
-                          } catch (error) {
-                            push({ tone: 'error', text: teamErrorMessageFor(error, t) });
-                            throw error;
-                          } finally {
-                            setBusyIds(
-                              current => new Set([...current].filter(id => id !== row.catalogId))
-                            );
-                          }
+                          if (
+                            !owner.current() ||
+                            inline.blocked(row.catalogId) ||
+                            commands.blocked(row.catalogId) ||
+                            busyRef.current.has(row.catalogId)
+                          )
+                            throw new TeamApiError('WRONG_STATE', false);
+                          const outcome = await commands.submit([row.catalogId], sourceAttemptId);
+                          if (outcome.kind === 'rejected' || outcome.kind === 'unknown')
+                            throw outcome.error;
                         }
                       : undefined
                   }
@@ -1491,6 +2038,7 @@ export function CatalogUpdaterDialog({
         >
           <h2 id={`${titleId}-bulk`}>{t('catalogUpdaterBulkSettings')}</h2>
           <CatalogBulkEditor
+            clockOffsetMs={updater.offsetMs}
             mode={bulkMode}
             items={liveSelected
               .filter(row => row.profile && !inline.blocked(row.catalogId))
@@ -1498,14 +2046,18 @@ export function CatalogUpdaterDialog({
                 catalogId: row.catalogId,
                 name: row.name,
                 profile: row.profile!,
+                productCount: row.productCount,
                 interval: row.updateInterval
               }))}
             save={(id, version, patch) =>
-              client.patchCatalogUpdateProfile!(teamId, id, version, patch)
+              client.patchCatalogUpdateProfile!(teamId, id, version, patch, owner.options())
             }
+            read={(id, options) => readCatalogSnapshot(client, teamId, id, options?.signal)}
             onDirtyChange={setEditorDirty}
             onPendingChange={setEditorPending}
+            onUncertainChange={setEditorUncertain}
             onSaved={() => {
+              if (!owner.current()) return;
               registry.reload();
               onChanged?.();
             }}
@@ -1526,9 +2078,13 @@ export function CatalogUpdaterDialog({
       {discardAction && (
         <ConfirmDialog
           nested
-          title={t('catalogUpdaterDiscardTitle')}
-          body={t('catalogUpdaterDiscardBody')}
-          confirmLabel={t('catalogUpdaterDiscard')}
+          title={t(
+            closeUncertain ? 'catalogUpdaterUncertainCloseTitle' : 'catalogUpdaterDiscardTitle'
+          )}
+          body={t(
+            closeUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardBody'
+          )}
+          confirmLabel={t(closeUncertain ? 'catalogUpdaterClose' : 'catalogUpdaterDiscard')}
           cancelLabel={t('catalogUpdaterKeepEditing')}
           onCancel={() => setDiscardAction(null)}
           onConfirm={() => {
@@ -1548,12 +2104,12 @@ export function CatalogUpdaterDialog({
               id =>
                 inline.blocked(id) ||
                 busyIds.has(id) ||
-                rows.find(row => row.catalogId === id)?.updatePending ||
-                rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired
+                rowsById.get(id)?.updatePending ||
+                rowsById.get(id)?.profile?.reconciliationRequired
             )
             .map(
               id =>
-                `${rows.find(row => row.catalogId === id)?.name}: ${inline.blocked(id) || busyIds.has(id) ? t('catalogIconsPendingRun') : rows.find(row => row.catalogId === id)?.updatePending ? t('catalogUpdaterUpdatingNow') : t('catalogUpdaterReconciliationHold')}`
+                `${rowsById.get(id)?.name}: ${inline.blocked(id) || busyIds.has(id) ? t('catalogIconsPendingRun') : rowsById.get(id)?.updatePending ? t('catalogUpdaterUpdatingNow') : t('catalogUpdaterReconciliationHold')}`
             )
             .join('; ')}
           confirmLabel={t('catalogIconsRunReady')}
@@ -1564,8 +2120,8 @@ export function CatalogUpdaterDialog({
               id =>
                 !inline.blocked(id) &&
                 !busyIds.has(id) &&
-                !rows.find(row => row.catalogId === id)?.updatePending &&
-                !rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired
+                !rowsById.get(id)?.updatePending &&
+                !rowsById.get(id)?.profile?.reconciliationRequired
             );
             setExcludedRuns(null);
             if (ids.length) void updateNow(ids);
@@ -1576,8 +2132,7 @@ export function CatalogUpdaterDialog({
         {undoToast && (
           <>
             <span>
-              {rows.find(row => row.catalogId === undoToast.catalogId)?.name} ·{' '}
-              {t('catalogIconsSaved')}
+              {rowsById.get(undoToast.catalogId)?.name} · {t('catalogIconsSaved')}
             </span>
             <Button
               size="sm"
@@ -1607,47 +2162,113 @@ export function CatalogUpdaterDialog({
           <h2 id={`${titleId}-recent`}>{t('catalogIconsRecent')}</h2>
           <div className="catalog-recent-list">
             {inline.undo.map(entry => {
-              const row = rows.find(row => row.catalogId === entry.catalogId);
+              const row = rowsById.get(entry.catalogId);
               const invalid = entry.invalid || row?.profile?.version !== entry.version;
               const label =
-                entry.field === 'updateInterval' || entry.field === 'schedule'
-                  ? t('catalogIconsSchedule')
-                  : t(CATALOG_FIELDS.find(item => item.field === entry.field)!.label);
+                entry.field === 'videoVariantCount'
+                  ? t('catalogVideoVariationCount')
+                  : entry.field === 'updateInterval' || entry.field === 'schedule'
+                    ? t('catalogIconsSchedule')
+                    : t(CATALOG_FIELDS.find(item => item.field === entry.field)!.label);
               return (
                 <div key={`${entry.catalogId}-${entry.field}`}>
                   <strong>{row?.name ?? t('catalogUpdaterProfileUnknown')}</strong>
                   <span>
                     {label}:{' '}
-                    {typeof entry.after === 'boolean'
-                      ? t(entry.after ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')
-                      : intervalLabel(
-                          typeof entry.after === 'object' && entry.after !== null
-                            ? entry.after.interval
-                            : entry.after,
-                          t
-                        )}
+                    {typeof entry.after === 'number'
+                      ? entry.after
+                      : typeof entry.after === 'boolean'
+                        ? t(entry.after ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')
+                        : intervalLabel(
+                            typeof entry.after === 'object' && entry.after !== null
+                              ? entry.after.interval
+                              : entry.after,
+                            t
+                          )}
                   </span>
                   {invalid && <small>{t('catalogIconsUndoInvalid')}</small>}
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={invalid || inline.blocked(entry.catalogId) || !mayRun}
-                    onClick={() => void inline.undoChange(entry)}
+                    disabled={
+                      inline.states[entry.catalogId]?.phase === 'unknown'
+                        ? false
+                        : invalid || inline.blocked(entry.catalogId) || !mayRun
+                    }
+                    onClick={() => {
+                      recentReturnTarget.current = {
+                        catalogId: entry.catalogId,
+                        field: entry.field
+                      };
+                      if (inline.states[entry.catalogId]?.phase === 'unknown')
+                        void inline.reconcile(entry.catalogId);
+                      else void inline.undoChange(entry);
+                    }}
                   >
-                    {t('catalogIconsUndo')}
+                    {t(
+                      inline.states[entry.catalogId]?.phase === 'unknown'
+                        ? 'catalogIconsCheck'
+                        : 'catalogIconsUndo'
+                    )}
                   </Button>
                 </div>
               );
             })}
           </div>
-          <Button size="sm" variant="ghost" onClick={inline.clearUndo}>
-            {t('catalogUpdaterClearSelection')}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              recentReturnTarget.current = {};
+              inline.clearUndo();
+            }}
+          >
+            {t('catalogIconsClearRecent')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setRecentOpen(false)}>
             {t('catalogUpdaterClose')}
           </Button>
         </Modal>
       )}
+      {videoVariationsRow && (
+        <CatalogVideoVariationsDialog
+          teamId={teamId}
+          row={videoVariationsRow}
+          onClose={() => setVideoVariationsRow(null)}
+          onChanged={registry.reload}
+        />
+      )}
+      {publicationCatalogId && (
+        <CatalogPublicationDialog
+          teamId={teamId}
+          catalogId={publicationCatalogId}
+          clockOffsetMs={updater.offsetMs}
+          onClose={() => setPublicationCatalogId(null)}
+          onChanged={registry.reload}
+        />
+      )}
+      {managerTrash &&
+        receipts.map(group => (
+          <BulkTrashPanel
+            key={group.id}
+            group={group}
+            historicalReceipts={managerTrash.historicalReceipts?.get(group.id)}
+            rows={trashRows}
+            uncertain={managerTrash.uncertain}
+            onVisible={managerTrash.acknowledgeVisible}
+            onDismiss={managerTrash.dismiss}
+            onRetry={
+              permissions?.delete && managerTrash.owns(group)
+                ? () => {
+                    void managerTrash
+                      .retry(group, trashRows, teamApi)
+                      .then(() => registry.reload())
+                      .catch(error => push({ tone: 'error', text: teamErrorMessageFor(error, t) }));
+                  }
+                : undefined
+            }
+          />
+        ))}
       {confirmDelete.length > 0 && (
         <ConfirmDialog
           nested

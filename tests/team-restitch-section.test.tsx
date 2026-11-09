@@ -158,7 +158,7 @@ describe('a space’s re-stitching settings', () => {
     expect(
       screen.queryByText('Add at least one image or turn this option off before starting.')
     ).toBeNull();
-    expect(screen.getByText(/3 pictures ready to draw from/)).toBeTruthy();
+    expect(screen.getByText(/3 pictures in the selection pool/)).toBeTruthy();
     expect(screen.getByText(/this slot is off/)).toBeTruthy();
     expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
     // The form is the saved settings', not a library's: the stored fit is what is selected.

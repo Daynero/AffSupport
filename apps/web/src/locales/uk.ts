@@ -1,6 +1,62 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  catalogWriteUnsupported:
+    'Публікацію відеопосилання заблоковано: сховище не підтримує безпечне оновлення клітинок каталогу. Наявні посилання збережено.',
+  catalogVideoDeferredTableReady:
+    'Каталог створено з порожніми відеополями; підготовка відео та публікація виконуються окремо.',
+  catalogVideoGenerationCanceled: 'Створення відео скасовано. Створений каталог збережено.',
+  catalogVideoResume: 'Продовжити створення каталогу',
+  catalogVideoCreateVariations: 'Створити варіації відео',
+  catalogVideoVariationsReady:
+    'Усі {total} відео готові. Для публікації в каталозі потрібне окреме підтверджене оновлення.',
+  catalogVideoCancel: 'Скасувати створення відео',
+  catalogVideoCountFuture:
+    'Використовується, коли перезашивку ввімкнено. Поточний запуск зберігає свою кількість відео.',
+  catalogVideoVariationCount: 'Варіації відео',
+  catalogVideoVariationLimit: 'Вкажіть від 1 до {count} варіацій, не більше кількості товарів.',
+  catalogVideoCreationProgress: 'Готово відео: {ready} з {total}',
+  catalogVideoCreationUnknown:
+    'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
+  catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
+  catalogVideoCreationCanceling: 'Скасування запитано; очікуємо підтвердження завершення.',
+
+  catalogPublicationStatusUnknown: 'Стан публікації відеопосилання ще не підтверджено.',
+  catalogPublicationPreviouslyVerified: 'Останню публікацію відеопосилання підтверджено.',
+  catalogPublicationTableScheduled: 'Наступну публікацію відеопосилання заплановано на {date}.',
+  catalogPublicationOverdue:
+    'Час публікації відеопосилань ({date}) минув, але запис у таблицю ще не підтверджено. Soty перевіряє його автоматично.',
+  catalogPublicationTableHeld: 'Очікувану публікацію відеопосилання призупинено.',
+  catalogPublicationAddNow: 'Запросити публікацію зараз',
+  catalogPublicationVerify: 'Перевірити чинні посилання',
+
+  catalogPublicationSaved: 'Налаштування публікації збережено.',
+
+  catalogPublicationPending:
+    'Оновлення відеопосилань очікує відкладеної публікації або перевірки чинних посилань. Перевірте налаштування публікації каталогу.',
+
+  catalogPublicationLegacyHold:
+    'Публікацію призупинено, доки не підтверджено чинні посилання цього каталогу. Наявні посилання збережено.',
+  catalogPublicationTitle: 'Відкладене відеопосилання',
+  catalogPublicationExplanation:
+    'Посилання буде додано у вибраний час. Вимкнення відкладення утримує очікувану публікацію; чинні посилання залишаються.',
+  catalogPublicationStorageError:
+    'Не вдалося зберегти стан запиту в браузері. Перевірте доступ до локального сховища.',
+  catalogPublicationAmbiguous:
+    'Цей час повторюється при переході годинника. Оберіть перше або друге входження.',
+  catalogPublicationInvalid:
+    'Оберіть майбутню дату, час і коректний часовий пояс. Час під час переведення годинника має існувати.',
+  catalogPublicationUnknown:
+    'Результат збереження ще не підтверджено. Перевірка читає початковий запит без повторного запису.',
+  catalogPublicationCheck: 'Перевірити стан',
+  catalogPublicationDelayed: 'Відкласти додавання відеопосилання',
+  catalogPublicationDate: 'Дата додавання посилання',
+  catalogPublicationZone: 'Часовий пояс',
+  catalogPublicationOccurrence: 'При повторенні часу',
+  catalogPublicationChoose: 'Обрати за потреби',
+  catalogPublicationEarlier: 'Перше входження',
+  catalogPublicationLater: 'Друге входження',
+
   catalogTextScheduleTitle: 'Оновлювати щотижня',
   catalogTextScheduleCount: 'Нових варіантів',
   catalogTextScheduleSave: 'Зберегти розклад',
@@ -302,6 +358,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressChecking: 'Перевіряємо поточний стан…',
   launchesProgressStopped: 'Генерацію зупинено',
   launchesProgressErrorUnconfirmed: 'Помилка — перевірте стан',
+  launchesCatalogExecutorRequired:
+    'Щоб перезашивати відео каталогу, відкрийте актуальний застосунок Soty та під’єднайте його до цього браузера. Нову генерацію ще не запущено.',
   launchesProgressActionRequired: 'Потрібна дія',
   launchesProgressUnconfirmed: 'Статус не підтверджено',
   launchesProgressUnconfirmedHint:
@@ -726,6 +784,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamProcessCollapse: 'Згорнути в смужку',
   teamProcessExpand: 'Показати подробиці',
   teamRestitchDownloadTitle: 'Перезашите відео',
+  teamRestitchPhaseChecking: 'Перевіряємо налаштування…',
   teamRestitchPhaseChoosing: 'Чекаємо, поки ви оберете папку…',
   powerUsageHolding: 'обмежено до {limit}%',
   powerUsageGraphics: 'відеоядро компʼютера: {graphics}%',
@@ -1275,6 +1334,12 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskCleanupTrashed: 'Невикористаний файл вкладення перенесено до кошика простору.',
   teamBulkTrashFile: 'Файл {number}',
   teamBulkTrashHide: 'Прибрати панель',
+  teamBulkTrashHistoricalMatches:
+    'Попередня операція завершилася. Поточний знімок каталогу збігається; поточний стан у сховищі ще не перевірено.',
+  teamBulkTrashHistoricalChanged:
+    'Попередня операція завершилася, але поточний знімок каталогу вже змінився. Оновіть список перед новою дією.',
+  teamBulkTrashHistoricalUnknown:
+    'Попередня операція завершилася. Поточний файл не вдалося зіставити зі знімком каталогу; перевірте стан перед новою дією.',
   teamBulkTrashTitle: 'Перенесення файлів до кошика',
   teamBulkTrashQueued: 'У черзі',
   teamBulkTrashRunning: 'Виконується',
@@ -2643,7 +2708,15 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterApply: 'Задати',
   catalogUpdaterOff: 'Вимкнено',
   catalogUpdaterOffLong: 'Не оновлювати автоматично',
+  catalogStopTargetUnknown:
+    'Поточну спробу ще не перевірено. Оновіть список каталогів, перш ніж зупиняти оновлення.',
+  catalogStopObservedInactive: 'Попередня спроба оновлення більше не активна.',
+  catalogStopUnconfirmed: 'Результат зупинки ще не підтверджено. Перевірте поточний стан.',
+  catalogUpdaterCancelAlready: 'Це оновлення вже завершене або зупинене.',
   catalogUpdaterCancelUpdate: 'Зупинити це оновлення',
+  catalogUpdaterPartialRead:
+    'Частину даних каталогів не вдалося прочитати ({count} записів). Доступні каталоги показано. Оновіть список, щоб спробувати знову.',
+  catalogUpdaterNoWorkAccepted: 'Нових оновлень не прийнято. Перевіряємо поточний стан…',
   catalogUpdaterNowAlready: 'Вже оновлюється',
   catalogUpdaterNowStarted: 'Оновлюємо зараз: {count}',
   catalogUpdaterStatusScheduled: 'За розкладом: {count} · найближче через',
@@ -2691,6 +2764,11 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterBulkResults: 'Результати для {count} каталогів',
   catalogUpdaterBulkResultSaved: 'Збережено',
   catalogUpdaterBulkResultFailed: 'Помилка',
+  catalogUpdaterBulkUndo: 'Скасувати збережені зміни',
+  catalogUpdaterBulkRestored: 'Налаштування відновлено: {count}',
+  catalogUpdaterBulkRestoring: 'Відновлюємо…',
+  catalogUpdaterBulkResultRestored: 'Відновлено',
+  catalogUpdaterBulkUndoResults: 'Результати скасування: {count}',
   catalogUpdaterIntervalForSelected: 'Як часто оновлювати обрані',
   catalogUpdaterNow: 'Оновити зараз',
   catalogUpdaterClearSelection: 'Скинути вибір',
@@ -2730,6 +2808,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogIconsSaving: 'Збереження…',
   catalogIconsSaved: 'Збережено',
   catalogIconsUndo: 'Скасувати зміну',
+  catalogIconsClearRecent: 'Очистити список',
   catalogIconsRecent: 'Останні зміни',
   catalogIconsUndoInvalid: 'Після цього налаштування змінилися. Відредагуйте поточний стан.',
   catalogIconsUnknown: 'Результат збереження невідомий. Перевірте поточні налаштування.',
@@ -2775,6 +2854,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterWhen: 'Коли оновлювати',
   catalogUpdaterWhat: 'Що оновлювати',
   catalogUpdaterDetails: 'Подробиці',
+  catalogUpdaterUncertainCloseTitle: 'Результат не підтверджено',
+  catalogUpdaterUncertainCloseBody:
+    'Сервер ще може застосувати цю зміну. Закриття вікна її не скасовує. Перевірте поточні налаштування після повторного відкриття редактора.',
   catalogUpdaterDiscardTitle: 'Відкинути зміни?',
   catalogUpdaterDiscardDraft: 'Відкинути незбережені зміни?',
   catalogUpdaterDiscardBody: 'Незбережені налаштування буде втрачено.',
@@ -2788,6 +2870,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterClose: 'Закрити',
   catalogUpdaterSearch: 'Пошук за відео або каталогом',
   catalogUpdaterClearSearch: 'Очистити пошук',
+  catalogUpdaterUnavailable: 'Каталоги недоступні',
+  catalogRunNeedsReview: 'Потрібна перевірка · деталі',
+  catalogUpdaterCurrentProblem: 'Поточна проблема:',
   catalogUpdaterLoading: 'Завантажуємо каталоги…',
   catalogUpdaterEmpty: 'Каталогів ще немає. Створіть каталог із відео.',
   catalogUpdaterNoMatches: 'Нічого не знайдено.',
@@ -2891,7 +2976,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterNoPermission:
     'Запускати оновлення каталогів можуть лише учасники з правом обробки матеріалів.',
   catalogUpdaterLastFailed: 'Останнє оновлення не вдалося',
-  catalogChipTitle: 'Каталоги',
+  catalogChipTitle: 'За розкладом',
+  catalogChipScheduledCount: 'Каталогів за розкладом: {count}',
+  catalogChipOneOffTitle: 'Разове оновлення',
   catalogChipNext: 'Наступне через {time}',
   catalogChipHours: '{hours} год {minutes} хв',
   catalogChipMinutes: '{minutes} хв',
@@ -2920,6 +3007,41 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchAgentTooOld: 'Застосунок Soty на цьому компʼютері застарий для перезашивки.',
   teamRestitchAgentTooOldForSources:
     'Застосунок Soty на цьому компʼютері застарий, щоб брати картинки з простору. Оновіть його, щоб перезашивати з цими налаштуваннями.',
+  catalogCommandAlreadyAccepted:
+    'Цей запит уже прийнято. Щоб зупинити активне оновлення, натисніть «Зупинити» в каталозі.',
+  catalogCommandRecovered:
+    'Попередній запит підтверджено. Прийнято оновлень: {count}. Оновлюємо поточний стан…',
+  catalogCommandLastProblem: 'Остання відома помилка: {message}',
+  catalogCommandMore: 'та ще {count}',
+  catalogCommandCancelled: 'Запит скасовано до прийняття. Оновлення не запускалось.',
+  catalogCommandChecking: 'Перевіряємо запит на оновлення {count} каталогів…',
+  catalogCommandUnknown:
+    'Результат запиту для {count} каталогів не підтверджено. Перевірте стан перед новим запуском. Закриття цього вікна не скасовує запит.',
+  catalogCommandCheck: 'Перевірити стан',
+  catalogCommandCancel: 'Скасувати неприйнятий запит',
+  catalogCommandRefresh: 'Оновлюємо стан каталогу перед наступним запуском.',
+  teamTransportUnavailable:
+    'Не вдалося зв’язатися із сервером. Перевірте з’єднання, потім перевірте стан запиту перед новим запуском.',
+  catalogAttemptStateInconsistent:
+    'Потрібно перевірити попереднє оновлення цього каталогу. Зверніться до підтримки, щоб відновити оновлення; інші каталоги можуть працювати далі.',
+  catalogCommandUnsupported:
+    'Сервер ще не підтримує підтвердження цих запитів. Оновіть сторінку після оновлення сервера.',
+  catalogCommandStorageUnavailable:
+    'Не вдалося зберегти стан запиту в браузері. Новий запит не надіслано. Перевірте доступне сховище браузера.',
+  catalogExportTooLarge:
+    'Каталог перевищує ліміт експорту Google (10 МБ). Зменште кількість товарів або відкрийте таблицю в Google Sheets.',
+  teamRestitchScreenCandidatesExhausted:
+    'Усі перевірені картинки непридатні для перезашивки. Додайте інші картинки в налаштуваннях простору й спробуйте знову.',
+  teamRestitchScreenPreviousFailures:
+    'Раніше перевірені картинки з цього набору були непридатними й зараз пропускаються. Додайте нові картинки або замініть пошкоджені файли.',
+  teamRestitchScreenByteLimit:
+    'Досягнуто ліміт завантаження картинок для цієї спроби. Зменште розмір картинок і почніть нову спробу.',
+  teamRestitchScreenIoLimit:
+    'Досягнуто ліміт часу завантаження картинок. Перевірте з’єднання й почніть нову спробу.',
+  teamRestitchScreenAccountingUncertain:
+    'Не вдалося підтвердити результат завантаження картинки. Дочекайтеся відновлення стану операції; не запускайте її повторно.',
+  teamRestitchScreenSelectionLimit:
+    'Досягнуто ліміт перевірок картинок. Замініть або зменште набір картинок і спробуйте знову.',
   teamRestitchPoolEmpty:
     'Немає картинок для перезашивки: усі джерела пулу недоступні або порожні. Відкрийте налаштування простору й перевірте їх.',
   teamRestitchSourceForbidden:
@@ -2943,7 +3065,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchSourceSkipped:
     'пропущено: {format} за форматом, {size} за розміром, {animated} анімованих',
   teamRestitchPoolNone: 'Джерел ще немає: слот вимкнений, доки ви не додасте картинки з простору.',
-  teamRestitchPoolEligible: 'Придатних картинок: {count}',
+  teamRestitchPoolEligible: 'Картинок для вибору: {count}',
   teamRestitchPoolPartial: 'Недоступних джерел: {count}.',
   teamRestitchPoolSkipped: 'Пропущено файлів: {count}.',
   teamRestitchPoolOverlap: 'Джерела, що перекриваються, рахуються один раз.',
@@ -3579,8 +3701,28 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerSortFolders: 'Папки',
   teamExplorerSortFoldersSeparate: 'Окремо від файлів',
   teamExplorerSortFoldersMixed: 'Разом із файлами',
+  materialLinkTitle: 'Посилання на файл',
+  materialLinkUrl: 'Посилання',
+  materialLinkPublic: 'Кожен із посиланням має доступ.',
+  materialLinkRestricted: 'Доступ обмежений. Посилання працює для тих, хто вже має доступ.',
+  materialLinkVisibilityUnknown: 'Посилання отримано, але доступ для інших не вдалося перевірити.',
+  materialLinkPending:
+    'Зміну доступу ще не підтверджено. Перевірте стан перед повторним поширенням.',
+  materialLinkReceiptPending:
+    'Посилання доступне для всіх. Soty ще не вдалося зберегти підтвердження — перевірте стан пізніше.',
+  materialLinkCheck: 'Перевірити стан',
+  materialLinkUpdateRequired:
+    'Оновіть сторінку, щоб скористатися оновленим поширенням. Наявне посилання можна скопіювати.',
+  materialLinkPreferenceFailed:
+    'Посилання готове, але не вдалося запам’ятати вибір. Наступного разу Soty запитає підтвердження.',
+  materialLinkUnavailable:
+    'Не вдалося отримати коректне посилання на файл. Оновіть його стан або перевірте доступ у Google Drive.',
+  materialLinkExpired:
+    'Час підтвердження минув. Оновіть стан посилання й підтвердьте поширення ще раз.',
   teamShareAction: 'Поділитися: {name}',
   teamShareCopied: 'Посилання скопійовано',
+  teamShareClipboardUnavailable:
+    'Браузер заборонив копіювання. Виділіть і скопіюйте посилання з поля.',
   teamShareReady: 'Посилання для доступу:',
   teamShareFailed: 'Не вдалося створити посилання.',
   teamExplorerSearchOpen: 'Шукати файли',
@@ -4018,7 +4160,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamErrorUnknown: 'Щось пішло не так. Спробуйте ще раз за мить.',
   teamErrorProcessFailed: 'Цей файл не вдалося обробити на цьому комп’ютері.',
   teamErrorProcessResultUncertain:
-    'Не вдалося підтвердити результат. Перед повтором потрібна перевірка створеного файла.',
+    'Не вдалося підтвердити результат. Перевірте стан файла перед повтором.',
   teamTranscribeFailedFile:
     'З «{name}» не вдалося зробити транскрипт — можливо, у відео немає мови або й звуку.',
   teamErrorProcessCanceled: 'Роботу зупинено.',
@@ -4439,5 +4581,25 @@ export const uk: Record<keyof typeof en, string> = {
   adminTariffLegacyConfirmTitle: 'Вимкнути старе правило?',
   adminTariffLegacyConfirmBody:
     'Простори без тарифу ({count}) одразу буде призупинено. Їхні дані лишаться.',
-  adminTariffLegacyConfirm: 'Вимкнути й призупинити'
+  adminTariffLegacyConfirm: 'Вимкнути й призупинити',
+  catalogZoneKyiv: 'Київ',
+  catalogZoneLondon: 'Лондон',
+  catalogZoneBerlin: 'Берлін',
+  catalogZoneParis: 'Париж',
+  catalogZoneWarsaw: 'Варшава',
+  catalogZonePrague: 'Прага',
+  catalogZoneBucharest: 'Бухарест',
+  catalogZoneIstanbul: 'Стамбул',
+  catalogZoneBaku: 'Баку',
+  catalogZoneTbilisi: 'Тбілісі',
+  catalogZoneDubai: 'Дубай',
+  catalogZoneKolkata: 'Колката',
+  catalogZoneBangkok: 'Бангкок',
+  catalogZoneSingapore: 'Сінгапур',
+  catalogZoneTokyo: 'Токіо',
+  catalogZoneSydney: 'Сідней',
+  catalogZoneNewYork: 'Нью-Йорк',
+  catalogZoneChicago: 'Чикаго',
+  catalogZoneLosAngeles: 'Лос-Анджелес',
+  catalogZoneSaoPaulo: 'Сан-Паулу'
 };

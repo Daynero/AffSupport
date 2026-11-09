@@ -1,0 +1,11 @@
+{
+  "observedAt": "2026-11-07T04:58:17.711Z",
+  "reproduced": true,
+  "httpStatus": 200,
+  "validEdgeEnvelope": true,
+  "validFileReceipt": false,
+  "protectedRowsUnchanged": true,
+  "fixtureStillRestored": true,
+  "scope": "Known completed synthetic trash key replay after confirmed restore. Old beta runtime returns malformed file receipt; no new intent/provider mutation is authorized by this replay. No manual UI claim.",
+  "productionTouched": false
+}

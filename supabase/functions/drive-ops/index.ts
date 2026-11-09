@@ -1,7 +1,48 @@
+import { readCatalogVideoFailure } from './catalog-video-failure.ts';
+import { handleCatalogVideoForeground } from './catalog-video-foreground.ts';
+import {
+  prepareCatalogVideoForeground,
+  foregroundRpc
+} from './catalog-video-foreground-authority.ts';
+import { parseCatalogVideoForegroundExecutor } from '../../../packages/shared/dist/team/catalog-video-foreground.js';
+import { runInitialCatalogRecovery } from './catalog-initial-recovery.ts';
+import {
+  readLaunchCatalogVideo,
+  cancelLaunchCatalogVideo
+} from './launch-created-catalog-video.ts';
+import {
+  startCatalogUpdaterVariants,
+  readCatalogUpdaterVariants,
+  cancelCatalogUpdaterVariants,
+  resumeCatalogUpdaterVariants
+} from './updater-variants.ts';
+import { createCatalogInitialVideoAuthority } from './catalog-initial-video-authority.ts';
+import {
+  readCatalogInitialVideoProgress,
+  cancelCatalogInitialVideo,
+  readAcceptedInitialCatalogRequest
+} from './catalog-video-generation.ts';
+import { admitCatalogVideoVariant } from './catalog-video-variant-admission.ts';
+import {
+  handleCatalogPublicationVerify,
+  handleCatalogPublicationVerifyRead
+} from './catalog-publication-baseline.ts';
+import {
+  handleCatalogPublicationAction,
+  handleCatalogPublicationRead,
+  handleCatalogPublicationSave,
+  withCatalogPublicationWriter
+} from './catalog-publication.ts';
+import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { handleRestitchNativeControl } from './restitch-native-control.ts';
+import { authorizeRestitchNativeEnrollment } from './restitch-native-auth.ts';
+import { handleRestitchNativeSelection } from './restitch-native-selection.ts';
+import { acceptManualRestitchRoot, readManualRestitchRoot } from './restitch-root.ts';
 import { betaNativeCatalogSheets } from '../_shared/catalog-native-sheet.ts';
 import { catalogDriveScope } from '../_shared/catalog-drive-scope.ts';
 import { finalizeProcessOutput } from './process-finalize.ts';
 import { acceptMutationPreflight } from './mutation-preflight.ts';
+import { parseMaterialHistoricalReceipt } from './material-historical-receipt.ts';
 import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
 import {
   requireProcessUploadProducer,
@@ -43,13 +84,15 @@ import {
 import { ingestTranscript } from '../../../packages/shared/dist/team/transcript.js';
 import {
   TEAM_ERROR_CODES,
+  parseTeamFileOperationResult,
   type TeamErrorCode,
   type TeamTransferGrant
 } from '../../../packages/shared/dist/team/transport.js';
 import {
   authorizeCaller,
   requireNamedWorkerSecret,
-  type OAuthProductionSignals
+  type OAuthProductionSignals,
+  type CallerAuthClient
 } from '../_shared/auth.ts';
 import { thumbnailCachePath } from '../_shared/thumbnails.ts';
 import {
@@ -78,9 +121,11 @@ import {
 } from '../_shared/errors.ts';
 import {
   issueTransferGrant,
+  materialGroupRequestNonce,
   releaseNameReservation,
   startOperation,
   transitionOperation,
+  withOperationFailure,
   type OperationAuthority
 } from '../_shared/operations.ts';
 import { applyLibraryGroupMutation, parseLibraryGroupIntent } from '../_shared/library.ts';
@@ -121,6 +166,7 @@ import {
   normalizeReservedName,
   postconditionForMutation,
   validateLiveMutationTarget,
+  assertExpectedMutationActor,
   validateUploadStartRequest,
   type DriveOperationMaterial,
   type LiveDriveTarget,
@@ -132,12 +178,7 @@ interface RpcFailure {
   message?: string;
 }
 
-interface RpcClient extends ServiceRpcClient {
-  rpc: (
-    name: string,
-    parameters: Record<string, unknown>
-  ) => Promise<{ data: unknown; error: RpcFailure | null }>;
-}
+type RpcClient = ServiceRpcClient;
 
 interface MaterialOperationContext extends DriveOperationMaterial {
   category: MaterialCategory | null;
@@ -202,7 +243,12 @@ const TOOL_RULES: Readonly<
   }
 };
 
-function clients(request: Request): { caller: RpcClient; service: RpcClient } {
+function clients(request: Request): {
+  caller: RpcClient;
+  service: RpcClient &
+    import('../_shared/auth.ts').CallerAuthClient &
+    Pick<ReturnType<typeof createClient>, 'from'>;
+} {
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -217,7 +263,9 @@ function clients(request: Request): { caller: RpcClient; service: RpcClient } {
     }) as unknown as RpcClient,
     service: createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false }
-    }) as unknown as RpcClient
+    }) as unknown as RpcClient &
+      import('../_shared/auth.ts').CallerAuthClient &
+      Pick<ReturnType<typeof createClient>, 'from'>
   };
 }
 
@@ -437,6 +485,7 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
  * the operation must stay inside.
  */
 interface DestinationContext {
+  driveId?: string | null;
   materialId: string | null;
   driveFolderId: string;
   connectionId: string;
@@ -466,6 +515,7 @@ async function rootDestination(input: {
   }
   return {
     materialId: null,
+    driveId: stringValue(row, 'drive_id'),
     driveFolderId,
     connectionId,
     credentialId,
@@ -675,7 +725,10 @@ async function cacheGeneratedTextResult(input: {
       extension,
       totalBytes: body.totalBytes
     });
-    state = ingested.state === 'not_applicable' ? 'unavailable' : ingested.state;
+    state =
+      ingested.state === 'not_applicable' || ingested.state === 'pending'
+        ? 'unavailable'
+        : ingested.state;
     text = ingested.text;
     indexedBytes = ingested.indexedBytes;
     errorCode = ingested.errorCode;
@@ -1161,31 +1214,6 @@ function parseMutationBody(body: Record<string, unknown>) {
   };
 }
 
-async function withOperationFailure<T>(
-  service: RpcClient,
-  operationId: string,
-  run: () => Promise<T>
-): Promise<T> {
-  try {
-    return await run();
-  } catch (cause) {
-    // A move or rename that reserved a name and then failed must release it,
-    // or the next attempt is refused with a name conflict for a file that is
-    // not there (011, findings M1). Marking the operation failed does that.
-    const mapped = mapUnknownError(cause);
-    await rpcValue(service, 'service_transition_team_operation', {
-      p_operation: operationId,
-      p_state: 'failed',
-      p_stage: 'failed',
-      p_progress: 100,
-      p_result_material: null,
-      p_error_code: mapped.code,
-      p_retryable: mapped.retryable
-    }).catch(() => undefined);
-    throw cause;
-  }
-}
-
 async function startSimpleOperation(input: {
   service: RpcClient;
   teamId: string;
@@ -1203,7 +1231,9 @@ async function startSimpleOperation(input: {
     actorId: input.actorId,
     kind: input.kind,
     idempotencyKey: input.idempotencyKey,
-    requestNonce: requestNonce(input.idempotencyKey),
+    requestNonce: ['move', 'trash', 'restore'].includes(input.kind)
+      ? await materialGroupRequestNonce(input.idempotencyKey)
+      : requestNonce(input.idempotencyKey),
     sourceMaterialId: input.sourceMaterialId,
     destinationFolderId: input.destinationFolderId,
     reservedNameKey: input.reservedNameKey,
@@ -1583,29 +1613,86 @@ async function handleTrashRestore(
   if (action === 'trash' && body.confirmed !== true) {
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
+  const destinationFolderId =
+    action === 'restore' && body.destinationFolderId !== undefined
+      ? requireUuid(body.destinationFolderId)
+      : null;
+  if (body.receiptProtocol === 2) {
+    const historical = await rpcValue(service, 'service_read_material_historical_receipt_by_key', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_material: common.materialId,
+      p_action: action,
+      p_key: common.idempotencyKey,
+      p_destination: destinationFolderId
+    });
+    if (historical !== null) {
+      if (!isRecord(historical) || typeof historical.operationId !== 'string')
+        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', { retryable: false });
+      return parseMaterialHistoricalReceipt(historical, {
+        operationId: historical.operationId,
+        materialId: common.materialId,
+        action
+      });
+    }
+  }
   const source = await loadContext({
     service,
     teamId: common.teamId,
     materialId: common.materialId,
     actorId,
     permission: 'delete',
-    allowTrashed: action === 'restore'
+    // An accepted trash may already be observed by catalog sync before its
+    // receipt is finalized. Fresh writes still require live preflight below.
+    allowTrashed: true
   });
-  const destinationFolderId =
-    action === 'restore' && body.destinationFolderId !== undefined
-      ? requireUuid(body.destinationFolderId)
-      : null;
+  const accepted = await startSimpleOperation({
+    service,
+    teamId: common.teamId,
+    actorId,
+    kind: action,
+    idempotencyKey: common.idempotencyKey,
+    sourceMaterialId: common.materialId,
+    destinationFolderId
+  });
+  if (accepted.reused && accepted.state === 'succeeded' && body.receiptProtocol === 2) {
+    const historical = await rpcValue(service, 'service_read_material_historical_receipt', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_operation: accepted.operationId,
+      p_material: common.materialId,
+      p_action: action,
+      p_destination: destinationFolderId
+    });
+    return parseMaterialHistoricalReceipt(historical, {
+      operationId: accepted.operationId,
+      materialId: common.materialId,
+      action
+    });
+  }
+  if (accepted.reused && ['pending', 'running'].includes(accepted.state)) {
+    const reconciled = await rpcValue(service, 'service_reconcile_confirmed_material_group', {
+      p_team: common.teamId,
+      p_actor: actorId,
+      p_operation: accepted.operationId,
+      p_material: common.materialId,
+      p_action: action,
+      p_destination: destinationFolderId
+    });
+    if (reconciled !== null) {
+      const receipt = parseTeamFileOperationResult(reconciled);
+      if (
+        !receipt ||
+        receipt.state !== 'succeeded' ||
+        receipt.operationId !== accepted.operationId ||
+        receipt.materialId !== common.materialId
+      )
+        throw new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+      return receipt;
+    }
+  }
   const prepared = await acceptMutationPreflight({
-    accept: () =>
-      startSimpleOperation({
-        service,
-        teamId: common.teamId,
-        actorId,
-        kind: action,
-        idempotencyKey: common.idempotencyKey,
-        sourceMaterialId: common.materialId,
-        destinationFolderId
-      }),
+    accept: async () => accepted,
     preflight: async () => {
       const client = await driveClient(service, source.credentialId, request);
       const live = await proveContext(source, client, action === 'restore');
@@ -1637,7 +1724,6 @@ async function handleTrashRestore(
     }
   });
   const { authority } = prepared;
-  if (prepared.replayed) return operationRecord(authority);
   const { client, destination } = prepared.value;
   await transitionOperation({
     service,
@@ -1903,8 +1989,10 @@ async function handleProcessStart(
   request: Request,
   body: Record<string, unknown>,
   service: RpcClient,
-  actorId: string
+  actorId: string,
+  trustedVariant?: { sourceVersion: string }
 ) {
+  const expectedSourceVersion = trustedVariant?.sourceVersion;
   const teamId = requireUuid(body.teamId);
   const materialId = requireUuid(body.materialId);
   // The explorer names a destination by its provider folder id (or leaves it
@@ -1914,6 +2002,17 @@ async function handleProcessStart(
   const rawDestination = optionalDestination(body.destinationFolderId);
   const idempotencyKey = requireIdempotency(body.idempotencyKey);
   const toolId = typeof body.toolId === 'string' ? body.toolId : '';
+  if (idempotencyKey.startsWith('catalog-variant:') && !trustedVariant)
+    throw new TeamFunctionError('INVALID_INPUT');
+  if (
+    trustedVariant &&
+    (toolId !== 'restitch' ||
+      !idempotencyKey.startsWith('catalog-variant:') ||
+      typeof expectedSourceVersion !== 'string' ||
+      !expectedSourceVersion ||
+      expectedSourceVersion.length > 1024)
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
   if (toolId === 'translation')
     throw new TeamFunctionError('FEATURE_RETIRED', { retryable: false });
   const tool = TOOL_RULES[toolId];
@@ -1959,6 +2058,8 @@ async function handleProcessStart(
   }
   const sourceClient = await driveClient(service, source.credentialId, request);
   const liveSource = await proveContext(source, sourceClient);
+  if (expectedSourceVersion !== undefined && liveSource.version !== expectedSourceVersion)
+    throw new TeamFunctionError('SOURCE_CHANGED');
   requireDriveCapability(liveSource, 'canDownload');
   // The version finalize will hold the row to is the live one bound below; a row left behind by a
   // metadata-only change (sharing by link moves the version) is brought up to it first.
@@ -3109,6 +3210,128 @@ Deno.serve(async request => {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
 
+    const foregroundRoute = /^\/catalog-video\/foreground\/([a-z_]+)$/u.exec(path);
+    if (foregroundRoute) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('AUTH_REQUIRED');
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT');
+      const value = await handleCatalogVideoForeground(
+        configured.service,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        request,
+        foregroundRoute[1]!,
+        parsed.value,
+        (native, child) =>
+          admitCatalogVideoVariant(
+            configured.service,
+            {
+              ...native,
+              index: child.index,
+              requestId: child.requestId
+            },
+            {
+              restitchedFolder: async (teamId, actorId) =>
+                (
+                  await handleEnsureRestitchedFolder(
+                    request,
+                    { teamId },
+                    configured.service,
+                    actorId
+                  )
+                ).folderId,
+              startProcess: async (actorId, body) => {
+                if (typeof body.expectedSourceVersion !== 'string')
+                  throw new TeamFunctionError('INVALID_INPUT');
+                const started = await handleProcessStart(
+                  request,
+                  body,
+                  configured.service,
+                  actorId,
+                  { sourceVersion: body.expectedSourceVersion }
+                );
+                return { operationId: started.operationId };
+              }
+            }
+          )
+      );
+      return successResponse(value, cors);
+    }
+
+    if (
+      path.startsWith('/restitch/control/') ||
+      path.startsWith('/restitch/selection/') ||
+      path === '/restitch/manual/accept' ||
+      path === '/restitch/manual/read'
+    ) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT');
+      const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (path === '/restitch/manual/accept' || path === '/restitch/manual/read') {
+        if (parsed.value.protocolVersion !== 1)
+          throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+        const { userId } = await authorizeRestitchNativeEnrollment(
+          request,
+          configured.service as unknown as CallerAuthClient
+        );
+        return successResponse(
+          await (path.endsWith('/read') ? readManualRestitchRoot : acceptManualRestitchRoot)(
+            configured.service,
+            {
+              teamId: parsed.value.teamId as string,
+              actorId: userId,
+              sourceMaterialId: parsed.value.sourceMaterialId as string,
+              idempotencyKey: parsed.value.idempotencyKey as string,
+              clientOperationId: parsed.value.clientOperationId as string
+            }
+          ),
+          cors
+        );
+      }
+      if (path.startsWith('/restitch/control/'))
+        return successResponse(
+          await handleRestitchNativeControl(
+            request,
+            path.slice('/restitch/control/'.length),
+            parsed.value,
+            {
+              service: configured.service,
+              secret,
+              user: r =>
+                authorizeRestitchNativeEnrollment(
+                  r,
+                  configured.service as unknown as CallerAuthClient
+                )
+            }
+          ),
+          cors
+        );
+      return successResponse(
+        await handleRestitchNativeSelection(
+          request,
+          path.slice('/restitch/selection/'.length),
+          parsed.value,
+          { service: configured.service, secret }
+        ),
+        cors
+      );
+    }
     if (path === '/launches/recover') {
       await requireNamedWorkerSecret(request);
       const recovered = await runLaunchCatalogRecovery(
@@ -3120,7 +3343,30 @@ Deno.serve(async request => {
             {
               service: configured.service,
               catalog: { ...catalog, readLiveCatalogs: async () => [] },
+              readCatalogVideoFailure: scope =>
+                readCatalogVideoFailure(configured.service, scope, async ids => {
+                  const result = await configured.service
+                    .from('team_operations')
+                    .select(
+                      'id,team_id,actor_id,kind,state,source_material_id,idempotency_key,error_code'
+                    )
+                    .in('id', [...ids])
+                    .eq('team_id', scope.teamId)
+                    .eq('actor_id', scope.actorId)
+                    .eq('source_material_id', scope.sourceMaterialId)
+                    .eq('kind', 'process')
+                    .eq('state', 'failed')
+                    .limit(8);
+                  if (result.error) return null;
+                  return result.data;
+                }),
               driveFor: catalog.fullDriveFor,
+              createInitialVideoAuthority: identity =>
+                createCatalogInitialVideoAuthority(
+                  configured.service,
+                  identity,
+                  catalog.fullDriveFor
+                ),
               proveSource: async (config, source) => {
                 const parsed = parseLaunchSources(source);
                 if (!parsed) throw new TeamFunctionError('SOURCE_CHANGED');
@@ -3149,7 +3395,45 @@ Deno.serve(async request => {
           );
         }
       );
-      return successResponse(recovered, cors);
+      const initialCatalogs = await runInitialCatalogRecovery(configured.service, {
+        enabled: nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        }),
+        executeFrozen: async (frozenBody, actorId) => {
+          const catalogRequest = parseCreateProductCatalogRequest(frozenBody);
+          const catalog = productCatalogDeps(request, configured.caller, configured.service);
+          const initialVideoAuthority = await createCatalogInitialVideoAuthority(
+            configured.service,
+            {
+              teamId: catalogRequest.teamId,
+              actorId,
+              sourceMaterialId: catalogRequest.videoMaterialId,
+              initialCatalogKey: catalogRequest.idempotencyKey,
+              expectedExecutorId: catalogRequest.expectedExecutorId,
+              foregroundExecutor: catalogRequest.foregroundExecutor,
+              restitchEnabled: catalogRequest.restitchEnabled
+            },
+            catalog.fullDriveFor
+          );
+          return createDurableProductCatalog(
+            { ...catalog, initialVideoAuthority },
+            catalogIntentStore(
+              configured.service,
+              catalogRequest.teamId,
+              catalogRequest.videoMaterialId,
+              actorId,
+              catalogRequest.idempotencyKey
+            ),
+            catalog.fullDriveFor,
+            catalogRequest,
+            actorId
+          );
+        }
+      });
+      return successResponse({ ...recovered, initialCatalogs }, cors);
     }
 
     if (
@@ -3166,6 +3450,62 @@ Deno.serve(async request => {
             ? await handleProcessOutputFinalize(request, parsed.value, configured.service)
             : await handleProcessOutputQuiesced(parsed.value, configured.service);
       return successResponse(value, cors, path.endsWith('/start') ? 202 : 200);
+    }
+
+    if (path === '/updater/variant_admit') {
+      const credential = request.headers.get('x-team-recovery-credential');
+      if (
+        request.headers.has('origin') ||
+        !credential ||
+        !/^[A-Za-z0-9_-]{43}$/u.test(credential) ||
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('AUTH_REQUIRED');
+      const parsed = await parseJsonBody(request);
+      if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT');
+      const raw = parsed.value;
+      if (
+        raw.protocolVersion !== 1 ||
+        !Number.isSafeInteger(raw.index) ||
+        Number(raw.index) < 0 ||
+        Number(raw.index) > 399
+      )
+        throw new TeamFunctionError('INVALID_INPUT');
+      await foregroundRpc(configured.service, 'service_require_catalog_video_audience', {
+        p_set: requireUuid(raw.setId),
+        p_hash: await recoveryTokenHash(credential),
+        p_kind: 'recovery'
+      });
+      const admitted = await admitCatalogVideoVariant(
+        configured.service,
+        {
+          setId: requireUuid(raw.setId),
+          nativeInstanceId: requireUuid(raw.nativeInstanceId),
+          requestId: requireUuid(raw.requestId),
+          index: Number(raw.index),
+          protocolVersion: 1,
+          claimHash: await recoveryTokenHash(credential)
+        },
+        {
+          restitchedFolder: async (teamId, actorId) =>
+            (await handleEnsureRestitchedFolder(request, { teamId }, configured.service, actorId))
+              .folderId,
+          startProcess: async (actorId, body) => {
+            if (typeof body.expectedSourceVersion !== 'string')
+              throw new TeamFunctionError('INVALID_INPUT');
+            const started = await handleProcessStart(request, body, configured.service, actorId, {
+              sourceVersion: body.expectedSourceVersion
+            });
+            return { operationId: started.operationId };
+          }
+        }
+      );
+      return successResponse(admitted, cors);
     }
 
     let userId: string;
@@ -3204,6 +3544,180 @@ Deno.serve(async request => {
     const parsed = await parseJsonBody(request);
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     const body = parsed.value;
+    if (
+      path === '/catalog-publication/action' ||
+      path === '/catalog-publication/read' ||
+      path === '/catalog-publication/save' ||
+      path === '/catalog-publication/verify' ||
+      path === '/catalog-publication/verify/read'
+    ) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      const targetedWriterEnabled =
+        Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
+        nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        });
+      if (path === '/catalog-publication/action')
+        return successResponse(
+          withCatalogPublicationWriter(
+            await handleCatalogPublicationAction(configured.service, userId, body),
+            targetedWriterEnabled
+          ),
+          cors
+        );
+      if (path === '/catalog-publication/verify' || path === '/catalog-publication/verify/read') {
+        const verified = path.endsWith('/read')
+          ? await handleCatalogPublicationVerifyRead(configured.service, userId, body)
+          : await handleCatalogPublicationVerify(configured.service, userId, body, credentialId =>
+              driveClient(configured.service, credentialId, request)
+            );
+        return successResponse(verified, cors);
+      }
+      const publication = path.endsWith('/read')
+        ? await handleCatalogPublicationRead(configured.service, userId, body)
+        : await handleCatalogPublicationSave(configured.service, userId, body);
+      return successResponse(
+        withCatalogPublicationWriter(publication, targetedWriterEnabled),
+        cors
+      );
+    }
+    if (path === '/launches/catalog-video/read' || path === '/launches/catalog-video/cancel') {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      const snapshot = path.endsWith('/cancel')
+        ? await cancelLaunchCatalogVideo(configured.service, userId, body)
+        : await readLaunchCatalogVideo(configured.service, userId, body);
+      return successResponse(snapshot, cors);
+    }
+    if (
+      path === '/updater/variants' ||
+      path === '/updater/variants/read' ||
+      path === '/updater/variants/cancel' ||
+      path === '/updater/variants/resume'
+    ) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      assertExpectedMutationActor(body.expectedActorId, userId);
+      const foregroundExecutor =
+        body.foregroundExecutor === undefined
+          ? undefined
+          : parseCatalogVideoForegroundExecutor(body.foregroundExecutor);
+      if (
+        foregroundExecutor === null ||
+        (foregroundExecutor && body.expectedExecutorId !== undefined) ||
+        (foregroundExecutor && path !== '/updater/variants')
+      )
+        throw new TeamFunctionError('INVALID_INPUT');
+      if (foregroundExecutor) {
+        if (
+          !Number.isSafeInteger(body.profileVersion) ||
+          Number(body.profileVersion) < 1 ||
+          !Number.isSafeInteger(body.requestedCount) ||
+          Number(body.requestedCount) < 1 ||
+          Number(body.requestedCount) > 400
+        )
+          throw new TeamFunctionError('INVALID_INPUT');
+        const verified = await authorizeRestitchNativeEnrollment(request, configured.service);
+        if (verified.userId !== userId) throw new TeamFunctionError('PERMISSION_DENIED');
+        const trusted = await foregroundRpc(
+          configured.service,
+          'service_catalog_foreground_updater_scope',
+          {
+            p_team: requireUuid(body.teamId),
+            p_actor: userId,
+            p_catalog: requireUuid(body.catalogMaterialId),
+            p_version: Number(body.profileVersion)
+          }
+        );
+        if (!isRecord(trusted) || typeof trusted.sourceMaterialId !== 'string')
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        await prepareCatalogVideoForeground(
+          configured.service,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          {
+            teamId: requireUuid(body.teamId),
+            actorId: userId,
+            sessionId: verified.sessionId,
+            sourceMaterialId: requireUuid(trusted.sourceMaterialId),
+            consumerKind: 'updater',
+            requestKey: requireUuid(body.requestId),
+            expectedVersion: String(body.profileVersion)
+          },
+          foregroundExecutor
+        );
+      }
+      const identity = {
+        ...(foregroundExecutor ? { foregroundExecutor } : {}),
+        teamId: requireUuid(body.teamId),
+        actorId: userId,
+        catalogMaterialId: requireUuid(body.catalogMaterialId),
+        ...(body.requestId === undefined ? {} : { requestId: requireUuid(body.requestId) }),
+        ...(body.expectedExecutorId === undefined
+          ? {}
+          : { expectedExecutorId: requireUuid(body.expectedExecutorId) })
+      };
+      const variantResult = path.endsWith('/resume')
+        ? await resumeCatalogUpdaterVariants(
+            configured.service,
+            { ...identity, requestId: requireUuid(body.requestId) },
+            credential => driveClient(configured.service, credential, request)
+          )
+        : path.endsWith('/read')
+          ? await readCatalogUpdaterVariants(configured.service, identity)
+          : path.endsWith('/cancel')
+            ? await cancelCatalogUpdaterVariants(configured.service, identity)
+            : await startCatalogUpdaterVariants(
+                configured.service,
+                {
+                  ...identity,
+                  requestId: requireUuid(body.requestId),
+                  requestedCount: body.requestedCount as number,
+                  profileVersion: body.profileVersion as number
+                },
+                credential => driveClient(configured.service, credential, request)
+              );
+      return successResponse(variantResult, cors);
+    }
+    if (path === '/product-catalog/video/read' || path === '/product-catalog/video/cancel') {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      const progress = path.endsWith('/read')
+        ? await readCatalogInitialVideoProgress(configured.service, userId, body)
+        : await cancelCatalogInitialVideo(configured.service, userId, body);
+      return successResponse(progress, cors);
+    }
     let value: unknown;
     let status = 200;
     const finalize = /^\/uploads\/([0-9a-f-]{36})\/finalize$/iu.exec(path);
@@ -3227,6 +3741,35 @@ Deno.serve(async request => {
         {
           caller: configured.caller,
           service: configured.service,
+          prepareForeground: async input => {
+            const verified = await authorizeRestitchNativeEnrollment(request, configured.service);
+            if (verified.userId !== input.actorId || verified.userId !== userId)
+              throw new TeamFunctionError('PERMISSION_DENIED');
+            await prepareCatalogVideoForeground(
+              configured.service,
+              Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+              {
+                teamId: input.teamId,
+                actorId: input.actorId,
+                sessionId: verified.sessionId,
+                sourceMaterialId: input.sourceMaterialId,
+                consumerKind: 'launch',
+                requestKey: input.requestKey,
+                expectedVersion: input.expectedVersion
+              },
+              input.receipt
+            );
+            if (input.retireUnused)
+              await foregroundRpc(
+                configured.service,
+                'service_retire_unused_catalog_video_foreground',
+                {
+                  p_enrollment: input.receipt.enrollmentId,
+                  p_team: input.teamId,
+                  p_actor: input.actorId
+                }
+              );
+          },
           catalogReady: async () => {
             const ready = await rpcValue(configured.service, 'service_launch_worker_ready', {});
             if (ready !== true) throw new TeamFunctionError('NO_WORK');
@@ -3279,6 +3822,15 @@ Deno.serve(async request => {
       value = await handleCopy(request, body, configured.service, userId);
     } else if (path === '/move') {
       value = await handleMove(request, body, configured.service, userId);
+    } else if (path === '/trash-as-actor' || path === '/restore-as-actor') {
+      assertExpectedMutationActor(body.expectedActorId, userId);
+      value = await handleTrashRestore(
+        request,
+        body,
+        configured.service,
+        userId,
+        path === '/trash-as-actor' ? 'trash' : 'restore'
+      );
     } else if (path === '/trash') {
       value = await handleTrashRestore(request, body, configured.service, userId, 'trash');
     } else if (path === '/restore') {
@@ -3293,11 +3845,66 @@ Deno.serve(async request => {
       value = await handleEnsureRestitchedFolder(request, body, configured.service, userId);
     } else if (path === '/ensure-upload-folder') {
       value = await handleEnsureUploadFolder(request, body, configured.service, userId);
-    } else if (path === '/product-catalog/create') {
-      const catalogRequest = parseCreateProductCatalogRequest(body);
+    } else if (path === '/product-catalog/create' || path === '/product-catalog/video/resume') {
+      const acceptedBody = path.endsWith('/resume')
+        ? await readAcceptedInitialCatalogRequest(configured.service, userId, body)
+        : body;
+      if (acceptedBody.catalogVideoProtocolVersion === 1)
+        assertExpectedMutationActor(body.expectedActorId, userId);
+      const catalogBody = { ...acceptedBody };
+      if (catalogBody.catalogVideoProtocolVersion === 1) delete catalogBody.expectedActorId;
+      const catalogRequest = parseCreateProductCatalogRequest(catalogBody);
+      if (catalogRequest.catalogVideoProtocolVersion === 1)
+        assertExpectedMutationActor(body.expectedActorId, userId);
+      if (
+        catalogRequest.catalogVideoProtocolVersion === 1 &&
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
       if (catalogRequest.idempotencyKey.startsWith('launch:'))
         throw new TeamFunctionError('INVALID_INPUT');
-      const deps = productCatalogDeps(request, configured.caller, configured.service);
+      const deps: ReturnType<typeof productCatalogDeps> &
+        Pick<ProductCatalogDeps, 'initialVideoAuthority'> = productCatalogDeps(
+        request,
+        configured.caller,
+        configured.service
+      );
+      if (catalogRequest.catalogVideoProtocolVersion === 1) {
+        deps.initialVideoAuthority = await createCatalogInitialVideoAuthority(
+          configured.service,
+          {
+            teamId: catalogRequest.teamId,
+            actorId: userId,
+            sourceMaterialId: catalogRequest.videoMaterialId,
+            initialCatalogKey: catalogRequest.idempotencyKey,
+            expectedExecutorId: catalogRequest.expectedExecutorId,
+            foregroundExecutor: catalogRequest.foregroundExecutor,
+            ...(catalogRequest.foregroundExecutor
+              ? {
+                  foregroundScope: {
+                    teamId: catalogRequest.teamId,
+                    actorId: userId,
+                    sessionId: (
+                      await authorizeRestitchNativeEnrollment(request, configured.service)
+                    ).sessionId,
+                    sourceMaterialId: catalogRequest.videoMaterialId,
+                    consumerKind: 'create' as const,
+                    requestKey: catalogRequest.idempotencyKey,
+                    expectedVersion: null
+                  },
+                  foregroundSecret: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+                }
+              : {}),
+            restitchEnabled: catalogRequest.restitchEnabled
+          },
+          deps.fullDriveFor
+        );
+      }
       value = await createDurableProductCatalog(
         deps,
         catalogIntentStore(
@@ -3311,7 +3918,9 @@ Deno.serve(async request => {
         catalogRequest,
         userId
       );
-    } else if (path === '/updater/claim') {
+    } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
+      if (path === '/updater/claim-as-actor')
+        assertExpectedMutationActor(body.expectedActorId, userId);
       value = await claimRestitchJob(
         updaterRestitchDeps(request, configured.service),
         userId,

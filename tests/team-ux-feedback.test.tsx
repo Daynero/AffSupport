@@ -2,7 +2,8 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
 import { TEAM_ERROR_CODES } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { ProvenancePanel } from '../apps/web/src/team/catalog/ProvenancePanel';
@@ -24,9 +25,11 @@ import type { TeamRealtimeState } from '../apps/web/src/team/useTeamRealtime';
  */
 
 const TEAM_ID = '20000000-0000-4000-8000-000000000001';
+beforeEach(() => setPrivateCacheScope('47000000-0000-4000-8000-000000000081', 'feedback-owner'));
 
 afterEach(() => {
   vi.restoreAllMocks();
+  setPrivateCacheScope(null, 'feedback-ended');
 });
 
 /** The slice of team context these two components actually read. */
@@ -82,7 +85,12 @@ function actionsClient(): MaterialActionsClient {
     downloadWithAgent: vi.fn(),
     renameMaterial: vi.fn().mockResolvedValue({ operationId: 'op', state: 'succeeded' }),
     moveMaterial: vi.fn(),
-    trashMaterial: vi.fn().mockResolvedValue({ operationId: 'op', state: 'succeeded' }),
+    trashMaterial: vi.fn().mockResolvedValue({
+      operationId: 'op',
+      state: 'succeeded',
+      materialId: material.id,
+      reused: false
+    }),
     restoreMaterial: vi.fn()
   };
 }

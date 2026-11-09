@@ -259,6 +259,9 @@ it('does not overlap confirmation history reads or allow older responses to repl
         checkingDelivery
       />
     );
+    await act(async () => {
+      await Promise.resolve();
+    });
     act(() => {
       tick?.();
       tick?.();
@@ -271,5 +274,140 @@ it('does not overlap confirmation history reads or allow older responses to repl
     expect(screen.queryByText('Unknown result')).toBeNull();
   } finally {
     timer.mockRestore();
+  }
+});
+
+it('bounds a hung history read and aborts it so the user can retry', async () => {
+  vi.useFakeTimers();
+  let signal: AbortSignal | undefined;
+  const load = vi.fn((_team: string, _catalog: string, options?: { signal?: AbortSignal }) => {
+    signal = options?.signal;
+    return new Promise<CatalogUpdateAttempt[]>(() => {});
+  });
+  try {
+    render(
+      <CatalogStatusDetails teamId="team" catalogId="catalog" load={load} onClose={() => {}} />
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15001);
+    });
+    expect(screen.getByText('Could not load update history.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(signal?.aborted).toBe(true);
+  } finally {
+    cleanup();
+    vi.useRealTimers();
+  }
+});
+
+it('does not carry a late retry error from the previous catalog into the next history', async () => {
+  let rejectRetry!: (error: Error) => void;
+  const retry = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectRetry = reject;
+      })
+  );
+  const load = vi.fn(async (_team: string, catalog: string) => [
+    {
+      ...attempt(catalog === 'a' ? 'failed' : 'success', '2026-11-05T10:00:00Z'),
+      catalogId: catalog
+    }
+  ]);
+  const props = { teamId: 'team', load, onClose: vi.fn(), onRetry: retry };
+  const view = render(<CatalogStatusDetails {...props} catalogId="a" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Try again now' }));
+  view.rerender(<CatalogStatusDetails {...props} catalogId="b" />);
+  await screen.findByText('Updated');
+  await act(async () => {
+    rejectRetry(new Error('PERMISSION_DENIED'));
+  });
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Try again now' })).toBeNull();
+});
+
+it('does not label an older running history row as the active attempt’s Drive confirmation', async () => {
+  const load = vi
+    .fn()
+    .mockResolvedValue([
+      { ...attempt('running', '2026-11-05T10:00:00Z'), attemptId: 'old-attempt' }
+    ]);
+  render(
+    <CatalogStatusDetails
+      teamId="team"
+      catalogId="catalog"
+      activeAttemptId="new-attempt"
+      checkingDelivery
+      load={load}
+      onClose={vi.fn()}
+    />
+  );
+  await screen.findByText('Updating');
+  expect(screen.queryByText('Checking Drive confirmation…')).toBeNull();
+  expect(screen.queryByText(/Waiting for Google Drive confirmation/)).toBeNull();
+});
+
+it('reads current history before allowing another retry after its reply is lost', async () => {
+  let finishRead!: (rows: CatalogUpdateAttempt[]) => void;
+  const failed = attempt('failed', '2026-11-05T10:00:00Z');
+  const load = vi
+    .fn()
+    .mockResolvedValueOnce([failed])
+    .mockImplementationOnce(
+      () =>
+        new Promise<CatalogUpdateAttempt[]>(resolve => {
+          finishRead = resolve;
+        })
+    );
+  const onRetry = vi.fn().mockRejectedValue(new TypeError('lost reply'));
+  render(
+    <CatalogStatusDetails
+      teamId="team"
+      catalogId="catalog"
+      load={load}
+      onRetry={onRetry}
+      onClose={vi.fn()}
+    />
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Try again now' }));
+  await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('button', { name: 'Try again now' })).toBeNull();
+  await act(async () => {
+    finishRead([{ ...failed, attemptId: 'later', result: 'success' }]);
+  });
+  await screen.findByText('Updated');
+  expect(onRetry).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Try again now' })).toBeNull();
+});
+
+it('resumes a canceled history read after a same-tick hide and refocus without waiting for another poll', async () => {
+  let hidden = false;
+  const visibility = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+  let oldSignal: AbortSignal | undefined;
+  const load = vi
+    .fn()
+    .mockImplementationOnce(
+      (_team: string, _catalog: string, options?: { signal?: AbortSignal }) => {
+        oldSignal = options?.signal;
+        return new Promise<CatalogUpdateAttempt[]>(() => {});
+      }
+    )
+    .mockResolvedValue([attempt('success', '2026-11-05T10:00:00Z')]);
+  try {
+    render(
+      <CatalogStatusDetails teamId="team" catalogId="catalog" load={load} onClose={vi.fn()} />
+    );
+    await waitFor(() => expect(load).toHaveBeenCalledOnce());
+    await act(async () => {
+      hidden = true;
+      document.dispatchEvent(new Event('visibilitychange'));
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await screen.findByText('Updated');
+    expect(oldSignal?.aborted).toBe(true);
+    expect(load).toHaveBeenCalledTimes(2);
+  } finally {
+    visibility.mockRestore();
   }
 });

@@ -1,4 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
+import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
+import { WorkspaceMutationJournal } from '../workspace/mutationJournal';
+import { withCatalogCommandDeadline as withMutationDeadline } from '../catalog-updater/catalogCommandCoordinator';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { renameMaterialWithTail, trashMaterialWithTail } from '../materials/tail';
 import { moveWorkspaceMaterials } from '../explorer/moveCoordinator';
 import type {
@@ -10,6 +15,7 @@ import type {
 } from '@video-compressor/shared';
 import {
   completeTeamFileAttempt,
+  isTeamFileAttemptCurrent,
   startTeamFileAttempt,
   teamAnalyticsSizeBucket,
   type TeamFileAttemptFlow
@@ -77,6 +83,7 @@ export function useMaterialActions(input: {
   material: RowMaterial;
   client?: MaterialActionsClient;
   storageKind?: TeamAnalyticsStorage | null;
+  surface?: 'material' | 'catalog_manager';
   /** Folder a new version or an upload lands in; null when unknown. */
   destinationFolderId?: string | null;
   /** Called after any operation that changed something on the server. */
@@ -87,12 +94,25 @@ export function useMaterialActions(input: {
     material,
     client = defaultMaterialActionsClient,
     storageKind = null,
+    surface = 'material',
     destinationFolderId = null,
     onChanged
   } = input;
 
   const { t } = useI18n();
   const { push, update, dismiss } = useToasts();
+  const currentScope = useRef({ teamId, materialId: material.id, client });
+  currentScope.current = { teamId, materialId: material.id, client };
+  const captureOwner = useCallback(
+    () =>
+      captureCatalogMutationOwner(
+        () =>
+          currentScope.current.teamId === teamId &&
+          currentScope.current.materialId === material.id &&
+          currentScope.current.client === client
+      ),
+    [teamId, material.id, client]
+  );
   /** What the tail module needs of this material, stable across renders. */
   const tailMaterial = useMemo(
     () => ({ id: material.id, name: material.name, category: material.category ?? null }),
@@ -101,6 +121,12 @@ export function useMaterialActions(input: {
   const [busy, setBusy] = useState(false);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [conflictFile, setConflictFile] = useState<File | null>(null);
+  const privateEpoch = usePrivateCacheEpoch();
+  useEffect(() => {
+    setBusy(false);
+    setErrorCode(null);
+    setConflictFile(null);
+  }, [privateEpoch, teamId, material.id, client]);
   const attemptNumbers = useRef<Partial<Record<TeamAnalyticsAction, number>>>({});
 
   /**
@@ -126,18 +152,18 @@ export function useMaterialActions(input: {
 
   const beginAttempt = useCallback(
     (action: TeamAnalyticsAction, sizeBytes = material.sizeBytes ?? null) => {
-      if (!storageKind) return null;
       const attemptNumber = (attemptNumbers.current[action] ?? 0) + 1;
       attemptNumbers.current[action] = attemptNumber;
       return startTeamFileAttempt({
         action,
-        storageKind,
+        surface,
+        storageKind: storageKind ?? 'unknown',
         sizeBucket: teamAnalyticsSizeBucket(sizeBytes),
         cacheState: 'unknown',
         attemptNumber
       });
     },
-    [material.sizeBytes, storageKind]
+    [material.sizeBytes, storageKind, surface]
   );
 
   /**
@@ -151,18 +177,30 @@ export function useMaterialActions(input: {
     async (
       action: TeamAnalyticsAction,
       work: () => Promise<unknown>,
-      successKey?: TranslationKey | null
+      successKey?: TranslationKey | null,
+      owner?: ReturnType<typeof captureCatalogMutationOwner>
     ): Promise<string | null> => {
+      if (owner && !owner.current()) return 'PERMISSION_DENIED';
       const attempt = beginAttempt(action);
       setBusy(true);
       setErrorCode(null);
       try {
-        await work();
-        if (attempt) completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false });
+        const delivered = await work();
+        if (owner && !owner.current()) return 'PERMISSION_DENIED';
+        if (attempt)
+          completeTeamFileAttempt(attempt, {
+            outcome: 'success',
+            retryable: false,
+            ...(action === 'download' &&
+            (delivered === 'browser_handoff' || delivered === 'agent_saved')
+              ? { delivery: delivered }
+              : {})
+          });
         onChanged();
         report(action, null, successKey);
         return null;
       } catch (caught) {
+        if (owner && !owner.current()) return errorCodeOf(caught);
         if (attempt) {
           completeTeamFileAttempt(attempt, {
             outcome: analyticsOutcome(caught),
@@ -175,7 +213,7 @@ export function useMaterialActions(input: {
         report(action, code);
         return code;
       } finally {
-        setBusy(false);
+        if (!owner || owner.current()) setBusy(false);
       }
     },
     [beginAttempt, onChanged, report]
@@ -253,15 +291,16 @@ export function useMaterialActions(input: {
             await client.downloadWithAgent({
               transferUrl: grant.transferUrl,
               transferGrant: grant.grant,
-              fileName: material.name
+              fileName: grant.fileName ?? material.name
             });
-            return;
+            return 'agent_saved';
           }
           const anchor = document.createElement('a');
           anchor.href = grant.rangeUrl;
-          anchor.download = material.name;
+          anchor.download = grant.fileName ?? material.name;
           anchor.rel = 'noreferrer';
           anchor.click();
+          return 'browser_handoff';
         } catch (caught) {
           // A browser grant can be refused for a file only the local agent can
           // fetch; ask again for the agent path before giving up.
@@ -271,8 +310,9 @@ export function useMaterialActions(input: {
           await client.downloadWithAgent({
             transferUrl: grant.transferUrl,
             transferGrant: grant.grant,
-            fileName: material.name
+            fileName: grant.fileName ?? material.name
           });
+          return 'agent_saved';
         }
       }),
     [client, material.id, material.name, run, teamId]
@@ -324,18 +364,39 @@ export function useMaterialActions(input: {
   );
 
   const restore = useCallback(
-    () =>
+    (owner = captureOwner()) =>
       run(
         'trash',
-        () =>
-          client.restoreMaterial({
+        async () => {
+          const options = owner.options();
+          const journal = new WorkspaceMutationJournal(
+            'restore',
+            options.expectedActorId,
             teamId,
-            materialId: material.id,
-            idempotencyKey: crypto.randomUUID()
-          }),
-        'teamToastRestored'
+            localStorage
+          );
+          const intent = journal.acquire([material.id]);
+          const result = requireCompletedFileOperation(
+            await withMutationDeadline(
+              () =>
+                client.restoreMaterial({
+                  teamId,
+                  materialId: material.id,
+                  idempotencyKey: intent.id,
+                  ...owner.options()
+                }),
+              new AbortController().signal
+            )
+          );
+          if (result.materialId !== null && result.materialId !== material.id)
+            throw new Error('INVALID_RESPONSE');
+          if (owner.current()) journal.confirmed(intent.id);
+          return result;
+        },
+        'teamToastRestored',
+        owner
       ),
-    [client, material.id, run, teamId]
+    [captureOwner, client, material.id, run, teamId]
   );
 
   /**
@@ -343,24 +404,26 @@ export function useMaterialActions(input: {
    *
    * A confirmation before a reversible action is friction charged for nothing:
    * it costs a click every time to prevent a mistake that costs one click to
-   * fix (FR-028). The undo is a fresh operation with its own idempotency key,
-   * and a race — the item already restored, or purged from Drive — surfaces as
-   * the operation's own mapped code rather than as silence.
+   * fix (FR-028). Undo retains the original actor and a durable restore identity;
+   * an uncertain acknowledgement cannot authorize a replacement request.
    */
   const trash = useCallback(async () => {
+    const owner = captureOwner();
     const code = await run(
       'trash',
-      () => trashMaterialWithTail({ teamId, material: tailMaterial, client }),
-      null
+      () => trashMaterialWithTail({ teamId, material: tailMaterial, client, owner }),
+      null,
+      owner
     );
     if (code) return code;
+    if (!owner.current()) return 'PERMISSION_DENIED';
     push({
       tone: 'success',
       text: t('teamToastTrashed'),
-      action: { label: t('teamUndo'), run: () => void restore() }
+      action: { label: t('teamUndo'), run: () => void restore(owner) }
     });
     return null;
-  }, [client, push, restore, run, t, tailMaterial, teamId]);
+  }, [captureOwner, client, push, restore, run, t, tailMaterial, teamId]);
 
   return {
     busy,
@@ -386,7 +449,8 @@ function errorCodeOf(error: unknown) {
  * a question put to the person (a name clash, a permission they lack) is an outcome of the
  * attempt, not an error, and stays in `team_file_attempt_completed` alone.
  */
-function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
+export function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): void {
+  if (!isTeamFileAttemptCurrent(attempt)) return;
   const outcome = analyticsOutcome(error);
   if (outcome !== 'failure' && outcome !== 'unsupported') return;
   trackToolError({
@@ -403,14 +467,14 @@ function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unknown): v
   });
 }
 
-function retryableError(error: unknown): boolean {
+export function retryableError(error: unknown): boolean {
   if (error && typeof error === 'object' && 'retryable' in error) {
     return (error as { retryable?: unknown }).retryable === true;
   }
   return ['RATE_LIMITED', 'DRIVE_UNAVAILABLE', 'DELIVERY_UNAVAILABLE'].includes(errorCodeOf(error));
 }
 
-function analyticsOutcome(error: unknown): TeamAnalyticsOutcome {
+export function analyticsOutcome(error: unknown): TeamAnalyticsOutcome {
   const code = errorCodeOf(error);
   if (code === 'UNSUPPORTED_MEDIA' || code === 'TOO_LARGE') return 'unsupported';
   if (code === 'ABORTED' || code === 'CANCELED') return 'cancelled';

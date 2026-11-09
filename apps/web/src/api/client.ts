@@ -1,6 +1,7 @@
 import { rememberRecoveryInstallation } from './recovery-installation';
 import {
   AGENT_TOOL_CONTRACTS,
+  RESTITCH_SCREEN_REFUSAL_LIMIT,
   type AgentEntitlementStatus,
   type AgentHostPlatform,
   type HealthResponse,
@@ -825,6 +826,83 @@ export type RestitchCapability = 'yes' | 'too-old' | 'unreachable';
  * Whether the app on this computer can take its re-stitch pictures from the space's Drive
  * pools (030) — a capability read from the contract, like the poster frame.
  */
+export async function getRestitchScreenRefusals(
+  teamId: string,
+  scope: string
+): Promise<
+  Array<Pick<RestitchScreen, 'slot' | 'materialId' | 'checksum'> & { settingsRevision?: string }>
+> {
+  let value: unknown;
+  try {
+    value = await request<unknown>(
+      `/api/team/restitch/screen-refusals?${new URLSearchParams({ teamId, scope })}`,
+      'GET'
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      'status' in error &&
+      (error.status === 404 || error.status === 501)
+    )
+      return [];
+    throw error;
+  }
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('refusals' in value) ||
+    !Array.isArray(value.refusals)
+  )
+    throw new Error('INVALID_RESPONSE');
+  const result: Array<
+    Pick<RestitchScreen, 'slot' | 'materialId' | 'checksum'> & { settingsRevision?: string }
+  > = [];
+  const counts = new Map<string, number>();
+  for (const item of value.refusals) {
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      (item.slot !== 'start' && item.slot !== 'end') ||
+      typeof item.materialId !== 'string' ||
+      !/^[0-9a-f-]{36}$/iu.test(item.materialId) ||
+      typeof item.checksum !== 'string' ||
+      !/^[0-9a-f]{32}$/iu.test(item.checksum) ||
+      ('settingsRevision' in item &&
+        (typeof item.settingsRevision !== 'string' || item.settingsRevision.length > 128))
+    )
+      throw new Error('INVALID_RESPONSE');
+    const key = JSON.stringify([item.settingsRevision ?? scope, item.slot]);
+    const count = (counts.get(key) ?? 0) + 1;
+    if (count > RESTITCH_SCREEN_REFUSAL_LIMIT) throw new Error('INVALID_RESPONSE');
+    counts.set(key, count);
+    result.push({
+      slot: item.slot,
+      materialId: item.materialId,
+      checksum: item.checksum,
+      ...(typeof item.settingsRevision === 'string' && item.settingsRevision.length <= 128
+        ? { settingsRevision: item.settingsRevision }
+        : {})
+    });
+  }
+  return result;
+}
+
+/** Probe this installation before a cloud lease, rather than claiming with the page's version. */
+export async function agentRestitchContractVersion(): Promise<number> {
+  const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+  const contracts = normalizeToolContracts(health.toolContracts);
+  if (
+    !toolContractCompatible('teamWorkspace', contracts) ||
+    !toolContractCompatible('stitcher', contracts)
+  )
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  const reported = health.toolContracts?.teamRestitchSources;
+  const version = reported === undefined ? 1 : reported;
+  if (!Number.isSafeInteger(version) || version < 1) throw new Error('AGENT_UPDATE_REQUIRED');
+  // A newer installed protocol does not teach this page how to speak it.
+  return Math.min(version, AGENT_TOOL_CONTRACTS.teamRestitchSources);
+}
+
 export async function agentCanRestitchFromSpace(): Promise<RestitchCapability> {
   try {
     const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
@@ -1271,7 +1349,9 @@ async function assertOk(response: Response) {
   if (!response.ok) {
     if (response.status === 403 && body?.error === 'ENTITLEMENT_REQUIRED')
       reportRequestFailure('forbidden');
-    const error = new Error(body.error || 'AGENT_ERROR');
+    const error = Object.assign(new Error(body.error || 'AGENT_ERROR'), {
+      status: response.status
+    });
     // A refusal can say which of its reasons it was — "this file has a variable
     // frame rate" rather than "this file type is not supported". The reason
     // travels beside the code so a caller can say the true sentence.

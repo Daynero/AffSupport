@@ -58,12 +58,14 @@ export interface MaterialActionsClient {
     teamId: string;
     materialId: string;
     idempotencyKey: string;
+    expectedActorId?: string;
   }): Promise<TeamFileOperationResult>;
   restoreMaterial(input: {
     teamId: string;
     materialId: string;
     destinationFolderId?: string | null;
     idempotencyKey: string;
+    expectedActorId?: string;
   }): Promise<TeamFileOperationResult>;
 }
 

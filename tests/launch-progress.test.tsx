@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchGenerationProgress } from '../apps/web/src/team/launches/LaunchGenerationProgress';
 import type { LaunchGeneration } from '../packages/shared/src/team/launches';
@@ -37,6 +37,36 @@ const generation = {
   stage: 'catalog_creating',
   progress: null
 } as LaunchGeneration;
+it('keeps video progress independent when a deferred blank catalog has already finished', () => {
+  const cancel = vi.fn();
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'succeeded',
+        stage: 'result_committed',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000001',
+          requestedCount: 5,
+          registeredCount: 2,
+          state: 'preparing'
+        }
+      }}
+      onCancel={cancel}
+      restitchEnabled={false}
+      disabled={false}
+    />
+  );
+  expect(screen.getByText('Videos ready: 2 of 5')).toBeTruthy();
+  const video = screen.getAllByRole('listitem').find(item => item.textContent === 'Video')!;
+  expect(video.dataset.state).toBe('active');
+  const result = screen
+    .getAllByRole('listitem')
+    .find(item => item.textContent?.startsWith('Result'))!;
+  expect(result.dataset.state).toBe('complete');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
+  expect(cancel).toHaveBeenCalledOnce();
+});
 it('keeps catalog progress steady through cache invalidation and preserves it on a real disconnect', () => {
   const props = {
     generation: {
@@ -681,5 +711,256 @@ it('does not turn an authoritative failed generation into an active reconciliati
     />
   );
   expect(screen.getByRole('alert')).toBeTruthy();
+  expect(screen.queryByRole('progressbar')).toBeNull();
+});
+
+it('does not claim accepted work after a proved missing-executor rejection', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={null}
+      pendingStage="preparing"
+      disabled={false}
+      onCancel={() => {}}
+      requestError="Allow background work in workspace settings."
+      requestErrorCode="AGENT_REQUIRED"
+    />
+  );
+  expect(screen.getByText('Allow background work in workspace settings.')).toBeTruthy();
+  expect(screen.queryByText(/operation may still be running/i)).toBeNull();
+});
+
+it('uses one video phase and one count when admitted N preparation conflicts with a later catalog checkpoint', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        stage: 'catalog_registering',
+        progress: { completed: 0, total: 5, unit: 'videos', source: 'registered_video_variants' },
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000001',
+          requestedCount: 5,
+          registeredCount: 0,
+          state: 'preparing'
+        }
+      }}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  const items = screen.getAllByRole('listitem');
+  expect(items.find(item => item.textContent === 'Video')?.dataset.state).toBe('active');
+  expect(items.find(item => item.textContent === 'Catalog')?.dataset.state).not.toBe('active');
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toContain(
+    'Preparing video'
+  );
+  expect(screen.getAllByText('Videos ready: 0 of 5')).toHaveLength(1);
+  expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+});
+
+it('moves a restarted N attempt back to video instead of retaining the old active catalog lane', () => {
+  const view = render(
+    <LaunchGenerationProgress
+      generation={{ ...generation, stateVersion: '1', attemptNo: 1 }}
+      onCancel={vi.fn()}
+      disabled={false}
+      restitchEnabled
+    />
+  );
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Catalog')?.dataset.state
+  ).toBe('active');
+  view.rerender(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        stateVersion: '2',
+        attemptNo: 2,
+        stage: 'preparing',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000002',
+          requestedCount: 5,
+          registeredCount: 0,
+          state: 'preparing'
+        }
+      }}
+      onCancel={vi.fn()}
+      disabled={false}
+      restitchEnabled
+    />
+  );
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Video')?.dataset.state
+  ).toBe('active');
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Catalog')?.dataset.state
+  ).toBe('pending');
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toContain(
+    'Preparing video'
+  );
+  expect(screen.queryByText('Verifying sources')).toBeNull();
+});
+
+it('keeps an interrupted unknown N receipt visible during Repeat instead of presenting new source verification', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'catalog_planning',
+        errorCode: 'PROCESS_RESULT_UNCERTAIN',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000003',
+          requestedCount: 5,
+          registeredCount: 0,
+          state: 'unknown'
+        }
+      }}
+      pendingStage="preparing"
+      onCancel={vi.fn()}
+      disabled
+    />
+  );
+  expect(screen.getByRole('alert').textContent).toContain('Generation stopped');
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Video')?.dataset.state
+  ).toBe('attention');
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(screen.queryByText('Verifying sources')).toBeNull();
+  expect(screen.getByText(/Videos ready: 0 of 5/)).toBeTruthy();
+});
+
+it('advances from a ready N set to actual catalog planning without dropping the active phase', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        stage: 'catalog_planning',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000004',
+          requestedCount: 5,
+          registeredCount: 5,
+          state: 'ready'
+        }
+      }}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent?.startsWith('Video'))?.dataset
+      .state
+  ).toBe('complete');
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Catalog')?.dataset.state
+  ).toBe('active');
+  expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toContain(
+    'Preparing catalog'
+  );
+});
+
+it('keeps the proven terminal codec cause and its action over a later busy retry summary', () => {
+  const original = vi.fn();
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'catalog_planning',
+        errorCode: 'STITCH_PLAN_VIDEO_CODEC',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000005',
+          requestedCount: 10,
+          registeredCount: 0,
+          state: 'unknown'
+        }
+      }}
+      requestErrorCode="LAUNCH_BUSY"
+      requestError="The previous operation is still running."
+      onUseOriginalVideo={original}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(screen.getByRole('alert').textContent).toContain('not H.264');
+  expect(screen.getByRole('alert').textContent).not.toContain(
+    'previous operation is still running'
+  );
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Create with original video' }));
+  expect(original).toHaveBeenCalledOnce();
+});
+
+it.each(['cancel_requested', 'canceled_with_cleanup_pending', 'video_only'] as const)(
+  'does not offer Repeat while canonical cancellation is %s and permits only a status read',
+  async state => {
+    const refresh = vi.fn(async () => {});
+    render(
+      <LaunchGenerationProgress
+        generation={{
+          ...generation,
+          state: state === 'video_only' ? 'succeeded' : state,
+          stage: 'cancel',
+          errorCode: 'PROCESS_RESULT_UNCERTAIN',
+          videoGeneration: {
+            setId: '47000000-0000-4000-8000-000000000006',
+            requestedCount: 10,
+            registeredCount: 0,
+            state: 'cancel_requested'
+          }
+        }}
+        pendingStage="preparing"
+        onCancel={vi.fn()}
+        onRefresh={refresh}
+        retryActions={<button>Repeat</button>}
+        disabled={false}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'Repeat' })).toBeNull();
+    expect(screen.queryByText(/waiting for active video work/)).toBeNull();
+    expect(screen.getByText(/waiting for safe cleanup/)).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Check status' })).toBeTruthy());
+    expect(refresh).toHaveBeenCalledOnce();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Check status' }));
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+  }
+);
+it('keeps exact cancellation retry reachable when its reply is unconfirmed rather than canonically accepted', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={null}
+      pendingStage="cancel"
+      requestError="The cancellation reply was lost."
+      onCancel={vi.fn()}
+      retryActions={<button>Retry cancellation</button>}
+      disabled={false}
+    />
+  );
+  expect(screen.getByRole('button', { name: 'Retry cancellation' })).toBeTruthy();
+});
+
+it('names a confirmed canceled generation even when its final backend stage is not a known progress step', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'canceled',
+        stage: 'unknown',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000007',
+          requestedCount: 10,
+          registeredCount: 0,
+          state: 'canceled'
+        }
+      }}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(screen.getByText('Canceled')).toBeTruthy();
+  expect(screen.queryByText(/The created catalog is preserved/)).toBeNull();
+  expect(screen.queryByText('Stage not identified')).toBeNull();
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
