@@ -56,19 +56,30 @@ export function LaunchAssignmentControls({
       scope.current.mounted = false;
     };
   }, []);
+  const readScope = useRef<string | null>(null);
+  const reading = useRef(false);
   useEffect(() => {
     let active = true;
-    setState(null);
+    const target = `${teamId}:${launchId}`;
+    // Another launch starts empty; a reread of the same launch keeps the shown value
+    // (no flicker) while new writes wait for the fresh version.
+    if (readScope.current !== target) setState(null);
+    readScope.current = target;
+    reading.current = true;
     setError(null);
     pending.current = null;
     void launchAssignmentsApi.read(teamId, launchId).then(
       result => {
         if (active) {
+          reading.current = false;
           setState(result);
         }
       },
       () => {
-        if (active) setError('read');
+        if (active) {
+          reading.current = false;
+          setError('read');
+        }
       }
     );
     return () => {
@@ -122,7 +133,7 @@ export function LaunchAssignmentControls({
       });
   }
   async function save(agentRowId: string | null) {
-    if (!scope.current.editable || !state || inFlight.current) return;
+    if (!scope.current.editable || !state || inFlight.current || reading.current) return;
     pending.current ??= {
       teamId,
       launchId,
@@ -179,13 +190,15 @@ export function LaunchAssignmentControls({
     }
   }
   const assigned = state?.state === 'assigned' && state.agentRowId === sourceAgentRowId;
+  // While a write is in flight the switch already shows where it is going.
+  const shown = busy && pending.current ? pending.current.agentRowId !== null : assigned;
   const uncertain = error === 'unknown';
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <Switch
         size="sm"
         label={t('launchesAssignmentAssign')}
-        checked={assigned}
+        checked={shown}
         disabled={!editable || !state || !sourceAgentRowId || busy || uncertain}
         onChange={checked => void save(checked ? sourceAgentRowId : null)}
       />
@@ -215,11 +228,10 @@ export function LaunchAssignmentControls({
           )}
         </div>
       )}
-      {busy && (
-        <span role="status" className="text-caption text-muted">
-          {t('launchesAssignmentBusy')}
-        </span>
-      )}
+      {/* Announced, not laid out: a line appearing under the switch shifted the form. */}
+      <span role="status" className="sr-only">
+        {busy ? t('launchesAssignmentBusy') : ''}
+      </span>
     </div>
   );
 }

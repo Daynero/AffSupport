@@ -4,7 +4,10 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { LaunchAssignmentControls } from '../apps/web/src/team/launches/LaunchAssignmentControls';
-import { launchAssignmentsApi } from '../apps/web/src/api/team-launch-assignments';
+import {
+  LAUNCH_ASSIGNMENTS_CHANGED_EVENT,
+  launchAssignmentsApi
+} from '../apps/web/src/api/team-launch-assignments';
 import { TeamApiError } from '../apps/web/src/api/team';
 import { analytics } from '../apps/web/src/analytics/service';
 import { launchFixtureAccounts } from './fixtures/launches';
@@ -134,4 +137,45 @@ it('keeps failed reads and lost edit authority from making assignment writes', a
   rerender(<LaunchAssignmentControls {...props} editable={false} />);
   expect(screen.getByRole('switch')).toHaveProperty('disabled', true);
   expect(launchAssignmentsApi.set).not.toHaveBeenCalled();
+});
+it('neither shifts the form nor flickers while it saves and rereads', async () => {
+  // Beta 2026-11-09: a status line appeared under the switch while saving (the form jumped),
+  // and every reread reset it to an empty, disabled switch (it blinked).
+  const { user, container } = setup();
+  const toggle = await screen.findByRole('switch', { name: 'Assign ad account' });
+  let finish!: (value: Awaited<ReturnType<typeof launchAssignmentsApi.set>>) => void;
+  vi.mocked(launchAssignmentsApi.set).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = resolve;
+      })
+  );
+  const before = container.innerHTML.length;
+  await user.click(toggle);
+  // Saving: the switch already shows the target and the status is announced, not laid out.
+  expect(toggle).toHaveProperty('checked', true);
+  expect(screen.getByRole('status').className).toContain('sr-only');
+  expect(container.querySelectorAll('.text-caption').length).toBe(0);
+  const assigned = { ...initial, state: 'assigned' as const, version: '1', agentRowId: first };
+  vi.mocked(launchAssignmentsApi.read).mockResolvedValue(assigned);
+  finish({ ...assigned, requestKey: 'k', operationId: 'o' } as never);
+  await vi.waitFor(() => expect(toggle).toHaveProperty('disabled', false));
+  expect(toggle).toHaveProperty('checked', true);
+  // A reread of the same launch keeps the shown value instead of an empty disabled switch.
+  let reread!: (value: typeof assigned) => void;
+  vi.mocked(launchAssignmentsApi.read).mockClear();
+  vi.mocked(launchAssignmentsApi.read).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        reread = resolve;
+      })
+  );
+  window.dispatchEvent(
+    new CustomEvent(LAUNCH_ASSIGNMENTS_CHANGED_EVENT, { detail: { teamId: 'team' } })
+  );
+  await vi.waitFor(() => expect(launchAssignmentsApi.read).toHaveBeenCalled());
+  expect(toggle).toHaveProperty('checked', true);
+  expect(toggle).toHaveProperty('disabled', false);
+  reread(assigned);
+  expect(before).toBeGreaterThan(0);
 });

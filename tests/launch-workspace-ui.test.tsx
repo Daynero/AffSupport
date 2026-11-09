@@ -1754,8 +1754,7 @@ it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as c
       });
     render(<LaunchSpace teamId={TEAM} query={query} />);
     const generate = await screen.findByRole('button', { name: 'Generate launch' });
-    // The editor's assignment control is hidden for now (2026-11-09); assignment, whatever its
-    // state, must never gate generation either way.
+    await waitFor(() => expect(seams.assignment).toHaveBeenCalledWith(TEAM, LAUNCH));
     await waitFor(() => expect(generate).toHaveProperty('disabled', false));
     fireEvent.click(generate);
     await waitFor(() => expect(seams.generate).toHaveBeenCalled());

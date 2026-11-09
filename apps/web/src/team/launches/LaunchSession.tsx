@@ -18,7 +18,15 @@ import {
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
-import { Button, Card, Checkbox, ConfirmDialog, IconButton, Tabs } from '../../components/ui/index';
+import {
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  IconButton,
+  Switch,
+  Tabs
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -46,8 +54,6 @@ import { useLaunchGeneration } from './useLaunchGeneration';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
 import { LaunchAssignmentControls } from './LaunchAssignmentControls';
-
-const LAUNCH_ACCOUNT_ASSIGNMENT_VISIBLE = false;
 
 export function LaunchSession({
   teamId,
@@ -1648,20 +1654,22 @@ export function LaunchSession({
               }
             }}
             accountAssignment={
-              // Hidden for now at the owner's request (2026-11-09): toggling it shifted the
-              // form and its placeholder flickered while restitch settings changed.
-              LAUNCH_ACCOUNT_ASSIGNMENT_VISIBLE && detail && !historical ? (
+              detail && !historical ? (
                 <LaunchAssignmentControls
                   key={detail.id}
                   teamId={teamId}
                   launchId={detail.id}
                   sourceAgentRowId={draft.config.agentRowId ?? null}
                   accounts={accounts}
-                  editable={editable && !working && !preparationStatus}
+                  // A settings check (preparationStatus) must not grey the switch out:
+                  // assignment is independent of saved inputs; only real work locks it.
+                  editable={editable && !working}
                   hasResults={Boolean(detail.activeRevision)}
                   onConfirmed={onDictionaries}
                 />
-              ) : undefined
+              ) : (
+                <Switch size="sm" label={t('launchesAssignmentAssign')} checked={false} disabled />
+              )
             }
             accounts={accounts}
             offers={offers}
