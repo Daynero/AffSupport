@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -163,7 +164,9 @@ describe('team cloud/local transfer bridge', () => {
             'content-range': `bytes ${start}-${end}/8`,
             'content-type': 'application/octet-stream',
             'x-wishly-source-version': '7',
-            'x-wishly-source-checksum': 'checksum-7'
+            'x-wishly-source-checksum': createHash('md5')
+              .update(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]))
+              .digest('hex')
           }
         }
       );
@@ -182,7 +185,9 @@ describe('team cloud/local transfer bridge', () => {
     expect(downloaded).toMatchObject({
       sizeBytes: 8,
       sourceVersion: '7',
-      sourceChecksum: 'checksum-7'
+      sourceChecksum: createHash('md5')
+        .update(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]))
+        .digest('hex')
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(fetchImpl.mock.calls.map(([, init]) => new Headers(init?.headers).get('range'))).toEqual(
@@ -190,6 +195,86 @@ describe('team cloud/local transfer bridge', () => {
     );
     expect(JSON.stringify(fetchImpl.mock.calls)).not.toMatch(/google.*bearer|refresh_token/i);
     await downloaded.cleanup();
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  it('captures the original source grant before filesystem awaits', async () => {
+    const root = await temporaryRoot();
+    const original = grant();
+    const request: Parameters<TeamTransferClient['downloadSource']>[0] = {
+      operationId: 'source-capture',
+      transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+      grant: { ...original }
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => new Response('good', { headers: { 'content-length': '4' } }));
+    const client = new TeamTransferClient({ temporaryRoot: root, fetchImpl });
+    const pending = client.downloadSource(request, new AbortController().signal);
+    request.grant.ticket = 'replacement-ticket-with-enough-entropy';
+    const downloaded = await pending;
+    try {
+      expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).get('x-wishly-transfer-grant')).toBe(
+        original.ticket
+      );
+    } finally {
+      await downloaded.cleanup();
+    }
+    expect(await readdir(root)).toEqual([]);
+  });
+
+  it.each([200, 206])(
+    'rejects corrupt same-size bytes with unchanged identity headers: %s',
+    async status => {
+      const root = await temporaryRoot();
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response('evil', {
+          status,
+          headers: {
+            'content-length': '4',
+            ...(status === 206 ? { 'content-range': 'bytes 0-3/4' } : {}),
+            'x-wishly-source-version': 'accepted-version',
+            'x-wishly-source-checksum': createHash('md5').update('good').digest('hex')
+          }
+        })
+      );
+      const client = new TeamTransferClient({ temporaryRoot: root, fetchImpl });
+      await expect(
+        client.downloadSource(
+          {
+            operationId: 'corrupt-source',
+            transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+            grant: grant()
+          },
+          new AbortController().signal
+        )
+      ).rejects.toThrow('SOURCE_CHANGED');
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      expect(await readdir(root)).toEqual([]);
+    }
+  );
+
+  it('does not accept a malformed advertised binary checksum', async () => {
+    const root = await temporaryRoot();
+    const response = new Response('good', {
+      headers: { 'content-length': '4', 'x-wishly-source-checksum': 'not-an-md5' }
+    });
+    const read = vi.spyOn(response.body!, 'getReader');
+    const client = new TeamTransferClient({
+      temporaryRoot: root,
+      fetchImpl: vi.fn().mockResolvedValue(response)
+    });
+    await expect(
+      client.downloadSource(
+        {
+          operationId: 'invalid-source-identity',
+          transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer/range',
+          grant: grant()
+        },
+        new AbortController().signal
+      )
+    ).rejects.toThrow('INVALID_RESPONSE');
+    expect(read).not.toHaveBeenCalled();
     expect(await readdir(root)).toEqual([]);
   });
 
@@ -327,7 +412,7 @@ describe('team cloud/local transfer bridge', () => {
             'content-range': `bytes ${start}-${start + 3}/8`,
             'content-length': '4',
             'x-wishly-source-version': mode === 'changed' && !first ? 'v2' : 'v1',
-            'x-wishly-source-checksum': 'same-source'
+            'x-wishly-source-checksum': createHash('md5').update('abcdefgh').digest('hex')
           }
         });
       });
@@ -564,6 +649,110 @@ describe('team processing orchestration and SSE state', () => {
       cloudBaseUrl: 'https://project.supabase.co/functions/v1/drive-ops'
     };
   }
+
+  it('keeps protected execution inside the original operation fence and reauthorizes before upload', async () => {
+    const sourceCleanup = vi.fn().mockResolvedValue(undefined);
+    const outputCleanup = vi.fn().mockResolvedValue(undefined);
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: '/tmp/protected',
+        file: '/tmp/protected/source',
+        sizeBytes: 6,
+        sourceVersion: '1',
+        sourceChecksum: 'check',
+        cleanup: sourceCleanup
+      }),
+      uploadResult: vi.fn()
+    };
+    const genericDelegate = vi.fn();
+    const bridge = new TeamProcessBridge({
+      transfer,
+      delegates: { restitch: genericDelegate },
+      events: new TeamOperationEvents()
+    });
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const delegate: TeamProcessDelegate = vi.fn().mockImplementation(async () => {
+      await blocked;
+      return {
+        file: '/tmp/protected/output',
+        mimeType: 'video/mp4',
+        sizeBytes: 6,
+        cleanup: outputCleanup
+      };
+    });
+    const authorize = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('PERMISSION_DENIED'));
+    const request = { ...processRequest(), toolId: 'restitch' };
+    const run = bridge.processProtected(request, {
+      transfer,
+      delegate,
+      signal: new AbortController().signal,
+      authorize
+    });
+    const rejected = expect(run).rejects.toThrow('PERMISSION_DENIED');
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+    await expect(bridge.process(request)).rejects.toThrow('WRONG_STATE');
+    release();
+    await rejected;
+    expect(authorize).toHaveBeenCalledTimes(3);
+    expect(transfer.uploadResult).not.toHaveBeenCalled();
+    expect(genericDelegate).not.toHaveBeenCalled();
+    expect(sourceCleanup).toHaveBeenCalledOnce();
+    expect(outputCleanup).toHaveBeenCalledOnce();
+    expect(bridge.busy()).toBe(false);
+  });
+
+  it('keeps an uncertain protected CPU interruption distinct from a user cancellation', async () => {
+    const cleanup = vi.fn().mockResolvedValue(undefined),
+      events = new TeamOperationEvents(),
+      record = vi.spyOn(diagnostics, 'record');
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn().mockResolvedValue({
+        workspace: '/tmp/protected',
+        file: '/tmp/protected/source',
+        sizeBytes: 6,
+        sourceVersion: '1',
+        sourceChecksum: 'check',
+        cleanup
+      }),
+      uploadResult: vi.fn()
+    };
+    const delegate: TeamProcessDelegate = vi.fn().mockImplementation(async input => {
+      await new Promise<void>((_resolve, reject) =>
+        input.signal.addEventListener('abort', () => reject(input.signal.reason), { once: true })
+      );
+      throw Error('unreachable');
+    });
+    const controller = new AbortController(),
+      bridge = new TeamProcessBridge({ transfer, delegates: { restitch: delegate }, events });
+    const run = bridge.processProtected(
+      { ...processRequest(), toolId: 'restitch' },
+      { transfer, delegate, signal: controller.signal, authorize: async () => {} }
+    );
+    const rejected = expect(run).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+    await vi.waitFor(() => expect(delegate).toHaveBeenCalledOnce());
+    controller.abort(Error('PROCESS_RESULT_UNCERTAIN'));
+    await rejected;
+    expect(bridge.busy()).toBe(false);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(transfer.uploadResult).not.toHaveBeenCalled();
+    expect(events.snapshot().operations[0]).toMatchObject({
+      state: 'failed',
+      errorCode: 'PROCESS_RESULT_UNCERTAIN'
+    });
+    expect(record).toHaveBeenCalledWith(
+      'team',
+      'process_terminal',
+      expect.objectContaining({ outcome: 'failed', errorCode: 'PROCESS_RESULT_UNCERTAIN' })
+    );
+    record.mockRestore();
+  });
 
   it('delegates to the existing tool, emits ordered progress, and returns one terminal result', async () => {
     const root = await temporaryRoot();

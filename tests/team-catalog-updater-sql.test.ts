@@ -1141,7 +1141,8 @@ describe('the worker’s address and grants', () => {
     }>(`select p.provolatile as volatility, p.prosecdef as definer,
       has_function_privilege('anon',p.oid,'execute') as anonymous
       from pg_proc p where p.oid='public.list_team_catalog_manager_snapshot(uuid)'::regprocedure`);
-    expect(definition[0]).toEqual({ volatility: 's', definer: false, anonymous: false });
+    // 177000: a definer with an explicit private.can(view) check, needed to append a private projection.
+    expect(definition[0]).toEqual({ volatility: 's', definer: true, anonymous: false });
   }, 60000);
   it('binds manager progress to the active round and hides stale worker progress', async () => {
     const item = await catalog('progress identity');

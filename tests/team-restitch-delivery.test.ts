@@ -5,6 +5,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ImageEmbeddingSettings } from '../packages/shared/src/types.js';
 import type { TeamRestitchDefaults } from '../packages/shared/src/team/restitch.js';
+import { ScreenCacheError } from '../apps/agent/src/team-bridge/screen-cache.js';
+import type {
+  ScreenRecoveryProvider,
+  ScreenRecoveryCandidate
+} from '../apps/agent/src/team-bridge/screen-recovery.js';
 import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
 import type { ToolResult, runTool as runToolType } from '../apps/agent/src/stitcher/run.js';
 import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
@@ -388,4 +393,173 @@ describe('automatic source end-frame safety', () => {
       });
     }
   );
+});
+
+describe('one requested delivery with protected image recovery', () => {
+  const id = (n: number) => 'b1800000-0000-4000-8000-' + String(n).padStart(12, '0');
+  function candidate(slot: 'start' | 'end', n: number): ScreenRecoveryCandidate {
+    return {
+      versionId: id(n),
+      acquisition: 0,
+      screen: {
+        slot,
+        materialId: id(n + 10),
+        checksum: 'a'.repeat(32),
+        mimeType: 'image/png',
+        sizeBytes: 4,
+        fileName: 'fixture.png',
+        transfer: null
+      }
+    };
+  }
+  async function delivery(
+    provider: ScreenRecoveryProvider,
+    signal = new AbortController().signal,
+    withDrawn = true
+  ) {
+    const cache = {
+      resolve: vi.fn(async () => {
+        throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
+      }),
+      pathFor: () => path.join(workspace, 'healthy.png'),
+      evict: vi.fn(async () => 0)
+    };
+    const screenRecovery = vi.fn(async () => provider);
+    const delegate = createRestitchDelegate({
+      embedding: () => library,
+      imagePathFor: async () => null,
+      screenCache: cache as never,
+      pipeline: staging as never,
+      screenRecovery
+    });
+    const sourceFile = await source();
+    const result = delegate({
+      operationId: id(1),
+      teamId: id(2),
+      workspace,
+      sourceFile,
+      sourceSizeBytes: 1000,
+      sourceVersion: '7',
+      sourceChecksum: null,
+      options: {
+        defaults: { ...defaults, sourceMode: 'drive', startEnabled: true, endEnabled: true },
+        screens: withDrawn ? [candidate('start', 3).screen, candidate('end', 4).screen] : null,
+        teamId: id(2)
+      },
+      signal,
+      onProgress: () => {},
+      pausable: () => {}
+    });
+    return { result, cache, screenRecovery };
+  }
+  it('keeps the healthy first slot and replaces a broken second image before invoking the pipeline once', async () => {
+    const first = candidate('start', 3),
+      bad = candidate('end', 4),
+      healthy = candidate('end', 5);
+    let end = 0;
+    const provider: ScreenRecoveryProvider = {
+      next: vi.fn<ScreenRecoveryProvider['next']>(async slot => ({
+        kind: 'candidate',
+        candidate: slot === 'start' ? first : ++end === 1 ? bad : healthy
+      })),
+      resolve: vi.fn(async c => {
+        if (c.versionId === bad.versionId)
+          throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
+        return {
+          candidate: c,
+          resolved: {
+            slot: c.screen.slot,
+            id: c.versionId,
+            path: path.join(workspace, 'healthy.png')
+          }
+        };
+      }),
+      reject: vi.fn(async () => {}),
+      accept: vi.fn(async () => {}),
+      refresh: vi.fn(async c => c)
+    };
+    const f = await delivery(provider);
+    const output = await f.result;
+    expect(await readFile(output.file, 'utf8')).toBe('stitched');
+    expect(staging).toHaveBeenCalledTimes(1);
+    expect(staging.mock.calls[0]![0].request.screens).toMatchObject({
+      startImageId: first.versionId,
+      endImageId: healthy.versionId
+    });
+    expect(provider.reject).toHaveBeenCalledWith(
+      expect.objectContaining({ versionId: bad.versionId }),
+      'unsupported',
+      expect.any(AbortSignal)
+    );
+    expect(provider.accept).toHaveBeenCalledTimes(2);
+    expect(provider.next).toHaveBeenCalledTimes(3);
+    expect(f.cache.resolve).not.toHaveBeenCalled();
+  });
+  it('uses the trusted frozen slot settings without browser-drawn image placeholders', async () => {
+    const provider: ScreenRecoveryProvider = {
+      next: vi.fn<ScreenRecoveryProvider['next']>(async slot => ({
+        kind: 'candidate',
+        candidate: candidate(slot, slot === 'start' ? 3 : 4)
+      })),
+      resolve: vi.fn(async c => ({
+        candidate: c,
+        resolved: {
+          slot: c.screen.slot,
+          id: c.versionId,
+          path: path.join(workspace, 'healthy.png')
+        }
+      })),
+      reject: vi.fn(),
+      accept: vi.fn(async () => {}),
+      refresh: vi.fn()
+    };
+    const f = await delivery(provider, new AbortController().signal, false);
+    await f.result;
+    expect(provider.next).toHaveBeenCalledTimes(2);
+    expect(staging.mock.calls[0]![0].request.screens).toMatchObject({
+      startImageId: candidate('start', 3).versionId,
+      endImageId: candidate('end', 4).versionId
+    });
+    expect(f.cache.resolve).not.toHaveBeenCalled();
+  });
+  it('reports a fully exhausted image pool without starting the video pipeline or generic download', async () => {
+    const provider: ScreenRecoveryProvider = {
+      next: vi.fn<ScreenRecoveryProvider['next']>(async () => ({
+        kind: 'exhausted',
+        reason: 'unusable',
+        complete: true
+      })),
+      resolve: vi.fn(),
+      reject: vi.fn(),
+      accept: vi.fn(),
+      refresh: vi.fn()
+    };
+    const f = await delivery(provider);
+    await expect(f.result).rejects.toThrow('RESTITCH_SCREEN_CANDIDATES_EXHAUSTED');
+    expect(staging).not.toHaveBeenCalled();
+    expect(f.cache.resolve).not.toHaveBeenCalled();
+  });
+  it('does not start video processing after cancellation while persisting a rejected image', async () => {
+    const controller = new AbortController();
+    const provider: ScreenRecoveryProvider = {
+      next: vi.fn<ScreenRecoveryProvider['next']>(async () => ({
+        kind: 'candidate',
+        candidate: candidate('start', 3)
+      })),
+      resolve: vi.fn(async () => {
+        throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
+      }),
+      reject: vi.fn(async () => {
+        controller.abort();
+      }),
+      accept: vi.fn(),
+      refresh: vi.fn()
+    };
+    const f = await delivery(provider, controller.signal);
+    await expect(f.result).rejects.toBeTruthy();
+    expect(provider.reject).toHaveBeenCalledTimes(1);
+    expect(provider.next).toHaveBeenCalledTimes(1);
+    expect(staging).not.toHaveBeenCalled();
+    expect(f.cache.resolve).not.toHaveBeenCalled();
+  });
 });

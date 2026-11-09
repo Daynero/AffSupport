@@ -1,3 +1,5 @@
+import { catalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
+import type { CatalogForegroundExecutor } from './catalog-video-foreground';
 import {
   isRecord,
   launchDefaultValues,
@@ -17,6 +19,11 @@ import {
   LAUNCH_GENERATION_STATES,
   TEAM_ERROR_CODES
 } from '@video-compressor/shared';
+import {
+  isCatalogCreatedVideoProgress,
+  type CatalogCreatedVideoProgress
+} from './catalog-video-creation';
+import { privateCacheActor } from '../team/private-cache-scope';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 import type { Json } from '../lib/database.types';
 import { TeamApiError, invokeTeamFunction, throwRpc } from './team';
@@ -281,6 +288,7 @@ export const launchApi = {
     revisionId: string | null = null,
     signal?: AbortSignal
   ): Promise<LaunchDetail> {
+    const current = catalogForegroundScope(signal);
     const { data, error } = await withFreshSession(() => {
       const query = requireSupabaseClient().rpc('get_launch', {
         p_team: teamId,
@@ -292,6 +300,9 @@ export const launchApi = {
     throwRpc(error);
     const parsed = parseLaunchDetail(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    current();
+    await catalogForeground.attach(teamId, parsed.generation?.videoGeneration, signal);
+    current();
     return parsed;
   },
   async save(input: {
@@ -423,10 +434,27 @@ export const launchApi = {
     throwRpc(error);
     return cancelReceipt(data);
   },
-  async generate(teamId: string, id: string, version: string, key: string) {
+  async generate(
+    teamId: string,
+    id: string,
+    version: string,
+    key: string,
+    expectedExecutorId?: string,
+    foregroundExecutor?: CatalogForegroundExecutor
+  ) {
     return invokeTeamFunction(
       'drive-ops/launches/generate',
-      { teamId, launchId: id, expectedVersion: version, requestKey: key },
+      {
+        teamId,
+        launchId: id,
+        expectedVersion: version,
+        requestKey: key,
+        ...(foregroundExecutor
+          ? { foregroundExecutor }
+          : expectedExecutorId
+            ? { expectedExecutorId }
+            : {})
+      },
       (v: unknown): v is { id: string; state: string } =>
         isRecord(v) && typeof v.id === 'string' && typeof v.state === 'string'
     );
@@ -442,6 +470,21 @@ export const launchApi = {
     );
     throwRpc(error);
     return cancelReceipt(data);
+  },
+  async cancelCatalogVideoGeneration(
+    teamId: string,
+    generationId: string,
+    requestId: string
+  ): Promise<CatalogCreatedVideoProgress> {
+    const result = await invokeTeamFunction(
+      'drive-ops/launches/catalog-video/cancel',
+      { teamId, generationId, requestId, expectedActorId: privateCacheActor() },
+      (value: unknown): value is Record<string, unknown> =>
+        isRecord(value) &&
+        isCatalogCreatedVideoProgress(value.videoGenerationObservation ?? value.videoGeneration)
+    );
+    return (result.videoGenerationObservation ??
+      result.videoGeneration) as CatalogCreatedVideoProgress;
   },
   async overrides(
     teamId: string,

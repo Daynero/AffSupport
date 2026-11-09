@@ -107,6 +107,7 @@ it('reserves the original acquisition before fetching and settles before returni
   expect(response.status).toBe(206);
   expect(response.headers.get('content-range')).toBe('bytes 0-3/4');
   expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('x-restitch-request-id')).toBe(id(1));
   expect(await response.text()).toBe('ABCD');
 });
 it('never opens an upstream request on readback or lost reservation acknowledgement', async () => {

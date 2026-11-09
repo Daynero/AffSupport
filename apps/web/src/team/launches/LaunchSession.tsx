@@ -1,4 +1,5 @@
 import { launchMutation, launchObservedGeneration, launchVisible } from './analytics';
+import { launchPublicationTimePassed } from './launchPublicationTiming';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, History as HistoryIcon, Trash2, X } from 'lucide-react';
 import {
@@ -121,7 +122,14 @@ export function LaunchSession({
           ? failure.message
           : null
     );
-    setError(teamErrorMessageFor(failure, t));
+    setError(
+      failure instanceof TeamApiError &&
+        failure.code === 'AGENT_REQUIRED' &&
+        draft.config.method === 'catalog' &&
+        draft.config.catalog?.catalogVideoProtocolVersion === 1
+        ? t('launchesCatalogExecutorRequired')
+        : teamErrorMessageFor(failure, t)
+    );
   };
   const [catalogSetupMissing, setCatalogSetupMissing] = useState(false);
   const [working, setWorking] = useState(false);
@@ -1083,6 +1091,12 @@ export function LaunchSession({
       })
     );
   const showProgress =
+    Boolean(
+      detail?.generation?.videoGeneration &&
+      ['accepted', 'preparing', 'cancel_requested', 'canceled', 'unknown'].includes(
+        detail.generation.videoGeneration.state
+      )
+    ) ||
     originalVideoPreparing ||
     preflighting ||
     generation.busy ||
@@ -1188,14 +1202,20 @@ export function LaunchSession({
       }
     });
   };
+  const cancellationPending = Boolean(
+    detail?.generation &&
+    (['cancel_requested', 'canceled_with_cleanup_pending'].includes(detail.generation.state) ||
+      detail.generation.videoGeneration?.state === 'cancel_requested')
+  );
   const generationRetryActions = (
     <>
-      {generation.hasUnresolvedRequest && (
+      {!cancellationPending && generation.hasUnresolvedRequest && (
         <Button disabled={generation.busy} onClick={() => void generate()}>
           {t(generation.pendingStage === 'cancel' ? 'launchesProgressRetryCancel' : 'retry')}
         </Button>
       )}
-      {!generation.hasUnresolvedRequest &&
+      {!cancellationPending &&
+        !generation.hasUnresolvedRequest &&
         editable &&
         detail?.generation?.requestKey &&
         !['succeeded', 'canceled'].includes(detail.generation.state) && (
@@ -1730,7 +1750,9 @@ export function LaunchSession({
                     dictionaryBusy ||
                     sourcesPending ||
                     sourceChanged ||
-                    detail?.generation?.state === 'failed'
+                    detail?.generation?.state === 'failed' ||
+                    (draft.config.method === 'catalog' &&
+                      launchPublicationTimePassed(draft.config.catalog))
                   }
                   onClick={() => void generate()}
                 >

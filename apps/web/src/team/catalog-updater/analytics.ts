@@ -4,8 +4,21 @@ const machineCauses = new Set<string>(TEAM_ERROR_CODES);
 import { analytics } from '../../analytics/service';
 
 export type CatalogUiAction =
-  'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop' | 'restitch_claim';
+  | 'list'
+  | 'filter'
+  | 'profile'
+  | 'bulk'
+  | 'template'
+  | 'run'
+  | 'retry'
+  | 'stop'
+  | 'restitch_claim'
+  | 'publication'
+  | 'video_create';
 export type CatalogUiStage =
+  | 'baseline_check_requested'
+  | 'baseline_confirmed'
+  | 'baseline_aborted'
   | 'executor_check_requested'
   | 'executor_checked'
   | 'claim_requested'
@@ -51,6 +64,7 @@ export function beginCatalogUiFlow(
     field?:
       | 'createdAt'
       | 'restitch'
+      | 'videoVariantCount'
       | 'randomLinkVariation'
       | 'refreshImages'
       | 'refreshTexts'
@@ -72,7 +86,7 @@ export function beginCatalogUiFlow(
     flow_step: `catalog_manager_${action}`,
     item_count: counts.count,
     file_count: counts.hiddenCount,
-    ...(['run', 'retry', 'stop', 'restitch_claim'].includes(action)
+    ...(['run', 'retry', 'stop', 'restitch_claim', 'publication', 'video_create'].includes(action)
       ? { production_completed: false }
       : {}),
     ...(counts.field ? { setting_name: counts.field } : {})

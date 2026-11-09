@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export const LAUNCH_PROGRESS_QUIET_MS = 45_000;
 export const LAUNCH_STATUS_READ_MS = 15_000;
 export const LAUNCH_STATUS_POLL_MS = 15_000;
+export const LAUNCH_CANCEL_STATUS_POLL_MS = 2_000;
 
 /** Reconcile automatically without overlapping reads or inventing progress. */
 export function useLaunchProgressWatch(
   active: boolean,
   evidence: string,
-  onRefresh?: (signal: AbortSignal) => Promise<void>
+  onRefresh?: (signal: AbortSignal) => Promise<void>,
+  cancellationScope?: string
 ) {
   const callback = useRef(onRefresh);
   callback.current = onRefresh;
@@ -49,6 +51,9 @@ export function useLaunchProgressWatch(
       }
     }
   }, []);
+  // Cancellation is one exact generation: progress heartbeats must not keep
+  // postponing its confirmation read or abort an already-running status read.
+  const observationKey = cancellationScope ?? evidence;
   useEffect(() => {
     epoch.current++;
     controller.current?.abort();
@@ -65,7 +70,13 @@ export function useLaunchProgressWatch(
     const reconcile = () => {
       if (document.visibilityState !== 'hidden') void refresh();
     };
-    const poll = active ? setInterval(reconcile, LAUNCH_STATUS_POLL_MS) : null;
+    const poll = active
+      ? setInterval(
+          reconcile,
+          cancellationScope ? LAUNCH_CANCEL_STATUS_POLL_MS : LAUNCH_STATUS_POLL_MS
+        )
+      : null;
+    if (active && cancellationScope) reconcile();
     if (active) {
       window.addEventListener('online', reconcile);
       document.addEventListener('visibilitychange', reconcile);
@@ -79,6 +90,6 @@ export function useLaunchProgressWatch(
       window.removeEventListener('online', reconcile);
       document.removeEventListener('visibilitychange', reconcile);
     };
-  }, [active, evidence, refresh]);
+  }, [active, observationKey, cancellationScope, refresh]);
   return { quiet, checking, readFailed, refresh };
 }

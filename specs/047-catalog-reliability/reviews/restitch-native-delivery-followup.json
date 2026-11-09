@@ -1,0 +1,47 @@
+{
+  "scope": "Connected native beta candidate; not full feature acceptance",
+  "causalRegressions": {
+    "defaultNullableAdmissionRead": {
+      "before": "1 failure; original CONNECTION_FAILED replaced with INVALID_RESPONSE",
+      "after": "Exact-read null accepted only for manual/read; original admission failure retained; no mutation replay"
+    },
+    "failureStage": {
+      "before": "4 failures: three delivery phases absent and cloud-root stage unknown",
+      "after": "Trusted bridge reports downloading/processing/finalizing independently of progress listeners; controller preserves stage and closed cause; diagnostic callback failure cannot replace product failure"
+    },
+    "pendingPreparation": {
+      "before": "2 failing cases: cancelAll returns a usable enrollment; a preparation may bind the replacement actor",
+      "after": "Captured actor and per-preparation cancellation checked before queued mutation and after waits; cancelAll, actor change and shutdown abort and join original preparations"
+    },
+    "lostClaimHttpReply": {
+      "before": "2 failing cases: accepted ownership becomes unknown after HTTP reply loss, including cancellation",
+      "after": "One exact original-claim read; no second claim; recovered ownership permits one callback or cancellation/quiescence without callback"
+    }
+  },
+  "verification": {
+    "focused": {
+      "files": 4,
+      "passed": 22,
+      "log": "scratchpad/native-latest-focused.log"
+    },
+    "agentTypes": "passed",
+    "webTypes": "passed",
+    "testTypes": "passed",
+    "targetedLint": "passed",
+    "diffCheck": "passed",
+    "recoveryFocused": {
+      "files": 9,
+      "passed": 106,
+      "log": "scratchpad/native-recovery-followup-green.log"
+    },
+    "latestRecoveryAgentTypes": "passed",
+    "latestRecoveryTestTypes": "passed",
+    "latestRecoveryLintFormatDiff": "passed"
+  },
+  "limitations": [
+    "Full current-source canonical verification pending.",
+    "Latest stage seam tested in source; running agent has not been restarted for this seam.",
+    "Native manual success proof is separate and precedes this stage seam.",
+    "Full producer-to-CLI/UI correlation and interrupted-success recovery remain open."
+  ]
+}

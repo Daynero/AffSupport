@@ -17,6 +17,7 @@ interface ImportMetaEnv {
   /** Development only: answer the data layer from memory (see dev/mock-supabase.ts). */
   readonly VITE_MOCK_DATA?: string;
   readonly VITE_APP_ENVIRONMENT?: string;
+  readonly VITE_CATALOG_VIDEO_VARIANTS?: string;
   readonly VITE_WEB_REVISION?: string;
   readonly VITE_WEB_BUILD_ID?: string;
 }

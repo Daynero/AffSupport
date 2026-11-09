@@ -42,6 +42,8 @@ export function UpdaterRowActions({
   onChanged,
   onReveal,
   onHistory,
+  onPublication,
+  onVideoVariations,
   onConfigure
 }: {
   row: CatalogRegistryRow;
@@ -52,6 +54,8 @@ export function UpdaterRowActions({
   /** Close the dialog and show the sheet where it lives. */
   onReveal?: (row: CatalogRegistryRow) => void;
   onHistory?: () => void;
+  onPublication?: () => void;
+  onVideoVariations?: () => void;
   onConfigure?: () => void;
 }) {
   const { t } = useI18n();
@@ -122,6 +126,18 @@ export function UpdaterRowActions({
         onClose={() => setOpen(false)}
         label={t('materialActionsFor', { name: row.name })}
         items={[
+          ...(onVideoVariations
+            ? [
+                {
+                  id: 'video_variations',
+                  label: t('catalogVideoVariationCount'),
+                  onSelect: onVideoVariations
+                }
+              ]
+            : []),
+          ...(onPublication
+            ? [{ id: 'publication', label: t('catalogPublicationTitle'), onSelect: onPublication }]
+            : []),
           ...(onConfigure
             ? [{ id: 'configure', label: t('catalogUpdaterConfigure'), onSelect: onConfigure }]
             : []),

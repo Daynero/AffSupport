@@ -20,7 +20,7 @@ function failSource(match: (sql: string) => boolean, code: string) {
     return result.rows as Record<string, unknown>[];
   });
 }
-it.each(['57014', '42501', '42P01', '42703'])(
+it.each(['57014', 'ANALYTICS_QUERY_TIMEOUT', '42501', '42P01', '42703'])(
   'retains other audit sources after an event aggregation fails with %s',
   async code => {
     failSource(sql => sql.includes('from ev group by'), code);

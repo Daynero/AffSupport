@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import {
   useLaunchProgressWatch,
   LAUNCH_PROGRESS_QUIET_MS,
-  LAUNCH_STATUS_READ_MS
+  LAUNCH_STATUS_READ_MS,
+  LAUNCH_CANCEL_STATUS_POLL_MS
 } from '../apps/web/src/team/launches/useLaunchProgressWatch';
 import { readLaunchPreparation } from '../apps/web/src/team/launches/preparation';
 
@@ -141,4 +142,38 @@ it('pauses automatic reads while hidden and stops them when the operation finish
     visibility.mockRestore();
     unmount();
   }
+});
+
+it('reads cancellation immediately and keeps its exact-generation cadence across changing progress evidence', async () => {
+  vi.useFakeTimers();
+  const read = vi.fn().mockResolvedValue(undefined);
+  const { rerender, unmount } = renderHook(
+    ({ evidence, active, scope }) => useLaunchProgressWatch(active, evidence, read, scope),
+    {
+      initialProps: {
+        evidence: 'cancel-requested',
+        active: true,
+        scope: 'team:original-generation' as string | undefined
+      }
+    }
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(read).toHaveBeenCalledOnce();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LAUNCH_CANCEL_STATUS_POLL_MS / 2);
+  });
+  rerender({ evidence: 'native-heartbeat-1', active: true, scope: 'team:original-generation' });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LAUNCH_CANCEL_STATUS_POLL_MS / 2);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  rerender({ evidence: 'confirmed-canceled', active: false, scope: undefined });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  unmount();
+  expect(vi.getTimerCount()).toBe(0);
 });

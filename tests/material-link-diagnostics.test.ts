@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { act, renderHook, cleanup } from '@testing-library/react';
+import {
+  useMaterialActions,
+  type MaterialActionsClient
+} from '../apps/web/src/team/catalog/useMaterialActions';
+import { TeamApiError } from '../apps/web/src/api/team';
 import { useMaterialLink } from '../apps/web/src/team/materials/useMaterialLink';
 import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
 vi.mock('../apps/web/src/i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
@@ -298,5 +303,156 @@ it('diagnoses the real hook delivery and clipboard refusal without leaking the r
     cleanup();
     track.mockRestore();
     actor.mockRestore();
+  }
+});
+
+it.each([
+  ['material', false],
+  ['catalog_manager', false],
+  ['material', true],
+  ['catalog_manager', true]
+] as const)(
+  'diagnoses the real %s download hook through ingestion (failure=%s)',
+  async (surface, failure) => {
+    const service = new ProductAnalytics(async events => {
+      const rows = await db.asUser<{ event_id: string; accepted: boolean; reason: string }>(
+        OWNER,
+        'select * from public.ingest_analytics_events($1::jsonb)',
+        [JSON.stringify(events)]
+      );
+      expect(
+        rows.every(row => row.accepted),
+        JSON.stringify(rows)
+      ).toBe(true);
+      return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+    }, null);
+    service.setUser(OWNER);
+    const track = vi.spyOn(analytics, 'track').mockImplementation(service.track.bind(service));
+    const actor = vi
+      .spyOn(analytics, 'journalContext')
+      .mockImplementation(service.journalContext.bind(service));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    setPrivateCacheScope(OWNER, 'owner');
+    const requestDownload = vi.fn<MaterialActionsClient['requestDownload']>();
+    if (failure)
+      requestDownload.mockRejectedValue(new TeamApiError('CATALOG_EXPORT_TOO_LARGE', false));
+    else
+      requestDownload.mockResolvedValue({
+        kind: 'browser',
+        rangeUrl: 'https://example.invalid/private-catalog-token',
+        expiresAt: '2030-01-01T00:00:00Z',
+        disposition: 'attachment'
+      });
+    const client: MaterialActionsClient = {
+      requestDownload,
+      uploadFile: vi.fn(),
+      downloadWithAgent: vi.fn(),
+      renameMaterial: vi.fn(),
+      moveMaterial: vi.fn(),
+      trashMaterial: vi.fn(),
+      restoreMaterial: vi.fn()
+    };
+    const teamId = crypto.randomUUID(),
+      materialId = crypto.randomUUID();
+    const view = renderHook(() =>
+      useMaterialActions({
+        teamId,
+        material: {
+          id: materialId,
+          teamId,
+          name: 'private-catalog.xlsx',
+          kind: 'file',
+          sizeBytes: 1234
+        },
+        client,
+        storageKind: 'shared_drive',
+        surface,
+        onChanged: vi.fn()
+      })
+    );
+    try {
+      await act(async () => {
+        await view.result.current.download();
+      });
+      await service.flush();
+      expect(requestDownload).toHaveBeenCalledOnce();
+      expect(click).toHaveBeenCalledTimes(failure ? 0 : 1);
+      const started = track.mock.calls.filter(call => call[0] === 'team_file_attempt_started');
+      const completed = track.mock.calls.filter(call => call[0] === 'team_file_attempt_completed');
+      expect(started).toHaveLength(1);
+      expect(completed).toHaveLength(1);
+      const properties = started[0]![1]!;
+      if (!('attempt_id' in properties) || typeof properties.attempt_id !== 'string')
+        throw Error('Missing download attempt identity');
+      const attempt = properties.attempt_id;
+      expect(completed[0]![1]).toMatchObject({
+        attempt_id: attempt,
+        file_surface: surface,
+        storage_kind: 'shared_drive',
+        outcome: failure ? 'failure' : 'success'
+      });
+      const result = await getInspect(attempt);
+      expect(result.found).toBe(true);
+      if (!result.found) throw Error('Missing download diagnosis');
+      expect(
+        result.events.filter(event => event.event_name === 'team_file_attempt_completed')
+      ).toHaveLength(1);
+      if (failure)
+        expect(
+          result.events.some(event => event.properties.error_code === 'CATALOG_EXPORT_TOO_LARGE')
+        ).toBe(true);
+      else
+        expect(
+          result.events.find(event => event.event_name === 'team_file_attempt_completed')
+            ?.properties
+        ).toMatchObject({ file_delivery: 'browser_handoff', production_completed: false });
+      expect(JSON.stringify(result)).not.toMatch(/private-catalog|private-catalog-token/u);
+    } finally {
+      cleanup();
+      track.mockRestore();
+      actor.mockRestore();
+      click.mockRestore();
+    }
+  }
+);
+it('delivers the real download even when its telemetry producer throws', async () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {
+    throw Error('TELEMETRY_UNAVAILABLE');
+  });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const client: MaterialActionsClient = {
+    requestDownload: vi.fn().mockResolvedValue({
+      kind: 'browser',
+      rangeUrl: 'https://example.invalid/private-catalog-token',
+      expiresAt: '2030-01-01T00:00:00Z',
+      disposition: 'attachment'
+    }),
+    uploadFile: vi.fn(),
+    downloadWithAgent: vi.fn(),
+    renameMaterial: vi.fn(),
+    moveMaterial: vi.fn(),
+    trashMaterial: vi.fn(),
+    restoreMaterial: vi.fn()
+  };
+  const teamId = crypto.randomUUID();
+  const view = renderHook(() =>
+    useMaterialActions({
+      teamId,
+      material: { id: crypto.randomUUID(), teamId, name: 'private-catalog.xlsx', kind: 'file' },
+      client,
+      surface: 'catalog_manager',
+      onChanged: vi.fn()
+    })
+  );
+  try {
+    await act(async () => {
+      expect(await view.result.current.download()).toBe(null);
+    });
+    expect(click).toHaveBeenCalledOnce();
+    expect(view.result.current.errorCode).toBe(null);
+  } finally {
+    cleanup();
+    track.mockRestore();
+    click.mockRestore();
   }
 });

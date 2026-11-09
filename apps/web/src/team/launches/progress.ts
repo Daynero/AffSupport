@@ -74,6 +74,9 @@ export function launchProgressDisplayStage(input: {
   restitch: boolean;
   childSucceeded: boolean;
 }): LaunchStage {
+  const videoSet = input.generation?.videoGeneration;
+  if (videoSet && ['accepted', 'preparing', 'unknown', 'cancel_requested'].includes(videoSet.state))
+    return videoSet.activeChildOperationId ? 'restitch_processing' : 'restitch_preparing';
   const succeeded = succeededStages(input.generation);
   return input.generation &&
     input.restitch &&
@@ -102,19 +105,20 @@ export function launchProgressStages(
   const succeeded = succeededStages(generation);
   const complete = {
     prepare: generation !== null,
-    video:
-      input.childSucceeded ||
-      // This durable checkpoint is written only after the finalized child receipt.
-      succeeded.has('restitch_processing') ||
-      succeeded.has('restitch_uploading') ||
-      // The coordinator verifies the native receipt before these checkpoints.
-      [
-        'catalog_creating',
-        'catalog_sharing',
-        'catalog_registering',
-        'result_committing',
-        'result_committed'
-      ].includes(stage),
+    video: generation?.videoGeneration
+      ? generation.videoGeneration.state === 'ready'
+      : input.childSucceeded ||
+        // This durable checkpoint is written only after the finalized child receipt.
+        succeeded.has('restitch_processing') ||
+        succeeded.has('restitch_uploading') ||
+        // The coordinator verifies the native receipt before these checkpoints.
+        [
+          'catalog_creating',
+          'catalog_sharing',
+          'catalog_registering',
+          'result_committing',
+          'result_committed'
+        ].includes(stage),
     catalog:
       succeeded.has('catalog_registering') ||
       ['result_committing', 'result_committed'].includes(stage),
@@ -133,19 +137,24 @@ export function launchProgressStages(
         (group.id !== 'video' || input.restitch)
     )
     .map(group => {
-      const current = (group.stages as readonly string[]).includes(groupStage);
-      const done =
-        generation?.state === 'succeeded' ||
-        (group.id === 'video' &&
-          (input.childSucceeded ||
-            succeeded.has('restitch_processing') ||
-            succeeded.has('restitch_uploading'))) ||
-        (group.id === 'catalog' && succeeded.has('catalog_registering')) ||
-        (!current && complete[group.id]);
+      const videoSet = group.id === 'video' ? generation?.videoGeneration : null;
+      const current = videoSet
+        ? ['accepted', 'preparing', 'cancel_requested', 'unknown'].includes(videoSet.state)
+        : (group.stages as readonly string[]).includes(groupStage);
+      const done = videoSet
+        ? videoSet.state === 'ready'
+        : generation?.state === 'succeeded' ||
+          (group.id === 'video' &&
+            (input.childSucceeded ||
+              succeeded.has('restitch_processing') ||
+              succeeded.has('restitch_uploading'))) ||
+          (group.id === 'catalog' && succeeded.has('catalog_registering')) ||
+          (!current && complete[group.id]);
       const confirmedFraction =
         group.stages.filter(step => succeeded.has(step)).length / group.stages.length;
-      const measuredFraction =
-        group.id === 'video'
+      const measuredFraction = videoSet
+        ? videoSet.registeredCount / videoSet.requestedCount
+        : group.id === 'video'
           ? input.fraction
           : input.fraction === undefined || groupStage !== stage
             ? undefined
@@ -153,7 +162,13 @@ export function launchProgressStages(
       return {
         id: group.id,
         label: t(group.label),
-        state: done ? 'complete' : current ? (input.attention ? 'attention' : 'active') : 'pending',
+        state: done
+          ? 'complete'
+          : current
+            ? input.attention || videoSet?.state === 'unknown'
+              ? 'attention'
+              : 'active'
+            : 'pending',
         ...(current && (measuredFraction !== undefined || confirmedFraction > 0)
           ? { fraction: measuredFraction ?? confirmedFraction }
           : {})
@@ -166,6 +181,7 @@ export interface LaunchProgressMemory {
   version?: string;
   parentAttempt?: number;
   child?: string | null;
+  videoSetId?: string;
   attempts: Map<string, number>;
   completed: Set<string>;
   fractions: Map<string, number>;
@@ -218,6 +234,12 @@ export function rememberLaunchProgress(
           : entry.state
     }));
   if (canonical(generation.stateVersion)) memory.version = generation.stateVersion;
+  const videoSet = generation.videoGeneration;
+  if (videoSet && memory.videoSetId !== videoSet.setId) {
+    memory.videoSetId = videoSet.setId;
+    memory.completed.delete('video');
+    memory.fractions.delete('video');
+  }
   memory.stage ??= input.stage;
   const resetFrom = (index: number) => {
     for (const group of groups.slice(index)) {
@@ -283,7 +305,13 @@ export function rememberLaunchProgress(
       }
     }
   }
-  if (generation.state === 'succeeded') memory.stage = 'result_committed';
+  if (videoSet) {
+    // N preparation can continue after catalog registration, or restart under a
+    // new set. Its current lane cannot be held behind a later parent checkpoint.
+    memory.active =
+      stages.find(entry => entry.state === 'active' || entry.state === 'attention')?.id ?? null;
+    memory.stage = input.stage;
+  } else if (generation.state === 'succeeded') memory.stage = 'result_committed';
   memory.snapshot = stages.map(entry => ({
     ...entry,
     state: memory.completed.has(entry.id)

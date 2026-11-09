@@ -7,6 +7,7 @@
  * from the sheet, so a retried update writes exactly the same thing and a hand edit is overwritten.
  */
 
+import { TeamFunctionError } from './errors.ts';
 import {
   PRODUCT_CATALOG_TEMPLATE,
   buildProductCatalogRows,
@@ -65,8 +66,17 @@ export function rebuildCatalogRows(input: {
   record: CatalogRecord;
   videoLinkOverride?: string | null;
   newId?: () => string;
+  /** Exact stored video cells from a bounded provider read, including proven blanks. */
+  preservedVideoCells?: readonly string[];
 }): Cell[][] {
-  return buildProductCatalogRows({
+  const preserved = input.preservedVideoCells;
+  if (
+    preserved &&
+    (preserved.length !== input.record.productCount ||
+      preserved.some(v => typeof v !== 'string' || v.length > 8192))
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
+  const rows = buildProductCatalogRows({
     settings: input.record.settings,
     sourceLink: input.record.sourceLink,
     videoLink: input.videoLinkOverride ?? input.record.videoLink,
@@ -75,6 +85,54 @@ export function rebuildCatalogRows(input: {
     rows: input.record.rows,
     newId: input.newId
   });
+  if (preserved)
+    for (let index = 0; index < preserved.length; index++)
+      for (const column of catalogVideoColumnIndices())
+        rows[index + 2]![column] = { t: 'string', v: preserved[index]! };
+  return rows;
+}
+
+/** Includes copied video columns; a targeted nonvideo writer must exclude the
+ * complete dependency closure, not just the first video URL column. */
+export function catalogVideoColumnIndices(): number[] {
+  const names = new Set<string>();
+  for (let pass = 0; pass < PRODUCT_CATALOG_TEMPLATE.length; pass++)
+    for (const column of PRODUCT_CATALOG_TEMPLATE) {
+      if (
+        column.source.kind === 'videoLink' ||
+        (column.source.kind === 'copyOf' && names.has(column.source.column))
+      )
+        names.add(column.column);
+    }
+  return PRODUCT_CATALOG_TEMPLATE.flatMap((column, index) =>
+    names.has(column.column) ? [index] : []
+  );
+}
+
+/** Never includes video cells, even empty ones. Values are explicit strings in
+ * the native Sheets adapter, so refreshed user text cannot become a formula. */
+export function catalogNonVideoCellUpdates(rows: readonly (readonly Cell[])[], sheetId: number) {
+  if (
+    !Number.isSafeInteger(sheetId) ||
+    sheetId < 0 ||
+    rows.length < 3 ||
+    rows.length > 402 ||
+    rows.some(row => row.length !== PRODUCT_CATALOG_TEMPLATE.length)
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
+  const excluded = new Set(catalogVideoColumnIndices());
+  return PRODUCT_CATALOG_TEMPLATE.flatMap((_, columnIndex) =>
+    excluded.has(columnIndex)
+      ? []
+      : [
+          {
+            sheetId,
+            rowIndex: 0,
+            columnIndex,
+            values: rows.map(row => String(row[columnIndex]!.v))
+          }
+        ]
+  );
 }
 
 export const CATALOG_UPDATER_COLUMNS = { id: ID_COLUMN, video: VIDEO_COLUMN } as const;

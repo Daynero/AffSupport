@@ -19856,3 +19856,18 @@ a.history-subject {
   font-size: var(--text-body);
   font-weight: 500;
 }
+
+.catalog-publication-schedule {
+  width: 100%;
+  min-width: 0;
+}
+.catalog-publication-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+  grid-column: 1 / -1;
+}
+.catalog-publication-controls[hidden] {
+  display: none;
+}

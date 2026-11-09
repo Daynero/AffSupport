@@ -1,3 +1,4 @@
+import { runCatalogVariantRecovery } from './catalog-variant-recovery.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   isRecord,
@@ -130,6 +131,12 @@ export interface RecoveryWorkerOptions {
   allowed?: () => boolean;
   journal: RecoveryJournal;
   process: Pick<TeamProcessBridge, 'process' | 'cancel' | 'busy'>;
+  catalogVariants?: {
+    nativeInstanceId: string;
+    enabled?: () => boolean;
+    process?: Pick<TeamProcessBridge, 'process' | 'cancel'>;
+    protectedProcess?: Parameters<typeof runCatalogVariantRecovery>[0]['protectedProcess'];
+  };
   secrets?: RecoverySecretStore;
   fetch?: typeof fetch;
   now?: () => number;
@@ -137,6 +144,11 @@ export interface RecoveryWorkerOptions {
 }
 /** One persisted claim per delegation; all media runs through the existing bridge/governor. */
 export class TeamRecoveryWorker {
+  #variantControllers = new Map<string, AbortController>();
+  #variantStates = new Map<
+    string,
+    { setId: string; ready: number; total: number; state: 'running' | 'ready' | 'unknown' }
+  >();
   #registrations: RecoveryRegistration[] = [];
   #checkpoints: RecoveryCheckpoint[] = [];
   #enrollments = new Map<
@@ -172,6 +184,11 @@ export class TeamRecoveryWorker {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   constructor(readonly options: RecoveryWorkerOptions) {
+    if (
+      options.catalogVariants &&
+      (options.environment !== 'beta' || !UUID.test(options.catalogVariants.nativeInstanceId))
+    )
+      throw new Error('INVALID_INPUT');
     this.#secrets = options.secrets ?? platformRecoverySecrets;
     this.#fetch = options.fetch ?? fetch;
     this.#now = options.now ?? Date.now;
@@ -430,6 +447,7 @@ export class TeamRecoveryWorker {
     this.options.record?.('recovery_retirement', { stage, delegation_id: r.delegationId });
   }
   async #markRetiring(r: RecoveryRegistration) {
+    this.#variantControllers.get(r.delegationId)?.abort(new Error('PERMISSION_DENIED'));
     const newlyRetiring = !r.revoking;
     r.revoking = true;
     if (!r.actorId) this.#setupRequired = true;
@@ -531,11 +549,21 @@ export class TeamRecoveryWorker {
     await this.#retire(r);
     return false;
   }
+  catalogVariantStatus() {
+    return this.#registrations
+      .filter(r => this.#isCurrent(r))
+      .flatMap(r => {
+        const state = this.#variantStates.get(r.delegationId);
+        return state ? [{ teamId: r.teamId, ...state }] : [];
+      });
+  }
   async idle() {
     await Promise.allSettled(this.#running.values());
   }
   async shutdown() {
     this.#closed = true;
+    for (const controller of this.#variantControllers.values())
+      controller.abort(new Error('PROCESS_RESULT_UNCERTAIN'));
     for (const timer of this.#timers.values()) clearTimeout(timer);
     this.#timers.clear();
     for (const checkpoint of this.#checkpoints)
@@ -788,6 +816,80 @@ export class TeamRecoveryWorker {
       await this.#rotate(r, secrets);
       if (!(await this.#checkIdentity(r))) return;
       if (!secrets.claim) throw new Error('AUTH_REQUIRED');
+      const variants = this.options.catalogVariants;
+      if (variants && (variants.enabled?.() ?? true)) {
+        if (this.#variantControllers.has(r.delegationId)) {
+          this.#schedule(r, RECOVERY_BUDGET.claimMs);
+          return;
+        }
+        const controller = new AbortController();
+        this.#variantControllers.set(r.delegationId, controller);
+        const closures = new Map<string, { credential: string; scope: string }>(),
+          closureEndpoint = r.endpoint;
+        const closureScope = (body: Record<string, unknown>) =>
+          JSON.stringify([
+            body.setId,
+            body.index,
+            body.requestId,
+            body.operationId,
+            body.nativeInstanceId,
+            body.variantProtocolVersion
+          ]);
+        try {
+          const setId = await runCatalogVariantRecovery({
+            nativeInstanceId: variants.nativeInstanceId,
+            process: variants.process ?? this.options.process,
+            protectedProcess: variants.protectedProcess,
+            signal: controller.signal,
+            call: async (action, body) => {
+              if (
+                this.#closed ||
+                !this.#isCurrent(r) ||
+                controller.signal.aborted ||
+                (this.options.allowed && !this.options.allowed())
+              )
+                throw new Error('PROCESS_CANCELED');
+              await this.#rotate(r, secrets);
+              if (!this.#isCurrent(r) || controller.signal.aborted || !secrets.claim)
+                throw new Error('PROCESS_CANCELED');
+              const credential = secrets.claim;
+              if (action === 'variant_dispatch' && typeof body.operationId === 'string')
+                closures.set(body.operationId, { credential, scope: closureScope(body) });
+              return this.#call(r.endpoint, action, credential, body);
+            },
+            closureCall: async (action, body) => {
+              const original =
+                typeof body.operationId === 'string' ? closures.get(body.operationId) : undefined;
+              if (
+                action !== 'variant_complete' ||
+                !original ||
+                original.scope !== closureScope(body)
+              )
+                throw new Error('PERMISSION_DENIED');
+              return this.#call(closureEndpoint, action, original.credential, body);
+            },
+            progress: (setId, ready, total) => {
+              this.#variantStates.set(r.delegationId, {
+                setId,
+                ready,
+                total,
+                state: ready === total ? 'ready' : 'running'
+              });
+            }
+          });
+          if (setId) {
+            await this.#checkpoint(r, requestId, setId, 'settled');
+            this.#schedule(r, RECOVERY_BUDGET.claimMs);
+            return;
+          }
+        } catch (cause) {
+          const state = this.#variantStates.get(r.delegationId);
+          if (state) this.#variantStates.set(r.delegationId, { ...state, state: 'unknown' });
+          throw cause;
+        } finally {
+          this.#variantControllers.delete(r.delegationId);
+        }
+      }
       if (saved?.stage !== 'claiming' && saved?.stage !== 'accepted') requestId = randomUUID();
       await this.#checkpoint(r, requestId, null, 'claiming');
       if (!(await this.#checkIdentity(r))) return;

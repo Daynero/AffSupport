@@ -471,6 +471,7 @@ export async function readRestitchSelectionRange(
         'content-type': input.mimeType,
         'content-length': String(maximumBytes),
         'content-range': 'bytes ' + range.start + '-' + range.end + '/' + input.sourceBytes,
+        'x-restitch-request-id': r.requestId,
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff'
       }

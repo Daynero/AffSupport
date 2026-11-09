@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ToastProvider, useToasts } from '../apps/web/src/components/toast';
 import { RestitchDeliveryNotices } from '../apps/web/src/team/restitch/RestitchDeliveryNotices';
@@ -91,4 +91,20 @@ it('offers setup to a manager and names the manager for a viewer', () => {
   );
   expect(screen.getByText(/A space manager can set it up/u)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Set it up now' })).toBeNull();
+});
+
+it('shows a new failure after the previous delivery toast was dismissed', () => {
+  const frame = (state: RestitchDeliveryState) => (
+    <ToastProvider>
+      <Host states={{ video: state }} />
+    </ToastProvider>
+  );
+  const view = render(frame({ kind: 'delivered', fileName: 'clip.mp4' }));
+  act(() => {
+    screen.getByRole('button', { name: 'Dismiss notification' }).click();
+  });
+  expect(screen.queryByText('Saved as clip.mp4')).toBeNull();
+  view.rerender(frame({ kind: 'running', phase: 'checking', fileName: 'clip.mp4' }));
+  view.rerender(frame({ kind: 'failed', message: 'All pictures are unusable.' }));
+  expect(screen.getByText('All pictures are unusable.')).toBeTruthy();
 });

@@ -1,0 +1,26 @@
+{
+  "task": "T014",
+  "scope": "US1 result retrieval acceptance; package promotion remains separate",
+  "actualProviderAndUI": "catalog-manager-manual-download-link.json",
+  "syntheticDiagnosticPath": "catalog-file-action-diagnostics.json",
+  "currentFocusedAcceptance": {
+    "passed": 55,
+    "files": 5,
+    "log": "scratchpad/catalog-us1-acceptance.log"
+  },
+  "supportingLinkMatrix": {
+    "passed": 89,
+    "files": 7,
+    "log": "scratchpad/catalog-link-manual-followup-tests.log"
+  },
+  "actualHookIngestion": {
+    "passed": 29,
+    "files": 4,
+    "log": "scratchpad/catalog-file-hook-diagnostics.log"
+  },
+  "browserSaveBlindSpot": "Anchor handoff alone cannot prove browser save. Both actual XLSX artifacts were opened separately in Quick Look.",
+  "betaTelemetry": "Production telemetry disabled; ingestion acceptance uses an isolated synthetic database",
+  "faultScope": "Provider permission, clipboard denial, lost replies, malformed contracts and deadlines are regression-injected; actual A01 uses the real provider.",
+  "fullCurrentPackagePromotion": false,
+  "productionTouched": false
+}

@@ -253,17 +253,45 @@ scheduled — held. Вимкнення checkbox у pending existing job відо
 Only video fields targeted by delayed publication change; актуальні nonvideo поля
 і row recipe зберігаються. Product count change ⇒ rebind new assignment або blocked.
 
-Provider mutation використовує compare-and-swap саме для media/content write.
-Для scheduled/held replacement regular writer використовує active delivered target,
-а не pending set. До першої публікації active null означає порожні video fields.
-Лише verified settlement atomically swaps active target/assignment у SQL після
-provider readback; pending readiness не перемикає чинний каталог. Original source
-target перевіряється за доступом/version, video_set — за всіма N ready receipts.
-Спочатку contract proof конкретного endpoint, потім implementation. Unconditional
-fallback заборонений. Якщо provider не підтримує потрібну гарантію — blocked
-CATALOG_WRITE_UNSUPPORTED і невиконаний acceptance gate; не заявляти успіх.
-Pre-read, PostgreSQL fence, marker appProperties самі по собі не є provider CAS.
-External edit conflict ⇒ refresh/readback, explicit conflict, без silent overwrite.
+Owner clarification (2026-11-08): existing table/file URL remains unchanged.
+Prepare and retain immutable links privately; create the catalog with blank video
+cells; at due write only the existing video-link product cells. Do not recreate
+or replace the sheet, update nonvideo cells, change formatting/headers/IDs/grid,
+or require Soty ownership of user product IDs. Routine updates preserve actual
+video cells until the explicit publication worker replaces them.
+
+Use Sheets spreadsheets.batchUpdate with narrow UpdateCells `start` and
+`fields: userEnteredValue`, plus an original-fence developerMetadata receipt in
+the SAME atomic batch. The old full-XLSX/Drive media paths remain prohibited:
+actual provider tests showed cells changed despite HTTP412. Preserve that failed
+proof; never interpret412 as no-mutation evidence. Sheets atomic batching is NOT
+external-cell compare-and-swap. Fresh exact header/sheet/unique-ID proof and
+stored ID→URL assignments are required immediately before dispatch; reordered
+products keep their original URLs. Missing/added/changed IDs or headers block,
+without structural repair. Collaborator races remain explicitly unobservable
+until readback; do not claim arbitrary concurrent structural-edit protection.
+
+Only exact marker AND complete current ID→URL readback can settle verified.
+Unknown/missing/duplicate marker, partial cells, provider/source access loss or
+changed headers remain unknown with the original fence retained; never blindly
+repeat a dispatched batch. Only verified settlement changes active target.
+Private URL preparation runs before due in the existing cron lane, with no
+additional queue. Deduplicate original output identities and admit small
+concurrent proof batches within the tick budget. A healthy proof has no artificial
+per-output delay. Reuse eager proofs observed within five minutes of the original
+due-validation epoch; older proofs join that immutable epoch. Successful proofs
+are not discarded by a rolling TTL while the tail finishes (N400 liveness).
+Expose the first/last source observation window and current database identity/ACL
+checks; these observations are not simultaneous external-file CAS. An epoch
+exceeding one hour before dispatch blocks visibly instead of looping forever.
+Only after all required original links are privately prepared may exact Sheet
+readback and video-only dispatch proceed. Verified ordinary refresh may rebind
+public IDs under the same catalog fence, retaining URL per exact ordered internal
+recipe; dispatched/unknown publication can never rebind.
+
+Real-provider acceptance must prove only video cells changed, manual nonvideo
+edits survived, before-due/held made no writes, same file/URL remained, and lostACK
+reconciled without another apply. Keep capability disabled until this proof.
 
 Timeout/dispatched unknown тримає reservation; дубль/інший worker не робить новий
 write. Lease expiry не доводить, що HTTP перестав виконуватися. Provider content
@@ -571,3 +599,207 @@ The read-only view exposes the current protocol and epoch; legacy, absent and
 malformed ownership remain explicitly unknown. Current counters do not reconstruct
 old request outcomes or prove visible delivery. Historical lifecycle receipts and
 current material-generation reconciliation remain a separate unfinished boundary.
+
+## C4.7. Dedicated screen transfer authority (working, not advertised)
+
+Migration162000 is private preparation only. Each screen range grant binds the
+original root/team/actor, slot, stable candidate version and acquisition, request,
+executor epoch and native instance. Issue commits the original budget reservation
+and token hash atomically. Purpose-separated HMAC tickets cannot be used as generic
+download/upload, source or control authority. No public route or capability is
+introduced by this increment.
+
+Consumption uses a fresh server-generated invocation UUID, never a native-provided
+nonce. One issued row can become consumed once. An original invocation that loses
+its acknowledgement can read its exact consumption; another invocation receives
+no dispatch permission. The protected service reader then rechecks current owner
+and frozen source, measures provider work and settles before exposing bytes. It
+uses the original reservation without reserving again. An unconsumed abandoned
+row has authoritative zero cost; consumed but unconfirmed work stays held. Expiry
+never proves nonexecution. Refresh of an expired unused ticket must consume the
+same candidate/global durable refresh allowance before another grant can issue.
+
+The restricted selection projection adds only total/issued/consumed/abandoned
+counts. Grant state changes advance its observation time, so as-of cannot present
+a later consumption as an earlier state. Legacy schemas expose unknown counters,
+not invented zeroes. Consumed authority is not proof of provider I/O, settlement,
+image validation, processing or user delivery. Raw ticket/hash, provider identity,
+credentials, checksums and content are never diagnostic fields. Native control,
+observed child quiescence, retained refusal outcomes and full product acceptance
+remain separate open work.
+
+## C4.8. Protected native cache seam (working, not advertised)
+
+A cached screen is available only after a fresh exact service acknowledgement of
+root/team/actor, DB namespace UUID, executor epoch/native boot, slot, stable content
+version, acquisition and checksum/MIME/size. Capture primitive bindings and loader
+methods before awaits; reject missing, inherited or substituted receipt fields.
+The namespace is the actor-bound database handle, not a concatenated oversized
+client fingerprint. Rejected authority cannot use cached bytes as a fallback.
+
+Dedicated screen transport must supply its own validated local source; never
+represent a protected ticket as download_range or process_input. Warm/fresh cache
+paths keep actual MD5 and bounded full decode checks. A valid cache is not proof
+of a fresh provider observation, processing or delivered output. Provider work
+still uses the durable server-owned reservations and measurements.
+
+Remember protected failures by stable version UUID per namespace/slot. A metadata
+correction is eligible as a new version even if MD5 is unchanged; legacy checksum
+consumers must not reinterpret that refusal. Persist only bounded existing cache
+metadata and use opaque root/slot/version IDs with closed reasons in diagnostics.
+Atomic image staging must distinguish simultaneous writes even within one clock
+millisecond. No route/capability is advertised until control/source authority,
+actual executor ownership/quiescence and full diagnostic/product paths pass.
+
+## C4.9. Native protected screen delivery (working, not advertised)
+
+Dedicated screen permits bind the exact captured C4.8 identity, original persisted
+request/grant IDs, purpose, acquisition, offset and at most2MiB. Native does not
+use its clock to renew or invalidate service authority. It refuses redirects,
+substituted permit scope, response request correlation/range/size/MIME and changed
+actual bytes. The server supplies its original reserved request ID only after
+measurement and settlement. Source MD5 is checked over bytes actually written.
+
+There is no implicit HTTP retry or ticket refresh. Unknown issue acknowledgement
+stays accounting-uncertain; an original request reference survives network failure.
+The outer controller must reconcile before any same-version reacquisition or new
+draw. Cancellation joins the original reader/cancel promise; abort requested is
+not quiescence. Failed cancellation remains uncertain. Public errors expose only
+closed reasons and an opaque original request ID, never token/provider content or
+local path. The full cache still reauthorizes and decodes before acceptance.
+
+The recovery coordinator snapshots the requested slots, parsed candidate content
+and validated result before awaits. A retained mutable provider object cannot
+change which file or path an acknowledgement accepts. This internal increment
+does not expose a route, capability or product producer.
+
+
+## C4.10. Native executor and exact closure recovery (internal increment)
+
+`NativeRestitchExecutor` owns a root before any authority mutation: it captures
+root/team/actor/claim and the trusted constructor's native boot UUID, persists
+the original claim, and admits work only after exact owned receipt persistence.
+Each activity promise is registered before its factory runs. A cancellation or
+global failure closes activity admission; cancellation remains distinct from the
+original global failure. The executor joins original promises and registered
+cleanup before requesting remote closure with one persisted UUID nonce. Local
+callback return, cancellation requested, a child error event, elapsed time and a
+terminal UI state are never substitutes for observed closure.
+
+The metadata journal is environment-scoped, at most64 records/64KiB, strips
+unknown content, reads from one bounded original file handle and serializes
+atomic staged replacement. It claims process-interruption durability only, not
+directory-fsync/power-loss durability. Missing/corrupt metadata cannot close a
+remote claim. Unfinished records restored from disk remain blocked; no timer or
+new native boot may turn them into zero prior activity. Unknown records are never
+evicted to admit another root.
+
+A live process may reconcile its own already joined activity using the same
+identity, owner epoch and persisted closure nonce. Concurrent reconciliation
+requests share original completion; shutdown joins them. Reconciliation never
+runs the callback again, creates another claim or redelivers its result. A
+restarted journal or unknown claim lacks this process-local stopped observation
+and cannot use this shortcut. A confirmed remote closure remains bookkeeping
+evidence even when a later actor change prevents returning a result to the UI.
+
+The internal service closure adapter captures all arguments before awaiting,
+reads the exact original claim/native instance, requires its executor and epoch,
+and accepts only boolean true from `service_quiesce_restitch_executor`. A missing
+receipt, substituted owner or malformed/lost acknowledgement stays uncertain.
+The adapter itself neither repeats a close mutation nor creates a new owner.
+An explicit live-owner reconciliation can repeat only the same closure nonce;
+the existing SQL primitive acknowledges that historical nonce without closing a
+later epoch.
+
+These classes/adapters are not public grant authentication. Enrolled native-only
+control, immutable control-grant-to-claim binding, current real Auth session and
+entitlement checks for new I/O, manual/updater/Launch aliases and complete
+producer-to-CLI diagnostics remain prerequisites to product wiring. No ordinary
+JWT, generic transfer ticket, browser body or public status response may supply
+trusted quiescence proof or expose native control credentials. No capability is
+advertised by this increment.
+
+
+## C4.11. Private native-control grant (beta manual candidate)
+
+Migration164000 stores an immutable root/team/actor, real Auth session, original
+enrollment, native boot and separate proof/control-token hashes. Only service
+RPCs may issue/redeem/claim/read/quiesce/authorize. A challenge lasts2min; a grant
+lasts at most24h; a root retains at most8 grants. Replay retains the original
+window. SQL returns neither proof/token hashes nor a control credential.
+
+The trusted enrollment factory obtains actor/session from verified Auth, never
+from the body. The internal dispatcher retains the enrollment UUID as grant UUID
+through lost replies. Every credential-bearing action rejects browser Origin
+before SQL. Control tickets use the dedicated control MAC purpose, and native
+proof hashes use a separate domain. The current candidate wires bounded beta hosting, verified Auth-session extraction
+and platform credential persistence. Installed acceptance remains pending.
+
+Claim and immutable control-to-original-claim binding commit together under the
+parent lock. A new grant cannot adopt an existing claim UUID, including one from
+the same native boot. Current authorization revalidates real session, workspace
+rights, root/source identity and exact executor epoch. Unknown claim replies use
+one exact read, never another claim. Late readback and same-nonce closure remain
+possible after logout/cancellation; expiry and missing metadata cannot take over
+an old owner. Real isolated HTTP logout/session-guard and same-boot claim/logout
+lock races now pass alongside the full447-migration native gate.
+
+Controlled image ranges bind grants atomically at issue and consumption; a prior
+authorize call never substitutes for a consume-time session check. The candidate
+advertises only the manual beta path, after its own installed acceptance. Automated
+aliases remain unsupported by this capability and T017 remains open until every
+required entry point has its trusted factory. Retirement, complete diagnostics
+and user-delivery acceptance remain required for feature completion.
+
+The dedicated source endpoint requires both the existing bounded download grant
+and the enrolled native control. The download grant alone cannot authorize image
+selection, protected source fetching or native ownership closure. The native
+controller joins source transfer, processing, final authority check and cleanup.
+Failed native terminals correlate to the cloud root through process_terminal;
+unknown stages and missing journal delivery remain explicit blind spots.
+
+
+## C4.12. Controlled screen leaf binding (isolated verified; beta pending)
+
+A controlled range derives original root/team/actor/boot/owner from its private
+control grant. The reservation, leaf grant and immutable control binding commit
+in one transaction. An unbound historical/internal grant cannot be adopted.
+Current real Auth session and exact owner are checked at consumption and before
+each protected upstream request. A prior authorize response alone is insufficient.
+
+The fresh server invocation stays internal. Original consumption readback is
+bookkeeping and cannot authorize another invocation. An already settled range
+cannot pass a new upstream check. The metered reader retains single payload
+dispatch and actual prefix/time accounting. Exact late readback and known-zero
+unconsumed abandon survive logout; consumed uncertainty never becomes zero.
+
+The 448 isolated migration and native gate passed. The candidate routes these
+wrappers only behind the default-off beta flag. Installed 449, diagnostic and
+manual product acceptance remain pending. See reviews/restitch-controlled-screen-ranges.md for pending scenarios.
+
+### Implemented pure contracts (writer integration remains separate)
+
+`catalog-video-set.ts` now defines the canonical400-product limit, strict N
+validation and assignment algorithm1. A64-hex-character seed is sampled once by
+the generation owner. Canonical internal row UUIDs are sorted before a seeded
+shuffle of balanced variant indices. Persist the returned seed/version/revision
+and assignments atomically with their owner. Retry uses
+`reuseCatalogVideoAssignment` on that stored mapping and refuses changed
+membership, revision, N or seed; it does not draw another mapping. Missing PATCH
+fields must be preserved by callers rather than routed through the legacy
+read/create default.
+
+`catalog-publication.ts` validates the explicit offset and UTC instant against
+the calendar minute and IANA zone using a trusted server clock. The web draft
+resolver reuses the existing calendar timezone seam and presents both fold
+occurrences, with elapsed choices distinguished; gaps are refused. The shared
+validator is the final request boundary, including after a client selection.
+Unit/isolated PostgreSQL parity is recorded in
+[the pure-contract proof](../reviews/catalog-video-pure-contracts.json).
+
+These helpers do not persist configuration, advertise executor support, schedule
+jobs or authorize provider writes. T031/T033–T041 and T043–T050 retain their
+storage, ownership, diagnostic and installed-journey acceptance requirements.
+The old failed provider conditional-write proof prohibits the old full-media writer.
+The owner-clarified video-only Sheets writer needs its own real-provider proof
+before activation; unit tests alone do not satisfy this acceptance.

@@ -266,3 +266,41 @@ it('keeps screen authority and nested failures out of ordinary error serializati
   expect(error.candidate).toBe(selected);
   expect(error.failure).toBe(failure);
 });
+
+it('refuses a source object mutated after selection instead of accepting its changed identity', async () => {
+  const p = provider(),
+    selected = candidate(1);
+  vi.mocked(p.next).mockResolvedValue({ kind: 'candidate', candidate: selected });
+  vi.mocked(p.resolve).mockImplementation(async () => {
+    selected.screen.checksum = 'b'.repeat(32);
+    return {
+      candidate: selected,
+      resolved: { slot: 'end', id: 'screen', path: '/fixture/changed.png' }
+    };
+  });
+  await expect(
+    resolveScreensWithRecovery(['end'], p, new AbortController().signal)
+  ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  expect(p.accept).not.toHaveBeenCalled();
+  expect(p.reject).not.toHaveBeenCalled();
+});
+it('captures the validated result before waiting for its acceptance acknowledgement', async () => {
+  const p = provider(),
+    resolved = { slot: 'end' as const, id: 'screen', path: '/fixture/accepted.png' };
+  vi.mocked(p.resolve).mockImplementation(async selected => ({ candidate: selected, resolved }));
+  vi.mocked(p.accept).mockImplementation(async () => {
+    resolved.path = '/fixture/substituted.png';
+  });
+  expect(await resolveScreensWithRecovery(['end'], p, new AbortController().signal)).toEqual([
+    { slot: 'end', id: 'screen', path: '/fixture/accepted.png' }
+  ]);
+});
+it('does not add another slot when the caller mutates its request during an await', async () => {
+  const p = provider(),
+    slots: RestitchScreen['slot'][] = ['end'];
+  vi.mocked(p.accept).mockImplementation(async () => {
+    if (slots.length === 1) slots.push('start');
+  });
+  expect(await resolveScreensWithRecovery(slots, p, new AbortController().signal)).toHaveLength(1);
+  expect(p.next).toHaveBeenCalledOnce();
+});

@@ -1,0 +1,43 @@
+{
+  "causalHostReproduction": {
+    "syntheticBytes3000": "exact round trip",
+    "syntheticBytes12000": "AGENT_REQUIRED",
+    "actualLegacyEncodedBytes": 3956,
+    "actualLegacyJsonValid": false
+  },
+  "fix": "AES-256-GCM bounded atomic file; fixed 32-byte key only in OS secret storage; intact legacy read supported; damaged legacy stays fenced",
+  "focusedTests": {
+    "passed": 30,
+    "files": 3
+  },
+  "checks": {
+    "agentTypes": true,
+    "targetedLint": true,
+    "diffCheck": true
+  },
+  "manualAcceptance": {
+    "normalDeliveryRoot": "3ac290c1-ac96-4a23-a75d-6bde20d492f3",
+    "normalSavedNoticeObserved": true,
+    "nextKnownBadPoolRoot": "b680b8ec-6206-469e-96e9-87b07e33a26e",
+    "knownBadCandidatesAttempted": 0,
+    "knownBadRangeTransfers": 0,
+    "knownBadExplanationVisible": true,
+    "bothExecutorsQuiescent": true,
+    "heldRanges": 0,
+    "originalPoolsRestored": true
+  },
+  "productionTouched": false,
+  "ownedBetaRepair": {
+    "allFiveRetainedNativeRootsProvedQuiescentBeforeRepair": true,
+    "legacyKeychainPreserved": true,
+    "newEncryptedStoreOnly": true,
+    "automaticDamagedLegacyResetImplemented": false
+  },
+  "noticeFollowup": {
+    "causalRedFailures": 1,
+    "focusedPassed": 10,
+    "files": 3,
+    "fix": "Fresh terminal notice per delivery after an expired or dismissed predecessor",
+    "remainingStaticChecks": "passed: web types, all test types, targeted lint, diff"
+  }
+}

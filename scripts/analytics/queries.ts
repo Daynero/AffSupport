@@ -1,3 +1,6 @@
+import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
+import { getCatalogGrowthEvidence } from './catalog-growth.js';
+import { getCatalogPublicationEvidence } from './catalog-publications.js';
 import {
   getRestitchSelectionEvidence,
   mergeRestitchSelectionInspection
@@ -1631,7 +1634,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
       const reason =
-        code === '57014'
+        code === '57014' || code === 'ANALYTICS_QUERY_TIMEOUT'
           ? 'timeout'
           : code === '42501'
             ? 'permission'
@@ -2353,6 +2356,149 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const original = await getInspectWithoutPublication(id, asOf, limit);
+  const growthEvidence =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&
+    (await getSchema()).tables.analytics_catalog_growth_video_recipes
+      ? await getCatalogGrowthEvidence(id, asOf)
+      : undefined;
+  const videoEvidence =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&
+    (await getSchema()).tables.analytics_catalog_video_sets
+      ? await getCatalogVideoSetEvidence(id, asOf)
+      : undefined;
+  const core = {
+    ...original,
+    ...(videoEvidence ? { catalog_video_sets: videoEvidence } : {}),
+    ...(growthEvidence ? { catalog_growth_video_recipes: growthEvidence } : {})
+  };
+  if (
+    (core.found &&
+      core.capability !== 'team.catalog_manager_publication' &&
+      !videoEvidence?.records.length &&
+      !videoEvidence?.commands.length &&
+      !growthEvidence?.records.length) ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)
+  )
+    return core;
+  if (!core.found && (await getSchema()).tables.analytics_catalog_video_publications !== true)
+    return core;
+  const publication = await getCatalogPublicationEvidence({
+    id,
+    asOf,
+    limit: Math.min(50, Math.max(1, limit)),
+    catalogIds: [
+      ...new Set(
+        [
+          ...(videoEvidence?.records.map(row => row.catalog_material_id) ?? []),
+          ...(videoEvidence?.commands.map(row => row.catalog_material_id) ?? []),
+          ...(videoEvidence?.consumers.map(row => row.catalog_material_id) ?? []),
+          ...(growthEvidence?.records.map(row => row.catalog_material_id) ?? [])
+        ].filter((value): value is string => value !== null)
+      )
+    ].slice(0, 50)
+  });
+  if (core.found) return { ...core, catalog_publications: publication };
+  const cutoff = asOf === undefined ? Infinity : Date.parse(asOf);
+  const proven = publication.records.filter(
+    row => row.job_created_at && Date.parse(row.job_created_at) <= cutoff
+  );
+  if (!proven.length && growthEvidence?.records.length) {
+    const bound = growthEvidence.records.some(row => row.target_bound);
+    const observed = ['growth_recipe_frozen', ...(bound ? ['publication_target_bound'] : [])];
+    return {
+      found: true,
+      id,
+      matched_by: ['authoritative_table'],
+      capability: 'team.catalog_update',
+      tool: 'team',
+      stages: {
+        expected: [
+          'growth_recipe_frozen',
+          'ordinary_verified',
+          'publication_target_bound',
+          'provider_verified',
+          'ui_visible'
+        ],
+        observed,
+        missing: [
+          'ordinary_verified',
+          'provider_verified',
+          'ui_visible',
+          ...(!bound ? ['publication_target_bound'] : [])
+        ]
+      },
+      terminal: null,
+      last_proven_stage: bound ? 'publication_target_bound' : 'growth_recipe_frozen',
+      first_seen_at: null,
+      last_seen_at:
+        growthEvidence.records
+          .map(row => row.applied_at)
+          .filter((v): v is string => v !== null)
+          .sort()
+          .at(-1) ?? null,
+      delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'A frozen growth recipe or rebound target does not prove provider or browser delivery.'
+      },
+      events: [],
+      catalog_growth_video_recipes: growthEvidence,
+      catalog_publications: publication,
+      ...(videoEvidence ? { catalog_video_sets: videoEvidence } : {})
+    };
+  }
+  if (!proven.length) return { ...core, catalog_publications: publication };
+  const verified = proven.some(row => row.provider_delivery === 'verified_settlement');
+  const observed = ['configuration_accepted', ...(verified ? ['provider_verified'] : [])];
+  return {
+    found: true,
+    id,
+    matched_by: ['authoritative_table'],
+    capability: 'team.catalog_publication',
+    tool: 'team',
+    stages: {
+      expected: ['configuration_accepted', 'provider_verified', 'ui_visible'],
+      observed,
+      missing: ['ui_visible', ...(!verified ? ['provider_verified'] : [])]
+    },
+    terminal: null,
+    last_proven_stage: verified ? 'provider_verified' : 'configuration_accepted',
+    first_seen_at: proven.at(-1)?.job_created_at ?? null,
+    last_seen_at: verified
+      ? (proven.find(row => row.provider_delivery === 'verified_settlement')?.job_verified_at ??
+        null)
+      : (proven[0]?.job_created_at ?? null),
+    delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+    agent: {
+      local_app_versions: [],
+      local_app_builds: [],
+      web_build_ids: [],
+      platforms: [],
+      architectures: [],
+      agent_instance_id: null,
+      agent_instance_ids: [],
+      agent_platforms: [],
+      note: 'A publication row does not prove that configuration feedback or a catalog reached the user.'
+    },
+    events: [],
+    catalog_publications: publication,
+    ...(growthEvidence ? { catalog_growth_video_recipes: growthEvidence } : {}),
+    ...(videoEvidence ? { catalog_video_sets: videoEvidence } : {})
+  };
+}
+async function getInspectWithoutPublication(
+  id: string,
+  asOf?: string,
+  limit = 500
+): Promise<InspectData> {
   const initialCore = await getInspectWithCommands(id, asOf, limit);
   const groups = await getMaterialGroupEvidence({
     ids: [

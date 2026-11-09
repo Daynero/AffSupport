@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T11:54:45.367Z",
+  "project": "r2beta045",
+  "fromSchema": 444,
+  "toSchema": 446,
+  "applied": [
+    "20261207162000_restitch_screen_range_authority.sql",
+    "20261207163000_material_selection_direct_parent.sql"
+  ],
+  "fullRowTablesUnchanged": 22,
+  "newAuthorityRows": 0,
+  "acl": {
+    "rows": 0,
+    "rpcCount": 6,
+    "browserDenied": true,
+    "serviceAllowed": true,
+    "rawServiceDenied": true,
+    "diagnosticAllowed": true,
+    "diagnosticBrowserDenied": true
+  },
+  "edgeQuiescedBeforeBaseline": true,
+  "productionTouched": false,
+  "scope": "Private local schema only. No route, capability, native fallback, installed-source or manual UI acceptance."
+}

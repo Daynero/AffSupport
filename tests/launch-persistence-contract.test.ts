@@ -48,6 +48,28 @@ const generation = {
 };
 
 describe('Launch persisted transport boundary', () => {
+  it('retains independent video progress after the catalog generation succeeded', () => {
+    const videoGeneration = {
+      setId: '47000000-0000-4000-8000-000000000001',
+      requestedCount: 5,
+      registeredCount: 2,
+      state: 'preparing'
+    };
+    const result = parseLaunchGeneration({ ...generation, state: 'succeeded', videoGeneration });
+    expect(result?.videoGeneration).toEqual(videoGeneration);
+    expect(
+      parseLaunchGeneration({
+        ...generation,
+        videoGeneration: { ...videoGeneration, state: 'ready' }
+      })
+    ).toBeNull();
+    expect(
+      parseLaunchGeneration({
+        ...generation,
+        videoGeneration: { ...videoGeneration, registeredCount: 6 }
+      })
+    ).toBeNull();
+  });
   it('parses protected detail with revision, catalog receipt and measured generation', () => {
     const detail = {
       id: 'launch',

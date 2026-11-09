@@ -1,6 +1,62 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  catalogWriteUnsupported:
+    'Публікацію відеопосилання заблоковано: сховище не підтримує безпечне оновлення клітинок каталогу. Наявні посилання збережено.',
+  catalogVideoDeferredTableReady:
+    'Каталог створено з порожніми відеополями; підготовка відео та публікація виконуються окремо.',
+  catalogVideoGenerationCanceled: 'Створення відео скасовано. Створений каталог збережено.',
+  catalogVideoResume: 'Продовжити створення каталогу',
+  catalogVideoCreateVariations: 'Створити варіації відео',
+  catalogVideoVariationsReady:
+    'Усі {total} відео готові. Для публікації в каталозі потрібне окреме підтверджене оновлення.',
+  catalogVideoCancel: 'Скасувати створення відео',
+  catalogVideoCountFuture:
+    'Використовується, коли перезашивку ввімкнено. Поточний запуск зберігає свою кількість відео.',
+  catalogVideoVariationCount: 'Варіації відео',
+  catalogVideoVariationLimit: 'Вкажіть від 1 до {count} варіацій, не більше кількості товарів.',
+  catalogVideoCreationProgress: 'Готово відео: {ready} з {total}',
+  catalogVideoCreationUnknown:
+    'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
+  catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
+  catalogVideoCreationCanceling: 'Скасування запитано; очікуємо підтвердження завершення.',
+
+  catalogPublicationStatusUnknown: 'Стан публікації відеопосилання ще не підтверджено.',
+  catalogPublicationPreviouslyVerified: 'Останню публікацію відеопосилання підтверджено.',
+  catalogPublicationTableScheduled: 'Наступну публікацію відеопосилання заплановано на {date}.',
+  catalogPublicationOverdue:
+    'Час публікації відеопосилань ({date}) минув, але запис у таблицю ще не підтверджено. Soty перевіряє його автоматично.',
+  catalogPublicationTableHeld: 'Очікувану публікацію відеопосилання призупинено.',
+  catalogPublicationAddNow: 'Запросити публікацію зараз',
+  catalogPublicationVerify: 'Перевірити чинні посилання',
+
+  catalogPublicationSaved: 'Налаштування публікації збережено.',
+
+  catalogPublicationPending:
+    'Оновлення відеопосилань очікує відкладеної публікації або перевірки чинних посилань. Перевірте налаштування публікації каталогу.',
+
+  catalogPublicationLegacyHold:
+    'Публікацію призупинено, доки не підтверджено чинні посилання цього каталогу. Наявні посилання збережено.',
+  catalogPublicationTitle: 'Відкладене відеопосилання',
+  catalogPublicationExplanation:
+    'Посилання буде додано у вибраний час. Вимкнення відкладення утримує очікувану публікацію; чинні посилання залишаються.',
+  catalogPublicationStorageError:
+    'Не вдалося зберегти стан запиту в браузері. Перевірте доступ до локального сховища.',
+  catalogPublicationAmbiguous:
+    'Цей час повторюється при переході годинника. Оберіть перше або друге входження.',
+  catalogPublicationInvalid:
+    'Оберіть майбутню дату, час і коректний часовий пояс. Час під час переведення годинника має існувати.',
+  catalogPublicationUnknown:
+    'Результат збереження ще не підтверджено. Перевірка читає початковий запит без повторного запису.',
+  catalogPublicationCheck: 'Перевірити стан',
+  catalogPublicationDelayed: 'Відкласти додавання відеопосилання',
+  catalogPublicationDate: 'Дата додавання посилання',
+  catalogPublicationZone: 'Часовий пояс',
+  catalogPublicationOccurrence: 'При повторенні часу',
+  catalogPublicationChoose: 'Обрати за потреби',
+  catalogPublicationEarlier: 'Перше входження',
+  catalogPublicationLater: 'Друге входження',
+
   catalogTextScheduleTitle: 'Оновлювати щотижня',
   catalogTextScheduleCount: 'Нових варіантів',
   catalogTextScheduleSave: 'Зберегти розклад',
@@ -302,6 +358,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressChecking: 'Перевіряємо поточний стан…',
   launchesProgressStopped: 'Генерацію зупинено',
   launchesProgressErrorUnconfirmed: 'Помилка — перевірте стан',
+  launchesCatalogExecutorRequired:
+    'Щоб перезашивати відео каталогу, відкрийте актуальний застосунок Soty та під’єднайте його до цього браузера. Нову генерацію ще не запущено.',
   launchesProgressActionRequired: 'Потрібна дія',
   launchesProgressUnconfirmed: 'Статус не підтверджено',
   launchesProgressUnconfirmedHint:
@@ -726,6 +784,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamProcessCollapse: 'Згорнути в смужку',
   teamProcessExpand: 'Показати подробиці',
   teamRestitchDownloadTitle: 'Перезашите відео',
+  teamRestitchPhaseChecking: 'Перевіряємо налаштування…',
   teamRestitchPhaseChoosing: 'Чекаємо, поки ви оберете папку…',
   powerUsageHolding: 'обмежено до {limit}%',
   powerUsageGraphics: 'відеоядро компʼютера: {graphics}%',
@@ -1275,6 +1334,12 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskCleanupTrashed: 'Невикористаний файл вкладення перенесено до кошика простору.',
   teamBulkTrashFile: 'Файл {number}',
   teamBulkTrashHide: 'Прибрати панель',
+  teamBulkTrashHistoricalMatches:
+    'Попередня операція завершилася. Поточний знімок каталогу збігається; поточний стан у сховищі ще не перевірено.',
+  teamBulkTrashHistoricalChanged:
+    'Попередня операція завершилася, але поточний знімок каталогу вже змінився. Оновіть список перед новою дією.',
+  teamBulkTrashHistoricalUnknown:
+    'Попередня операція завершилася. Поточний файл не вдалося зіставити зі знімком каталогу; перевірте стан перед новою дією.',
   teamBulkTrashTitle: 'Перенесення файлів до кошика',
   teamBulkTrashQueued: 'У черзі',
   teamBulkTrashRunning: 'Виконується',
@@ -3000,7 +3065,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchSourceSkipped:
     'пропущено: {format} за форматом, {size} за розміром, {animated} анімованих',
   teamRestitchPoolNone: 'Джерел ще немає: слот вимкнений, доки ви не додасте картинки з простору.',
-  teamRestitchPoolEligible: 'Придатних картинок: {count}',
+  teamRestitchPoolEligible: 'Картинок для вибору: {count}',
   teamRestitchPoolPartial: 'Недоступних джерел: {count}.',
   teamRestitchPoolSkipped: 'Пропущено файлів: {count}.',
   teamRestitchPoolOverlap: 'Джерела, що перекриваються, рахуються один раз.',
@@ -4516,5 +4581,25 @@ export const uk: Record<keyof typeof en, string> = {
   adminTariffLegacyConfirmTitle: 'Вимкнути старе правило?',
   adminTariffLegacyConfirmBody:
     'Простори без тарифу ({count}) одразу буде призупинено. Їхні дані лишаться.',
-  adminTariffLegacyConfirm: 'Вимкнути й призупинити'
+  adminTariffLegacyConfirm: 'Вимкнути й призупинити',
+  catalogZoneKyiv: 'Київ',
+  catalogZoneLondon: 'Лондон',
+  catalogZoneBerlin: 'Берлін',
+  catalogZoneParis: 'Париж',
+  catalogZoneWarsaw: 'Варшава',
+  catalogZonePrague: 'Прага',
+  catalogZoneBucharest: 'Бухарест',
+  catalogZoneIstanbul: 'Стамбул',
+  catalogZoneBaku: 'Баку',
+  catalogZoneTbilisi: 'Тбілісі',
+  catalogZoneDubai: 'Дубай',
+  catalogZoneKolkata: 'Колката',
+  catalogZoneBangkok: 'Бангкок',
+  catalogZoneSingapore: 'Сінгапур',
+  catalogZoneTokyo: 'Токіо',
+  catalogZoneSydney: 'Сідней',
+  catalogZoneNewYork: 'Нью-Йорк',
+  catalogZoneChicago: 'Чикаго',
+  catalogZoneLosAngeles: 'Лос-Анджелес',
+  catalogZoneSaoPaulo: 'Сан-Паулу'
 };

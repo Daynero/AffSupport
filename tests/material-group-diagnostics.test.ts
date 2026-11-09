@@ -137,3 +137,50 @@ it('keeps absent and malformed ownership separate from the independently known d
   expect(absent.records[0]?.execution_epoch).toBeNull();
   expect(absent.blind_spots.join(' ')).toContain('epoch projection is unavailable');
 });
+
+it('keeps original completion readable when current-generation observation times out', async () => {
+  setQueryExecutor(async (sql, params) => {
+    assertReadOnlySql(sql);
+    if (sql.includes('information_schema.columns'))
+      return [
+        { kind: 'table', name: 'analytics_material_group_execution' },
+        { kind: 'table', name: 'analytics_material_historical_observations' }
+      ];
+    if (sql.includes('from public.analytics_material_historical_observations')) {
+      expect(params?.[1]).toEqual([row.id]);
+      throw Object.assign(new Error('Synthetic timeout'), { code: 'ANALYTICS_QUERY_TIMEOUT' });
+    }
+    return [{ ...row, state: 'registered', confirmed_count: 2, has_unconfirmed_dispatch: false }];
+  });
+  const evidence = await getMaterialGroupEvidence({ actorId: actor, asOf: at });
+  expect(evidence.records[0]?.state).toBe('registered');
+  expect(evidence.historical_observations?.status).toBe('read_failed');
+  expect(evidence.blind_spots.join(' ')).toContain('current generation remains unknown');
+});
+it('omits malformed current snapshot counts without rewriting the original receipt outcome', async () => {
+  setQueryExecutor(async sql => {
+    assertReadOnlySql(sql);
+    if (sql.includes('information_schema.columns'))
+      return [
+        { kind: 'table', name: 'analytics_material_group_execution' },
+        { kind: 'table', name: 'analytics_material_historical_observations' }
+      ];
+    if (sql.includes('from public.analytics_material_historical_observations'))
+      return [
+        {
+          ...row,
+          basis: 'catalog_snapshot',
+          observed_at: at,
+          state: 'matches',
+          member_count: 2,
+          matching_count: 1,
+          missing_count: 0
+        }
+      ];
+    return [{ ...row, state: 'registered', confirmed_count: 2, has_unconfirmed_dispatch: false }];
+  });
+  const evidence = await getMaterialGroupEvidence({ actorId: actor, asOf: at });
+  expect(evidence.records[0]?.state).toBe('registered');
+  expect(evidence.historical_observations?.status).toBe('malformed');
+  expect(evidence.historical_observations?.records).toEqual([]);
+});

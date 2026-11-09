@@ -36,6 +36,13 @@ export function RestitchDeliveryNotices({
       if (reported.current.get(materialId) === state) continue;
       reported.current.set(materialId, state);
       const existing = notices.current.get(materialId);
+      // A terminal notice may already have expired or been dismissed. Each new
+      // delivery owns a fresh notice instead of updating an invisible old id.
+      if (state.kind === 'running') {
+        if (existing !== undefined) dismiss(existing);
+        notices.current.delete(materialId);
+        continue;
+      }
       const notice = describe(state);
       if (!notice) continue;
       if (existing) update(existing, notice);

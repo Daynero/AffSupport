@@ -19,6 +19,27 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
 } {
   const verifying = row.profile?.reconciliationRequired && row.profile.lastResult === 'running';
   if (verifying) return { active: true, value: 0.94, label: 'catalogUpdaterStageVerifying' };
+  const generation = row.videoGeneration;
+  if (generation && ['accepted', 'preparing', 'cancel_requested'].includes(generation.state)) {
+    const childFraction =
+      generation.activeChildOperationId != null &&
+      generation.activeChildOperationId === row.restitchOperationId &&
+      typeof row.restitchProgress === 'number' &&
+      Number.isFinite(row.restitchProgress)
+        ? Math.max(0, Math.min(99, row.restitchProgress)) / 100
+        : 0;
+    return {
+      active: true,
+      value:
+        0.08 +
+        0.32 *
+          Math.min(1, (generation.registeredCount + childFraction) / generation.requestedCount),
+      label:
+        generation.state === 'cancel_requested'
+          ? 'catalogVideoCreationCanceling'
+          : 'catalogRunPreparingVideo'
+    };
+  }
   if (!row.updatePending) return { active: false, value: 0, label: 'catalogUpdaterUpdatingNow' };
   if (row.updateStage === 'waiting_video')
     return { active: true, value: 0.04, label: 'catalogUpdaterVideoWaiting' };
@@ -59,8 +80,14 @@ export function CatalogProgressRow({
 }: HTMLAttributes<HTMLTableRowElement> & { row: CatalogRegistryRow }) {
   const { t } = useI18n();
   const current = catalogRowProgress(row);
-  const identity = `${row.catalogId}:${row.activeAttemptId ?? row.activeRoundAt ?? 'legacy'}`;
-  const child = row.restitchOperationId;
+  const identity = `${row.catalogId}:${row.videoGeneration?.setId ?? row.activeAttemptId ?? row.activeRoundAt ?? 'legacy'}`;
+  const child = row.videoGeneration?.activeChildOperationId ?? row.restitchOperationId;
+  const progressLabel = row.videoGeneration
+    ? `${t('catalogVideoCreationProgress', {
+        ready: row.videoGeneration.registeredCount,
+        total: row.videoGeneration.requestedCount
+      })}. ${t(current.label)}`
+    : t(current.label);
 
   const last = useRef({
     active: current.active,
@@ -103,7 +130,8 @@ export function CatalogProgressRow({
         .filter(Boolean)
         .join(' ')}
       aria-busy={current.active || undefined}
-      data-tip={current.active ? t(current.label) : undefined}
+      data-tip={current.active ? progressLabel : undefined}
+      aria-label={current.active && row.videoGeneration ? progressLabel : props['aria-label']}
       style={
         {
           ...props.style,

@@ -1,3 +1,24 @@
+import { catalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
+import type { CatalogForegroundExecutor } from './catalog-video-foreground';
+import {
+  isCatalogUpdaterVariantsSnapshot,
+  type CatalogUpdaterVariantsSnapshot
+} from './catalog-updater-variants';
+import {
+  parseCatalogVideoRowProgress,
+  type CatalogVideoRowProgress
+} from './catalog-video-row-progress';
+import {
+  isCatalogCreatedVideoProgress,
+  type CatalogCreatedVideoProgress,
+  isCatalogVideoPreparingResult,
+  type CatalogVideoCreationPreferences,
+  type CatalogVideoPreparingResult
+} from './catalog-video-creation';
+import {
+  parseCatalogPublicationSnapshot,
+  type CatalogPublicationCommand
+} from '@video-compressor/shared';
 import { privateCacheActor } from '../team/private-cache-scope';
 import { FunctionsFetchError } from '@supabase/supabase-js';
 import {
@@ -306,6 +327,8 @@ export interface ProductCatalogText {
 }
 
 export interface ProductCatalogCreateResult {
+  videoGeneration?: CatalogCreatedVideoProgress;
+  videoGenerationObservation?: CatalogCreatedVideoProgress;
   outcome: 'created' | 'recreated' | 'existing';
   /** The server names the sheet by `materialId`; a sheet it just made has no `createdAt` yet. */
   catalog: {
@@ -342,6 +365,7 @@ function catalogListSnapshotFrom<T>(
 
 /** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
 export interface CatalogRegistryRow {
+  videoGeneration?: CatalogVideoRowProgress | null;
   catalogId: string;
   name: string;
   sheetUrl: string;
@@ -386,6 +410,7 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
   const growProducts = get('growProducts', 'grow_products');
   const randomLinkVariation = get('randomLinkVariation', 'random_link_variation');
   const restitch = row.restitch;
+  const videoVariantCount = get('videoVariantCount', 'video_variant_count');
   const updatedAt = get('updatedAt', 'updated_at');
   const lastErrorAt = get('lastErrorAt', 'last_error_at');
   const lastResult = get('lastResult', 'last_result');
@@ -405,6 +430,10 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
     typeof row.version !== 'number' ||
     !Number.isSafeInteger(row.version) ||
     row.version < 1 ||
+    (videoVariantCount !== undefined &&
+      (!Number.isSafeInteger(videoVariantCount) ||
+        Number(videoVariantCount) < 1 ||
+        Number(videoVariantCount) > 400)) ||
     typeof updatedAt !== 'string' ||
     !Number.isFinite(Date.parse(updatedAt))
   )
@@ -436,6 +465,7 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
     growProducts,
     randomLinkVariation,
     restitch,
+    ...(typeof videoVariantCount === 'number' ? { videoVariantCount } : {}),
     version: row.version,
     updatedAt,
     lastErrorAt: typeof lastErrorAt === 'string' ? lastErrorAt : null,
@@ -641,6 +671,9 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
             typeof row.restitch_operation_id === 'string' ? row.restitch_operation_id : null
         }
       : {}),
+    ...(Object.prototype.hasOwnProperty.call(row, 'video_generation')
+      ? { videoGeneration: parseCatalogVideoRowProgress(row.video_generation) }
+      : {}),
     restitchProgress:
       typeof row.restitch_progress === 'number' &&
       Number.isInteger(row.restitch_progress) &&
@@ -692,6 +725,14 @@ function productCatalogCreateGuard(value: unknown): value is ProductCatalogCreat
     catalog &&
     ['created', 'recreated', 'existing'].includes(String(row.outcome)) &&
     typeof row.videoShared === 'boolean' &&
+    (row.videoGeneration === undefined ||
+      (isCatalogCreatedVideoProgress(row.videoGeneration) &&
+        row.videoGeneration.requestedCount <= Number(catalog.productCount))) &&
+    (row.videoGenerationObservation === undefined ||
+      (isCatalogCreatedVideoProgress(row.videoGenerationObservation) &&
+        row.videoGenerationObservation.requestedCount <= Number(catalog.productCount) &&
+        (row.videoGeneration === undefined ||
+          row.videoGeneration.videoSetId === row.videoGenerationObservation.videoSetId))) &&
     typeof catalog.materialId === 'string' &&
     typeof catalog.name === 'string' &&
     typeof catalog.sheetUrl === 'string' &&
@@ -3250,6 +3291,292 @@ export const teamApi = {
     return data;
   },
 
+  async readCatalogPublication(
+    teamId: string,
+    catalogId: string,
+    requestId?: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/read',
+      { teamId, catalogId, ...(requestId ? { requestId } : {}) },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> | null =>
+        value === null || parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async verifyCatalogPublication(
+    teamId: string,
+    catalogId: string,
+    expectedRevision: number,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/verify',
+      { teamId, catalogId, expectedRevision, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async changeCatalogPublication(
+    teamId: string,
+    input: {
+      catalogId: string;
+      requestId: string;
+      expectedRevision: number;
+      action: 'add_now' | 'reschedule' | 'cancel';
+      publication?: Extract<
+        CatalogVideoCreationPreferences['videoPublication'],
+        { mode: 'scheduled' }
+      >;
+    },
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/action',
+      { teamId, ...input, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async readCatalogPublicationVerification(
+    teamId: string,
+    catalogId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/verify/read',
+      { teamId, catalogId, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> | null =>
+        value === null || parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+  async saveCatalogPublication(
+    teamId: string,
+    command: CatalogPublicationCommand,
+    options?: { signal?: AbortSignal }
+  ) {
+    return invokeTeamFunction(
+      'drive-ops/catalog-publication/save',
+      { teamId, ...command, expectedActorId: catalogMutationActor() },
+      (value): value is NonNullable<ReturnType<typeof parseCatalogPublicationSnapshot>> =>
+        parseCatalogPublicationSnapshot(value) !== null,
+      { signal: options?.signal }
+    );
+  },
+
+  async startCatalogUpdaterVariants(
+    input: {
+      teamId: string;
+      catalogMaterialId: string;
+      sourceMaterialId?: string;
+      requestId: string;
+      requestedCount: number;
+      profileVersion: number;
+      expectedExecutorId?: string;
+      foregroundExecutor?: CatalogForegroundExecutor;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    const current = catalogForegroundScope(options?.signal);
+    const run = (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
+      current();
+      return invokeTeamFunction(
+        'drive-ops/updater/variants',
+        {
+          ...input,
+          ...(foregroundExecutor ? { foregroundExecutor, expectedExecutorId: undefined } : {}),
+          expectedActorId: catalogMutationActor()
+        },
+        isCatalogUpdaterVariantsSnapshot,
+        { signal: options?.signal }
+      );
+    };
+    const result = input.sourceMaterialId
+      ? await catalogForeground.admit(
+          {
+            kind: 'updater',
+            teamId: input.teamId,
+            sourceMaterialId: input.sourceMaterialId!,
+            catalogMaterialId: input.catalogMaterialId,
+            requestId: input.requestId,
+            profileVersion: input.profileVersion
+          },
+          run,
+          options?.signal,
+          input.foregroundExecutor
+        )
+      : await run(undefined);
+
+    current();
+    await catalogForeground.attach(input.teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async resumeCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/updater/variants/resume',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      isCatalogUpdaterVariantsSnapshot,
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async readCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId?: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot | null> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/updater/variants/read',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is CatalogUpdaterVariantsSnapshot | null =>
+        value === null || isCatalogUpdaterVariantsSnapshot(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async cancelCatalogUpdaterVariants(
+    teamId: string,
+    catalogMaterialId: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogUpdaterVariantsSnapshot> {
+    return invokeTeamFunction(
+      'drive-ops/updater/variants/cancel',
+      { teamId, catalogMaterialId, requestId, expectedActorId: catalogMutationActor() },
+      isCatalogUpdaterVariantsSnapshot,
+      { signal: options?.signal }
+    );
+  },
+
+  async resumeProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/product-catalog/video/resume',
+      { teamId, idempotencyKey, expectedActorId: catalogMutationActor() },
+      (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult =>
+        productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async readProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult | null> {
+    const current = catalogForegroundScope(options?.signal);
+    current();
+    const result = await invokeTeamFunction(
+      'drive-ops/product-catalog/video/read',
+      { teamId, idempotencyKey, expectedActorId: catalogMutationActor() },
+      (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult | null =>
+        value === null || productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+      { signal: options?.signal }
+    );
+
+    current();
+    await catalogForeground.attach(teamId, result, options?.signal);
+    current();
+    return result;
+  },
+  async cancelProductCatalogVideo(
+    teamId: string,
+    idempotencyKey: string,
+    requestId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogVideoPreparingResult | ProductCatalogCreateResult> {
+    return invokeTeamFunction(
+      'drive-ops/product-catalog/video/cancel',
+      { teamId, idempotencyKey, requestId, expectedActorId: catalogMutationActor() },
+      (value): value is CatalogVideoPreparingResult | ProductCatalogCreateResult =>
+        isCatalogVideoPreparingResult(value) || productCatalogCreateGuard(value),
+      { signal: options?.signal }
+    );
+  },
+
+  /** Opt-in beta protocol. Pending progress is never passed to legacy completed-catalog callers. */
+  async createProductCatalogVideo(
+    input: CatalogVideoCreationPreferences & {
+      teamId: string;
+      videoMaterialId: string;
+      sourceLink: string;
+      productCount: number;
+      randomLinkVariation?: boolean;
+      replacesMaterialId: string | null;
+      idempotencyKey: string;
+    },
+    options?: { signal?: AbortSignal }
+  ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult> {
+    const current = catalogForegroundScope(options?.signal);
+    const run = (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
+      current();
+      return invokeTeamFunction(
+        'drive-ops/product-catalog/create',
+        {
+          ...input,
+          ...(foregroundExecutor ? { foregroundExecutor, expectedExecutorId: undefined } : {}),
+          catalogImageContractVersion: 2,
+          expectedActorId: catalogMutationActor()
+        },
+        (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult =>
+          productCatalogCreateGuard(value) || isCatalogVideoPreparingResult(value),
+        { signal: options?.signal }
+      );
+    };
+    const result = input.restitchEnabled
+      ? await catalogForeground.admit(
+          {
+            kind: 'create',
+            teamId: input.teamId,
+            sourceMaterialId: input.videoMaterialId,
+            idempotencyKey: input.idempotencyKey
+          },
+          run,
+          options?.signal,
+          input.foregroundExecutor
+        )
+      : await run(undefined);
+
+    current();
+    await catalogForeground.attach(input.teamId, result, options?.signal);
+    current();
+    return result;
+  },
+
   async createProductCatalog(input: {
     catalogImageContractVersion?: 2;
     teamId: string;
@@ -4278,6 +4605,7 @@ export const teamApi = {
     materialId: string;
     idempotencyKey: string;
     expectedActorId?: string;
+    receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
     const actor = catalogMutationActor(
       input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
@@ -4296,6 +4624,7 @@ export const teamApi = {
     destinationFolderId?: string | null;
     idempotencyKey: string;
     expectedActorId?: string;
+    receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
     const actor = catalogMutationActor(
       input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }

@@ -61,7 +61,7 @@ export interface ManagedSpawnOptions extends SpawnOptions {
  * Spawns a child, registers it with the governor for the lifetime of the
  * process, and applies the current scheduling priority.
  *
- * Deregistration is guaranteed on BOTH `close` and `error`. A leaked entry
+ * Deregistration follows `close`, or `error` when no child was spawned. A leaked entry
  * would keep the duty cycler signalling a PID the OS may have recycled onto an
  * unrelated process.
  */
@@ -108,9 +108,15 @@ export function spawnManaged(
     governor.release(child);
   };
   child.once('close', release);
-  child.once('error', release);
+  child.on('error', () => {
+    if (!hasSpawnedProcess(child)) release();
+  });
 
   return child;
+}
+
+function hasSpawnedProcess(child: ChildProcess): boolean {
+  return typeof child.pid === 'number' && child.pid > 0;
 }
 
 /**
@@ -119,7 +125,7 @@ export function spawnManaged(
  * The tool id and the shape of the exit — clean, non-zero, by signal, or never started — plus
  * a duration bucket. Not the command, not the arguments, not the exit code's meaning, not a
  * byte of stderr: the journal is copied into support threads, and the command line carries
- * the file name. One exit record per child, whichever of `close` and `error` arrives first.
+ * the file name. One exit record per child, after `close` or a proven failure to spawn.
  */
 function journalLifecycle(toolId: string, child: ChildProcess): void {
   const startedAt = Date.now();
@@ -134,7 +140,9 @@ function journalLifecycle(toolId: string, child: ChildProcess): void {
       duration: durationBucket(Date.now() - startedAt)
     });
   };
-  child.once('error', () => report('spawn_error'));
+  child.on('error', () => {
+    if (!hasSpawnedProcess(child)) report('spawn_error');
+  });
   child.once('close', (code, signal) => {
     if (signal) report('signal');
     else report(code === 0 ? 'ok' : 'nonzero');
@@ -220,7 +228,9 @@ function guardTermination(governor: ManagedSpawnGovernor | null, child: ChildPro
     escalation = null;
   };
   child.once('close', cancelEscalation);
-  child.once('error', cancelEscalation);
+  child.on('error', () => {
+    if (!hasSpawnedProcess(child)) cancelEscalation();
+  });
 
   child.kill = (signal?: NodeJS.Signals | number): boolean => {
     if (typeof signal === 'string' && THROTTLE_SIGNALS.has(signal)) return nativeKill(signal);

@@ -594,6 +594,16 @@ it('correlates two dated partial saves to one lifecycle flow with separate priva
     { attempted: 2, accepted: 1, failed: 1, unknown: 0, firstFailureCode: 'VERSION_CONFLICT' }
   ]);
   expect(screen.getByLabelText('Remaining drafts').textContent).toBe('1');
+  // saveSubset resolves after receipt acceptance. The applied signal requires
+  // the canonical field's separate render/effect, so observe it before taking
+  // an immutable snapshot of the mock calls (which otherwise races that commit).
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(emitAccountSignal)
+        .mock.calls.filter(call => call[0] === 'finance_edit' && call[1] === 'applied')
+    ).toHaveLength(1)
+  );
   const signals = vi
     .mocked(emitAccountSignal)
     .mock.calls.filter(call => call[0] === 'finance_edit');

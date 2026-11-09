@@ -6,6 +6,7 @@ import {
 } from '../../packages/shared/src/types.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
+import type { TeamSourceIntegrityReason } from '../../apps/agent/src/team-bridge/transfer.js';
 import type { InspectData, InspectFound } from './types.js';
 
 export interface TeamProcessJournalEvidence {
@@ -18,6 +19,7 @@ export interface TeamProcessJournalEvidence {
     stage: string;
     outcome: 'failure' | 'cancelled';
     error_code: string | null;
+    source_integrity_reason?: TeamSourceIntegrityReason | null;
   }>;
   blind_spots: string[];
 }
@@ -69,7 +71,7 @@ export async function getTeamProcessJournalEvidence(
   ).catch((error: unknown) => {
     const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
     const reason =
-      code === '57014'
+      code === '57014' || code === 'ANALYTICS_QUERY_TIMEOUT'
         ? 'timeout'
         : code === '42501'
           ? 'permission'
@@ -102,9 +104,29 @@ export async function getTeamProcessJournalEvidence(
       at: new Date(row.recorded_at).toISOString(),
       stage: typeof p.stage === 'string' && STAGES.has(p.stage) ? p.stage : 'unknown',
       outcome: p.outcome === 'canceled' ? 'cancelled' : 'failure',
-      error_code: typeof p.errorCode === 'string' && CODES.has(p.errorCode) ? p.errorCode : null
+      error_code: typeof p.errorCode === 'string' && CODES.has(p.errorCode) ? p.errorCode : null,
+      source_integrity_reason:
+        p.outcome === 'failed' &&
+        p.stage === 'downloading' &&
+        ((p.sourceIntegrityReason === 'checksum_invalid' && p.errorCode === 'INVALID_RESPONSE') ||
+          ((p.sourceIntegrityReason === 'checksum_mismatch' ||
+            p.sourceIntegrityReason === 'size_mismatch') &&
+            p.errorCode === 'SOURCE_CHANGED'))
+          ? p.sourceIntegrityReason
+          : null
     });
   }
+  if (
+    result.records.some(
+      row =>
+        row.stage === 'downloading' &&
+        row.error_code === 'SOURCE_CHANGED' &&
+        !row.source_integrity_reason
+    )
+  )
+    result.blind_spots.push(
+      'Native source changed during download; byte-integrity detail was not observed.'
+    );
   if (result.truncated)
     result.blind_spots.push(
       'Native terminal detail truncated; conflicting or missing evidence remains unknown.'
@@ -119,6 +141,15 @@ export function mergeTeamProcessJournal(
     return evidence.blind_spots.length ? { ...core, team_native: evidence } : core;
   evidence = { ...evidence, blind_spots: [...evidence.blind_spots] };
   const signatures = new Set(evidence.records.map(row => `${row.outcome}:${row.error_code}`));
+  const integrityReasons = new Set(
+    evidence.records.flatMap(row =>
+      row.source_integrity_reason ? [row.source_integrity_reason] : []
+    )
+  );
+  if (integrityReasons.size > 1)
+    evidence.blind_spots.push(
+      'Conflicting native source integrity details; no single integrity cause inferred.'
+    );
   const latest = evidence.records.at(-1)!;
   if (signatures.size !== 1 || evidence.truncated)
     evidence.blind_spots.push(

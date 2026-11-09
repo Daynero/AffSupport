@@ -1,3 +1,16 @@
+import { callCatalogVideoForegroundHttp } from './team-bridge/catalog-video-foreground-http.js';
+import { runCatalogVariantRecovery } from './team-bridge/catalog-variant-recovery.js';
+import {
+  CATALOG_FOREGROUND_VAULT_ACCOUNT,
+  CatalogVideoForegroundController
+} from './team-bridge/catalog-video-foreground.js';
+import { NativeRestitchVaultFile } from './team-bridge/native-restitch-vault.js';
+import { settleCatalogVariantProcess } from './team-bridge/catalog-variant-closure.js';
+import { randomUUID } from 'node:crypto';
+import { isRecord } from '@video-compressor/shared';
+import { NativeRestitchController } from './team-bridge/native-restitch-controller.js';
+import { NativeRestitchJournal } from './team-bridge/native-restitch-journal.js';
+import { ScreenCacheError } from './team-bridge/screen-cache.js';
 import { TeamRecoveryWorker } from './team-bridge/recovery-worker.js';
 import { RecoveryJournal } from './team-bridge/recovery-journal.js';
 import { createAgentInstance } from './server/instance.js';
@@ -520,6 +533,131 @@ const teamProcessBridge = new TeamProcessBridge({
   delegates: teamDelegates,
   events: teamOperationEvents
 });
+const catalogRuntimeBootId = randomUUID();
+const protectedCatalogVariantProcess: NonNullable<
+  Parameters<typeof runCatalogVariantRecovery>[0]['protectedProcess']
+> = async (request, enroll, upstreamSignal, authorizeParent, complete, cancellationRequested) => {
+  if (isRecord(request.options) && typeof request.options.restitchSelectionRootId !== 'string') {
+    const authorizedFetch: typeof fetch = async (input, init) => {
+      await authorizeParent();
+      upstreamSignal.throwIfAborted();
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (
+        url.origin !== 'http://127.0.0.1:54321' &&
+        !(
+          url.protocol === 'https:' &&
+          ['www.googleapis.com', 'content.googleapis.com'].includes(url.hostname) &&
+          !url.port &&
+          !url.username &&
+          !url.password &&
+          !url.hash &&
+          init?.method === 'PUT'
+        )
+      )
+        throw new Error('PERMISSION_DENIED');
+      return fetch(input, {
+        ...init,
+        redirect: init?.redirect === 'manual' ? 'manual' : 'error',
+        signal: AbortSignal.any([upstreamSignal, ...(init?.signal ? [init.signal] : [])])
+      });
+    };
+    return settleCatalogVariantProcess({
+      operationId: request.operationId,
+      signal: upstreamSignal,
+      complete,
+      cancellationRequested,
+      run: () =>
+        teamProcessBridge.processProtected(request, {
+          transfer: new TeamTransferClient({ fetchImpl: authorizedFetch }),
+          delegate: restitchDelegate,
+          signal: upstreamSignal,
+          authorize: authorizeParent
+        })
+    });
+  }
+  const controller = nativeRestitchController;
+  if (!controller || !isRecord(request.options) || typeof request.options.teamId !== 'string')
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  upstreamSignal.throwIfAborted();
+  const enrollment = await controller.prepare(
+    { rootOperationId: request.operationId, teamId: request.options.teamId },
+    'process'
+  );
+  await enroll(enrollment);
+  await controller.redeem(enrollment.enrollmentId);
+  const abort = () =>
+    controller.cancelOperation(
+      request.operationId,
+      upstreamSignal.reason instanceof Error &&
+        ['PROCESS_RESULT_UNCERTAIN', 'PERMISSION_DENIED'].includes(upstreamSignal.reason.message)
+        ? (upstreamSignal.reason.message as 'PROCESS_RESULT_UNCERTAIN' | 'PERMISSION_DENIED')
+        : 'PROCESS_CANCELED'
+    );
+  upstreamSignal.addEventListener('abort', abort, { once: true });
+  try {
+    upstreamSignal.throwIfAborted();
+    return await controller.process(
+      enrollment.enrollmentId,
+      request.operationId,
+      async ({ provider, context, sourceFetch, authorize, signal }) => {
+        const protectedFetch: typeof fetch = async (input, init) => {
+          await authorizeParent();
+          await authorize();
+          signal.throwIfAborted();
+          const url = new URL(input instanceof Request ? input.url : String(input));
+          if (url.href === request.transferUrl) return sourceFetch(input, init);
+          if (
+            url.origin !== 'http://127.0.0.1:54321' &&
+            !(
+              url.protocol === 'https:' &&
+              ['www.googleapis.com', 'content.googleapis.com'].includes(url.hostname) &&
+              !url.port &&
+              !url.username &&
+              !url.password &&
+              !url.hash &&
+              init?.method === 'PUT'
+            )
+          )
+            throw new Error('PERMISSION_DENIED');
+          return fetch(input, {
+            ...init,
+            redirect: init?.redirect === 'manual' ? 'manual' : 'error',
+            signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])])
+          });
+        };
+        const delegate = createRestitchDelegate({
+          embedding: () => queue.state().settings.imageEmbedding,
+          imagePathFor: screenImagePath,
+          screenCache: teamScreenCache,
+          threads: () => activeThreadBudget(),
+          screenRecovery: async input => {
+            if (
+              input.sourceChecksum?.toLowerCase() !== context.source.checksum ||
+              input.sourceSizeBytes !== context.source.sizeBytes
+            )
+              throw new ScreenCacheError('SOURCE_CHANGED');
+            return provider;
+          }
+        });
+        return settleCatalogVariantProcess({
+          operationId: request.operationId,
+          signal,
+          complete,
+          cancellationRequested,
+          run: () =>
+            teamProcessBridge.processProtected(request, {
+              transfer: new TeamTransferClient({ fetchImpl: protectedFetch }),
+              delegate,
+              signal,
+              authorize
+            })
+        });
+      }
+    );
+  } finally {
+    upstreamSignal.removeEventListener('abort', abort);
+  }
+};
 const teamRecoveryWorker = new TeamRecoveryWorker({
   screenRefusals: teamId => teamScreenCache.refusalHistory(teamId),
   environment: config.environment,
@@ -527,11 +665,16 @@ const teamRecoveryWorker = new TeamRecoveryWorker({
   journal: new RecoveryJournal(path.join(applicationSupportRoot(), 'Recovery', config.environment)),
   process: teamProcessBridge,
   allowed: () => entitlementGate.status().entitled,
+  catalogVariants:
+    config.environment === 'beta' && process.env.SOTY_CATALOG_VIDEO_VARIANTS === 'true'
+      ? {
+          nativeInstanceId: catalogRuntimeBootId,
+          enabled: () => Boolean(nativeRestitchController),
+          protectedProcess: protectedCatalogVariantProcess
+        }
+      : undefined,
   record: (code, props) => diagnosticsLog.record('team', code, props)
 });
-await teamRecoveryWorker
-  .load()
-  .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
 entitlementGate.onBeforeActorChange(actorId => teamRecoveryWorker.prepareActorChange(actorId));
 const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
@@ -552,6 +695,222 @@ const teamRestitchPrepareBridge = new RestitchPrepareBridge({
   transfer: teamTransfer,
   events: teamOperationEvents
 });
+const nativeRestitchController =
+  config.environment === 'beta' && hasCapability('team-background-recovery-actor-bound')
+    ? new NativeRestitchController({
+        endpoint: 'http://127.0.0.1:54321/functions/v1/drive-ops',
+        environment: config.environment,
+        nativeInstanceId: catalogRuntimeBootId,
+        currentActorId: () => entitlementGate.currentActorId(),
+        journal: new NativeRestitchJournal(
+          path.join(applicationSupportRoot(), 'NativeRestitch', config.environment)
+        ),
+        cache: teamScreenCache,
+        run: async ({
+          request,
+          provider,
+          context,
+          sourceFetch,
+          authorize,
+          reportFailureStage,
+          signal
+        }) => {
+          const delegate = createRestitchDelegate({
+            embedding: () => queue.state().settings.imageEmbedding,
+            imagePathFor: screenImagePath,
+            screenCache: teamScreenCache,
+            threads: () => activeThreadBudget(),
+            screenRecovery: async input => {
+              if (
+                input.sourceChecksum?.toLowerCase() !== context.source.checksum ||
+                input.sourceSizeBytes !== context.source.sizeBytes
+              )
+                throw new ScreenCacheError('SOURCE_CHANGED');
+              return provider;
+            }
+          });
+          const bridge = new TeamDownloadBridge({
+            transfer: new TeamTransferClient({ fetchImpl: sourceFetch }),
+            delegates: { restitch: delegate },
+            events: teamOperationEvents,
+            beforeSave: authorize,
+            onFailureStage: reportFailureStage
+          });
+          const abort = () => bridge.cancel(request.operationId);
+          signal.addEventListener('abort', abort, { once: true });
+          try {
+            if (signal.aborted) throw new Error('PROCESS_CANCELED');
+            return await bridge.download({
+              ...request,
+              compress: null,
+              process: {
+                tool: 'restitch',
+                defaults: context.defaults,
+                prepared: null,
+                screens: null,
+                teamId: context.teamId,
+                suffix: request.process?.tool === 'restitch' ? request.process.suffix : undefined
+              }
+            });
+          } finally {
+            signal.removeEventListener('abort', abort);
+            await bridge.shutdown();
+          }
+        }
+      })
+    : undefined;
+if (nativeRestitchController)
+  entitlementGate.onBeforeActorChange(actor => nativeRestitchController.prepareActorChange(actor));
+const catalogForeground =
+  config.environment === 'beta' && hasCapability('catalog-video-foreground-v1')
+    ? new CatalogVideoForegroundController({
+        nativeInstanceId: catalogRuntimeBootId,
+        currentActorId: () => entitlementGate.currentActorId(),
+        allowed: () => entitlementGate.status().entitled,
+        vault: new NativeRestitchVaultFile(
+          path.join(
+            applicationSupportRoot(),
+            'NativeRestitch',
+            config.environment,
+            'catalog-foreground.vault'
+          ),
+          CATALOG_FOREGROUND_VAULT_ACCOUNT
+        ),
+        redeem: body => callCatalogForeground('redeem', body),
+        awaitBinding: (body, signal) => callCatalogForeground('await', body, undefined, signal),
+        reconcileCanceled: async (setId, ticket, enrollmentId, oldExecutionBoot) => {
+          if (!nativeRestitchController) return false;
+          const call = (action: string, body: Record<string, unknown>) =>
+            callCatalogForeground(
+              action,
+              {
+                ...body,
+                protocolVersion: 1,
+                variantProtocolVersion: 1,
+                setId,
+                enrollmentId,
+                nativeInstanceId: oldExecutionBoot
+              },
+              ticket
+            );
+          const snapshot = await call('load', {});
+          if (
+            snapshot.setId !== setId ||
+            !Array.isArray(snapshot.children) ||
+            snapshot.children.length < 1 ||
+            snapshot.children.length > 400
+          )
+            return false;
+          const uuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+          let recovered = 0;
+          let allClosed = true;
+          for (const [index, child] of snapshot.children.entries()) {
+            if (
+              !isRecord(child) ||
+              child.index !== index ||
+              typeof child.requestId !== 'string' ||
+              !uuid.test(child.requestId) ||
+              !['queued', 'working', 'unknown', 'registered'].includes(String(child.state))
+            )
+              return false;
+            if (child.state === 'queued' || child.state === 'registered') continue;
+            if (typeof child.operationId !== 'string' || !uuid.test(child.operationId))
+              return false;
+            const original = { index, requestId: child.requestId, operationId: child.operationId };
+            const pulse = await call('heartbeat', original);
+            if (
+              pulse.continue !== false ||
+              pulse.registered !== false ||
+              pulse.reason !== 'canceled'
+            ) {
+              allClosed = false;
+              continue;
+            }
+            const observation = {
+              operationId: setId,
+              childOperationId: child.operationId,
+              requestId: child.requestId,
+              readyCount: snapshot.children.filter(
+                value => isRecord(value) && value.state === 'registered'
+              ).length,
+              requestedCount: snapshot.children.length
+            };
+            diagnosticsLog.record('team', 'catalog_variant_stage', {
+              ...observation,
+              stage: 'reconciling'
+            });
+            const closed = await nativeRestitchController
+              .reconcileCatalogCancellation(child.operationId, async () => {
+                const result = await call('complete', {
+                  ...original,
+                  outcome: 'canceled',
+                  failureCode: 'PROCESS_CANCELED'
+                });
+                return (
+                  result.operationId === original.operationId &&
+                  result.kind === 'terminal' &&
+                  result.state === 'canceled'
+                );
+              })
+              .catch(() => false);
+            diagnosticsLog.record('team', 'catalog_variant_stage', {
+              ...observation,
+              stage: closed ? 'canceled' : 'unknown',
+              ...(closed ? {} : { errorCode: 'PROCESS_RESULT_UNCERTAIN' })
+            });
+            if (closed) recovered++;
+            else allClosed = false;
+          }
+          return recovered > 0 && allClosed;
+        },
+        run: async (setId, ticket, enrollmentId, signal, executionNativeInstanceId) => {
+          const call = (action: string, body: Record<string, unknown>) =>
+            callCatalogForeground(
+              action.replace(/^variant_/u, ''),
+              {
+                ...body,
+                protocolVersion: 1,
+                setId,
+                enrollmentId,
+                nativeInstanceId: executionNativeInstanceId
+              },
+              ticket
+            );
+          await runCatalogVariantRecovery({
+            initialSetId: setId,
+            nativeInstanceId: executionNativeInstanceId,
+            call,
+            closureCall: call,
+            process: teamProcessBridge,
+            protectedProcess: protectedCatalogVariantProcess,
+            signal
+          });
+          const value = await call('load', {});
+          if (
+            value.setId !== setId ||
+            !Array.isArray(value.children) ||
+            value.children.length < 1 ||
+            value.children.some(
+              (child: unknown) => !isRecord(child) || child.state !== 'registered'
+            )
+          )
+            throw new Error('PROCESS_RESULT_UNCERTAIN');
+        }
+      })
+    : undefined;
+const callCatalogForeground = callCatalogVideoForegroundHttp;
+
+if (catalogForeground) {
+  await catalogForeground
+    .load()
+    .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
+  entitlementGate.onBeforeActorChange(actor => catalogForeground.prepareActorChange(actor));
+}
+await teamRecoveryWorker
+  .load()
+  .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
+
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
   events: teamOperationEvents
@@ -574,6 +933,8 @@ const modules = createToolModules({
     preview: teamPreviewBridge,
     process: teamProcessBridge,
     recovery: teamRecoveryWorker,
+    nativeRestitch: nativeRestitchController,
+    catalogForeground,
     poster: teamPosterBridge,
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,

@@ -1,3 +1,12 @@
+import {
+  CatalogVideoPreparationPending,
+  parseCatalogVideoGenerationProgress,
+  type CatalogVideoGenerationProgress,
+  createCatalogInitialVideoPlan,
+  prepareCatalogInitialVideo,
+  type CatalogInitialVideoPlan,
+  type CatalogVideoPreparingResult
+} from './catalog-video-generation.ts';
 import { catalogTimings, timeCatalogMethods } from '../_shared/catalog-timings.ts';
 import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
@@ -232,6 +241,11 @@ function existingResult(value: unknown): CreateProductCatalogResult | null {
     !isRecord(value.catalog)
   )
     return null;
+  if (
+    value.videoGeneration !== undefined &&
+    !parseCatalogVideoGenerationProgress(value.videoGeneration)
+  )
+    return null;
   const c = value.catalog;
   if (
     typeof c.materialId !== 'string' ||
@@ -246,6 +260,11 @@ function existingResult(value: unknown): CreateProductCatalogResult | null {
   return {
     outcome: value.outcome,
     videoShared: value.videoShared,
+    ...(value.videoGeneration === undefined
+      ? {}
+      : {
+          videoGeneration: parseCatalogVideoGenerationProgress(value.videoGeneration) ?? undefined
+        }),
     catalog: {
       materialId: c.materialId,
       name: c.name,
@@ -264,7 +283,7 @@ export async function createDurableProductCatalog(
   fullDriveFor: (credentialId: string) => Promise<DurableCatalogDrive>,
   body: unknown,
   actor: string
-): Promise<CreateProductCatalogResult> {
+): Promise<CreateProductCatalogResult | CatalogVideoPreparingResult> {
   const requested = parseCreateProductCatalogRequest(body);
   const acceptedVersion = await store.imageRequestVersion?.();
   // Only a server-owned accepted payload authorizes legacy retry normalization.
@@ -282,6 +301,59 @@ export async function createDurableProductCatalog(
     const result = existingResult(intent.result);
     if (!result) throw new TeamFunctionError('INVALID_RESPONSE');
     return result;
+  }
+  let initialVideoPlan: CatalogInitialVideoPlan | undefined;
+  let initialVideoProgress: CatalogVideoGenerationProgress | undefined;
+  if (request.catalogVideoProtocolVersion === 1) {
+    if (!deps.initialVideoAuthority) throw new TeamFunctionError('WRONG_STATE');
+    if (intent.checkpoint.initialVideoPlan !== undefined) {
+      // Exact accepted body is protected by the canonical intent payload equality.
+      initialVideoPlan = intent.checkpoint.initialVideoPlan as CatalogInitialVideoPlan;
+      if (
+        !initialVideoPlan ||
+        !Array.isArray(initialVideoPlan.recipeRowIds) ||
+        initialVideoPlan.recipeRowIds.length !== request.productCount
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+    } else {
+      initialVideoPlan = createCatalogInitialVideoPlan(
+        request as import('./product-catalog.ts').CatalogCreationVideoPreferences,
+        request.productCount,
+        await deps.initialVideoAuthority.serverNow()
+      );
+      await store.checkpoint(intent, owner, intent.state, { initialVideoPlan });
+      intent.checkpoint = { ...intent.checkpoint, initialVideoPlan };
+    }
+    try {
+      deps = {
+        ...deps,
+        videoDelivery: await prepareCatalogInitialVideo(
+          deps.initialVideoAuthority,
+          intent.id,
+          initialVideoPlan,
+          progress => {
+            initialVideoProgress = progress;
+          }
+        )
+      };
+    } catch (error) {
+      if (error instanceof CatalogVideoPreparationPending) {
+        if (intent.state !== 'canceled')
+          await store.checkpoint(intent, owner, 'interrupted', {
+            videoPreparationPending: true,
+            safeErrorCode: null
+          });
+        return error.result;
+      }
+      const failure = launchFailure(error);
+      await store
+        .checkpoint(intent, owner, 'interrupted', {
+          videoPreparationPending: false,
+          safeErrorCode: TEAM_ERROR_CODES.includes(failure.code) ? failure.code : 'UNKNOWN'
+        })
+        .catch(() => undefined);
+      throw failure;
+    }
   }
   const timings = catalogTimings(intent.attempt);
   const checkpoint = store.checkpoint.bind(store);
@@ -757,7 +829,7 @@ export async function createDurableProductCatalog(
       rememberRowRecipe: 'row_recipe',
       rememberSheetRows: 'sheet_rows'
     });
-    const result = await createProductCatalog(
+    const baseResult = await createProductCatalog(
       {
         ...measured,
         buildWorkbook: rows =>
@@ -768,12 +840,27 @@ export async function createDurableProductCatalog(
       request,
       actor
     );
+    const result = initialVideoProgress
+      ? { ...baseResult, videoGeneration: initialVideoProgress }
+      : baseResult;
+    if (initialVideoPlan && deps.initialVideoAuthority)
+      await deps.initialVideoAuthority.registerCreated({
+        intentId: intent.id,
+        plan: initialVideoPlan,
+        catalogMaterialId: result.catalog.materialId
+      });
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;
   } catch (error) {
     const failure = launchFailure(error);
-    await deps.finalizeImageUses?.(request.teamId, intent.id, false).catch(() => undefined);
+    await deps
+      .finalizeImageUses?.(
+        request.teamId,
+        intent.id,
+        initialVideoPlan !== undefined && typeof intent.checkpoint.materialId === 'string'
+      )
+      .catch(() => undefined);
     await store
       .checkpoint(intent, owner, 'interrupted', {
         safeErrorCode: TEAM_ERROR_CODES.includes(failure.code) ? failure.code : 'UNKNOWN'
@@ -795,3 +882,5 @@ export async function createDurableProductCatalog(
     throw failure;
   }
 }
+
+export { existingResult as parseStoredProductCatalogResult };

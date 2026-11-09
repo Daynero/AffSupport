@@ -25,6 +25,7 @@ import { activeGovernorOrNull } from '../power/spawn.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 import { audioFingerprint } from './audio-fingerprint.js';
 import type { TeamOperationEvents } from './events.js';
+import { TeamSourceIntegrityError } from './transfer.js';
 import type {
   DownloadedTeamSource,
   TeamResultUploadRequest,
@@ -126,6 +127,14 @@ export interface TeamProcessBridgeOptions {
   watchdogMs?: number;
 }
 
+/** In-process authority supplied by the protected native controller, never an HTTP body. */
+export interface ProtectedTeamProcessExecution {
+  transfer: TeamProcessTransfer;
+  delegate: TeamProcessDelegate;
+  signal: AbortSignal;
+  authorize(): Promise<void>;
+}
+
 export interface TeamProcessPipelines {
   compressor: JobQueue;
   transcription: TranscriptionQueue;
@@ -172,9 +181,24 @@ export class TeamProcessBridge {
   }
 
   process(request: TeamProcessRequest): Promise<TeamFileOperationResult> {
+    return this.#start(request);
+  }
+
+  processProtected(
+    request: TeamProcessRequest,
+    execution: ProtectedTeamProcessExecution
+  ): Promise<TeamFileOperationResult> {
+    if (request.toolId !== 'restitch') return Promise.reject(new Error('PERMISSION_DENIED'));
+    return this.#start(request, execution);
+  }
+
+  #start(
+    request: TeamProcessRequest,
+    execution?: ProtectedTeamProcessExecution
+  ): Promise<TeamFileOperationResult> {
     validateRequest(request);
     if (request.toolId === 'translation') return Promise.reject(new Error('FEATURE_RETIRED'));
-    const delegate = this.#delegates[request.toolId];
+    const delegate = execution?.delegate ?? this.#delegates[request.toolId];
     if (!delegate) return Promise.reject(new Error('AGENT_UPDATE_REQUIRED'));
     if (this.#active.has(request.operationId)) {
       return Promise.reject(new Error('WRONG_STATE'));
@@ -189,7 +213,16 @@ export class TeamProcessBridge {
       pause: null,
       watchdog: null
     };
-    const promise = this.#run(request, delegate, controller, active);
+    const abort = () => {
+      this.#resume(active);
+      controller.abort(execution?.signal.reason ?? new Error('PROCESS_CANCELED'));
+    };
+    execution?.signal.addEventListener('abort', abort, { once: true });
+    if (execution?.signal.aborted) abort();
+    const promise = this.#run(request, delegate, controller, active, execution);
+    void promise
+      .finally(() => execution?.signal.removeEventListener('abort', abort))
+      .catch(() => undefined);
     active.promise = promise;
     this.#active.set(request.operationId, active);
     void promise
@@ -294,8 +327,10 @@ export class TeamProcessBridge {
     request: TeamProcessRequest,
     delegate: TeamProcessDelegate,
     controller: AbortController,
-    active: ActiveProcess
+    active: ActiveProcess,
+    execution?: ProtectedTeamProcessExecution
   ): Promise<TeamFileOperationResult> {
+    const transfer = execution?.transfer ?? this.#transfer;
     let downloaded: DownloadedTeamSource | null = null;
     let cleanupOutput: (() => Promise<void>) | null = null;
     // Scaled, not fixed — the same rule the landing bridge already follows.
@@ -313,13 +348,16 @@ export class TeamProcessBridge {
     active.watchdog = watchdog;
 
     try {
+      throwIfAborted(controller.signal);
+      await execution?.authorize();
+      throwIfAborted(controller.signal);
       this.#events.update(request.operationId, {
         state: 'running',
         stage: 'downloading',
         progress: 0,
         errorCode: null
       });
-      downloaded = await this.#transfer.downloadSource(
+      downloaded = await transfer.downloadSource(
         {
           operationId: request.operationId,
           transferUrl: request.transferUrl,
@@ -329,6 +367,8 @@ export class TeamProcessBridge {
       );
       throwIfAborted(controller.signal);
 
+      await execution?.authorize();
+      throwIfAborted(controller.signal);
       this.#events.update(request.operationId, {
         stage: 'processing',
         progress: 20
@@ -359,11 +399,13 @@ export class TeamProcessBridge {
       validateDelegateResult(output);
       cleanupOutput = output.cleanup ?? null;
 
+      await execution?.authorize();
+      throwIfAborted(controller.signal);
       this.#events.update(request.operationId, {
         stage: 'uploading',
         progress: 70
       });
-      const upload = this.#transfer.uploadResult(
+      const upload = transfer.uploadResult(
         {
           operationId: request.operationId,
           cloudBaseUrl: request.cloudBaseUrl,
@@ -394,9 +436,9 @@ export class TeamProcessBridge {
         if (
           uploadOutcome?.state !== 'succeeded' &&
           request.toolId === 'restitch' &&
-          this.#transfer.ackUploadQuiescence
+          transfer.ackUploadQuiescence
         ) {
-          await this.#transfer
+          await transfer
             .ackUploadQuiescence({
               operationId: request.operationId,
               cloudBaseUrl: request.cloudBaseUrl,
@@ -429,8 +471,11 @@ export class TeamProcessBridge {
       }
       return sourceLanguage ? { ...result, sourceLanguage } : result;
     } catch (error) {
-      const canceled = controller.signal.aborted;
-      const code = canceled ? abortCode(controller.signal) : safeErrorCode(error);
+      const code = controller.signal.aborted ? abortCode(controller.signal) : safeErrorCode(error);
+      const canceled =
+        controller.signal.aborted &&
+        code !== 'PROCESS_RESULT_UNCERTAIN' &&
+        code !== 'PERMISSION_DENIED';
       // Never log provider bodies, credentials, source paths or raw error stacks.
       // The same safe code is carried by the operation snapshot for diagnosis.
       if (!canceled) console.error('[team-process] failed:', code);
@@ -442,7 +487,10 @@ export class TeamProcessBridge {
         tool: request.toolId,
         stage: snapshot?.stage ?? 'unknown',
         outcome: canceled ? 'canceled' : 'failed',
-        errorCode: code
+        errorCode: code,
+        ...(error instanceof TeamSourceIntegrityError
+          ? { sourceIntegrityReason: error.reason }
+          : {})
       });
       this.#events.update(request.operationId, {
         state: canceled ? 'canceled' : 'failed',
@@ -806,7 +854,10 @@ function positiveWatchdog(value: number) {
 function abortCode(signal: AbortSignal) {
   return signal.reason instanceof Error && signal.reason.message === 'PROCESS_TIMEOUT'
     ? 'PROCESS_TIMEOUT'
-    : 'PROCESS_CANCELED';
+    : signal.reason instanceof Error &&
+        ['PROCESS_RESULT_UNCERTAIN', 'PERMISSION_DENIED'].includes(signal.reason.message)
+      ? signal.reason.message
+      : 'PROCESS_CANCELED';
 }
 
 const PROCESS_FAILURE_CODES = new Set<string>([

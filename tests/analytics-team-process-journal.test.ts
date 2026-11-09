@@ -139,7 +139,91 @@ it('exposes a browser/native contradiction without choosing a successful outcome
   expect(evidence.blind_spots).toEqual([]);
 });
 
-it.each(['57014', '42501', '42703'])(
+it('keeps absent or unrecognized source integrity detail unknown and private', async () => {
+  setQueryExecutor((sql, params) =>
+    db.db.query(sql, params).then(result => result.rows as Record<string, unknown>[])
+  );
+  const id = 'aa66028f-61ad-4d19-ae79-5f46feee14a8';
+  await db.db.query(
+    `insert into public.agent_journal_records
+    (user_id,agent_instance_id,seq,recorded_at,received_at,category,code,props)
+    values($1,$2,12,'2026-11-05T11:44:58Z','2026-11-05T11:45:00Z','team','process_terminal',$3)`,
+    [
+      USER,
+      INSTANCE,
+      JSON.stringify({
+        operationId: id,
+        stage: 'downloading',
+        outcome: 'failed',
+        errorCode: 'SOURCE_CHANGED',
+        sourceIntegrityReason: 'private provider payload'
+      })
+    ]
+  );
+  const evidence = await getTeamProcessJournalEvidence(id, '2026-11-05T12:00:00Z');
+  expect(evidence.records[0].source_integrity_reason).toBeNull();
+  expect(evidence.blind_spots.join(' ')).toContain('not observed');
+  expect(JSON.stringify(evidence)).not.toContain('private provider payload');
+});
+
+it.each([
+  { stage: 'uploading', errorCode: 'SOURCE_CHANGED' },
+  { stage: 'downloading', errorCode: 'DRIVE_UNAVAILABLE' }
+])('does not attach a byte-integrity claim to conflicting native context: %j', async context => {
+  setQueryExecutor((sql, params) =>
+    db.db.query(sql, params).then(result => result.rows as Record<string, unknown>[])
+  );
+  const seq = context.stage === 'uploading' ? 13 : 14;
+  const id =
+    context.stage === 'uploading'
+      ? 'aa66028f-61ad-4d19-ae79-5f46feee14a9'
+      : 'aa66028f-61ad-4d19-ae79-5f46feee14aa';
+  await db.db.query(
+    `insert into public.agent_journal_records
+    (user_id,agent_instance_id,seq,recorded_at,received_at,category,code,props)
+    values($1,$2,$3,'2026-11-05T11:44:58Z','2026-11-05T11:45:00Z','team','process_terminal',$4)`,
+    [
+      USER,
+      INSTANCE,
+      seq,
+      JSON.stringify({
+        operationId: id,
+        ...context,
+        outcome: 'failed',
+        sourceIntegrityReason: 'checksum_mismatch'
+      })
+    ]
+  );
+  const evidence = await getTeamProcessJournalEvidence(id, '2026-11-05T12:00:00Z');
+  expect(evidence.records[0].source_integrity_reason).toBeNull();
+  expect(evidence.records[0].error_code).toBe(context.errorCode);
+});
+
+it('retains consistent failure without choosing between conflicting integrity details', () => {
+  const base = {
+    agent_instance_id: INSTANCE,
+    at: '2026-11-05T11:44:58Z',
+    stage: 'downloading',
+    outcome: 'failure' as const,
+    error_code: 'SOURCE_CHANGED'
+  };
+  const result = mergeTeamProcessJournal(
+    { found: false, id: OP },
+    {
+      supported: true,
+      truncated: false,
+      blind_spots: [],
+      records: [
+        { ...base, seq: 15, source_integrity_reason: 'checksum_mismatch' },
+        { ...base, seq: 16, source_integrity_reason: 'size_mismatch' }
+      ]
+    }
+  );
+  expect(result.found && result.terminal?.outcome).toBe('failure');
+  expect(result.team_native?.blind_spots.join(' ')).toContain('no single integrity cause');
+});
+
+it.each(['57014', 'ANALYTICS_QUERY_TIMEOUT', '42501', '42703'])(
   'does not lose other inspect evidence when the native journal source is unavailable (%s)',
   async code => {
     setQueryExecutor(async (sql, params) => {

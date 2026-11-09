@@ -102,3 +102,66 @@ it('bounds returned evidence and declares truncation', async () => {
   expect(result.records).toHaveLength(100);
   expect(result.blind_spots.join(' ')).toContain('truncated');
 });
+
+it('reports grant bookkeeping separately from I/O and retains legacy unknown coverage', async () => {
+  reader({
+    rows: [
+      {
+        ...row,
+        range_count: 3,
+        budget_revision: 6,
+        grant_count: 3,
+        issued_grant_count: 1,
+        consumed_grant_count: 1,
+        abandoned_grant_count: 1
+      }
+    ]
+  });
+  const evidence = await getRestitchSelectionEvidence({ actorId: actor, asOf });
+  expect(evidence.records[0]?.authority).toEqual({
+    total: 3,
+    issued: 1,
+    consumed: 1,
+    abandoned: 1
+  });
+  const result = mergeRestitchSelectionInspection({ found: false, id: row.operation_id }, evidence);
+  expect(result).toMatchObject({ terminal: null, last_proven_stage: 'range_accounted' });
+  if (result.found) expect(result.stages.missing).toContain('video_processed');
+  expect(evidence.blind_spots.join(' ')).toContain('Consumed authority');
+  reader();
+  const legacy = await getRestitchSelectionEvidence({ actorId: actor, asOf });
+  expect(legacy.records[0]?.authority).toBeNull();
+  expect(legacy.blind_spots.join(' ')).toContain('authority counters are unavailable');
+});
+it('refuses contradictory or partial authority counts without losing valid slot evidence', async () => {
+  for (const counters of [
+    { grant_count: 1 },
+    { grant_count: 2, issued_grant_count: 1, consumed_grant_count: 1, abandoned_grant_count: 1 },
+    { grant_count: 1, issued_grant_count: -1, consumed_grant_count: 1, abandoned_grant_count: 1 }
+  ]) {
+    reader({ rows: [{ ...row, ...counters }] });
+    const evidence = await getRestitchSelectionEvidence({ actorId: actor, asOf });
+    expect(evidence.records).toHaveLength(1);
+    expect(evidence.records[0]?.authority).toBeNull();
+    expect(evidence.blind_spots.join(' ')).toContain('authority counters are unavailable');
+  }
+});
+it('accepts a disabled zero-candidate slot without inventing image work', async () => {
+  reader({
+    rows: [
+      {
+        ...row,
+        state: 'disabled',
+        candidate_count: 0,
+        candidate_versions: [],
+        range_count: 0,
+        unconfirmed_range_count: 0,
+        budget_revision: 0
+      }
+    ]
+  });
+  const evidence = await getRestitchSelectionEvidence({ actorId: actor, asOf });
+  expect(evidence.records).toHaveLength(1);
+  const result = mergeRestitchSelectionInspection({ found: false, id: row.operation_id }, evidence);
+  expect(result).toMatchObject({ last_proven_stage: 'context_observed', terminal: null });
+});

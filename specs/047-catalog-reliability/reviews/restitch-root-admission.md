@@ -1,14 +1,18 @@
 # Manual-root admission and stable image identities — source work
 
-Running beta now has schema 443. The four follow-ups 157000–160000 passed the
+The owned-root acceptance window applied schema443; local beta has since
+advanced to444 through the separately proved lifecycle epoch increment. The four follow-ups 157000–160000 passed the
 complete disposable native gate: 58 pgTAP files / 1284 assertions, 2 real Auth tests
 and 62 native concurrency tests. All 443 migration and 69 native input hashes
 match. Local beta applied only those four migrations in a quiesced window; all
 17 full-row snapshots matched and the new private stores remain empty. Edge was
 restored. Actual authenticated REST refuses all 12 internal RPCs with 403/42501.
 See verification-db-restitch-owned-executor.json, restitch-owned-beta-migration.json
-and restitch-owned-beta-refusal.json. The complete fast suite remains pending;
-no user route, installed capability or native controller is enabled.
+and restitch-owned-beta-refusal.json. Checkpoint702e151a then passes all14 fast
+gates and all8 suite shards:9313 passed tests and89 declared skips. Its exact
+source and444-migration native proof are recorded in
+verification-material-group-epochs-source.json. No user route, installed
+capability or native controller is enabled.
 
 The internal factory admits a kind=download operation, frozen recipe, source
 content binding, actor/pool namespace and candidate snapshots in one transaction.
@@ -56,8 +60,9 @@ Disabled screen slots are projected explicitly rather than appearing stuck.
 
 The earlier focused checkpoint passed 147 tests across 8 files before the
 traversal, missing-root and owned-executor increments. Counts from overlapping
-checkpoints must not be added. The latest scoped run below passes 145 tests;
-complete current-source static checks and the full fast suite remain pending.
+checkpoints must not be added. The later scoped run below passes145 tests; the
+complete first-package source proof is checkpoint702e151a. Subsequent follow-up
+changes retain their separate acceptance below.
 The earlier type check exposed the unsupported RESTITCH_DEFAULTS_INVALID code;
 that mismatch was corrected to RESTITCH_INVALID and the type check passed.
 
@@ -92,3 +97,11 @@ Lost claim acknowledgements now use only the exact read-only claim receipt. The
 claim adapter captures actor, claim, native instance and actual installed contract
 before awaits; malformed or missing readback remains uncertain. This has mock
 regressions and a real SQL receipt assertion in the native concurrency suite.
+
+Subsequent manager-next increment: an RPC can report a lost claim acknowledgement
+as a returned error object as well as a thrown transport error. A real-adapter
+probe reproduced the missing readback for that shape. It now performs one exact
+read for unknown returned errors, preserves proven refusals without another RPC,
+and never repeats the mutation. The lightweight probe and all13 executor unit cases pass within the143-test
+follow-up run; complete source checks remain pending for this increment.
+This does not expose a user route, ticket or native capability.

@@ -126,6 +126,8 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   CATALOG_COMMAND_STORAGE_UNAVAILABLE: 'catalogCommandStorageUnavailable',
   CATALOG_COMMAND_UNSUPPORTED: 'catalogCommandUnsupported',
   CATALOG_STOP_TARGET_UNKNOWN: 'catalogStopTargetUnknown',
+  CATALOG_PUBLICATION_PENDING: 'catalogPublicationPending',
+  CATALOG_WRITE_UNSUPPORTED: 'catalogWriteUnsupported',
   TEAM_TRANSPORT_UNAVAILABLE: 'teamTransportUnavailable',
   CATALOG_LINK_UNAVAILABLE: 'materialLinkUnavailable',
   CATALOG_LINK_SHARING_UNCERTAIN: 'materialLinkPending',

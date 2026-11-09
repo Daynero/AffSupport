@@ -24,16 +24,21 @@ import {
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi } from '../../api/team';
-import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
+import {
+  completeTeamWorkflow,
+  startTeamWorkflow,
+  isTeamWorkflowCurrent
+} from '../../analytics/service';
 import { trackToolError } from '../../analytics/errors';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { ensureRestitchImages } from './images';
 import { prepareRestitchScreens } from './screens';
+import { nativeManualRestitchSupported, runNativeManualRestitch } from './native-delivery';
 
 export type RestitchDeliveryPhase =
   /** Waiting for the person to say where it goes — asked once per space, then remembered. */
-  'choosing' | 'transferring' | 'inspecting' | 'stitching' | 'saving';
+  'checking' | 'choosing' | 'transferring' | 'inspecting' | 'stitching' | 'saving';
 
 export type RestitchDeliveryState =
   | { kind: 'idle' }
@@ -118,6 +123,7 @@ const PHASE_BY_STAGE: Record<string, RestitchDeliveryPhase> = {
  * the work being redone.
  */
 const PHASE_ORDER: RestitchDeliveryPhase[] = [
+  'checking',
   'choosing',
   'transferring',
   'inspecting',
@@ -154,6 +160,7 @@ export function useRestitchDelivery(teamId: string) {
   const running = useRef(new AbortController());
   /** The agent-side run behind each material, so it can be stopped by name. */
   const operations = useRef(new Map<string, string>());
+  const controllers = useRef(new Map<string, AbortController>());
   /**
    * Which material the agent's progress belongs to.
    *
@@ -168,7 +175,8 @@ export function useRestitchDelivery(teamId: string) {
   // Leaving the folder or the page ends a delivery as cleanly as pressing cancel: the run is
   // abandoned rather than left writing into a view nobody is looking at (FR-013).
   useEffect(() => {
-    const controller = running.current;
+    const controller = new AbortController();
+    running.current = controller;
     return () => controller.abort();
   }, []);
 
@@ -217,51 +225,74 @@ export function useRestitchDelivery(teamId: string) {
 
   const deliver = useCallback(
     async (target: RestitchDeliveryTarget): Promise<void> => {
-      // The member may have switched between owner and personal settings since the last run.
-      const known = await teamApi.getRestitchDefaults(teamId);
-      if (!known) {
-        // Not a failure — the space simply has not been set up. The caller offers to do it,
-        // and remembers what was asked for so it can continue afterwards.
-        setPending(target);
-        set(target.materialId, { kind: 'unconfigured' });
-        return;
-      }
-      const capability = await agentCanRestitch();
-      if (capability !== 'yes') {
-        // An app that never answered is not an old app: it is one that is not running, or
-        // one this page has lost its pairing with — and the sentence for that says so.
-        set(target.materialId, {
-          kind: 'failed',
-          message: t(
-            capability === 'too-old' ? 'teamRestitchAgentTooOld' : 'teamRestitchAgentMissing'
-          )
-        });
-        return;
-      }
-
+      if (controllers.current.has(target.materialId)) return;
       const operationId = crypto.randomUUID();
+      const controller = new AbortController();
+      controllers.current.set(target.materialId, controller);
+      const abort = () => {
+        controller.abort();
+        void cancelTeamDownload(operationId).catch(() => undefined);
+      };
+      running.current.signal.addEventListener('abort', abort, { once: true });
+      if (running.current.signal.aborted) abort();
       operations.current.set(target.materialId, operationId);
       setWatching({ materialId: target.materialId, operationId });
       const folder = rememberedFolder(teamId);
-      // The first delivery in a space opens the app's own folder picker, and the wait for it
-      // is a person deciding — not a machine working. Saying "transferring" through that is
-      // how a two-second choice reads as a thirty-second hang.
+      // The click already owns cancellation while configuration is being read.
+      // A destination choice or transfer is shown only after those reads succeed.
       set(target.materialId, {
         kind: 'running',
-        phase: folder ? 'transferring' : 'choosing',
+        phase: 'checking',
         fileName: target.fileName
       });
-      // Timed from the click, and told apart by whether the space had been prepared — the one
-      // comparison that says whether preparation is earning its keep (SC-001, SC-003).
-      let flow: ReturnType<typeof startTeamWorkflow> | null = null;
+      const flow = startTeamWorkflow({
+        category: 'video',
+        cacheState: 'unknown',
+        stage: 'finding'
+      });
+      let failureStage: 'library' | 'download' = 'library';
+      const reportError = (code: unknown) => {
+        if (!isTeamWorkflowCurrent(flow)) return;
+        try {
+          trackToolError({
+            tool: 'team',
+            stage: failureStage,
+            code,
+            workflowId: flow.workflowId,
+            retryable: true
+          });
+        } catch {
+          /* Telemetry cannot replace the original user outcome. */
+        }
+      };
       try {
+        if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
+        const known = await teamApi.getRestitchDefaults(teamId);
+        if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
+        if (!known) {
+          setPending(target);
+          set(target.materialId, { kind: 'unconfigured' });
+          completeTeamWorkflow(flow, { outcome: 'blocked', retryable: false, stage: 'finding' });
+          return;
+        }
+        const capability = await agentCanRestitch();
+        if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
+        if (capability !== 'yes') {
+          set(target.materialId, {
+            kind: 'failed',
+            message: t(
+              capability === 'too-old' ? 'teamRestitchAgentTooOld' : 'teamRestitchAgentMissing'
+            )
+          });
+          completeTeamWorkflow(flow, { outcome: 'blocked', retryable: false, stage: 'finding' });
+          reportError(capability === 'too-old' ? 'AGENT_UPDATE_REQUIRED' : 'AGENT_REQUIRED');
+          return;
+        }
         const found = await teamApi.getMaterialRestitchPrep(teamId, [target.materialId]);
         const prepared = usablePrep(found.get(target.materialId) ?? null, target.driveVersion);
-        flow = startTeamWorkflow({
-          category: 'video',
-          cacheState: prepared ? 'warm' : 'cold',
-          stage: 'downloading'
-        });
+        if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
+        flow.cacheState = prepared ? 'warm' : 'cold';
+        failureStage = 'download';
         /*
          * The video has to arrive before anything can be done to it, and the agent reports
          * that arrival by the byte. Naming a later step here — which this did, because it
@@ -276,41 +307,43 @@ export function useRestitchDelivery(teamId: string) {
 
         const grant = await teamApi.requestDownload(teamId, target.materialId, 'agent');
         if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
+        if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
 
-        // Drive pools (030) or the owner's published library (legacy): the settings say which.
-        const drawn = await prepareRestitchScreens(teamId, known);
-        if (drawn.kind === 'too-old') {
-          setWatching(null);
-          set(target.materialId, {
-            kind: 'failed',
-            message: t('teamRestitchAgentTooOldForSources')
-          });
-          if (flow) {
-            completeTeamWorkflow(flow, { outcome: 'failure', retryable: false });
-            trackToolError({
-              tool: 'team',
-              stage: 'process',
-              code: 'AGENT_UPDATE_REQUIRED',
-              workflowId: flow.workflowId,
-              retryable: false
-            });
-          }
-          return;
-        }
-        if (drawn.kind === 'legacy') await ensureRestitchImages(teamId, known);
-        const saved = await downloadTeamFileWithAgent({
-          operationId,
-          transferUrl: grant.transferUrl,
-          transferGrant: grant.grant,
-          fileName: target.fileName,
-          destination: folder,
-          process: {
-            tool: 'restitch',
-            defaults: known,
-            prepared,
-            ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})
-          }
-        });
+        const native =
+          known.sourceMode === 'drive' &&
+          known.operation !== 'unstitch' &&
+          (await nativeManualRestitchSupported());
+        const saved = native
+          ? await runNativeManualRestitch({
+              teamId,
+              sourceMaterialId: target.materialId,
+              operationId,
+              transferUrl: grant.transferUrl,
+              transferGrant: grant.grant,
+              fileName: target.fileName,
+              destination: folder,
+              signal: controller.signal
+            })
+          : await (async () => {
+              // Drive pools (030) or the owner's published library (legacy): the settings say which.
+              const drawn = await prepareRestitchScreens(teamId, known);
+              if (drawn.kind === 'too-old') throw new Error('AGENT_UPDATE_REQUIRED');
+              if (drawn.kind === 'legacy') await ensureRestitchImages(teamId, known);
+              if (controller.signal.aborted) throw new Error('PROCESS_CANCELED');
+              return downloadTeamFileWithAgent({
+                operationId,
+                transferUrl: grant.transferUrl,
+                transferGrant: grant.grant,
+                fileName: target.fileName,
+                destination: folder,
+                process: {
+                  tool: 'restitch',
+                  defaults: known,
+                  prepared,
+                  ...(drawn.kind === 'ready' ? { screens: drawn.screens, teamId } : {})
+                }
+              });
+            })();
 
         // What the run had to work out is worth more than this delivery: stored, the next
         // member's download of the same material skips it entirely.
@@ -343,7 +376,9 @@ export function useRestitchDelivery(teamId: string) {
         set(target.materialId, { kind: 'delivered', fileName: saved.fileName });
         if (flow) completeTeamWorkflow(flow, { outcome: 'success', retryable: false });
       } catch (error) {
-        const canceled = error instanceof Error && error.message === 'DOWNLOAD_CANCELED';
+        const canceled =
+          error instanceof Error &&
+          ['DOWNLOAD_CANCELED', 'PROCESS_CANCELED'].includes(error.message);
         setWatching(null);
         // A refusal says which of its five reasons it was, when the agent named one: "this
         // file type is not supported" is the wrong sentence for a video whose frame rate
@@ -357,7 +392,11 @@ export function useRestitchDelivery(teamId: string) {
             ? { kind: 'idle' }
             : {
                 kind: 'failed',
-                message: refusal ? t(REFUSAL_COPY[refusal]) : teamErrorMessageFor(error, t)
+                message: refusal
+                  ? t(REFUSAL_COPY[refusal])
+                  : error instanceof Error && error.message === 'AGENT_UPDATE_REQUIRED'
+                    ? t('teamRestitchAgentTooOldForSources')
+                    : teamErrorMessageFor(error, t)
               }
         );
         if (flow) {
@@ -370,16 +409,14 @@ export function useRestitchDelivery(teamId: string) {
           });
           // 031 FR-052: a stopped delivery is not an error; anything else is, by its code.
           if (!canceled && !(error instanceof Error && error.message === 'DOWNLOAD_CANCELED')) {
-            trackToolError({
-              tool: 'team',
-              stage: 'download',
-              // A refusal's reason (`video-codec`) is a closed set; spelled as a code here.
-              code: refusal ? refusal.toUpperCase().replace(/-/g, '_') : error,
-              workflowId: flow.workflowId,
-              retryable: true
-            });
+            reportError(refusal ? refusal.toUpperCase().replace(/-/g, '_') : error);
           }
         }
+      } finally {
+        setWatching(current => (current?.operationId === operationId ? null : current));
+        running.current.signal.removeEventListener('abort', abort);
+        controllers.current.delete(target.materialId);
+        operations.current.delete(target.materialId);
       }
     },
     [teamId, set, t]
@@ -402,6 +439,7 @@ export function useRestitchDelivery(teamId: string) {
   const cancel = useCallback((materialId: string) => {
     const operationId = operations.current.get(materialId);
     if (!operationId) return;
+    controllers.current.get(materialId)?.abort();
     void cancelTeamDownload(operationId).catch(() => undefined);
   }, []);
 

@@ -248,3 +248,6 @@ export async function acceptManualRestitchRoot(
     return confirmed;
   }
 }
+
+/** Shared descriptor validation for trusted logical process aliases. */
+export { parsed as parseRestitchRootDescriptor };

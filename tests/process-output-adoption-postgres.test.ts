@@ -86,6 +86,73 @@ const adoption = (
 ) => `insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,mime_type)
   values('${team}','${connection}','${file}','adopted.mp4','file','video/mp4')`;
 
+async function catalogVariantOperation() {
+  const set = randomUUID(),
+    request = randomUUID(),
+    id = randomUUID(),
+    video = randomUUID(),
+    installation = randomUUID(),
+    native = randomUUID(),
+    delegation = randomUUID();
+  const hash = `decode(md5('${request}')||md5('${request}:claim'),'hex')`;
+  await sql(`insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,size_bytes,checksum,drive_version)
+    values('${video}','${team}','${connection}','${video}','Variant source','file','video','video/mp4',16,repeat('a',32),'1');
+    insert into private.team_recovery_delegations(id,team_id,actor_id,installation_id,refresh_hash)values('${delegation}','${team}','${owner}','${installation}',decode(md5('${request}:refresh')||md5('${request}:refresh2'),'hex'));
+    insert into private.team_recovery_credentials(hash,delegation_id,version,audience,expires_at)values(${hash},'${delegation}',1,'claim',clock_timestamp()+interval '1 hour');`);
+  const intent = JSON.parse(
+    await sql(
+      `select public.service_begin_catalog_intent('${team}','${video}','${owner}','variant-concurrency:${set}','{}','${installation}')`
+    )
+  ) as { id: string };
+  const payload = {
+    setId: set,
+    catalogIntentId: intent.id,
+    sourceMaterialId: video,
+    sourceVersion: '1',
+    settings: { configured: true, operation: 'restitch', sourceMode: 'legacy' },
+    settingsDigest: 'a'.repeat(64),
+    requestedCount: 1,
+    productCount: 1,
+    recipeRevision: 1,
+    seed: 'b'.repeat(64)
+  };
+  await sql(`do $fixture$begin
+    perform public.service_accept_catalog_video_set('${team}','${owner}','${installation}','${JSON.stringify(payload)}','${JSON.stringify([{ index: 0, requestId: request }])}','${JSON.stringify([{ recipeRowId: randomUUID(), videoVariantIndex: 0 }])}');
+    insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+      values('${id}','${team}','${owner}','process','running','${video}','catalog-variant:${request}','catalog-variant:${request}');
+    insert into private.team_operation_intents(operation_id,team_id,expected_name,mime_type,expected_size,tool_id,tool_contract_version,expected_source_version,expected_source_drive_file_id,expected_source_checksum)
+      values('${id}','${team}','output.mp4','video/mp4',16,'restitch',1,'1','${video}',repeat('a',32));
+    perform public.service_checkpoint_catalog_video_set('${set}','${team}','${owner}','${installation}',1,0,'${JSON.stringify([{ index: 0, requestId: request, operationId: id, state: 'working', outputId: null }])}');
+    perform public.service_dispatch_catalog_video_variant('${set}',${hash},'${native}',1,0,'${request}','${id}');
+    insert into private.team_transfer_grants(token_hash,operation_id,team_id,actor_id,purpose,tool_id,max_range_bytes,expires_at,max_uses)
+      values(decode(md5('${id}:output')||md5('${id}:output2'),'hex'),'${id}','${team}','${owner}','finalize','restitch',2097152,clock_timestamp()+interval '1 hour',4);
+  end;$fixture$;`);
+  const file = `variant-result-${randomUUID()}`;
+  const metadata = {
+    driveFileId: file,
+    parentFolderId: 'own-root',
+    name: 'output.mp4',
+    mimeType: 'video/mp4',
+    fileExtension: 'mp4',
+    kind: 'file',
+    category: 'video',
+    classificationSource: 'mime',
+    sizeBytes: 16,
+    driveVersion: '2',
+    checksum: 'a'.repeat(32)
+  };
+  return {
+    id,
+    set,
+    request,
+    file,
+    prepare: `select public.service_prepare_process_upload('${id}','${owner}','${connection}','${file}',repeat('a',32))`,
+    complete: `select public.service_complete_catalog_video_variant('${set}',${hash},'${native}',1,0,'${request}','${id}','canceled','PROCESS_CANCELED')`,
+    finalize: `select public.service_finalize_uploaded_material('${id}','${owner}','${JSON.stringify(metadata)}')`,
+    cancel: `update private.catalog_video_sets set state='cancel_requested'where id='${set}'`
+  };
+}
+
 describe.skipIf(!container)(
   '036 process ownership [needs: disposable process PostgreSQL container]',
   () => {
@@ -102,6 +169,66 @@ describe.skipIf(!container)(
       insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,mime_type)
       values('${source}','${team}','${connection}','source-${source}','original.mp4','file','video/mp4');commit;`);
     });
+
+    it('serializes native N cancel before output start and refuses the waiting provider allocation', async () => {
+      const f = await catalogVariantOperation();
+      await sql(f.cancel);
+      const first = sql(`begin;${f.complete};select pg_sleep(2) /* variant_cancel_hold */;commit;`);
+      await held('variant_cancel_hold');
+      const second = sql(`${f.prepare} /* variant_output_wait */;`).then(
+        () => 'STARTED',
+        error => String(error)
+      );
+      await held('variant_output_wait', 'Lock');
+      await first;
+      expect(await second).toContain('WRONG_STATE');
+      expect(await sql(`select state from public.team_operations where id='${f.id}'`)).toBe(
+        'canceled'
+      );
+      expect(
+        await sql(
+          `select count(*)from private.process_upload_ownership where operation_id='${f.id}'`
+        )
+      ).toBe('0');
+    }, 15000);
+    it('retains an earlier started upload as unknown when native N cancellation waits for its original lock', async () => {
+      const f = await catalogVariantOperation();
+      const first = sql(
+        `begin;${f.prepare};select public.service_start_process_upload('${f.id}','${owner}');select pg_sleep(2) /* variant_output_hold */;commit;`
+      );
+      await held('variant_output_hold');
+      await sql(f.cancel);
+      const second = sql(`${f.complete} /* variant_cancel_wait */;`);
+      await held('variant_cancel_wait', 'Lock');
+      await first;
+      expect(JSON.parse(await second)).toMatchObject({ kind: 'unknown', operationId: f.id });
+      expect(await sql(`select state from public.team_operations where id='${f.id}'`)).toBe(
+        'running'
+      );
+      expect(
+        await sql(
+          `select count(*)from private.process_upload_ownership where operation_id='${f.id}'and file_id='${f.file}'and upload_state='started'`
+        )
+      ).toBe('1');
+    }, 15000);
+    it('retains original finalized registration when native N cancellation waits behind real finalization', async () => {
+      const f = await catalogVariantOperation();
+      const first = sql(
+        `begin;${f.finalize};select pg_sleep(2) /* variant_finalize_hold */;commit;`
+      );
+      await held('variant_finalize_hold');
+      await sql(f.cancel);
+      const second = sql(`${f.complete} /* variant_finalize_cancel_wait */;`);
+      await held('variant_finalize_cancel_wait', 'Lock');
+      await first;
+      expect(JSON.parse(await second)).toMatchObject({ kind: 'registered', operationId: f.id });
+      expect(await sql(`select state from public.team_operations where id='${f.id}'`)).toBe(
+        'succeeded'
+      );
+      expect(
+        await sql(`select count(*)from public.team_materials where drive_file_id='${f.file}'`)
+      ).toBe('1');
+    }, 15000);
 
     it('blocks concurrent adoption until begin-trash commits, then refuses the adoption', async () => {
       const f = await canceled();

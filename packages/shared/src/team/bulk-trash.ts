@@ -1,3 +1,4 @@
+import { parseTeamFileOperationResult, type TeamHistoricalFileReceipt } from './transport.js';
 /** Hosted receipts; names and provider payloads never enter this projection. */
 export type BulkTrashState = 'queued' | 'running' | 'confirmed' | 'failed' | 'unknown';
 export interface BulkTrashItem {
@@ -5,6 +6,7 @@ export interface BulkTrashItem {
   idempotencyKey: string;
   state: BulkTrashState;
   errorCode: string | null;
+  historicalReceipt?: TeamHistoricalFileReceipt;
 }
 export interface BulkTrashGroup {
   id: string;
@@ -32,6 +34,20 @@ export function isBulkTrashGroup(value: unknown): value is BulkTrashGroup {
     return false;
   return value.items.every((item: unknown) => {
     if (!item || typeof item !== 'object') return false;
+    if (
+      'historicalReceipt' in item &&
+      item.historicalReceipt !== undefined &&
+      (!('state' in item) ||
+        item.state !== 'confirmed' ||
+        !parseTeamFileOperationResult({
+          operationId: 'historical',
+          materialId: 'material',
+          state: 'succeeded',
+          reused: true,
+          historicalReceipt: item.historicalReceipt
+        }))
+    )
+      return false;
     return (
       'materialId' in item &&
       typeof item.materialId === 'string' &&

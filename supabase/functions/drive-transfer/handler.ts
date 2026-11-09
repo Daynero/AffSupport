@@ -536,6 +536,8 @@ export function boundedResponseBody(
 }
 
 export interface PreviewGrantContext {
+  /** Consumed server grant binding; required for protected process source reads. */
+  operationId?: string | null;
   teamId: string;
   actorId: string;
   materialId: string;

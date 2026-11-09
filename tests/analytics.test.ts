@@ -504,3 +504,28 @@ it.each(['browser_handoff', 'agent_saved'] as const)(
     });
   }
 );
+
+it('keeps team workflow telemetry failures out of the product operation', () => {
+  const tracker = {
+    track: vi.fn(() => {
+      throw Error('TELEMETRY_UNAVAILABLE');
+    })
+  };
+  let flow!: ReturnType<typeof startTeamWorkflow>;
+  expect(() => {
+    flow = startTeamWorkflow({ category: 'video' }, { tracker });
+  }).not.toThrow();
+  expect(() =>
+    completeTeamWorkflow(flow, { outcome: 'success', retryable: false }, { tracker })
+  ).not.toThrow();
+  expect(flow.completed).toBe(true);
+});
+it('does not attribute a late team workflow terminal to a replacement actor', () => {
+  let actor = '11111111-1111-4111-8111-111111111111';
+  const tracker = { track: vi.fn(), journalContext: () => ({ userId: actor }) };
+  const flow = startTeamWorkflow({ category: 'video' }, { tracker });
+  actor = '22222222-2222-4222-8222-222222222222';
+  completeTeamWorkflow(flow, { outcome: 'success', retryable: false }, { tracker });
+  expect(tracker.track).toHaveBeenCalledOnce();
+  expect(flow.completed).toBe(true);
+});

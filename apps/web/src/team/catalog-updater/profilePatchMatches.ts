@@ -3,6 +3,11 @@ import type { CatalogSnapshot } from './useCatalogInlineChanges';
 
 /** Compare only requested fields; unrelated runtime changes do not confirm a save. */
 export function profilePatchMatches(snapshot: CatalogSnapshot, patch: CatalogUpdateProfilePatch) {
+  if (
+    patch.videoVariantCount !== undefined &&
+    snapshot.profile.videoVariantCount !== patch.videoVariantCount
+  )
+    return false;
   if (patch.updateInterval !== undefined && snapshot.interval !== patch.updateInterval)
     return false;
   if (patch.schedule !== undefined) {

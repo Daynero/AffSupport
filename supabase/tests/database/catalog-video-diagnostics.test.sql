@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select ok(not has_table_privilege('anon','public.analytics_catalog_video_sets','select'),'anonymous cannot read native generation evidence');
+select ok(not has_table_privilege('authenticated','public.analytics_catalog_video_sets','select'),'browser cannot read diagnostic set projection');
+select ok(not has_table_privilege('authenticated','public.analytics_catalog_video_children','select'),'browser cannot read diagnostic child projection');
+select ok(has_table_privilege('service_role','public.analytics_catalog_video_sets','select'),'service diagnostic reader can observe bounded set facts');
+select ok(has_table_privilege('service_role','public.analytics_catalog_video_children','select'),'service diagnostic reader can correlate original process identity');
+select ok(not has_table_privilege('authenticated','public.analytics_catalog_updater_video_requests','select'),'browser cannot read admitted manager request diagnostics');
+select ok(has_table_privilege('service_role','public.analytics_catalog_updater_video_requests','select'),'service diagnostic reader can observe admitted work before a set exists');
+select is((select count(*)::integer from information_schema.columns where table_schema='public' and table_name in('analytics_catalog_video_sets','analytics_catalog_video_children','analytics_catalog_updater_video_requests','analytics_catalog_video_consumers') and column_name in('source_snapshot','settings_snapshot','checksum','drive_file_id','token','ticket','proof_hash','source_version')),0,'diagnostic projection excludes content, provider identities and credentials');
+select ok(not has_table_privilege('authenticated','public.analytics_catalog_video_consumers','select'),'browser cannot read generation consumer diagnostics');
+select ok(has_table_privilege('service_role','public.analytics_catalog_video_consumers','select'),'service diagnostics can join registered initial and reused consumers');
+select * from finish();
+rollback;

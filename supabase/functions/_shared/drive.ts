@@ -331,6 +331,21 @@ export class GoogleDriveClient {
     this.#fetch = fetchImpl;
   }
 
+  /** A request-scoped transport budget; credentials remain private and the
+   * original client is unchanged. Abort never proves a mutation did not apply. */
+  withRequestDeadline(deadlineAt: number): GoogleDriveClient {
+    if (!Number.isSafeInteger(deadlineAt)) throw new TeamFunctionError('INVALID_INPUT');
+    return new GoogleDriveClient(this.#accessToken, async (input, init) => {
+      const remaining = deadlineAt - Date.now();
+      if (remaining <= 0) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+      const timeout = AbortSignal.timeout(remaining);
+      return this.#fetch(input, {
+        ...init,
+        signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+      });
+    });
+  }
+
   async getFile(fileId: string, resourceKey?: string | null): Promise<DriveFileMetadata> {
     const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
     url.searchParams.set('fields', FILE_FIELDS);
@@ -756,6 +771,246 @@ export class GoogleDriveClient {
         rowCount: grid.rowCount,
         columnCount: grid.columnCount
       };
+    });
+  }
+
+  /** Read only two bounded catalog columns. Formula expressions remain literal,
+   * so a computed/displayed URL cannot masquerade as a verified stored link. */
+  async readNativeCatalogColumns(input: {
+    fileId: string;
+    sheetName: string;
+    columns: readonly number[];
+    rowCount: number;
+    expectedRows: number;
+  }): Promise<string[][]> {
+    if (
+      !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/u.test(input.sheetName) ||
+      !Number.isSafeInteger(input.rowCount) ||
+      input.rowCount < 3 ||
+      input.rowCount > 10000 ||
+      !Number.isSafeInteger(input.expectedRows) ||
+      input.expectedRows < 3 ||
+      input.expectedRows > 402 ||
+      input.expectedRows > input.rowCount ||
+      input.columns.length !== 2 ||
+      new Set(input.columns).size !== 2 ||
+      input.columns.some(c => !Number.isSafeInteger(c) || c < 0 || c >= 64)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const column = (index: number) => {
+      let value = index + 1,
+        result = '';
+      while (value) {
+        value--;
+        result = String.fromCharCode(65 + (value % 26)) + result;
+        value = Math.floor(value / 26);
+      }
+      return result;
+    };
+    const ranges = input.columns.map(
+      c => `${input.sheetName}!${column(c)}1:${column(c)}${input.rowCount}`
+    );
+    const url = new URL(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(input.fileId)}/values:batchGet`
+    );
+    ranges.forEach(range => url.searchParams.append('ranges', range));
+    url.searchParams.set('majorDimension', 'COLUMNS');
+    url.searchParams.set('valueRenderOption', 'FORMULA');
+    const response = await this.#request(url),
+      reader = response.body?.getReader();
+    if (!reader) throw new TeamFunctionError('INVALID_RESPONSE');
+    const max = 8 * 1024 * 1024,
+      chunks: Uint8Array[] = [];
+    let size = 0,
+      eof = false;
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) {
+          eof = true;
+          break;
+        }
+        size += part.value.byteLength;
+        if (size > max) throw new TeamFunctionError('INVALID_RESPONSE');
+        chunks.push(part.value);
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      const data: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      if (
+        !isRecord(data) ||
+        data.spreadsheetId !== input.fileId ||
+        !Array.isArray(data.valueRanges) ||
+        data.valueRanges.length !== 2
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      return data.valueRanges.map((range, index) => {
+        if (
+          !isRecord(range) ||
+          typeof range.range !== 'string' ||
+          range.range.replace(/'/gu, '') !== ranges[index] ||
+          range.majorDimension !== 'COLUMNS' ||
+          !Array.isArray(range.values) ||
+          range.values.length !== 1 ||
+          !Array.isArray(range.values[0]) ||
+          range.values[0].length > input.expectedRows ||
+          range.values[0].some(v => typeof v !== 'string' || v.length > 8192)
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        // The provider explicitly returns this complete requested range. Trailing
+        // empty cells are omitted by Values API; an absent range is rejected above.
+        const cells = range.values[0] as string[];
+        return Array.from({ length: input.expectedRows }, (_, i) => cells[i] ?? '');
+      });
+    } catch (error) {
+      if (error instanceof TeamFunctionError) throw error;
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    } finally {
+      if (!eof) await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+  }
+
+  /** Narrow Sheets mutation: literal cell values and one atomic receipt marker.
+   * No formatting, dimensions, identifiers or other cells are included. This is
+   * atomic batching, not a compare-and-swap against collaborator edits. */
+  async writeNativeSpreadsheetCells(input: {
+    fileId: string;
+    updates: readonly {
+      sheetId: number;
+      rowIndex: number;
+      columnIndex: number;
+      values: readonly string[];
+    }[];
+    marker: { key: string; value: string; replacesValue?: string };
+  }): Promise<void> {
+    if (
+      !input.fileId ||
+      input.updates.length < 1 ||
+      input.updates.length > 64 ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(input.marker.key) ||
+      !/^[a-zA-Z0-9:_-]{1,1024}$/u.test(input.marker.value) ||
+      input.updates.some(
+        u =>
+          !Number.isSafeInteger(u.sheetId) ||
+          u.sheetId < 0 ||
+          !Number.isSafeInteger(u.rowIndex) ||
+          u.rowIndex < 0 ||
+          u.rowIndex > 10000 ||
+          !Number.isSafeInteger(u.columnIndex) ||
+          u.columnIndex < 0 ||
+          u.columnIndex >= 64 ||
+          u.values.length < 1 ||
+          u.values.length > 402 ||
+          u.rowIndex + u.values.length > 10000 ||
+          u.values.some(v => typeof v !== 'string' || v.length > 8192)
+      )
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const requests: unknown[] = input.updates.map(u => ({
+      updateCells: {
+        start: { sheetId: u.sheetId, rowIndex: u.rowIndex, columnIndex: u.columnIndex },
+        rows: nativeCatalogCellRows(u.values.map(value => [{ t: 'string' as const, v: value }])),
+        fields: 'userEnteredValue'
+      }
+    }));
+    if (input.marker.replacesValue !== undefined) {
+      if (!/^[a-zA-Z0-9:_-]{1,1024}$/u.test(input.marker.replacesValue))
+        throw new TeamFunctionError('INVALID_INPUT');
+      requests.push({
+        deleteDeveloperMetadata: {
+          dataFilter: {
+            developerMetadataLookup: {
+              metadataKey: input.marker.key,
+              metadataValue: input.marker.replacesValue,
+              visibility: 'DOCUMENT',
+              locationType: 'SPREADSHEET'
+            }
+          }
+        }
+      });
+    }
+    requests.push({
+      createDeveloperMetadata: {
+        developerMetadata: {
+          metadataKey: input.marker.key,
+          metadataValue: input.marker.value,
+          visibility: 'DOCUMENT',
+          location: { spreadsheet: true }
+        }
+      }
+    });
+    const body = JSON.stringify({ requests });
+    if (new TextEncoder().encode(body).byteLength > 4 * 1024 * 1024)
+      throw new TeamFunctionError('TOO_LARGE');
+    const response = await this.#request(
+      new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(input.fileId)}:batchUpdate`
+      ),
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body,
+        signal: AbortSignal.timeout(60_000)
+      }
+    );
+    const data: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(data) ||
+      data.spreadsheetId !== input.fileId ||
+      !Array.isArray(data.replies) ||
+      data.replies.length !== requests.length
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+
+  /** Lookup only the original job receipt, never expose unrelated metadata. */
+  async readNativeSpreadsheetMarkers(fileId: string, key: string): Promise<string[]> {
+    if (!fileId || !/^[a-zA-Z0-9_-]{1,128}$/u.test(key))
+      throw new TeamFunctionError('INVALID_INPUT');
+    const response = await this.#request(
+      new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(fileId)}/developerMetadata:search`
+      ),
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          dataFilters: [
+            {
+              developerMetadataLookup: {
+                metadataKey: key,
+                visibility: 'DOCUMENT',
+                locationType: 'SPREADSHEET'
+              }
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(30_000)
+      }
+    );
+    const data: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(data) ||
+      (data.matchedDeveloperMetadata !== undefined && !Array.isArray(data.matchedDeveloperMetadata))
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    const matches = (data.matchedDeveloperMetadata ?? []) as unknown[];
+    if (matches.length > 2) throw new TeamFunctionError('INVALID_RESPONSE');
+    return matches.map(match => {
+      if (
+        !isRecord(match) ||
+        !isRecord(match.developerMetadata) ||
+        match.developerMetadata.metadataKey !== key ||
+        typeof match.developerMetadata.metadataValue !== 'string' ||
+        match.developerMetadata.metadataValue.length > 1024
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      return match.developerMetadata.metadataValue;
     });
   }
 

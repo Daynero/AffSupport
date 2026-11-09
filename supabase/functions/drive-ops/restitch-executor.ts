@@ -106,7 +106,20 @@ export async function claimRestitchExecutor(
   } catch {
     /* read-only recovery below */
   }
-  if (reply?.error) restitchSelectionRpcFailure(reply.error);
+  if (reply?.error) {
+    try {
+      restitchSelectionRpcFailure(reply.error);
+    } catch (error) {
+      if (
+        !(error instanceof TeamFunctionError) ||
+        error.code !== 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
+      )
+        throw error;
+      // Supabase can return a transport failure as an error value after commit.
+      // Resolve only this original claim through one read, never another mutation.
+      reply = undefined;
+    }
+  }
   if (reply) {
     try {
       return parsed(reply.data, input);
@@ -123,4 +136,53 @@ export function readRestitchExecutorClaim(
   input: RestitchExecutorClaimRequest
 ) {
   return read(service, capture(input));
+}
+
+export interface RestitchExecutorClosureRequest extends RestitchExecutorClaimRequest {
+  executorId: string;
+  epoch: number;
+  quiescenceId: string;
+}
+/** Trusted native-control adapter only. The caller must derive the scope from its
+ * private enrolled grant and observe joined native activity before calling this.
+ * Browser bodies, generic transfer grants and terminal UI states are not proof.
+ * A lost response remains unknown; no automatic close replay or new claim. */
+export async function quiesceRestitchExecutor(
+  service: ServiceRpcClient,
+  request: RestitchExecutorClosureRequest
+): Promise<true> {
+  const input = capture(request);
+  if (
+    typeof request.executorId !== 'string' ||
+    !UUID.test(request.executorId) ||
+    typeof request.quiescenceId !== 'string' ||
+    !UUID.test(request.quiescenceId) ||
+    !Number.isSafeInteger(request.epoch) ||
+    request.epoch < 1
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
+  const executorId = request.executorId.toLowerCase();
+  const epoch = request.epoch;
+  const quiescenceId = request.quiescenceId.toLowerCase();
+  // An exact read also rejects a foreign native instance or substituted claim.
+  // Inactive historical receipts can only acknowledge their original close nonce
+  // through the SQL primitive; they never close a later owner.
+  const receipt = await read(service, input);
+  if (!receipt || receipt.executorId !== executorId || receipt.epoch !== epoch) throw uncertain();
+  let reply: Awaited<ReturnType<ServiceRpcClient['rpc']>>;
+  try {
+    reply = await service.rpc('service_quiesce_restitch_executor', {
+      p_root_operation: input.rootOperationId,
+      p_team: input.teamId,
+      p_actor: input.actorId,
+      p_executor: executorId,
+      p_epoch: epoch,
+      p_quiescence: quiescenceId
+    });
+  } catch {
+    throw uncertain();
+  }
+  if (reply.error) restitchSelectionRpcFailure(reply.error);
+  if (reply.data !== true) throw uncertain();
+  return true;
 }

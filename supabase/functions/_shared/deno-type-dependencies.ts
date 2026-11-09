@@ -5,3 +5,5 @@ import '../../../packages/shared/dist/team/contract.d.ts';
 import '../../../packages/shared/dist/team/transport.d.ts';
 import '../../../packages/shared/dist/team/material-category.d.ts';
 import '../../../packages/shared/dist/team/catalog-images.d.ts';
+
+import '../../../packages/shared/dist/team/catalog-video-foreground.d.ts';

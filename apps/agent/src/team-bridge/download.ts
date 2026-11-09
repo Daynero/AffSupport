@@ -61,6 +61,8 @@ export interface TeamDownloadTransfer {
   ): Promise<DownloadedTeamSource>;
 }
 
+export type TeamDownloadFailureStage = 'unknown' | 'downloading' | 'processing' | 'finalizing';
+
 export interface TeamDownloadBridgeOptions {
   transfer: TeamDownloadTransfer;
   chooseDestination?: (signal?: AbortSignal) => Promise<string | null>;
@@ -75,6 +77,10 @@ export interface TeamDownloadBridgeOptions {
    * row that asked for it shows the phase it is in.
    */
   events?: TeamOperationEvents;
+  /** Trusted current-authority check, joined before the final filesystem write. */
+  beforeSave?: () => Promise<void>;
+  /** Trusted diagnostic seam; receives no file content or paths. */
+  onFailureStage?: (stage: TeamDownloadFailureStage) => void;
 }
 
 /** Saves an agent-only download after an explicit native destination choice. */
@@ -83,11 +89,15 @@ export class TeamDownloadBridge {
   readonly #chooseDestination: (signal?: AbortSignal) => Promise<string | null>;
   readonly #reveal: (file: string) => void;
   readonly #delegates: Readonly<Record<string, TeamProcessDelegate>> | null;
-  readonly #active = new Map<string, AbortController>();
+  readonly #active = new Map<string, { controller: AbortController; completion: Promise<void> }>();
   readonly #events: TeamOperationEvents | null;
+  #closing = false;
+  readonly #beforeSave: () => Promise<void>;
+  readonly #onFailureStage: TeamDownloadBridgeOptions['onFailureStage'];
 
   constructor(options: TeamDownloadBridgeOptions) {
     this.#transfer = options.transfer;
+    this.#onFailureStage = options.onFailureStage;
     this.#delegates = options.delegates ?? null;
     this.#chooseDestination = options.chooseDestination ?? selectOutputFolder;
     // Through the same guarded door as every other reveal: a downloaded file
@@ -95,6 +105,7 @@ export class TeamDownloadBridge {
     // system's "do whatever this is" verb.
     this.#reveal = options.reveal ?? (target => void showInFileManager(target, { reveal: true }));
     this.#events = options.events ?? null;
+    this.#beforeSave = options.beforeSave ?? (async () => {});
   }
 
   /** Bound per run, so a delegate reports without knowing who is listening. */
@@ -126,14 +137,37 @@ export class TeamDownloadBridge {
   }
 
   async download(request: TeamAgentDownloadRequest) {
+    request = { ...request, transferGrant: { ...request.transferGrant } };
     const fileName = safeDownloadName(request.fileName);
-    if (this.#active.has(request.operationId)) throw new Error('WRONG_STATE');
+    if (this.#closing || this.#active.has(request.operationId)) throw new Error('WRONG_STATE');
     const step = normalizeProcess(request);
     // Register before any wait, including the native destination choice: Stop
     // and shutdown must own the operation while the person is still choosing.
     const controller = new AbortController();
-    this.#active.set(request.operationId, controller);
+    let complete!: () => void;
+    const completion = new Promise<void>(resolve => {
+      complete = resolve;
+    });
+    const active = { controller, completion };
+    // Own the completion before the chooser or transfer can run/reenter shutdown.
+    // Keep the synchronous chooser start expected by the native route.
+    this.#active.set(request.operationId, active);
+    try {
+      return await this.#download(request, fileName, step, controller);
+    } finally {
+      this.#active.delete(request.operationId);
+      complete();
+    }
+  }
+
+  async #download(
+    request: TeamAgentDownloadRequest,
+    fileName: string,
+    step: NormalizedProcess | null,
+    controller: AbortController
+  ) {
     let source: DownloadedTeamSource | null = null;
+    let failureStage: TeamDownloadFailureStage = 'unknown';
     const checkCanceled = () => {
       if (controller.signal.aborted) throw new Error('DOWNLOAD_CANCELED');
     };
@@ -146,6 +180,7 @@ export class TeamDownloadBridge {
       const destinationRoot = await realpath(destination);
       if (!(await lstat(destinationRoot)).isDirectory()) throw new Error('INVALID_INPUT');
       checkCanceled();
+      failureStage = 'downloading';
       this.#events?.update(request.operationId, {
         state: 'running',
         stage: 'downloading',
@@ -166,6 +201,7 @@ export class TeamDownloadBridge {
       let finalName = fileName;
       let discovered: unknown = null;
       if (step) {
+        failureStage = 'processing';
         const delegate = this.#delegates?.[step.delegate];
         if (!delegate) throw new Error('UNSUPPORTED_MEDIA');
         const output = await delegate({
@@ -196,11 +232,14 @@ export class TeamDownloadBridge {
         // Copying a finished file into the chosen folder is the last wait, and on a large
         // video it is not instant: it gets its own stage rather than looking like a hang at
         // a hundred per cent.
+        failureStage = 'finalizing';
         this.#events?.update(request.operationId, {
           state: 'running',
           stage: 'finalizing',
           progress: 100
         });
+        checkCanceled();
+        await this.#beforeSave();
         checkCanceled();
         const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
         if (request.reveal !== false) this.#reveal(target);
@@ -222,6 +261,11 @@ export class TeamDownloadBridge {
         await producedCleanup?.().catch(() => undefined);
       }
     } catch (error) {
+      try {
+        this.#onFailureStage?.(failureStage);
+      } catch {
+        /* Diagnostics cannot replace the original failure. */
+      }
       const canceled =
         controller.signal.aborted ||
         (error instanceof Error && error.message === 'DOWNLOAD_CANCELED');
@@ -233,15 +277,14 @@ export class TeamDownloadBridge {
       if (canceled) throw new Error('DOWNLOAD_CANCELED', { cause: error });
       throw error;
     } finally {
-      this.#active.delete(request.operationId);
       await source?.cleanup().catch(() => undefined);
     }
   }
 
   cancel(operationId: string): boolean {
-    const controller = this.#active.get(operationId);
-    if (!controller) return false;
-    controller.abort();
+    const active = this.#active.get(operationId);
+    if (!active) return false;
+    active.controller.abort();
     return true;
   }
 
@@ -250,7 +293,10 @@ export class TeamDownloadBridge {
   }
 
   async shutdown(): Promise<void> {
-    for (const controller of this.#active.values()) controller.abort();
+    this.#closing = true;
+    const active = [...this.#active.values()];
+    for (const run of active) run.controller.abort();
+    await Promise.allSettled(active.map(run => run.completion));
   }
 }
 

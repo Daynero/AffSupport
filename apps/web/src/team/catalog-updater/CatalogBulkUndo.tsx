@@ -29,6 +29,8 @@ const keyFor = (receipt: CatalogBulkUndoReceipt) =>
 /** Restore only fields this batch changed; frequency and its calendar form one setting. */
 function restorePatch(receipt: CatalogBulkUndoReceipt): CatalogUpdateProfilePatch {
   const patch: CatalogUpdateProfilePatch = {};
+  if (receipt.patch.videoVariantCount !== undefined)
+    patch.videoVariantCount = receipt.before.profile.videoVariantCount ?? 1;
   for (const key of [
     'restitch',
     'randomLinkVariation',

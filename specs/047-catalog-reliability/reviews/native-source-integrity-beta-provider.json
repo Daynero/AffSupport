@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T04:49:11.397Z",
+  "observations": [
+    {
+      "scenario": "actual_provider_bytes",
+      "accepted": true,
+      "bytes": 44,
+      "checksumAdvertised": true,
+      "reads": 1
+    },
+    {
+      "scenario": "controlled_transit_corruption",
+      "refused": true,
+      "code": "SOURCE_CHANGED",
+      "reason": "checksum_mismatch",
+      "reads": 1
+    }
+  ],
+  "scope": "Candidate native source module with real authenticated local beta grants/provider bytes and controlled local transit corruption. Not an installed beta-agent run, full verification or manual UI acceptance.",
+  "providerContentChanged": false,
+  "productionTouched": false
+}

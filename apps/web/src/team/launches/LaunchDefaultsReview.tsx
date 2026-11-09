@@ -84,6 +84,18 @@ export function LaunchDefaultsReview({
               <dd>
                 {config.catalog?.restitchEnabled ? t('launchesDuration') + ': ' + minutes : '—'}
               </dd>
+              {config.catalog?.catalogVideoProtocolVersion === 1 && (
+                <>
+                  <dt>{t('catalogVideoVariationCount')}</dt>
+                  <dd>{config.catalog.restitchEnabled ? config.catalog.videoVariationCount : 1}</dd>
+                  <dt>{t('catalogPublicationDelayed')}</dt>
+                  <dd>
+                    {config.catalog.videoPublication?.mode === 'scheduled'
+                      ? `${config.catalog.videoPublication.localDateTime.replace('T', ' ')} · ${config.catalog.videoPublication.timeZone}`
+                      : '—'}
+                  </dd>
+                </>
+              )}
             </>
           )}
           {current &&

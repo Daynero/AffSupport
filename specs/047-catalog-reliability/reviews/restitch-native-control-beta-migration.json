@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T13:55:52.413Z",
+  "project": "r2beta045",
+  "fromSchema": 446,
+  "toSchema": 447,
+  "applied": [
+    "20261207164000_restitch_native_control.sql"
+  ],
+  "fullRowTablesUnchanged": 23,
+  "newAuthorityRows": 0,
+  "acl": {
+    "rows": 0,
+    "rpcCount": 6,
+    "browserDenied": true,
+    "serviceAllowed": true,
+    "rawServiceDenied": true,
+    "forcedRls": true
+  },
+  "edgeQuiescedBeforeBaseline": true,
+  "productionTouched": false,
+  "scope": "Private native-control local schema only, after full native and actual HTTP logout proof. No routed/installed controller, product delivery, diagnostic/manual or packaged-beta acceptance."
+}

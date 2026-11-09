@@ -7,6 +7,7 @@ import {
 export function requireCompletedFileOperation(value: unknown): TeamFileOperationResult {
   const result = parseTeamFileOperationResult(value);
   if (!result || !result.operationId.trim()) throw new Error('INVALID_RESPONSE');
-  if (result.state !== 'succeeded') throw new Error('PROCESS_RESULT_UNCERTAIN');
+  if (result.historicalReceipt || result.state !== 'succeeded')
+    throw new Error('PROCESS_RESULT_UNCERTAIN');
   return result;
 }

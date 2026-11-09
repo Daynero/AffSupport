@@ -51,6 +51,7 @@ export interface TailClient {
     materialId: string;
     idempotencyKey: string;
     expectedActorId?: string;
+    receiptProtocol?: 2;
   }) => Promise<unknown>;
 }
 

@@ -9,13 +9,15 @@ import type {
   BulkTrashItem,
   BulkTrashGroup,
   TeamMaterialRow,
-  TeamErrorCode
+  TeamErrorCode,
+  TeamHistoricalFileReceipt
 } from '@video-compressor/shared';
 import {
   beginWorkspaceOperation,
   type WorkspaceStage,
   type WorkspaceDiagnosticSource
 } from '../workspace/operationAnalytics';
+import { parseTeamFileOperationResult } from '@video-compressor/shared';
 import { teamApi, TeamApiError } from '../../api/team';
 import { trashMaterialWithTail, type TrashTailClient } from '../materials/tail';
 
@@ -33,8 +35,15 @@ export function useBulkTrash(
   actorId?: string
 ) {
   const [groups, setGroups] = useState<BulkTrashGroup[]>([]);
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [uncertain, setUncertain] = useState(false);
+  const [historicalReceipts, setHistoricalReceipts] = useState<
+    ReadonlyMap<string, ReadonlyMap<string, TeamHistoricalFileReceipt>>
+  >(new Map());
+  const historicalRef = useRef(historicalReceipts);
+  historicalRef.current = historicalReceipts;
   const active = useRef(new Set<string>());
   const starting = useRef<string | null>(null);
   const mutationControllers = useRef(new Set<AbortController>());
@@ -75,6 +84,7 @@ export function useBulkTrash(
   const readId = useRef(0);
   const observed = useRef(new Map<string, ReturnType<typeof beginWorkspaceOperation>>());
   const lastStage = useRef(new Map<string, string>());
+  const historicalFlows = useRef(new Set<string>());
   const reportStage = useCallback(
     (id: string, stage: WorkspaceStage, code?: TeamErrorCode) => {
       if (!scopeCurrent()) return;
@@ -90,29 +100,38 @@ export function useBulkTrash(
     if (!scopeCurrent()) return;
     for (const group of groups.filter(group => group.teamId === teamId)) {
       let flow = observed.current.get(group.id);
-      if (!flow) {
+      const historical = historicalReceipts.has(group.id);
+      if (!historical) historicalFlows.current.delete(group.id);
+      if (!flow || (historical && !historicalFlows.current.has(group.id))) {
         flow = beginWorkspaceOperation('bulk_trash', group.id, group.items.length, undefined, true);
         observed.current.set(group.id, flow);
+        lastStage.current.delete(group.id);
+        if (historical) historicalFlows.current.add(group.id);
       }
       const unknown = group.items.find(item => item.state === 'unknown');
       const failed = group.items.find(item => item.state === 'failed');
-      if (group.items.every(item => item.state === 'confirmed')) reportStage(group.id, 'confirmed');
+      if (historicalReceipts.has(group.id))
+        reportStage(group.id, 'unknown', 'PROCESS_RESULT_UNCERTAIN');
+      else if (group.items.every(item => item.state === 'confirmed'))
+        reportStage(group.id, 'confirmed');
       else if (unknown)
         reportStage(group.id, 'unknown', teamErrorCodeOf({ code: unknown.errorCode }) ?? undefined);
       else if (failed)
         reportStage(group.id, 'partial', teamErrorCodeOf({ code: failed.errorCode }) ?? undefined);
       else reportStage(group.id, 'running');
     }
-  }, [groups, teamId, reportStage, scopeCurrent]);
+  }, [groups, teamId, reportStage, scopeCurrent, historicalReceipts]);
   useEffect(() => {
     liveScope.current = scope;
     generation.current++;
     setGroups([]);
+    setHistoricalReceipts(new Map());
     setDismissed(new Set());
     active.current.clear();
     starting.current = null;
     observed.current.clear();
     lastStage.current.clear();
+    historicalFlows.current.clear();
     return () => {
       generation.current++;
       for (const controller of mutationControllers.current) controller.abort();
@@ -154,6 +173,22 @@ export function useBulkTrash(
               // A local journal failure cannot hide authoritative hosted receipts.
               localUnknown = true;
             }
+          setHistoricalReceipts(previous => {
+            const next = new Map<string, ReadonlyMap<string, TeamHistoricalFileReceipt>>();
+            for (const group of receipts) {
+              const items = new Map<string, TeamHistoricalFileReceipt>();
+              for (const item of group.items) {
+                if (item.historicalReceipt) items.set(item.materialId, item.historicalReceipt);
+                else if (item.state !== 'confirmed') {
+                  const retained = previous.get(group.id)?.get(item.materialId);
+                  if (retained) items.set(item.materialId, retained);
+                }
+              }
+              if (items.size) next.set(group.id, items);
+            }
+            historicalRef.current = next;
+            return next;
+          });
           setGroups(receipts);
           setUncertain(localUnknown);
         }
@@ -197,9 +232,20 @@ export function useBulkTrash(
       try {
         // Reconcile before replay: a missing response cannot make a second operation key.
         const receipts = await refresh();
-        const authoritative = receipts.find(receipt => receipt.id === group.id) ?? group;
-        const pending = authoritative.items.filter(item =>
-          ['queued', 'failed', 'unknown'].includes(item.state)
+        if (!scopeCurrent() || current !== generation.current)
+          throw new DOMException('Bulk trash scope ended', 'AbortError');
+        const authoritative = receipts.find(receipt => receipt.id === group.id);
+        if (!authoritative) {
+          // A retained browser intent is not hosted authority. Missing readback
+          // remains unknown and must not dispatch the old group again.
+          setUncertain(true);
+          reportStage(group.id, 'unknown', 'PROCESS_RESULT_UNCERTAIN');
+          throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', false);
+        }
+        const pending = authoritative.items.filter(
+          item =>
+            ['queued', 'failed', 'unknown'].includes(item.state) &&
+            !historicalRef.current.get(group.id)?.has(item.materialId)
         );
         let index = 0;
         await Promise.all(
@@ -210,6 +256,7 @@ export function useBulkTrash(
               const materialId = item.materialId;
               const row = rows.find(candidate => candidate.id === item?.materialId);
               let source: WorkspaceDiagnosticSource = 'trash_prepare';
+              let historical: TeamHistoricalFileReceipt | undefined;
               try {
                 const prepared = await waitMutation(() =>
                   client.prepareBulkTrashItem(teamId, group.id, materialId)
@@ -231,13 +278,23 @@ export function useBulkTrash(
                       category: row?.category ?? null
                     },
                     client: {
-                      trashMaterial: input => {
+                      trashMaterial: async input => {
                         if (signal.aborted || !scopeCurrent() || current !== generation.current)
                           throw new DOMException('Bulk trash scope ended', 'AbortError');
-                        return tailClient.trashMaterial({
+                        const result = await tailClient.trashMaterial({
                           ...input,
+                          receiptProtocol: 2,
                           expectedActorId: authoritative.actorId
                         });
+                        const parsed = parseTeamFileOperationResult(result);
+                        if (
+                          parsed?.historicalReceipt &&
+                          (parsed.materialId !== materialId ||
+                            parsed.historicalReceipt.action !== 'trash')
+                        )
+                          throw new TeamApiError('INVALID_RESPONSE', false);
+                        historical = parsed?.historicalReceipt;
+                        return result;
                       }
                     },
                     idempotencyKey: acceptedItem.idempotencyKey
@@ -245,13 +302,26 @@ export function useBulkTrash(
                 );
               } catch (cause) {
                 if (!scopeCurrent() || current !== generation.current) return;
-                observed.current.get(group.id)?.diagnostic(source, cause);
-                const code = teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE';
-                // A request failure does not establish a server failure. Reconcile its exact receipt.
-                if (item)
-                  await waitMutation(() =>
-                    client.markBulkTrashRequest(teamId, group.id, materialId, code)
-                  ).catch(() => undefined);
+                if (historical) {
+                  const receipt = historical;
+                  setHistoricalReceipts(previous => {
+                    const next = new Map(previous),
+                      items = new Map(next.get(group.id));
+                    items.set(materialId, receipt);
+                    next.set(group.id, items);
+                    historicalRef.current = next;
+                    return next;
+                  });
+                  reportStage(group.id, 'unknown', 'PROCESS_RESULT_UNCERTAIN');
+                } else {
+                  observed.current.get(group.id)?.diagnostic(source, cause);
+                  const code = teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE';
+                  // A request failure does not establish a server failure. Reconcile its exact receipt.
+                  if (item)
+                    await waitMutation(() =>
+                      client.markBulkTrashRequest(teamId, group.id, materialId, code)
+                    ).catch(() => undefined);
+                }
               }
               if (!scopeCurrent() || current !== generation.current) return;
               await refresh().catch(cause => {
@@ -369,10 +439,26 @@ export function useBulkTrash(
     ]
   );
   const acknowledgeVisible = useCallback(
-    (id: string) => {
+    (id: string, outcome?: 'unknown') => {
       if (!scopeCurrent()) return;
-      const flow = observed.current.get(id);
-      flow?.visible();
+      let flow = observed.current.get(id);
+      // Child visibility effects may run before the parent's receipt observer.
+      // Own the visible attempt here as well, and never reuse a settled normal
+      // success to hide a later historical/current-state explanation.
+      if (!flow || (outcome === 'unknown' && !historicalFlows.current.has(id))) {
+        flow = beginWorkspaceOperation(
+          'bulk_trash',
+          id,
+          groupsRef.current.find(group => group.id === id)?.items.length ?? 0,
+          undefined,
+          true
+        );
+        observed.current.set(id, flow);
+        lastStage.current.delete(id);
+        if (outcome === 'unknown') historicalFlows.current.add(id);
+      }
+      if (outcome === 'unknown') flow.visibleResult('unknown', 'PROCESS_RESULT_UNCERTAIN');
+      else flow.visible();
     },
     [scopeCurrent]
   );
@@ -385,6 +471,7 @@ export function useBulkTrash(
   );
   return {
     dismiss,
+    historicalReceipts: scopeCurrent() ? historicalReceipts : new Map(),
     groups: scopeCurrent()
       ? groups.filter(group => group.teamId === teamId && !dismissed.has(group.id))
       : [],

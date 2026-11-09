@@ -158,7 +158,7 @@ K/N рахуються за receipts, не довіряють довільном
    до явного «Додати зараз» або нового valid schedule. У вже published каталозі
    зберігає чинні URL та стримує майбутню заміну; regular updater не скидає policy.
 4. **Запис у Drive:** спершу транзакційне резервування revision/fence, потім
-   provider conditional content write (contract C6), потім actual-cell readback і settlement. Не тримати довгу SQL
+   atomic Sheets video-cell-only UpdateCells + original-fence marker (contract C6; не external-cell CAS), потім actual-cell readback і settlement. Не тримати довгу SQL
    транзакцію через мережу й не обіцяти атомарну транзакцію PostgreSQL+Drive.
 5. **Reschedule/cancel при applying:** не повідомляти «скасовано» до звірки
    вже відправленого provider write. Користувач бачить, що запис уже виконується
@@ -291,3 +291,36 @@ production GO. Incident-closed: після окремо авторизовано
 Відкриті критичні bugs, unknown execution без recovery та відсутня diagnostic
 coverage блокують відповідний пакет. Календарний строк уточнюється після
 T003/T004; вигадана оцінка не підміняє перевірку production-контрактів.
+
+## Доповнення після ручної перевірки: T062, ручний виконавець без загальної фонової черги
+
+Підтверджений блокер: N-протокол вимагає чинної team recovery delegation навіть
+для явно натиснутого ручного запуску з під’єднаним Soty. Заміна повідомлення на
+AGENT_REQUIRED пояснює відмову, але не закриває FR-022a.
+
+1. Визначити окремий дозвіл лише на оригінальний N-набір: перевірена Auth-сесія,
+   actor/team, source/version/settings/intent, native boot і proof володіння.
+   Ні browser bearer у native vault, ні синтетична загальна delegation не є рішенням.
+2. Native enrollment і server acceptance мають stable intent/read-back. До
+   атомарної прив’язки до конкретного set не дозволено provider I/O. Дозвіл не
+   придатний для загальних recovery actions, іншого set або старих jobs.
+3. Повторно використати executor, protected image budget, download/process
+   grants, upload/consumer/finalization і original-output reconciliation. Окремо
+   розширити auth-discriminated process aliases/native controls: наявний
+   browser_session лише для download не можна видавати за підтримку process N.
+4. Для ручних Launch/creation/manager виконувати лише явно прийнятий set.
+   Загальний background opt-in і TeamRecoveryWorker залишаються окремими.
+5. Діагностика: correlated intent/enrollment/set/child, accepted/redeemed,
+   native started, physical K/N, cancellation/revocation, restart/unknown output,
+   publication ready/delivered; відсутній сигнал не означає успіх. Збирати лише
+   bounded IDs/mode/codes/counts, без bearer/proof secrets, URL чи user content.
+6. До локального застосування нової additive міграції — regressions/RLS/ACL,
+   реальна Auth і native concurrency у disposable runner. Старі 462 міграції
+   незмінні. Перед/після локального apply підтвердити збереження старої черги
+   та захищених material/110 ops; не повторювати unknown writes.
+7. Наскрізний beta acceptance: background=false, реальні N=5 через paired
+   native, browser close/reopen, lost ACK, logout/replacement, чужий set/proof,
+   restart без duplicate outputs, due-time update тільки відеоколонок.
+
+T061 та T062 входять до критерія завершення відповідного scope; попередній
+перелік T001–T059 не виключає дефекти, знайдені ручною перевіркою.

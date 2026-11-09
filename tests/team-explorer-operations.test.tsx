@@ -731,3 +731,316 @@ it('does not send the file write after access changes during the mark acknowledg
     setPrivateCacheScope(null, 'bulk-trash-ended');
   }
 });
+
+it('does not dispatch a stale bulk group when authoritative recovery no longer returns it', async () => {
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000099',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'retained-key',
+        state: 'unknown',
+        errorCode: 'PROCESS_RESULT_UNCERTAIN'
+      }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => []),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(async () => group),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = { trashMaterial: vi.fn() };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await expect(view.result.current.retry(group, rows.slice(0, 1), tail)).rejects.toMatchObject({
+      code: 'PROCESS_RESULT_UNCERTAIN'
+    });
+  });
+  expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
+  expect(client.markBulkTrashRequest).not.toHaveBeenCalled();
+  expect(tail.trashMaterial).not.toHaveBeenCalled();
+  expect(view.result.current.uncertain).toBe(true);
+});
+
+it('keeps historical completion separate from current success and checks it without provider replay', async () => {
+  const hosted: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000098',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'old-terminal-key',
+        state: 'unknown',
+        errorCode: 'PROCESS_RESULT_UNCERTAIN'
+      }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => [structuredClone(hosted)]),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(async () => structuredClone(hosted)),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const historical = {
+    protocolVersion: 1 as const,
+    action: 'trash' as const,
+    basis: 'catalog_snapshot' as const,
+    observedAt: '2026-11-08T10:00:00Z',
+    state: 'changed' as const,
+    memberCount: 1,
+    matchingCount: 0,
+    missingCount: 0
+  };
+  const tail = {
+    trashMaterial: vi.fn(async () => ({
+      operationId: '37000000-0000-4000-8000-000000000097',
+      state: 'succeeded',
+      reused: true,
+      materialId: rows[0]!.id,
+      historicalReceipt: historical
+    }))
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await view.result.current.retry(hosted, rows.slice(0, 1), tail);
+  });
+  expect(tail.trashMaterial).toHaveBeenCalledWith(expect.objectContaining({ receiptProtocol: 2 }));
+  expect(view.result.current.historicalReceipts.get(hosted.id)?.get(rows[0]!.id)).toEqual(
+    historical
+  );
+  expect(client.markBulkTrashRequest).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await view.result.current.retry(hosted, rows.slice(0, 1), tail);
+  });
+  expect(tail.trashMaterial).toHaveBeenCalledTimes(1);
+  expect(client.prepareBulkTrashItem).toHaveBeenCalledTimes(1);
+});
+
+it('restores durable historical observation on reopen without new mutation dispatch', async () => {
+  const historical = {
+    protocolVersion: 1 as const,
+    action: 'trash' as const,
+    basis: 'catalog_snapshot' as const,
+    observedAt: '2026-11-08T10:00:00Z',
+    state: 'changed' as const,
+    memberCount: 1,
+    matchingCount: 0,
+    missingCount: 0
+  };
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000096',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'old-key',
+        state: 'confirmed',
+        errorCode: null,
+        historicalReceipt: historical
+      }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => [group]),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn()
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() =>
+    expect(view.result.current.historicalReceipts.get(group.id)?.get(rows[0]!.id)).toEqual(
+      historical
+    )
+  );
+  view.unmount();
+  const reopened = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() =>
+    expect(reopened.result.current.historicalReceipts.get(group.id)?.get(rows[0]!.id)).toEqual(
+      historical
+    )
+  );
+  expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
+  expect(client.startBulkTrash).not.toHaveBeenCalled();
+});
+
+it('renders historical catalog-state change without announcing a fresh completed mutation', async () => {
+  localStorage.setItem('language', 'en');
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000095',
+    teamId: team,
+    actorId: actor,
+    items: [
+      { materialId: rows[0]!.id, idempotencyKey: 'old-key', state: 'confirmed', errorCode: null }
+    ]
+  };
+  const receipt = {
+    protocolVersion: 1 as const,
+    action: 'trash' as const,
+    basis: 'catalog_snapshot' as const,
+    observedAt: '2026-11-08T10:00:00Z',
+    state: 'changed' as const,
+    memberCount: 1,
+    matchingCount: 0,
+    missingCount: 0
+  };
+  const visible = vi.fn(),
+    check = vi.fn();
+  render(
+    <BulkTrashPanel
+      group={group}
+      rows={rows.slice(0, 1)}
+      uncertain={false}
+      historicalReceipts={new Map([[rows[0]!.id, receipt]])}
+      onVisible={visible}
+      onRetry={check}
+    />
+  );
+  expect(
+    screen.getByText(
+      /The earlier operation completed, but the current catalog snapshot has since changed/
+    )
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(check).toHaveBeenCalledOnce();
+  expect(visible).toHaveBeenCalledWith(group.id, 'unknown');
+  expect(visible.mock.calls.some(call => call[1] !== 'unknown')).toBe(false);
+});
+
+it('allows a fresh intent after a changed historical receipt without reusing the old mutation', async () => {
+  const old: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000094',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'old-terminal-key',
+        state: 'confirmed',
+        errorCode: null,
+        historicalReceipt: {
+          protocolVersion: 1,
+          action: 'trash',
+          basis: 'catalog_snapshot',
+          observedAt: '2026-11-08T10:00:00Z',
+          state: 'changed',
+          memberCount: 1,
+          matchingCount: 0,
+          missingCount: 0
+        }
+      }
+    ]
+  };
+  let groups = [old];
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => structuredClone(groups)),
+    startBulkTrash: vi.fn(async (_team: string, id: string, ids: string[]) => {
+      const fresh: BulkTrashGroup = {
+        id,
+        teamId: team,
+        actorId: actor,
+        items: ids.map(materialId => ({
+          materialId,
+          idempotencyKey: `${id}:${materialId}`,
+          state: 'queued',
+          errorCode: null
+        }))
+      };
+      groups = [fresh, old];
+      return structuredClone(fresh);
+    }),
+    prepareBulkTrashItem: vi.fn(async (_team: string, id: string) =>
+      structuredClone(groups.find(group => group.id === id)!)
+    ),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = {
+    trashMaterial: vi.fn(async (_input: { idempotencyKey: string }) => {
+      groups[0]!.items[0]!.state = 'confirmed';
+      return {
+        operationId: '37000000-0000-4000-8000-000000000093',
+        state: 'succeeded',
+        materialId: rows[0]!.id,
+        reused: false
+      };
+    })
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() => expect(view.result.current.historicalReceipts.has(old.id)).toBe(true));
+  await act(async () => {
+    await view.result.current.start(rows.slice(0, 1), tail);
+  });
+  await waitFor(() => expect(tail.trashMaterial).toHaveBeenCalledTimes(1));
+  expect(vi.mocked(client.startBulkTrash).mock.calls[0]![1]).not.toBe(old.id);
+  expect(vi.mocked(tail.trashMaterial).mock.calls[0]![0].idempotencyKey).not.toBe(
+    'old-terminal-key'
+  );
+});
+
+it('records a visible historical explanation as unknown delivery instead of a fresh operation success', async () => {
+  const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+  const historical = {
+    protocolVersion: 1 as const,
+    action: 'trash' as const,
+    basis: 'catalog_snapshot' as const,
+    observedAt: '2026-11-08T10:00:00Z',
+    state: 'changed' as const,
+    memberCount: 1,
+    matchingCount: 0,
+    missingCount: 0
+  };
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000092',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[0]!.id,
+        idempotencyKey: 'old-key',
+        state: 'confirmed',
+        errorCode: null,
+        historicalReceipt: historical
+      }
+    ]
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => [group]),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn()
+  };
+  function Host() {
+    const state = useBulkTrash(team, 0, client, actor);
+    return (
+      <>
+        {state.groups.map(item => (
+          <BulkTrashPanel
+            key={item.id}
+            group={item}
+            rows={rows.slice(0, 1)}
+            historicalReceipts={state.historicalReceipts.get(item.id)}
+            uncertain={state.uncertain}
+            onVisible={state.acknowledgeVisible}
+          />
+        ))}
+      </>
+    );
+  }
+  render(<Host />);
+  await waitFor(() =>
+    expect(track).toHaveBeenCalledWith(
+      'operation_stage_completed',
+      expect.objectContaining({
+        flow_id: group.id,
+        action_identifier: 'result_visible',
+        error_code: 'PROCESS_RESULT_UNCERTAIN'
+      })
+    )
+  );
+  expect(track.mock.calls.some(([event]) => event === 'operation_completed')).toBe(false);
+  expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
+});

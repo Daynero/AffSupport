@@ -64,11 +64,18 @@ export const TEAM_CATALOG_LINK_ERROR_CODES = [
   'CATALOG_LINK_UPDATE_REQUIRED'
 ] as const;
 
+/** Historical 143000 batch is immutable; new publication codes use 179000. */
 export const TEAM_CATALOG_MUTATION_ERROR_CODES = ['CATALOG_STOP_TARGET_UNKNOWN'] as const;
+
+export const TEAM_CATALOG_PUBLICATION_ERROR_CODES = [
+  'CATALOG_PUBLICATION_PENDING',
+  'CATALOG_WRITE_UNSUPPORTED'
+] as const;
 
 export const TEAM_ERROR_CODES = [
   ...RESTITCH_RECOVERY_ERROR_CODES,
   ...TEAM_CATALOG_MUTATION_ERROR_CODES,
+  ...TEAM_CATALOG_PUBLICATION_ERROR_CODES,
   ...TEAM_CATALOG_LINK_ERROR_CODES,
   ...TEAM_CATALOG_POLISH_ERROR_CODES,
   ...TEAM_CATALOG_MANAGER_ERROR_CODES,
@@ -662,7 +669,20 @@ export interface TeamUploadSession {
   relayUrl: string | null;
 }
 
+export interface TeamHistoricalFileReceipt {
+  protocolVersion: 1;
+  action: 'trash' | 'restore';
+  basis: 'catalog_snapshot';
+  observedAt: string;
+  state: 'matches' | 'changed' | 'unknown';
+  memberCount: number;
+  matchingCount: number;
+  missingCount: number;
+}
+
 export interface TeamFileOperationResult {
+  /** Historical completion is separate from current provider delivery. */
+  historicalReceipt?: TeamHistoricalFileReceipt;
   operationId: string;
   state: TeamOperationState;
   materialId: string | null;
@@ -1065,13 +1085,40 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
   ) {
     return null;
   }
+  const historical = value.historicalReceipt;
+  if (
+    historical !== undefined &&
+    (!isRecord(historical) ||
+      historical.protocolVersion !== 1 ||
+      !['trash', 'restore'].includes(String(historical.action)) ||
+      historical.basis !== 'catalog_snapshot' ||
+      typeof historical.observedAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/u.test(historical.observedAt) ||
+      value.materialId === null ||
+      !Number.isFinite(Date.parse(historical.observedAt)) ||
+      !['matches', 'changed', 'unknown'].includes(String(historical.state)) ||
+      ![historical.memberCount, historical.matchingCount, historical.missingCount].every(
+        n => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= 5000
+      ) ||
+      Number(historical.matchingCount) + Number(historical.missingCount) >
+        Number(historical.memberCount) ||
+      (Number(historical.missingCount) > 0 && historical.state !== 'unknown') ||
+      historical.memberCount === 0 ||
+      value.state !== 'succeeded' ||
+      !value.reused ||
+      (historical.state === 'matches' && historical.matchingCount !== historical.memberCount))
+  )
+    return null;
   const sourceLanguage = normalizeSourceLanguage(value.sourceLanguage);
   return {
     operationId: value.operationId,
     state: value.state as TeamOperationState,
     materialId: value.materialId,
     reused: value.reused,
-    ...(sourceLanguage ? { sourceLanguage } : {})
+    ...(sourceLanguage ? { sourceLanguage } : {}),
+    ...(historical !== undefined
+      ? { historicalReceipt: { ...historical } as unknown as TeamHistoricalFileReceipt }
+      : {})
   };
 }
 

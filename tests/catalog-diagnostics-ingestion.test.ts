@@ -248,3 +248,27 @@ it('retains pre-claim refusal, idle and accepted evidence without claiming video
   );
   expect(JSON.stringify(details)).not.toContain('synthetic-catalog@example.invalid');
 });
+
+it('diagnoses visible publication settings without claiming that a video reached the catalog', async () => {
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    expect(rows.every(row => row.accepted)).toBe(true);
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const flow = beginCatalogUiFlow('publication', { count: 1 }, service);
+  flow.stage('save_requested');
+  flow.stage('save_confirmed');
+  flow.complete();
+  await service.flush();
+  const result = await getInspect(flow.id, new Date(Date.now() + 1000).toISOString());
+  expect(result.found).toBe(true);
+  if (!result.found) throw Error('MISSING_PUBLICATION_CONFIGURATION_EVIDENCE');
+  expect(result.capability).toBe('team.catalog_manager_publication');
+  expect(result.terminal?.event).toBe('operation_completed');
+  expect(result.events.every(event => event.properties.production_completed === false)).toBe(true);
+});

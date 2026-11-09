@@ -1,4 +1,10 @@
 import {
+  getCatalogVideoSessionEvidence,
+  type CatalogVideoSessionEvidence
+} from './catalog-video-sessions.js';
+import { getCatalogVideoSetEvidence, type CatalogVideoSetEvidence } from './catalog-video-sets.js';
+import { getCatalogGrowthEvidence, type CatalogGrowthEvidence } from './catalog-growth.js';
+import {
   CATALOG_TIMING_STAGES,
   type CatalogTimingSnapshot
 } from '../../supabase/functions/_shared/catalog-timings.js';
@@ -33,7 +39,29 @@ const CODES = new Set([
   'LAUNCH_RESULT_UNCERTAIN',
   'LAUNCH_INTERNAL_ERROR',
   'IMAGE_PUBLICATION_REVOKED',
-  'CATALOG_IMAGE_UPGRADE_REQUIRED'
+  'CATALOG_IMAGE_UPGRADE_REQUIRED',
+  'RESTITCH_SCREEN_SELECTION_LIMIT',
+  'RESTITCH_SCREEN_CANDIDATES_EXHAUSTED',
+  'RESTITCH_SCREEN_PREVIOUS_FAILURES',
+  'RESTITCH_SCREEN_BYTE_LIMIT',
+  'RESTITCH_SCREEN_IO_LIMIT',
+  'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN',
+  'RESTITCH_SCREEN_UNAVAILABLE',
+  'RESTITCH_SCREEN_FETCH_FAILED',
+  'RESTITCH_SCREEN_UNSUPPORTED',
+  'RESTITCH_FORBIDDEN',
+  'RESTITCH_NO_SCREENS',
+  'RESTITCH_INVALID',
+  'RESTITCH_POOL_EMPTY',
+  'RESTITCH_SOURCE_FORBIDDEN',
+  'RESTITCH_SOURCES_INVALID',
+  'RESTITCH_SOURCES_TOO_MANY',
+  'RESTITCH_CLIENT_OUTDATED',
+  'PROCESS_RESULT_UNCERTAIN',
+  'AGENT_UPDATE_REQUIRED',
+  'SHARE_NOT_ALLOWED',
+  'INVALID_INPUT',
+  'CATALOG_WRITE_UNSUPPORTED'
 ]);
 const FLAGS = [
   'settings_observed',
@@ -62,6 +90,9 @@ export interface CatalogGenerationSnapshot {
   native_write_acknowledged: boolean | null;
 }
 export interface CatalogGenerationEvidence {
+  foreground_authorities?: CatalogVideoSessionEvidence;
+  growth_recipes?: CatalogGrowthEvidence;
+  video_sets?: CatalogVideoSetEvidence;
   supported: boolean;
   scope: 'current_snapshot_not_transition_history';
   records: CatalogGenerationSnapshot[];
@@ -87,6 +118,12 @@ export async function getCatalogGenerationEvidence(
     ]
   };
   const schema = await getSchema();
+  if (UUID.test(id))
+    result.foreground_authorities = await getCatalogVideoSessionEvidence(id, period.as_of);
+  if (schema.tables.analytics_catalog_growth_video_recipes && UUID.test(id))
+    result.growth_recipes = await getCatalogGrowthEvidence(id, period.as_of);
+  if (schema.tables.analytics_catalog_video_sets && UUID.test(id))
+    result.video_sets = await getCatalogVideoSetEvidence(id, period.as_of);
   if (!schema.tables.analytics_catalog_generations) {
     result.blind_spots.push('Restricted catalog generation view is unavailable to this role.');
     return result;

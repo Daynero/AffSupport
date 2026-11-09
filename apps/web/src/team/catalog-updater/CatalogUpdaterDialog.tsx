@@ -1,3 +1,7 @@
+import { CatalogProfileVideoCount } from './CatalogProfileVideoCount';
+import { CatalogVideoVariationsDialog } from './CatalogVideoVariationsDialog';
+import { builtForEnvironment } from '../../lib/config';
+import { CatalogPublicationDialog } from '../product-catalog/CatalogPublicationDialog';
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
@@ -284,11 +288,13 @@ function CatalogUpdaterDialogScope({
   const [editorPending, setEditorPending] = useState(false);
   const [editorUncertain, setEditorUncertain] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
+  const inlinePending = Object.values(inline.states).some(state => state.phase === 'pending');
+  const closeUncertain =
+    editorUncertain || Object.values(inline.states).some(state => state.phase === 'unknown');
   const guard = (action: () => void) => {
     if (!owner.current()) return;
-    if (editorPending || Object.values(inline.states).some(state => state.phase === 'pending'))
-      return;
-    if (editorDirty || editorUncertain) setDiscardAction(() => action);
+    if (editorPending || inlinePending) return;
+    if (editorDirty || closeUncertain) setDiscardAction(() => action);
     else action();
   };
 
@@ -297,17 +303,17 @@ function CatalogUpdaterDialogScope({
       if (!owner.current()) return;
       if (
         editorPending ||
-        Object.values(inline.states).some(state => state.phase === 'pending') ||
-        ((editorDirty || editorUncertain) &&
+        inlinePending ||
+        ((editorDirty || closeUncertain) &&
           !window.confirm(
-            t(editorUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardDraft')
+            t(closeUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardDraft')
           ))
       )
         event.preventDefault();
     };
     window.addEventListener(BEFORE_NAVIGATION_EVENT, prevent);
     return () => window.removeEventListener(BEFORE_NAVIGATION_EVENT, prevent);
-  }, [editorDirty, editorPending, editorUncertain, inline.hasPending, t, owner]);
+  }, [editorDirty, editorPending, closeUncertain, inlinePending, t, owner]);
   const listFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   useEffect(() => {
     const flow = beginCatalogUiFlow('list');
@@ -322,6 +328,8 @@ function CatalogUpdaterDialogScope({
     } else if (registry.error) listFlow.current?.fail('READ_FAILED');
   }, [registry.rows, registry.error, registry.invalidRowCount]);
   const [expandedCatalogId, setExpandedCatalogId] = useState<string | null>(null);
+  const [videoVariationsRow, setVideoVariationsRow] = useState<CatalogRegistryRow | null>(null);
+  const [publicationCatalogId, setPublicationCatalogId] = useState<string | null>(null);
   const [historyCatalogId, setHistoryCatalogId] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLSpanElement>(null);
 
@@ -336,6 +344,7 @@ function CatalogUpdaterDialogScope({
         }
       : row;
   });
+  const rowsById = new Map(rows.map(row => [row.catalogId, row]));
   const nameCounts = new Map<string, number>();
   for (const row of rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
   const duplicateNames = new Set(
@@ -509,7 +518,7 @@ function CatalogUpdaterDialogScope({
     if (!owner.current()) return;
     if (ids.some(id => inline.blocked(id) || commands.blocked(id) || busyRef.current.has(id)))
       return;
-    if (rows.some(row => ids.includes(row.catalogId) && row.profile?.reconciliationRequired)) {
+    if (ids.some(id => rowsById.get(id)?.profile?.reconciliationRequired)) {
       push({ tone: 'error', text: t('catalogUpdaterReconciliationHold') });
       return;
     }
@@ -524,8 +533,8 @@ function CatalogUpdaterDialogScope({
       id =>
         inline.blocked(id) ||
         busyIds.has(id) ||
-        rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired ||
-        rows.find(row => row.catalogId === id)?.updatePending
+        rowsById.get(id)?.profile?.reconciliationRequired ||
+        rowsById.get(id)?.updatePending
     );
     if (excluded.length) {
       setExcludedRuns(ids);
@@ -781,7 +790,14 @@ function CatalogUpdaterDialogScope({
   const receiptFingerprint = receipts
     .map(
       group =>
-        `${group.id}:${group.items.map(item => `${item.materialId}:${item.state}`).join(',')}`
+        `${group.id}:${group.items
+          .map(item => {
+            const history =
+              managerTrash?.historicalReceipts?.get(group.id)?.get(item.materialId) ??
+              item.historicalReceipt;
+            return `${item.materialId}:${item.state}:${history ? `${history.state}:${history.memberCount}:${history.matchingCount}:${history.missingCount}` : 'current'}`;
+          })
+          .join(',')}`
     )
     .join('|');
   useEffect(() => {
@@ -789,7 +805,13 @@ function CatalogUpdaterDialogScope({
     observedTrash.current = receiptFingerprint;
     const confirmed = new Set(
       receipts.flatMap(group =>
-        group.items.filter(item => item.state === 'confirmed').map(item => item.materialId)
+        group.items
+          .filter(
+            item =>
+              item.state === 'confirmed' &&
+              !managerTrash?.historicalReceipts?.get(group.id)?.has(item.materialId)
+          )
+          .map(item => item.materialId)
       )
     );
     if (confirmed.size)
@@ -1138,7 +1160,7 @@ function CatalogUpdaterDialogScope({
         const names = state.intent.catalogIds
           .slice(0, 3)
           .flatMap(id => {
-            const row = rows.find(row => row.catalogId === id);
+            const row = rowsById.get(id);
             return row ? [row.name] : [];
           })
           .join(', ');
@@ -1308,8 +1330,7 @@ function CatalogUpdaterDialogScope({
             </thead>
             <tbody>
               {shown.slice(0, visibleCount).map(filteredRow => {
-                const row =
-                  rows.find(row => row.catalogId === filteredRow.catalogId) ?? filteredRow;
+                const row = rowsById.get(filteredRow.catalogId) ?? filteredRow;
                 const busy = busyIds.has(row.catalogId) || inline.blocked(row.catalogId);
                 const successfulAt = lastSuccess(row);
                 const result = row.profile?.lastResult;
@@ -1431,6 +1452,22 @@ function CatalogUpdaterDialogScope({
                           {row.folderName ?? row.videoName} · {row.catalogId.slice(-6)}
                         </small>
                       )}
+                      {row.videoGeneration &&
+                        ['accepted', 'preparing', 'cancel_requested', 'unknown'].includes(
+                          row.videoGeneration.state
+                        ) && (
+                          <small role="status">
+                            {t('catalogVideoCreationProgress', {
+                              ready: row.videoGeneration.registeredCount,
+                              total: row.videoGeneration.requestedCount
+                            })}
+                            {row.videoGeneration.state === 'unknown'
+                              ? ` · ${t('catalogVideoCreationUnknown')}`
+                              : row.videoGeneration.state === 'cancel_requested'
+                                ? ` · ${t('catalogVideoCreationCanceling')}`
+                                : ''}
+                          </small>
+                        )}
                       <span
                         className={`catalog-row-feedback${!requiresReview && ((row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked')) ? ' sr-only' : ''}`}
                         role="status"
@@ -1643,6 +1680,18 @@ function CatalogUpdaterDialogScope({
                             row={row}
                             teamId={teamId}
                             permissions={permissions}
+                            onVideoVariations={
+                              builtForEnvironment() === 'beta' &&
+                              import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' &&
+                              mayRun
+                                ? () => setVideoVariationsRow(row)
+                                : undefined
+                            }
+                            onPublication={
+                              builtForEnvironment() === 'beta' && mayRun
+                                ? () => setPublicationCatalogId(row.catalogId)
+                                : undefined
+                            }
                             onChanged={registry.reload}
                             onReveal={onReveal}
                             onConfigure={
@@ -1819,6 +1868,26 @@ function CatalogUpdaterDialogScope({
                       onChange={(field, value) => changeField(row, field, value)}
                       onReadiness={registry.reload}
                     />
+                    {builtForEnvironment() === 'beta' &&
+                      import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' && (
+                        <CatalogProfileVideoCount
+                          value={row.profile.videoVariantCount ?? 1}
+                          productCount={row.productCount}
+                          disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
+                          onSave={async value => {
+                            if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                            if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
+                              throw new TeamApiError('WRONG_STATE', false);
+                            const confirmed = await inline.change(
+                              row.catalogId,
+                              'videoVariantCount',
+                              value
+                            );
+                            if (!confirmed)
+                              throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+                          }}
+                        />
+                      )}
                     <CatalogIconLegend
                       teamId={teamId}
                       onOpenSettings={href =>
@@ -1977,6 +2046,7 @@ function CatalogUpdaterDialogScope({
                 catalogId: row.catalogId,
                 name: row.name,
                 profile: row.profile!,
+                productCount: row.productCount,
                 interval: row.updateInterval
               }))}
             save={(id, version, patch) =>
@@ -2009,12 +2079,12 @@ function CatalogUpdaterDialogScope({
         <ConfirmDialog
           nested
           title={t(
-            editorUncertain ? 'catalogUpdaterUncertainCloseTitle' : 'catalogUpdaterDiscardTitle'
+            closeUncertain ? 'catalogUpdaterUncertainCloseTitle' : 'catalogUpdaterDiscardTitle'
           )}
           body={t(
-            editorUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardBody'
+            closeUncertain ? 'catalogUpdaterUncertainCloseBody' : 'catalogUpdaterDiscardBody'
           )}
-          confirmLabel={t(editorUncertain ? 'catalogUpdaterClose' : 'catalogUpdaterDiscard')}
+          confirmLabel={t(closeUncertain ? 'catalogUpdaterClose' : 'catalogUpdaterDiscard')}
           cancelLabel={t('catalogUpdaterKeepEditing')}
           onCancel={() => setDiscardAction(null)}
           onConfirm={() => {
@@ -2034,12 +2104,12 @@ function CatalogUpdaterDialogScope({
               id =>
                 inline.blocked(id) ||
                 busyIds.has(id) ||
-                rows.find(row => row.catalogId === id)?.updatePending ||
-                rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired
+                rowsById.get(id)?.updatePending ||
+                rowsById.get(id)?.profile?.reconciliationRequired
             )
             .map(
               id =>
-                `${rows.find(row => row.catalogId === id)?.name}: ${inline.blocked(id) || busyIds.has(id) ? t('catalogIconsPendingRun') : rows.find(row => row.catalogId === id)?.updatePending ? t('catalogUpdaterUpdatingNow') : t('catalogUpdaterReconciliationHold')}`
+                `${rowsById.get(id)?.name}: ${inline.blocked(id) || busyIds.has(id) ? t('catalogIconsPendingRun') : rowsById.get(id)?.updatePending ? t('catalogUpdaterUpdatingNow') : t('catalogUpdaterReconciliationHold')}`
             )
             .join('; ')}
           confirmLabel={t('catalogIconsRunReady')}
@@ -2050,8 +2120,8 @@ function CatalogUpdaterDialogScope({
               id =>
                 !inline.blocked(id) &&
                 !busyIds.has(id) &&
-                !rows.find(row => row.catalogId === id)?.updatePending &&
-                !rows.find(row => row.catalogId === id)?.profile?.reconciliationRequired
+                !rowsById.get(id)?.updatePending &&
+                !rowsById.get(id)?.profile?.reconciliationRequired
             );
             setExcludedRuns(null);
             if (ids.length) void updateNow(ids);
@@ -2062,8 +2132,7 @@ function CatalogUpdaterDialogScope({
         {undoToast && (
           <>
             <span>
-              {rows.find(row => row.catalogId === undoToast.catalogId)?.name} ·{' '}
-              {t('catalogIconsSaved')}
+              {rowsById.get(undoToast.catalogId)?.name} · {t('catalogIconsSaved')}
             </span>
             <Button
               size="sm"
@@ -2093,25 +2162,29 @@ function CatalogUpdaterDialogScope({
           <h2 id={`${titleId}-recent`}>{t('catalogIconsRecent')}</h2>
           <div className="catalog-recent-list">
             {inline.undo.map(entry => {
-              const row = rows.find(row => row.catalogId === entry.catalogId);
+              const row = rowsById.get(entry.catalogId);
               const invalid = entry.invalid || row?.profile?.version !== entry.version;
               const label =
-                entry.field === 'updateInterval' || entry.field === 'schedule'
-                  ? t('catalogIconsSchedule')
-                  : t(CATALOG_FIELDS.find(item => item.field === entry.field)!.label);
+                entry.field === 'videoVariantCount'
+                  ? t('catalogVideoVariationCount')
+                  : entry.field === 'updateInterval' || entry.field === 'schedule'
+                    ? t('catalogIconsSchedule')
+                    : t(CATALOG_FIELDS.find(item => item.field === entry.field)!.label);
               return (
                 <div key={`${entry.catalogId}-${entry.field}`}>
                   <strong>{row?.name ?? t('catalogUpdaterProfileUnknown')}</strong>
                   <span>
                     {label}:{' '}
-                    {typeof entry.after === 'boolean'
-                      ? t(entry.after ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')
-                      : intervalLabel(
-                          typeof entry.after === 'object' && entry.after !== null
-                            ? entry.after.interval
-                            : entry.after,
-                          t
-                        )}
+                    {typeof entry.after === 'number'
+                      ? entry.after
+                      : typeof entry.after === 'boolean'
+                        ? t(entry.after ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')
+                        : intervalLabel(
+                            typeof entry.after === 'object' && entry.after !== null
+                              ? entry.after.interval
+                              : entry.after,
+                            t
+                          )}
                   </span>
                   {invalid && <small>{t('catalogIconsUndoInvalid')}</small>}
                   <Button
@@ -2157,11 +2230,29 @@ function CatalogUpdaterDialogScope({
           </Button>
         </Modal>
       )}
+      {videoVariationsRow && (
+        <CatalogVideoVariationsDialog
+          teamId={teamId}
+          row={videoVariationsRow}
+          onClose={() => setVideoVariationsRow(null)}
+          onChanged={registry.reload}
+        />
+      )}
+      {publicationCatalogId && (
+        <CatalogPublicationDialog
+          teamId={teamId}
+          catalogId={publicationCatalogId}
+          clockOffsetMs={updater.offsetMs}
+          onClose={() => setPublicationCatalogId(null)}
+          onChanged={registry.reload}
+        />
+      )}
       {managerTrash &&
         receipts.map(group => (
           <BulkTrashPanel
             key={group.id}
             group={group}
+            historicalReceipts={managerTrash.historicalReceipts?.get(group.id)}
             rows={trashRows}
             uncertain={managerTrash.uncertain}
             onVisible={managerTrash.acknowledgeVisible}

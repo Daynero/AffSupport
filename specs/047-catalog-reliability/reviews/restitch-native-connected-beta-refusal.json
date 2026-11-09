@@ -1,0 +1,59 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T17:28:23.345Z",
+  "observations": [
+    {
+      "rpc": "service_read_restitch_control_selection",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_cas_restitch_control_selection",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_finish_restitch_native_control",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_issue_restitch_control_screen_range",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_restitch_control_screen_range_issue",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_consume_restitch_control_screen_range",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_read_restitch_control_screen_range_consumption",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_check_restitch_control_screen_range",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_abandon_restitch_control_screen_range",
+      "status": 403,
+      "code": "42501"
+    },
+    {
+      "rpc": "service_refresh_restitch_control_screen_range",
+      "status": 403,
+      "code": "42501"
+    }
+  ],
+  "newAuthorityRowsUnchanged": true,
+  "productionTouched": false,
+  "scope": "Actual authenticated local beta REST denial for all10 controlled-range service-only RPCs. No routed/installed controller, new control row or manual UI acceptance."
+}

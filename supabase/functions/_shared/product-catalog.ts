@@ -565,6 +565,9 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
  * first one and every update after it — carries IDs no catalog has used before. The video link
  * gets a distinct query appended per row, as 022's `?v=001` did.
  */
+export type CatalogVideoCellDelivery =
+  Readonly<{ kind: 'deferred' }> | Readonly<{ kind: 'assigned'; videoLinks: readonly string[] }>;
+
 export function buildProductCatalogRows(input: {
   settings: ProductCatalogSettingsValues;
   sourceLink: string;
@@ -576,7 +579,17 @@ export function buildProductCatalogRows(input: {
   rows?: readonly ProductCatalogRowValues[];
   /** A fresh content ID; injectable so a test can hold it still. */
   newId?: () => string;
+  /** Trusted frozen publication decision; never inferred from metadata video_link. */
+  videoDelivery?: CatalogVideoCellDelivery;
 }): Cell[][] {
+  if (
+    input.videoDelivery?.kind === 'assigned' &&
+    (input.videoDelivery.videoLinks.length !== input.count ||
+      input.videoDelivery.videoLinks.some(
+        link => typeof link !== 'string' || !/^https?:\/\//u.test(link)
+      ))
+  )
+    throw new Error('INVALID_INPUT');
   const text = (v: string): Cell => ({ t: 'string', v });
   const rows: Cell[][] = [
     PRODUCT_CATALOG_TEMPLATE.map(column => text(column.description)),
@@ -618,6 +631,14 @@ export function buildProductCatalogRows(input: {
           cell = byColumn.get(source.column) ?? text('');
           break;
         case 'videoLink': {
+          if (input.videoDelivery) {
+            cell = text(
+              input.videoDelivery.kind === 'deferred'
+                ? ''
+                : input.videoDelivery.videoLinks[index - 1]!
+            );
+            break;
+          }
           const mark = input.rows?.[index - 1]?.videoParam ?? String(index).padStart(3, '0');
           cell = text(
             input.randomLinkVariation === false

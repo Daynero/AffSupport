@@ -1,3 +1,8 @@
+import {
+  parseCatalogVideoForegroundExecutor,
+  type CatalogVideoForegroundExecutor
+} from '../../../packages/shared/dist/team/catalog-video-foreground.js';
+import { prepareLaunchCatalogVideoAdmission } from './launch-catalog-video.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import {
   parseLaunchConfig,
@@ -17,6 +22,15 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 export interface LaunchGenerationDeps {
   /** Must prove the hosted executor is configured before accepting catalog work. */
   catalogReady?: () => Promise<void>;
+  prepareForeground?: (input: {
+    teamId: string;
+    actorId: string;
+    sourceMaterialId: string;
+    requestKey: string;
+    expectedVersion: string;
+    receipt: CatalogVideoForegroundExecutor;
+    retireUnused?: boolean;
+  }) => Promise<void>;
   caller: ServiceRpcClient;
   service: ServiceRpcClient;
   proveSource?: (
@@ -49,7 +63,21 @@ async function generateLaunchUnchecked(
     typeof input.teamId !== 'string' ||
     typeof input.launchId !== 'string' ||
     typeof input.expectedVersion !== 'string' ||
-    typeof input.requestKey !== 'string'
+    typeof input.requestKey !== 'string' ||
+    (input.expectedExecutorId !== undefined &&
+      (typeof input.expectedExecutorId !== 'string' ||
+        !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(
+          input.expectedExecutorId
+        )))
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
+  const foregroundExecutor =
+    input.foregroundExecutor === undefined
+      ? undefined
+      : parseCatalogVideoForegroundExecutor(input.foregroundExecutor);
+  if (
+    input.foregroundExecutor !== undefined &&
+    (!foregroundExecutor || input.expectedExecutorId !== undefined)
   )
     throw new TeamFunctionError('INVALID_INPUT');
   const params = { p_team: input.teamId, p_launch: input.launchId };
@@ -65,6 +93,28 @@ async function generateLaunchUnchecked(
       previous.expectedVersion !== input.expectedVersion
     )
       throw new TeamFunctionError('LAUNCH_VERSION_CONFLICT');
+    if (foregroundExecutor && previous.method === 'catalog') {
+      if (!deps.prepareForeground || typeof previous.id !== 'string')
+        throw new TeamFunctionError('AUTH_REQUIRED');
+      const scope = await rpc(deps.service, 'service_launch_catalog_foreground_source', {
+        p_team: input.teamId,
+        p_actor: actor,
+        p_generation: previous.id,
+        p_key: input.requestKey,
+        p_version: input.expectedVersion
+      });
+      if (!isRecord(scope) || typeof scope.sourceMaterialId !== 'string')
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      await deps.prepareForeground({
+        teamId: input.teamId,
+        actorId: actor,
+        sourceMaterialId: scope.sourceMaterialId,
+        requestKey: input.requestKey,
+        expectedVersion: input.expectedVersion,
+        receipt: foregroundExecutor,
+        retireUnused: true
+      });
+    }
     if (
       previous.method === 'other' &&
       (previous.state === 'accepted' || previous.state === 'running')
@@ -97,6 +147,35 @@ async function generateLaunchUnchecked(
   await deps.proveSource?.(input.teamId, actor, parsed.value, source);
   const preview = launchPreview(parsed.value, source);
   if (!preview.ok) throw new TeamFunctionError('INVALID_INPUT');
+  if (foregroundExecutor) {
+    if (
+      !deps.prepareForeground ||
+      parsed.value.method !== 'catalog' ||
+      !parsed.value.catalog.restitchEnabled
+    )
+      throw new TeamFunctionError('AUTH_REQUIRED');
+    await deps.prepareForeground({
+      teamId: input.teamId,
+      actorId: actor,
+      sourceMaterialId: parsed.value.materialId,
+      requestKey: input.requestKey,
+      expectedVersion: input.expectedVersion,
+      receipt: foregroundExecutor
+    });
+  }
+  const videoAdmission =
+    parsed.value.method === 'catalog' && parsed.value.catalog.catalogVideoProtocolVersion === 1
+      ? await prepareLaunchCatalogVideoAdmission(deps.service, {
+          teamId: input.teamId,
+          actorId: actor,
+          launchId: input.launchId,
+          config: parsed.value,
+          ...(foregroundExecutor ? { foregroundExecutor } : {}),
+          ...(typeof input.expectedExecutorId === 'string'
+            ? { expectedExecutorId: input.expectedExecutorId }
+            : {})
+        })
+      : null;
   const digestBytes = await crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(
@@ -106,23 +185,31 @@ async function generateLaunchUnchecked(
         launch: input.launchId,
         version: input.expectedVersion,
         config: parsed.value,
-        sources: source
+        sources: source,
+        ...(videoAdmission ? { catalogExecutorId: videoAdmission.executorId } : {})
       })
     )
   );
   const digest = Array.from(new Uint8Array(digestBytes), b => b.toString(16).padStart(2, '0')).join(
     ''
   );
-  const accepted = await rpc(deps.service, 'service_accept_launch_generation', {
-    ...params,
-    p_actor: actor,
-    p_expected_version: input.expectedVersion,
-    p_key: input.requestKey,
-    p_digest: digest,
-    p_config: parsed.value,
-    p_sources: source,
-    p_preview: preview.value
-  });
+  const accepted = await rpc(
+    deps.service,
+    videoAdmission
+      ? 'service_accept_launch_catalog_video_generation'
+      : 'service_accept_launch_generation',
+    {
+      ...params,
+      p_actor: actor,
+      p_expected_version: input.expectedVersion,
+      p_key: input.requestKey,
+      p_digest: digest,
+      p_config: parsed.value,
+      p_sources: source,
+      p_preview: preview.value,
+      ...(videoAdmission ? { p_video: videoAdmission } : {})
+    }
+  );
   if (!isRecord(accepted) || typeof accepted.id !== 'string' || typeof accepted.fence !== 'string')
     throw new TeamFunctionError('INVALID_RESPONSE');
   if (parsed.value.method === 'catalog') return { ...accepted, state: 'accepted' };

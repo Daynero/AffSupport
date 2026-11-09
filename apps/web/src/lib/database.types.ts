@@ -6391,13 +6391,17 @@ export type GeneratedDatabase = {
       };
       analytics_restitch_selection_slots: {
         Row: {
+          abandoned_grant_count: number | null;
           actor_id: string | null;
           budget_revision: number | null;
           candidate_count: number | null;
           candidate_versions: Json | null;
           confirmed_bytes: number | null;
           confirmed_io_ms: number | null;
+          consumed_grant_count: number | null;
           created_at: string | null;
+          grant_count: number | null;
+          issued_grant_count: number | null;
           operation_id: string | null;
           pool_namespace_id: string | null;
           range_count: number | null;
@@ -8485,6 +8489,29 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_abandon_restitch_control_screen_range: {
+        Args: {
+          p_control: string;
+          p_control_hash: string;
+          p_grant: string;
+          p_request: string;
+          p_slot: string;
+        };
+        Returns: boolean;
+      };
+      service_abandon_restitch_screen_range: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_grant: string;
+          p_request: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
       service_accept_launch_generation: {
         Args: {
           p_actor: string;
@@ -8622,6 +8649,10 @@ export type GeneratedDatabase = {
         Args: { p_fence: string; p_operation: string; p_owner: string };
         Returns: boolean;
       };
+      service_authorize_restitch_native_control: {
+        Args: { p_grant: string; p_ticket_hash: string };
+        Returns: Json;
+      };
       service_authorize_task_cleanup: {
         Args: { p_id: string };
         Returns: boolean;
@@ -8739,6 +8770,16 @@ export type GeneratedDatabase = {
           p_job: string;
           p_token: string;
           p_worker: string;
+        };
+        Returns: boolean;
+      };
+      service_cas_restitch_control_selection: {
+        Args: {
+          p_control: string;
+          p_control_hash: string;
+          p_expected_budget: Json;
+          p_next_budget: Json;
+          p_slot: string;
         };
         Returns: boolean;
       };
@@ -8933,6 +8974,10 @@ export type GeneratedDatabase = {
       };
       service_catalog_text_schedule_inputs: {
         Args: { p_lease: string; p_run: string; p_team: string };
+        Returns: Json;
+      };
+      service_check_restitch_control_screen_range: {
+        Args: { p_dispatch: string; p_ticket_hash: string };
         Returns: Json;
       };
       service_checkpoint_catalog_intent: {
@@ -9166,6 +9211,15 @@ export type GeneratedDatabase = {
           p_lease_seconds?: number;
           p_lease_token_hash: string;
           p_team: string;
+        };
+        Returns: Json;
+      };
+      service_claim_restitch_native_control: {
+        Args: {
+          p_claim: string;
+          p_contract: number;
+          p_grant: string;
+          p_ticket_hash: string;
         };
         Returns: Json;
       };
@@ -9411,6 +9465,14 @@ export type GeneratedDatabase = {
           request_origin: string;
           team_id: string;
         }[];
+      };
+      service_consume_restitch_control_screen_range: {
+        Args: { p_dispatch: string; p_purpose: string; p_ticket_hash: string };
+        Returns: Json;
+      };
+      service_consume_restitch_screen_range: {
+        Args: { p_dispatch: string; p_purpose: string; p_ticket_hash: string };
+        Returns: Json;
       };
       service_create_drive_oauth_transaction: {
         Args: {
@@ -9708,6 +9770,16 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
+      service_finish_restitch_native_control: {
+        Args: {
+          p_claim: string;
+          p_grant: string;
+          p_outcome: string;
+          p_quiescence: string;
+          p_ticket_hash: string;
+        };
+        Returns: boolean;
+      };
       service_finish_tariff_notice: {
         Args: {
           p_error?: string;
@@ -9983,6 +10055,53 @@ export type GeneratedDatabase = {
       service_is_launch_restitch_process: {
         Args: { p_actor: string; p_operation: string };
         Returns: boolean;
+      };
+      service_issue_restitch_control_screen_range: {
+        Args: {
+          p_acquisition: number;
+          p_control: string;
+          p_control_hash: string;
+          p_expected_budget: Json;
+          p_grant: string;
+          p_next_budget: Json;
+          p_request: string;
+          p_slot: string;
+          p_ticket_hash: string;
+          p_version: string;
+        };
+        Returns: Json;
+      };
+      service_issue_restitch_native_control: {
+        Args: {
+          p_actor: string;
+          p_enrollment: string;
+          p_grant: string;
+          p_native: string;
+          p_proof_hash: string;
+          p_root: string;
+          p_session: string;
+          p_team: string;
+          p_ticket_hash: string;
+        };
+        Returns: Json;
+      };
+      service_issue_restitch_screen_range: {
+        Args: {
+          p_acquisition: number;
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_expected_budget: Json;
+          p_grant: string;
+          p_next_budget: Json;
+          p_request: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
+          p_ticket_hash: string;
+          p_version: string;
+        };
+        Returns: Json;
       };
       service_launch_restitch_receipt: {
         Args: {
@@ -10272,6 +10391,15 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      service_quiesce_restitch_native_control: {
+        Args: {
+          p_claim: string;
+          p_grant: string;
+          p_quiescence: string;
+          p_ticket_hash: string;
+        };
+        Returns: boolean;
+      };
       service_read_active_restitch_selection_slot: {
         Args: {
           p_actor: string;
@@ -10297,12 +10425,56 @@ export type GeneratedDatabase = {
         Args: { p_epoch?: number; p_executor?: string; p_intent: string };
         Returns: Json;
       };
+      service_read_restitch_control_screen_range_consumption: {
+        Args: { p_dispatch: string; p_ticket_hash: string };
+        Returns: Json;
+      };
+      service_read_restitch_control_screen_range_issue: {
+        Args: {
+          p_control: string;
+          p_control_hash: string;
+          p_grant: string;
+          p_request: string;
+          p_slot: string;
+        };
+        Returns: Json;
+      };
+      service_read_restitch_control_selection: {
+        Args: {
+          p_active?: boolean;
+          p_control: string;
+          p_control_hash: string;
+          p_slot: string;
+        };
+        Returns: Json;
+      };
       service_read_restitch_executor_claim: {
         Args: {
           p_actor: string;
           p_claim: string;
           p_native_instance: string;
           p_root_operation: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_restitch_native_control_claim: {
+        Args: { p_claim: string; p_grant: string; p_ticket_hash: string };
+        Returns: Json;
+      };
+      service_read_restitch_screen_range_consumption: {
+        Args: { p_dispatch: string; p_ticket_hash: string };
+        Returns: Json;
+      };
+      service_read_restitch_screen_range_issue: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_grant: string;
+          p_request: string;
+          p_root_operation: string;
+          p_slot: string;
           p_team: string;
         };
         Returns: Json;
@@ -10401,12 +10573,47 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_redeem_restitch_native_control: {
+        Args: { p_grant: string; p_proof_hash: string };
+        Returns: Json;
+      };
       service_refresh_material_revision: {
         Args: {
           p_checksum: string;
           p_drive_file_id: string;
           p_drive_version: string;
           p_material: string;
+        };
+        Returns: boolean;
+      };
+      service_refresh_restitch_control_screen_range: {
+        Args: {
+          p_acquisition: number;
+          p_control: string;
+          p_control_hash: string;
+          p_expected_budget: Json;
+          p_grant: string;
+          p_next_budget: Json;
+          p_refresh: string;
+          p_request: string;
+          p_slot: string;
+        };
+        Returns: boolean;
+      };
+      service_refresh_restitch_screen_range: {
+        Args: {
+          p_acquisition: number;
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_expected_budget: Json;
+          p_grant: string;
+          p_next_budget: Json;
+          p_refresh: string;
+          p_request: string;
+          p_root_operation: string;
+          p_slot: string;
+          p_team: string;
         };
         Returns: boolean;
       };

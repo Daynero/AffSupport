@@ -1,3 +1,4 @@
+import { getCatalogPublicationEvidence } from './catalog-publications.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
 import { getCommercialAccessEvidence } from './commercial-access.js';
@@ -1952,6 +1953,58 @@ export async function getInvestigation(
   }
   const launches = await getLaunchEvidence(scope.userId ?? input, period.end, period.start);
   const catalog_generations = await getCatalogGenerationEvidence(scope.userId ?? input, period);
+  let catalog_publications: Awaited<ReturnType<typeof getCatalogPublicationEvidence>> | undefined;
+  if (
+    schema.tables.analytics_catalog_video_publications &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      scope.userId ?? input
+    )
+  ) {
+    try {
+      catalog_publications = await getCatalogPublicationEvidence({
+        id: scope.userId ?? input,
+        asOf: period.as_of,
+        limit: 50
+      });
+    } catch {
+      blindSpots.push({
+        kind: 'workspace_evidence_gap',
+        detail: 'Catalog publication authority could not be read; delivery remains unknown.',
+        values: []
+      });
+    }
+  }
+  if (period.as_of && catalog_publications?.records.length)
+    blindSpots.push({
+      kind: 'workspace_evidence_gap',
+      detail:
+        'Historical publication blocking state is not reconstructed; only immutable verification times are compared with the cutoff.',
+      values: []
+    });
+  for (const job of period.as_of ? [] : (catalog_publications?.records ?? [])) {
+    if (job.job_state !== 'blocked' || !job.job_id) continue;
+    const unsupported = job.blocked_reason === 'writer_unsupported';
+    const fingerprint = unsupported
+      ? 'team:library:CATALOG_WRITE_UNSUPPORTED'
+      : 'team:library:CATALOG_PUBLICATION_PENDING';
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: hashId(['catalog_publication_blocked', job.job_id]),
+      kind: 'fact',
+      severity: unsupported ? 'high' : 'medium',
+      rule: 'catalog_publication_blocked',
+      title: unsupported
+        ? 'Video-link publication is blocked because a safe provider writer is unavailable.'
+        : 'Video-link publication requires dependency or existing-link verification.',
+      evidence: [`catalog_publication:${job.job_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step: unsupported
+        ? 'Preserve existing catalog cells and the pending target. A saved schedule or ready videos cannot bypass the missing conditional provider writer.'
+        : 'Read the exact publication job and verify its selected dependency before rescheduling or requesting publication. Missing browser delivery remains unknown.'
+    });
+  }
+
   const material_sharing = await getOwnedMaterialSharingEvidence(scope.userId, period);
   for (const detail of material_sharing.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
@@ -2039,11 +2092,65 @@ export async function getInvestigation(
         'Inspect current eligibility and native claimant blockers. This snapshot does not prove the cause of a historical empty claim; never replay uncertain execution.'
     });
   }
+  const catalogVideo = catalog_generations.video_sets;
+  if (catalogVideo && catalogVideo.status !== 'available')
+    blindSpots.push({
+      kind: 'workspace_evidence_gap',
+      detail:
+        'Catalog video generation authority is unavailable or historical state is unknown; missing evidence does not prove zero work.',
+      values: []
+    });
+  for (const command of catalogVideo?.commands ?? []) {
+    if (!command.failure_observed || command.canceled) continue;
+    const code = command.safe_failure_code ?? 'UNKNOWN';
+    const location = lookupCodeLocations(`catalog:variants:${code}`);
+    findings.push({
+      id: hashId([
+        'catalog_variant_admission',
+        command.request_id,
+        command.last_proven_stage,
+        code
+      ]),
+      kind: code === 'UNKNOWN' ? 'insufficient' : 'fact',
+      severity: 'medium',
+      rule: 'catalog_variant_admission',
+      title: `Video variation request stopped after ${command.last_proven_stage}; recorded cause: ${code}.`,
+      evidence: [`catalog_variant_request:${command.request_id}`],
+      fingerprint: `catalog:variants:${code}`,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read or resume the original accepted request after correcting its dependency. Preserve the original request and process identity; missing set admission is not proof that a new request is safe.'
+    });
+  }
+  for (const set of (catalogVideo?.records ?? [])
+    .filter(set => set.state === 'unknown' || set.state === 'cancel_requested')
+    .slice(0, 10)) {
+    const location = lookupCodeLocations('catalog:variants:PROCESS_RESULT_UNCERTAIN');
+    findings.push({
+      id: hashId(['catalog_variant_state', set.video_set_id, set.state]),
+      kind: 'fact',
+      severity: 'medium',
+      rule: 'catalog_variant_state',
+      title: `Video generation is ${set.state}; ${set.registered_count} of ${set.requested_count} outputs registered.`,
+      evidence: [`catalog_video_set:${set.video_set_id}`],
+      code_locations: location ? [location] : [],
+      next_step:
+        'Inspect each original child process and its native quiescence receipt. Registered outputs do not prove catalog publication or browser delivery; do not create replacement children for an unknown process.'
+    });
+  }
   for (const detail of catalog_generations.blind_spots)
     blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
   for (const record of catalog_generations.records.filter(
     record =>
-      record.origin === 'standalone' && ['interrupted', 'cleanup_pending'].includes(record.state)
+      record.origin === 'standalone' &&
+      ['interrupted', 'cleanup_pending'].includes(record.state) &&
+      !catalogVideo?.records.some(
+        set =>
+          set.catalog_intent_id === record.intent_id &&
+          ['accepted', 'preparing'].includes(set.state) &&
+          set.unknown_count === 0 &&
+          record.safe_error_code === null
+      )
   )) {
     const code = record.safe_error_code ?? 'UNKNOWN';
     const location = lookupCodeLocations(`catalog:generation:${code}`);
@@ -2174,6 +2281,7 @@ export async function getInvestigation(
     workspace,
     launches,
     catalog_generations,
+    ...(catalog_publications ? { catalog_publications } : {}),
     material_sharing,
     catalog_claims,
     catalog_stops,

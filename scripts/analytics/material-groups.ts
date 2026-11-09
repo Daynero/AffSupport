@@ -28,13 +28,127 @@ export interface MaterialGroupRecord {
   created_at: string;
   updated_at: string;
 }
+export interface MaterialHistoricalObservation {
+  id: string;
+  operation_id: string;
+  team_id: string;
+  action: 'trash' | 'restore';
+  basis: 'catalog_snapshot';
+  observed_at: string;
+  state: 'matches' | 'changed' | 'unknown';
+  member_count: number;
+  matching_count: number;
+  missing_count: number;
+}
+export interface MaterialHistoricalEvidence {
+  basis: 'current_catalog_snapshot_only';
+  status: 'observed' | 'read_failed' | 'malformed';
+  records: MaterialHistoricalObservation[];
+  blind_spots: string[];
+}
 export interface MaterialGroupEvidence {
   supported: boolean;
   records: MaterialGroupRecord[];
+  historical_observations?: MaterialHistoricalEvidence;
   blind_spots: string[];
 }
 const timestamp = (value: unknown): value is string =>
   typeof value === 'string' && value.length <= 64 && Number.isFinite(Date.parse(value));
+async function readHistoricalObservations(
+  actor: string | null,
+  ids: string[],
+  since: string | null,
+  asOf: string
+): Promise<MaterialHistoricalEvidence> {
+  const limitations = [
+    'These are current catalog lifecycle and placement observations, not current provider verification or reconstructed state at as-of. Original receipt completion and UI delivery are independent evidence.'
+  ];
+  if (!ids.length)
+    return {
+      basis: 'current_catalog_snapshot_only',
+      status: 'observed',
+      records: [],
+      blind_spots: limitations
+    };
+  let rows: Record<string, unknown>[];
+  try {
+    rows = await query<Record<string, unknown>>(
+      'select id::text,operation_id::text,team_id::text,actor_id::text,action,basis,observed_at::text,state,member_count,matching_count,missing_count from public.analytics_material_historical_observations where ($1::uuid is null or actor_id=$1::uuid) and ($2::uuid[] is null or id=any($2::uuid[]) or operation_id=any($2::uuid[])) and ($3::timestamptz is null or created_at >= $3::timestamptz) and updated_at <= $4::timestamptz order by updated_at desc,id limit 101',
+      [actor, ids.length ? ids : null, since, asOf]
+    );
+  } catch {
+    return {
+      basis: 'current_catalog_snapshot_only',
+      status: 'read_failed',
+      records: [],
+      blind_spots: [
+        ...limitations,
+        'Historical material observation read failed; current generation remains unknown.'
+      ]
+    };
+  }
+  const records: MaterialHistoricalObservation[] = [];
+  let malformed = false;
+  for (const row of rows.slice(0, 100)) {
+    const total = Number(row.member_count),
+      matching = Number(row.matching_count),
+      missing = Number(row.missing_count);
+    if (
+      (ids.length > 0 &&
+        !ids.includes(String(row.id)) &&
+        !ids.includes(String(row.operation_id))) ||
+      ['member_count', 'matching_count', 'missing_count'].some(
+        key => typeof row[key] !== 'number'
+      ) ||
+      !UUID.test(String(row.id)) ||
+      !UUID.test(String(row.operation_id)) ||
+      !UUID.test(String(row.team_id)) ||
+      (actor && row.actor_id !== actor) ||
+      !['trash', 'restore'].includes(String(row.action)) ||
+      row.basis !== 'catalog_snapshot' ||
+      !timestamp(row.observed_at) ||
+      !['matches', 'changed', 'unknown'].includes(String(row.state)) ||
+      ![total, matching, missing].every(Number.isSafeInteger) ||
+      total < 1 ||
+      total > 5000 ||
+      matching < 0 ||
+      missing < 0 ||
+      matching + missing > total ||
+      (row.state === 'matches' && (matching !== total || missing !== 0)) ||
+      (row.state === 'changed' && (missing !== 0 || matching === total)) ||
+      (row.state === 'unknown' && missing === 0)
+    ) {
+      malformed = true;
+      continue;
+    }
+    records.push({
+      id: String(row.id),
+      operation_id: String(row.operation_id),
+      team_id: String(row.team_id),
+      action: row.action as 'trash' | 'restore',
+      basis: 'catalog_snapshot',
+      observed_at: row.observed_at,
+      state: row.state as 'matches' | 'changed' | 'unknown',
+      member_count: total,
+      matching_count: matching,
+      missing_count: missing
+    });
+  }
+  return {
+    basis: 'current_catalog_snapshot_only',
+    status: malformed ? 'malformed' : 'observed',
+    records,
+    blind_spots: [
+      ...limitations,
+      ...(rows.length > 100 ? ['Historical material observations truncated at 100 records.'] : []),
+      ...(malformed
+        ? [
+            'Malformed historical material observations were omitted; current generation remains unknown.'
+          ]
+        : [])
+    ]
+  };
+}
 /** Immutable SQL variants, opaque selectors and SELECT only. Current rows never reconstruct history. */
 export async function getMaterialGroupEvidence(input: {
   actorId?: string | null;
@@ -148,10 +262,33 @@ export async function getMaterialGroupEvidence(input: {
       updated_at: row.updated_at
     });
   }
+  const historical = schema.tables.analytics_material_historical_observations
+    ? await readHistoricalObservations(
+        actor,
+        records.map(record => record.id),
+        input.since ?? null,
+        input.asOf
+      )
+    : undefined;
   return {
     supported: true,
     records,
+    ...(historical ? { historical_observations: historical } : {}),
     blind_spots: [
+      ...(historical?.blind_spots ?? [
+        'Current material-generation observation is unavailable; a registered original receipt does not prove present lifecycle, placement or provider state.'
+      ]),
+      ...(historical &&
+      records.some(
+        record =>
+          record.state === 'registered' &&
+          record.action !== 'move' &&
+          !historical.records.some(observation => observation.operation_id === record.operation_id)
+      )
+        ? [
+            'A registered original operation has no verified current catalog observation; legacy or unobservable generation remains unknown.'
+          ]
+        : []),
       'A reserved member does not prove that a provider write started. Confirmed members do not prove whole-group registration or browser delivery.',
       'This bounded projection exposes current state only; rows changed after as-of are omitted, not reconstructed.',
       ...(rows.length > 100 ? ['Material-group evidence truncated at 100 records.'] : []),

@@ -1,3 +1,4 @@
+import { builtForEnvironment } from '../../lib/config';
 import { privateCacheEpoch, privateCacheSuperseded } from '../private-cache-scope';
 import { TeamApiError } from '../../api/team';
 import { saveCatalogProfile } from './saveCatalogProfile';
@@ -5,7 +6,7 @@ import { profilePatchMatches } from './profilePatchMatches';
 import type { CatalogSnapshot } from './useCatalogInlineChanges';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
-import { Button, SelectMenu } from '../../components/ui/index';
+import { Button, SelectMenu, FormField, Input } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import type { CatalogUpdaterInterval } from '../../api/team';
@@ -24,6 +25,7 @@ const FIELDS = [
 type Item = {
   catalogId: string;
   name: string;
+  productCount?: number;
   profile: CatalogUpdateProfile;
   interval: CatalogUpdaterInterval | null;
 };
@@ -201,6 +203,30 @@ export function CatalogBulkEditor({
     .map(item => baselineItems.current.get(item.catalogId) ?? item)
     .filter(item => !confirmedIds.current.has(item.catalogId) && changesItem(item));
   const affected = changedItems.length;
+  const showVideoCount =
+    mode !== 'schedule' &&
+    builtForEnvironment() === 'beta' &&
+    import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true';
+  const countsKnown =
+    items.length > 0 &&
+    items.every(
+      item =>
+        Number.isSafeInteger(item.productCount) &&
+        item.productCount! >= 1 &&
+        item.productCount! <= 400
+    );
+  const countLimit = countsKnown ? Math.min(...items.map(item => item.productCount!)) : 0;
+  const currentCount = items.every(
+    item => (item.profile.videoVariantCount ?? 1) === (items[0]?.profile.videoVariantCount ?? 1)
+  )
+    ? String(items[0]?.profile.videoVariantCount ?? 1)
+    : t('catalogUpdaterMixed');
+  const invalidVideoCount =
+    draft.videoVariantCount !== undefined &&
+    (!countsKnown ||
+      !Number.isSafeInteger(draft.videoVariantCount) ||
+      draft.videoVariantCount < 1 ||
+      draft.videoVariantCount > countLimit);
   const currentInterval = items.every(item => item.interval === items[0]?.interval)
     ? (items[0]?.interval ?? null)
     : 'mixed';
@@ -220,6 +246,7 @@ export function CatalogBulkEditor({
       applyLocked.current ||
       !keys.length ||
       !affected ||
+      invalidVideoCount ||
       pending ||
       undoActivity.pending ||
       undoActivity.uncertain
@@ -326,7 +353,6 @@ export function CatalogBulkEditor({
   };
   return (
     <div className="team-updater-profile" role="group" aria-label={t('catalogUpdaterBulkSettings')}>
-      <strong>{t('catalogUpdaterBulkSettings')}</strong>
       <p className="field-hint">{t('catalogUpdaterBulkCount', { count: items.length })}</p>
       {mode !== 'restitch' && (
         <>
@@ -374,6 +400,53 @@ export function CatalogBulkEditor({
             }}
           />
         </>
+      )}
+      {showVideoCount && (
+        <div className="team-updater-filter-field">
+          <FormField
+            label={t('catalogVideoVariationCount')}
+            error={
+              invalidVideoCount ? t('catalogVideoVariationLimit', { count: countLimit }) : undefined
+            }
+          >
+            <Input
+              aria-label={t('catalogVideoVariationCount')}
+              width="narrow"
+              inputMode="numeric"
+              disabled={locked || !countsKnown}
+              placeholder={currentCount}
+              value={draft.videoVariantCount === undefined ? '' : String(draft.videoVariantCount)}
+              onChange={event => {
+                resetResults();
+                const raw = event.target.value.replace(/[^\d]/gu, '').slice(0, 3);
+                setDraft(current => {
+                  const next = { ...current };
+                  if (raw === '') delete next.videoVariantCount;
+                  else next.videoVariantCount = Number(raw);
+                  return next;
+                });
+              }}
+            />
+          </FormField>
+          <p className="field-hint">{t('catalogVideoCountFuture')}</p>
+          {draft.videoVariantCount !== undefined && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={locked}
+              onClick={() => {
+                resetResults();
+                setDraft(current => {
+                  const next = { ...current };
+                  delete next.videoVariantCount;
+                  return next;
+                });
+              }}
+            >
+              {t('catalogUpdaterBulkKeep')}
+            </Button>
+          )}
+        </div>
       )}
       <div className="team-updater-profile-choices">
         {FIELDS.filter(
@@ -429,6 +502,11 @@ export function CatalogBulkEditor({
                     `${t(label)}: ${draft[field] ? t('catalogUpdaterBulkOn') : t('catalogUpdaterBulkOff')}`
                 )
                 .concat(
+                  draft.videoVariantCount === undefined
+                    ? []
+                    : [`${t('catalogVideoVariationCount')}: ${draft.videoVariantCount}`]
+                )
+                .concat(
                   draft.updateInterval === undefined
                     ? []
                     : [
@@ -444,7 +522,12 @@ export function CatalogBulkEditor({
         size="sm"
         variant="secondary"
         disabled={
-          !keys.length || !affected || pending || undoActivity.pending || undoActivity.uncertain
+          !keys.length ||
+          !affected ||
+          invalidVideoCount ||
+          pending ||
+          undoActivity.pending ||
+          undoActivity.uncertain
         }
         onClick={() => void apply()}
       >

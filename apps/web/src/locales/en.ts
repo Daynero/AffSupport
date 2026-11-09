@@ -1,4 +1,61 @@
 export const en = {
+  catalogWriteUnsupported:
+    'Video-link publication is blocked because this storage cannot safely update catalog cells. Existing links are preserved.',
+  catalogVideoDeferredTableReady:
+    'The catalog is created with empty video fields; video generation and publication are separate.',
+  catalogVideoGenerationCanceled: 'Video generation canceled. The created catalog is preserved.',
+  catalogVideoResume: 'Continue catalog creation',
+  catalogVideoCreateVariations: 'Create video variations',
+  catalogVideoVariationsReady:
+    'All {total} videos are ready. Catalog publication requires a separate verified update.',
+  catalogVideoCancel: 'Cancel video generation',
+  catalogVideoCountFuture:
+    'Used when re-stitching is enabled. The current run keeps its video count.',
+  catalogVideoVariationCount: 'Video variations',
+  catalogVideoVariationLimit: 'Enter 1 to {count} variations, up to the number of products.',
+  catalogVideoCreationProgress: 'Videos ready: {ready} of {total}',
+  catalogVideoCreationUnknown:
+    'The result is not confirmed. Check the original operation before retrying.',
+  catalogVideoCreationCanceled: 'Catalog creation canceled.',
+  catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',
+
+  catalogPublicationStatusUnknown: 'Video-link publication status is not confirmed.',
+  catalogPublicationPreviouslyVerified: 'The last video-link publication was verified.',
+  catalogPublicationTableScheduled: 'Video-link publication is scheduled for {date}.',
+  catalogPublicationOverdue:
+    'The video-link publication time ({date}) has passed, but the write to the table is not confirmed yet. Soty keeps checking automatically.',
+  catalogPublicationTableHeld: 'Pending video-link publication is on hold.',
+  catalogPublicationAddNow: 'Request publication now',
+  catalogPublicationVerify: 'Verify existing links',
+
+  catalogPublicationSaved: 'Publication settings saved.',
+
+  catalogPublicationPending:
+    'Video-link updates are waiting for scheduled publication or verification of existing links. Check the catalog publication settings.',
+
+  catalogPublicationLegacyHold:
+    'Publication is on hold until this catalog’s existing links are verified. Existing links are preserved.',
+
+  catalogPublicationTitle: 'Scheduled video link',
+  catalogPublicationExplanation:
+    'The link is added at the selected time. Switching off holds pending publication; existing links remain.',
+  catalogPublicationStorageError:
+    'Could not retain this request in browser storage. Check local storage access.',
+  catalogPublicationAmbiguous:
+    'This time occurs twice when clocks change. Choose its earlier or later occurrence.',
+  catalogPublicationInvalid:
+    'Choose a future date, time and valid time zone. The local time must exist when clocks change.',
+  catalogPublicationUnknown:
+    'The save result is not confirmed. Check reads the original request without another write.',
+  catalogPublicationCheck: 'Check status',
+  catalogPublicationDelayed: 'Schedule the video link',
+  catalogPublicationDate: 'Link publication date',
+  catalogPublicationZone: 'Time zone',
+  catalogPublicationOccurrence: 'When local time repeats',
+  catalogPublicationChoose: 'Choose if needed',
+  catalogPublicationEarlier: 'Earlier occurrence',
+  catalogPublicationLater: 'Later occurrence',
+
   catalogTextScheduleTitle: 'Regenerate weekly',
   catalogTextScheduleCount: 'New variants',
   catalogTextScheduleSave: 'Save schedule',
@@ -298,6 +355,8 @@ export const en = {
   launchesProgressChecking: 'Checking current status…',
   launchesProgressStopped: 'Generation stopped',
   launchesProgressErrorUnconfirmed: 'Error — check the status',
+  launchesCatalogExecutorRequired:
+    'To restitch catalog videos, open the latest Soty app and connect it to this browser. The new generation has not started.',
   launchesProgressActionRequired: 'Action required',
   launchesProgressUnconfirmed: 'Status not confirmed',
   launchesProgressUnconfirmedHint:
@@ -723,6 +782,7 @@ export const en = {
   teamProcessCollapse: 'Collapse to a strip',
   teamProcessExpand: 'Show the details',
   teamRestitchDownloadTitle: 'Re-stitched download',
+  teamRestitchPhaseChecking: 'Checking settings…',
   teamRestitchPhaseChoosing: 'Waiting for you to choose a folder…',
   powerUsageHolding: 'held to {limit}%',
   powerUsageGraphics: 'the computer’s graphics: {graphics}%',
@@ -1281,6 +1341,12 @@ export const en = {
   teamTaskCleanupTrashed: 'Unused attachment file moved to the space trash.',
   teamBulkTrashFile: 'File {number}',
   teamBulkTrashHide: 'Hide this panel',
+  teamBulkTrashHistoricalMatches:
+    'The earlier operation completed. The current catalog snapshot matches; current provider state has not been verified.',
+  teamBulkTrashHistoricalChanged:
+    'The earlier operation completed, but the current catalog snapshot has since changed. Refresh the list before a new action.',
+  teamBulkTrashHistoricalUnknown:
+    'The earlier operation completed. The current file could not be matched in the catalog snapshot; check status before a new action.',
   teamBulkTrashTitle: 'Move files to trash',
   teamBulkTrashQueued: 'Queued',
   teamBulkTrashRunning: 'In progress',
@@ -3006,7 +3072,7 @@ export const en = {
   teamRestitchSourcePending: 'Waiting for the catalog',
   teamRestitchSourceSkipped: 'skipped: {format} by format, {size} by size, {animated} animated',
   teamRestitchPoolNone: 'No sources yet: this slot is off until you add pictures from the space.',
-  teamRestitchPoolEligible: '{count} pictures ready to draw from',
+  teamRestitchPoolEligible: '{count} pictures in the selection pool',
   teamRestitchPoolPartial: '{count} sources are unavailable.',
   teamRestitchPoolSkipped: '{count} files skipped.',
   teamRestitchPoolOverlap: 'Overlapping sources count once.',
@@ -4536,5 +4602,25 @@ export const en = {
   adminTariffLegacyConfirmTitle: 'Switch off the old rule?',
   adminTariffLegacyConfirmBody:
     'Spaces without a plan ({count}) will be paused at once. Their data stays.',
-  adminTariffLegacyConfirm: 'Switch off and pause'
+  adminTariffLegacyConfirm: 'Switch off and pause',
+  catalogZoneKyiv: 'Kyiv',
+  catalogZoneLondon: 'London',
+  catalogZoneBerlin: 'Berlin',
+  catalogZoneParis: 'Paris',
+  catalogZoneWarsaw: 'Warsaw',
+  catalogZonePrague: 'Prague',
+  catalogZoneBucharest: 'Bucharest',
+  catalogZoneIstanbul: 'Istanbul',
+  catalogZoneBaku: 'Baku',
+  catalogZoneTbilisi: 'Tbilisi',
+  catalogZoneDubai: 'Dubai',
+  catalogZoneKolkata: 'Kolkata',
+  catalogZoneBangkok: 'Bangkok',
+  catalogZoneSingapore: 'Singapore',
+  catalogZoneTokyo: 'Tokyo',
+  catalogZoneSydney: 'Sydney',
+  catalogZoneNewYork: 'New York',
+  catalogZoneChicago: 'Chicago',
+  catalogZoneLosAngeles: 'Los Angeles',
+  catalogZoneSaoPaulo: 'São Paulo'
 } as const;

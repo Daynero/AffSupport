@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,6 +24,7 @@ import {
   TEAM_CATALOG_POLISH_ERROR_CODES,
   TEAM_CATALOG_LINK_ERROR_CODES,
   TEAM_CATALOG_MUTATION_ERROR_CODES,
+  TEAM_CATALOG_PUBLICATION_ERROR_CODES,
   RESTITCH_RECOVERY_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
   TEAM_ERROR_CODES,
@@ -221,6 +223,9 @@ describe('team contract', () => {
     const basePath = 'supabase/migrations/20260801090000_team_contract_seed.sql';
     const deltaPath = 'supabase/migrations/20261202143000_account_error_codes.sql';
     const base = readFileSync(basePath, 'utf8');
+    expect(createHash('sha256').update(base.replaceAll('\r\n', '\n')).digest('hex')).toBe(
+      '00507a520ca4d8ca0a79d0539d5eefc04f78753a24f58f078b0688f1f4735560'
+    );
     const delta = readFileSync(deltaPath, 'utf8');
     const processPath = 'supabase/migrations/20261206139000_process_error_codes.sql';
     const processDelta = readFileSync(processPath, 'utf8');
@@ -250,6 +255,13 @@ describe('team contract', () => {
       'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql',
       'utf8'
     );
+    const publicationPath =
+      'supabase/migrations/20261207179000_catalog_publication_error_codes.sql';
+    const publicationDelta = readFileSync(publicationPath, 'utf8');
+    expect(createHash('sha256').update(mutationDelta.replaceAll('\r\n', '\n')).digest('hex')).toBe(
+      '5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9'
+    );
+    expect(TEAM_CATALOG_MUTATION_ERROR_CODES).toEqual(['CATALOG_STOP_TARGET_UNKNOWN']);
     const restitchRecoveryDelta = readFileSync(
       'supabase/migrations/20261207148000_restitch_recovery_error_codes.sql',
       'utf8'
@@ -274,6 +286,7 @@ describe('team contract', () => {
     expect(codes(polishDelta)).toEqual([...TEAM_CATALOG_POLISH_ERROR_CODES]);
     expect(codes(linkDelta)).toEqual([...TEAM_CATALOG_LINK_ERROR_CODES]);
     expect(codes(mutationDelta)).toEqual([...TEAM_CATALOG_MUTATION_ERROR_CODES]);
+    expect(codes(publicationDelta)).toEqual([...TEAM_CATALOG_PUBLICATION_ERROR_CODES]);
     expect(codes(restitchRecoveryDelta)).toEqual([...RESTITCH_RECOVERY_ERROR_CODES]);
     expect(
       [
@@ -288,6 +301,7 @@ describe('team contract', () => {
         ...codes(polishDelta),
         ...codes(linkDelta),
         ...codes(mutationDelta),
+        ...codes(publicationDelta),
         ...codes(restitchRecoveryDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
@@ -297,6 +311,7 @@ describe('team contract', () => {
     const temporaryDelta = join(directory, 'delta.sql');
     const temporaryProcess = join(directory, 'process.sql');
     const temporaryImage = join(directory, 'images.sql');
+    const temporaryPublication = join(directory, 'publication.sql');
     const rendered = spawnSync(
       process.execPath,
       [
@@ -308,7 +323,9 @@ describe('team contract', () => {
         '--process-extension-output',
         temporaryProcess,
         '--image-extension-output',
-        temporaryImage
+        temporaryImage,
+        '--publication-extension-output',
+        temporaryPublication
       ],
       { encoding: 'utf8' }
     );
@@ -317,6 +334,11 @@ describe('team contract', () => {
     expect(readFileSync(temporaryDelta, 'utf8')).toBe(delta);
     expect(readFileSync(temporaryProcess, 'utf8')).toBe(processDelta);
     expect(readFileSync(temporaryImage, 'utf8')).toBe(imageDelta);
+    expect(readFileSync(temporaryPublication, 'utf8')).toBe(publicationDelta);
+    expect(readFileSync(publicationPath, 'utf8')).toBe(publicationDelta);
+    expect(
+      readFileSync('supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql', 'utf8')
+    ).toBe(mutationDelta);
     expect(readFileSync(imagePath, 'utf8')).toBe(imageDelta);
     expect(readFileSync(managerPath, 'utf8')).toBe(managerDelta);
     expect(readFileSync(polishPath, 'utf8')).toBe(polishDelta);
@@ -367,12 +389,52 @@ describe('team contract', () => {
     );
     expect(staleImage.status).not.toBe(0);
     expect(staleImage.stderr).toContain('out of date');
-    const db = await createTeamTestDb();
+    writeFileSync(
+      temporaryPublication,
+      publicationDelta.replace('CATALOG_WRITE_UNSUPPORTED', 'STALE_PUBLICATION_CODE')
+    );
+    const stalePublication = spawnSync(
+      process.execPath,
+      [
+        'scripts/generate-team-contract-sql.mjs',
+        '--check',
+        '--publication-extension-output',
+        temporaryPublication
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(stalePublication.status).not.toBe(0);
+    expect(stalePublication.stderr).toContain('out of date');
+    // Actual forward upgrade from the already-applied 461 schema: only the new
+    // additive batch is executed. No historical seed/mutation rewrite or fake FK.
+    const db = await createTeamTestDb({
+      throughMigration: '20261207178000_catalog_growth_video_recipes.sql'
+    });
     try {
+      const before = (
+        await db.root<{ code: string }>('select code from public.team_error_codes order by code')
+      ).map(row => row.code);
+      expect(before).not.toContain('CATALOG_PUBLICATION_PENDING');
+      expect(before).not.toContain('CATALOG_WRITE_UNSUPPORTED');
+      expect(before).toContain('CATALOG_STOP_TARGET_UNKNOWN');
+      await db.db.exec(publicationDelta);
       const catalog = await db.root<{ code: string }>(
         'select code from public.team_error_codes order by code'
       );
       expect(catalog.map(row => row.code)).toEqual(expect.arrayContaining([...TEAM_ERROR_CODES]));
+      expect(
+        catalog
+          .map(row => row.code)
+          .filter(
+            code => !(TEAM_CATALOG_PUBLICATION_ERROR_CODES as readonly string[]).includes(code)
+          )
+      ).toEqual(before);
+      await db.db.exec(publicationDelta);
+      expect(
+        (
+          await db.root<{ code: string }>('select code from public.team_error_codes order by code')
+        ).map(row => row.code)
+      ).toEqual(catalog.map(row => row.code));
       expect(
         catalog
           .map(row => row.code)

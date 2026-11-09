@@ -238,3 +238,17 @@ it('points native team restitch failures at the actual image preparation origin'
   expect(entry?.files).toContain('apps/agent/src/team-bridge/screen-cache.ts');
   expect(entry?.files).toContain('apps/agent/src/team-bridge/restitch.ts');
 });
+
+it('maps native source byte refusals to the real downloader before processing', () => {
+  for (const stage of ['download', 'process']) {
+    const entry = lookupCodeLocations(`team:${stage}:SOURCE_CHANGED`);
+    expect(entry?.matched).toBe(`team:${stage}:SOURCE_CHANGED`);
+    expect(entry?.files).toContain('apps/agent/src/team-bridge/transfer.ts');
+  }
+});
+
+it('points unknown restitch admission and claim acknowledgements at their exact readback adapters', () => {
+  const entry = lookupCodeLocations('team:download:RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(entry?.files).toContain('supabase/functions/drive-ops/restitch-root.ts');
+  expect(entry?.files).toContain('supabase/functions/drive-ops/restitch-executor.ts');
+});

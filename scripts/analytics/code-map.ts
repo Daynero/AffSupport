@@ -1,4 +1,5 @@
 import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
+import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
@@ -303,6 +304,9 @@ export const STITCH_CODES: Readonly<Record<string, CodeSpec>> = {
           'supabase/migrations/20261207157000_restitch_candidate_versions.sql',
           'supabase/migrations/20261207158000_restitch_pool_admission.sql',
           'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-issue.ts',
+          'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+          'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
           'supabase/functions/drive-ops/restitch-range-reader.ts',
           'supabase/functions/drive-ops/restitch-range-source.ts',
           'supabase/functions/drive-ops/restitch-selection-store.ts',
@@ -884,6 +888,9 @@ function build(): Record<string, CodeLocation> {
       'supabase/functions/drive-ops/restitch-selection-store.ts',
       'supabase/functions/drive-ops/restitch-range-reader.ts',
       'supabase/functions/drive-ops/restitch-range-authority.ts',
+      'supabase/functions/drive-ops/restitch-range-issue.ts',
+      'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+      'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
       'supabase/migrations/20261207156000_restitch_frozen_range_context.sql',
       'supabase/functions/drive-ops/restitch-range-source.ts',
       'supabase/migrations/20261207155000_restitch_selection_storage.sql',
@@ -922,6 +929,8 @@ function build(): Record<string, CodeLocation> {
   };
   map['team:library:PROCESS_RESULT_UNCERTAIN'] = {
     files: [
+      'supabase/functions/drive-ops/mutation-preflight.ts',
+      'supabase/functions/drive-ops/index.ts',
       'supabase/migrations/20261207149000_bulk_trash_overlap_fence.sql',
       'apps/web/src/team/materials/file-operation-outcome.ts',
       'apps/web/src/team/materials/tail.ts',
@@ -930,7 +939,7 @@ function build(): Record<string, CodeLocation> {
       'apps/web/src/team/catalog/TrashView.tsx'
     ],
     check:
-      'Inspect the exact file operation receipt. A fulfilled request with a non-success state does not confirm trash or restore, permit companion mutation or establish quiescence. A replacement bulk group cannot bypass unresolved overlapping files, folders or frozen members; reconcile the original group.'
+      'Inspect the exact file operation receipt and its accepted generation. Historical success does not confirm the material is still in that state. A fulfilled request with a non-success state does not confirm trash or restore, permit companion mutation or establish quiescence. A replacement bulk group cannot bypass unresolved overlapping files, folders or frozen members; reconcile the original group.'
   };
   map['team:library:CLIPBOARD_UNAVAILABLE'] = {
     files: [
@@ -959,6 +968,70 @@ function build(): Record<string, CodeLocation> {
   };
   map['team:library:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
   map['catalog:update:CATALOG_ATTEMPT_STATE_INCONSISTENT'] = claimQuarantine;
+  const publicationPending = {
+    files: [
+      'supabase/functions/catalog-updater/worker.ts',
+      'supabase/functions/catalog-updater/nonvideo-writer.ts',
+      'supabase/functions/drive-ops/catalog-publication.ts',
+      'supabase/migrations/20261207169000_catalog_publication_jobs.sql',
+      'supabase/migrations/20261207177000_catalog_nonvideo_preservation.sql',
+      'supabase/migrations/20261207178000_catalog_growth_video_recipes.sql'
+    ],
+    check:
+      'Inspect the original ordinary attempt, frozen growth recipe and publication reservation. Nonvideo changes preserve stored video cells; pending row growth waits for its exact ready recipe. Read due time, hold and verified active delivery before retrying; a refusal proves no new delivery.'
+  };
+  const variantAuthority = {
+    files: [
+      'apps/agent/src/team-bridge/recovery-worker.ts',
+      'apps/agent/src/team-bridge/native-restitch-controller.ts',
+      'supabase/functions/drive-ops/updater-variants.ts',
+      'supabase/functions/drive-ops/catalog-video-set-admission.ts',
+      'supabase/migrations/20261207168000_catalog_video_sets.sql',
+      'supabase/migrations/20261207172000_catalog_updater_video_variants.sql'
+    ],
+    check:
+      'Inspect the accepted set and original child request and server process identities. A provider-proof failure after admission retains the original manager command. Registered outputs do not prove catalog cells or browser delivery; unknown native work remains fenced.'
+  };
+  map['catalog:variants:*'] = variantAuthority;
+  for (const code of [
+    'UNKNOWN',
+    'SOURCE_CHANGED',
+    'PERMISSION_DENIED',
+    'RESTITCH_INVALID',
+    'DRIVE_UNAVAILABLE',
+    'RATE_LIMITED',
+    'PROCESS_RESULT_UNCERTAIN',
+    'INVALID_RESPONSE',
+    'SHARE_NOT_ALLOWED'
+  ])
+    map[`catalog:variants:${code}`] = variantAuthority;
+  map['team:library:CATALOG_PUBLICATION_PENDING'] = publicationPending;
+  map['catalog:update:CATALOG_PUBLICATION_PENDING'] = publicationPending;
+  const unsupportedPublication = {
+    files: [
+      'supabase/functions/catalog-updater/publication-authority.ts',
+      'supabase/functions/catalog-updater/publication-io.ts',
+      'supabase/functions/catalog-updater/publication-cells.ts',
+      'supabase/functions/catalog-updater/index.ts',
+      'supabase/migrations/20261207176000_catalog_video_cell_publication.sql'
+    ],
+    check:
+      'No supported cell writer is enabled for this target. Preserve the current delivery and inspect the job and writer capability; a saved schedule is not published delivery and does not authorize a whole-file replacement.'
+  };
+  map['team:library:CATALOG_WRITE_UNSUPPORTED'] = unsupportedPublication;
+  map['catalog:update:CATALOG_WRITE_UNSUPPORTED'] = unsupportedPublication;
+  map['catalog:update:PROCESS_RESULT_UNCERTAIN'] = {
+    files: [
+      'supabase/functions/catalog-updater/nonvideo-writer.ts',
+      'supabase/functions/catalog-updater/publication-cells.ts',
+      'supabase/functions/catalog-updater/index.ts',
+      'supabase/migrations/20261207177000_catalog_nonvideo_preservation.sql',
+      'supabase/migrations/20261207178000_catalog_growth_video_recipes.sql'
+    ],
+    check:
+      'Read the original attempt, exact cell receipt and current row binding. An atomic marker alone does not prove current cell delivery; reconcile cells without replaying a dispatched write or releasing its reservation.'
+  };
+
   map['team:library:CATALOG_STOP_TARGET_UNKNOWN'] = {
     files: [
       'apps/web/src/api/team.ts',
@@ -997,6 +1070,17 @@ function build(): Record<string, CodeLocation> {
     check:
       'The provider outcome is still being reconciled. Refresh the authoritative attempt; do not claim it stopped or replay a write.'
   };
+  for (const stage of ['download', 'process'])
+    map[`team:${stage}:SOURCE_CHANGED`] = {
+      files: [
+        'apps/agent/src/team-bridge/transfer.ts',
+        'apps/agent/src/team-bridge/restitch-screen-download.ts',
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/agent/src/team-bridge/download.ts'
+      ],
+      check:
+        'Compare the accepted source with the native terminal stage and safe integrity reason. A checksum mismatch refuses the bytes before processing; metadata identity changes remain distinct. Missing checksum or historical detail does not prove byte verification, and a failed source is not evidence that every image is broken.'
+    };
   map['team:download:CATALOG_EXPORT_TOO_LARGE'] = {
     files: [
       'supabase/functions/drive-transfer/catalog-export.ts',
@@ -1024,7 +1108,13 @@ function build(): Record<string, CodeLocation> {
       map[`team:${stage}:${code}`] = {
         files: [
           'apps/agent/src/team-bridge/screen-recovery.ts',
+          'apps/agent/src/team-bridge/restitch-screen-download.ts',
+          'supabase/functions/drive-ops/restitch-root.ts',
+          'supabase/functions/drive-ops/restitch-executor.ts',
           'supabase/functions/drive-ops/restitch-range-authority.ts',
+          'supabase/functions/drive-ops/restitch-range-issue.ts',
+          'supabase/functions/drive-ops/restitch-range-dispatch.ts',
+          'supabase/migrations/20261207162000_restitch_screen_range_authority.sql',
           'supabase/functions/drive-ops/restitch-range-reader.ts',
           'supabase/functions/drive-ops/restitch-range-source.ts',
           'supabase/functions/drive-ops/restitch-selection-store.ts',
@@ -1044,14 +1134,25 @@ function build(): Record<string, CodeLocation> {
     check:
       'Inspect the correlated local journal and job operation. A generic processing failure does not prove native quiescence; retain provider and execution fences until the outcome is known.'
   };
+  map['journal:team:catalog_variant_stage'] = {
+    files: [
+      'apps/agent/src/team-bridge/catalog-variant-executor.ts',
+      'supabase/functions/drive-ops/catalog-video-set-store.ts',
+      'supabase/migrations/20261207168000_catalog_video_sets.sql'
+    ],
+    check:
+      'Read the original video set, child identity and bounded ready count. A prepared output is not a verified catalog publication; missing admission or dispatch evidence remains unknown.'
+  };
   map['journal:team:process_terminal'] = {
     files: [
+      'apps/agent/src/team-bridge/transfer.ts',
       'apps/agent/src/team-bridge/process.ts',
+      'apps/agent/src/team-bridge/native-restitch-controller.ts',
       'supabase/functions/drive-ops/process-finalize.ts',
       'supabase/functions/drive-ops/handler.ts'
     ],
     check:
-      'Inspect operationId, last native stage and safe errorCode. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. Missing journal delivery leaves the cause unknown.'
+      'Inspect operationId, last native stage, safe errorCode and optional sourceIntegrityReason. Missing binary integrity detail stays unknown. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. The beta manual native controller correlates its terminal to the cloud root and preserves the trusted delivery phase when observed; an unknown phase must not be reconstructed. Missing journal delivery leaves the cause unknown.'
   };
   map['journal:team:screen_candidate_rejected'] = {
     files: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/web/src/team/restitch/screens.ts'],
@@ -1139,7 +1240,7 @@ function build(): Record<string, CodeLocation> {
     [
       'team:transfer',
       ['apps/agent/src/team-bridge/transfer.ts', 'apps/web/src/team/catalog/useMaterialActions.ts'],
-      'The upload or new-version transfer between the local app and team storage.'
+      'Inspect source range identity, measured binary checksum and upload acknowledgements between the local app and team storage.'
     ],
     [
       'team:process',
@@ -1228,6 +1329,10 @@ function build(): Record<string, CodeLocation> {
     map[`link:${reason}`] = { files: unique(spec.files), check: spec.check };
   }
   const catalogGenerationFiles = [
+    'supabase/functions/drive-ops/catalog-initial-video-authority.ts',
+    'supabase/functions/drive-ops/catalog-initial-publication.ts',
+    'supabase/functions/drive-ops/catalog-initial-recovery.ts',
+    'supabase/migrations/20261207169000_catalog_publication_jobs.sql',
     'supabase/functions/drive-ops/product-catalog.ts',
     'supabase/functions/drive-ops/catalog-durable.ts',
     'supabase/functions/_shared/drive.ts',
@@ -1286,6 +1391,8 @@ function build(): Record<string, CodeLocation> {
   );
   map['launches:generation:LAUNCH_RESULT_UNCERTAIN'] = {
     files: [
+      'supabase/functions/drive-ops/launch-catalog-video.ts',
+      'supabase/migrations/20261207171000_launch_catalog_video_protocol.sql',
       'apps/web/src/team/launches/reply.ts',
       'apps/web/src/team/launches/useLaunchProgressWatch.ts',
       'apps/web/src/team/launches/preparation.ts',
@@ -1307,11 +1414,15 @@ function build(): Record<string, CodeLocation> {
   };
   map['launches:generation:AGENT_REQUIRED'] = {
     files: [
+      'supabase/functions/drive-ops/launch-catalog-video.ts',
+      'apps/agent/src/team-bridge/catalog-video-foreground.ts',
+      'apps/web/src/api/catalog-video-foreground-client.ts',
+      'supabase/migrations/20261207180000_catalog_foreground_authority.sql',
       'apps/web/src/team/launches/restitch-runner.ts',
       'supabase/migrations/20261201153000_launch_restitch_waiting_reason.sql'
     ],
     check:
-      'The frozen preparation is waiting for the paired local agent. Connect the agent and resume the same generation; do not create another Launch or redraw screens.'
+      'Before admission, distinguish a missing paired session executor from a transport failure using the original enrollment and request. Verified READY reuse needs no new executor. Manual work has a one-set native proof; do not enable broad recovery. Inspect current session validity, exact set binding, native redemption and physical child receipts separately. Preserve frozen identities and unknown provider outcomes during recovery.'
   };
   map['launches:generation:UNKNOWN'] = {
     files: [
@@ -1355,6 +1466,37 @@ function build(): Record<string, CodeLocation> {
         'Inspect the bound child operation and its last proven stage. For missing screens, verify the effective shared or personal pool and source version; the Launch recovery link opens restitch settings. Retry explicitly with the frozen preparation; never restart a running or successful child.'
     };
   }
+  // 047: a catalog video variant child reports its exact stitch/body/screen failure to Launch.
+  for (const code of STITCH_ERROR_CODES) {
+    const fingerprint = `launches:generation:${code}`;
+    if (map[fingerprint]) continue;
+    map[fingerprint] = {
+      files: [
+        'apps/agent/src/stitcher/plan.ts',
+        'apps/agent/src/stitcher/run.ts',
+        'apps/agent/src/stitcher/verify.ts',
+        'apps/agent/src/stitcher/body-cache.ts',
+        'apps/agent/src/stitcher/silence.ts',
+        'apps/agent/src/team-bridge/process.ts',
+        'packages/shared/src/stitch-errors.ts',
+        'supabase/functions/drive-ops/catalog-video-generation.ts',
+        'supabase/functions/drive-ops/launch-catalog-video.ts'
+      ],
+      check:
+        'A variant child failed with this exact stitch code; the Launch keeps it instead of a generic wait. Inspect the child operation and its source (codec, frame rate, container) before retrying. Retrying the same source with an unsupported codec fails the same way; cancel and choose a compatible source.'
+    };
+  }
+  if (!map['launches:generation:PROCESS_RESULT_UNCERTAIN'])
+    map['launches:generation:PROCESS_RESULT_UNCERTAIN'] = {
+      files: [
+        'apps/agent/src/team-bridge/process.ts',
+        'apps/agent/src/team-bridge/catalog-video-foreground.ts',
+        'supabase/functions/drive-ops/launch-catalog-video.ts',
+        'supabase/migrations/20261207181000_catalog_video_cancellation_settlement.sql'
+      ],
+      check:
+        'A variant child outcome is unknown. Reconcile the original operation and its upload receipt with the same key; never rerun media for an unknown child.'
+    };
   map['launches:generation:WRONG_STATE'] = {
     files: [
       'supabase/migrations/20261206148000_launch_current_assignments.sql',
@@ -1606,6 +1748,9 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   },
   'workspace:receipt': {
     files: [
+      'supabase/functions/drive-ops/material-historical-receipt.ts',
+      'supabase/migrations/20261207167000_material_historical_receipts.sql',
+      'apps/web/src/team/explorer/BulkTrashPanel.tsx',
       'supabase/migrations/20261205122000_task_attachment_cleanup.sql',
       'supabase/migrations/20261206140500_launch_offer_defaults_reference_fence.sql',
       'supabase/migrations/20261205121000_bulk_trash_receipts.sql',

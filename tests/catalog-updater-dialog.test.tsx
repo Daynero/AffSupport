@@ -800,6 +800,42 @@ it('exposes safe undo after a confirmed write', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Recent changes (1)' }));
   expect(screen.getByRole('heading', { name: 'Recent changes' })).toBeTruthy();
 });
+it('renders numeric variation changes in recent changes and undoes the original count', async () => {
+  vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
+  try {
+    const item = row('1', 'polo.mp4');
+    let stored: CatalogUpdateProfile = { ...profileFor(item.catalogId), videoVariantCount: 1 };
+    const api = client([item], stopped, {
+      listCatalogUpdateProfiles: vi.fn(async () => [stored]),
+      patchCatalogUpdateProfile: vi.fn(async (_team, _id, version, patch) => {
+        if (version !== stored.version) throw new TeamApiError('STALE_RESULT', false);
+        stored = { ...stored, ...patch, version: version + 1 };
+        return stored;
+      })
+    });
+    renderDialog(api);
+    await userEvent.click(await screen.findByRole('button', { name: /^Actions (for|on) polo/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Configure' }));
+    const detail = screen.getAllByRole('dialog').at(-1)!;
+    fireEvent.change(within(detail).getByRole('textbox', { name: 'Video variations' }), {
+      target: { value: '3' }
+    });
+    await userEvent.click(within(detail).getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(stored.videoVariantCount).toBe(3));
+    await waitFor(() =>
+      expect(within(detail).queryByRole('button', { name: 'Save settings' })).toBeNull()
+    );
+    await userEvent.click(within(detail).getByRole('button', { name: 'Close' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Recent changes (1)' }));
+    const recent = screen.getAllByRole('dialog').at(-1)!;
+    expect(within(recent).getByText('Video variations: 3')).toBeTruthy();
+    await userEvent.click(within(recent).getByRole('button', { name: 'Undo change' }));
+    await waitFor(() => expect(stored.videoVariantCount).toBe(1));
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 it('closes an emptied recent-changes dialog after undo and restores focus to the affected catalog field', async () => {
   const item = row('1', 'polo.mp4');
   let stored: CatalogUpdateProfile = profileFor(item.catalogId);
@@ -1108,6 +1144,7 @@ it('rediscovers an unfinished hosted catalog batch after reopening without unrel
         { ...group, id: 'other-group', items: [{ ...group.items[0]!, materialId: 'other-file' }] }
       ],
       uncertain: true,
+      historicalReceipts: new Map(),
       start: vi.fn(),
       retry: vi.fn(),
       refresh: vi.fn(),
@@ -1121,7 +1158,7 @@ it('rediscovers an unfinished hosted catalog batch after reopening without unrel
   expect(screen.getByText('Move files to trash')).toBeTruthy();
   expect(screen.getAllByText('Move files to trash')).toHaveLength(1);
   expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
-  expect(hostedWorkspace.value.bulkTrash?.start).not.toHaveBeenCalled();
+  expect(hostedWorkspace.value?.bulkTrash?.start).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -1439,4 +1476,42 @@ it('does not keep the previous actor navigation guard before its effect cleanup'
     finish({ ...profileFor(row('1', '').catalogId), version: 2, restitch: true });
   });
   expect(onChanged).not.toHaveBeenCalled();
+});
+
+it('guards an unconfirmed inline save when closing the manager', async () => {
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  const { onClose } = renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Images · On: polo.mp4 catalog' })
+  );
+  await screen.findByText('Save result unknown. Check current settings before continuing.');
+  await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(onClose).not.toHaveBeenCalled();
+  const prompt = screen.getByRole('dialog', { name: 'Result not confirmed' });
+  expect(within(prompt).getByText(/Closing does not cancel it/)).toBeTruthy();
+  await userEvent.click(within(prompt).getByRole('button', { name: 'Keep editing' }));
+  expect(
+    screen.getByText('Save result unknown. Check current settings before continuing.')
+  ).toBeTruthy();
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledOnce();
+});
+it('guards an unconfirmed inline save during app navigation with the correct explanation', async () => {
+  const { BEFORE_NAVIGATION_EVENT } = await import('../apps/web/src/lib/navigation');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const api = client([row('1', 'polo.mp4')], stopped, {
+    patchCatalogUpdateProfile: vi.fn().mockRejectedValue(new TypeError('reply lost'))
+  });
+  renderDialog(api);
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Images · On: polo.mp4 catalog' })
+  );
+  await screen.findByText('Save result unknown. Check current settings before continuing.');
+  const navigation = new Event(BEFORE_NAVIGATION_EVENT, { cancelable: true });
+  window.dispatchEvent(navigation);
+  expect(navigation.defaultPrevented).toBe(true);
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Closing does not cancel it/));
+  expect(api.patchCatalogUpdateProfile).toHaveBeenCalledOnce();
 });

@@ -86,6 +86,8 @@ export interface RestitchPrepareBridgeOptions {
 
 interface PrepareRun {
   controller: AbortController;
+  active: boolean;
+  completion: Promise<void>;
   total: number;
   done: number;
   current: string | null;
@@ -97,6 +99,7 @@ export class RestitchPrepareBridge {
   readonly #transfer: RestitchPrepareTransfer;
   readonly #events: RestitchPrepareBridgeOptions['events'];
   readonly #runs = new Map<string, PrepareRun>();
+  #closing = false;
 
   constructor(options: RestitchPrepareBridgeOptions) {
     this.#transfer = options.transfer;
@@ -111,9 +114,11 @@ export class RestitchPrepareBridge {
    */
   start(request: RestitchPrepareRequest): void {
     const existing = this.#runs.get(request.operationId);
-    if (existing?.state === 'running') throw new Error('WRONG_STATE');
+    if (this.#closing || existing?.active) throw new Error('WRONG_STATE');
     const run: PrepareRun = {
       controller: new AbortController(),
+      active: true,
+      completion: Promise.resolve(),
       total: request.materials.length,
       done: 0,
       current: null,
@@ -121,12 +126,18 @@ export class RestitchPrepareBridge {
       findings: new Map()
     };
     this.#remember(request.operationId, run);
+    // Own completion before publishing or starting I/O. Abort requests and UI
+    // states alone cannot prove that transport, children and cleanup have stopped.
+    run.completion = Promise.resolve()
+      .then(() => this.#run(request, run))
+      .finally(() => {
+        if (run.state === 'running') run.state = 'finished';
+        run.active = false;
+        run.current = null;
+        this.#publish(request.operationId, run);
+        this.#prune();
+      });
     this.#publish(request.operationId, run);
-    void this.#run(request, run).finally(() => {
-      if (run.state === 'running') run.state = 'finished';
-      run.current = null;
-      this.#publish(request.operationId, run);
-    });
   }
 
   /** What the run has found so far, including after it has finished. */
@@ -135,7 +146,7 @@ export class RestitchPrepareBridge {
     if (!run) return null;
     return {
       operationId,
-      state: run.state,
+      state: run.active && run.state === 'canceled' ? 'running' : run.state,
       done: run.done,
       total: run.total,
       current: run.current,
@@ -153,25 +164,32 @@ export class RestitchPrepareBridge {
 
   busy(): boolean {
     for (const run of this.#runs.values()) {
-      if (run.state === 'running') return true;
+      if (run.active) return true;
     }
     return false;
   }
 
   async shutdown(): Promise<void> {
-    for (const run of this.#runs.values()) {
+    this.#closing = true;
+    const runs = [...this.#runs.values()];
+    for (const run of runs) {
       if (run.state === 'running') run.state = 'canceled';
       run.controller.abort();
     }
+    await Promise.allSettled(runs.map(run => run.completion));
     this.#runs.clear();
   }
 
   #remember(operationId: string, run: PrepareRun): void {
     this.#runs.set(operationId, run);
+    this.#prune();
+  }
+
+  #prune(): void {
     // A finished run stays readable for a while so a reloaded page can still collect its tail,
     // but the map is not a log: the oldest finished one is dropped once there are enough.
     while (this.#runs.size > REMEMBERED_RUNS) {
-      const oldest = [...this.#runs.entries()].find(([, value]) => value.state !== 'running');
+      const oldest = [...this.#runs.entries()].find(([, value]) => !value.active);
       if (!oldest) break;
       this.#runs.delete(oldest[0]);
     }
@@ -180,21 +198,20 @@ export class RestitchPrepareBridge {
   #publish(operationId: string, run: PrepareRun): void {
     // Deliberately only the shape of progress: how far along, and whether it is still going.
     // What was found stays here, where a broadcast cannot reach it.
-    this.#events?.update(operationId, {
-      state:
-        run.state === 'running' ? 'running' : run.state === 'canceled' ? 'canceled' : 'succeeded',
-      stage:
-        run.state === 'running'
-          ? 'processing'
-          : run.state === 'canceled'
-            ? 'canceled'
-            : 'completed',
-      progress: run.total > 0 ? Math.round((run.done / run.total) * 100) : 100
-    });
+    try {
+      this.#events?.update(operationId, {
+        state: run.active ? 'running' : run.state === 'canceled' ? 'canceled' : 'succeeded',
+        stage: run.active ? 'processing' : run.state === 'canceled' ? 'canceled' : 'completed',
+        progress: run.total > 0 ? Math.round((run.done / run.total) * 100) : 100
+      });
+    } catch {
+      // A diagnostic sink failure cannot strand work or prevent quiescence.
+    }
   }
 
   async #run(request: RestitchPrepareRequest, run: PrepareRun): Promise<void> {
     const signal = run.controller.signal;
+    if (signal.aborted) return;
     // Once, before anything else: every screen this space ever builds needs it, and building
     // it here is the difference between a first delivery of four seconds and one of twenty.
     if (request.audio) {

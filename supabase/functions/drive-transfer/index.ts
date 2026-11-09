@@ -1,3 +1,9 @@
+import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import {
+  authorizeNativeRestitchSource,
+  type NativeRestitchSourceAuthority
+} from './restitch-source-authority.ts';
+import { dispatchControlledRestitchScreenRange } from '../drive-ops/restitch-controlled-range-dispatch.ts';
 import {
   CATALOG_SHEET_MIME,
   CATALOG_XLSX_MIME,
@@ -549,7 +555,12 @@ function productionSignals(request: Request): OAuthProductionSignals {
 const accessTokens = new Map<string, { refreshToken: string; token: string; expiresAt: number }>();
 const ACCESS_TOKEN_MARGIN_MS = 5 * 60_000;
 
-async function driveClient(service: RpcClient, credentialId: string, request: Request) {
+async function driveClient(
+  service: RpcClient,
+  credentialId: string,
+  request: Request,
+  fetchImpl: typeof fetch = fetch
+) {
   const credential = await readDriveCredential(service, credentialId);
   const held = accessTokens.get(credentialId);
   if (
@@ -557,7 +568,7 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
     held.refreshToken === credential.refreshToken &&
     held.expiresAt - ACCESS_TOKEN_MARGIN_MS > Date.now()
   ) {
-    return new GoogleDriveClient(held.token);
+    return new GoogleDriveClient(held.token, fetchImpl);
   }
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
@@ -570,14 +581,15 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
       clientId,
       clientSecret,
       oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-      productionSignals: productionSignals(request)
+      productionSignals: productionSignals(request),
+      fetchImpl
     });
     accessTokens.set(credentialId, {
       refreshToken: credential.refreshToken,
       token: token.accessToken,
       expiresAt: Date.now() + token.expiresIn * 1000
     });
-    return new GoogleDriveClient(token.accessToken);
+    return new GoogleDriveClient(token.accessToken, fetchImpl);
   } catch (error) {
     accessTokens.delete(credentialId);
     if (error instanceof TeamFunctionError && error.code === 'NEEDS_REAUTH') {
@@ -611,6 +623,7 @@ async function consumeGrant(
     actorId,
     materialId,
     maxRangeBytes,
+    operationId: stringValue(row, 'operation_id'),
     toolId: stringValue(row, 'tool_id'),
     purpose
   };
@@ -649,7 +662,12 @@ function materialFromTransfer(context: TransferContext): PreviewMaterialRecord {
   };
 }
 
-async function handleRange(request: Request, service: RpcClient, cors: Record<string, string>) {
+async function handleRange(
+  request: Request,
+  service: RpcClient,
+  cors: Record<string, string>,
+  sourceAuthority?: NativeRestitchSourceAuthority
+) {
   const url = new URL(request.url);
   const ticket =
     url.searchParams.get('grant') ?? request.headers.get('x-wishly-transfer-grant') ?? '';
@@ -658,7 +676,11 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
   const authorized = await authorizePreviewRange(
     { ticket, rangeHeader: request.headers.get('range') },
     {
-      consumeGrant: value => consumeRangeGrant(service, value),
+      consumeGrant: async value => {
+        const grant = await consumeRangeGrant(service, value);
+        if (grant && sourceAuthority) await sourceAuthority.bindGrant(grant);
+        return grant;
+      },
       loadMaterial: async grant => {
         const context = transferContext(
           await rpcValue(service, 'service_get_material_transfer_context', {
@@ -678,7 +700,12 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
           })
         );
         if (!context) throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
-        liveDrive = await driveClient(service, context.credentialId, request);
+        liveDrive = await driveClient(
+          service,
+          context.credentialId,
+          request,
+          sourceAuthority?.fetch
+        );
         const live = await proveLiveAncestry({
           client: liveDrive,
           fileId: material.driveFileId,
@@ -686,6 +713,12 @@ async function handleRange(request: Request, service: RpcClient, cors: Record<st
           resourceKey: material.resourceKey
         });
         requireDriveCapability(live, 'canDownload');
+        sourceAuthority?.assertSource({
+          fileId: live.id,
+          sizeBytes: live.size ?? 0,
+          mimeType: live.mimeType,
+          sourceChecksum: live.checksum
+        });
         if (live.mimeType === CATALOG_SHEET_MIME) {
           exportBytes = await prepareCatalogExport({
             purpose: grant.purpose,
@@ -1622,6 +1655,48 @@ Deno.serve(async request => {
   try {
     const url = new URL(request.url);
     const configured = clients(request);
+    if (
+      url.pathname.endsWith('/restitch/source-range') ||
+      url.pathname.endsWith('/restitch/screen-range')
+    ) {
+      if (
+        !nativeRestitchBetaEnabled({
+          enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        })
+      )
+        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      if (request.method !== 'GET' || request.headers.has('origin') || url.search)
+        throw new TeamFunctionError('PERMISSION_DENIED');
+      if (url.pathname.endsWith('/restitch/source-range')) {
+        const authority = await authorizeNativeRestitchSource(request, configured.service);
+        return await handleRange(request, configured.service, {}, authority);
+      }
+      return await dispatchControlledRestitchScreenRange(
+        {
+          service: configured.service,
+          ticket: request.headers.get('x-restitch-screen-ticket') ?? '',
+          signal: request.signal
+        },
+        {
+          fetch,
+          readCredentials: async credentialId => {
+            const clientId = Deno.env.get('GOOGLE_CLIENT_ID'),
+              clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+            if (!clientId || !clientSecret) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+            return {
+              credential: await readDriveCredential(configured.service, credentialId),
+              clientId,
+              clientSecret,
+              oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+              productionSignals: productionSignals(request)
+            };
+          }
+        }
+      );
+    }
     if (request.method === 'GET' && url.pathname.endsWith('/render-range')) {
       return await handleLandingRenderRange(request, configured.service, cors);
     }

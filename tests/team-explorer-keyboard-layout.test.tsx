@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import type { FolderPage, TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { ToastProvider } from '../apps/web/src/components/toast';
@@ -15,12 +15,20 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbnailSession';
 import { makeTeam } from './team-space-fixtures';
 
+// Trash and restore are owned by the signed-in actor; without one, Delete deliberately does nothing.
+vi.mock('../apps/web/src/auth/AuthContext', () => ({
+  useOptionalAuth: () => ({ user: { id: '00000000-0000-4000-8000-0000000000aa' } })
+}));
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
+
 /**
  * Feature 011 (T057): the content area under the keyboard — arrows move the
  * focus, Enter opens, Escape clears, space toggles the selection — and the
  * narrow layout keeps the tree behind a toggle rather than dropping it.
  */
 
+// Mutations are owned by the signed-in actor; without one, Delete deliberately does nothing.
+beforeEach(() => setPrivateCacheScope('00000000-0000-4000-8000-0000000000aa', 'owner'));
 afterEach(() => {
   cleanup();
   clearThumbnailSessions();

@@ -73,11 +73,20 @@ function checked(
     !Number.isInteger(value.acquisition) ||
     value.acquisition < 0 ||
     value.acquisition > 2 ||
-    value.screen?.slot !== slot ||
-    !parseRestitchScreens([value.screen]).ok
+    value.screen?.slot !== slot
   )
     throw new ScreenCacheError('INVALID_RESPONSE');
-  return { ...value, versionId: value.versionId.toLowerCase() };
+  const parsed = parseRestitchScreens([value.screen]);
+  if (!parsed.ok || !parsed.value?.[0]) throw new ScreenCacheError('INVALID_RESPONSE');
+  const screen = parsed.value[0];
+  // Keep the selected identity independent of retained provider objects and of
+  // later mutations through the argument supplied to resolve/reject/accept.
+  if (screen.transfer) Object.freeze(screen.transfer);
+  return Object.freeze({
+    versionId: value.versionId.toLowerCase(),
+    acquisition: value.acquisition,
+    screen: Object.freeze(screen)
+  });
 }
 function sameVersion(
   previous: ScreenRecoveryCandidate,
@@ -116,6 +125,7 @@ export async function resolveScreensWithRecovery(
     candidates: number;
   }) => void
 ): Promise<ResolvedScreen[]> {
+  slots = [...slots];
   if (
     slots.some(slot => slot !== 'start' && slot !== 'end') ||
     new Set(slots).size !== slots.length
@@ -170,11 +180,13 @@ export async function resolveScreensWithRecovery(
           if (
             !reply.resolved ||
             reply.resolved.slot !== slot ||
+            typeof reply.resolved.id !== 'string' ||
             !reply.resolved.id ||
+            typeof reply.resolved.path !== 'string' ||
             !reply.resolved.path
           )
             throw new ScreenCacheError('INVALID_RESPONSE');
-          resolved = reply.resolved;
+          resolved = { slot, id: reply.resolved.id, path: reply.resolved.path };
         } catch (error) {
           signal.throwIfAborted();
           const cause = error instanceof ScreenRecoveryCandidateError ? error.failure : error;

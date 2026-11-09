@@ -1,3 +1,7 @@
+import type {
+  CatalogForegroundBinding,
+  CatalogForegroundExecutor
+} from '../apps/web/src/api/catalog-video-foreground';
 import { launchConfig } from './fixtures/launches';
 import { TeamApiError } from '../apps/web/src/api/team';
 // @vitest-environment jsdom
@@ -6,8 +10,36 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { LaunchDetail } from '../packages/shared/src/team/launches';
 import { useLaunchGeneration } from '../apps/web/src/team/launches/useLaunchGeneration';
 import { launchAction } from '../apps/web/src/team/launches/analytics';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
+const foreground = vi.hoisted(() => ({
+  prepare: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined)
+}));
+vi.mock('../apps/web/src/api/catalog-video-foreground-client', async () => {
+  const { admitCatalogForeground } = await import('../apps/web/src/api/catalog-video-foreground');
+  return {
+    catalogForeground: {
+      ...foreground,
+      admit: <T,>(
+        binding: CatalogForegroundBinding,
+        run: (executor: CatalogForegroundExecutor | undefined) => Promise<T>,
+        signal?: AbortSignal,
+        prepared?: CatalogForegroundExecutor
+      ) =>
+        admitCatalogForeground({
+          prepare: async () =>
+            prepared ??
+            ((await foreground.prepare(binding, signal)) as CatalogForegroundExecutor | undefined),
+          admit: run,
+          current: () => {
+            if (signal?.aborted) throw Error('PROCESS_CANCELED');
+          }
+        })
+    }
+  };
+});
 const api = vi.hoisted(() => ({
   cancel: vi.fn(),
+  cancelCatalogVideoGeneration: vi.fn(),
   cancelRequest: vi.fn(),
   detail: vi.fn(),
   save: vi.fn(),
@@ -47,8 +79,78 @@ vi.mock('../apps/web/src/team/launches/analytics', () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  setPrivateCacheScope(null, 'signed-out');
 });
 const detail = { id: 'launch', generation: { id: 'generation' } } as LaunchDetail;
+const createdWithVideoPending = {
+  ...detail,
+  generation: {
+    ...detail.generation,
+    state: 'succeeded',
+    videoGeneration: {
+      setId: '47000000-0000-4000-8000-000000000001',
+      requestedCount: 5,
+      registeredCount: 2,
+      state: 'preparing',
+      activeChildOperationId: 'child'
+    }
+  }
+} as LaunchDetail;
+it('cancels only remaining videos after catalog success and keeps the original cancel key on a lost reply', async () => {
+  api.cancelCatalogVideoGeneration
+    .mockRejectedValueOnce(new Error('lost reply'))
+    .mockResolvedValueOnce({ state: 'cancel_requested' });
+  const latest = {
+    ...createdWithVideoPending,
+    generation: {
+      ...createdWithVideoPending.generation!,
+      videoGeneration: {
+        ...createdWithVideoPending.generation!.videoGeneration!,
+        state: 'cancel_requested'
+      }
+    }
+  } as LaunchDetail;
+  api.detail.mockResolvedValue(latest);
+  const notify = vi.fn();
+  const { result } = renderHook(() => useLaunchGeneration('team', notify));
+  await act(async () => {
+    await expect(result.current.cancel(createdWithVideoPending)).rejects.toThrow('lost reply');
+  });
+  await act(async () => {
+    await result.current.cancel(createdWithVideoPending);
+  });
+  expect(api.cancelCatalogVideoGeneration).toHaveBeenCalledTimes(2);
+  expect(api.cancelCatalogVideoGeneration.mock.calls[1]).toEqual(
+    api.cancelCatalogVideoGeneration.mock.calls[0]
+  );
+  expect(api.cancel).not.toHaveBeenCalled();
+  expect(local.cancel).toHaveBeenCalledWith('child');
+  expect(notify).toHaveBeenCalledWith(latest);
+  expect(latest.generation?.state).toBe('succeeded');
+});
+it('does not apply a post-created video cancellation reply to a replacement actor', async () => {
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');
+  let resolve!: (value: unknown) => void;
+  api.cancelCatalogVideoGeneration.mockImplementationOnce(
+    () =>
+      new Promise(r => {
+        resolve = r;
+      })
+  );
+  const notify = vi.fn();
+  const { result } = renderHook(() => useLaunchGeneration('team', notify));
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = result.current.cancel(createdWithVideoPending);
+  });
+  await act(async () => {
+    setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'viewer');
+    resolve({ state: 'cancel_requested' });
+    await pending;
+  });
+  expect(notify).not.toHaveBeenCalled();
+  expect(local.cancel).not.toHaveBeenCalled();
+});
 it('retains the cancellation key after an uncertain reply and suppresses duplicate clicks', async () => {
   let fail: (error: Error) => void = () => undefined;
   api.cancel.mockImplementationOnce(
@@ -106,17 +208,20 @@ it('updates the same saved draft after a proven pre-acceptance refusal instead o
   expect(onResult).toHaveBeenCalledTimes(1);
 });
 
-it('releases a proven wrong-state rejection so catalog setup can be corrected', async () => {
-  const config = launchConfig({ method: 'catalog' });
-  api.save.mockResolvedValueOnce({ id: 'catalog-launch', version: '1' });
-  api.generate.mockRejectedValueOnce(new TeamApiError('WRONG_STATE', false));
-  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
-  await act(async () => {
-    await expect(result.current.generate(null, config, null, null)).rejects.toThrow('WRONG_STATE');
-  });
-  expect(result.current.hasUnresolvedRequest).toBe(false);
-  expect(result.current.busy).toBe(false);
-});
+it.each(['WRONG_STATE', 'AGENT_REQUIRED'] as const)(
+  'releases a proven %s rejection so catalog setup can be corrected',
+  async code => {
+    const config = launchConfig({ method: 'catalog' });
+    api.save.mockResolvedValueOnce({ id: 'catalog-launch', version: '1' });
+    api.generate.mockRejectedValueOnce(new TeamApiError(code, false));
+    const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+    await act(async () => {
+      await expect(result.current.generate(null, config, null, null)).rejects.toThrow(code);
+    });
+    expect(result.current.hasUnresolvedRequest).toBe(false);
+    expect(result.current.busy).toBe(false);
+  }
+);
 it('uses its own saved version after a refused generation of an existing Launch', async () => {
   const config = launchConfig();
   const detail = {
@@ -1051,4 +1156,287 @@ it('never cancels a newer child when replay readback belongs to another generati
     await result.current.cancelPending();
   });
   expect(local.cancel).not.toHaveBeenCalled();
+});
+
+it.each(['canceled', 'succeeded'] as const)(
+  'reconciles a lost cancellation reply from an exact authoritative %s receipt',
+  async state => {
+    api.save.mockResolvedValueOnce({ id: 'cancel-observed', version: '1' });
+    api.generate.mockRejectedValueOnce(new Error('lost acceptance'));
+    api.cancelRequest.mockRejectedValueOnce(new Error('lost cancellation'));
+    const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+    await act(async () => {
+      await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toThrow(
+        'lost acceptance'
+      );
+    });
+    await act(async () => {
+      await expect(result.current.cancelPending()).rejects.toThrow('lost cancellation');
+    });
+    act(() => {
+      result.current.observe({
+        id: 'cancel-observed',
+        version: '2',
+        generation: {
+          id: 'generation',
+          state,
+          stateVersion: '2',
+          requestKey: api.generate.mock.calls.at(-1)?.[3]
+        }
+      } as LaunchDetail);
+    });
+    expect(result.current.busy).toBe(false);
+    expect(result.current.hasUnresolvedRequest).toBe(false);
+    expect(result.current.pendingStage).toBe(null);
+    expect(api.generate).toHaveBeenCalledOnce();
+    expect(api.cancelRequest).toHaveBeenCalledOnce();
+  }
+);
+
+it.each([
+  'cancel_requested',
+  'canceled_with_cleanup_pending',
+  'wrong-key',
+  'wrong-id',
+  'stale',
+  'actor',
+  'epoch',
+  'team'
+])('retains uncertain cancellation for %s observations', async scenario => {
+  setPrivateCacheScope('actor-a', 'team');
+  api.save.mockResolvedValueOnce({ id: 'cancel-fenced', version: '1' });
+  api.generate.mockRejectedValueOnce(new Error('lost acceptance'));
+  api.cancelRequest.mockRejectedValueOnce(new Error('lost cancellation'));
+  const { result, rerender } = renderHook(({ team }) => useLaunchGeneration(team, vi.fn()), {
+    initialProps: { team: 'team' }
+  });
+  await act(async () => {
+    await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toThrow();
+  });
+  await act(async () => {
+    await expect(result.current.cancelPending()).rejects.toThrow();
+  });
+  const receipt = {
+    id: 'cancel-fenced',
+    version: '2',
+    generation: {
+      id: 'generation',
+      state: 'cancel_requested',
+      stateVersion: '2',
+      requestKey: api.generate.mock.calls.at(-1)?.[3]
+    }
+  } as LaunchDetail;
+  act(() => {
+    result.current.observe(receipt);
+  });
+  if (scenario === 'actor') setPrivateCacheScope('actor-b', 'team');
+  if (scenario === 'epoch') setPrivateCacheScope('actor-a', 'different-access');
+  if (scenario === 'team') rerender({ team: 'other-team' });
+  act(() => {
+    result.current.observe({
+      ...receipt,
+      id: scenario === 'wrong-id' ? 'other' : receipt.id,
+      version: scenario === 'stale' ? '1' : '3',
+      generation: {
+        ...receipt.generation!,
+        state: ['cancel_requested', 'canceled_with_cleanup_pending'].includes(scenario)
+          ? scenario
+          : 'canceled',
+        requestKey: scenario === 'wrong-key' ? 'other' : receipt.generation!.requestKey
+      }
+    } as LaunchDetail);
+  });
+  expect(result.current.hasUnresolvedRequest).toBe(true);
+  expect(result.current.busy).toBe(false);
+  expect(api.generate).toHaveBeenCalledOnce();
+  expect(api.cancelRequest).toHaveBeenCalledOnce();
+});
+
+it('freezes paired-session enrollment with the original Launch request across lost acceptance and cancellation', async () => {
+  const config = launchConfig({ method: 'catalog' });
+  config.catalog.catalogVideoProtocolVersion = 1;
+  config.catalog.restitchEnabled = true;
+  const proof = {
+    protocolVersion: 1 as const,
+    enrollmentId: '47000000-0000-4000-8000-000000000004',
+    nativeInstanceId: '47000000-0000-4000-8000-000000000005',
+    proofDigest: 'a'.repeat(64)
+  };
+  foreground.prepare.mockResolvedValueOnce(proof);
+  api.save.mockResolvedValueOnce({ id: 'paired-launch', version: '7' });
+  api.generate.mockRejectedValueOnce(new Error('lost acceptance'));
+  api.cancelRequest.mockResolvedValueOnce({
+    state: 'canceled',
+    detail: { id: 'paired-launch', generation: null }
+  });
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toThrow(
+      'lost acceptance'
+    );
+  });
+  const original = api.generate.mock.calls.at(-1)!;
+  expect(original).toEqual(['team', 'paired-launch', '7', expect.any(String), undefined, proof]);
+  expect(foreground.prepare).toHaveBeenLastCalledWith(
+    {
+      kind: 'launch',
+      teamId: 'team',
+      launchId: 'paired-launch',
+      sourceMaterialId: config.materialId,
+      requestKey: original[3],
+      expectedVersion: '7'
+    },
+    expect.any(AbortSignal)
+  );
+  await act(async () => {
+    await result.current.cancelPending();
+  });
+  expect(api.generate).toHaveBeenCalledOnce();
+  expect(foreground.prepare).toHaveBeenCalledOnce();
+  expect(result.current.hasUnresolvedRequest).toBe(false);
+});
+
+it('does not replay or cancel a previous actor pending admission after a scope replacement', async () => {
+  setPrivateCacheScope('actor-original', 'team');
+  api.save.mockResolvedValueOnce({ id: 'scope-launch', version: '1' });
+  api.generate.mockRejectedValueOnce(new Error('lost acceptance'));
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toThrow(
+      'lost acceptance'
+    );
+  });
+  setPrivateCacheScope('actor-replacement', 'team');
+  await expect(result.current.retry(null, launchConfig(), null, null)).rejects.toMatchObject({
+    code: 'PERMISSION_DENIED'
+  });
+  await expect(result.current.cancelPending()).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+  expect(api.generate).toHaveBeenCalledOnce();
+  expect(api.detail).not.toHaveBeenCalled();
+  expect(api.cancelRequest).not.toHaveBeenCalled();
+});
+
+it.each(['prepare', 'generate'] as const)(
+  'does not continue browser admission after actor changes during %s',
+  async stage => {
+    setPrivateCacheScope('actor-original', 'team');
+    const config = launchConfig({ method: 'catalog' });
+    config.catalog.catalogVideoProtocolVersion = 1;
+    config.catalog.restitchEnabled = true;
+    api.save.mockResolvedValueOnce({ id: 'pending-owner', version: '1' });
+    let finish!: (value: unknown) => void;
+    const waiting = new Promise(resolve => {
+      finish = resolve;
+    });
+    if (stage === 'prepare') foreground.prepare.mockImplementationOnce(() => waiting);
+    else {
+      foreground.prepare.mockResolvedValueOnce(undefined);
+      api.generate.mockImplementationOnce(() => waiting);
+    }
+    const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+    let work!: Promise<void>;
+    act(() => {
+      work = result.current.generate(null, config, null, null);
+    });
+    await waitFor(() =>
+      expect(stage === 'prepare' ? foreground.prepare : api.generate).toHaveBeenCalled()
+    );
+    setPrivateCacheScope('actor-new', 'team');
+    await act(async () => {
+      finish(
+        stage === 'prepare'
+          ? {
+              protocolVersion: 1,
+              enrollmentId: 'enroll',
+              nativeInstanceId: 'boot',
+              proofDigest: 'digest'
+            }
+          : {}
+      );
+      await expect(work).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    });
+    expect(api.generate).toHaveBeenCalledTimes(stage === 'prepare' ? 0 : 1);
+    expect(api.detail).not.toHaveBeenCalled();
+    expect(result.current.hasUnresolvedRequest).toBe(true);
+  }
+);
+
+it('unlocks a saved Launch after failed native preparation and a proved canonical refusal', async () => {
+  setPrivateCacheScope('actor-original', 'team');
+  const config = launchConfig({ method: 'catalog' });
+  config.catalog.catalogVideoProtocolVersion = 1;
+  config.catalog.restitchEnabled = true;
+  api.save.mockResolvedValueOnce({ id: 'local-prepare', version: '3' });
+  foreground.prepare.mockRejectedValueOnce(Error('AGENT_UPDATE_REQUIRED'));
+  api.generate.mockRejectedValueOnce(new TeamApiError('AGENT_REQUIRED', false));
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toThrow(
+      'AGENT_UPDATE_REQUIRED'
+    );
+  });
+  expect(api.generate).toHaveBeenCalledOnce();
+  expect(result.current.hasUnresolvedRequest).toBe(false);
+  expect(result.current.busy).toBe(false);
+  expect(result.current.pendingStage).toBe(null);
+  expect(launchAction).toHaveBeenCalledWith(
+    expect.objectContaining({ launchId: 'local-prepare' }),
+    'generate',
+    'failure',
+    'AGENT_UPDATE_REQUIRED'
+  );
+  api.save.mockResolvedValueOnce({ id: 'local-prepare', version: '4' });
+  foreground.prepare.mockResolvedValueOnce(undefined);
+  api.generate.mockRejectedValueOnce(Error('lost admission POST'));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toThrow(
+      'lost admission POST'
+    );
+  });
+  expect(api.save.mock.calls.at(-1)?.[0]).toMatchObject({ id: 'local-prepare', version: '3' });
+  expect(result.current.hasUnresolvedRequest).toBe(true);
+});
+
+it('retains original local intent when preparation rejects after the actor changes', async () => {
+  setPrivateCacheScope('actor-original', 'team');
+  const config = launchConfig({ method: 'catalog' });
+  config.catalog.catalogVideoProtocolVersion = 1;
+  config.catalog.restitchEnabled = true;
+  api.save.mockResolvedValueOnce({ id: 'local-owner', version: '1' });
+  foreground.prepare.mockImplementationOnce(async () => {
+    setPrivateCacheScope('actor-other', 'team');
+    throw Error('PERMISSION_DENIED');
+  });
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toThrow(
+      'PERMISSION_DENIED'
+    );
+  });
+  expect(api.generate).not.toHaveBeenCalled();
+  expect(result.current.hasUnresolvedRequest).toBe(true);
+});
+
+it('replays an unknown canonical POST with the same omitted proof after optional preparation failed', async () => {
+  const config = launchConfig({ method: 'catalog' });
+  config.catalog.catalogVideoProtocolVersion = 1;
+  config.catalog.restitchEnabled = true;
+  api.save.mockResolvedValueOnce({ id: 'optional-proof', version: '1' });
+  foreground.prepare.mockRejectedValueOnce(Error('INVALID_RESPONSE'));
+  api.generate
+    .mockRejectedValueOnce(Error('lost POST'))
+    .mockRejectedValueOnce(Error('lost POST again'));
+  api.detail.mockResolvedValueOnce({ id: 'optional-proof', generation: null });
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, config, null, null)).rejects.toThrow('lost POST');
+  });
+  const first = api.generate.mock.calls.at(-1);
+  expect(result.current.hasUnresolvedRequest).toBe(true);
+  await act(async () => {
+    await expect(result.current.retry(null, config, null, null)).rejects.toThrow('lost POST again');
+  });
+  expect(api.generate.mock.calls.at(-1)).toEqual(first);
+  expect(foreground.prepare).toHaveBeenCalledOnce();
+  expect(result.current.hasUnresolvedRequest).toBe(true);
 });

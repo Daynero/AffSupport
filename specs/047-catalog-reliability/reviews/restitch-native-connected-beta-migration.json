@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T17:27:23.229Z",
+  "project": "r2beta045",
+  "fromSchema": 447,
+  "toSchema": 449,
+  "applied": [
+    "20261207165000_restitch_controlled_screen_ranges.sql",
+    "20261207166000_restitch_controlled_selection_adapter.sql"
+  ],
+  "preexistingRowProjectionsUnchanged": 25,
+  "claimProjectionExcludesOnlyNewNullableOutcome": true,
+  "newAuthorityRows": 0,
+  "acl": {
+    "rows": 0,
+    "rpcCount": 10,
+    "browserDenied": true,
+    "serviceAllowed": true,
+    "rawServiceDenied": true,
+    "forcedRls": true
+  },
+  "edgeQuiescedBeforeBaseline": true,
+  "productionTouched": false,
+  "scope": "Combined controlled ranges and native selection/finish local schema only, after frozen disposable native proof. No installed candidate, manual UI or packaged-beta acceptance."
+}

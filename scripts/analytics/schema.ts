@@ -31,6 +31,13 @@ const TABLES = [
   'analytics_catalog_sync_jobs',
   'analytics_workspace_operations',
   'analytics_material_group_execution',
+  'analytics_material_historical_observations',
+  'analytics_catalog_video_sets',
+  'analytics_catalog_video_session_authorities',
+  'analytics_catalog_growth_video_recipes',
+  'analytics_catalog_video_children',
+  'analytics_catalog_video_publications',
+  'analytics_catalog_video_baselines',
   'analytics_restitch_selection_slots',
   'analytics_process_output_cleanup',
   'analytics_workspace_recovery',
@@ -70,6 +77,27 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_catalog_video_session_authorities')
+        ? { analytics_catalog_video_session_authorities: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_sets')
+        ? { analytics_catalog_video_sets: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_growth_video_recipes')
+        ? { analytics_catalog_growth_video_recipes: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_children')
+        ? { analytics_catalog_video_children: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_publications')
+        ? { analytics_catalog_video_publications: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_baselines')
+        ? { analytics_catalog_video_baselines: true }
+        : {}),
+      ...(has('table', 'analytics_material_historical_observations')
+        ? { analytics_material_historical_observations: true }
+        : {}),
       ...(has('table', 'analytics_catalog_generations')
         ? { analytics_catalog_generations: true }
         : {}),
@@ -151,6 +179,15 @@ export function getSchema(): Promise<AnalyticsSchema> {
   return cached.schema;
 }
 
+const CATALOG_VIDEO_PROJECTIONS: ReadonlySet<string> = new Set([
+  'analytics_material_historical_observations',
+  'analytics_catalog_video_sets',
+  'analytics_catalog_video_session_authorities',
+  'analytics_catalog_growth_video_recipes',
+  'analytics_catalog_video_children',
+  'analytics_catalog_video_publications',
+  'analytics_catalog_video_baselines'
+]);
 export function missingObjects(schema: AnalyticsSchema): string[] {
   return [
     ...EVENT_COLUMNS.filter(column => !schema.events[column]).map(
@@ -176,6 +213,8 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_image_storage' &&
         table !== 'analytics_catalog_image_optimization' &&
         table !== 'analytics_process_output_cleanup' &&
+        // 047 projections: their readers report their own blind spots when absent.
+        !CATALOG_VIDEO_PROJECTIONS.has(table) &&
         !schema.tables[table]
     )
   ];

@@ -71,6 +71,8 @@ function getPool(): pg.Pool {
     // defaults, so writes are impossible even if the URL points at a wider role.
     options: '-c default_transaction_read_only=on -c statement_timeout=30000',
     ssl: process.env.ANALYTICS_DB_NO_SSL === '1' ? undefined : { rejectUnauthorized: false },
+    // A server deadline cannot bound a lost response on the client socket.
+    query_timeout: 30000,
     connectionTimeoutMillis: 15000
   });
   return pool;
@@ -98,8 +100,23 @@ export async function query<T = Record<string, unknown>>(
 ): Promise<T[]> {
   assertReadOnlySql(sql);
   if (executorOverride) return (await executorOverride(sql, params)) as T[];
-  const result = await getPool().query(sql, params as never[]);
-  return result.rows as T[];
+  try {
+    const result = await getPool().query(sql, params as never[]);
+    return result.rows as T[];
+  } catch (cause) {
+    if (
+      cause instanceof Error &&
+      [
+        'Query read timeout',
+        'timeout exceeded when trying to connect',
+        'Connection terminated due to connection timeout'
+      ].includes(cause.message)
+    )
+      throw Object.assign(new Error('Analytics read timed out'), {
+        code: 'ANALYTICS_QUERY_TIMEOUT'
+      });
+    throw cause;
+  }
 }
 
 export async function queryOne<T = Record<string, unknown>>(

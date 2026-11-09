@@ -55,11 +55,13 @@ export function restitchSelectionRpcFailure(error: unknown): never {
 
   for (const code of [
     'AUTH_REQUIRED',
+    'RATE_LIMITED',
     'INVALID_INPUT',
     'REQUEST_REUSE_CONFLICT',
     'PERMISSION_DENIED',
     'SPACE_BLOCKED',
     'WRONG_STATE',
+    'EXPIRED',
     'SOURCE_CHANGED',
     'RESTITCH_SOURCES_INVALID',
     'RESTITCH_INVALID',

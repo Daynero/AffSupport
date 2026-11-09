@@ -1,3 +1,4 @@
+import { PRODUCT_CATALOG_TEMPLATE } from '../supabase/functions/_shared/product-catalog';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createDurableProductCatalog,
@@ -325,6 +326,8 @@ describe('durable reuse of existing catalog generator', () => {
       body,
       ACTOR
     );
+    if (result.outcome === 'preparing_video')
+      throw new Error('Legacy catalog unexpectedly entered video preparation');
     expect(result.catalog.variant).toBe(1);
     expect(result.catalog.sheetUrl).toBe('https://docs.google.com/spreadsheets/d/sheet');
     expect(f.create).toHaveBeenCalledTimes(1);
@@ -752,4 +755,154 @@ describe('local beta native Sheets recovery', () => {
     expect(f.drive.writeNativeSpreadsheetRows).toHaveBeenCalledTimes(1);
     expect(f.create).toHaveBeenCalledTimes(1);
   });
+});
+
+describe('initial durable N video preparation', () => {
+  it('persists stable children before immediate pending ACK without provider catalog writes', async () => {
+    const f = fixture(false);
+    const serverNow = vi.fn(async () => Date.parse('2030-01-01T00:00:00Z'));
+    const prepare = vi.fn(async () => ({ state: 'preparing' as const, registeredCount: 1 }));
+    f.deps.initialVideoAuthority = { serverNow, prepare, registerCreated: vi.fn() };
+    const request = {
+      ...body,
+      catalogVideoProtocolVersion: 1,
+      restitchEnabled: true,
+      videoVariationCount: 2,
+      videoPublication: { mode: 'immediate' }
+    };
+    expect(
+      await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+    ).toMatchObject({ outcome: 'preparing_video', requestedCount: 2, registeredCount: 1 });
+    const original = structuredClone(f.state.checkpoint.initialVideoPlan);
+    expect(f.state.state).toBe('interrupted');
+    serverNow.mockResolvedValue(Date.parse('2040-01-01T00:00:00Z'));
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR);
+    expect(serverNow).toHaveBeenCalledOnce();
+    expect(f.state.checkpoint.initialVideoPlan).toEqual(original);
+    expect(prepare).toHaveBeenLastCalledWith({ intentId: f.state.id, plan: original });
+    expect(f.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('initial provider proof accounting', () => {
+  it('retains image uses when the catalog exists but final readback is unknown', async () => {
+    const f = fixture(false),
+      finalizeImageUses = vi.fn(async () => {});
+    f.deps.finalizeImageUses = finalizeImageUses;
+    f.deps.initialVideoAuthority = {
+      serverNow: vi.fn(async () => Date.parse('2030-01-01T00:00:00Z')),
+      prepare: vi.fn(),
+      registerCreated: vi.fn(async () => {
+        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+      })
+    };
+    await expect(
+      createDurableProductCatalog(
+        f.deps,
+        f.store,
+        async () => f.drive,
+        {
+          ...body,
+          catalogVideoProtocolVersion: 1,
+          restitchEnabled: false,
+          videoVariationCount: 1,
+          videoPublication: { mode: 'immediate' }
+        },
+        ACTOR
+      )
+    ).rejects.toBeDefined();
+    expect(typeof f.state.checkpoint.materialId).toBe('string');
+    expect(f.create).toHaveBeenCalledOnce();
+    expect(finalizeImageUses).toHaveBeenCalledWith(TEAM, f.state.id, true);
+    expect(finalizeImageUses).not.toHaveBeenCalledWith(TEAM, f.state.id, false);
+  });
+});
+
+it('journals a definite initial admission failure before a video set exists', async () => {
+  const f = fixture(false);
+  f.deps.initialVideoAuthority = {
+    serverNow: vi.fn(async () => Date.parse('2030-01-01T00:00:00Z')),
+    prepare: vi.fn(async () => {
+      throw new TeamFunctionError('RESTITCH_NO_SCREENS');
+    }),
+    registerCreated: vi.fn()
+  };
+  await expect(
+    createDurableProductCatalog(
+      f.deps,
+      f.store,
+      async () => f.drive,
+      {
+        ...body,
+        catalogVideoProtocolVersion: 1,
+        restitchEnabled: true,
+        videoVariationCount: 2,
+        videoPublication: { mode: 'immediate' }
+      },
+      ACTOR
+    )
+  ).rejects.toMatchObject({ code: 'RESTITCH_NO_SCREENS' });
+  expect(f.state.state).toBe('interrupted');
+  expect(f.state.checkpoint).toMatchObject({
+    safeErrorCode: 'RESTITCH_NO_SCREENS',
+    videoPreparationPending: false
+  });
+  expect(f.create).not.toHaveBeenCalled();
+});
+
+it('creates and verifies the scheduled blank catalog while admitted N work is still preparing', async () => {
+  const f = fixture(false),
+    serverNow = vi.fn(async () => Date.parse('2030-01-01T00:00:00Z'));
+  const registerCreated = vi
+    .fn(async () => {})
+    .mockRejectedValueOnce(new TeamFunctionError('PROCESS_RESULT_UNCERTAIN'));
+  f.deps.initialVideoAuthority = {
+    serverNow,
+    prepare: vi.fn(async () => ({ state: 'preparing' as const, registeredCount: 1 })),
+    registerCreated
+  };
+  f.store.operation = async () =>
+    typeof f.state.checkpoint.materialId === 'string'
+      ? { state: 'succeeded', materialId: 'catalog-material' }
+      : null;
+  const request = {
+    ...body,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: true,
+    videoVariationCount: 2,
+    videoPublication: {
+      mode: 'scheduled',
+      localDateTime: '2030-01-02T10:00',
+      timeZone: 'UTC',
+      resolvedOffset: '+00:00',
+      dueAt: '2030-01-02T10:00:00.000Z'
+    }
+  };
+  await expect(
+    createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+  ).rejects.toBeDefined();
+  const original = structuredClone(f.state.checkpoint.initialVideoPlan),
+    column = PRODUCT_CATALOG_TEMPLATE.findIndex(c => c.source.kind === 'videoLink');
+  expect(
+    (f.state.checkpoint.sheetRows as Array<Array<{ v: unknown }>>)
+      .slice(2)
+      .every(row => row[column]!.v === '')
+  ).toBe(true);
+  expect(f.create).toHaveBeenCalledOnce();
+  serverNow.mockResolvedValue(Date.parse('2040-01-01T00:00:00Z'));
+  expect(
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+  ).toMatchObject({
+    outcome: 'created',
+    videoGeneration: {
+      requestedCount: 2,
+      registeredCount: 1,
+      state: 'preparing',
+      catalogVideoCells: 'deferred_blank',
+      providerCas: 'unsupported'
+    }
+  });
+  expect(f.create).toHaveBeenCalledOnce();
+  expect(serverNow).toHaveBeenCalledOnce();
+  expect(f.state.checkpoint.initialVideoPlan).toEqual(original);
 });

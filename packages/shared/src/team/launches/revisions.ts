@@ -106,6 +106,10 @@ export function launchRevisionImpact(
         urlChanged ||
         mediaChanged ||
         before.catalog.productCount !== after.catalog.productCount ||
+        before.catalog.catalogVideoProtocolVersion !== after.catalog.catalogVideoProtocolVersion ||
+        (before.catalog.videoVariationCount ?? 1) !== (after.catalog.videoVariationCount ?? 1) ||
+        JSON.stringify(before.catalog.videoPublication ?? { mode: 'immediate' }) !==
+          JSON.stringify(after.catalog.videoPublication ?? { mode: 'immediate' }) ||
         (beforeSources !== undefined &&
           afterSources !== undefined &&
           (beforeSources.catalogSettingsVersion == null ||

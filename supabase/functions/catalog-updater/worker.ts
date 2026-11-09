@@ -17,11 +17,13 @@ import type { GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { createCatalogImageSharer } from '../_shared/catalog-image-sharing.ts';
 import {
+  PRODUCT_CATALOG_TEMPLATE,
   PRODUCT_CATALOG_SHEET_NAME,
   SPREADSHEET_MIME_TYPE,
   PRODUCT_COUNT_MAX,
   randomPrice,
   takeMatchingText,
+  type Cell,
   type ProductCatalogRowDetails,
   type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
@@ -101,8 +103,23 @@ export interface RetiredCopy {
   credentialId: string;
 }
 
+/** Prepared only from scoped hosted authority and actual stored cells. It never
+ * substitutes an accepted-but-unpublished URL or treats missing history as blank. */
+export interface CatalogNonVideoUpdate {
+  contextToken: string;
+  productCount: number;
+  videoCells: readonly string[];
+  recipeRowIds?: readonly string[];
+  write(rows: Cell[][], marker: string): Promise<void>;
+  verify(marker: string): Promise<void>;
+}
+
 export interface CatalogUpdaterDeps {
   workerId: string;
+  /** New publication policies cannot be interpreted by a legacy video writer.
+   * False is a known hold, never permission to substitute a metadata URL. */
+  authorizeLegacyVideoWrite?(catalogId: string): Promise<boolean>;
+  prepareNonVideoUpdate?(item: ClaimedCatalog): Promise<CatalogNonVideoUpdate>;
   /** Current single-image fallback, distinct from a catalog's historical row snapshot. */
   readImageLink?(teamId: string): Promise<string | null>;
   /** Pictures from the space's pool, none repeated until the pool is spent (024). */
@@ -125,6 +142,7 @@ export interface CatalogUpdaterDeps {
     input: {
       marker: string;
       baselineVersion: string | null;
+      nonVideoContextToken?: string;
       expectedCount: number;
       swappedCopy: string | null;
       became: { productCount: number; snapshot: Record<string, unknown> };
@@ -579,10 +597,33 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   let writeStarted = false;
   try {
+    let nonVideo: CatalogNonVideoUpdate | undefined;
+    if (deps.authorizeLegacyVideoWrite && !(await deps.authorizeLegacyVideoWrite(item.catalogId))) {
+      if (!deps.prepareNonVideoUpdate)
+        throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
+      nonVideo = await deps.prepareNonVideoUpdate(item);
+      if (
+        !nonVideo.contextToken ||
+        !Number.isSafeInteger(nonVideo.productCount) ||
+        nonVideo.productCount < item.productCount ||
+        nonVideo.productCount > PRODUCT_COUNT_MAX ||
+        nonVideo.videoCells.length !== nonVideo.productCount ||
+        (!item.growProducts && nonVideo.productCount !== item.productCount)
+      )
+        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+      if (
+        item.growProducts &&
+        nonVideo.productCount === item.productCount &&
+        item.productCount < PRODUCT_COUNT_MAX
+      )
+        throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
+    }
+    const swappedCopy = nonVideo ? null : (item.spare?.materialId ?? null);
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
     const shareImages = createCatalogImageSharer(drive);
-    const count = grownCount(item.productCount, item.growProducts === true);
+    const count =
+      nonVideo?.productCount ?? grownCount(item.productCount, item.growProducts === true);
     await deps.progress(item.catalogId, 'refreshing').catch(() => false);
     const fallbackImageLink =
       item.teamId && (item.refreshImages || item.growProducts)
@@ -599,23 +640,24 @@ async function updateOne(
     if (texts.status === 'rejected') throw texts.reason;
     const rows = refreshedTexts(item, pictures.value, count, texts.value);
     await deps.progress(item.catalogId, 'building').catch(() => false);
-    const bytes = await buildXlsx({
-      sheetName: PRODUCT_CATALOG_SHEET_NAME,
-      rows: rebuildCatalogRows({
-        record: {
-          settings: item.settings,
-          sourceLink: item.sourceLink,
-          videoLink: item.videoLink,
-          productCount: count,
-          randomLinkVariation: item.randomLinkVariation,
-          rows
-        },
-        videoLinkOverride: item.spare?.link ?? item.currentVideoLink
-      })
+    const builtRows = rebuildCatalogRows({
+      record: {
+        settings: item.settings,
+        sourceLink: item.sourceLink,
+        videoLink: item.videoLink,
+        productCount: count,
+        randomLinkVariation: item.randomLinkVariation,
+        rows
+      },
+      videoLinkOverride: item.spare?.link ?? item.currentVideoLink,
+      ...(nonVideo ? { preservedVideoCells: nonVideo.videoCells } : {})
     });
+    const bytes = nonVideo
+      ? null
+      : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: builtRows });
     await deps.progress(item.catalogId, 'uploading').catch(() => false);
     const first = rows?.[0];
-    const became = first
+    const became: { productCount: number; snapshot: Record<string, unknown> } = first
       ? {
           productCount: count,
           snapshot: {
@@ -631,6 +673,16 @@ async function updateOne(
           productCount: count,
           snapshot: { ...item.settings, randomLinkVariation: item.randomLinkVariation !== false }
         };
+    if (nonVideo) {
+      const idColumn = PRODUCT_CATALOG_TEMPLATE.findIndex(
+        column => column.source.kind === 'contentId'
+      );
+      became.snapshot = {
+        ...became.snapshot,
+        _catalogPublicIds: builtRows.slice(2).map(row => String(row[idColumn]!.v)),
+        ...(nonVideo.recipeRowIds ? { _catalogRecipeRowIds: nonVideo.recipeRowIds } : {})
+      };
+    }
     const before = await drive.getFile(item.driveFileId, item.resourceKey);
     const outgoingImages = catalogImagesInRows(rows);
     if (outgoingImages.length) {
@@ -645,34 +697,41 @@ async function updateOne(
         marker,
         baselineVersion: before.version,
         expectedCount: nextCount,
-        swappedCopy: item.spare?.materialId ?? null,
+        swappedCopy,
+        ...(nonVideo ? { nonVideoContextToken: nonVideo.contextToken } : {}),
         became
       }))
     )
       throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
     writeStarted = true;
-    await drive.updateConvertedFile({
-      fileId: item.driveFileId,
-      resourceKey: item.resourceKey,
-      sourceMimeType: XLSX_MIME_TYPE,
-      targetMimeType: SPREADSHEET_MIME_TYPE,
-      bytes,
-      appProperties: { ...(before.appProperties ?? {}), sotyCatalogAttempt: marker }
-    });
-    await deps.progress(item.catalogId, 'verifying').catch(() => false);
-    const delivered = await drive.getFile(item.driveFileId, item.resourceKey);
-    if (
-      delivered.id !== item.driveFileId ||
-      delivered.trashed ||
-      delivered.mimeType !== SPREADSHEET_MIME_TYPE ||
-      delivered.appProperties?.sotyCatalogAttempt !== marker
-    ) {
-      throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
+    if (nonVideo) {
+      await nonVideo.write(builtRows, marker);
+      await deps.progress(item.catalogId, 'verifying').catch(() => false);
+      await nonVideo.verify(marker);
+    } else {
+      await drive.updateConvertedFile({
+        fileId: item.driveFileId,
+        resourceKey: item.resourceKey,
+        sourceMimeType: XLSX_MIME_TYPE,
+        targetMimeType: SPREADSHEET_MIME_TYPE,
+        bytes: bytes!,
+        appProperties: { ...(before.appProperties ?? {}), sotyCatalogAttempt: marker }
+      });
+      await deps.progress(item.catalogId, 'verifying').catch(() => false);
+      const delivered = await drive.getFile(item.driveFileId, item.resourceKey);
+      if (
+        delivered.id !== item.driveFileId ||
+        delivered.trashed ||
+        delivered.mimeType !== SPREADSHEET_MIME_TYPE ||
+        delivered.appProperties?.sotyCatalogAttempt !== marker
+      ) {
+        throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
+      }
     }
     await deps
       .recordChanges(item.catalogId, {
         productIds: true,
-        linksVaried: item.randomLinkVariation !== false,
+        linksVaried: !nonVideo && item.randomLinkVariation !== false,
         imagesRefreshed: Boolean(
           pictures.value?.some(
             (row, index) =>
@@ -689,7 +748,7 @@ async function updateOne(
     await deps.progress(item.catalogId, 'finalizing').catch(() => false);
     if (item.teamId && item.imageAttemptId)
       await deps.finalizeImageUses?.(item.teamId, item.imageAttemptId, true);
-    if (await deps.complete(item.catalogId, nextCount, item.spare?.materialId ?? null, became)) {
+    if (await deps.complete(item.catalogId, nextCount, swappedCopy, became)) {
       await deps.finishWrite(item.catalogId);
       summary.updated += 1;
     } else {

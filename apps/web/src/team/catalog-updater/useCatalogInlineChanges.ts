@@ -23,7 +23,7 @@ export interface CatalogScheduleSelection {
   interval: CatalogUpdaterInterval | null;
   schedule: CatalogUpdateSchedule | null;
 }
-export type Value = boolean | CatalogUpdaterInterval | null | CatalogScheduleSelection;
+export type Value = number | boolean | CatalogUpdaterInterval | null | CatalogScheduleSelection;
 export interface InlineChangeState {
   phase: 'pending' | 'saved' | 'error' | 'unknown' | 'conflict';
   field: CatalogField;
@@ -41,9 +41,11 @@ export interface CatalogUndo {
 const readValue = (snapshot: CatalogSnapshot, field: CatalogField): Value =>
   field === 'schedule'
     ? { interval: snapshot.interval, schedule: snapshot.profile.schedule ?? null }
-    : field === 'updateInterval'
-      ? snapshot.interval
-      : snapshot.profile[field];
+    : field === 'videoVariantCount'
+      ? (snapshot.profile.videoVariantCount ?? 1)
+      : field === 'updateInterval'
+        ? snapshot.interval
+        : snapshot.profile[field];
 const equal = (a: Value, b: Value) =>
   typeof a === 'object' && a !== null && typeof b === 'object' && b !== null
     ? a.interval === b.interval &&
@@ -156,6 +158,7 @@ export function useCatalogInlineChanges({
         growProducts: settings.profile.growProducts,
         randomLinkVariation: settings.profile.randomLinkVariation,
         restitch: settings.profile.restitch,
+        videoVariantCount: settings.profile.videoVariantCount,
         schedule: settings.profile.schedule,
         version: settings.profile.version,
         updatedAt: settings.profile.updatedAt

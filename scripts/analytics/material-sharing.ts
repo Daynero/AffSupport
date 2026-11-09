@@ -30,7 +30,7 @@ const iso = (value: string | null) =>
   value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 const unavailable = (cause: unknown) => {
   const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
-  return code === '57014'
+  return code === '57014' || code === 'ANALYTICS_QUERY_TIMEOUT'
     ? 'timeout'
     : code === '42501'
       ? 'permission'

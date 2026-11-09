@@ -1,8 +1,9 @@
 import { LaunchCopyHistory } from './LaunchCopyHistory';
+import { launchCatalogVideoEnabled } from './catalogVideoProtocol';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchNotesResult } from './LaunchNotes';
 import type { LaunchNote } from '@video-compressor/shared';
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import {
   isLaunchUrl,
   parseLaunchOverrides,
@@ -18,6 +19,16 @@ import { useI18n } from '../../i18n';
 import { CopyResultField } from './CopyResultField';
 import { launchAction } from './analytics';
 import { campaignCountLabel } from './campaignCountLabel';
+
+// Beta-only publication status: inlined flag, so production bundles drop it entirely.
+const CatalogCreatedPublicationStatus =
+  import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true'
+    ? lazy(() =>
+        import('../product-catalog/CatalogCreatedPublicationStatus').then(module => ({
+          default: module.CatalogCreatedPublicationStatus
+        }))
+      )
+    : null;
 
 export function LaunchResult({
   revision,
@@ -192,6 +203,18 @@ export function LaunchResult({
                     onChange={value => update('catalogUrl', value, revision.catalog!.url)}
                   />
                 )}
+                {teamId &&
+                  CatalogCreatedPublicationStatus &&
+                  revision.catalog.available !== false &&
+                  launchCatalogVideoEnabled() &&
+                  revision.config.catalog?.catalogVideoProtocolVersion === 1 && (
+                    <Suspense fallback={null}>
+                      <CatalogCreatedPublicationStatus
+                        teamId={teamId}
+                        catalogId={revision.catalog.materialId}
+                      />
+                    </Suspense>
+                  )}
               </section>
             )}
             <section className="launch-result-campaigns" aria-label={t('launchesCampaignNames')}>

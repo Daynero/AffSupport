@@ -1,3 +1,12 @@
+import { createNativeScreenRecoveryProvider } from '../apps/agent/src/team-bridge/native-screen-recovery-provider';
+import { resolveScreensWithRecovery } from '../apps/agent/src/team-bridge/screen-recovery';
+import {
+  ScreenCacheError,
+  type ProtectedScreenCacheBinding
+} from '../apps/agent/src/team-bridge/screen-cache';
+import { createHash } from 'node:crypto';
+import { handleRestitchNativeSelection } from '../supabase/functions/drive-ops/restitch-native-selection';
+import { quiesceRestitchExecutor } from '../supabase/functions/drive-ops/restitch-executor';
 import {
   acceptManualRestitchRoot,
   readManualRestitchRoot
@@ -7,10 +16,13 @@ import {
   readAuthoritativeRestitchSelectionRange
 } from '../supabase/functions/drive-ops/restitch-range-authority';
 import { readRestitchSelectionRange } from '../supabase/functions/drive-ops/restitch-range-reader';
+import { issueRestitchScreenRange } from '../supabase/functions/drive-ops/restitch-range-issue';
+import { consumeRestitchScreenRange } from '../supabase/functions/drive-ops/restitch-range-dispatch';
+import { getRestitchSelectionEvidence } from '../scripts/analytics/restitch-selections';
 import { getInspect } from '../scripts/analytics/queries';
 import { getInvestigation } from '../scripts/analytics/investigate';
 import { resolvePeriod } from '../scripts/analytics/periods';
-import { investigateOutputIsPrivate } from '../scripts/analytics/types';
+import { investigateOutputIsPrivate, investigatePrivacyFailure } from '../scripts/analytics/types';
 import { assertReadOnlySql, setQueryExecutor } from '../scripts/analytics/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -20,6 +32,9 @@ import {
 import type { ServiceRpcClient } from '../supabase/functions/_shared/credentials';
 import {
   createScreenSelectionBudget,
+  selectScreenCandidate,
+  reserveScreenTransfer,
+  refreshScreenCandidateGrant,
   randomFinalImageDurationSeconds,
   clampStitchEndDuration
 } from '@video-compressor/shared';
@@ -179,6 +194,45 @@ async function fixture() {
           JSON.stringify(args.p_expected_budget),
           JSON.stringify(args.p_next_budget)
         ]
+      },
+      service_read_restitch_screen_range_issue: {
+        sql: 'select public.service_read_restitch_screen_range_issue($1,$2,$3,$4,$5,$6,$7,$8) value',
+        args: [
+          args.p_root_operation,
+          args.p_team,
+          args.p_actor,
+          args.p_slot,
+          args.p_request,
+          args.p_grant,
+          args.p_executor,
+          args.p_epoch
+        ]
+      },
+      service_issue_restitch_screen_range: {
+        sql: 'select public.service_issue_restitch_screen_range($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11::text::bytea,$12,$13) value',
+        args: [
+          args.p_root_operation,
+          args.p_team,
+          args.p_actor,
+          args.p_slot,
+          args.p_version,
+          args.p_acquisition,
+          args.p_request,
+          JSON.stringify(args.p_expected_budget),
+          JSON.stringify(args.p_next_budget),
+          args.p_grant,
+          args.p_ticket_hash,
+          args.p_executor,
+          args.p_epoch
+        ]
+      },
+      service_consume_restitch_screen_range: {
+        sql: 'select public.service_consume_restitch_screen_range($1::text::bytea,$2,$3) value',
+        args: [args.p_ticket_hash, args.p_dispatch, args.p_purpose]
+      },
+      service_read_restitch_screen_range_consumption: {
+        sql: 'select public.service_read_restitch_screen_range_consumption($1::text::bytea,$2) value',
+        args: [args.p_ticket_hash, args.p_dispatch]
       },
       service_settle_restitch_selection_range: {
         sql: 'select public.service_settle_restitch_selection_range($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb) value',
@@ -381,6 +435,7 @@ it('exposes the actual SQL reservation through the SELECT-only CLI without claim
         ])
       })
     );
+    expect(investigatePrivacyFailure(investigation)).toBeNull();
     expect(investigateOutputIsPrivate(investigation)).toBe(true);
   } finally {
     await chain;
@@ -1280,7 +1335,9 @@ it('keeps a bounded folder traversal explicitly incomplete even before any image
   )[0]!.value;
   expect(pool).toMatchObject({ complete: false, truncated: true, eligibleObserved: 0 });
   expect(pool.candidates).toHaveLength(0);
-}, 15000);
+  // The 5001-row fixture runs ingestion triggers (~13s); the bounded query itself
+  // measures ~24ms. Allow setup headroom without changing any product deadline.
+}, 30000);
 
 it('does not initialize fresh accounting for an existing operation whose root is missing', async () => {
   const f = await manualFixture();
@@ -1513,4 +1570,1558 @@ it('keeps executor control functions and internal cores inaccessible to browser 
   );
   expect(cores).toHaveLength(4);
   expect(cores.every(r => !r.allowed)).toBe(true);
+});
+
+interface ScreenRangeGrantReceipt {
+  grantId: string;
+  requestId: string;
+  rootOperationId: string;
+  executorId: string;
+  epoch: number;
+  state: 'issued' | 'consumed' | 'abandoned';
+  reservation: unknown;
+}
+async function rangeGrantFixture() {
+  const f = await ownedFixture();
+  await f.ownedStore.select(f.version, 4);
+  const before = await f.ownedStore.read();
+  const request = id(sequence++),
+    grant = id(sequence++);
+  const ticketHash = '\\x' + grant.replaceAll('-', '').padEnd(64, '0');
+  const next = reserveScreenTransfer(before, f.version, request, 0);
+  const issueArgs = [
+    f.accepted.operationId,
+    f.team,
+    actor,
+    'end',
+    f.version,
+    0,
+    request,
+    JSON.stringify(before),
+    JSON.stringify(next.state),
+    grant,
+    ticketHash,
+    f.executor.id,
+    f.executor.epoch
+  ];
+  const issue = async (values = issueArgs) =>
+    (
+      await db.root<{ value: ScreenRangeGrantReceipt }>(
+        'select public.service_issue_restitch_screen_range($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11::text::bytea,$12,$13) value',
+        values
+      )
+    )[0]!.value;
+  const consume = async (purpose = 'restitch_screen_range_v1', invocation = id(sequence++)) =>
+    (
+      await db.root<{ value: { dispatch: boolean; grant: ScreenRangeGrantReceipt } }>(
+        'select public.service_consume_restitch_screen_range($1::text::bytea,$2,$3) value',
+        [ticketHash, invocation, purpose]
+      )
+    )[0]!.value;
+  const abandon = async () =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_abandon_restitch_screen_range($1,$2,$3,$4,$5,$6,$7,$8) value',
+        [
+          f.accepted.operationId,
+          f.team,
+          actor,
+          'end',
+          request,
+          grant,
+          f.executor.id,
+          f.executor.epoch
+        ]
+      )
+    )[0]!.value;
+  return { ...f, before, next, request, grant, ticketHash, issueArgs, issue, consume, abandon };
+}
+it('atomically reserves one range before issuing its dedicated transfer row and never dispatches it twice', async () => {
+  const f = await rangeGrantFixture();
+  const receipt = await f.issue();
+  expect(receipt).toMatchObject({
+    grantId: f.grant,
+    requestId: f.request,
+    state: 'issued',
+    executorId: f.executor.id,
+    epoch: f.executor.epoch
+  });
+  expect(receipt.reservation).toEqual(f.next.reservation);
+  expect(await f.ownedStore.read()).toEqual(f.next.state);
+  expect(await f.issue()).toEqual(receipt);
+  expect((await f.consume()).dispatch).toBe(true);
+  expect((await f.consume()).dispatch).toBe(false);
+  expect(await f.ownedStore.read()).toEqual(f.next.state);
+});
+it('does not burn a screen range on a control, source or generic-purpose probe', async () => {
+  const f = await rangeGrantFixture();
+  await f.issue();
+  for (const purpose of ['control', 'source_range', 'download_range', 'process_input', 'finalize'])
+    await expect(f.consume(purpose)).rejects.toThrow('PERMISSION_DENIED');
+  expect((await f.consume()).dispatch).toBe(true);
+});
+it('reads the original issued receipt after a lost acknowledgement without accepting another row identity', async () => {
+  const f = await rangeGrantFixture(),
+    issued = await f.issue();
+  const read = async (grant = f.grant) =>
+    (
+      await db.root<{ value: ScreenRangeGrantReceipt | null }>(
+        'select public.service_read_restitch_screen_range_issue($1,$2,$3,$4,$5,$6,$7,$8) value',
+        [
+          f.accepted.operationId,
+          f.team,
+          actor,
+          'end',
+          f.request,
+          grant,
+          f.executor.id,
+          f.executor.epoch
+        ]
+      )
+    )[0]!.value;
+  expect(await read()).toEqual(issued);
+  expect(await read(id(sequence++))).toBeNull();
+  await expect(
+    f.issue(f.issueArgs.map((value, index) => (index === 9 ? id(sequence++) : value)))
+  ).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+  expect(await f.ownedStore.read()).toEqual(f.next.state);
+});
+it('abandons an unconsumed range after cancellation with authoritative zero accounting', async () => {
+  const f = await rangeGrantFixture();
+  await f.issue();
+  await db.root(
+    "update public.team_operations set state='canceled',stage='canceled',finished_at=clock_timestamp() where id=$1",
+    [f.accepted.operationId]
+  );
+  await expect(f.consume()).rejects.toThrow('WRONG_STATE');
+  expect(await f.abandon()).toBe(true);
+  expect(await f.abandon()).toBe(true);
+  expect((await f.ownedStore.read()).transfers[0].settlement).toEqual({
+    bytes: 0,
+    ioMs: 0,
+    complete: false
+  });
+  expect(await quiesceExecutor(f)).toBe(true);
+});
+it('never treats a consumed range as abandoned or resets its unknown cost after cancellation', async () => {
+  const f = await rangeGrantFixture();
+  await f.issue();
+  expect((await f.consume()).dispatch).toBe(true);
+  await db.root(
+    "update public.team_operations set state='canceled',stage='canceled',finished_at=clock_timestamp() where id=$1",
+    [f.accepted.operationId]
+  );
+  expect(await f.abandon()).toBe(false);
+  expect((await f.ownedStore.read()).transfers[0].settlement).toBeNull();
+  await expect(quiesceExecutor(f)).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  await f.ownedStore.settle(f.request, { bytes: 2, ioMs: 7, complete: false });
+  expect(await quiesceExecutor(f)).toBe(true);
+});
+it('does not turn exact consumption readback into another dispatch permit', async () => {
+  const f = await rangeGrantFixture();
+  await f.issue();
+  const invocation = id(sequence++);
+  expect((await f.consume('restitch_screen_range_v1', invocation)).dispatch).toBe(true);
+  const read = async (value: string) =>
+    (
+      await db.root<{ value: { consumedByInvocation: boolean } | null }>(
+        'select public.service_read_restitch_screen_range_consumption($1::text::bytea,$2) value',
+        [f.ticketHash, value]
+      )
+    )[0]!.value;
+  expect(await read(invocation)).toMatchObject({ consumedByInvocation: true });
+  expect(await read(id(sequence++))).toMatchObject({ consumedByInvocation: false });
+  expect((await f.consume('restitch_screen_range_v1', invocation)).dispatch).toBe(false);
+});
+it('rejects a grant with no new reservation without changing its original budget', async () => {
+  const f = await rangeGrantFixture();
+  await expect(
+    f.issue(f.issueArgs.map((value, index) => (index === 8 ? JSON.stringify(f.before) : value)))
+  ).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(await f.ownedStore.read()).toEqual(f.before);
+});
+it('keeps every dedicated range RPC and raw grant row inaccessible to browser roles', async () => {
+  expect(
+    (
+      await db.root<{ covered: boolean }>('select private.task_cleanup_coverage_verified() covered')
+    )[0]?.covered
+  ).toBe(true);
+  const rows = await db.root<{
+    allowed: boolean;
+  }>(`select has_function_privilege('service_role',p.oid,'execute')
+    and not has_function_privilege('authenticated',p.oid,'execute') and not has_function_privilege('anon',p.oid,'execute') allowed
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in(
+      'service_issue_restitch_screen_range','service_read_restitch_screen_range_issue','service_consume_restitch_screen_range',
+      'service_read_restitch_screen_range_consumption','service_abandon_restitch_screen_range','service_refresh_restitch_screen_range')`);
+  expect(rows).toHaveLength(6);
+  expect(rows.every(row => row.allowed)).toBe(true);
+  const [table] = await db.root<{
+    allowed: boolean;
+  }>(`select not has_table_privilege('authenticated','private.restitch_screen_range_grants','select')
+    and not has_table_privilege('service_role','private.restitch_screen_range_grants','update') allowed`);
+  expect(table.allowed).toBe(true);
+});
+
+it('retains a range authority when its frozen candidate or original executor is still referenced', async () => {
+  const f = await rangeGrantFixture();
+  await f.issue();
+  await expect(
+    db.root(
+      'delete from private.restitch_selection_candidates where root_operation_id=$1 and slot=$2 and version_id=$3',
+      [f.accepted.operationId, 'end', f.version]
+    )
+  ).rejects.toMatchObject({ code: '23503' });
+  await expect(
+    db.root('delete from private.restitch_selection_executor_claims where executor_id=$1', [
+      f.executor.id
+    ])
+  ).rejects.toMatchObject({ code: '23503' });
+  expect((await f.consume()).dispatch).toBe(true);
+  expect((await f.ownedStore.read()).transfers[0].settlement).toBeNull();
+});
+
+it('charges an expired unused ticket refresh to the same durable candidate budget before another grant', async () => {
+  const f = await rangeGrantFixture();
+  await f.ownedStore.reserve(f.version, f.request, 0, 0);
+  await db.root(
+    `insert into private.restitch_screen_range_grants(id,root_operation_id,team_id,actor_id,slot,version_id,
+    acquisition,request_id,executor_id,epoch,native_instance_id,token_hash,reservation,issued_at,expires_at)
+    values($1,$2,$3,$4,'end',$5,0,$6,$7,$8,$9,$10::text::bytea,$11::jsonb,clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '6 minutes')`,
+    [
+      f.grant,
+      f.accepted.operationId,
+      f.team,
+      actor,
+      f.version,
+      f.request,
+      f.executor.id,
+      f.executor.epoch,
+      f.native,
+      f.ticketHash,
+      JSON.stringify(f.next.reservation)
+    ]
+  );
+  await expect(f.consume()).rejects.toThrow('EXPIRED');
+  expect(await f.abandon()).toBe(true);
+  const nextRequest = id(sequence++),
+    nextGrant = id(sequence++);
+  const nextHash = f.ticketHash.replace(f.grant.replaceAll('-', ''), nextGrant.replaceAll('-', ''));
+  const mintArgs = (budget: Awaited<ReturnType<typeof f.ownedStore.read>>) => [
+    f.accepted.operationId,
+    f.team,
+    actor,
+    'end',
+    f.version,
+    0,
+    nextRequest,
+    JSON.stringify(budget),
+    JSON.stringify(reserveScreenTransfer(budget, f.version, nextRequest, 0).state),
+    nextGrant,
+    nextHash,
+    f.executor.id,
+    f.executor.epoch
+  ];
+  const before = await f.ownedStore.read();
+  await expect(f.issue(mintArgs(before))).rejects.toThrow('EXPIRED');
+  expect(await f.ownedStore.read()).toEqual(before);
+  const refresh = id(sequence++),
+    after = refreshScreenCandidateGrant(before, f.version, refresh);
+  const args = [
+    f.accepted.operationId,
+    f.team,
+    actor,
+    'end',
+    f.request,
+    f.grant,
+    f.executor.id,
+    f.executor.epoch,
+    0,
+    refresh,
+    JSON.stringify(before),
+    JSON.stringify(after)
+  ];
+  const applyRefresh = async () =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_refresh_restitch_screen_range($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb) value',
+        args
+      )
+    )[0]!.value;
+  expect(await applyRefresh()).toBe(true);
+  expect(await applyRefresh()).toBe(true);
+  expect((await f.ownedStore.read()).refreshes).toEqual([
+    { requestId: refresh, candidateVersionId: f.version }
+  ]);
+  expect(await f.issue(mintArgs(after))).toMatchObject({ grantId: nextGrant, state: 'issued' });
+});
+
+it('cannot create transfer authority before the exact budget reservation even through a trusted insert', async () => {
+  const f = await rangeGrantFixture();
+  await expect(
+    db.root(
+      `insert into private.restitch_screen_range_grants(id,root_operation_id,team_id,actor_id,slot,version_id,
+    acquisition,request_id,executor_id,epoch,native_instance_id,token_hash,reservation,issued_at,expires_at)
+    values($1,$2,$3,$4,'end',$5,0,$6,$7,$8,$9,$10::text::bytea,$11::jsonb,clock_timestamp(),clock_timestamp()+interval '4 minutes')`,
+      [
+        f.grant,
+        f.accepted.operationId,
+        f.team,
+        actor,
+        f.version,
+        f.request,
+        f.executor.id,
+        f.executor.epoch,
+        f.native,
+        f.ticketHash,
+        JSON.stringify(f.next.reservation)
+      ]
+    )
+  ).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(await f.ownedStore.read()).toEqual(f.before);
+});
+
+it('projects grant transitions with their own observation time without exposing transfer secrets or proving I/O', async () => {
+  const f = await rangeGrantFixture();
+  const projection = async () =>
+    (
+      await db.root<Record<string, unknown>>(
+        "select * from public.analytics_restitch_selection_slots where operation_id=$1 and slot='end'",
+        [f.accepted.operationId]
+      )
+    )[0]!;
+  const before = await projection();
+  expect(before).toMatchObject({
+    grant_count: 0,
+    issued_grant_count: 0,
+    consumed_grant_count: 0,
+    abandoned_grant_count: 0
+  });
+  await f.issue();
+  const issued = await projection();
+  expect(issued).toMatchObject({
+    grant_count: 1,
+    issued_grant_count: 1,
+    consumed_grant_count: 0,
+    abandoned_grant_count: 0,
+    state: 'range_unconfirmed',
+    confirmed_bytes: 0
+  });
+  await f.consume();
+  const consumed = await projection();
+  expect(consumed).toMatchObject({
+    grant_count: 1,
+    issued_grant_count: 0,
+    consumed_grant_count: 1,
+    abandoned_grant_count: 0,
+    state: 'range_unconfirmed',
+    confirmed_bytes: 0
+  });
+  expect(Date.parse(String(consumed.updated_at))).toBeGreaterThanOrEqual(
+    Date.parse(String(issued.updated_at))
+  );
+  const raw = JSON.stringify(consumed);
+  expect(raw).not.toContain(f.ticketHash);
+  for (const key of [
+    'token_hash',
+    'consumption_id',
+    'native_instance_id',
+    'reservation',
+    'fileId',
+    'checksum'
+  ])
+    expect(consumed).not.toHaveProperty(key);
+  setQueryExecutor(async (sql, args) => {
+    assertReadOnlySql(sql);
+    await db.db.exec('begin read only;set local role wishly_analytics_ro');
+    try {
+      const rows = await db.db.query(sql, args);
+      await db.db.exec('commit');
+      return rows.rows as Record<string, unknown>[];
+    } catch (error) {
+      await db.db.exec('rollback');
+      throw error;
+    }
+  });
+  try {
+    const evidence = await getRestitchSelectionEvidence({
+      ids: [f.accepted.operationId],
+      asOf: new Date(Date.now() + 60000).toISOString()
+    });
+    expect(evidence.records).toContainEqual(
+      expect.objectContaining({
+        slot: 'end',
+        authority: { total: 1, issued: 0, consumed: 1, abandoned: 0 },
+        state: 'range_unconfirmed',
+        confirmed_bytes: 0
+      })
+    );
+    expect(evidence.blind_spots.join(' ')).toContain('Consumed authority');
+    expect(JSON.stringify(evidence)).not.toContain(f.ticketHash);
+  } finally {
+    setQueryExecutor(null);
+  }
+  const unused = await rangeGrantFixture();
+  await unused.issue();
+  await unused.abandon();
+  const abandoned = (
+    await db.root<Record<string, unknown>>(
+      "select * from public.analytics_restitch_selection_slots where operation_id=$1 and slot='end'",
+      [unused.accepted.operationId]
+    )
+  )[0]!;
+  expect(abandoned).toMatchObject({
+    grant_count: 1,
+    issued_grant_count: 0,
+    consumed_grant_count: 0,
+    abandoned_grant_count: 1,
+    confirmed_bytes: 0,
+    unconfirmed_range_count: 0
+  });
+});
+
+it('issues and consumes actual SQL-backed tickets with exact lost-ACK recovery and no replay dispatch', async () => {
+  const f = await ownedFixture();
+  await f.ownedStore.select(f.version, 4);
+  const request = {
+    scope: f.ownedScope,
+    nativeInstanceId: f.native,
+    versionId: f.version,
+    acquisition: 0,
+    requestId: id(sequence++),
+    grantId: id(sequence++),
+    offset: 0
+  };
+  const calls: string[] = [];
+  const service: ServiceRpcClient = {
+    rpc: async (name, args) => {
+      calls.push(name);
+      const r = await f.service.rpc(name, args);
+      if (
+        !r.error &&
+        ['service_issue_restitch_screen_range', 'service_consume_restitch_screen_range'].includes(
+          name
+        )
+      )
+        throw Error('SYNTHETIC_LOST_ACK_AFTER_COMMIT');
+      return r;
+    }
+  };
+  const issued = await issueRestitchScreenRange(
+    service,
+    'synthetic-private-key-'.repeat(3),
+    request
+  );
+  expect(issued.reservation).toMatchObject({ requestId: request.requestId, settlement: null });
+  const consumed = await consumeRestitchScreenRange(service, issued.ticket);
+  expect(consumed).toMatchObject({ requestId: request.requestId, scope: { executor: f.executor } });
+  expect(calls.filter(n => n === 'service_issue_restitch_screen_range')).toHaveLength(1);
+  expect(calls.filter(n => n === 'service_consume_restitch_screen_range')).toHaveLength(1);
+  expect(calls).toContain('service_read_restitch_screen_range_issue');
+  expect(calls).toContain('service_read_restitch_screen_range_consumption');
+  await expect(consumeRestitchScreenRange(f.service, issued.ticket)).rejects.toMatchObject({
+    code: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
+  });
+  const budget = await f.ownedStore.read();
+  expect(budget.transfers).toHaveLength(1);
+  expect(budget.transfers[0]?.settlement).toBeNull();
+});
+
+function executorClosureService(loseFirstReply = false): ServiceRpcClient {
+  return {
+    rpc: async (name, args) => {
+      const parameters =
+        name === 'service_read_restitch_executor_claim'
+          ? [args.p_root_operation, args.p_team, args.p_actor, args.p_claim, args.p_native_instance]
+          : name === 'service_quiesce_restitch_executor'
+            ? [
+                args.p_root_operation,
+                args.p_team,
+                args.p_actor,
+                args.p_executor,
+                args.p_epoch,
+                args.p_quiescence
+              ]
+            : null;
+      if (!parameters) throw Error('UNEXPECTED_EXECUTOR_CLOSURE_RPC');
+      let data: unknown;
+      try {
+        data = (
+          await db.root<{ value: unknown }>(
+            `select public.${name}(${parameters.map((_, i) => '$' + (i + 1)).join(',')}) value`,
+            parameters
+          )
+        )[0]!.value;
+      } catch (cause) {
+        return {
+          data: null,
+          error: { message: cause instanceof Error ? cause.message : 'UNKNOWN' }
+        };
+      }
+      if (name === 'service_quiesce_restitch_executor' && loseFirstReply) {
+        loseFirstReply = false;
+        throw Error('SYNTHETIC_LOST_CLOSURE_ACK');
+      }
+      return { data, error: null };
+    }
+  };
+}
+function closureInput(f: Awaited<ReturnType<typeof ownedFixture>>, quiescenceId = id(sequence++)) {
+  return {
+    rootOperationId: f.accepted.operationId,
+    teamId: f.team,
+    actorId: actor,
+    claimId: f.claim,
+    nativeInstanceId: f.native,
+    installedContract: 1,
+    executorId: f.executor.id,
+    epoch: f.executor.epoch,
+    quiescenceId
+  };
+}
+it('recovers the exact SQL-backed closure after its successful commit loses the reply', async () => {
+  const f = await ownedFixture(),
+    input = closureInput(f),
+    service = executorClosureService(true);
+  await expect(quiesceRestitchExecutor(service, input)).rejects.toMatchObject({
+    code: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
+  });
+  const next = await claimExecutor(f.accepted.operationId, f.team);
+  expect(await quiesceRestitchExecutor(service, input)).toBe(true);
+  const current = (
+    await db.root<{ state: string; executor_id: string; epoch: number }>(
+      'select state,executor_id,epoch::integer from private.restitch_selection_executors where root_operation_id=$1',
+      [f.accepted.operationId]
+    )
+  )[0]!;
+  expect(current).toEqual({ state: 'owned', executor_id: next.id, epoch: next.epoch });
+  await expect(
+    quiesceRestitchExecutor(service, { ...input, quiescenceId: id(sequence++) })
+  ).rejects.toMatchObject({ code: 'REQUEST_REUSE_CONFLICT' });
+});
+it('does not close a SQL-backed owner while a reserved range remains unsettled', async () => {
+  const f = await ownedFixture();
+  await f.ownedStore.select(f.version, 4);
+  await f.ownedStore.reserve(f.version, id(sequence++), 0, 0);
+  const before = await f.ownedStore.read();
+  await expect(
+    quiesceRestitchExecutor(executorClosureService(), closureInput(f))
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN' });
+  expect(await f.ownedStore.read()).toEqual(before);
+});
+it('refuses a foreign native instance through the actual closure service adapter before mutation', async () => {
+  const f = await ownedFixture();
+  await expect(
+    quiesceRestitchExecutor(executorClosureService(), {
+      ...closureInput(f),
+      nativeInstanceId: id(sequence++)
+    })
+  ).rejects.toMatchObject({ code: 'REQUEST_REUSE_CONFLICT' });
+  const current = (
+    await db.root<{ state: string; executor_id: string }>(
+      'select state,executor_id from private.restitch_selection_executors where root_operation_id=$1',
+      [f.accepted.operationId]
+    )
+  )[0]!;
+  expect(current).toEqual({ state: 'owned', executor_id: f.executor.id });
+});
+
+async function nativeControlFixture(
+  options: {
+    ticketHash?: Buffer;
+    beforeAccept?: (f: Awaited<ReturnType<typeof manualFixture>>) => Promise<void>;
+  } = {}
+) {
+  const f = await manualFixture();
+  await options.beforeAccept?.(f);
+  const root = (await f.call())!;
+  // Minimal Auth row shape only; real Auth/session behavior still needs native verification.
+  await db.root(
+    'create table if not exists auth.sessions(id uuid primary key,user_id uuid not null,not_after timestamptz)'
+  );
+  const session = id(sequence++),
+    grant = id(sequence++),
+    enrollment = id(sequence++),
+    native = id(sequence++);
+  const proof = Buffer.from(id(sequence++).replaceAll('-', '').padEnd(64, 'a'), 'hex');
+  const ticket =
+    options.ticketHash ?? Buffer.from(id(sequence++).replaceAll('-', '').padEnd(64, 'b'), 'hex');
+  await db.root('insert into auth.sessions(id,user_id) values($1,$2)', [session, actor]);
+  const issue = async (g = grant, e = enrollment, n = native, p = proof, t = ticket) =>
+    (
+      await db.root<{ value: Record<string, unknown> }>(
+        'select public.service_issue_restitch_native_control($1,$2,$3,$4,$5,$6,$7,$8,$9) value',
+        [root.operationId, f.team, actor, session, g, e, n, p, t]
+      )
+    )[0]!.value;
+  const redeem = async (g = grant, p = proof) =>
+    (
+      await db.root<{ value: Record<string, unknown> }>(
+        'select public.service_redeem_restitch_native_control($1,$2) value',
+        [g, p]
+      )
+    )[0]!.value;
+  const claim = async (c: string, g = grant, t = ticket) =>
+    (
+      await db.root<{ value: { executorId: string; epoch: number; active: boolean } }>(
+        'select public.service_claim_restitch_native_control($1,$2,$3,1) value',
+        [g, t, c]
+      )
+    )[0]!.value;
+  const authorize = async () =>
+    (
+      await db.root<{ value: Record<string, unknown> }>(
+        'select public.service_authorize_restitch_native_control($1,$2) value',
+        [grant, ticket]
+      )
+    )[0]!.value;
+  const read = async (c: string) =>
+    (
+      await db.root<{ value: Record<string, unknown> }>(
+        'select public.service_read_restitch_native_control_claim($1,$2,$3) value',
+        [grant, ticket, c]
+      )
+    )[0]!.value;
+  const close = async (c: string, nonce: string, g = grant, t = ticket) =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_quiesce_restitch_native_control($1,$2,$3,$4) value',
+        [g, t, c, nonce]
+      )
+    )[0]!.value;
+  return {
+    ...f,
+    root,
+    session,
+    grant,
+    enrollment,
+    native,
+    proof,
+    ticket,
+    issue,
+    redeem,
+    claim,
+    authorize,
+    read,
+    close
+  };
+}
+it('keeps all native control tables and six service RPCs unavailable to browser roles', async () => {
+  const rows = await db.root<{
+    name: string;
+    browser: boolean;
+    service: boolean;
+  }>(`select p.proname name,
+    has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute') browser,
+    has_function_privilege('service_role',p.oid,'execute') service
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in(
+    'service_issue_restitch_native_control','service_redeem_restitch_native_control','service_claim_restitch_native_control',
+    'service_read_restitch_native_control_claim','service_quiesce_restitch_native_control','service_authorize_restitch_native_control')`);
+  expect(rows).toHaveLength(6);
+  expect(rows.every(row => !row.browser && row.service)).toBe(true);
+  const access = await db.root<{ allowed: boolean }>(
+    `select has_table_privilege(role,'private.restitch_native_controls','select,insert,update,delete') allowed from unnest(array['anon','authenticated','service_role']) role`
+  );
+  expect(access.every(row => !row.allowed)).toBe(true);
+});
+it('issues the same immutable native enrollment without exposing a token or proof hash', async () => {
+  const f = await nativeControlFixture();
+  const receipt = await f.issue();
+  expect(await f.issue()).toEqual(receipt);
+  expect(receipt).toMatchObject({ grantId: f.grant, nativeInstanceId: f.native, redeemed: false });
+  expect(Object.keys(receipt).sort()).toEqual(
+    [
+      'actorId',
+      'enrollmentId',
+      'expiresAt',
+      'grantId',
+      'nativeInstanceId',
+      'redeemed',
+      'rootOperationId',
+      'teamId'
+    ].sort()
+  );
+  await expect(f.issue(f.grant, f.enrollment, id(sequence++))).rejects.toThrow(
+    'REQUEST_REUSE_CONFLICT'
+  );
+  await expect(f.redeem(f.grant, Buffer.alloc(32, 99))).rejects.toThrow('AUTH_REQUIRED');
+  await expect(f.claim(id(sequence++))).rejects.toThrow('AUTH_REQUIRED');
+  expect(await f.redeem()).toMatchObject({ redeemed: true });
+  expect(await f.redeem()).toEqual(await f.redeem());
+});
+it('atomically binds the original native claim and refuses replacement claims on that grant', async () => {
+  const f = await nativeControlFixture(),
+    claim = id(sequence++);
+  await f.issue();
+  await f.redeem();
+  const owned = await f.claim(claim);
+  expect(owned.active).toBe(true);
+  expect(await f.claim(claim)).toEqual(owned);
+  expect(await f.authorize()).toMatchObject({
+    executorId: owned.executorId,
+    epoch: owned.epoch,
+    nativeInstanceId: f.native
+  });
+  await expect(f.claim(id(sequence++))).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+  await expect(
+    db.root('update private.restitch_native_controls set claim_id=$2 where id=$1', [
+      f.grant,
+      id(sequence++)
+    ])
+  ).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+});
+it('cannot adopt or close another native grant owner using a leaked claim UUID', async () => {
+  const f = await nativeControlFixture(),
+    originalClaim = id(sequence++);
+  await f.issue();
+  await f.redeem();
+  const owned = await f.claim(originalClaim);
+  const secondGrant = id(sequence++),
+    secondProof = Buffer.alloc(32, 29),
+    secondTicket = Buffer.alloc(32, 30);
+  await f.issue(secondGrant, id(sequence++), f.native, secondProof, secondTicket);
+  await f.redeem(secondGrant, secondProof);
+  await expect(f.claim(originalClaim, secondGrant, secondTicket)).rejects.toThrow(
+    'REQUEST_REUSE_CONFLICT'
+  );
+  await expect(f.claim(id(sequence++), secondGrant, secondTicket)).rejects.toThrow('WRONG_STATE');
+  await expect(f.close(originalClaim, id(sequence++), secondGrant, secondTicket)).rejects.toThrow(
+    'REQUEST_REUSE_CONFLICT'
+  );
+  expect(await f.authorize()).toMatchObject({ executorId: owned.executorId, active: true });
+});
+it('revokes new I/O after real session removal while retaining original claim and late closure evidence', async () => {
+  const f = await nativeControlFixture(),
+    claim = id(sequence++),
+    nonce = id(sequence++);
+  await f.issue();
+  await f.redeem();
+  const owned = await f.claim(claim);
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  await expect(f.authorize()).rejects.toThrow('AUTH_REQUIRED');
+  expect(await f.read(claim)).toMatchObject({ executorId: owned.executorId, active: true });
+  expect(await f.close(claim, nonce)).toBe(true);
+  expect(await f.close(claim, nonce)).toBe(true);
+  expect(await f.read(claim)).toMatchObject({ executorId: owned.executorId, active: false });
+});
+it('requires the enrollment actor session instead of an unrelated live session', async () => {
+  const f = await nativeControlFixture();
+  await db.root('update auth.sessions set user_id=$2 where id=$1', [f.session, owner]);
+  await expect(f.issue()).rejects.toThrow('AUTH_REQUIRED');
+  const row = (
+    await db.root<{ n: number }>(
+      'select count(*)::integer n from private.restitch_native_controls where id=$1',
+      [f.grant]
+    )
+  )[0]!;
+  expect(row.n).toBe(0);
+});
+it('rechecks session expiry and parent cancellation before new native I/O but permits exact late closure', async () => {
+  const f = await nativeControlFixture(),
+    claim = id(sequence++);
+  await f.issue();
+  await f.redeem();
+  await f.claim(claim);
+  await db.root(
+    "update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id=$1",
+    [f.session]
+  );
+  await expect(f.authorize()).rejects.toThrow('AUTH_REQUIRED');
+  await db.root('update auth.sessions set not_after=null where id=$1', [f.session]);
+  await db.asUser(actor, 'select public.cancel_team_operation($1,$2)', [
+    f.team,
+    f.root.operationId
+  ]);
+  await expect(f.authorize()).rejects.toThrow('WRONG_STATE');
+  expect(await f.close(claim, id(sequence++))).toBe(true);
+});
+it('bounds native control records without resetting original claims or their enrollment window', async () => {
+  const f = await nativeControlFixture();
+  await f.issue();
+  for (let n = 1; n < 8; n++) {
+    await f.issue(
+      id(sequence++),
+      id(sequence++),
+      f.native,
+      Buffer.alloc(32, 50 + n),
+      Buffer.alloc(32, 70 + n)
+    );
+  }
+  await expect(
+    f.issue(id(sequence++), id(sequence++), f.native, Buffer.alloc(32, 100), Buffer.alloc(32, 101))
+  ).rejects.toThrow('RATE_LIMITED');
+  expect(await f.issue()).toMatchObject({ grantId: f.grant, redeemed: false });
+});
+
+async function controlledRangeFixture() {
+  const f = await nativeControlFixture(),
+    claimId = id(sequence++);
+  await f.issue();
+  await f.redeem();
+  const owned = await f.claim(claimId);
+  const scope: RestitchSelectionSlotScope = {
+    rootOperationId: f.root.operationId,
+    teamId: f.team,
+    actorId: actor,
+    slot: 'end',
+    executor: { id: owned.executorId, epoch: owned.epoch }
+  };
+  const store = new RestitchSelectionSlotStore(f.service, scope);
+  const version = (
+    await db.root<{ version_id: string }>(
+      "select version_id from private.restitch_selection_candidates where root_operation_id=$1 and slot='end' order by ordinal limit 1",
+      [f.root.operationId]
+    )
+  )[0]!.version_id;
+  await store.select(version, 4);
+  const before = await store.read(),
+    request = id(sequence++),
+    range = id(sequence++);
+  const rangeHash = Buffer.from(id(sequence++).replaceAll('-', '').padEnd(64, 'c'), 'hex');
+  const next = reserveScreenTransfer(before, version, request, 0);
+  const issueRange = async () =>
+    (
+      await db.root<{ value: Record<string, unknown> }>(
+        'select public.service_issue_restitch_control_screen_range($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10) value',
+        [
+          f.grant,
+          f.ticket,
+          'end',
+          version,
+          0,
+          request,
+          JSON.stringify(before),
+          JSON.stringify(next.state),
+          range,
+          rangeHash
+        ]
+      )
+    )[0]!.value;
+  const readIssue = async (control = f.grant, ticket = f.ticket) =>
+    (
+      await db.root<{ value: unknown }>(
+        'select public.service_read_restitch_control_screen_range_issue($1,$2,$3,$4,$5) value',
+        [control, ticket, 'end', request, range]
+      )
+    )[0]!.value;
+  const consume = async (dispatch: string, purpose = 'restitch_screen_range_v1') =>
+    (
+      await db.root<{ value: { dispatch: boolean } }>(
+        'select public.service_consume_restitch_control_screen_range($1,$2,$3) value',
+        [rangeHash, dispatch, purpose]
+      )
+    )[0]!.value;
+  const readConsumption = async (dispatch: string) =>
+    (
+      await db.root<{ value: { consumedByInvocation: boolean } }>(
+        'select public.service_read_restitch_control_screen_range_consumption($1,$2) value',
+        [rangeHash, dispatch]
+      )
+    )[0]!.value;
+  const check = async (dispatch: string) =>
+    (
+      await db.root<{ value: { consumedByInvocation: boolean } }>(
+        'select public.service_check_restitch_control_screen_range($1,$2) value',
+        [rangeHash, dispatch]
+      )
+    )[0]!.value;
+  const abandon = async () =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_abandon_restitch_control_screen_range($1,$2,$3,$4,$5) value',
+        [f.grant, f.ticket, 'end', request, range]
+      )
+    )[0]!.value;
+  return {
+    ...f,
+    claimId,
+    owned,
+    scope,
+    store,
+    version,
+    before,
+    request,
+    range,
+    rangeHash,
+    next,
+    issueRange,
+    readIssue,
+    consume,
+    readConsumption,
+    check,
+    abandon
+  };
+}
+it('atomically binds an issued screen range to the exact native control without another reservation on replay', async () => {
+  const f = await controlledRangeFixture();
+  const issued = await f.issueRange();
+  expect(await f.issueRange()).toEqual(issued);
+  expect(await f.readIssue()).toEqual(issued);
+  expect((await f.store.read()).transfers).toHaveLength(1);
+  expect(
+    (
+      await db.root<{ n: number }>(
+        'select count(*)::integer n from private.restitch_control_screen_ranges where range_grant_id=$1 and control_grant_id=$2',
+        [f.range, f.grant]
+      )
+    )[0]!.n
+  ).toBe(1);
+});
+it('checks the current Auth session at screen consumption instead of relying on earlier issuance', async () => {
+  const f = await controlledRangeFixture();
+  await f.issueRange();
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  await expect(f.consume(id(sequence++))).rejects.toThrow('AUTH_REQUIRED');
+  expect(await f.abandon()).toBe(true);
+  expect((await f.store.read()).transfers[0]!.settlement).toEqual({
+    bytes: 0,
+    ioMs: 0,
+    complete: false
+  });
+});
+it('keeps exact consumed bookkeeping after logout but refuses another upstream authority check', async () => {
+  const f = await controlledRangeFixture(),
+    dispatch = id(sequence++);
+  await f.issueRange();
+  expect((await f.consume(dispatch)).dispatch).toBe(true);
+  expect((await f.check(dispatch)).consumedByInvocation).toBe(true);
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  expect((await f.readConsumption(dispatch)).consumedByInvocation).toBe(true);
+  await expect(f.check(dispatch)).rejects.toThrow('AUTH_REQUIRED');
+  expect(await f.abandon()).toBe(false);
+  expect((await f.store.read()).transfers[0]!.settlement).toBeNull();
+});
+it('does not grant another dispatch from the same leaf ticket or an invocation chosen later', async () => {
+  const f = await controlledRangeFixture(),
+    first = id(sequence++),
+    second = id(sequence++);
+  await f.issueRange();
+  expect((await f.consume(first)).dispatch).toBe(true);
+  expect((await f.consume(second)).dispatch).toBe(false);
+  await expect(f.check(second)).rejects.toThrow('PERMISSION_DENIED');
+  expect((await f.readConsumption(second)).consumedByInvocation).toBe(false);
+});
+it('does not authorize generic internal range grants through the controlled screen transport', async () => {
+  const f = await controlledRangeFixture();
+  await db.root(
+    'select public.service_issue_restitch_screen_range($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13)',
+    [
+      f.root.operationId,
+      f.team,
+      actor,
+      'end',
+      f.version,
+      0,
+      f.request,
+      JSON.stringify(f.before),
+      JSON.stringify(f.next.state),
+      f.range,
+      f.rangeHash,
+      f.owned.executorId,
+      f.owned.epoch
+    ]
+  );
+  await expect(f.consume(id(sequence++))).rejects.toThrow('PERMISSION_DENIED');
+  await expect(f.issueRange()).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+  expect((await f.store.read()).transfers).toHaveLength(1);
+});
+it('does not bind or consume under another enrolled grant from the same native boot', async () => {
+  const f = await controlledRangeFixture();
+  await f.issueRange();
+  const second = id(sequence++),
+    proof = Buffer.alloc(32, 115),
+    ticket = Buffer.alloc(32, 116);
+  await f.issue(second, id(sequence++), f.native, proof, ticket);
+  await f.redeem(second, proof);
+  await expect(f.claim(f.claimId, second, ticket)).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+  await expect(f.readIssue(second, ticket)).rejects.toThrow('WRONG_STATE');
+  const original = id(sequence++);
+  expect((await f.consume(original)).dispatch).toBe(true);
+});
+it('requires a screen purpose and retains missing issue acknowledgement as unknown without a new reservation', async () => {
+  const f = await controlledRangeFixture();
+  expect(await f.readIssue()).toBeNull();
+  expect((await f.store.read()).transfers).toHaveLength(0);
+  await f.issueRange();
+  await expect(f.consume(id(sequence++), 'restitch_source_range_v1')).rejects.toThrow(
+    'PERMISSION_DENIED'
+  );
+  expect((await f.store.read()).transfers[0]!.settlement).toBeNull();
+});
+it('keeps all controlled screen functions and bindings unavailable to browser roles and direct service table access', async () => {
+  const rows = await db.root<{
+    name: string;
+    browser: boolean;
+    service: boolean;
+  }>(`select p.proname name,
+    has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute') browser,
+    has_function_privilege('service_role',p.oid,'execute') service from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and p.proname in('service_issue_restitch_control_screen_range','service_read_restitch_control_screen_range_issue',
+    'service_consume_restitch_control_screen_range','service_read_restitch_control_screen_range_consumption',
+    'service_check_restitch_control_screen_range','service_abandon_restitch_control_screen_range','service_refresh_restitch_control_screen_range')`);
+  expect(rows).toHaveLength(7);
+  expect(rows.every(row => !row.browser && row.service)).toBe(true);
+  const access = await db.root<{ allowed: boolean }>(
+    `select has_table_privilege(role,'private.restitch_control_screen_ranges','select,insert,update,delete') allowed from unnest(array['anon','authenticated','service_role']) role`
+  );
+  expect(access.every(row => !row.allowed)).toBe(true);
+});
+
+it('keeps completed consumption as bookkeeping rather than new upstream authority', async () => {
+  const f = await controlledRangeFixture(),
+    dispatch = id(sequence++);
+  await f.issueRange();
+  await f.consume(dispatch);
+  await f.store.settle(f.request, { bytes: 4, ioMs: 1, complete: true });
+  expect((await f.readConsumption(dispatch)).consumedByInvocation).toBe(true);
+  await expect(f.check(dispatch)).rejects.toThrow('PERMISSION_DENIED');
+});
+
+async function controlSelectionFixture(options: Parameters<typeof nativeControlFixture>[0] = {}) {
+  const f = await nativeControlFixture(options);
+  await f.issue();
+  await f.redeem();
+  const owned = await f.claim(id(sequence++));
+  const readSelection = async (active = true, hash = f.ticket) =>
+    (
+      await db.root<{
+        value: {
+          rootOperationId: string;
+          teamId: string;
+          actorId: string;
+          poolNamespaceId: string;
+          executorId: string;
+          epoch: number;
+          nativeInstanceId: string;
+          slot: string;
+          budget: ReturnType<typeof createScreenSelectionBudget>;
+          candidates: Array<{
+            versionId: string;
+            materialId: string;
+            sizeBytes: number;
+            checksum: string;
+            mimeType: string;
+          }>;
+          complete: boolean;
+        };
+      }>('select public.service_read_restitch_control_selection($1,$2,$3,$4) value', [
+        f.grant,
+        hash,
+        'end',
+        active
+      ])
+    )[0]!.value;
+  const change = async (
+    before: ReturnType<typeof createScreenSelectionBudget>,
+    after: ReturnType<typeof createScreenSelectionBudget>
+  ) =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_cas_restitch_control_selection($1,$2,$3,$4::jsonb,$5::jsonb) value',
+        [f.grant, f.ticket, 'end', JSON.stringify(before), JSON.stringify(after)]
+      )
+    )[0]!.value;
+  return { ...f, owned, readSelection, change };
+}
+it('reads the frozen candidate pool only through the original enrolled owner without provider targets', async () => {
+  const f = await controlSelectionFixture(),
+    context = await f.readSelection();
+  expect(context).toMatchObject({
+    rootOperationId: f.root.operationId,
+    teamId: f.team,
+    actorId: actor,
+    executorId: f.owned.executorId,
+    epoch: f.owned.epoch,
+    nativeInstanceId: f.native,
+    slot: 'end',
+    complete: true
+  });
+  expect(context.candidates.length).toBeGreaterThan(0);
+  expect(context.candidates[0]).toMatchObject({
+    versionId: expect.any(String),
+    materialId: expect.any(String),
+    sizeBytes: 4,
+    checksum: expect.any(String),
+    mimeType: 'image/png'
+  });
+  expect(JSON.stringify(context)).not.toMatch(
+    /credentialId|driveFileId|resourceKey|parentFolderId|rootFolderId/u
+  );
+  await expect(f.readSelection(true, Buffer.alloc(32, 117))).rejects.toThrow('AUTH_REQUIRED');
+});
+it('atomically checks current control authority with candidate selection and preserves exact stale-CAS refusal', async () => {
+  const f = await controlSelectionFixture(),
+    context = await f.readSelection(),
+    candidate = context.candidates[0]!;
+  const next = selectScreenCandidate(context.budget, candidate.versionId, candidate.sizeBytes);
+  expect(await f.change(context.budget, next)).toBe(true);
+  expect(await f.change(context.budget, next)).toBe(false);
+  expect((await f.readSelection()).budget).toEqual(next);
+});
+it('refuses a candidate transition after logout while retaining original bookkeeping without media context', async () => {
+  const f = await controlSelectionFixture(),
+    context = await f.readSelection(),
+    candidate = context.candidates[0]!,
+    next = selectScreenCandidate(context.budget, candidate.versionId, candidate.sizeBytes);
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  await expect(f.change(context.budget, next)).rejects.toThrow('AUTH_REQUIRED');
+  await expect(f.readSelection()).rejects.toThrow('AUTH_REQUIRED');
+  const previous = await f.readSelection(false);
+  expect(previous.budget).toEqual(context.budget);
+  expect(previous.candidates).toEqual([]);
+});
+it('keeps both controlled selection adapters unavailable to browser roles', async () => {
+  const rows = await db.root<{ name: string; browser: boolean; service: boolean }>(
+    `select p.proname name,has_function_privilege('authenticated',p.oid,'execute') or has_function_privilege('anon',p.oid,'execute') browser,has_function_privilege('service_role',p.oid,'execute') service from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in('service_read_restitch_control_selection','service_cas_restitch_control_selection')`
+  );
+  expect(rows).toHaveLength(2);
+  expect(rows.every(row => !row.browser && row.service)).toBe(true);
+});
+
+it('uses the real control-bound selection API to replace a rejected image within one original root', async () => {
+  const token = 'c'.repeat(43),
+    ticketHash = createHash('sha256').update(token).digest();
+  const f = await controlSelectionFixture({
+    ticketHash,
+    beforeAccept: async original => {
+      const another = id(sequence++);
+      await db.root(
+        `insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version)
+   select $1,team_id,connection_id,$1::uuid::text,parent_folder_id,'Synthetic second.png',kind,category,mime_type,size_bytes,$3,drive_version from public.team_materials where id=$2`,
+        [another, original.image, 'b'.repeat(32)]
+      );
+      await db.root(
+        "insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by) values($1,'end',$2,'file',2,$3)",
+        [original.team, another, owner]
+      );
+    }
+  });
+  const calls: string[] = [];
+  let loseRefreshReply = true;
+  const service: ServiceRpcClient = {
+    rpc: async (name, args) => {
+      calls.push(name);
+      try {
+        let rows: Array<{ value: unknown }>;
+        if (name === 'service_read_restitch_control_selection')
+          rows = await db.root(
+            'select public.service_read_restitch_control_selection($1,$2,$3,$4) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              args.p_active
+            ]
+          );
+        else if (name === 'service_cas_restitch_control_selection')
+          rows = await db.root(
+            'select public.service_cas_restitch_control_selection($1,$2,$3,$4::jsonb,$5::jsonb) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              JSON.stringify(args.p_expected_budget),
+              JSON.stringify(args.p_next_budget)
+            ]
+          );
+        else if (name === 'service_read_restitch_control_screen_range_issue')
+          rows = await db.root(
+            'select public.service_read_restitch_control_screen_range_issue($1,$2,$3,$4,$5) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              args.p_request,
+              args.p_grant
+            ]
+          );
+        else if (name === 'service_issue_restitch_control_screen_range')
+          rows = await db.root(
+            'select public.service_issue_restitch_control_screen_range($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              args.p_version,
+              args.p_acquisition,
+              args.p_request,
+              JSON.stringify(args.p_expected_budget),
+              JSON.stringify(args.p_next_budget),
+              args.p_grant,
+              Buffer.from(String(args.p_ticket_hash).slice(2), 'hex')
+            ]
+          );
+        else if (name === 'service_read_restitch_selection_source_owned')
+          rows = await db.root(
+            'select public.service_read_restitch_selection_source_owned($1,$2,$3,$4,$5,$6,$7,$8) value',
+            [
+              args.p_root_operation,
+              args.p_team,
+              args.p_actor,
+              args.p_slot,
+              args.p_version,
+              args.p_acquisition,
+              args.p_executor,
+              args.p_epoch
+            ]
+          );
+        else if (name === 'service_refresh_restitch_control_screen_range')
+          rows = await db.root(
+            'select public.service_refresh_restitch_control_screen_range($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              args.p_request,
+              args.p_grant,
+              args.p_acquisition,
+              args.p_refresh,
+              JSON.stringify(args.p_expected_budget),
+              JSON.stringify(args.p_next_budget)
+            ]
+          );
+        else if (name === 'service_abandon_restitch_control_screen_range')
+          rows = await db.root(
+            'select public.service_abandon_restitch_control_screen_range($1,$2,$3,$4,$5) value',
+            [
+              args.p_control,
+              Buffer.from(String(args.p_control_hash).slice(2), 'hex'),
+              args.p_slot,
+              args.p_request,
+              args.p_grant
+            ]
+          );
+        else throw Error('INVALID_INPUT');
+        if (name === 'service_refresh_restitch_control_screen_range' && loseRefreshReply) {
+          loseRefreshReply = false;
+          return { data: null, error: { message: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN' } };
+        }
+        return { data: rows[0]!.value, error: null };
+      } catch (error) {
+        return { data: null, error: { message: (error as Error).message } };
+      }
+    }
+  };
+  const call = async (action: string, extra: Record<string, unknown> = {}) =>
+    handleRestitchNativeSelection(
+      new Request('https://project.invalid/native-selection', {
+        method: 'POST',
+        headers: { 'x-restitch-control-ticket': token }
+      }),
+      action,
+      {
+        protocolVersion: 1,
+        grantId: f.grant,
+        slot: 'end',
+        actorId: owner,
+        rootOperationId: id(999),
+        ...extra
+      },
+      { service, secret: 'synthetic-range-test-key-'.repeat(3) }
+    );
+  expect(await call('context')).toMatchObject({
+    rootOperationId: f.root.operationId,
+    actorId: actor,
+    defaults: f.root.recipe.defaults,
+    source: { materialId: f.video, checksum: 'a'.repeat(32), sizeBytes: 4, mimeType: 'video/mp4' }
+  });
+  const first = await call('next');
+  expect(first).toMatchObject({
+    kind: 'candidate',
+    candidate: { acquisition: 0 },
+    binding: { rootOperationId: f.root.operationId, actorId: actor, teamId: f.team }
+  });
+  const a = (first as { candidate: { versionId: string; acquisition: number } }).candidate;
+  const requestId = id(sequence++),
+    rangeGrantId = id(sequence++),
+    rangeInput = {
+      versionId: a.versionId,
+      acquisition: a.acquisition,
+      requestId,
+      rangeGrantId,
+      offset: 0
+    };
+  const leaf = await call('range', rangeInput);
+  expect(leaf).toMatchObject({
+    purpose: 'restitch_screen_range_v1',
+    requestId,
+    grantId: rangeGrantId,
+    offset: 0,
+    bytes: 4,
+    binding: { rootOperationId: f.root.operationId, actorId: actor }
+  });
+  expect(await call('range', rangeInput)).toEqual(leaf);
+  expect(calls.filter(name => name === 'service_issue_restitch_control_screen_range')).toHaveLength(
+    1
+  );
+  await expect(call('refresh', { ...rangeInput, refreshId: id(sequence++) })).rejects.toThrow(
+    'WRONG_STATE'
+  );
+  expect(await call('abandon', { requestId, rangeGrantId })).toBe(true);
+  // An expired original leaf is a test fixture, with the real immutable guards active.
+  const expiredRequest = id(sequence++),
+    expiredGrant = id(sequence++),
+    refreshId = id(sequence++);
+  const refreshBefore = await f.readSelection();
+  const reserved = reserveScreenTransfer(refreshBefore.budget, a.versionId, expiredRequest, 0);
+  expect(await f.change(refreshBefore.budget, reserved.state)).toBe(true);
+  await db.root(
+    `insert into private.restitch_screen_range_grants(id,root_operation_id,team_id,actor_id,slot,version_id,
+    acquisition,request_id,executor_id,epoch,native_instance_id,token_hash,reservation,issued_at,expires_at)
+    values($1,$2,$3,$4,'end',$5,0,$6,$7,$8,$9,$10,$11::jsonb,clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '6 minutes')`,
+    [
+      expiredGrant,
+      f.root.operationId,
+      f.team,
+      actor,
+      a.versionId,
+      expiredRequest,
+      f.owned.executorId,
+      f.owned.epoch,
+      f.native,
+      Buffer.alloc(32, 119),
+      JSON.stringify(reserved.reservation)
+    ]
+  );
+  await db.root(
+    'insert into private.restitch_control_screen_ranges(range_grant_id,control_grant_id) values($1,$2)',
+    [expiredGrant, f.grant]
+  );
+  const refreshInput = {
+    versionId: a.versionId,
+    acquisition: 0,
+    requestId: expiredRequest,
+    rangeGrantId: expiredGrant,
+    refreshId
+  };
+  expect(await call('refresh', refreshInput)).toMatchObject({
+    candidate: { versionId: a.versionId, acquisition: 0 }
+  });
+  expect(await call('refresh', refreshInput)).toMatchObject({
+    candidate: { versionId: a.versionId }
+  });
+  expect(
+    calls.filter(name => name === 'service_refresh_restitch_control_screen_range')
+  ).toHaveLength(1);
+  await expect(call('refresh', { ...refreshInput, refreshId: id(sequence++) })).rejects.toThrow(
+    'REQUEST_REUSE_CONFLICT'
+  );
+  expect((await f.readSelection()).budget.refreshes).toEqual([
+    { requestId: refreshId, candidateVersionId: a.versionId }
+  ]);
+
+  const cache = {
+    refusedProtected: async () => [],
+    resolveProtected: async (
+      binding: ProtectedScreenCacheBinding,
+      loader: { authorize: () => Promise<unknown> }
+    ) => {
+      await loader.authorize();
+      if (binding.versionId === a.versionId)
+        throw new ScreenCacheError('RESTITCH_SCREEN_UNSUPPORTED');
+      return {
+        slot: 'end' as const,
+        id: binding.versionId,
+        path: '/synthetic/validated-cache.png'
+      };
+    }
+  };
+  const provider = createNativeScreenRecoveryProvider({
+    scope: (first as { binding: ProtectedScreenCacheBinding }).binding,
+    call: async (action, body) => call(action, body),
+    cache: cache as never,
+    download: async () => {
+      throw Error('Unexpected synthetic cache miss');
+    },
+    refresh: async () => {
+      throw Error('Unexpected refresh');
+    }
+  });
+  const resolved = await resolveScreensWithRecovery(
+    ['end'],
+    provider,
+    new AbortController().signal
+  );
+  expect(resolved).toHaveLength(1);
+  expect(resolved[0]!.id).not.toBe(a.versionId);
+  const second = await call('next');
+  const b = (second as { candidate: { versionId: string; acquisition: number } }).candidate;
+  expect(b.versionId).not.toBe(a.versionId);
+  await call('accept', { versionId: b.versionId, acquisition: b.acquisition });
+  expect(await call('next')).toMatchObject({
+    kind: 'candidate',
+    candidate: { versionId: b.versionId }
+  });
+  const context = (
+    await db.root<{
+      value: {
+        budget: {
+          acceptedVersionId: string;
+          candidates: Array<{ versionId: string; rejected: boolean }>;
+        };
+      };
+    }>('select public.service_read_restitch_control_selection($1,$2,$3,true) value', [
+      f.grant,
+      f.ticket,
+      'end'
+    ])
+  )[0]!.value;
+  expect(context.budget.acceptedVersionId).toBe(b.versionId);
+  expect(context.budget.candidates.find(c => c.versionId === a.versionId)?.rejected).toBe(true);
+  expect(
+    calls.every(
+      name =>
+        name === 'service_read_restitch_control_selection' ||
+        name === 'service_cas_restitch_control_selection' ||
+        name === 'service_read_restitch_control_screen_range_issue' ||
+        name === 'service_issue_restitch_control_screen_range' ||
+        name === 'service_read_restitch_selection_source_owned' ||
+        name === 'service_abandon_restitch_control_screen_range' ||
+        name === 'service_refresh_restitch_control_screen_range'
+    )
+  ).toBe(true);
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  await expect(call('next')).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+});
+
+async function finishNativeFixture() {
+  const f = await controlledRangeFixture(),
+    nonce = id(sequence++);
+  const finish = async (outcome = 'delivered', quiescence = nonce, claim = f.claimId) =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_finish_restitch_native_control($1,$2,$3,$4,$5) value',
+        [f.grant, f.ticket, claim, quiescence, outcome]
+      )
+    )[0]!.value;
+  const state = async () =>
+    (
+      await db.root<{
+        state: string;
+        finished_at: string | null;
+        executor_state: string;
+        quiescence_id: string | null;
+      }>(
+        'select o.state,o.finished_at,e.state executor_state,c.quiescence_id from public.team_operations o join private.restitch_selection_executors e on e.root_operation_id=o.id join private.restitch_selection_executor_claims c on c.root_operation_id=o.id where o.id=$1 and c.claim_id=$2',
+        [f.root.operationId, f.claimId]
+      )
+    )[0]!;
+  return { ...f, nonce, finish, state };
+}
+it('atomically closes the native executor and logical delivered root with one original nonce', async () => {
+  const f = await finishNativeFixture();
+  await f.store.accept(f.version, 0);
+  expect(await f.finish()).toBe(true);
+  const state = await f.state();
+  expect(state).toMatchObject({
+    state: 'succeeded',
+    executor_state: 'quiescent',
+    quiescence_id: f.nonce,
+    finished_at: expect.anything()
+  });
+  expect(await f.finish()).toBe(true);
+  expect(await f.state()).toEqual(state);
+  await expect(f.finish('failed')).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+  const acl = await db.root<{ browser: boolean; service: boolean }>(
+    "select has_function_privilege('authenticated','public.service_finish_restitch_native_control(uuid,bytea,uuid,uuid,text)','execute') or has_function_privilege('anon','public.service_finish_restitch_native_control(uuid,bytea,uuid,uuid,text)','execute') browser,has_function_privilege('service_role','public.service_finish_restitch_native_control(uuid,bytea,uuid,uuid,text)','execute') service"
+  );
+  expect(acl[0]).toEqual({ browser: false, service: true });
+  await expect(f.finish('delivered', id(sequence++))).rejects.toThrow('REQUEST_REUSE_CONFLICT');
+});
+it('keeps both native ownership and the logical root open if a range cost is still held', async () => {
+  const f = await finishNativeFixture();
+  await f.issueRange();
+  await expect(f.finish('failed')).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(await f.state()).toMatchObject({
+    state: 'running',
+    executor_state: 'owned',
+    quiescence_id: null,
+    finished_at: null
+  });
+});
+it('allows exact failed native completion after logout without permitting new I/O', async () => {
+  const f = await finishNativeFixture();
+  await db.root('delete from auth.sessions where id=$1', [f.session]);
+  expect(await f.finish('failed')).toBe(true);
+  expect(await f.state()).toMatchObject({
+    state: 'failed',
+    executor_state: 'quiescent',
+    quiescence_id: f.nonce
+  });
+  await expect(f.authorize()).rejects.toThrow('AUTH_REQUIRED');
+});
+it('preserves parent cancellation when an exact joined native closure arrives later', async () => {
+  const f = await finishNativeFixture();
+  await f.store.accept(f.version, 0);
+  await db.asUser(actor, 'select public.cancel_team_operation($1,$2)', [
+    f.team,
+    f.root.operationId
+  ]);
+  expect(await f.finish('delivered')).toBe(true);
+  expect(await f.state()).toMatchObject({
+    state: 'canceled',
+    executor_state: 'quiescent',
+    quiescence_id: f.nonce
+  });
+});
+it('refuses a delivered terminal unless every enabled frozen screen is accepted', async () => {
+  const f = await finishNativeFixture();
+  await expect(f.finish()).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(await f.state()).toMatchObject({
+    state: 'running',
+    executor_state: 'owned',
+    quiescence_id: null
+  });
+});
+
+it('distinguishes images rejected in this attempt from remembered failures before the first draw', async () => {
+  const token = 'r'.repeat(43),
+    f = await controlSelectionFixture({ ticketHash: createHash('sha256').update(token).digest() });
+  const service: ServiceRpcClient = {
+    rpc: async (name, args) => {
+      if (name === 'service_read_restitch_control_selection')
+        return {
+          data: await f.readSelection(
+            args.p_active as boolean,
+            Buffer.from(String(args.p_control_hash).slice(2), 'hex')
+          ),
+          error: null
+        };
+      if (name === 'service_cas_restitch_control_selection')
+        return {
+          data: await f.change(
+            args.p_expected_budget as ReturnType<typeof createScreenSelectionBudget>,
+            args.p_next_budget as ReturnType<typeof createScreenSelectionBudget>
+          ),
+          error: null
+        };
+      throw Error('Unexpected authority action');
+    }
+  };
+  const call = (action: string, body: Record<string, unknown> = {}) =>
+    handleRestitchNativeSelection(
+      new Request('https://project.invalid/native-selection', {
+        method: 'POST',
+        headers: { 'x-restitch-control-ticket': token }
+      }),
+      action,
+      { protocolVersion: 1, grantId: f.grant, slot: 'end', ...body },
+      { service }
+    );
+  const version = (await f.readSelection()).candidates[0]!.versionId;
+  expect(await call('next', { excludeVersions: [version] })).toMatchObject({
+    kind: 'exhausted',
+    reason: 'remembered'
+  });
+  expect((await f.readSelection()).budget.candidates).toHaveLength(0);
+  expect(await call('next')).toMatchObject({
+    kind: 'candidate',
+    candidate: { versionId: version }
+  });
+  expect(await call('reject', { versionId: version, acquisition: 0, defect: 'unsupported' })).toBe(
+    true
+  );
+  expect(await call('next', { excludeVersions: [version] })).toMatchObject({
+    kind: 'exhausted',
+    reason: 'unusable'
+  });
 });

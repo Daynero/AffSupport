@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "observedAt": "2026-11-07T05:41:21.588Z",
+  "project": "r2beta045",
+  "schema": 444,
+  "sourceSha": "702e151a",
+  "sourceDirty": true,
+  "sourceFilesSha256": {
+    "supabase/functions/drive-ops/mutation-preflight.ts": "e3b2ec664463b528a50ea31d6a8d3a6688f9d96a4dfc2467cf3bd18abff05f7f",
+    "supabase/functions/drive-ops/index.ts": "12d69045fd5d001ee25240c0547d3e3131950f2164cfd12246a520e79702ac7b"
+  },
+  "focusedTests": 143,
+  "staticGates": 13,
+  "fullFollowupSuitePending": true,
+  "ownedEdgeQuiescedBeforeCopy": true,
+  "scope": "Local beta source application only; after-fix actual API and complete source acceptance are separate. No new database migration, native capability, manual UI or production action.",
+  "productionTouched": false
+}

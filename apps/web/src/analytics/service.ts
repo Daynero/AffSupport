@@ -830,6 +830,12 @@ export function trackTeamLandingRender(
 }
 
 const fileAttemptActors = new WeakMap<TeamFileAttemptFlow, () => boolean>();
+const workflowActors = new WeakMap<TeamWorkflowFlow, () => boolean>();
+
+/** A processing terminal retains its original analytics actor. */
+export function isTeamWorkflowCurrent(flow: TeamWorkflowFlow): boolean {
+  return workflowActors.get(flow)?.() ?? true;
+}
 
 /** Late file errors and terminals cannot borrow a replacement user's analytics envelope. */
 export function isTeamFileAttemptCurrent(flow: TeamFileAttemptFlow): boolean {
@@ -967,13 +973,18 @@ export function startTeamWorkflow(
     startedAt: options.now ?? Date.now(),
     completed: false
   };
-  (options.tracker ?? analytics).track('team_workflow_started', {
-    workflow_id: flow.workflowId,
-    category: flow.category,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    stage: input.stage ?? 'downloading'
-  });
+  workflowActors.set(flow, captureAnalyticsActor(options.tracker ?? analytics));
+  try {
+    (options.tracker ?? analytics).track('team_workflow_started', {
+      workflow_id: flow.workflowId,
+      category: flow.category,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      stage: input.stage ?? 'downloading'
+    });
+  } catch {
+    /* Diagnostics must not prevent the processing operation. */
+  }
   return flow;
 }
 
@@ -988,17 +999,22 @@ export function completeTeamWorkflow(
 ): void {
   if (flow.completed) return;
   flow.completed = true;
-  (options.tracker ?? analytics).track('team_workflow_completed', {
-    workflow_id: flow.workflowId,
-    category: flow.category,
-    cache_state: flow.cacheState,
-    attempt_number: flow.attemptNumber,
-    duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
-    stage: result.stage ?? 'finalizing',
-    outcome: result.outcome,
-    retryable: result.retryable,
-    production_completed: result.outcome === 'success'
-  });
+  if (!isTeamWorkflowCurrent(flow)) return;
+  try {
+    (options.tracker ?? analytics).track('team_workflow_completed', {
+      workflow_id: flow.workflowId,
+      category: flow.category,
+      cache_state: flow.cacheState,
+      attempt_number: flow.attemptNumber,
+      duration_ms: boundedDuration(flow.startedAt, options.now ?? Date.now()),
+      stage: result.stage ?? 'finalizing',
+      outcome: result.outcome,
+      retryable: result.retryable,
+      production_completed: result.outcome === 'success'
+    });
+  } catch {
+    /* The delivered result is independent of telemetry availability. */
+  }
 }
 
 export type CreativeLibraryContributionEventName =

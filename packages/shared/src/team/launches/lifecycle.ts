@@ -1,3 +1,4 @@
+import { STITCH_ERROR_CODES } from '../../stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../catalog-images.js';
 /** Closed diagnostic vocabulary: user configuration and output never enter telemetry. */
 export const LAUNCH_ANALYTICS_EVENTS = [
@@ -54,6 +55,8 @@ export const LAUNCH_ANALYTICS_FIELDS = [
   'sub3'
 ] as const;
 export const LAUNCH_ANALYTICS_CODES = [
+  ...STITCH_ERROR_CODES,
+  'PROCESS_RESULT_UNCERTAIN',
   ...CATALOG_IMAGE_ERROR_CODES,
   'INVALID_INPUT',
   'INVALID_RESPONSE',

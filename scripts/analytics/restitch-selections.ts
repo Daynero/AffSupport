@@ -26,6 +26,7 @@ export interface RestitchSelectionRecord {
   retry_count: number;
   refresh_count: number;
   budget_revision: number;
+  authority: { total: number; issued: number; consumed: number; abandoned: number } | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,7 +63,7 @@ export async function getRestitchSelectionEvidence(input: {
     ].slice(0, 100);
     if (!actor && !ids.length) return { supported: true, records: [], blind_spots: [] };
     const rows = await query<Record<string, unknown>>(
-      "select operation_id::text,team_id::text,actor_id::text,slot,pool_namespace_id::text,state,snapshot_complete,candidate_count,candidate_versions,range_count,unconfirmed_range_count,confirmed_bytes::float8,confirmed_io_ms::float8,retry_count,refresh_count,budget_revision,created_at::text,updated_at::text from public.analytics_restitch_selection_slots where ($1::uuid is null or actor_id=$1::uuid) and ($2::uuid[] is null or operation_id=any($2::uuid[])) and ($3::timestamptz is null or updated_at >= $3::timestamptz or state='range_unconfirmed') and updated_at <= $4::timestamptz order by updated_at desc,operation_id,slot limit 101",
+      "select operation_id::text,team_id::text,actor_id::text,slot,pool_namespace_id::text,state,snapshot_complete,candidate_count,candidate_versions,range_count,unconfirmed_range_count,confirmed_bytes::float8,confirmed_io_ms::float8,retry_count,refresh_count,budget_revision,created_at::text,updated_at::text,to_jsonb(v)->'grant_count' as grant_count,to_jsonb(v)->'issued_grant_count' as issued_grant_count,to_jsonb(v)->'consumed_grant_count' as consumed_grant_count,to_jsonb(v)->'abandoned_grant_count' as abandoned_grant_count from public.analytics_restitch_selection_slots v where ($1::uuid is null or actor_id=$1::uuid) and ($2::uuid[] is null or operation_id=any($2::uuid[])) and ($3::timestamptz is null or updated_at >= $3::timestamptz or state='range_unconfirmed') and updated_at <= $4::timestamptz order by updated_at desc,operation_id,slot limit 101",
       [actor, ids.length ? ids : null, input.since ?? null, input.asOf]
     );
     let malformed = false;
@@ -100,8 +101,9 @@ export async function getRestitchSelectionEvidence(input: {
         new Set(r.candidate_versions.map(v => String(v).toLowerCase())).size !==
           r.candidate_versions.length ||
         (r.state === 'range_unconfirmed') !== (r.unconfirmed_range_count === 1) ||
-        (r.state === 'awaiting_selection' && r.candidate_count !== 0) ||
-        (r.state !== 'awaiting_selection' && r.candidate_count === 0) ||
+        (['awaiting_selection', 'disabled'].includes(String(r.state)) && r.candidate_count !== 0) ||
+        (!['awaiting_selection', 'disabled'].includes(String(r.state)) &&
+          r.candidate_count === 0) ||
         (r.candidate_count === 0 &&
           (r.range_count !== 0 || r.refresh_count !== 0 || r.retry_count !== 0)) ||
         (r.range_count === r.unconfirmed_range_count &&
@@ -117,6 +119,27 @@ export async function getRestitchSelectionEvidence(input: {
         malformed = true;
         continue;
       }
+      const counts = [
+        r.grant_count,
+        r.issued_grant_count,
+        r.consumed_grant_count,
+        r.abandoned_grant_count
+      ];
+      const authority =
+        counts.every(v => whole(v, 956)) &&
+        Number(r.grant_count) <= r.range_count &&
+        Number(r.issued_grant_count) <= 1 &&
+        Number(r.grant_count) ===
+          Number(r.issued_grant_count) +
+            Number(r.consumed_grant_count) +
+            Number(r.abandoned_grant_count)
+          ? {
+              total: Number(r.grant_count),
+              issued: Number(r.issued_grant_count),
+              consumed: Number(r.consumed_grant_count),
+              abandoned: Number(r.abandoned_grant_count)
+            }
+          : null;
       records.push({
         operation_id: r.operation_id,
         team_id: r.team_id,
@@ -133,6 +156,7 @@ export async function getRestitchSelectionEvidence(input: {
         retry_count: r.retry_count,
         refresh_count: r.refresh_count,
         budget_revision: r.budget_revision,
+        authority,
         created_at: r.created_at,
         updated_at: r.updated_at
       });
@@ -141,7 +165,14 @@ export async function getRestitchSelectionEvidence(input: {
       supported: true,
       records,
       blind_spots: [
-        'This is storage-only evidence. Root acceptance, protected upstream measurement and product execution are not enabled by this foundation.',
+        'This is storage-only evidence. Correlate the root operation and native terminal separately; selection records alone do not prove upstream execution, video processing or file delivery.',
+        'Issued authority counts do not establish unexpired access; expiry and current ownership require fresh service checks.',
+        'Consumed authority proves permission was used by an invocation, not an upstream read, settled bytes or delivery.',
+        ...(records.some(r => r.authority === null)
+          ? [
+              'Screen range authority counters are unavailable or contradictory; their state remains unknown.'
+            ]
+          : []),
         'A reserved range proves neither upstream execution nor nonexecution. Recorded screen validation proves neither video creation nor delivery.',
         'This current-state projection omits rows changed after as-of; it does not reconstruct historical image choices.',
         'Rejection causes are not recorded in this foundation; a correlated native failure remains separate evidence.',

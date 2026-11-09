@@ -47,6 +47,40 @@ const view = (value: CatalogRegistryRow) => (
     </tbody>
   </table>
 );
+it('shows registered K/N for the current video set without reporting catalog completion', () => {
+  const value: CatalogRegistryRow = {
+    ...row,
+    updatePending: false,
+    videoGeneration: {
+      setId: '11111111-1111-4111-8111-111111111111',
+      requestedCount: 5,
+      registeredCount: 2,
+      state: 'preparing'
+    }
+  };
+  expect(catalogRowProgress(value).active).toBe(true);
+  expect(catalogRowProgress(value).value).toBeCloseTo(0.208);
+  const child = '11111111-1111-4111-8111-111111111112';
+  const runningChild = {
+    ...value,
+    restitchProgress: 50,
+    restitchOperationId: child,
+    videoGeneration: { ...value.videoGeneration!, activeChildOperationId: child }
+  };
+  expect(catalogRowProgress(runningChild).value).toBeCloseTo(0.24);
+  expect(catalogRowProgress({ ...runningChild, restitchOperationId: null }).value).toBeCloseTo(
+    0.208
+  );
+  const { rerender } = render(view(value));
+  expect(screen.getByRole('row').getAttribute('aria-label')).toContain('2');
+  rerender(
+    view({
+      ...value,
+      videoGeneration: { ...value.videoGeneration!, state: 'ready', registeredCount: 5 }
+    })
+  );
+  expect(screen.getByRole('row').className).not.toContain('is-update-complete');
+});
 it('advances only from observed stages and clamps real video progress', () => {
   expect(
     catalogRowProgress({ ...row, updateStage: 'restitching', restitchProgress: 50 }).value

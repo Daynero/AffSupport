@@ -1,4 +1,10 @@
 import {
+  CATALOG_VARIANT_ACTIONS,
+  isCatalogVariantRecoveryAction,
+  parseCatalogVariantRecoveryInput,
+  type CatalogVariantRecoveryAction
+} from './catalog-video-handler.ts';
+import {
   TEAM_RECOVERY_PROTOCOL_VERSION,
   RECOVERY_PREUPLOAD_FAILURE_CODES
 } from '../../../packages/shared/dist/team/recovery.js';
@@ -17,7 +23,8 @@ const ACTIONS = [
   'claim',
   'heartbeat',
   'checkpoint',
-  'settle'
+  'settle',
+  ...CATALOG_VARIANT_ACTIONS
 ] as const;
 export interface RecoveryHandlerDeps {
   user(request: Request): Promise<string>;
@@ -28,6 +35,12 @@ export interface RecoveryHandlerDeps {
     credential: string,
     body: Record<string, unknown>
   ): Promise<unknown>;
+  variants?: (
+    action: CatalogVariantRecoveryAction,
+    hash: string,
+    input: Record<string, unknown>,
+    credential: string
+  ) => Promise<unknown>;
   token(): string;
   hash(value: string): Promise<string>;
 }
@@ -88,6 +101,10 @@ export async function handleRecovery(
     throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
   const credential = token(request.headers.get('x-team-recovery-credential'));
   const hash = await deps.hash(credential);
+  if (isCatalogVariantRecoveryAction(action)) {
+    if (!deps.variants) throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
+    return deps.variants(action, hash, parseCatalogVariantRecoveryInput(action, body), credential);
+  }
   if (action === 'disconnect') return deps.rpc('disconnect', hash, {});
   if (action === 'redeem') {
     const refresh = deps.token();

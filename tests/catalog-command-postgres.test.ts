@@ -319,6 +319,209 @@ function ownedSelectionCas(
   return `select public.service_cas_restitch_selection_slot_owned('${root}','${team}','${owner}','end','${JSON.stringify(before)}'::jsonb,'${JSON.stringify(after)}'::jsonb,'${executor}',${epoch})`;
 }
 
+async function screenRangeAuthorityFixture() {
+  const f = await manualSelectionFixture();
+  const root = JSON.parse(await sql(f.accept)).operationId as string;
+  const executor = JSON.parse(await sql(claimSelection(root, randomUUID(), randomUUID()))) as {
+    executorId: string;
+    epoch: number;
+  };
+  const version = await sql(
+    `select version_id from private.restitch_selection_candidates where root_operation_id='${root}' and slot='end' order by ordinal limit 1`
+  );
+  const empty = createScreenSelectionBudget(),
+    selected = selectScreenCandidate(empty, version, 4);
+  expect(
+    await sql(ownedSelectionCas(root, executor.executorId, executor.epoch, empty, selected))
+  ).toBe('t');
+  const request = randomUUID(),
+    grant = randomUUID(),
+    hash = grant.replaceAll('-', '').padEnd(64, '0');
+  const next = reserveScreenTransfer(selected, version, request, 0);
+  const issue = `select public.service_issue_restitch_screen_range('${root}','${team}','${owner}','end','${version}',0,'${request}','${JSON.stringify(selected)}'::jsonb,'${JSON.stringify(next.state)}'::jsonb,'${grant}',decode('${hash}','hex'),'${executor.executorId}',${executor.epoch})`;
+  const consume = (dispatch = randomUUID()) =>
+    `select public.service_consume_restitch_screen_range(decode('${hash}','hex'),'${dispatch}','restitch_screen_range_v1')`;
+  const abandon = `select public.service_abandon_restitch_screen_range('${root}','${team}','${owner}','end','${request}','${grant}','${executor.executorId}',${executor.epoch})`;
+  return { root, grant, issue, consume, abandon };
+}
+
+async function nativeControlAuthorityFixture() {
+  const f = await manualSelectionFixture();
+  const root = JSON.parse(await sql(f.accept)).operationId as string;
+  // Two grants from the same boot must still have distinct immutable ownership.
+  const session = randomUUID(),
+    native = randomUUID();
+  await sql(`insert into auth.sessions(id,user_id) values('${session}','${owner}')`);
+  const enroll = async () => {
+    const grant = randomUUID(),
+      enrollment = randomUUID();
+    const proof = randomUUID().replaceAll('-', '').padEnd(64, 'a');
+    const ticket = randomUUID().replaceAll('-', '').padEnd(64, 'b');
+    await sql(`select public.service_issue_restitch_native_control('${root}','${team}','${owner}',
+      '${session}','${grant}','${enrollment}','${native}',decode('${proof}','hex'),decode('${ticket}','hex'))`);
+    await sql(
+      `select public.service_redeem_restitch_native_control('${grant}',decode('${proof}','hex'))`
+    );
+    return {
+      grant,
+      claim: (claim: string) =>
+        `select public.service_claim_restitch_native_control('${grant}',decode('${ticket}','hex'),'${claim}',1)`,
+      authorize: `select public.service_authorize_restitch_native_control('${grant}',decode('${ticket}','hex'))`,
+      read: (claim: string) =>
+        `select public.service_read_restitch_native_control_claim('${grant}',decode('${ticket}','hex'),'${claim}')`,
+      close: (claim: string, nonce: string) =>
+        `select public.service_quiesce_restitch_native_control('${grant}',decode('${ticket}','hex'),'${claim}','${nonce}')`
+    };
+  };
+  return { root, session, enroll };
+}
+
+async function controlledNativeRangeFixture() {
+  const f = await nativeControlAuthorityFixture(),
+    control = await f.enroll(),
+    claim = randomUUID();
+  const owned = JSON.parse(await sql(control.claim(claim))) as {
+    executorId: string;
+    epoch: number;
+  };
+  const controlHash = await sql(
+    `select encode(token_hash,'hex') from private.restitch_native_controls where id='${control.grant}'`
+  );
+  const version = await sql(
+    `select version_id from private.restitch_selection_candidates where root_operation_id='${f.root}' and slot='end' order by ordinal limit 1`
+  );
+  const empty = createScreenSelectionBudget(),
+    selected = selectScreenCandidate(empty, version, 4);
+  expect(await sql(ownedSelectionCas(f.root, owned.executorId, owned.epoch, empty, selected))).toBe(
+    't'
+  );
+  const request = randomUUID(),
+    range = randomUUID(),
+    rangeHash = randomUUID().replaceAll('-', '').padEnd(64, 'c');
+  const next = reserveScreenTransfer(selected, version, request, 0);
+  await sql(
+    `select public.service_issue_restitch_control_screen_range('${control.grant}',decode('${controlHash}','hex'),'end','${version}',0,'${request}','${JSON.stringify(selected)}'::jsonb,'${JSON.stringify(next.state)}'::jsonb,'${range}',decode('${rangeHash}','hex'))`
+  );
+  return {
+    ...f,
+    range,
+    consume: (dispatch: string) =>
+      `select public.service_consume_restitch_control_screen_range(decode('${rangeHash}','hex'),'${dispatch}','restitch_screen_range_v1')`,
+    check: (dispatch: string) =>
+      `select public.service_check_restitch_control_screen_range(decode('${rangeHash}','hex'),'${dispatch}')`,
+    read: (dispatch: string) =>
+      `select public.service_read_restitch_control_screen_range_consumption(decode('${rangeHash}','hex'),'${dispatch}')`,
+    abandon: `select public.service_abandon_restitch_control_screen_range('${control.grant}',decode('${controlHash}','hex'),'end','${request}','${range}')`
+  };
+}
+
+/** Real PG fixtures: all data is synthetic and exists only in the isolated clone. */
+async function foregroundCatalogFixture() {
+  const source = randomUUID(),
+    image = randomUUID(),
+    enrollment = randomUUID(),
+    native = randomUUID(),
+    session = randomUUID(),
+    set = randomUUID(),
+    key = `fg:${randomUUID()}`;
+  const proof = randomUUID().replaceAll('-', '').padEnd(64, 'a'),
+    token = randomUUID().replaceAll('-', '').padEnd(64, 'b');
+  const children = Array.from({ length: 2 }, (_, index) => ({ index, requestId: randomUUID() }));
+  const settings = {
+    configured: true,
+    operation: 'restitch',
+    sourceMode: 'drive',
+    fitMode: 'cover',
+    startDurationMode: 'one-frame',
+    customStartDurationMs: 1,
+    startEnabled: false,
+    endEnabled: true,
+    finalDurationMode: 'custom',
+    customFinalDurationSeconds: 3
+  };
+  await sql(`begin;
+    insert into auth.sessions(id,user_id) values('${session}','${owner}');
+    insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version) values
+    ('${source}','${team}','${connection}','${source}','root','Foreground source','file','video','video/mp4',4,repeat('a',32),'1'),
+    ('${image}','${team}','${connection}','${image}','root','Foreground image','file','image','image/png',4,repeat('b',32),'1');
+    insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by)values('${team}','end','${image}','file',1,'${owner}');
+    select public.service_prepare_catalog_video_foreground('${team}','${owner}','${session}','${source}','create','${key}',null,'${enrollment}','${native}',decode('${proof}','hex'),decode('${token}','hex'));
+    commit;`);
+  const payload = {
+    catalogVideoProtocolVersion: 1,
+    foregroundExecutor: {
+      protocolVersion: 1,
+      enrollmentId: enrollment,
+      nativeInstanceId: native,
+      proofDigest: proof
+    }
+  };
+  const intent = (
+    JSON.parse(
+      await sql(
+        `select public.service_begin_catalog_intent('${team}','${source}','${owner}','${key}','${JSON.stringify(payload)}'::jsonb,'${enrollment}')`
+      )
+    ) as { id: string }
+  ).id;
+  const accepted = {
+    setId: set,
+    catalogIntentId: intent,
+    sourceMaterialId: source,
+    sourceVersion: '1',
+    settings,
+    settingsDigest: 'a'.repeat(64),
+    requestedCount: 2,
+    productCount: 2,
+    recipeRevision: 1,
+    seed: 'b'.repeat(64)
+  };
+  await sql(
+    `select public.service_accept_foreground_catalog_video_set('${team}','${owner}','${enrollment}','${JSON.stringify(accepted)}'::jsonb,'${JSON.stringify(children)}'::jsonb,'${JSON.stringify(children.map(c => ({ recipeRowId: randomUUID(), videoVariantIndex: c.index })))}'::jsonb)`
+  );
+  const redeem = (boot?: string, expectedBoot?: string) =>
+    `select public.service_redeem_catalog_video_foreground('${set}','${enrollment}','${native}',decode('${proof}','hex')${boot ? `,'${boot}'${expectedBoot ? `,'${expectedBoot}'` : ''}` : ''})`;
+  await sql(redeem());
+  return {
+    source,
+    session,
+    enrollment,
+    native,
+    set,
+    intent,
+    key,
+    children,
+    proof,
+    token,
+    redeem,
+    authorize: `select public.service_authorize_catalog_video_executor('${set}',decode('${token}','hex'),'${native}',1)`
+  };
+}
+async function foregroundWorkingChildren(f: Awaited<ReturnType<typeof foregroundCatalogFixture>>) {
+  const operations = f.children.map(() => randomUUID());
+  await sql(
+    `begin;${operations
+      .map(
+        (operation, index) => `
+    insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+    values('${operation}','${team}','${owner}','process','running','${f.source}','catalog-variant:${f.children[index]!.requestId}','catalog-variant:${f.children[index]!.requestId}');
+    insert into private.team_operation_intents(operation_id,team_id,tool_id,expected_source_version,expected_source_drive_file_id,expected_source_checksum,expected_name,expected_size,mime_type)
+    values('${operation}','${team}','restitch','1','${f.source}',repeat('a',32),'copy.mp4',4,'video/mp4');`
+      )
+      .join('')}commit;`
+  );
+  const revision = await sql(`select revision from private.catalog_video_sets where id='${f.set}'`);
+  await sql(
+    `select public.service_checkpoint_catalog_video_set('${f.set}','${team}','${owner}','${f.enrollment}',1,${revision},'${JSON.stringify(f.children.map((c, index) => ({ ...c, operationId: index === 0 ? operations[index] : null, state: index === 0 ? 'working' : 'queued', outputId: null })))}'::jsonb)`
+  );
+  return {
+    operations,
+    dispatch: (index: number) =>
+      `select public.service_dispatch_catalog_video_variant('${f.set}',decode('${f.token}','hex'),'${f.native}',1,${index},'${f.children[index]!.requestId}','${operations[index]}')`,
+    close: (index: number, operation = operations[index]!, token = f.token) =>
+      `select public.service_complete_catalog_video_variant('${f.set}',decode('${token}','hex'),'${f.native}',1,${index},'${f.children[index]!.requestId}','${operation}','failed','PROCESS_FAILED')`
+  };
+}
+
 describe.skipIf(!container)(
   '047 command acceptance [needs: disposable PostgreSQL container]',
   () => {
@@ -1023,6 +1226,416 @@ describe.skipIf(!container)(
       expect(await sql(`select state from public.team_operations where id='${f.operation}'`)).toBe(
         'canceled'
       );
+    }, 15000);
+    it('serializes exact range issuance with one reserved budget behind a lost first acknowledgement', async () => {
+      const f = await screenRangeAuthorityFixture();
+      // pg_stat_activity truncates long query text; keep the barrier in its visible prefix.
+      const first = holdSql('/* range_grant_issue_hold */ ' + f.issue);
+      let second: Promise<string> | undefined, original: string;
+      try {
+        await held('range_grant_issue_hold', 'Idle');
+        second = sql('/* range_grant_issue_wait */ ' + f.issue);
+        void second.catch(() => undefined);
+        await held('range_grant_issue_wait', 'Lock');
+      } finally {
+        original = await first.commit();
+      }
+      expect(JSON.parse((await second)!)).toEqual(JSON.parse(original));
+      expect(
+        await sql(
+          `select count(*) from private.restitch_screen_range_grants where root_operation_id='${f.root}'`
+        )
+      ).toBe('1');
+      expect(
+        await sql(
+          `select range_count||':'||unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='${f.root}' and slot='end'`
+        )
+      ).toBe('1:1');
+    }, 15000);
+    it('keeps a concurrently consumed range held instead of abandoning unknown provider cost', async () => {
+      const f = await screenRangeAuthorityFixture();
+      await sql(f.issue);
+      const first = holdSql(f.consume() + ' /* range_consume_hold */');
+      let second: Promise<string> | undefined, claimed: string;
+      try {
+        await held('range_consume_hold', 'Idle');
+        second = sql(f.abandon + ' /* range_abandon_wait */');
+        void second.catch(() => undefined);
+        await held('range_abandon_wait', 'Lock');
+      } finally {
+        claimed = await first.commit();
+      }
+      expect(JSON.parse(claimed).dispatch).toBe(true);
+      expect(await second).toBe('f');
+      expect(
+        await sql(
+          `select unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='${f.root}' and slot='end'`
+        )
+      ).toBe('1');
+    }, 15000);
+    it('refuses a waiting consumer after authoritative zero-cost abandonment commits', async () => {
+      const f = await screenRangeAuthorityFixture();
+      await sql(f.issue);
+      const first = holdSql(f.abandon + ' /* range_abandon_hold */');
+      let second: Promise<string> | undefined;
+      try {
+        await held('range_abandon_hold', 'Idle');
+        second = sql(f.consume() + ' /* range_consume_wait */');
+        void second.catch(() => undefined);
+        await held('range_consume_wait', 'Lock');
+      } finally {
+        expect(await first.commit()).toBe('t');
+      }
+      expect(JSON.parse((await second)!).dispatch).toBe(false);
+      expect(
+        await sql(
+          `select confirmed_bytes||':'||unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='${f.root}' and slot='end'`
+        )
+      ).toBe('0:0');
+    }, 15000);
+    it('binds one control grant atomically before a concurrent grant can adopt its claim UUID', async () => {
+      const f = await nativeControlAuthorityFixture(),
+        a = await f.enroll(),
+        b = await f.enroll(),
+        claim = randomUUID();
+      const first = holdSql('/* native_control_claim_hold */ ' + a.claim(claim));
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined,
+        accepted: string;
+      try {
+        await held('native_control_claim_hold', 'Idle');
+        second = sql('/* native_control_claim_wait */ ' + b.claim(claim)).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('native_control_claim_wait', 'Lock');
+      } finally {
+        accepted = await first.commit();
+      }
+      expect(JSON.parse(accepted).active).toBe(true);
+      expect((await second)!.error?.message).toContain('REQUEST_REUSE_CONFLICT');
+      expect(
+        await sql(
+          `select count(*) from private.restitch_selection_executor_claims where root_operation_id='${f.root}'`
+        )
+      ).toBe('1');
+      expect(
+        await sql(
+          `select count(*) from private.restitch_native_controls where root_operation_id='${f.root}' and claim_id is not null`
+        )
+      ).toBe('1');
+      expect(JSON.parse(await sql(a.read(claim))).active).toBe(true);
+    }, 15000);
+    it('refuses a native I/O authorization that was waiting while logout removed its Auth session', async () => {
+      const f = await nativeControlAuthorityFixture(),
+        control = await f.enroll(),
+        claim = randomUUID();
+      await sql(control.claim(claim));
+      const first = holdSql(
+        `/* native_control_logout_hold */ delete from auth.sessions where id='${f.session}'`
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('native_control_logout_hold', 'Idle');
+        second = sql('/* native_control_logout_wait */ ' + control.authorize).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('native_control_logout_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('AUTH_REQUIRED');
+      expect(JSON.parse(await sql(control.read(claim))).active).toBe(true);
+      expect(await sql(control.close(claim, randomUUID()))).toBe('t');
+    }, 15000);
+    it('refuses a controlled screen consume waiting behind actual Auth-session removal without consuming the leaf', async () => {
+      const f = await controlledNativeRangeFixture();
+      const first = holdSql(
+        `/* controlled_screen_logout_hold */ delete from auth.sessions where id='${f.session}'`
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('controlled_screen_logout_hold', 'Idle');
+        second = sql('/* controlled_screen_consume_wait */ ' + f.consume(randomUUID())).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('controlled_screen_consume_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('AUTH_REQUIRED');
+      expect(
+        await sql(`select state from private.restitch_screen_range_grants where id='${f.range}'`)
+      ).toBe('issued');
+      expect(await sql(f.abandon)).toBe('t');
+      expect(
+        await sql(
+          `select confirmed_bytes||':'||unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='${f.root}' and slot='end'`
+        )
+      ).toBe('0:0');
+    }, 15000);
+    it('keeps consumed cost held when logout wins over a waiting protected-upstream authority check', async () => {
+      const f = await controlledNativeRangeFixture(),
+        dispatch = randomUUID();
+      expect(JSON.parse(await sql(f.consume(dispatch))).dispatch).toBe(true);
+      const first = holdSql(
+        `/* controlled_upstream_logout_hold */ delete from auth.sessions where id='${f.session}'`
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('controlled_upstream_logout_hold', 'Idle');
+        second = sql('/* controlled_upstream_check_wait */ ' + f.check(dispatch)).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('controlled_upstream_check_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('AUTH_REQUIRED');
+      expect(JSON.parse(await sql(f.read(dispatch))).consumedByInvocation).toBe(true);
+      expect(await sql(f.abandon)).toBe('f');
+      expect(
+        await sql(
+          `select unconfirmed_range_count from public.analytics_restitch_selection_slots where operation_id='${f.root}' and slot='end'`
+        )
+      ).toBe('1');
+    }, 15000);
+
+    it('blocks a foreground NEW-I/O authorization waiting behind real Auth-session logout', async () => {
+      const f = await foregroundCatalogFixture();
+      const first = holdSql(
+        `/* foreground_logout_hold */ delete from auth.sessions where id='${f.session}'`
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('foreground_logout_hold', 'Idle');
+        second = sql('/* foreground_authorize_wait */ ' + f.authorize).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('foreground_authorize_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('AUTH_REQUIRED');
+      expect(await sql(`select state from private.catalog_video_sets where id='${f.set}'`)).toBe(
+        'accepted'
+      );
+      expect(
+        await sql(
+          `select count(*) from private.team_recovery_execution_fences fence join public.team_operations op on op.id=fence.operation_id where op.source_material_id='${f.source}'`
+        )
+      ).toBe('0');
+      expect(
+        await sql(
+          `select count(*) from private.restitch_screen_range_grants g join public.team_operations op on op.id=g.root_operation_id where op.source_material_id='${f.source}'`
+        )
+      ).toBe('0');
+      expect(
+        await sql(
+          `select count(*) from private.catalog_video_variants where video_set_id='${f.set}' and state<>'queued'`
+        )
+      ).toBe('0');
+    }, 15000);
+    it('permits only one quiescent foreground boot rotation when independent redeemers race', async () => {
+      const f = await foregroundCatalogFixture(),
+        bootA = randomUUID(),
+        bootB = randomUUID();
+      const beforeEpoch = Number(
+        await sql(`select epoch from private.catalog_video_sets where id='${f.set}'`)
+      );
+      const first = holdSql('/* foreground_rotation_hold */ ' + f.redeem(bootA));
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined,
+        winner: string;
+      try {
+        await held('foreground_rotation_hold', 'Idle');
+        second = sql('/* foreground_rotation_wait */ ' + f.redeem(bootB)).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('foreground_rotation_wait', 'Lock');
+      } finally {
+        winner = await first.commit();
+      }
+      expect(JSON.parse(winner).executionNativeInstanceId).toBe(bootA);
+      expect((await second)!.error?.message).toContain('REQUEST_REUSE_CONFLICT');
+      expect(
+        await sql(
+          `select native_instance_id||':'||epoch from private.catalog_video_sets where id='${f.set}'`
+        )
+      ).toBe(`${bootA}:${beforeEpoch + 1}`);
+      expect(
+        await sql(
+          `select execution_native_instance_id from private.catalog_video_foreground_authorities where enrollment_id='${f.enrollment}'`
+        )
+      ).toBe(bootA);
+      await sql(
+        `update private.catalog_video_variants set state='unknown' where video_set_id='${f.set}' and video_variant_index=0`
+      );
+      expect(JSON.parse(await sql(f.redeem(bootA))).executionNativeInstanceId).toBe(bootA);
+      await expect(sql(f.redeem(randomUUID(), bootA))).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+      expect(
+        await sql(
+          `select native_instance_id||':'||epoch from private.catalog_video_sets where id='${f.set}'`
+        )
+      ).toBe(`${bootA}:${beforeEpoch + 1}`);
+      const active = await foregroundCatalogFixture(),
+        work = await foregroundWorkingChildren(active);
+      expect(JSON.parse(await sql(work.dispatch(0))).executionAllowed).toBe(true);
+      await expect(sql(active.redeem(randomUUID()))).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+      expect(
+        await sql(
+          `select native_instance_id||':'||epoch from private.catalog_video_sets where id='${active.set}'`
+        )
+      ).toBe(`${active.native}:1`);
+    }, 15000);
+    it('refuses a waiting foreground dispatch after logout but accepts only its original dispatched closure', async () => {
+      const f = await foregroundCatalogFixture(),
+        work = await foregroundWorkingChildren(f);
+      const first = holdSql(
+        `/* foreground_dispatch_logout_hold */ delete from auth.sessions where id='${f.session}'`
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('foreground_dispatch_logout_hold', 'Idle');
+        second = sql('/* foreground_dispatch_wait */ ' + work.dispatch(0)).then(
+          value => ({ value, error: null }),
+          error => ({ value: null, error: error as Error })
+        );
+        await held('foreground_dispatch_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('AUTH_REQUIRED');
+      expect(
+        await sql(
+          `select count(*) from private.team_recovery_execution_fences where operation_id in('${work.operations[0]}','${work.operations[1]}')`
+        )
+      ).toBe('0');
+      expect(
+        await sql(
+          `select dispatch_credential_hash is null from private.catalog_video_variants where video_set_id='${f.set}' and video_variant_index=0`
+        )
+      ).toBe('t');
+      expect(
+        await sql(
+          `select count(*) from private.restitch_screen_range_grants where root_operation_id in('${work.operations[0]}','${work.operations[1]}')`
+        )
+      ).toBe('0');
+      // A distinct valid original dispatch proves late closure independently of
+      // the never-authorized NEW dispatch above, without two working N children.
+      const prior = await foregroundCatalogFixture(),
+        old = await foregroundWorkingChildren(prior);
+      expect(JSON.parse(await sql(old.dispatch(0))).executionAllowed).toBe(true);
+      await sql(`delete from auth.sessions where id='${prior.session}'`);
+      await expect(sql(old.close(0, old.operations[1]))).rejects.toThrow('PERMISSION_DENIED');
+      await expect(sql(old.close(0, old.operations[0], 'f'.repeat(64)))).rejects.toThrow(
+        'PERMISSION_DENIED'
+      );
+      expect(JSON.parse(await sql(old.close(0)))).toMatchObject({
+        kind: 'terminal',
+        state: 'failed'
+      });
+      expect(
+        await sql(
+          `select count(*) from private.team_recovery_execution_fences where operation_id='${old.operations[1]}'`
+        )
+      ).toBe('0');
+    }, 15000);
+
+    it('rejects a late variant admission waiting behind a committed quiescent cancellation settlement', async () => {
+      const f = await foregroundCatalogFixture(),
+        operation = randomUUID(),
+        child = f.children[0]!;
+      await sql(`update private.catalog_generation_intents set checkpoint=checkpoint||'${JSON.stringify({ initialVideoPlan: { setId: f.set } })}'::jsonb where id='${f.intent}';
+        update private.catalog_video_sets set state='cancel_requested'where id='${f.set}'`);
+      const first = holdSql(
+        '/* cancellation_settlement_hold */ select public.service_settle_catalog_video_cancellations(10)'
+      );
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('cancellation_settlement_hold', 'Idle');
+        second =
+          sql(`/* canceled_variant_admission_wait */ insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+          values('${operation}','${team}','${owner}','process','pending','${f.source}','catalog-variant:${child.requestId}','catalog-variant:${child.requestId}')`).then(
+            value => ({ value, error: null }),
+            error => ({ value: null, error: error as Error })
+          );
+        await held('canceled_variant_admission_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error?.message).toContain('WRONG_STATE');
+      expect(await sql(`select state from private.catalog_video_sets where id='${f.set}'`)).toBe(
+        'canceled'
+      );
+      expect(await sql(`select count(*)from public.team_operations where id='${operation}'`)).toBe(
+        '0'
+      );
+      expect(
+        await sql(
+          `select count(*)from private.catalog_video_variants where video_set_id='${f.set}'and(operation_id is not null or output_material_id is not null or state='registered')`
+        )
+      ).toBe('0');
+      expect(
+        await sql(
+          `select count(*)from private.team_recovery_execution_fences where operation_id='${operation}'`
+        )
+      ).toBe('0');
+    }, 15000);
+    it('settles only original pending metadata when variant admission commits before the waiting cancellation', async () => {
+      const f = await foregroundCatalogFixture(),
+        operation = randomUUID(),
+        child = f.children[0]!;
+      await sql(
+        `update private.catalog_generation_intents set checkpoint=checkpoint||'${JSON.stringify({ initialVideoPlan: { setId: f.set } })}'::jsonb where id='${f.intent}'`
+      );
+      const first =
+        holdSql(`/* pending_variant_admission_hold */ insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)
+        values('${operation}','${team}','${owner}','process','pending','${f.source}','catalog-variant:${child.requestId}','catalog-variant:${child.requestId}');
+        insert into private.team_operation_intents(operation_id,team_id,tool_id,expected_source_version,expected_source_drive_file_id,expected_source_checksum,expected_name,expected_size,mime_type)
+        values('${operation}','${team}','restitch','1','${f.source}',repeat('a',32),'copy.mp4',4,'video/mp4') /* pending_variant_admission_hold */`);
+      let second: Promise<{ value: string | null; error: Error | null }> | undefined;
+      try {
+        await held('pending_variant_admission_hold', 'Idle');
+        second =
+          sql(`begin;/* admitted_variant_cancel_wait */ update private.catalog_video_sets set state='cancel_requested'where id='${f.set}';
+          select public.service_settle_catalog_video_cancellations(10);commit;`).then(
+            value => ({ value, error: null }),
+            error => ({ value: null, error: error as Error })
+          );
+        await held('admitted_variant_cancel_wait', 'Lock');
+      } finally {
+        await first.commit();
+      }
+      expect((await second)!.error).toBeNull();
+      expect(
+        await sql(
+          `select state||':'||(result_material_id is null)::text from public.team_operations where id='${operation}'`
+        )
+      ).toBe('canceled:true');
+      expect(await sql(`select state from private.catalog_video_sets where id='${f.set}'`)).toBe(
+        'canceled'
+      );
+      expect(
+        await sql(
+          `select provider_result_id is null from private.team_operation_intents where operation_id='${operation}'`
+        )
+      ).toBe('t');
+      expect(
+        await sql(
+          `select count(*)from private.catalog_video_variants where video_set_id='${f.set}'and(output_material_id is not null or state='registered')`
+        )
+      ).toBe('0');
+      expect(
+        await sql(`select (select count(*)from private.team_recovery_execution_fences where operation_id='${operation}')+
+        (select count(*)from private.process_upload_ownership where operation_id='${operation}')+
+        (select count(*)from private.team_transfer_grants where operation_id='${operation}')+
+        (select count(*)from private.restitch_process_aliases where root_operation_id='${operation}')+
+        (select count(*)from private.restitch_screen_range_grants where root_operation_id='${operation}')`)
+      ).toBe('0');
     }, 15000);
   }
 );

@@ -14,6 +14,16 @@ const UPLOAD_CHUNK_MULTIPLE = 256 * 1024;
 // each upload buffer bounded and retaining progress between acknowledgements.
 const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 
+/** Safe local diagnostic detail; contains no source identity or content. */
+export type TeamSourceIntegrityReason = 'checksum_invalid' | 'checksum_mismatch' | 'size_mismatch';
+export class TeamSourceIntegrityError extends Error {
+  readonly reason: TeamSourceIntegrityReason;
+  constructor(reason: TeamSourceIntegrityReason) {
+    super(reason === 'checksum_invalid' ? 'INVALID_RESPONSE' : 'SOURCE_CHANGED');
+    this.reason = reason;
+  }
+}
+
 export interface TeamSourceDownloadRequest {
   operationId: string;
   transferUrl: string;
@@ -70,6 +80,7 @@ export class TeamTransferClient {
     request: TeamSourceDownloadRequest,
     signal: AbortSignal
   ): Promise<DownloadedTeamSource> {
+    request = { ...request, grant: { ...request.grant } };
     validateOperationId(request.operationId);
     validateTransferGrant(request.grant, ['process_input', 'download_range']);
     const maximumBytes = request.maxTotalBytes ?? MAX_TRANSFER_BYTES;
@@ -95,6 +106,9 @@ export class TeamTransferClient {
     let uses = 0;
     let retries = 0;
     let identityKnown = false;
+    // Drive's binary identity is MD5. Commit only complete ranges to this hash:
+    // an interrupted prefix is truncated and must not be counted twice on retry.
+    let sourceDigest = createHash('md5');
     try {
       while (totalBytes === null || offset < totalBytes) {
         throwIfAborted(signal);
@@ -130,6 +144,8 @@ export class TeamTransferClient {
           }
           const responseVersion = response.headers.get('x-wishly-source-version');
           const responseChecksum = response.headers.get('x-wishly-source-checksum');
+          if (responseChecksum !== null && !/^[a-f0-9]{32}$/iu.test(responseChecksum))
+            throw new TeamSourceIntegrityError('checksum_invalid');
           if (!identityKnown) {
             identityKnown = true;
             sourceVersion = responseVersion;
@@ -172,6 +188,7 @@ export class TeamTransferClient {
           reader = response.body?.getReader();
           if (!reader || length === null || length < 1) throw new Error('INVALID_RESPONSE');
           let responseBytes = 0;
+          const rangeDigest = sourceDigest.copy();
           while (true) {
             throwIfAborted(signal);
             const { done, value } = await reader.read();
@@ -185,14 +202,23 @@ export class TeamTransferClient {
               await reader.cancel();
               throw new Error('TOO_LARGE');
             }
-            await handle.write(
-              value,
-              0,
-              value.byteLength,
-              offset + responseBytes - value.byteLength
-            );
+            let written = 0;
+            while (written < value.byteLength) {
+              throwIfAborted(signal);
+              const result = await handle.write(
+                value,
+                written,
+                value.byteLength - written,
+                offset + responseBytes - value.byteLength + written
+              );
+              if (result.bytesWritten < 1 || result.bytesWritten > value.byteLength - written)
+                throw new Error('INVALID_RESPONSE');
+              written += result.bytesWritten;
+            }
+            rangeDigest.update(value);
           }
           if (responseBytes !== length) throw new Error('INVALID_RESPONSE');
+          sourceDigest = rangeDigest;
           offset += responseBytes;
           request.onProgress?.(offset, totalBytes);
         } catch (error) {
@@ -223,6 +249,11 @@ export class TeamTransferClient {
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {
         throw new Error('INVALID_RESPONSE');
       }
+      throwIfAborted(signal);
+      if (sourceChecksum !== null && sourceDigest.digest('hex') !== sourceChecksum.toLowerCase())
+        throw new TeamSourceIntegrityError('checksum_mismatch');
+      if ((await handle.stat()).size !== totalBytes)
+        throw new TeamSourceIntegrityError('size_mismatch');
       let cleaned = false;
       return {
         workspace,
@@ -237,6 +268,8 @@ export class TeamTransferClient {
         }
       };
     } catch (error) {
+      // Windows cannot remove an open source file. Close before failed-download cleanup.
+      await handle.close().catch(() => undefined);
       await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       throw error;
     } finally {

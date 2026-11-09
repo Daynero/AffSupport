@@ -43,7 +43,11 @@ The previous full fast run passed8259 tests before an unrelated tariff-test orde
 assumption failed in shard7. The two queue rows had the correct states but equal
 creation timestamps. A forced-tie regression reproduced it; exact two-row set
 assertions retain the business checks and all62 tariff tests pass. No product
-tariff behavior changed. A fresh complete fast run is required before committing.
+tariff behavior changed. The subsequent complete fast run passes14/14 gates and all8 shards:9313 passed
+tests and89 declared skips. Its source is committed as702e151a; see
+verification-material-group-epochs-source.json and
+verification-fast-material-group-epochs.json. It excludes the later source-integrity
+and historical-refusal increments.
 
 Local beta applies161000 with16 full-row snapshots unchanged and every prior
 column of the group table unchanged; only the two new fields gain their legacy

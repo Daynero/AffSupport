@@ -1,7 +1,8 @@
+import { launchCatalogVideoEnabled } from './catalogVideoProtocol';
 import { LaunchNotesEditor } from './LaunchNotes';
 import { CircleHelp } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   launchBudgets,
   clampStitchEndDuration,
@@ -36,6 +37,17 @@ import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
+
+// Beta-only catalog video variants: Vite inlines this flag, so production bundles
+// drop the branch and never emit (or download) these fields.
+const LaunchCatalogVideoFields =
+  import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true'
+    ? lazy(() =>
+        import('./LaunchCatalogVideoFields').then(module => ({
+          default: module.LaunchCatalogVideoFields
+        }))
+      )
+    : null;
 export function LaunchEditor({
   teamId,
   config,
@@ -586,7 +598,15 @@ export function LaunchEditor({
                     checked={config.catalog.restitchEnabled}
                     disabled={disabled}
                     onChange={restitchEnabled =>
-                      changed({ catalog: { ...config.catalog!, restitchEnabled } })
+                      changed({
+                        catalog: {
+                          ...config.catalog!,
+                          restitchEnabled,
+                          ...(config.catalog!.catalogVideoProtocolVersion === 1 && !restitchEnabled
+                            ? { videoVariationCount: 1 }
+                            : {})
+                        }
+                      })
                     }
                   />
                   {config.catalog.restitchEnabled && (
@@ -605,6 +625,15 @@ export function LaunchEditor({
                     />
                   )}
                 </div>
+                {LaunchCatalogVideoFields && launchCatalogVideoEnabled() && (
+                  <Suspense fallback={null}>
+                    <LaunchCatalogVideoFields
+                      value={config.catalog}
+                      disabled={disabled}
+                      onChange={catalog => changed({ catalog })}
+                    />
+                  </Suspense>
+                )}
               </div>
             )}
           </section>
