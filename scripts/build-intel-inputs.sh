@@ -51,20 +51,21 @@ exec /usr/bin/xcrun clang -arch x86_64 -mmacosx-version-min=13.0 "$@"
 CC
 chmod +x "$intel_cache/clang-x64"
 if [[ ! -f "$intel_cache/x264-prefix/lib/libx264.a" ]]; then
- echo 'Building portable x264 (one worker)'
- (cd "$intel_cache/x264-src"; CC="$intel_cache/clang-x64" ./configure --host=x86_64-apple-darwin --prefix="$intel_cache/x264-prefix" --enable-static --disable-shared --disable-cli --disable-asm; make -j1; make install) > "$intel_cache/logs/x264.log" 2>&1
+ command -v nasm >/dev/null || { echo 'nasm is required for x264/FFmpeg SIMD (brew install nasm).' >&2; exit 2; }
+ echo 'Building x264 with runtime-dispatched SIMD (one worker)'
+ (cd "$intel_cache/x264-src"; CC="$intel_cache/clang-x64" ./configure --host=x86_64-apple-darwin --prefix="$intel_cache/x264-prefix" --enable-static --disable-shared --disable-cli; make -j1; make install) > "$intel_cache/logs/x264.log" 2>&1
 fi
 if [[ ! -x "$intel_cache/ffmpeg-7.1.1/ffprobe" ]]; then
- echo 'Building portable FFmpeg/FFprobe (one worker)'
- (cd "$intel_cache/ffmpeg-7.1.1"; PKG_CONFIG_PATH="$intel_cache/x264-prefix/lib/pkgconfig" ./configure --arch=x86_64 --cpu=generic --target-os=darwin --enable-cross-compile --cc="$intel_cache/clang-x64" --enable-gpl --enable-libx264 --disable-shared --enable-static --disable-ffplay --disable-sdl2 --disable-x86asm --disable-debug --extra-cflags="-I$intel_cache/x264-prefix/include" --extra-ldflags="-L$intel_cache/x264-prefix/lib"; make -j1 ffmpeg ffprobe) > "$intel_cache/logs/ffmpeg.log" 2>&1
+ echo 'Building FFmpeg/FFprobe with runtime-dispatched SIMD (one worker)'
+ (cd "$intel_cache/ffmpeg-7.1.1"; PKG_CONFIG_PATH="$intel_cache/x264-prefix/lib/pkgconfig" ./configure --arch=x86_64 --cpu=generic --target-os=darwin --enable-cross-compile --cc="$intel_cache/clang-x64" --enable-gpl --enable-libx264 --disable-shared --enable-static --disable-ffplay --disable-sdl2 --x86asmexe=nasm --disable-debug --extra-cflags="-I$intel_cache/x264-prefix/include" --extra-ldflags="-L$intel_cache/x264-prefix/lib"; make -j1 ffmpeg ffprobe) > "$intel_cache/logs/ffmpeg.log" 2>&1
 fi
 if [[ ! -x "$intel_cache/whisper-build/bin/whisper-cli" ]]; then
  if [[ ! -x "$intel_cache/tools/bin/cmake" ]]; then
   python3 -m venv "$intel_cache/tools"
   "$intel_cache/tools/bin/python" -m pip install --disable-pip-version-check 'cmake==3.31.6' > "$intel_cache/logs/cmake-install.log" 2>&1
  fi
- echo 'Building portable CPU Whisper (one worker, no native CPU tuning / OpenMP / Metal)'
- "$intel_cache/tools/bin/cmake" -S "$intel_cache/whisper-src" -B "$intel_cache/whisper-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DBUILD_SHARED_LIBS=OFF -DGGML_BACKEND_DL=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF -DGGML_BLAS=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_AVX512=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF -DGGML_BMI2=OFF -DWHISPER_BUILD_TESTS=OFF > "$intel_cache/logs/whisper.log" 2>&1
+ echo 'Building CPU Whisper for x86-64-v3 (AVX2/FMA/F16C; every macOS 13 Intel Mac) (one worker, no OpenMP / Metal)'
+ "$intel_cache/tools/bin/cmake" -S "$intel_cache/whisper-src" -B "$intel_cache/whisper-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DBUILD_SHARED_LIBS=OFF -DGGML_BACKEND_DL=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF -DGGML_BLAS=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_AVX512=OFF -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON -DWHISPER_BUILD_TESTS=OFF > "$intel_cache/logs/whisper.log" 2>&1
  "$intel_cache/tools/bin/cmake" --build "$intel_cache/whisper-build" --target whisper-cli --parallel 1 >> "$intel_cache/logs/whisper.log" 2>&1
 fi
 python3 - "$intel_cache" "$intel_repo" <<'PY'
@@ -79,7 +80,7 @@ items={
  'ffmpegSource':(c/'downloads/ffmpeg.tar.xz',pins['ffmpeg']['url'],'7.1.1','GPL-2.0-or-later'),
  'x264Source':(c/'downloads/x264-source.tar.gz',pins['x264']['repository'],pins['x264']['revision'],'GPL-2.0-or-later')}
 files={k:{'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'source':url,'version':version,'license':license} for k,(p,url,version,license) in items.items()}
-(c/'inputs.json').write_text(json.dumps({'schemaVersion':1,'architecture':'x64','cpuBaseline':'x86-64-v2','files':files},indent=2)+'\n')
+(c/'inputs.json').write_text(json.dumps({'schemaVersion':1,'architecture':'x64','cpuBaseline':'x86-64-v3','files':files},indent=2)+'\n')
 PY
 node scripts/stage-macos-inputs.mjs --arch=x64 --inputs="$intel_cache/inputs.json"
 # Preserve complete license texts and this exact build recipe with source offers.
