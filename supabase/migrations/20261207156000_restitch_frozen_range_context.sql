@@ -29,11 +29,13 @@ update private.restitch_selection_candidates c set connection_id=m.connection_id
 from public.team_materials m join public.team_drive_connections d on d.id=m.connection_id
 where m.id=c.material_id;
 alter table private.restitch_selection_candidates enable trigger restitch_selection_candidate_binding;
-alter table private.restitch_selection_candidates
- alter column connection_id set not null,
- alter column drive_file_id set not null,
- alter column parent_folder_id set not null,
- alter column root_folder_id set not null;
+-- The table is new in this release (155000) and the BEFORE INSERT trigger
+-- re-declared below assigns every one of these columns, so no insert can
+-- reach the constraint empty.
+alter table private.restitch_selection_candidates alter column connection_id set not null;
+alter table private.restitch_selection_candidates alter column drive_file_id set not null;
+alter table private.restitch_selection_candidates alter column parent_folder_id set not null;
+alter table private.restitch_selection_candidates alter column root_folder_id set not null;
 
 create or replace function private.restitch_selection_freeze_candidate() returns trigger
 language plpgsql security definer set search_path='' as $fn$
@@ -62,6 +64,8 @@ begin
  new.resource_key:=m.resource_key;new.parent_folder_id:=m.parent_folder_id;new.root_folder_id:=d.root_folder_id;
  return new;
 end $fn$;
+create or replace trigger restitch_selection_candidate_binding before insert or update on private.restitch_selection_candidates
+ for each row execute function private.restitch_selection_freeze_candidate();
 
 create or replace function public.service_cas_restitch_selection_slot(
  p_root_operation uuid,p_team uuid,p_actor uuid,p_slot text,p_expected_budget jsonb,p_next_budget jsonb)
