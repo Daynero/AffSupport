@@ -24,6 +24,8 @@ export const en = {
   catalogPublicationTableScheduled: 'Video-link publication is scheduled for {date}.',
   catalogPublicationOverdue:
     'The video-link publication time ({date}) has passed, but the write to the table is not confirmed yet. Soty keeps checking automatically.',
+  catalogPublicationWaitingForVideos:
+    'The video-link time ({date}) has come. Waiting for all videos to be ready — the links go into the table right after that.',
   catalogPublicationTableHeld: 'Pending video-link publication is on hold.',
   catalogPublicationAddNow: 'Request publication now',
   catalogPublicationVerify: 'Verify existing links',

@@ -75,13 +75,15 @@ export function CatalogCreatedPublicationStatus({
         {t(
           snapshot.job?.state === 'published'
             ? 'catalogPublicationPreviouslyVerified'
-            : overdue
-              ? 'catalogPublicationOverdue'
-              : snapshot.mode === 'scheduled'
-                ? 'catalogPublicationTableScheduled'
-                : snapshot.mode === 'held'
-                  ? 'catalogPublicationTableHeld'
-                  : 'catalogPublicationPending',
+            : overdue && snapshot.targetObservation?.state === 'preparing'
+              ? 'catalogPublicationWaitingForVideos'
+              : overdue
+                ? 'catalogPublicationOverdue'
+                : snapshot.mode === 'scheduled'
+                  ? 'catalogPublicationTableScheduled'
+                  : snapshot.mode === 'held'
+                    ? 'catalogPublicationTableHeld'
+                    : 'catalogPublicationPending',
           { date }
         )}
       </p>

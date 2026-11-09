@@ -73,3 +73,16 @@ it('does not call a past, unverified due time "scheduled"', async () => {
   ).toBeTruthy();
   expect(screen.queryByText(/Video-link publication is scheduled for/)).toBeNull();
 });
+it('says it waits for the videos when the time has come but the set is still being made', async () => {
+  const read = vi.fn().mockResolvedValue({
+    ...snapshot,
+    writerMode: 'video_columns',
+    dueAt: '2026-11-09T07:00:00Z',
+    serverNow: Date.parse('2026-11-09T07:03:00Z'),
+    targetObservation: { basis: 'indexed', state: 'preparing' },
+    job: { ...snapshot.job!, state: 'retry_wait' }
+  });
+  render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
+  expect(await screen.findByText(/Waiting for all videos to be ready/)).toBeTruthy();
+  expect(screen.queryByText(/not confirmed yet/)).toBeNull();
+});

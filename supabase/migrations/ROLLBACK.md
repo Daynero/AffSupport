@@ -2602,7 +2602,6 @@ Do not drop or rewrite records to recover an unknown native claim. Retain the
 existing conservative root/material deletion fence. Roll forward through the
 canonical beta/release workflow after full native and diagnostic acceptance.
 
-
 ### 20261207165000 — controlled screen ranges (local beta449)
 
 Adds private immutable leaf/control binding and seven service-only wrappers.
@@ -2695,7 +2694,7 @@ stop sending `absent` (the settle call would raise `PROCESS_RESULT_UNCERTAIN`).
 ### 20261207186000 — launch_code restitch analytics
 
 Redefines `public.analytics_properties_are_safe_v2` as the 20261207141000 body plus
-38 `launch_code` values (STITCH_*, RESTITCH_SCREEN_*, BODY_*, PROCESS_RESULT_UNCERTAIN).
+38 `launch_code` values (STITCH__, RESTITCH_SCREEN__, BODY_*, PROCESS_RESULT_UNCERTAIN).
 Rolling back means re-running the 20261207141000 definition; those events are then refused again.
 Any later full redefinition of the guard (e.g. 049's native identity keys) must start from this body.
 
@@ -2717,3 +2716,11 @@ rewritten. No automatic rollback or production data repair is authorized.
 (not `RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN`) when a screen pool is incomplete only
 because a chosen source is unavailable (deleted, not an image, disconnected Drive).
 Nothing is written in that case. Rolling back restores the misleading uncertain code.
+
+### 20261207189000 — publication window after videos are ready
+
+`service_catalog_publication_cells_context` clears an undispatched
+`validation_epoch_started_at` whenever it answers "waiting" for the video set, so the
+one-hour due-validation window starts when the videos are ready, not at the due time.
+Rolling back restores the old behaviour: sets slower than one hour after the due time
+block their publication (`validation_epoch_expired`).

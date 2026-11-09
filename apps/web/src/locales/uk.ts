@@ -26,6 +26,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogPublicationTableScheduled: 'Наступну публікацію відеопосилання заплановано на {date}.',
   catalogPublicationOverdue:
     'Час публікації відеопосилань ({date}) минув, але запис у таблицю ще не підтверджено. Soty перевіряє його автоматично.',
+  catalogPublicationWaitingForVideos:
+    'Час додавання посилань ({date}) настав. Чекаємо, поки будуть готові всі відео, — посилання додамо в таблицю одразу після цього.',
   catalogPublicationTableHeld: 'Очікувану публікацію відеопосилання призупинено.',
   catalogPublicationAddNow: 'Запросити публікацію зараз',
   catalogPublicationVerify: 'Перевірити чинні посилання',
