@@ -33,7 +33,7 @@ import {
   handleCatalogPublicationSave,
   withCatalogPublicationWriter
 } from './catalog-publication.ts';
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { nativeRestitchBetaIsolated, nativeRestitchEnabled } from '../_shared/restitch-native.ts';
 import { handleRestitchNativeControl } from './restitch-native-control.ts';
 import { authorizeRestitchNativeEnrollment } from './restitch-native-auth.ts';
 import { handleRestitchNativeSelection } from './restitch-native-selection.ts';
@@ -3213,7 +3213,7 @@ Deno.serve(async request => {
     const foregroundRoute = /^\/catalog-video\/foreground\/([a-z_]+)$/u.exec(path);
     if (foregroundRoute) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3272,7 +3272,7 @@ Deno.serve(async request => {
       path === '/restitch/manual/read'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3396,7 +3396,7 @@ Deno.serve(async request => {
         }
       );
       const initialCatalogs = await runInitialCatalogRecovery(configured.service, {
-        enabled: nativeRestitchBetaEnabled({
+        enabled: nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3458,7 +3458,7 @@ Deno.serve(async request => {
         request.headers.has('origin') ||
         !credential ||
         !/^[A-Za-z0-9_-]{43}$/u.test(credential) ||
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3552,7 +3552,7 @@ Deno.serve(async request => {
       path === '/catalog-publication/verify/read'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3562,7 +3562,7 @@ Deno.serve(async request => {
         throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
       const targetedWriterEnabled =
         Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
-        nativeRestitchBetaEnabled({
+        nativeRestitchBetaIsolated({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3594,7 +3594,7 @@ Deno.serve(async request => {
     }
     if (path === '/launches/catalog-video/read' || path === '/launches/catalog-video/cancel') {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3614,7 +3614,7 @@ Deno.serve(async request => {
       path === '/updater/variants/resume'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3705,7 +3705,7 @@ Deno.serve(async request => {
     }
     if (path === '/product-catalog/video/read' || path === '/product-catalog/video/cancel') {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3858,7 +3858,7 @@ Deno.serve(async request => {
         assertExpectedMutationActor(body.expectedActorId, userId);
       if (
         catalogRequest.catalogVideoProtocolVersion === 1 &&
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),

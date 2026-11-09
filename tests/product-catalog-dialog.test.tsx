@@ -943,7 +943,6 @@ describe('a catalog re-stitched with pictures from the space (030)', () => {
 describe('beta durable video creation', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
-    vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
   });
   afterEach(() => vi.unstubAllEnvs());
   const pending = {
@@ -1044,7 +1043,6 @@ describe('beta durable video creation', () => {
 
 it('shows current N progress after the scheduled blank catalog was already created', async () => {
   vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
   try {
     const setId = '47000000-0000-4000-8000-000000000002';
     const generation = {

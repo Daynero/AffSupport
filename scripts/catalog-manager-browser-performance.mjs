@@ -83,7 +83,6 @@ const sourceHashes = Object.fromEntries(
 const flags = {
   VITE_APP_ENVIRONMENT: 'beta',
   VITE_LOCAL_DEV_AUTH: 'false',
-  VITE_CATALOG_VIDEO_VARIANTS: 'true',
   VITE_ANALYTICS_ENABLED: 'false',
   VITE_AGENT_URL: 'http://127.0.0.1:1',
   VITE_SUPABASE_URL: 'http://127.0.0.1:1',

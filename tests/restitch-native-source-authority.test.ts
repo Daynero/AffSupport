@@ -1,4 +1,7 @@
-import { nativeRestitchBetaEnabled } from '../supabase/functions/_shared/restitch-native-beta';
+import {
+  nativeRestitchBetaIsolated,
+  nativeRestitchEnabled
+} from '../supabase/functions/_shared/restitch-native';
 import { expect, it, vi } from 'vitest';
 import type { ServiceRpcClient } from '../supabase/functions/_shared/credentials';
 import { authorizeNativeRestitchSource } from '../supabase/functions/drive-transfer/restitch-source-authority';
@@ -120,24 +123,38 @@ it('does not dispatch after cancellation during current-authority verification',
   expect(f.fetcher).not.toHaveBeenCalled();
 });
 
-it('keeps native HTTP activation confined to the explicit real beta configuration', () => {
+it('answers in production unconditionally and keeps a beta confined to the isolated stack', () => {
   const beta = {
     enabled: 'true',
     environment: 'beta',
     oauthMode: 'testing',
     siteUrl: 'http://127.0.0.1:5175'
   };
-  expect(nativeRestitchBetaEnabled(beta)).toBe(true);
+  // Production: shipped in 1.4.1. The switches that once fenced the beta are irrelevant there.
+  for (const environment of [undefined, 'production'])
+    expect(
+      nativeRestitchEnabled({
+        enabled: undefined,
+        environment,
+        oauthMode: 'verified',
+        siteUrl: 'x'
+      })
+    ).toBe(true);
+  expect(nativeRestitchEnabled(beta)).toBe(true);
+  expect(nativeRestitchBetaIsolated(beta)).toBe(true);
+  // A beta stays behind every isolation check; an unknown environment answers nothing.
   for (const override of [
     { enabled: undefined },
     { enabled: 'false' },
-    { environment: 'production' },
-    { environment: 'development' },
     { oauthMode: 'verified' },
     { siteUrl: 'https://soty.example.invalid' },
     { siteUrl: 'http://127.0.0.1:5173' }
-  ])
-    expect(nativeRestitchBetaEnabled({ ...beta, ...override })).toBe(false);
+  ]) {
+    expect(nativeRestitchEnabled({ ...beta, ...override })).toBe(false);
+    expect(nativeRestitchBetaIsolated({ ...beta, ...override })).toBe(false);
+  }
+  expect(nativeRestitchEnabled({ ...beta, environment: 'development' })).toBe(false);
+  expect(nativeRestitchBetaIsolated({ ...beta, environment: 'production' })).toBe(false);
 });
 it('does not dispatch an unvalidated or substituted source media request', async () => {
   const f = setup(),

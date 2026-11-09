@@ -677,3 +677,27 @@ it.each(['canceled', 'registered'] as const)(
     );
   }
 );
+
+it('reaches the hosted backend only as a production agent, and a local stack from either', () => {
+  const build = (environment: 'beta' | 'production', endpoint: string) =>
+    new NativeRestitchController({
+      endpoint,
+      environment,
+      currentActorId: () => actor,
+      vault: setup().store,
+      journal: setup().journal,
+      cache: {} as never,
+      fetch: vi.fn(),
+      run: vi.fn()
+    });
+  const hosted = 'https://yvvvignywfmbdgkcxtfk.supabase.co/functions/v1/drive-ops';
+  expect(() => build('production', hosted)).not.toThrow();
+  expect(() => build('production', endpoint)).not.toThrow();
+  expect(() => build('beta', endpoint)).not.toThrow();
+  // A beta agent never leaves this machine; nobody reaches the hosted backend in plain HTTP.
+  expect(() => build('beta', hosted)).toThrow('INVALID_INPUT');
+  expect(() => build('production', hosted.replace('https:', 'http:'))).toThrow('INVALID_INPUT');
+  expect(() => build('production', 'https://127.0.0.1:54321/functions/v1/drive-ops')).toThrow(
+    'INVALID_INPUT'
+  );
+});

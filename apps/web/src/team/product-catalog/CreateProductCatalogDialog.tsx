@@ -15,7 +15,6 @@ import {
   type CatalogCreationVideoDraft
 } from './CatalogCreationVideoFields';
 import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
-import { builtForEnvironment } from '../../lib/config';
 import { privateCacheActor, privateCacheEpoch } from '../private-cache-scope';
 import type {
   CatalogCreatedVideoProgress,
@@ -177,10 +176,7 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
-  const videoProtocol =
-    builtForEnvironment() === 'beta' &&
-    import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' &&
-    Boolean(client.createProductCatalogVideo);
+  const videoProtocol = Boolean(client.createProductCatalogVideo);
   const [videoDraft, setVideoDraft] = useState<CatalogCreationVideoDraft>({
     variationCount: '1',
     delayed: false,

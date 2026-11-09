@@ -802,7 +802,6 @@ it('exposes safe undo after a confirmed write', async () => {
 });
 it('renders numeric variation changes in recent changes and undoes the original count', async () => {
   vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
   try {
     const item = row('1', 'polo.mp4');
     let stored: CatalogUpdateProfile = { ...profileFor(item.catalogId), videoVariantCount: 1 };

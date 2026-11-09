@@ -1,4 +1,3 @@
-import { builtForEnvironment } from '../../lib/config';
 import { privateCacheEpoch, privateCacheSuperseded } from '../private-cache-scope';
 import { TeamApiError } from '../../api/team';
 import { saveCatalogProfile } from './saveCatalogProfile';
@@ -203,10 +202,7 @@ export function CatalogBulkEditor({
     .map(item => baselineItems.current.get(item.catalogId) ?? item)
     .filter(item => !confirmedIds.current.has(item.catalogId) && changesItem(item));
   const affected = changedItems.length;
-  const showVideoCount =
-    mode !== 'schedule' &&
-    builtForEnvironment() === 'beta' &&
-    import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true';
+  const showVideoCount = mode !== 'schedule';
   const countsKnown =
     items.length > 0 &&
     items.every(

@@ -1,7 +1,6 @@
 // client/entitlement touch localStorage and location at module load; load them on first use
 // so importing the team API (and every node-environment test of it) stays side-effect free.
 type EnsureEntitlement = typeof import('./entitlement').ensureAgentEntitlement;
-import { builtForEnvironment } from '../lib/config';
 import {
   privateCacheActor,
   privateCacheEpoch,
@@ -23,8 +22,7 @@ const coordinator = createCatalogForegroundCoordinator({
     (await import('./client')).requestBody(path, body, 'POST', signal),
   actor: privateCacheActor,
   epoch: privateCacheEpoch,
-  enabled: () =>
-    builtForEnvironment() === 'beta' && import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true'
+  enabled: () => true
 });
 
 const admissionPreparations = new Map<string, Promise<CatalogForegroundExecutor | undefined>>();

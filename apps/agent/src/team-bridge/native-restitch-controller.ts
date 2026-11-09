@@ -217,10 +217,14 @@ export class NativeRestitchController {
   >();
   constructor(private readonly options: NativeRestitchControllerOptions) {
     const url = new URL(options.endpoint);
+    // A beta agent stays on the local stack. A production agent reaches the hosted
+    // backend over HTTPS, and may use a local stack in development.
+    const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+    const reachable = loopback
+      ? url.protocol === 'http:'
+      : options.environment === 'production' && url.protocol === 'https:';
     if (
-      options.environment !== 'beta' ||
-      url.protocol !== 'http:' ||
-      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+      !reachable ||
       url.username ||
       url.password ||
       url.search ||

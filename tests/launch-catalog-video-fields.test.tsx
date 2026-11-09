@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchCatalogVideoFields } from '../apps/web/src/team/launches/LaunchCatalogVideoFields';
-import { launchCatalogVideoEnabled } from '../apps/web/src/team/launches/catalogVideoProtocol';
 import type { LaunchCatalogConfig } from '../packages/shared/src/team/launches';
 afterEach(() => {
   cleanup();
@@ -55,13 +54,4 @@ it('limits N to products and retains incomplete calendar choices in the draft', 
   expect(screen.queryByRole('button', { name: /Time zone/ })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: /publication date/i }));
   expect(screen.getByRole('button', { name: /Time zone/ })).toBeTruthy();
-});
-it('exposes the new Launch path only for explicit beta opt-in', () => {
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
-  vi.stubEnv('VITE_APP_ENVIRONMENT', 'production');
-  expect(launchCatalogVideoEnabled()).toBe(false);
-  vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
-  expect(launchCatalogVideoEnabled()).toBe(true);
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'false');
-  expect(launchCatalogVideoEnabled()).toBe(false);
 });

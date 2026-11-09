@@ -1,7 +1,24 @@
 import { isRecord, parseTeamEdgeResult } from '@video-compressor/shared';
 export const CATALOG_FOREGROUND_RESPONSE_BYTES = 512 * 1024;
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+/** The backend origin the agent was configured with: HTTPS, or plain HTTP on this machine only. */
+function backendOriginOf(origin: string): string {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new Error('INVALID_INPUT');
+  }
+  if (
+    url.origin !== origin ||
+    !(url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK.has(url.hostname)))
+  )
+    throw new Error('INVALID_INPUT');
+  return url.origin;
+}
 /** Native proof transport uses the existing Edge envelope, never browser auth. */
 export async function callCatalogVideoForegroundHttp(
+  origin: string,
   action: string,
   body: Record<string, unknown>,
   ticket?: string,
@@ -11,7 +28,7 @@ export async function callCatalogVideoForegroundHttp(
   if (!/^[a-z_]+$/u.test(action) || (ticket !== undefined && !/^[A-Za-z0-9_-]{43}$/u.test(ticket)))
     throw new Error('INVALID_INPUT');
   const response = await fetchImpl(
-    'http://127.0.0.1:54321/functions/v1/drive-ops/catalog-video/foreground/' + action,
+    backendOriginOf(origin) + '/functions/v1/drive-ops/catalog-video/foreground/' + action,
     {
       method: 'POST',
       headers: {

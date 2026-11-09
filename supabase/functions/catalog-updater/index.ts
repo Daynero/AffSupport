@@ -1,6 +1,6 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
 import { createTargetedCatalogPublicationIo } from './publication-io.ts';
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { nativeRestitchBetaIsolated } from '../_shared/restitch-native.ts';
 import {
   settleCatalogUpdaterVariantTargets,
   prepareScheduledCatalogVideoSets
@@ -87,7 +87,7 @@ Deno.serve(async request => {
 
     const targetedNativeSheets =
       Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
-      nativeRestitchBetaEnabled({
+      nativeRestitchBetaIsolated({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
         environment: Deno.env.get('SOTY_ENVIRONMENT'),
         oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),

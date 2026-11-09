@@ -2,7 +2,7 @@ import {
   prepareCatalogVideoRestitchAlias,
   enrollCatalogVideoRestitchControl
 } from '../drive-ops/catalog-video-restitch-alias.ts';
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { nativeRestitchEnabled } from '../_shared/restitch-native.ts';
 import { catalogVideoNativeStore } from '../drive-ops/catalog-video-native-store.ts';
 import { catalogVideoProcessGrants } from '../drive-ops/catalog-video-process-grants.ts';
 import { TEAM_RECOVERY_PROTOCOL_VERSION } from '../../../packages/shared/dist/team/recovery.js';
@@ -91,7 +91,7 @@ Deno.serve(async request => {
           throw new TeamFunctionError('DRIVE_UNAVAILABLE');
         return value.value;
       },
-      variants: nativeRestitchBetaEnabled({
+      variants: nativeRestitchEnabled({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
         environment: Deno.env.get('SOTY_ENVIRONMENT'),
         oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),

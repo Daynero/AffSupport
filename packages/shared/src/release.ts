@@ -12,6 +12,15 @@ export const BUILD_NUMBER = '80';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
+ * The hosted backend a production agent calls on its own, with no browser tab
+ * to hand it the address: native restitch and catalog video recovery. It is the
+ * project the production web build is paired with (VITE_SUPABASE_URL in
+ * apps/web/.env.production); a test holds the two equal. A beta agent never
+ * sees it -- it is pinned to the local stack.
+ */
+export const PRODUCTION_BACKEND_ORIGIN = 'https://yvvvignywfmbdgkcxtfk.supabase.co';
+
+/**
  * The Soty rebrand renamed the installed bundle from
  * "Wishly Agent.app" to "Soty.app", so replacing the
  * old app in place is impossible and mixed-brand pairs must not connect.

@@ -572,10 +572,24 @@ it('decodes actual Edge envelopes and preserves handover conflict codes', async 
       )
     );
   await expect(
-    callCatalogVideoForegroundHttp('await', {}, undefined, undefined, fetchImpl)
+    callCatalogVideoForegroundHttp(
+      'http://127.0.0.1:54321',
+      'await',
+      {},
+      undefined,
+      undefined,
+      fetchImpl
+    )
   ).resolves.toEqual({ state: 'pending', enrollmentId: id(6) });
   await expect(
-    callCatalogVideoForegroundHttp('await', {}, undefined, undefined, fetchImpl)
+    callCatalogVideoForegroundHttp(
+      'http://127.0.0.1:54321',
+      'await',
+      {},
+      undefined,
+      undefined,
+      fetchImpl
+    )
   ).rejects.toThrow('REQUEST_REUSE_CONFLICT');
 });
 it('accepts a complete 400-output Edge snapshot while rejecting oversized responses', async () => {
@@ -609,10 +623,24 @@ it('accepts a complete 400-output Edge snapshot while rejecting oversized respon
       )
     );
   await expect(
-    callCatalogVideoForegroundHttp('load', {}, 't'.repeat(43), undefined, fetchImpl)
+    callCatalogVideoForegroundHttp(
+      'http://127.0.0.1:54321',
+      'load',
+      {},
+      't'.repeat(43),
+      undefined,
+      fetchImpl
+    )
   ).resolves.toEqual(snapshot);
   await expect(
-    callCatalogVideoForegroundHttp('load', {}, 't'.repeat(43), undefined, fetchImpl)
+    callCatalogVideoForegroundHttp(
+      'http://127.0.0.1:54321',
+      'load',
+      {},
+      't'.repeat(43),
+      undefined,
+      fetchImpl
+    )
   ).rejects.toThrow('INVALID_RESPONSE');
 });
 

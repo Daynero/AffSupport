@@ -65,8 +65,6 @@ bundle_id=$(node scripts/environment-meta.mjs beta bundle-id)
 
 [[ "$port" == <1024-65535> ]] || { print -u2 "BETA_AGENT_PORT must be between 1024 and 65535."; exit 1; }
 [[ -f .env.beta ]] || { print -u2 "No .env.beta found. Run: cp .env.beta.example .env.beta"; exit 1; }
-# Read only the strict, paired opt-in through the shared dotenv parser.
-beta_catalog_video_variants=$(node scripts/beta-catalog-video-flag.mjs .env.beta)
 
 beta_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' .env.beta | head -1 | cut -d= -f2-)
 production_key=$(grep -E '^AGENT_ENTITLEMENT_PUBLIC_KEY=' config/production.env | head -1 | cut -d= -f2-)
@@ -134,7 +132,6 @@ VITE_SUPABASE_PUBLISHABLE_KEY="$beta_supabase_publishable_key" \
 VITE_SITE_URL="http://127.0.0.1:$port" \
 VITE_ANALYTICS_ENABLED=false \
 VITE_LOCAL_DEV_AUTH=false \
-VITE_CATALOG_VIDEO_VARIANTS="$beta_catalog_video_variants" \
 VITE_TEAM_DIRECT_ADD_MODE="$beta_direct_add_mode" \
 VITE_GOOGLE_PICKER_API_KEY="$beta_picker_key" \
 VITE_GOOGLE_PROJECT_NUMBER="$beta_google_project" \
@@ -180,9 +177,6 @@ mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp -R "$source_app/Contents/Resources/licenses/." "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
-# This beta-only boolean is covered by the bundle signature and package seal.
-/usr/libexec/PlistBuddy -c "Add :SotyBetaCatalogVideoVariants bool $beta_catalog_video_variants" "$app/Contents/Info.plist"
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :SotyBetaCatalogVideoVariants' "$app/Contents/Info.plist")" == "$beta_catalog_video_variants" ]] || { print -u2 "Beta catalog video flag seal mismatch."; exit 1; }
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyBetaAgent" "$app/Contents/Info.plist"
