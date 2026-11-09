@@ -141,7 +141,11 @@ describe('the release gate record', () => {
 });
 
 describe('policy against the summary (048 FR-005)', () => {
-  const ok = (value: typeof adhoc | typeof developerId) => ({ ok: true as const, value });
+  const ok = (value: unknown) => {
+    const parsed = parseSigningSummary(value);
+    if (!parsed.ok) throw new Error(`fixture does not parse: ${JSON.stringify(parsed)}`);
+    return parsed;
+  };
   const missing = { ok: false as const, error: 'SIGNING_SUMMARY_MISSING' };
 
   it('under developer-id requires a notarized Developer ID summary from the expected team', () => {

@@ -430,7 +430,7 @@ itRequiring(
         version,
         sourceSha,
         cwd: root,
-        env: { PATH: process.env.PATH, MACOS_EXPECTED_TEAM_ID: 'ABCDEFGHIJ' },
+        env: { PATH: process.env.PATH ?? '', MACOS_EXPECTED_TEAM_ID: 'ABCDEFGHIJ' },
         binding,
         allowRemote: true
       });
