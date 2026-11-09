@@ -443,6 +443,7 @@ export function useLaunchGeneration(
         [
           'INVALID_INPUT',
           'RESTITCH_INVALID',
+          'RESTITCH_SOURCES_INVALID',
           'SOURCE_CHANGED',
           'LAUNCH_VERSION_CONFLICT',
           'NO_WORK',

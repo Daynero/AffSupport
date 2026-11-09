@@ -355,6 +355,7 @@ export const en = {
   launchesProgressChecking: 'Checking current status…',
   launchesProgressStopped: 'Generation stopped',
   launchesProgressErrorUnconfirmed: 'Error — check the status',
+  launchesProgressNotStarted: 'The launch did not start',
   launchesCatalogExecutorRequired:
     'To restitch catalog videos, open the latest Soty app and connect it to this browser. The new generation has not started.',
   launchesProgressActionRequired: 'Action required',
@@ -391,6 +392,8 @@ export const en = {
   launchesCleanupPending:
     'Cancellation is waiting for safe cleanup. The previous result stays available until it is confirmed.',
   launchesSourceChanged: 'Sources have changed. Refresh them and review the preview.',
+  launchesSourcesRefreshed:
+    'Settings or files changed after the launch was prepared. Sources are refreshed — press Generate again.',
   launchesBusyError: 'Generation is in progress. Wait or cancel it.',
   launchesUncertain:
     'The operation outcome is not confirmed. Retry the same request to reconcile it.',
@@ -3058,7 +3061,7 @@ export const en = {
   teamRestitchSourceForbidden:
     'You can process in this space but not download its files, and the re-stitch pictures live there. Ask the owner for download access.',
   teamRestitchSourcesInvalid:
-    'One of the chosen sources is not an image or a folder of this space.',
+    'A screen picture is unavailable: the file was deleted, is not an image, or its Google Drive is disconnected. Choose the pictures again in the re-stitching settings.',
   teamRestitchSourcesTooMany: 'A pool can hold at most 500 sources.',
   teamRestitchClientOutdated:
     'This page is too old for the space’s re-stitch settings. Reload it to continue.',

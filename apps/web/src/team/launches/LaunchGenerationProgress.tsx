@@ -37,6 +37,7 @@ export function LaunchGenerationProgress({
   onUseOriginalVideo,
   launchId,
   requestErrorCode,
+  requestErrorDefinitive = false,
   retryActions
 }: {
   onOpenRestitchSettings?: () => void;
@@ -53,6 +54,8 @@ export function LaunchGenerationProgress({
   restitchEnabled?: boolean;
   pendingStage?: LaunchStage | null;
   requestError?: string | null;
+  /** The server refused the request outright; no generation is running. */
+  requestErrorDefinitive?: boolean;
   onRefresh?: (signal: AbortSignal) => Promise<void>;
 }) {
   const { t } = useI18n();
@@ -298,9 +301,12 @@ export function LaunchGenerationProgress({
     needsAttention &&
     current?.state !== 'succeeded' &&
     current?.state !== 'canceled';
+  // Refused before anything ran: say so plainly, no "may still be running", no clock.
+  const notStarted = showError && !failed && requestErrorDefinitive && !current;
   const unconfirmed =
     showError &&
     !failed &&
+    !notStarted &&
     code !== 'AGENT_REQUIRED' &&
     Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
   const showNotice =
@@ -315,7 +321,8 @@ export function LaunchGenerationProgress({
       className={`launch-generation-progress${showError ? ' is-error' : uncertain ? ' is-unconfirmed' : ''}`}
       title={t('launchesProgressTitle')}
       aside={
-        elapsedLabel && (
+        elapsedLabel &&
+        !notStarted && (
           <span
             className="inline-flex items-center gap-2 rounded-control bg-surface px-3 py-2 text-caption text-muted tabular-nums"
             aria-label={t('launchesProgressElapsed', { time: elapsedLabel })}
@@ -334,9 +341,11 @@ export function LaunchGenerationProgress({
           title={t(
             failed
               ? 'launchesProgressStopped'
-              : unconfirmed
-                ? 'launchesProgressErrorUnconfirmed'
-                : 'launchesProgressActionRequired'
+              : notStarted
+                ? 'launchesProgressNotStarted'
+                : unconfirmed
+                  ? 'launchesProgressErrorUnconfirmed'
+                  : 'launchesProgressActionRequired'
           )}
         >
           {(!canonicalTerminalCause && !reconciling && requestError) ||

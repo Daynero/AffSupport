@@ -114,7 +114,10 @@ export function LaunchSession({
   const { overrides, setOverrides } = manual;
   const [error, setError] = useState<string | null>(null);
   const [requestErrorCode, setRequestErrorCode] = useState<string | null>(null);
+  // A non-retryable refusal: the server decided, nothing is running.
+  const [requestErrorDefinitive, setRequestErrorDefinitive] = useState(false);
   const reportError = (failure: unknown) => {
+    setRequestErrorDefinitive(failure instanceof TeamApiError && !failure.retryable);
     setRequestErrorCode(
       failure instanceof TeamApiError
         ? failure.code
@@ -128,7 +131,9 @@ export function LaunchSession({
         draft.config.method === 'catalog' &&
         draft.config.catalog?.catalogVideoProtocolVersion === 1
         ? t('launchesCatalogExecutorRequired')
-        : teamErrorMessageFor(failure, t)
+        : failure instanceof TeamApiError && failure.code === 'SOURCE_CHANGED'
+          ? t('launchesSourceChanged')
+          : teamErrorMessageFor(failure, t)
     );
   };
   const [catalogSetupMissing, setCatalogSetupMissing] = useState(false);
@@ -271,6 +276,7 @@ export function LaunchSession({
     if (detail && observeProgress.current?.(detail)) {
       setError(null);
       setRequestErrorCode(null);
+      setRequestErrorDefinitive(false);
     }
   }, [detail]);
   const inputLocked =
@@ -487,6 +493,14 @@ export function LaunchSession({
     },
     [teamId, draft.config, draft.resolveSources, t]
   );
+  const sourceRefreshAfterRefusal = useRef(false);
+  useEffect(() => {
+    if (!sourceRefreshAfterRefusal.current || inputLocked || !editable) return;
+    sourceRefreshAfterRefusal.current = false;
+    void refreshSources(true).then(() => {
+      if (inputAuthority.current.mounted) setError(t('launchesSourcesRefreshed'));
+    });
+  }, [inputLocked, editable, refreshSources, t]);
   const sourceIds = [
     draft.config.agentRowId,
     draft.config.offerId,
@@ -520,6 +534,7 @@ export function LaunchSession({
     inputAuthority.current.locked = true;
     setError(null);
     setRequestErrorCode(null);
+    setRequestErrorDefinitive(false);
     try {
       await action();
     } catch (e) {
@@ -592,6 +607,7 @@ export function LaunchSession({
       return;
     if (generation.observe?.(next)) setError(null);
     setRequestErrorCode(null);
+    setRequestErrorDefinitive(false);
     onChange(next);
   };
   overridesRetry.current = async () => {
@@ -732,6 +748,7 @@ export function LaunchSession({
     progressScroll.reveal();
     setError(null);
     setRequestErrorCode(null);
+    setRequestErrorDefinitive(false);
     setPreflighting(true);
     try {
       await generateRequested(preflight.signal);
@@ -839,6 +856,7 @@ export function LaunchSession({
     setPreflighting(false);
     setError(null);
     setRequestErrorCode(null);
+    setRequestErrorDefinitive(false);
     setChangeReview(null);
     inputAuthority.current.locked = true;
     inputAuthority.current.generationLocked = true;
@@ -849,7 +867,12 @@ export function LaunchSession({
     try {
       await generation.generate(request.detail, request.config, request.sources, request.version);
     } catch (e) {
-      if (inputAuthority.current.mounted) reportError(e);
+      if (!inputAuthority.current.mounted) return;
+      reportError(e);
+      // Restitch settings or a file changed after the sources were resolved: refresh them
+      // once the editor unlocks, so the next Generate sends a current snapshot.
+      if (e instanceof TeamApiError && e.code === 'SOURCE_CHANGED')
+        sourceRefreshAfterRefusal.current = true;
     }
   };
   const resumeGeneration = async () => {
@@ -858,6 +881,7 @@ export function LaunchSession({
     progressScroll.reveal();
     setError(null);
     setRequestErrorCode(null);
+    setRequestErrorDefinitive(false);
     try {
       await generation.resume(detail, failedRestitch.current ?? undefined);
     } catch (error) {
@@ -1528,6 +1552,7 @@ export function LaunchSession({
           }
           requestError={error}
           requestErrorCode={error ? requestErrorCode : null}
+          requestErrorDefinitive={Boolean(error) && requestErrorDefinitive}
           onOpenRestitchSettings={openRestitchSettings}
           onRefresh={detail ? refreshProgress : undefined}
           generation={detail?.generation ?? null}
@@ -1647,6 +1672,7 @@ export function LaunchSession({
                   setCatalogSetupMissing(false);
                   setError(null);
                   setRequestErrorCode(null);
+                  setRequestErrorDefinitive(false);
                 }
                 if ('offerId' in patch) sourceChoice.current.offers++;
                 if ('buyerId' in patch) sourceChoice.current.buyers++;

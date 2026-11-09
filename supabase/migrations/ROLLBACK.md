@@ -2710,3 +2710,10 @@ Rolling back means restoring the previous guard body exactly (on main
 migration; agents and web builds that send the new keys will then have those
 events rejected, so roll back the web release first. Stored events are not
 rewritten. No automatic rollback or production data repair is authorized.
+
+### 20261207188000 — restitch unavailable screen source
+
+`private.capture_catalog_video_restitch_context()` raises `RESTITCH_SOURCES_INVALID`
+(not `RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN`) when a screen pool is incomplete only
+because a chosen source is unavailable (deleted, not an image, disconnected Drive).
+Nothing is written in that case. Rolling back restores the misleading uncertain code.

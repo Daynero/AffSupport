@@ -358,6 +358,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressChecking: 'Перевіряємо поточний стан…',
   launchesProgressStopped: 'Генерацію зупинено',
   launchesProgressErrorUnconfirmed: 'Помилка — перевірте стан',
+  launchesProgressNotStarted: 'Запуск не почався',
   launchesCatalogExecutorRequired:
     'Щоб перезашивати відео каталогу, відкрийте актуальний застосунок Soty та під’єднайте його до цього браузера. Нову генерацію ще не запущено.',
   launchesProgressActionRequired: 'Потрібна дія',
@@ -393,6 +394,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesCleanupPending:
     'Скасування очікує безпечного очищення. Попередній результат залишається доступним до підтвердження.',
   launchesSourceChanged: 'Джерела змінилися. Оновіть їх і перевірте прев’ю.',
+  launchesSourcesRefreshed:
+    'Налаштування або файли змінилися після підготовки запуску. Джерела оновлено — натисніть «Згенерувати» ще раз.',
   launchesBusyError: 'Генерація триває. Зачекайте або скасуйте її.',
   launchesUncertain:
     'Результат операції ще не підтверджений. Повторіть той самий запит для звірки.',
@@ -3050,7 +3053,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Немає картинок для перезашивки: усі джерела пулу недоступні або порожні. Відкрийте налаштування простору й перевірте їх.',
   teamRestitchSourceForbidden:
     'Ви можете обробляти в цьому просторі, але не завантажувати його файли, а картинки для перезашивки лежать саме там. Попросіть у власника право на завантаження.',
-  teamRestitchSourcesInvalid: 'Одне з обраних джерел не є зображенням або папкою цього простору.',
+  teamRestitchSourcesInvalid:
+    'Картинка заставки недоступна: файл видалено, це не зображення або його Google Drive відключено. Оберіть картинки заново в налаштуваннях перезашивки.',
   teamRestitchSourcesTooMany: 'Пул може містити щонайбільше 500 джерел.',
   teamRestitchClientOutdated:
     'Ця сторінка застара для налаштувань перезашивки простору. Перезавантажте її, щоб продовжити.',

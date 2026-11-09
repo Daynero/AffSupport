@@ -37,6 +37,7 @@ const seams = vi.hoisted(() => ({
   saveWorkingCopy: vi.fn(),
   generate: vi.fn(),
   selection: vi.fn(),
+  refreshSources: vi.fn(),
   list: vi.fn(),
   metadata: vi.fn(),
   members: [] as Array<{ userId: string; displayName: string }>,
@@ -83,7 +84,8 @@ vi.mock('../apps/web/src/api/team', () => ({
     archiveWarning: seams.archiveWarning,
     archive: seams.archive,
     copy: seams.copy,
-    selection: seams.selection
+    selection: seams.selection,
+    refreshSources: seams.refreshSources
   },
   teamApi: {
     listMembers: vi.fn(async () => seams.members),
@@ -1761,6 +1763,43 @@ it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as c
     expect(seams.setAssignment).not.toHaveBeenCalled();
   }
 );
+
+it('refreshes stale sources after a SOURCE_CHANGED refusal so the next Generate is current', async () => {
+  // Beta 2026-11-09: restitch screens changed after the snapshot; Retry resent the stale
+  // snapshot forever and the page said "the file changed, open it again".
+  seams.edit = true;
+  seams.realGeneration = true;
+  const config = launchConfig();
+  seams.accounts = [
+    {
+      id: launchSources.accountId,
+      name: launchSources.social,
+      agents: [{ id: config.agentRowId, agentId: launchSources.agentId }]
+    }
+  ];
+  seams.offers = [{ id: config.offerId, value: launchSources.offer }];
+  seams.buyers = [{ id: config.buyerId, value: launchSources.buyer }];
+  seams.detail.mockResolvedValue(detail(config.originalUrl));
+  seams.selection.mockResolvedValue(launchSources);
+  seams.refreshSources.mockResolvedValue(launchSources);
+  seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
+  seams.assignment.mockResolvedValue({
+    launchId: LAUNCH,
+    version: '0',
+    state: 'unassigned',
+    agentRowId: null,
+    sourceAgentRowId: config.agentRowId
+  });
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.generate.mockRejectedValueOnce(new TeamApiError('SOURCE_CHANGED', false));
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  const generate = await screen.findByRole('button', { name: 'Generate launch' });
+  await waitFor(() => expect(generate).toHaveProperty('disabled', false));
+  fireEvent.click(generate);
+  await waitFor(() => expect(seams.refreshSources).toHaveBeenCalled());
+  expect(await screen.findByText(/Sources are refreshed — press Generate again/)).toBeTruthy();
+  expect(screen.queryByText(/open it again/i)).toBeNull();
+});
 
 it('explains a regenerate click while the copied launch sources are still being checked', async () => {
   seams.edit = true;

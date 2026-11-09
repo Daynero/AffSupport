@@ -583,6 +583,27 @@ it('makes an uncertain request error explicit without claiming the server stoppe
   expect(screen.getAllByRole('listitem').some(item => item.dataset.state === 'active')).toBe(false);
 });
 
+it('says plainly that a refused launch did not start, without a running clock or "may still be running"', () => {
+  // Beta 2026-11-09: a 409 before admission showed "check the status", "may still be running"
+  // and a frozen 00:02 timer, so it looked hung.
+  render(
+    <LaunchGenerationProgress
+      generation={null}
+      pendingStage="preparing"
+      requestError="A screen picture is unavailable."
+      requestErrorCode="RESTITCH_SOURCES_INVALID"
+      requestErrorDefinitive
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toContain('The launch did not start');
+  expect(alert.textContent).toContain('A screen picture is unavailable.');
+  expect(alert.textContent).not.toContain('may still be running');
+  expect(screen.queryByLabelText(/elapsed/i)).toBeNull();
+});
+
 it('keeps completed segment colors and the active stage coherent through partial and older snapshots', () => {
   const receipt = {
     id: 'video-receipt',
