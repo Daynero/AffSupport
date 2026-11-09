@@ -91,11 +91,19 @@ export function LaunchCatalogVideoFields({
         productCount={value.productCount}
         disabled={disabled}
       />
-      {((invalid && scheduled && local !== 'T12:00') || launchPublicationTimePassed(value)) && (
-        <p className="field-error" role="status">
-          {t('catalogPublicationInvalid')}
-        </p>
-      )}
+      {(() => {
+        const passed = launchPublicationTimePassed(value);
+        if (!passed && !(invalid && scheduled && local !== 'T12:00')) return null;
+        // A real field error: Generate scrolls to the first `.ui-field-error`, so the person
+        // lands on this sentence instead of an unexplained calendar.
+        return (
+          <div className="ui-field launch-publication-error">
+            <p className="ui-field-error" role="alert">
+              {t(passed ? 'catalogPublicationTimePassed' : 'catalogPublicationInvalid')}
+            </p>
+          </div>
+        );
+      })()}
     </>
   );
 }

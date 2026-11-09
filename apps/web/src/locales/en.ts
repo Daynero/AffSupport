@@ -45,6 +45,8 @@ export const en = {
     'This time occurs twice when clocks change. Choose its earlier or later occurrence.',
   catalogPublicationInvalid:
     'Choose a future date, time and valid time zone. The local time must exist when clocks change.',
+  catalogPublicationTimePassed:
+    'The video-link time has already passed. Choose a future date and time or turn the delay off.',
   catalogPublicationUnknown:
     'The save result is not confirmed. Check reads the original request without another write.',
   catalogPublicationCheck: 'Check status',

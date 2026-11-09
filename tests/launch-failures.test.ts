@@ -52,4 +52,17 @@ it('flags a scheduled link time that is not at least a minute ahead', () => {
   expect(launchPublicationTimePassed(at('2026-11-09T01:10:00.000Z'), now)).toBe(false);
   expect(launchPublicationTimePassed({ videoPublication: { mode: 'immediate' } }, now)).toBe(false);
   expect(launchPublicationTimePassed(null, now)).toBe(false);
+  // A past time leaves dueAt empty in the form; it must still be reported as passed.
+  const unresolved = (localDateTime: string) => ({
+    videoPublication: {
+      mode: 'scheduled' as const,
+      localDateTime,
+      timeZone: 'Europe/Kyiv',
+      resolvedOffset: '',
+      dueAt: ''
+    }
+  });
+  expect(launchPublicationTimePassed(unresolved('2026-11-08T23:18'), now)).toBe(true);
+  expect(launchPublicationTimePassed(unresolved('2026-11-09T05:00'), now)).toBe(false);
+  expect(launchPublicationTimePassed(unresolved('not-a-time'), now)).toBe(false);
 });

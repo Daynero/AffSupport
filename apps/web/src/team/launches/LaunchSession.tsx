@@ -788,6 +788,20 @@ export function LaunchSession({
       );
       return;
     }
+    if (draft.config.method === 'catalog' && launchPublicationTimePassed(draft.config.catalog)) {
+      // The editor scrolls to the field error under the deferred-link block.
+      generation.blocked('INVALID_INPUT');
+      setError(t('catalogPublicationTimePassed'));
+      // Generate first reveals the progress card; land on the field once that settles.
+      window.setTimeout(
+        () =>
+          document
+            .querySelector('.launch-publication-error')
+            ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }),
+        350
+      );
+      return;
+    }
     if (sourceChanged) {
       generation.blocked('SOURCE_CHANGED');
       setError(t('launchesSourceChanged'));
@@ -1778,9 +1792,7 @@ export function LaunchSession({
                     dictionaryBusy ||
                     sourcesPending ||
                     sourceChanged ||
-                    detail?.generation?.state === 'failed' ||
-                    (draft.config.method === 'catalog' &&
-                      launchPublicationTimePassed(draft.config.catalog))
+                    detail?.generation?.state === 'failed'
                   }
                   onClick={() => void generate()}
                 >
