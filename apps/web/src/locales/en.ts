@@ -637,6 +637,8 @@ export const en = {
     'Use these settings as the starting values for new launches in this workspace.',
   launchesDefaultsSaved: 'Defaults saved',
   launchesConflictTitle: 'This launch changed in another session',
+  launchesVersionConflict:
+    'The launch changed since it was last saved. Your values are kept in this window — load the current version and try again.',
   launchesConflictHelp:
     'Your unsaved values remain available. Read the current version and choose how to continue.',
   launchesConflictKeep: 'Keep my changes against this version',

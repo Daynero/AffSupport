@@ -47,6 +47,17 @@ export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string 
       };
       setConfig(detail.draft);
       setSources(detail.expectedSourceSnapshot);
+    } else if (
+      detail &&
+      detail.version !== baseVersion &&
+      launchValuesEqual(
+        { config: detail.draft, sources: detail.expectedSourceSnapshot },
+        saved.current
+      )
+    ) {
+      // The launch version moved without a draft change (an account assignment, a
+      // status or dictionary write). Keep local edits; only rebase their next save.
+      setBaseVersion(detail.version);
     }
   }, [detail, dirty]);
   useEffect(() => {

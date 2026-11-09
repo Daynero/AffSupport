@@ -18,15 +18,7 @@ import {
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
-import {
-  Button,
-  Card,
-  Checkbox,
-  ConfirmDialog,
-  IconButton,
-  Switch,
-  Tabs
-} from '../../components/ui/index';
+import { Button, Card, Checkbox, ConfirmDialog, IconButton, Tabs } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
@@ -54,6 +46,8 @@ import { useLaunchGeneration } from './useLaunchGeneration';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
 import { LaunchAssignmentControls } from './LaunchAssignmentControls';
+
+const LAUNCH_ACCOUNT_ASSIGNMENT_VISIBLE = false;
 
 export function LaunchSession({
   teamId,
@@ -1654,7 +1648,9 @@ export function LaunchSession({
               }
             }}
             accountAssignment={
-              detail && !historical ? (
+              // Hidden for now at the owner's request (2026-11-09): toggling it shifted the
+              // form and its placeholder flickered while restitch settings changed.
+              LAUNCH_ACCOUNT_ASSIGNMENT_VISIBLE && detail && !historical ? (
                 <LaunchAssignmentControls
                   key={detail.id}
                   teamId={teamId}
@@ -1665,9 +1661,7 @@ export function LaunchSession({
                   hasResults={Boolean(detail.activeRevision)}
                   onConfirmed={onDictionaries}
                 />
-              ) : (
-                <Switch size="sm" label={t('launchesAssignmentAssign')} checked={false} disabled />
-              )
+              ) : undefined
             }
             accounts={accounts}
             offers={offers}

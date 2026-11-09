@@ -165,3 +165,33 @@ it('resumes after an explicitly acknowledged replacement base version', async ()
   expect(input.save).toHaveBeenCalledTimes(2);
   expect(input.save.mock.calls[1][0]).toMatchObject({ version: '2' });
 });
+it('rebases unsaved edits when the launch version moves without a draft change', () => {
+  // Beta 2026-11-09: toggling the ad-account assignment bumped aggregate_version; the next
+  // autosave of local edits used the old version and showed "changed in another session".
+  const hook = renderHook(({ detail }: { detail: LaunchDetail | null }) => useLaunchDraft(detail), {
+    initialProps: { detail: null as LaunchDetail | null }
+  });
+  act(() => hook.result.current.setConfig(current => ({ ...current, maxBudget: 40 })));
+  const sent = hook.result.current.config;
+  act(() => hook.result.current.acknowledge(sent, null, '2'));
+  const detail = (version: string, draft = sent): LaunchDetail => ({
+    id: 'launch',
+    version,
+    draft,
+    expectedSourceSnapshot: null,
+    assigneeId: null,
+    workStatus: 'todo',
+    activeRevision: null,
+    generation: null
+  });
+  hook.rerender({ detail: detail('2') });
+  act(() => hook.result.current.setConfig(current => ({ ...current, maxBudget: 60 })));
+  hook.rerender({ detail: detail('3') });
+  expect(hook.result.current.config.maxBudget).toBe(60);
+  expect(hook.result.current.dirty).toBe(true);
+  expect(hook.result.current.baseVersion).toBe('3');
+  // A real draft change elsewhere stays a conflict: the base version is not silently advanced.
+  hook.rerender({ detail: detail('4', { ...sent, maxBudget: 99 }) });
+  expect(hook.result.current.config.maxBudget).toBe(60);
+  expect(hook.result.current.baseVersion).toBe('3');
+});

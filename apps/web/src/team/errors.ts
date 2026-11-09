@@ -46,7 +46,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   HISTORICAL_CORRECTION_REQUIRED: 'accountsHistoricalCorrectionRequired',
   ACCOUNT_PREFERENCE_CONFLICT: 'accountsPreferenceConflict',
   REQUEST_REPLAY_MISMATCH: 'accountsRequestReplayMismatch',
-  LAUNCH_VERSION_CONFLICT: 'financeConflict',
+  LAUNCH_VERSION_CONFLICT: 'launchesVersionConflict',
   LAUNCH_BUSY: 'launchesBusyError',
   LAUNCH_URL_INVALID: 'launchesUrlInvalid',
   LAUNCH_SUB_INVALID: 'launchesSubInvalid',
