@@ -74,7 +74,7 @@ it('propagates one resolved flag into beta web and signed plist while keeping au
   expect(launcher).toContain('ProcessInfo.processInfo.environment.merging(packagedEnvironment)');
 });
 it.runIf(process.platform === 'darwin')(
-  'executes the actual Swift sealed-boolean/channel guard',
+  'executes the actual Swift sealed-boolean/channel guard [needs: macOS swiftc]',
   () => {
     const source = readFileSync('packaging/Launcher.swift', 'utf8');
     const helper = source
