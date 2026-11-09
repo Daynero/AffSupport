@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertMacosMachOSigner,
   assertMacosPackageIdentity,
   assertMacosSigner,
   macosTrustPolicy,
@@ -17,6 +18,25 @@ describe('Apple trust integration boundary', () => {
       details.replace('runtime', 'none')
     ])
       expect(() => assertMacosSigner(invalid, 'ABCDEFGHIJ')).toThrow();
+  });
+
+  it('requires the owner team and a secure timestamp on every Mach-O, not only on the bundle', () => {
+    // 048 FR-005, SC-002 (T017): a loose binary in Resources signed by another team, or
+    // without `--timestamp`, is exactly what `--deep` verification lets through.
+    const relative = 'Contents/Resources/runtime/node';
+    const details =
+      'Identifier=node\nAuthority=Developer ID Application: Fixture\nTeamIdentifier=ABCDEFGHIJ\n' +
+      'Timestamp=9 Nov 2026 at 14:00:00\nCodeDirectory v=20500 size=200 flags=0x10000(runtime)';
+    expect(() => assertMacosMachOSigner(details, 'ABCDEFGHIJ', relative)).not.toThrow();
+    for (const invalid of [
+      details.replace('TeamIdentifier=ABCDEFGHIJ', 'TeamIdentifier=ZZZZZZZZZZ'),
+      details.replace('TeamIdentifier=ABCDEFGHIJ', 'TeamIdentifier=not set'),
+      details.replace('Timestamp=9 Nov 2026 at 14:00:00\n', ''),
+      details.replace('Authority=Developer ID Application: Fixture', 'Signature=adhoc')
+    ])
+      expect(() => assertMacosMachOSigner(invalid, 'ABCDEFGHIJ', relative)).toThrow(
+        `MACOS_MACHO_SIGNER_MISMATCH: ${relative}`
+      );
   });
 
   it('defaults to Developer ID and accepts only the named pre-048 policy as an alternative', () => {

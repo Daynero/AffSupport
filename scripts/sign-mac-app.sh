@@ -135,6 +135,12 @@ forbidden=(
   com.apple.security.get-task-allow
 )
 jit_pair=$'com.apple.security.cs.allow-jit\ncom.apple.security.cs.allow-unsigned-executable-memory'
+# The app was signed last; every Mach-O under it must name the same team (ad-hoc prints
+# "not set", which is fine because the team check below runs only for a real identity).
+team_id=$(codesign -dvv "$app" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')
+if [[ "$identity" != "-" && ! "$team_id" =~ ^[A-Z0-9]{10}$ ]]; then
+  fail SIGN_VERIFY_FAILED "$app: no TeamIdentifier on the signed app"
+fi
 check_signature() { # file expected-profile
   local file=$1 expected=$2 details keys key
   details=$(codesign -dvv "$file" 2>&1) || fail SIGN_VERIFY_FAILED "$file: not signed"
@@ -142,6 +148,7 @@ check_signature() { # file expected-profile
   if [[ "$identity" != "-" ]]; then
     [[ "$details" == *"Timestamp="* ]] || fail SIGN_VERIFY_FAILED "$file: no secure timestamp"
     [[ "$details" == *"Authority=Developer ID Application:"* ]] || fail SIGN_VERIFY_FAILED "$file: not a Developer ID signature"
+    grep -qx "TeamIdentifier=$team_id" <<< "$details" || fail SIGN_VERIFY_FAILED "$file: TeamIdentifier differs from the app"
   fi
   keys=$(entitlement_keys "$file")
   for key in "${forbidden[@]}"; do
@@ -158,7 +165,7 @@ for bundle in "${nested_bundles[@]}"; do check_signature "$bundle" nested; done
 check_signature "$main_executable" launcher
 codesign --verify --deep --strict --verbose=2 "$app" 2>/dev/null || fail SIGN_VERIFY_FAILED "$app: deep strict verification"
 
-notarized=false; stapled=false
+notarized=false; stapled=false; submission_id=""
 if [[ "$skip_notarization" != 1 ]]; then
   work=$(mktemp -d "${TMPDIR:-/tmp}/soty-notarize-XXXXXX")
   archive="$work/${app:t:r}.zip"
@@ -168,9 +175,10 @@ if [[ "$skip_notarization" != 1 ]]; then
   if ! submission=$(xcrun notarytool submit "$archive" "${notary_args[@]}" 2>&1); then
     print -u2 -- "$submission"; rm -rf "$work"; fail NOTARIZE_FAILED "submission did not complete"
   fi
+  # Apple's receipt for this exact archive; the publish journal keeps it (048 T013).
+  submission_id=$(print -r -- "$submission" | awk '/^[[:space:]]*id:/{print $2; exit}')
   if ! print -r -- "$submission" | grep -Eq '^\s*status: Accepted\s*$'; then
     print -u2 -- "$submission"
-    submission_id=$(print -r -- "$submission" | awk '/^[[:space:]]*id:/{print $2; exit}')
     if [[ -n "$submission_id" ]]; then
       log_args=(--keychain-profile "$notary_profile"); [[ -n "$keychain" ]] && log_args+=(--keychain "$keychain")
       xcrun notarytool log "$submission_id" "${log_args[@]}" >&2 || true
@@ -185,8 +193,8 @@ if [[ "$skip_notarization" != 1 ]]; then
 fi
 
 json_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
-team_id=$(codesign -dvv "$app" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')
 if [[ "$identity" == "-" ]]; then identity_kind=adhoc; team_json=null; else identity_kind=developer-id; team_json="\"$(json_string "$team_id")\""; fi
-printf '{"app":"%s","identity":"%s","teamId":%s,"machO":%d,"nestedBundles":%d,"profiles":{"node":%d,"chromium":%d,"hardened":%d},"notarized":%s,"stapled":%s}\n' \
+if [[ -n "$submission_id" ]]; then submission_json="\"$(json_string "$submission_id")\""; else submission_json=null; fi
+printf '{"app":"%s","identity":"%s","teamId":%s,"machO":%d,"nestedBundles":%d,"profiles":{"node":%d,"chromium":%d,"hardened":%d},"notarized":%s,"stapled":%s,"submissionId":%s}\n' \
   "$(json_string "$app")" "$identity_kind" "$team_json" $(( ${#loose[@]} + 1 )) "${#nested_bundles[@]}" \
-  "${profile_counts[node]}" "${profile_counts[chromium]}" "${profile_counts[hardened]}" "$notarized" "$stapled"
+  "${profile_counts[node]}" "${profile_counts[chromium]}" "${profile_counts[hardened]}" "$notarized" "$stapled" "$submission_json"
