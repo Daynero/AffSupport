@@ -18,23 +18,28 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
 
 /**
- * C1, SC-010. The macOS signing chain: inside-out signatures, hardened runtime, a minimal
- * entitlement set, and — with a real identity — Gatekeeper acceptance and a stapled ticket.
+ * 048 (FR-001, FR-002, FR-007, FR-008), descended from 009 C1/SC-010. The macOS signing
+ * chain: inside-out signatures, hardened runtime, one measured entitlement profile per
+ * binary, and — with a real identity — Gatekeeper acceptance and a stapled ticket.
  *
  * What this file can prove on any Mac, and what it cannot:
  *
- * - The **verifier** below is complete and runs everywhere: it walks a bundle, finds every
- *   Mach-O, and checks each one's signature, hardened-runtime flag and the bundle's
- *   entitlements, then checks the whole bundle strictly. Its negative controls run today:
+ * - The **verifier** below runs everywhere: it walks a bundle, finds every Mach-O, checks
+ *   each one's signature, hardened-runtime flag and entitlements against the profile its
+ *   path selects, then checks the whole bundle strictly. Its negative controls run today:
  *   the ad-hoc chain `scripts/package-mac.sh` ships is rejected, and so is a bundle tampered
  *   with after signing.
- * - The **chain under test** is `scripts/sign-mac-app.sh` (T157). Until it exists those cases
- *   are skipped by name, not passed — the skip message is the outstanding work.
+ * - The **chain under test** is `scripts/sign-mac-app.sh`. The fixture is made of tiny
+ *   platform binaries, so it proves structure, not that a JIT survives the hardened runtime.
+ *   That proof needs a real static Node: set `SOTY_TEST_NODE_BINARY` to one (the official
+ *   nodejs.org tarball's `bin/node`) and two more cases run — the chain-signed Node executes
+ *   JavaScript and WebAssembly, and the same Node hardened *without* the JIT pair does not
+ *   start. Measured 2026-11-09 on arm64 and x64: specs/048-macos-apple-trust/research.md.
  * - A **self-signed identity in a throwaway keychain** needs `security create-keychain`, which
  *   adds the new keychain to the user's search list — a change to the machine's keychain
  *   configuration this suite will not make on a developer's Mac. Instead the identity is
  *   injected: set `SOTY_TEST_SIGNING_IDENTITY` (and `SOTY_TEST_SIGNING_KEYCHAIN` for a keychain
- *   file outside the search list) on a CI runner that provisions one. Without it the chain is
+ *   file outside the search list) on a runner that provisions one. Without it the chain is
  *   exercised with the ad-hoc identity, which proves structure but not trust.
  * - **Gatekeeper and stapling** need Apple's notary service and a Developer ID. They run only
  *   with `SOTY_TEST_EXPECT_NOTARIZED=1`; that substitution is the one step SC-010 leaves open.
@@ -43,14 +48,17 @@ import { describeRequiring, requirePlatform } from './support/requires.js';
 const run = promisify(execFile);
 const macHost = requirePlatform('darwin');
 const CHAIN = path.resolve('scripts/sign-mac-app.sh');
+const NODE_ENTITLEMENTS = path.resolve('packaging/macos/entitlements/node.plist');
 const chainExists = existsSync(CHAIN);
 const identity = process.env.SOTY_TEST_SIGNING_IDENTITY ?? '-';
 const keychain = process.env.SOTY_TEST_SIGNING_KEYCHAIN ?? null;
 const expectNotarized = process.env.SOTY_TEST_EXPECT_NOTARIZED === '1';
+const realNode = process.env.SOTY_TEST_NODE_BINARY ?? null;
 
 /**
- * Entitlements a Node-hosting app must never carry: each one switches off a protection the
- * hardened runtime exists to provide, and none is needed to spawn FFmpeg or run JavaScript.
+ * Entitlements no binary in the bundle may carry: each one switches off a protection the
+ * hardened runtime exists to provide, and `get-task-allow` is refused by notarization.
+ * Measured: Node and Chromium run without all four.
  */
 const FORBIDDEN_ENTITLEMENTS = [
   'com.apple.security.cs.disable-library-validation',
@@ -58,6 +66,30 @@ const FORBIDDEN_ENTITLEMENTS = [
   'com.apple.security.cs.disable-executable-page-protection',
   'com.apple.security.get-task-allow'
 ];
+
+/**
+ * The two entitlements a V8 host needs under the hardened runtime, and the only two the
+ * `node` and `chromium` profiles grant. arm64 Node starts with either; x64 Node needs the
+ * second; both profiles carry both so one bundle layout serves both architectures.
+ */
+const REQUIRED_JIT_ENTITLEMENTS = [
+  'com.apple.security.cs.allow-jit',
+  'com.apple.security.cs.allow-unsigned-executable-memory'
+].sort();
+
+/** A JIT host, by the same path rule the chain uses to pick its profile. */
+function runsAJit(app: string, binary: string): boolean {
+  return (
+    path.relative(app, binary) === path.join('Contents', 'Resources', 'runtime', 'node') ||
+    path.basename(binary) === 'chrome-headless-shell'
+  );
+}
+
+/** Exercises the optimizing JIT and the WebAssembly compiler, then reports. */
+const JIT_PROBE =
+  'let s=0;for(let i=0;i<5e6;i++)s+=i%7;' +
+  'const w=new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0]));' +
+  'process.stdout.write(`ok ${s} ${process.arch} ${w instanceof WebAssembly.Module}`)';
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -127,6 +159,10 @@ async function codesign(args: string[]): Promise<{ ok: boolean; output: string }
   }
 }
 
+function entitlementKeys(xml: string): string[] {
+  return [...xml.matchAll(/<key>([^<]+)<\/key>/gu)].map(match => match[1]!).sort();
+}
+
 /**
  * Every problem with a signed bundle, or none. This is the acceptance check the chain must
  * pass; an empty list is the only success.
@@ -153,6 +189,20 @@ async function signingProblems(
       if (/Signature=adhoc/u.test(details.output)) problems.push(`${name}: ad-hoc signature`);
       if (!/Timestamp=/u.test(details.output)) problems.push(`${name}: no secure timestamp`);
     }
+    const entitlements = entitlementKeys(
+      (await codesign(['-d', '--entitlements', '-', '--xml', binary])).output
+    );
+    for (const key of FORBIDDEN_ENTITLEMENTS) {
+      if (entitlements.includes(key)) problems.push(`${name}: carries ${key}`);
+    }
+    if (runsAJit(app, binary)) {
+      if (entitlements.join('\n') !== REQUIRED_JIT_ENTITLEMENTS.join('\n'))
+        problems.push(`${name}: entitlements must be exactly the JIT pair`);
+    } else {
+      for (const key of REQUIRED_JIT_ENTITLEMENTS) {
+        if (entitlements.includes(key)) problems.push(`${name}: carries ${key} without a JIT`);
+      }
+    }
   }
   const deep = await codesign(['--verify', '--deep', '--strict', '--verbose=2', app]);
   if (!deep.ok) problems.push(`bundle: ${deep.output.trim().split('\n').at(-1) ?? 'invalid'}`);
@@ -167,6 +217,19 @@ async function signingProblems(
 async function signLikePackageMacToday(app: string, nested: string[]) {
   for (const file of nested) await codesign(['--force', '--sign', '-', file]);
   await codesign(['--force', '--deep', '--preserve-metadata=entitlements', '--sign', '-', app]);
+}
+
+/**
+ * A correct hardened bundle made without the chain, so the verifier's own controls do not
+ * depend on the code they guard: inside-out, hardened, the JIT pair only where a JIT runs.
+ */
+async function signHardenedByHand(app: string, nested: string[]) {
+  for (const file of nested) {
+    const args = ['--force', '--options', 'runtime'];
+    if (runsAJit(app, file)) args.push('--entitlements', NODE_ENTITLEMENTS);
+    await codesign([...args, '--sign', '-', file]);
+  }
+  await codesign(['--force', '--options', 'runtime', '--sign', '-', app]);
 }
 
 async function runChain(app: string) {
@@ -184,27 +247,32 @@ async function runChain(app: string) {
 describeRequiring(macHost, 'the signing verifier has teeth', () => {
   it('rejects the ad-hoc chain package-mac.sh ships today', async () => {
     // C1 itself: an ad-hoc signature with the hardened runtime off. This is the bundle users
-    // are currently told to right-click past Gatekeeper.
+    // are currently told to clear quarantine on by hand.
     const { app, nested } = await fixtureBundle();
     await signLikePackageMacToday(app, nested);
     const problems = await signingProblems(app, { requireTrustedIdentity: true });
     expect(problems.some(problem => problem.includes('hardened runtime is off'))).toBe(true);
     expect(problems.some(problem => problem.includes('ad-hoc signature'))).toBe(true);
+    expect(problems.some(problem => problem.includes('exactly the JIT pair'))).toBe(true);
   });
 
   it('confirms package-mac.sh still signs ad-hoc, so the gap above is the shipped one', async () => {
     const script = await readFile('scripts/package-mac.sh', 'utf8');
     const delegates = script.includes('sign-mac-app.sh');
-    // Once T158 routes packaging through the chain, this flips and the chain cases below
-    // are what guard the shipped bundle.
+    // Once 048 T010 routes packaging through the chain, after the hardened packaged beta
+    // boots, this flips and the chain cases below are what guard the shipped bundle.
     expect(delegates || /codesign[^\n]*--sign -/u.test(script)).toBe(true);
+  });
+
+  it('accepts a hardened bundle signed by hand with the JIT pair only on the runtime', async () => {
+    const { app, nested } = await fixtureBundle();
+    await signHardenedByHand(app, nested);
+    expect(await signingProblems(app, { requireTrustedIdentity: false })).toEqual([]);
   });
 
   it('rejects a bundle whose nested binary changed after signing', async () => {
     const { app, nested } = await fixtureBundle();
-    for (const file of nested)
-      await codesign(['--force', '--options', 'runtime', '--sign', '-', file]);
-    await codesign(['--force', '--options', 'runtime', '--sign', '-', app]);
+    await signHardenedByHand(app, nested);
     expect(await signingProblems(app, { requireTrustedIdentity: false })).toEqual([]);
 
     const handle = await open(nested[0]!, 'r+');
@@ -233,6 +301,28 @@ describeRequiring(macHost, 'the signing verifier has teeth', () => {
     expect(problems.some(problem => problem.includes('signature invalid'))).toBe(true);
   });
 
+  it('rejects a JIT entitlement on a binary that runs no JIT', async () => {
+    const { app, nested } = await fixtureBundle();
+    for (const file of nested) {
+      // The helper gets the runtime's profile: more than ffmpeg needs.
+      await codesign([
+        '--force',
+        '--options',
+        'runtime',
+        '--entitlements',
+        NODE_ENTITLEMENTS,
+        '--sign',
+        '-',
+        file
+      ]);
+    }
+    await codesign(['--force', '--options', 'runtime', '--sign', '-', app]);
+    const problems = await signingProblems(app, { requireTrustedIdentity: false });
+    expect(problems).toContain(
+      'Contents/Resources/bin/ffmpeg: carries com.apple.security.cs.allow-jit without a JIT'
+    );
+  });
+
   it('rejects an entitlement that switches off library validation', async () => {
     const { app, nested } = await fixtureBundle();
     const entitlements = path.join(path.dirname(app), 'loose.entitlements');
@@ -245,8 +335,7 @@ describeRequiring(macHost, 'the signing verifier has teeth', () => {
 </dict></plist>
 `
     );
-    for (const file of nested)
-      await codesign(['--force', '--options', 'runtime', '--sign', '-', file]);
+    await signHardenedByHand(app, nested);
     await codesign([
       '--force',
       '--options',
@@ -265,17 +354,98 @@ describeRequiring(macHost, 'the signing verifier has teeth', () => {
 
 describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => {
   it.skipIf(!chainExists)(
-    'signs inside-out with the hardened runtime and a minimal entitlement set [needs: script:scripts/sign-mac-app.sh]',
+    'signs inside-out with the hardened runtime and one measured profile per binary',
     async () => {
       const { app } = await fixtureBundle();
+      const { stdout } = await runChain(app);
+      expect(await signingProblems(app, { requireTrustedIdentity: identity !== '-' })).toEqual([]);
+      const summary = JSON.parse(stdout.trim().split('\n').at(-1)!) as Record<string, unknown>;
+      expect(summary).toMatchObject({
+        identity: identity === '-' ? 'adhoc' : 'developer-id',
+        machO: 3,
+        profiles: { node: 1, chromium: 0, hardened: 1 },
+        notarized: expectNotarized,
+        stapled: expectNotarized
+      });
+    },
+    120_000
+  );
+
+  it.skipIf(!chainExists)('refuses to reach Apple with the ad-hoc identity', async () => {
+    const { app } = await fixtureBundle();
+    await expect(
+      run('zsh', [CHAIN, app], {
+        env: { ...process.env, SOTY_SIGNING_IDENTITY: '-', SOTY_SKIP_NOTARIZATION: '' }
+      })
+    ).rejects.toMatchObject({ stderr: expect.stringContaining('SIGN_ADHOC_CANNOT_NOTARIZE') });
+  });
+
+  it.skipIf(!chainExists)(
+    'strips a foreign signature and its entitlements before signing',
+    async () => {
+      const { app } = await fixtureBundle();
+      const node = path.join(app, 'Contents', 'Resources', 'runtime', 'node');
+      const loose = path.join(path.dirname(app), 'foreign.entitlements');
+      await writeFile(
+        loose,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>com.apple.security.get-task-allow</key><true/>
+<key>com.apple.security.cs.allow-jit</key><true/>
+</dict></plist>
+`
+      );
+      // What the official Node tarball looks like: already signed, with entitlements the
+      // distribution must not carry.
+      await codesign(['--force', '--entitlements', loose, '--sign', '-', node]);
       await runChain(app);
       expect(await signingProblems(app, { requireTrustedIdentity: identity !== '-' })).toEqual([]);
+    }
+  );
+
+  it.skipIf(!chainExists || !realNode)(
+    'a static Node signed by the chain still runs JavaScript and WebAssembly under the hardened runtime [needs: env:SOTY_TEST_NODE_BINARY]',
+    async () => {
+      const { app } = await fixtureBundle();
+      const node = path.join(app, 'Contents', 'Resources', 'runtime', 'node');
+      await copyFile(realNode!, node);
+      await chmod(node, 0o755);
+      await runChain(app);
+      expect(await signingProblems(app, { requireTrustedIdentity: identity !== '-' })).toEqual([]);
+      const { stdout } = await run(node, ['-e', JIT_PROBE]);
+      expect(stdout).toMatch(/^ok \d+ (?:arm64|x64) true$/u);
+    },
+    180_000
+  );
+
+  it.skipIf(!realNode)(
+    'the same Node hardened without the JIT pair does not start, so the pair is measured, not copied [needs: env:SOTY_TEST_NODE_BINARY]',
+    async () => {
+      // Deliberately outside any .app directory. A hardened binary that traps inside a
+      // bundle carrying an Info.plist is held suspended by the crash handler while it
+      // consults Launch Services about a bundle nobody registered, for tens of seconds,
+      // and is then killed instead of reported; in a bare directory the trap is delivered
+      // at once (measured 2026-11-09). The control only needs the binary, not the bundle.
+      const root = await mkdtemp(path.join(os.tmpdir(), 'soty-jit-control-'));
+      directories.push(root);
+      const node = path.join(root, 'node');
+      await copyFile(realNode!, node);
+      await chmod(node, 0o755);
+      await codesign(['--remove-signature', node]);
+      await codesign(['--force', '--options', 'runtime', '--sign', '-', node]);
+      // V8 cannot map executable memory and traps during isolate creation, before any
+      // script runs. A kill by the timeout below would carry SIGTERM instead, so a hang is
+      // told apart from the crash this control exists to show.
+      await expect(run(node, ['-e', JIT_PROBE], { timeout: 60_000 })).rejects.toMatchObject({
+        signal: expect.stringMatching(/^SIG(?:TRAP|ABRT|ILL|SEGV|BUS|KILL)$/u)
+      });
     },
     120_000
   );
 
   it.skipIf(!chainExists || !expectNotarized)(
-    'produces a bundle Gatekeeper accepts, with the notarization ticket stapled [needs: script:scripts/sign-mac-app.sh,env:SOTY_TEST_EXPECT_NOTARIZED]',
+    'produces a bundle Gatekeeper accepts, with the notarization ticket stapled [needs: env:SOTY_TEST_EXPECT_NOTARIZED]',
     async () => {
       const { app } = await fixtureBundle();
       await runChain(app);
@@ -283,13 +453,5 @@ describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => 
       await expect(run('xcrun', ['stapler', 'validate', app])).resolves.toBeDefined();
     },
     900_000
-  );
-
-  it.skipIf(chainExists)(
-    'is not implemented yet (T157): scripts/sign-mac-app.sh does not exist',
-    () => {
-      // Recorded rather than silently absent: this case disappears the day the chain lands.
-      expect(chainExists).toBe(false);
-    }
   );
 });
