@@ -146,7 +146,10 @@ const PROVISIONED_PATHS = Object.freeze([
   // is linked to nothing and the migration comparison fails with a bare
   // "command failed".
   'supabase/.temp',
-  'apps/agent/runtime'
+  'apps/agent/runtime',
+  // 049: approved Intel engines are ignored local inputs (scripts/build-intel-inputs.sh).
+  // Without them the x64 package falls back to ARM source archives or fails.
+  'release/inputs/x64'
 ]);
 
 /**

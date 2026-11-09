@@ -199,6 +199,52 @@ it('rejects a different native boot without adopting the original alias', async 
   ).rejects.toThrow();
 });
 
+it('reports a chosen screen picture that is gone as unavailable, not as uncertain accounting', async () => {
+  // 188 / beta 2026-11-09: the picture sat on a disconnected Google Drive; the launch said
+  // "could not confirm the picture upload" and never explained what to fix.
+  const intent = (
+    await db.root<{ v: { id: string } }>(
+      'select public.service_begin_catalog_intent($1,$2,$3,$4,$5,$6) v',
+      [team, source, owner, 'alias:catalog:gone-screen', {}, executor]
+    )
+  )[0]!.v.id;
+  const gone = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version,lifecycle,missing_at,missing_reason) values($1,$2,'synthetic-gone-screen','alias-root','Gone.png','file','image','image/png',4,$3,'1','missing',now(),'removed') returning id",
+      [team, connection, 'd'.repeat(32)]
+    )
+  )[0]!.id;
+  await db.root(
+    "insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by) values($1,'end',$2,'file',1,$3)",
+    [team, gone, owner]
+  );
+  try {
+    await expect(
+      db.root('select public.service_accept_catalog_video_set($1,$2,$3,$4,$5,$6)', [
+        team,
+        owner,
+        executor,
+        {
+          setId: id(40),
+          catalogIntentId: intent,
+          sourceMaterialId: source,
+          sourceVersion: '1',
+          settings: defaults,
+          settingsDigest: 'b'.repeat(64),
+          requestedCount: 1,
+          productCount: 1,
+          recipeRevision: 1,
+          seed: 'c'.repeat(64)
+        },
+        [{ index: 0, requestId: id(41) }],
+        [{ recipeRowId: id(42), videoVariantIndex: 0 }]
+      ])
+    ).rejects.toThrow('RESTITCH_SOURCES_INVALID');
+  } finally {
+    await db.root('delete from public.team_restitch_sources where team_id=$1', [team]);
+  }
+});
+
 it('distinguishes a definitely empty pool from an unobservable pool at new admission', async () => {
   const intent = (
     await db.root<{ v: { id: string } }>(
