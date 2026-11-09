@@ -16,7 +16,7 @@ const TEAM_ID = /^[A-Z0-9]{10}$/u;
  * error message. Nothing is signed or submitted here.
  *
  * @param {NodeJS.ProcessEnv} env
- * @param {{ exec?: typeof execFileAsync, now?: () => number }} [options]
+ * @param {{ exec?: (file: string, args: string[]) => Promise<{ stdout: string }>, now?: () => number }} [options]
  */
 export async function macosTrustPreflight(
   env,
