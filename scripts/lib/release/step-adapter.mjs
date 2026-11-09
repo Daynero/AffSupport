@@ -480,17 +480,30 @@ export async function createStepAdapter({
         'FFPROBE_BINARY',
         'WHISPER_BINARY',
         'WHISPER_VAD_MODEL',
+        'FFMPEG_SOURCE_ARCHIVE',
+        'X264_SOURCE_ARCHIVE',
         'SOTY_CHROMIUM_SOURCE_ROOT'
       ]) {
         if (childEnv[`${key}_MACOS_X64`]) next[key] = childEnv[`${key}_MACOS_X64`];
-        else if (['NODE_BINARY', 'FFMPEG_BINARY', 'FFPROBE_BINARY', 'WHISPER_BINARY'].includes(key))
+        else if (
+          [
+            'NODE_BINARY',
+            'FFMPEG_BINARY',
+            'FFPROBE_BINARY',
+            'WHISPER_BINARY',
+            // Corresponding sources ship beside the binaries they built; the ARM
+            // archives are not the Intel recipe's.
+            'FFMPEG_SOURCE_ARCHIVE',
+            'X264_SOURCE_ARCHIVE'
+          ].includes(key)
+        )
           delete next[key];
       }
     // The beta runtime source is an installed app of one architecture (the
     // ARM production Soty). Intel takes its own, or its approved inputs.
     if (arch === 'x64') {
-      if (childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64)
-        next.BETA_RUNTIME_SOURCE_APP = childEnv.BETA_RUNTIME_SOURCE_APP_MACOS_X64;
+      const intelSource = next.BETA_RUNTIME_SOURCE_APP_MACOS_X64;
+      if (intelSource) next.BETA_RUNTIME_SOURCE_APP = intelSource;
       // Empty, not deleted: execute() layers this over the worker's own
       // environment, which carries the ARM source app.
       else next.BETA_RUNTIME_SOURCE_APP = '';
@@ -640,7 +653,21 @@ export async function createStepAdapter({
       }),
 
     macos_package: async () => {
+      // A retry after a later failure finds the earlier target sealed in this
+      // run's own worktree; its identities are immutable, so keep it rather
+      // than refuse the whole step. Sealed = zip and DMG beside matching digests.
+      const sealed = async arch => {
+        const image = path.join(cwd, arch === 'x64' ? intelDmg : dmg);
+        const archive = image.replace(/\.dmg$/u, '.zip');
+        for (const file of [image, archive]) {
+          if (!existsSync(file) || !existsSync(`${file}.sha256`)) return false;
+          const recorded = readFileSync(`${file}.sha256`, 'utf8').trim().split(/\s+/u)[0];
+          if (recorded !== (await sha256File(file))) return false;
+        }
+        return true;
+      };
       for (const arch of ['arm64', 'x64']) {
+        if (await sealed(arch)) continue;
         const built = await run('macos_package', npm('package:mac', '--', `--arch=${arch}`), {
           cwd,
           env: targetEnv(arch),

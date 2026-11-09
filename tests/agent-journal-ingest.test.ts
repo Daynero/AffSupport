@@ -89,7 +89,8 @@ describe('agent journal ingestion (PGlite, real migration)', () => {
   });
 
   it('accepts safe records and stores them against the caller', async () => {
-    const at = Date.UTC(2026, 9, 10, 12, 0, 0);
+    // Recent and whole-second, so the 30-day retention test below never sees it.
+    const at = Math.floor((Date.now() - 86_400_000) / 1000) * 1000;
     const result = await ingest([
       record(1, { at, props: { duration: 'under_10s', exitCode: 1, killed: false } }),
       record(2, { category: 'stream', code: 'subscriber_evicted' })

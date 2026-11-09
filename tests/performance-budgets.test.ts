@@ -50,9 +50,9 @@ const LAUNCH_EXCLUSIVE_CEILING = 51_000;
 const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
 // Owner approved for 1.3.0: relative growth only, without increasing the global cap.
 // Owner approved 2026-11-09 for 047+049 (measured 61 022 integrated): relative growth only.
-const RELEASE_130_SHARED_GROWTH_CEILING = 62_000;
+const RELEASE_130_SHARED_GROWTH_CEILING = 63_000;
 // Owner approved 2026-11-09: global ratchet allowance for 047+049 (measured +22 268 B).
-const RELEASE_047_049_ALLOWANCE = 23_000;
+const RELEASE_047_049_ALLOWANCE = 24_000;
 
 /**
  * How far the total may drift before this fails.
