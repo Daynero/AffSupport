@@ -1,6 +1,19 @@
 # Soty — test guide
 
-## How to install
+## Intel development candidate
+
+Intel builds target macOS 13 or newer. Build with `npm run package:dev:dmg -- --arch=x64`
+and use the `macOS-x64.dmg` under `release/dev/x64/`. Install **Soty Dev.app**;
+it uses a separate name, port and local data directory. Dev uses synthetic auth
+and disabled analytics, so it cannot prove real sign-in or beta acceptance.
+Never substitute an ARM installer for an Intel package.
+
+Follow the [Intel quickstart](specs/049-macos-intel-support/quickstart.md) and
+[acceptance matrix](specs/049-macos-intel-support/acceptance-matrix.md) for the
+actual build, mandatory automatic/Apple trust checks and first-user Intel runtime feedback. Physical Intel validation is not a release prerequisite.
+Public Intel availability must come from a verified signed target artifact.
+
+## Legacy ARM closed-test installation
 
 > **Upgrading from "Local Video Compressor Agent"?** The app was renamed, so dragging Soty Agent into Applications will **not** replace the old app. First quit the old agent (menu bar film icon → **Quit**), then delete **Local Video Compressor Agent.app** from Applications, and only then install Soty Agent. Your local queue and settings are migrated automatically on the first launch.
 

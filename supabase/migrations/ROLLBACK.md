@@ -2698,3 +2698,15 @@ Redefines `public.analytics_properties_are_safe_v2` as the 20261207141000 body p
 38 `launch_code` values (STITCH_*, RESTITCH_SCREEN_*, BODY_*, PROCESS_RESULT_UNCERTAIN).
 Rolling back means re-running the 20261207141000 definition; those events are then refused again.
 Any later full redefinition of the guard (e.g. 049's native identity keys) must start from this body.
+
+### 20261207190000 — Agent native identity analytics (049)
+
+Guard-only change: `analytics_properties_are_safe_v2` additionally accepts the
+closed `agent_architecture`, `package_target` and `installer_target` vocabularies
+and a UUID `native_startup_id`. No table, column, RPC shape or grant changes.
+Rolling back means restoring the previous guard body exactly (on main
+`20261207114000_workspace_read_analytics_guard.sql`; after 047 is merged, its
+`20261207141000_material_link_parent_analytics.sql`) through a reviewed forward
+migration; agents and web builds that send the new keys will then have those
+events rejected, so roll back the web release first. Stored events are not
+rewritten. No automatic rollback or production data repair is authorized.

@@ -1,9 +1,18 @@
 #!/bin/zsh
 set -euo pipefail
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch dev "$@")
+macho=$(node scripts/lib/macos-target.mjs macho dev "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift dev "$@")
+target_root=$(node scripts/lib/macos-target.mjs root dev "$@")
 
-root="$PWD/release/dev"
+root="$target_root"
 app="$root/Soty Dev.app"
-source_app="${DEV_RUNTIME_SOURCE_APP:-$PWD/release/Soty.app}"
+source_app="${DEV_RUNTIME_SOURCE_APP:-$(node scripts/lib/macos-target.mjs app production --arch="$arch")}"
+# Bootstrap the first target without requiring a prior production .app.
+if [[ -z "${DEV_RUNTIME_SOURCE_APP:-}" && ! -d "$source_app" && -f "$PWD/release/inputs/$arch/approved-inputs.json" ]]; then
+  source_app="$PWD/release/inputs/$arch"
+fi
 
 # The shared package is built first because everything below reads dev's
 # identity out of it. Those slots — port, app name, bundle id, support
@@ -30,15 +39,15 @@ bundle_id=$(node scripts/environment-meta.mjs dev bundle-id)
   exit 1
 }
 
-if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
-  health=$(/usr/bin/curl -fsS --max-time 1 "http://127.0.0.1:$port/health" 2>/dev/null || true)
-  print -r -- "$health" | grep -q '"busy":false' || {
-    print -u2 "Soty Dev is using port $port and may be busy. Finish its work and quit it before rebuilding."
-    exit 1
-  }
-  /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || kill $listener 2>/dev/null || true
-  for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
-  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Dev did not quit cleanly."; exit 1; }
+if [[ -f "$source_app/approved-inputs.json" ]]; then
+  node scripts/stage-macos-inputs.mjs --verify="$source_app" --arch="$arch"
+else
+  node scripts/verify-macos-payload.mjs "$source_app" --arch="$arch"
+fi
+
+if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+  print -u2 "The target environment is running on port $port. Finish its work and quit it before rebuilding; packaging never stops another app."
+  exit 1
 fi
 
 base_version=$(node scripts/release-meta.mjs product-version)
@@ -51,7 +60,7 @@ stamp=$(date -u +%Y%m%d%H%M%S)
 version="$base_version-dev.$short_revision$dirty.$stamp"
 build_number=$(date -u +%s)
 build_id="$version+$build_number"
-archive_name="Soty-Dev-$version-macOS-arm64.zip"
+archive_name="Soty-Dev-$version-macOS-$arch.zip"
 
 VITE_AGENT_URL="http://127.0.0.1:$port" \
 VITE_ANALYTICS_ENABLED=false \
@@ -78,7 +87,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "AGENT_ENTITLEMENT_PUBLIC_KEY="
 swiftc "$root/Launcher.generated.swift" \
   -o "$app/Contents/MacOS/SotyDevAgent" \
-  -target arm64-apple-macos13.0 \
+  -target "$swift_target" \
   -framework AppKit \
   -framework FinderSync
 
@@ -90,10 +99,13 @@ cp "$source_app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/
 cp "$source_app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp "$source_app/Contents/Resources/runtime/bin/whisper-cli" "$app/Contents/Resources/runtime/bin/whisper-cli"
 cp "$source_app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" "$app/Contents/Resources/runtime/models/"
-node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent"
+if [[ -f "$source_app/approved-inputs.json" ]]; then
+  cp "$source_app/approved-inputs.json" "$app/Contents/Resources/runtime-inputs.json"
+fi
+node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent" --arch="$arch"
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
-cp "$source_app/Contents/Resources/licenses/sources/"* "$app/Contents/Resources/licenses/sources/"
+cp -R "$source_app/Contents/Resources/licenses/." "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
@@ -112,13 +124,15 @@ zsh scripts/build-finder-extension.sh \
   "$bundle_version" \
   "$build_number" \
   "$root/FinderSync.generated.swift" \
-  " — Soty Dev"
-node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" > "$app/Contents/Resources/release.json"
+  " — Soty Dev" \
+  "$arch"
+node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" "$arch" > "$app/Contents/Resources/release.json"
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
 codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
 archive="$root/$archive_name"
-rm -f "$root"/Soty-Dev-*-macOS-arm64.zip(N) "$root"/Soty-Dev-*-macOS-arm64.zip.sha256(N)
+rm -f "$root"/Soty-Dev-*-macOS-$arch.zip(N) "$root"/Soty-Dev-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"
 (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
 print "Built $archive"

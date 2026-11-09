@@ -55,7 +55,7 @@ npm run analytics -- journey <email> [--period ... (default 30d)] [--limit N] [-
 npm run analytics -- run <uuid> [--json]
 npm run analytics -- inspect <flow_id|run_id|attempt_id> [--json]
 npm run analytics -- diagnose <error-fingerprint> [--json]
-npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build] [--json]
+npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build|agent-architecture] [--json]
 npm run analytics -- retention  [--period ...] [--json]
 npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
@@ -64,6 +64,7 @@ npm run analytics -- connection [--period ...] [--json]
 npm run analytics -- audit      [--period ...] [--as-of <iso>] [--write] [--json]
 npm run analytics -- investigate <email|installation_id|run_id|flow_id|attempt_id> [--period ... (default 30d)] [--as-of <iso>] [--json]
 npm run analytics -- journal <email|installation_id|agent_instance_id> [--period ... (default 30d)] [--as-of <iso>] [--limit N] [--json]
+npm run analytics -- startup <local-native-startup.json> [--period ...] [--as-of <iso>] [--json]
 ```
 
 Default period is `7d`. `--days N` gives a rolling N-day window and overrides
@@ -247,6 +248,10 @@ Releases, push Supabase migrations, or deploy Cloudflare. Return the generated
 path under `release/dev/`. The build is isolated as Soty Dev on port 43130
 with local dev auth and analytics disabled. If packaging reports that Soty Dev
 is busy, do not kill it; tell the user to finish the active work first.
+
+### Intel implementation worktree (049)
+
+Target-aware macOS source commands accept `--arch=arm64|x64`; composite dev/production wrappers validate and forward the flag to each packager. No argument retains ARM paths. Intel outputs are separate `x64/` subdirectories under the existing release/dev/beta roots. Cross-builds require approved target engines and an exact-revision target Chromium source. Packaging never stops a running dev/beta app. Owner-ratified `intel-user-feedback-v1` permits Intel release qualification without physical Intel or native Intel beta tests: schema-3 static evidence leaves runtime/hardware unverified for first-user feedback. Applicable Apple trust and required automated release gates remain mandatory. New full candidates require ARM Mac, Intel Mac and Windows; both Mac sealed source/config/web proofs and Windows hosted installer evidence are aggregated by the existing runner. Mini releases retain the complete signed-channel baseline. Bounded native startup fallback is available through diagnostics and `analytics startup <file> --json`. Native runtime cohorts use `analytics cohorts --cohort-by agent-architecture --json`. Buckets describe observed runtime and preserve platform/build; physical hardware remains unknown and a Mac x64 runtime may be translated. Keep Windows x64 separate. Intel needs its own exact-source/config/bytes static qualification; never reuse ARM evidence or label static inspection native success. Production still requires its normal explicit authorisation. See `specs/049-macos-intel-support/release-policy.md`.
 
 ## Soty beta staging environment
 

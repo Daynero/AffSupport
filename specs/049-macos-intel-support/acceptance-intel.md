@@ -1,0 +1,13 @@
+# Intel acceptance
+
+> Current owner policy (2026-11-07): [intel-user-feedback-v1](release-policy.md). Physical/native Intel tests are post-release user feedback, not a publication prerequisite. Earlier hardware-blocking checkpoints below are historical; no unexecuted case is marked passed. ARM native beta, Windows hosted, static Intel seals/signatures and applicable Apple trust remain required.
+
+2026-11-07. Portable Intel engines were built from pinned sources and staged with exact digests. The complete x86_64 Soty Dev app, Finder extension, ZIP and DMG were produced. Static verification passed all 11 native files (slices, deployment floor, dependencies), 85 production dependency packages, app/extension signatures and dev identity/isolation.
+
+Artifact: `release/dev/x64/Soty-Dev-1.3.3-dev.59524e4b.dirty.20261107111118-macOS-x64.dmg`. SHA-256: `8a918132d5f2ebf23fdf48c4cd2db1aef006110ee2fa661cad40b3ffb6ffcd9c`. Source base 59524e4b, dirty feature worktree; this is an ad-hoc signed development build with local dev authentication and analytics disabled. Heavy artifacts are stored on the dedicated external volume through ignored target-specific `release/dev/x64` and `release/inputs/x64` symlinks. `release/acceptance` remains physically inside this worktree. Main worktree artifacts are untouched.
+
+No physical Intel host or minimum/newer macOS pair was available. No install/use/auth/tool/Finder/power/data-retention case is marked passed. The first dev wrapper attempted a cross-host Chromium version execution and timed out after artifact creation; the verifier was corrected to use explicit static verification on a mismatching host, and the complete verifier then passed. No Rosetta observation counts as physical acceptance. Beta/native promotion remains strict. Public Developer ID/Gatekeeper/notarization and native update acceptance remain unproven. T012 and SC-001 remain open.
+
+Final canonical command: `npm run package:dev:dmg -- --arch=x64` with the pinned target Chromium source and bounded Node/thread environment. Exit 0; complete static target/dependency/browser/identity/isolation/signature verification passed. The final build includes refusal of zero-digest placeholder installers and UUID/live-child-bound native readiness with its existing bounded timeout, plus known-package target binding for partial runtime identity.
+
+The final artifact also includes the installer-intent correction: `installer_target` is separate from observed native metadata and caller-supplied native claims are discarded. It is a 193,677,881-byte Dev DMG, not a physical hardware, real beta-auth or public Apple trust attestation.

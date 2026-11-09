@@ -3,6 +3,7 @@ import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
+  MACOS_STARTUP_CODES,
   PROFILE_SYNC_CODES,
   WORKSPACE_READ_CODES
 } from '../../packages/shared/src/types.js';
@@ -1676,6 +1677,16 @@ function build(): Record<string, CodeLocation> {
 
 export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
   ...build(),
+  ...Object.fromEntries(
+    MACOS_STARTUP_CODES.map(code => [
+      `native:macos:${code}`,
+      {
+        files: ['packaging/Launcher.swift', 'apps/agent/src/server/startup-evidence.ts'],
+        check:
+          'Inspect the last proven native stage and exact package target; absent evidence does not establish OS rejection or delivery.'
+      }
+    ])
+  ),
   'tariff:commercial:review_required': {
     files: [
       'supabase/migrations/20261207110000_commercial_access_guards.sql',

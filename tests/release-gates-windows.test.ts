@@ -7,6 +7,7 @@ import {
   RELEASE_DOWNLOAD_URL_WINDOWS,
   RELEASE_TAG,
   REQUIRED_RELEASE_PLATFORMS,
+  historicalReleasePlatforms,
   type ReleasePlatform,
   type StableReleaseManifest
 } from '../packages/shared/src/release.js';
@@ -112,11 +113,12 @@ describe('current required-platform set', () => {
     expect(REQUIRED_RELEASE_PLATFORMS).toContain('macos-arm64');
   });
 
-  it('matches the published stable manifest, so release:check passes today', () => {
+  it('keeps the historical channel valid without claiming a new Intel candidate', () => {
     const manifest = JSON.parse(
       readFileSync('apps/web/public/.well-known/wishly/stable.json', 'utf8')
-    ) as Pick<StableReleaseManifest, 'artifacts'>;
-    expect(artifactFailures(manifest)).toEqual([]);
+    ) as StableReleaseManifest;
+    expect(artifactFailures(manifest, historicalReleasePlatforms(manifest))).toEqual([]);
+    expect(artifactFailures(manifest)).toContain('missing required macos-x64 artifact');
   });
 
   it('flipping Windows on is what makes it block a release', () => {

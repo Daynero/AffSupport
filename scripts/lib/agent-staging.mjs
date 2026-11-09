@@ -2,6 +2,9 @@
 // packaging) and scripts/stage-windows-runtime.mjs (Windows staging). Copies
 // the built Agent (dist + exact production node_modules) into a destination
 // directory, verifying every dependency against package-lock.json first.
+import { createHash } from 'node:crypto';
+import { macosTarget } from './macos-target.mjs';
+import { verifyMacosPayload, isMachOFile } from './macos-payload.mjs';
 import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -21,7 +24,8 @@ const rootNodeModules = path.join(repositoryRoot, 'node_modules');
  * empty or missing directory outside the source tree. Returns the dependency
  * manifest that was written.
  */
-export async function stageAgentRuntime(destination) {
+export async function stageAgentRuntime(destination, options = {}) {
+  if (options.arch !== undefined) macosTarget(options.arch);
   destination = path.resolve(destination);
   if (
     destination === repositoryRoot ||
@@ -133,7 +137,7 @@ export async function stageAgentRuntime(destination) {
     path.join(destination, 'package.json')
   );
 
-  const browserRuntime = await stageChromiumHeadlessShell(destination);
+  const browserRuntime = await stageChromiumHeadlessShell(destination, options);
 
   for (const { source, relativePath } of productionPackages) {
     const sourceStats = await stat(source);
@@ -201,7 +205,22 @@ export async function stageAgentRuntime(destination) {
   return manifest;
 }
 
-async function stageChromiumHeadlessShell(destination) {
+export async function stageChromiumHeadlessShell(destination, options = {}) {
+  const target = options.arch === undefined ? null : macosTarget(options.arch);
+  const pinned = JSON.parse(
+    await readFile(path.join(rootNodeModules, 'playwright-core/browsers.json'), 'utf8')
+  ).browsers.find(browser => browser.name === 'chromium-headless-shell');
+  if (!pinned) throw new Error('CHROMIUM_REVISION_UNPROVEN');
+  if (
+    target &&
+    !options.browserSourceRoot &&
+    !process.env.SOTY_CHROMIUM_SOURCE_ROOT &&
+    (process.platform !== 'darwin' || process.arch !== target.arch)
+  ) {
+    throw new Error(
+      'CHROMIUM_TARGET_INPUT_REQUIRED: provide SOTY_CHROMIUM_SOURCE_ROOT for cross-builds'
+    );
+  }
   const chromiumExecutable = chromium.executablePath();
   let chromiumInstallRoot = path.dirname(chromiumExecutable);
   while (
@@ -216,10 +235,15 @@ async function stageChromiumHeadlessShell(destination) {
       `Could not locate Playwright's Chromium installation from ${chromiumExecutable}.`
     );
   }
-  const sourceRoot = path.join(
-    path.dirname(chromiumInstallRoot),
-    `chromium_headless_shell-${match[1]}`
-  );
+  const sourceRoot =
+    options.browserSourceRoot ??
+    process.env.SOTY_CHROMIUM_SOURCE_ROOT ??
+    path.join(path.dirname(chromiumInstallRoot), `chromium_headless_shell-${match[1]}`);
+  if (
+    match[1] !== pinned.revision ||
+    path.basename(sourceRoot) !== `chromium_headless_shell-${pinned.revision}`
+  )
+    throw new Error('CHROMIUM_REVISION_MISMATCH');
   const sourceStats = await stat(sourceRoot).catch(() => null);
   if (!sourceStats?.isDirectory()) {
     throw new Error(
@@ -234,6 +258,10 @@ async function stageChromiumHeadlessShell(destination) {
     throw new Error('The Playwright Chromium download is incomplete (binary or license missing).');
   }
 
+  if (target) {
+    if (!(await isMachOFile(sourceExecutable))) throw new Error('CHROMIUM_NATIVE_INPUT_INVALID');
+    await verifyMacosPayload(sourceRoot, target.arch);
+  }
   const targetRoot = path.join(destination, 'browser', 'chromium-headless-shell');
   await mkdir(path.dirname(targetRoot), { recursive: true });
   await cp(sourceRoot, targetRoot, { recursive: true });
@@ -247,7 +275,12 @@ async function stageChromiumHeadlessShell(destination) {
     .join('/');
   const browserRuntime = {
     name: 'chromium-headless-shell',
-    revision: match[1],
+    revision: pinned.revision,
+    version: pinned.browserVersion,
+    ...(target ? { platform: 'macos', architecture: target.arch } : {}),
+    executableSha256: createHash('sha256')
+      .update(await readFile(sourceExecutable))
+      .digest('hex'),
     executableRelativePath,
     licenseRelativePath
   };

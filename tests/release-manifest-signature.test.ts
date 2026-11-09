@@ -65,6 +65,26 @@ describe('release manifest signature', () => {
     ).resolves.toMatchObject({ version: '0.8.4' });
   });
 
+  it('verifies a complete three-platform channel and refuses a signed partial revision', async () => {
+    const candidate = baseManifest();
+    candidate.platformSetVersion = 2;
+    candidate.artifacts['macos-x64'] = {
+      url: 'https://github.com/Daynero/AffSupport/releases/download/v0.8.4/Soty-v0.8.4-macOS-x64.dmg',
+      sha256: 'b'.repeat(64)
+    };
+    candidate.artifacts['windows-x64'] = {
+      url: 'https://github.com/Daynero/AffSupport/releases/download/v0.8.4/Soty-v0.8.4-Windows-x64.exe',
+      sha256: 'c'.repeat(64)
+    };
+    await expect(
+      loadStableReleaseManifest(fetcherFor(signManifest(candidate)), publicKeyBase64)
+    ).resolves.toMatchObject({ platformSetVersion: 2 });
+    delete candidate.artifacts['macos-x64'];
+    await expect(
+      loadStableReleaseManifest(fetcherFor(signManifest(candidate)), publicKeyBase64)
+    ).rejects.toThrow('INVALID');
+  });
+
   it('accepts the signed manifest regardless of key order', async () => {
     const manifest = signManifest(baseManifest());
     const reordered = Object.fromEntries(Object.entries(manifest).reverse());

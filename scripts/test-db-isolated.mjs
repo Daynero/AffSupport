@@ -67,7 +67,19 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   });
 }
 try {
-  const image = docker(['inspect', '--format', '{{.Config.Image}}', source]).trim();
+  let image;
+  try {
+    image = docker(['container', 'inspect', '--format', '{{.Config.Image}}', source]).trim();
+  } catch {
+    // Read only two public fields; never dump container configuration/credentials.
+    const rows = docker(['ps', '--no-trunc', '--format', '{{.Names}} {{.Image}}'])
+      .trim()
+      .split('\n')
+      .map(line => line.split(' '))
+      .filter(row => row[0] === source);
+    if (rows.length !== 1) throw new Error('Expected exactly one running local source container.');
+    image = rows[0][1];
+  }
   if (!/^(?:public\.ecr\.aws|ghcr\.io)\/supabase\/postgres:[a-zA-Z0-9._-]+$/u.test(image))
     throw new Error('Expected a local Supabase PostgreSQL image.');
   // Ownership is inspectable even if Docker creates the container but loses its reply.

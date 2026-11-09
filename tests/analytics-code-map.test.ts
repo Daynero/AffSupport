@@ -176,7 +176,7 @@ describe('code map · files', () => {
       expect(entry.files.length, key).toBeGreaterThan(0);
       for (const file of entry.files) {
         expect(file, key).toMatch(
-          /^(apps|packages|supabase|packaging\/windows\/SotyAgentHost)\/[\w.@/-]+$/
+          /^(apps|packages|supabase|packaging\/windows\/SotyAgentHost|packaging)\/[\w.@/-]+$/
         );
         expect(file, key).not.toContain('..');
         expect(existsSync(join(ROOT, file)), `${key} → ${file}`).toBe(true);

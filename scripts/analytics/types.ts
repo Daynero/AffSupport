@@ -128,7 +128,7 @@ export interface FeaturesData {
   delivery_lag_ms: DeliveryLag;
 }
 export interface CohortsData {
-  cohort_by: 'local-app-version' | 'platform' | 'web-build';
+  cohort_by: 'local-app-version' | 'platform' | 'web-build' | 'agent-architecture';
   cohorts: CohortMetric[];
   /** Explains the `no_agent_context` cohort (events sent while no Agent was connected). */
   note: string;
@@ -260,6 +260,10 @@ export interface InspectAgentIdentity {
   web_build_ids: string[];
   platforms: string[];
   architectures: string[];
+  /** Native runtime only; empty on legacy events, never browser inference. */
+  agent_architectures?: string[];
+  native_startup_ids?: string[];
+  package_targets?: string[];
   /** The latest Agent run (`/health` instanceId) that emitted an event of this attempt. */
   agent_instance_id: string | null;
   /** Every Agent run seen; more than one means the Agent restarted during the attempt. */
@@ -279,6 +283,8 @@ export interface InspectFound {
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
+  /** Requested installer only; not evidence of an installed native package. */
+  requested_installer_targets?: string[];
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
@@ -817,12 +823,18 @@ export interface InvestigateSubject {
 }
 
 export interface InvestigateEnvironment {
+  /** Requested installer only; not evidence of an installed native package. */
+  requested_installer_targets?: string[];
   web_builds: string[];
   local_app_versions: string[];
   local_app_builds: string[];
   agent_platforms: string[];
   browser_platforms: string[];
   architectures: string[];
+  /** Native runtime only; empty on legacy events, never browser inference. */
+  agent_architectures?: string[];
+  native_startup_ids?: string[];
+  package_targets?: string[];
   browser_families: string[];
   link_origins: string[];
   first_seen_at: string | null;
@@ -916,6 +928,7 @@ export interface InvestigateSyncSummary {
 
 export interface InvestigateBlindSpot {
   kind:
+    | 'native_architecture_unobserved'
     | 'no_events_in_period'
     | 'web_build_without_link_events'
     | 'agent_version_without_journal'

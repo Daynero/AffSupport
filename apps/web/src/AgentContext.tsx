@@ -137,6 +137,12 @@ export interface AgentContextValue {
   setState: Dispatch<SetStateAction<QueueState>>;
   connectedOnce: boolean;
   agentVersion: string | null;
+  agentRuntime?: {
+    platform?: string | null;
+    architecture?: string | null;
+    packageTarget?: string | null;
+    nativeStartupId?: string | null;
+  };
   agentBuildId: string | null;
   agentChannel: string | null;
   agentApiVersion: number | null;
@@ -238,6 +244,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   /** Which local-app run the shown revision belongs to. */
   const knownInstance = useRef<string | null>(null);
   const [connectedOnce, setConnectedOnce] = useState(false);
+  const [agentRuntime, setAgentRuntime] = useState<NonNullable<AgentContextValue['agentRuntime']>>(
+    {}
+  );
   const [agentVersion, setAgentVersion] = useState<string | null>(null);
   const [agentBuildId, setAgentBuildId] = useState<string | null>(null);
   const [agentChannel, setAgentChannel] = useState<string | null>(null);
@@ -459,6 +468,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         const next = versionState(result.apiVersion);
         const previousInstance = knownInstance.current;
         setAgentVersion(result.version || null);
+        setAgentRuntime({
+          platform: result.platform,
+          nativeStartupId: result.nativeStartupId,
+          architecture: result.architecture,
+          packageTarget: result.packageTarget
+        });
         setAgentBuildId(result.buildId || null);
         setAgentChannel(result.channel || null);
         setAgentApiVersion(result.apiVersion);
@@ -482,6 +497,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           version: result.version || null,
           buildId: result.buildId || null,
           channel: result.channel || null,
+          nativeStartupId: result.nativeStartupId,
+          architecture: result.architecture,
+          packageTarget: result.packageTarget,
           apiVersion: result.apiVersion,
           toolContracts: result.toolContracts,
           instanceId: result.instanceId || null,
@@ -880,6 +898,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       accountCheckPending,
       connectedOnce,
       agentVersion,
+      agentRuntime,
       agentBuildId,
       agentChannel,
       agentApiVersion,
@@ -934,6 +953,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     accountCheckPending,
     connectedOnce,
     agentVersion,
+    agentRuntime,
     agentBuildId,
     agentChannel,
     agentApiVersion,

@@ -47,6 +47,11 @@ export const config = {
   buildId: releaseValue('AGENT_BUILD_ID', BUILD_ID),
   channel: releaseValue('AGENT_RELEASE_CHANNEL', RELEASE_CHANNEL),
   sourceRevision: releaseValue('AGENT_SOURCE_REVISION', 'development'),
+  nativeStartupId: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(
+    process.env.AGENT_NATIVE_STARTUP_ID ?? ''
+  )
+    ? process.env.AGENT_NATIVE_STARTUP_ID!.toLowerCase()
+    : null,
   installedReleasePath: process.env.AGENT_INSTALLED_RELEASE_PATH?.trim() || null
 };
 if (!Number.isInteger(config.port) || config.port < 1024 || config.port > 65535)

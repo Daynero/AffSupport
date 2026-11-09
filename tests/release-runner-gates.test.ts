@@ -95,8 +95,11 @@ describe('phase-scoped release validation', () => {
 
   it('keeps the release commands on the stricter phases', () => {
     const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts;
-    expect(scripts['package:mac']).toContain('verify-release.mjs --mode=candidate');
-    expect(scripts['package:dmg']).toContain('verify-release.mjs --mode=candidate');
+    expect(scripts['package:mac']).toBe('node scripts/package-macos.mjs production');
+    expect(scripts['package:dmg']).toBe('node scripts/package-macos.mjs production-dmg');
+    const wrapper = readFileSync('scripts/package-macos.mjs', 'utf8');
+    expect(wrapper.match(/--mode=candidate/g)).toHaveLength(2);
+    expect(wrapper).toContain('scripts/verify-release.mjs');
     for (const command of ['deploy:web', 'deploy:web:identity', 'deploy:web:member-pilot']) {
       expect(scripts[command]).toContain('verify-release.mjs --mode=final');
     }

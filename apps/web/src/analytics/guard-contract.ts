@@ -52,6 +52,8 @@ function representativeFor(
   switch (kind) {
     case 'event_list':
       return EVENT_LIST_SAMPLE;
+    case 'uuid':
+      return '00000000-0000-4000-8000-000000000001';
     case 'id':
       return OPAQUE_ID_SAMPLE;
     default:

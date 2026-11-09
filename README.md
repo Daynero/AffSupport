@@ -22,19 +22,29 @@ Use one command when a feature must be tested through the real launcher or DMG:
 npm run package:dev:dmg
 ```
 
+For Intel macOS 13 or newer, use `npm run package:dev:dmg -- --arch=x64`.
+The Intel app, ZIP and DMG live under `release/dev/x64/`; no argument keeps
+the ARM target and its existing paths. Bootstrap approved standalone Intel
+engines with the [Intel build quickstart](specs/049-macos-intel-support/quickstart.md).
+An Intel cross-build verifies native slices, dependencies and deployment floors;
+Intel runtime testing is first-user feedback under [the owner policy](specs/049-macos-intel-support/release-policy.md); automatic qualification and Apple trust remain required.
+
 The command creates `release/dev/Soty Dev.app` and a timestamped DMG. It does
 not change the product version, stable manifest, Git tags, GitHub Releases,
 Supabase migrations, or Cloudflare deployment. Soty Dev uses bundle ID
-`com.soty.dev`, port `43130`, its own instance lock and
+`com.wishly.dev`, port `43130`, its own instance lock and
 `~/Library/Application Support/Soty Dev`. Packaged development builds use a
 local synthetic profile and compile analytics out, so they do not authenticate
 against or write to production Supabase. They may run beside Soty Agent.
 
 The verified Node, FFmpeg, FFprobe, whisper.cpp, Silero VAD, and corresponding
-source archives are reused from `release/Soty Agent.app`. Override that
-source with `DEV_RUNTIME_SOURCE_APP=/path/to/verified/Soty Agent.app` when
-necessary. If Soty Dev is already running, packaging quits it only
-when health reports `busy:false`; active work is never interrupted.
+source archives are reused from the verified same-target production app
+(`release/Soty.app` for ARM, `release/x64/Soty.app` for Intel), or from
+`release/inputs/<arch>` when that app is absent. Override the source with
+`DEV_RUNTIME_SOURCE_APP=/path/to/verified/Soty.app` when necessary.
+Packaging refuses to rebuild while the target environment is listening;
+finish its work and quit it first. The packager never stops another app.
+After packaging Dev, run `npm run build:web` before production CSP/full verification.
 
 Soty now uses Supabase Auth with Google OAuth for the hosted product, PostgreSQL profiles, RLS-protected first-party product analytics, and database-confirmed admin access. Copy `.env.example` to `.env`, then follow the beginner-friendly [Supabase and Google setup guide](docs/SUPABASE_SETUP.md). Real credentials are never committed; a missing or invalid browser configuration renders an explicit setup screen instead of starting with `undefined` values.
 
@@ -76,7 +86,7 @@ The packaged launcher opens the web UI bundled inside the same `.app` only when 
 
 Starting with `0.2.0-test.1`, the launcher also watches the installed release manifest. When a newer `.app` replaces the running copy, it performs a version-aware handoff after active compression completes. Migrating from the legacy `0.1.0-test` build requires one manual quit because that old launcher predates the handoff protocol.
 
-This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Soty Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Intel/Universal support has not been verified and is not claimed.
+This test build is **ad-hoc signed, not Apple-notarized**. macOS quarantines it after download and Gatekeeper will not launch it directly (there is no "Open Anyway" affordance for an ad-hoc signature). Testers must run `xattr -dr com.apple.quarantine "/Applications/Soty Agent.app"` after installing each downloaded build — see `TESTER_GUIDE.md`. A production release requires a Developer ID Application certificate, `--options runtime` hardened signing, and Apple notarization + stapling, after which no such step is needed. Separate ARM and Intel packaging is implemented; Intel runtime testing is user-led, while required automatic/trust gates are recorded in the [acceptance matrix](specs/049-macos-intel-support/acceptance-matrix.md). No universal app is claimed. Follow [the canonical production runbook](docs/PRODUCTION.md) for any release; local packaging does not authorize publication.
 
 ## Daily use
 
@@ -265,7 +275,7 @@ These routes are not part of the browser contract.
 
 ## Current limitations
 
-- macOS Apple Silicon only. A packaged `.app` and drag-to-Applications DMG exist (`npm run package:dmg`), but the test build is ad-hoc signed, not notarized, so it needs the quarantine step after each downloaded build. Updating still requires replacing the app manually; restart/handoff after replacement is automatic from `0.2.0-test.1` onward.
+- Intel native runtime confirmation is post-release user feedback; target-specific Intel Dev packages are available to build locally. The historical ARM closed-test `.app` and DMG are ad-hoc signed, not notarized. Updating still uses manual replacement; native automatic installation is not claimed.
 - One local agent and one FFmpeg encoding process at a time.
 - Retry restarts a file from the beginning; there is no partial resume.
 - Compression queue, settings, source paths, images, and estimates remain local JSON/Agent state. Only auth profiles, consent, and sanitized product aggregates are multi-user Supabase data. Source files moved after selection will fail clearly.

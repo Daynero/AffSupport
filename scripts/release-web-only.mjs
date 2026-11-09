@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { setPriority } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { historicalReleasePlatforms } from '../packages/shared/dist/release.js';
 import { atomicRecord } from './lib/release/task-store.mjs';
 import { execute } from './lib/release/execute.mjs';
 import { inspectWebOnlySource, newBackendMigrationPaths } from './lib/web-only-policy.mjs';
@@ -308,7 +309,18 @@ export async function runWebOnly({
   }
   if (mode === 'check') {
     const prerequisites = {};
+    const channel = JSON.parse(
+      await readFile(path.join(cwd, 'apps/web/public/.well-known/wishly/stable.json'), 'utf8')
+    );
+    const targetFiles = historicalReleasePlatforms(channel).includes('macos-x64')
+      ? [
+          'release/beta/x64/verification.json',
+          'release/beta/x64/package-provenance.json',
+          'release/beta/platform-baseline.json'
+        ]
+      : [];
     for (const file of [
+      ...targetFiles,
       'release/beta/verification.json',
       'release/beta/package-provenance.json',
       '.env.beta'
@@ -571,8 +583,17 @@ export async function runWebOnly({
       const productionBundleDigest = await outputDigest(path.join(cwd, 'apps/web/dist'));
       await gate('web-environment', [process.execPath, 'scripts/verify-web-env.mjs']);
       await gate('team-production', ['npm', 'run', 'verify:team-production']);
-      await gate('releaseFinal', [process.execPath, 'scripts/verify-release.mjs', '--mode=final']);
-      await gate('publishedArtifacts', [process.execPath, 'scripts/verify-published-release.mjs']);
+      await gate('releaseFinal', [
+        process.execPath,
+        'scripts/verify-release.mjs',
+        '--mode=final',
+        '--historical'
+      ]);
+      await gate('publishedArtifacts', [
+        process.execPath,
+        'scripts/verify-published-release.mjs',
+        '--historical'
+      ]);
       const runtimeReceipt = path.join(cwd, 'release/automation', `web-runtime-${runId}.json`);
       await rm(runtimeReceipt, { force: true });
       if (dbContext) await dbContext.verifyBeta(beta);
@@ -672,7 +693,8 @@ export async function runWebOnly({
     ]);
     await gate('published-artifacts-fresh', [
       process.execPath,
-      'scripts/verify-published-release.mjs'
+      'scripts/verify-published-release.mjs',
+      '--historical'
     ]);
     report.state = 'publishing';
     report.publicationState = 'unknown';

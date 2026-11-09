@@ -9,6 +9,8 @@ short_version="${5:?Pass CFBundleShortVersionString}"
 build_number="${6:?Pass CFBundleVersion}"
 generated_source="${7:?Pass a generated Swift source path}"
 menu_suffix="${8-}"
+arch="${9:-arm64}"
+swift_target=$(node scripts/lib/macos-target.mjs swift production --arch="$arch")
 
 extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
 executable="$extension/Contents/MacOS/SotyFinderExtension"
@@ -23,7 +25,7 @@ node scripts/render-launcher.mjs \
   "FINDER_MENU_SUFFIX=$menu_suffix"
 swiftc "$generated_source" \
   -o "$executable" \
-  -target arm64-apple-macos13.0 \
+  -target "$swift_target" \
   -module-name SotyFinderExtension \
   -parse-as-library \
   -application-extension \

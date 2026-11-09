@@ -14,18 +14,17 @@ import {
 import {
   agentKnown,
   agentLocalUrl,
-  markAgentInstallStarted,
   request,
   requestBody,
   addLocalFiles,
   uploadImage as uploadImageAsset,
   uploadFile
 } from './api/client';
+import { InstallerDownload } from './components/InstallerDownload';
 import { type ConnectionState } from './connection';
 import { formatSize } from './format';
 import { fileCountKey, type TranslationKey, useI18n } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
-import { preferredDownload } from './release-manifest';
 import {
   batchMetrics,
   compressBlock,
@@ -1003,8 +1002,7 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
-  const { capabilities, releaseManifest, reason } = useAgent();
-  const downloadUrl = preferredDownload(releaseManifest.manifest, capabilities).url;
+  const { reason } = useAgent();
   // A manual connect flips the connection to "connecting" for a moment. Rather
   // than swapping the whole panel for a spinner (which read as a flicker), we
   // keep the panel mounted and let the button animate the search in place.
@@ -1035,12 +1033,7 @@ export function Onboarding({
             >
               {t('openInstalledVersion')}
             </a>
-            <a
-              className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'md' })}
-              href={downloadUrl}
-            >
-              {t('downloadLatest')}
-            </a>
+            <InstallerDownload intent="update">{t('downloadLatest')}</InstallerDownload>
           </div>
         }
       />
@@ -1111,13 +1104,7 @@ export function Onboarding({
             >
               {t('linkOpenInSoty')}
             </a>
-            <a
-              className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'md' })}
-              href={downloadUrl}
-              onClick={markAgentInstallStarted}
-            >
-              {t('downloadAgent')}
-            </a>
+            <InstallerDownload>{t('downloadAgent')}</InstallerDownload>
           </div>
         }
       />
@@ -1149,13 +1136,7 @@ export function Onboarding({
           </>
         ) : (
           <>
-            <a
-              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
-              href={downloadUrl}
-              onClick={markAgentInstallStarted}
-            >
-              {t('downloadAgent')}
-            </a>
+            <InstallerDownload>{t('downloadAgent')}</InstallerDownload>
             <Button onClick={connect} loading={busy}>
               {t('connectAgent')}
             </Button>
@@ -1167,9 +1148,7 @@ export function Onboarding({
         // flag is never cleared, so someone who has uninstalled Soty would
         // otherwise be offered nothing but a link to an app that is gone.
         <p className="onboarding-alternative">
-          <a href={downloadUrl} onClick={markAgentInstallStarted}>
-            {t('downloadAgentAgain')}
-          </a>
+          <InstallerDownload>{t('downloadAgentAgain')}</InstallerDownload>
         </p>
       )}
       <p className={`agent-search ${busy ? 'is-active' : ''}`.trim()} role="status">

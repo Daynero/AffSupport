@@ -1,26 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAgent } from '../AgentContext';
 import { analytics } from '../analytics/service';
-import { markAgentInstallStarted } from '../api/client';
 import { useI18n } from '../i18n';
-import {
-  installedReleaseStatus,
-  localizedReleaseSummary,
-  preferredDownload
-} from '../release-manifest';
+import { installedReleaseStatus, localizedReleaseSummary } from '../release-manifest';
+import { InstallerDownload } from './InstallerDownload';
 
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
 export default function ReleaseUpdateNotice() {
-  const {
-    agentVersion,
-    agentChannel,
-    capabilities,
-    connection,
-    releaseManifest,
-    state,
-    toolAvailable
-  } = useAgent();
+  const { agentVersion, agentChannel, connection, releaseManifest, state, toolAvailable } =
+    useAgent();
   const { language, t } = useI18n();
   const titleId = useId();
   const promptedBuild = useRef<string | null>(null);
@@ -87,16 +76,7 @@ export default function ReleaseUpdateNotice() {
         <small>{t('releaseNoticeInstruction')}</small>
       </div>
       <div className="release-update-actions">
-        <a
-          className="ui-button ui-button--solid ui-button--md ui-color-primary"
-          href={preferredDownload(manifest, capabilities).url}
-          onClick={() => {
-            markAgentInstallStarted();
-            analytics.track('update_started', {});
-          }}
-        >
-          {t('releaseNoticeDownload')}
-        </a>
+        <InstallerDownload intent="update">{t('releaseNoticeDownload')}</InstallerDownload>
         <button
           className="ui-button ui-button--link ui-button--md ui-color-neutral"
           type="button"

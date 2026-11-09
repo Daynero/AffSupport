@@ -41,7 +41,7 @@ Speech is segmented with the Silero VAD ggml model `ggml-silero-v5.1.2.bin` (MIT
 
 The Windows package bundles different builds from the macOS one. Exact provenance for every bundled third-party file — upstream URL, version, license and sha256 — is recorded in `packaging/windows/inputs.json`, which the build verifies before use.
 
-- Node.js: official 24.13.0 Windows x64 distribution (MIT), same version as the macOS package.
+- Node.js: official 24.13.0 Windows x64 distribution (MIT), same version as the Apple Silicon macOS package.
 - whisper.cpp: see above.
 - FFmpeg and FFprobe: compiled for win64 by `.github/workflows/release-windows.yml` from the official FFmpeg 7.1.1 release tarball and VideoLAN x264 commit `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee` — the same version and revision the macOS binaries are built from — with `--enable-gpl --enable-libx264 --disable-shared --enable-static`. No third-party build is bundled: no static win64 GPL build of the 7.1.x line is still published anywhere, and a different version would put Windows encoding out of step with macOS. The complete corresponding source archives for both are staged into `licenses/sources/` inside the installed application, exactly as the macOS bundle does.
 
@@ -59,3 +59,9 @@ The web application uses `@supabase/supabase-js`, distributed under the MIT lice
 ## Google Sign-In asset
 
 The Google "G" asset used by the sign-in button is an unmodified current asset from Google's official Sign in with Google asset bundle and is displayed according to Google's identity branding guidance. Source: https://developers.google.com/identity/branding-guidelines.
+
+## Intel macOS runtime
+
+`packaging/macos/inputs.json` pins the official Node 22.23.4 x64 distribution (MIT), FFmpeg 7.1.1, x264 revision 0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee, Whisper 1.9.1 and Silero VAD 5.1.2. `scripts/build-intel-inputs.sh` builds static CPU engines for macOS 13 without host CPU tuning or Homebrew runtime dependencies. Node 24 requires macOS 13.5; Intel uses the maintained Node 22 LTS line to preserve the macOS 13 minimum. Each staged input has a verified SHA-256, source URL, version and license in `approved-inputs.json`. GPL source archives, complete license texts and the build recipe accompany the installed runtime under `licenses/`.
+
+Chromium headless shell is the Playwright-pinned revision 1234. The Intel mac14 download contains x86_64 Mach-O files with deployment target macOS 13.0; package inspection verifies every native helper. The archive label alone is not runtime acceptance on macOS 13.

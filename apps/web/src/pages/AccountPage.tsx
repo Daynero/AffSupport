@@ -59,9 +59,9 @@ import { Languages, LogOut, MonitorSmartphone, UserRound, UsersRound } from 'luc
 import { useAuth, type EditableProfilePatch } from '../auth/AuthContext';
 import { analytics } from '../analytics/service';
 import { useAgent } from '../AgentContext';
-import { markAgentInstallStarted } from '../api/client';
 import { teamApi, type TeamContextSnapshot } from '../api/team';
 import { ICON_STROKE } from '../components/icons';
+import { InstallerDownload } from '../components/InstallerDownload';
 import { ToastProvider } from '../components/toast';
 import { linkReasonText, ReconnectAction } from '../components/ReconnectAction';
 import {
@@ -81,7 +81,7 @@ import { useI18n, type Language, type TranslationKey } from '../i18n';
 import { configuredEnvironment } from '../lib/config';
 import type { Profile } from '../lib/database.types';
 import { internalLink, usePageEntrance } from '../lib/navigation';
-import { installedReleaseStatus, preferredDownload } from '../release-manifest';
+import { installedReleaseStatus } from '../release-manifest';
 import { InvitationList, type InvitationListClient } from '../team/lobby/InvitationList';
 import { buildTeamRoute } from '../team/routes';
 import { useOptionalTeam } from '../team/TeamContext';
@@ -463,7 +463,6 @@ function LocalAppSection() {
   const {
     agentVersion,
     agentChannel,
-    capabilities,
     connection,
     lastKnownAgent,
     reason,
@@ -507,7 +506,6 @@ function LocalAppSection() {
     : lastKnownAgent?.version
       ? t('accountLocalAppLastSeen', { version: lastKnownAgent.version })
       : t('accountLocalAppNotConnected');
-  const download = preferredDownload(manifest, capabilities).url;
   const updating = state === 'update_available' || state === 'update_required';
   const revision = String(import.meta.env.VITE_WEB_REVISION ?? 'unknown');
 
@@ -531,23 +529,14 @@ function LocalAppSection() {
           {updating && (
             // An anchor wearing the button's classes, as the update notice does:
             // a download is a navigation, and the inventory's Button is not one.
-            <a
-              className="ui-button ui-button--solid ui-button--md ui-color-primary"
-              href={download}
-              onClick={() => {
-                markAgentInstallStarted();
-                analytics.track('update_started', {});
-              }}
-            >
+            <InstallerDownload intent="update">
               {t('accountLocalAppDownloadUpdate')}
-            </a>
+            </InstallerDownload>
           )}
           {state === 'offline' && (
             <>
               <ReconnectAction surface="account" size="md" />
-              <Link href={download} onClick={markAgentInstallStarted}>
-                {t('accountLocalAppDownload')}
-              </Link>
+              <InstallerDownload>{t('accountLocalAppDownload')}</InstallerDownload>
             </>
           )}
         </span>

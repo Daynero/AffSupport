@@ -1216,6 +1216,8 @@ export const uk: Record<keyof typeof en, string> = {
   linkAccountCheckPending: 'Онлайн-перевірку акаунта відкладено; інструменти працюють',
   linkStateNotRead: 'Стан інструмента не прочитано',
   linkClockSkew: 'Годинник цього комп’ютера збитий; перевірка акаунта може не пройти',
+  macIntel: 'Mac (Intel)',
+  installerUnavailable: 'Ця версія поки недоступна.',
   macAppleSilicon: 'Mac (Apple Silicon)',
   windows: 'Windows',
   windowsComingSoonTitle: 'Soty для Windows',

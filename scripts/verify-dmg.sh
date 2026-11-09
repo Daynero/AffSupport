@@ -1,10 +1,15 @@
 #!/bin/zsh
 set -euo pipefail
-dmg="$PWD/release/$(node scripts/release-meta.mjs artifact-name)"
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch production "$@")
+macho=$(node scripts/lib/macos-target.mjs macho production "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift production "$@")
+target_root=$(node scripts/lib/macos-target.mjs root production "$@")
+dmg="$target_root/$(node scripts/release-meta.mjs "$([[ "$arch" == x64 ]] && print intel-artifact-name || print artifact-name)")"
 build_id=$(node scripts/release-meta.mjs build-id); api_version=$(node scripts/release-meta.mjs api-version)
 support_directory_name=$(node scripts/environment-meta.mjs production support-directory-name)
 [[ -f "$dmg" ]] || { print -u2 "DMG not found"; exit 1; }
-[[ -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Soty before DMG verification."; exit 1; }
+[[ "$arch" == x64 || -z "$(lsof -tiTCP:43120 -sTCP:LISTEN 2>/dev/null)" ]] || { print -u2 "Quit the currently running Soty before DMG verification."; exit 1; }
 work=$(mktemp -d /tmp/wishly-dmg-verify.XXXXXX); mount=''; agent_pid=''; listener_pid=''
 cleanup() { [[ -z "$agent_pid" ]] || kill -TERM "$agent_pid" 2>/dev/null || true; [[ -z "$listener_pid" ]] || kill -TERM "$listener_pid" 2>/dev/null || true; [[ -z "$mount" ]] || hdiutil detach -quiet "$mount" 2>/dev/null || true; rm -rf "$work"; }
 trap cleanup EXIT INT TERM
@@ -13,11 +18,19 @@ attach=$(hdiutil attach -readonly -nobrowse "$dmg"); mount=$(print -r -- "$attac
 ditto "$mount/Soty.app" "$work/Soty.app"
 app="$work/Soty.app"; [[ -f "$app/Contents/Resources/AppIcon.icns" ]]
 finder_extension="$app/Contents/PlugIns/SotyFinderExtension.appex"
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
+[[ "$arch" == x64 || "$(node -p process.arch)" == "$arch" ]] || { print -u2 "Matching native runtime required; static payload checks passed but runtime acceptance is unproven."; exit 1; }
 finder_binary="$finder_extension/Contents/MacOS/SotyFinderExtension"
 [[ -x "$finder_binary" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$finder_extension/Contents/Info.plist")" == "com.apple.FinderSync" ]]
 codesign --verify --strict "$finder_extension"
-for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *arm64* ]]; done
+for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *"$macho"* ]]; done
+if [[ "$arch" == x64 ]]; then
+  codesign --verify --deep --strict "$app"
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  print "Intel DMG layout, target payload, dependencies and signatures verified. Native execution is unverified under intel-user-feedback-v1."
+  exit 0
+fi
 support_root="$work/home/Library/Application Support/$support_directory_name"
 mkdir -p "$support_root" "$work/video"
 ffmpeg="$app/Contents/Resources/runtime/bin/ffmpeg"; ffprobe="$app/Contents/Resources/runtime/bin/ffprobe"

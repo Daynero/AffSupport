@@ -1,5 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
+# Validate before any builds, admission, cleanup or listener changes.
+arch=$(node scripts/lib/macos-target.mjs arch beta "$@")
+macho=$(node scripts/lib/macos-target.mjs macho beta "$@")
+swift_target=$(node scripts/lib/macos-target.mjs swift beta "$@")
+target_root=$(node scripts/lib/macos-target.mjs root beta "$@")
 source "$PWD/scripts/release-admission.zsh"
 release_require_admission
 
@@ -20,9 +25,13 @@ release_require_admission
 # It must never touch production release identity. That is asserted before and
 # after the build rather than trusted.
 
-root="$PWD/release/beta"
+root="$target_root"
 app="$root/Soty Beta.app"
-source_app="${BETA_RUNTIME_SOURCE_APP:-$PWD/release/Soty.app}"
+source_app="${BETA_RUNTIME_SOURCE_APP:-$(node scripts/lib/macos-target.mjs app production --arch="$arch")}"
+# Bootstrap the first target without requiring a prior production .app.
+if [[ -z "${BETA_RUNTIME_SOURCE_APP:-}" && ! -d "$source_app" && -f "$PWD/release/inputs/$arch/approved-inputs.json" ]]; then
+  source_app="$PWD/release/inputs/$arch"
+fi
 
 # Files that carry production release identity. The constitution requires dev
 # and test builds to leave versions, the stable manifest, git tags, Supabase
@@ -93,23 +102,15 @@ beta_google_project=$(sed -n 's/^VITE_GOOGLE_PROJECT_NUMBER=//p' .env.beta | hea
   exit 1
 }
 
-if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
-  health=$(/usr/bin/curl -fsS --max-time 1 "http://127.0.0.1:$port/health" 2>/dev/null || true)
-  print -r -- "$health" | grep -q '"busy":false' || {
-    print -u2 "Soty Beta is using port $port and may be busy. Finish its work and quit it before rebuilding."
-    exit 1
-  }
-  /usr/bin/osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || kill $listener 2>/dev/null || true
-  for _ in {1..40}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
-  # The app quitting is not the listener quitting: an agent run from source
-  # (`node apps/agent/dist/index.js`) holds the port with no app around it, and
-  # the AppleScript quit above succeeds without touching it. It said it was idle,
-  # so it is asked to stop itself, and given the time a clean shutdown takes.
-  if listener=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null); then
-    kill -TERM $listener 2>/dev/null || true
-    for _ in {1..100}; do lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 || break; sleep .1; done
-  fi
-  lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && { print -u2 "Soty Beta did not quit cleanly."; exit 1; }
+if [[ -f "$source_app/approved-inputs.json" ]]; then
+  node scripts/stage-macos-inputs.mjs --verify="$source_app" --arch="$arch"
+else
+  node scripts/verify-macos-payload.mjs "$source_app" --arch="$arch"
+fi
+
+if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+  print -u2 "The target environment is running on port $port. Finish its work and quit it before rebuilding; packaging never stops another app."
+  exit 1
 fi
 
 base_version=$(node scripts/release-meta.mjs product-version)
@@ -124,7 +125,7 @@ stamp=$(date -u +%Y%m%d%H%M%S)
 version="$base_version-beta.$short_revision$dirty.$stamp"
 build_number=$(date -u +%s)
 build_id="$version+$build_number"
-archive_name="Soty-Beta-$version-macOS-arm64.zip"
+archive_name="Soty-Beta-$version-macOS-$arch.zip"
 
 VITE_APP_ENVIRONMENT=beta \
 VITE_AGENT_URL="http://127.0.0.1:$port" \
@@ -159,7 +160,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "AGENT_ENTITLEMENT_PUBLIC_KEY=$beta_key"
 swiftc "$root/Launcher.generated.swift" \
   -o "$app/Contents/MacOS/SotyBetaAgent" \
-  -target arm64-apple-macos13.0 \
+  -target "$swift_target" \
   -framework AppKit \
   -framework FinderSync
 
@@ -171,10 +172,13 @@ for binary in ffmpeg ffprobe whisper-cli; do
   cp "$source_app/Contents/Resources/runtime/bin/$binary" "$app/Contents/Resources/runtime/bin/$binary"
 done
 cp "$source_app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" "$app/Contents/Resources/runtime/models/"
-node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent"
+if [[ -f "$source_app/approved-inputs.json" ]]; then
+  cp "$source_app/approved-inputs.json" "$app/Contents/Resources/runtime-inputs.json"
+fi
+node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent" --arch="$arch"
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
-cp "$source_app/Contents/Resources/licenses/sources/"* "$app/Contents/Resources/licenses/sources/"
+cp -R "$source_app/Contents/Resources/licenses/." "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
 # This beta-only boolean is covered by the bundle signature and package seal.
 /usr/libexec/PlistBuddy -c "Add :SotyBetaCatalogVideoVariants bool $beta_catalog_video_variants" "$app/Contents/Info.plist"
@@ -196,9 +200,11 @@ zsh scripts/build-finder-extension.sh \
   "$bundle_version" \
   "$build_number" \
   "$root/FinderSync.generated.swift" \
-  " — Soty Beta"
-node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" > "$app/Contents/Resources/release.json"
+  " — Soty Beta" \
+  "$arch"
+node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "$build_id" "$api_version" "$source_revision" "$archive_name" "$arch" > "$app/Contents/Resources/release.json"
 /usr/bin/sed -i '' 's/"channel": "development"/"channel": "beta"/' "$app/Contents/Resources/release.json"
+node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
 # Ad-hoc signature only. The release-manifest key signs stable.json and nothing
@@ -206,13 +212,13 @@ xattr -cr "$app"
 # by it — it is unreachable by it.
 codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
 archive="$root/$archive_name"
-rm -f "$root"/Soty-Beta-*-macOS-arm64.zip(N) "$root"/Soty-Beta-*-macOS-arm64.zip.sha256(N)
+rm -f "$root"/Soty-Beta-*-macOS-$arch.zip(N) "$root"/Soty-Beta-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"
 (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
 
 after_state=$(protected_state)
 # Seal the actual package payload before any verification record can attest it.
-node "${0:A:h}/beta-package-provenance.mjs" --record >/dev/null
+node "${0:A:h}/beta-package-provenance.mjs" --record --arch="$arch" >/dev/null
 
 after_tags=$(git tag --list | sort)
 [[ "$before_state" == "$after_state" ]] || {

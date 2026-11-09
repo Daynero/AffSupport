@@ -9,7 +9,7 @@ import type {
   TranscriptionJob
 } from '@video-compressor/shared';
 import { ffmpegPath, probeDuration } from '../ffmpeg/tools.js';
-import { currentPlatform } from '../platform/platform.js';
+import { currentPlatform, runtimeArchitecture } from '../platform/platform.js';
 import {
   currentModelPath,
   WHISPER_MODELS,
@@ -1034,7 +1034,12 @@ export function buildWhisperArgs(
     disableVad?: boolean;
     vadThreshold?: number;
   },
-  options: { threads?: number; vadModelPath?: string | null; platform?: NodeJS.Platform } = {}
+  options: {
+    threads?: number;
+    vadModelPath?: string | null;
+    platform?: NodeJS.Platform;
+    architecture?: string;
+  } = {}
 ): string[] {
   const quality = params.quality ?? 'accurate';
   const platform = options.platform ?? currentPlatform();
@@ -1073,7 +1078,8 @@ export function buildWhisperArgs(
     // CPU-only machine five beams are five decoder passes, and the fast mode exists for
     // exactly that machine: it decodes greedily and keeps the best-of fallback, which only
     // costs anything on a window that greedy decoding has already got wrong.
-    ...(quality === 'fast' && platform !== 'darwin'
+    ...(quality === 'fast' &&
+    (platform !== 'darwin' || (options.architecture ?? runtimeArchitecture()) !== 'arm64')
       ? ['-bs', '1', '-bo', '5']
       : ['-bs', '5', '-bo', '5']),
     // Suppress non-speech tokens (harmless to real words) to trim noise symbols.

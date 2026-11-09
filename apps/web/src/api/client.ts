@@ -151,6 +151,9 @@ export async function connect(signal?: AbortSignal): Promise<{
   instanceId: string;
   /** The host OS as the agent reports it (031 FR-053); null from an agent older than 031. */
   platform: AgentHostPlatform | null;
+  architecture: 'arm64' | 'x64' | 'unknown';
+  packageTarget: NonNullable<HealthResponse['packageTarget']>;
+  nativeStartupId: string | null;
   channel: string;
   apiVersion: number;
   capabilities: string[];
@@ -198,6 +201,23 @@ export async function connect(signal?: AbortSignal): Promise<{
     platform:
       health.platform === 'macos' || health.platform === 'windows' || health.platform === 'linux'
         ? health.platform
+        : null,
+    architecture:
+      health.architecture === 'arm64' || health.architecture === 'x64'
+        ? health.architecture
+        : 'unknown',
+    packageTarget:
+      health.packageTarget === 'macos-arm64' ||
+      health.packageTarget === 'macos-x64' ||
+      health.packageTarget === 'windows-x64'
+        ? health.packageTarget
+        : 'unknown',
+    nativeStartupId:
+      typeof health.nativeStartupId === 'string' &&
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(
+        health.nativeStartupId
+      )
+        ? health.nativeStartupId
         : null,
     channel: health.channel ?? 'unknown',
     apiVersion,

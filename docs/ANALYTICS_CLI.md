@@ -718,3 +718,9 @@ provider mutation occurred. Inspect authoritative receipts before retrying.
 Historical signals without source_kind cannot reconstruct the failure source;
 trash_request does not distinguish internal Drive substeps or swallowed companion
 cleanup errors. Beta analytics remains disabled.
+
+### Native architecture cohorts (049)
+
+`npm run analytics -- cohorts --cohort-by agent-architecture --json` groups by native platform, runtime CPU and local build. `macos:x64` is distinct from `windows:x64`; a runtime under translation does not prove physical Intel hardware. `investigate` and `inspect` expose native fields separately from existing browser `architectures`. Missing legacy identity stays unknown with an explicit investigation blind spot. No download click proves bytes/install/boot, and no terminal without visible-result evidence proves delivery. The forward SQL guard migration must ship through the normal release before new properties reach production; no report command applies it.
+
+Installer request intent is `properties.installer_target` and is projected separately as `requested_installer_targets` by inspect/investigate. `properties.package_target` describes observed installed metadata from the native health context. A fresh download request never establishes native architecture, installation or successful delivery.

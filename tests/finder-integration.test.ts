@@ -67,7 +67,8 @@ describe('Soty Finder image conversion integration', () => {
     for (const script of [production, development]) {
       expect(script).toContain('scripts/build-finder-extension.sh');
       expect(script).toContain('-framework FinderSync');
-      expect(script).toContain('-target arm64-apple-macos13.0');
+      expect(script).toContain('-target "$swift_target"');
+      expect(script).toContain('scripts/lib/macos-target.mjs swift');
       expect(script).toContain('--preserve-metadata=entitlements');
     }
     // The extension id is the app's bundle id plus a suffix, and the bundle id

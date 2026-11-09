@@ -318,6 +318,9 @@ async function sendWithSupabase(events: PendingAnalyticsEvent[], signal?: AbortS
 }
 
 type AgentAnalyticsContext = {
+  nativeStartupId?: string | null;
+  packageTarget?: 'macos-arm64' | 'macos-x64' | 'windows-x64' | 'unknown';
+  architecture?: 'arm64' | 'x64' | 'unknown';
   version: string | null;
   buildId: string | null;
   channel: string | null;
@@ -388,6 +391,17 @@ export class ProductAnalytics {
   setAgentContext(context: AgentAnalyticsContext) {
     this.context = {
       ...context,
+      nativeStartupId: safeUuid(context.nativeStartupId ?? null),
+      packageTarget:
+        context.packageTarget === 'macos-arm64' ||
+        context.packageTarget === 'macos-x64' ||
+        context.packageTarget === 'windows-x64'
+          ? context.packageTarget
+          : 'unknown',
+      architecture:
+        context.architecture === 'arm64' || context.architecture === 'x64'
+          ? context.architecture
+          : 'unknown',
       version: context.version?.slice(0, 64) || null,
       buildId: context.buildId?.slice(0, 96) || null,
       channel: context.channel?.slice(0, 32) || null,
@@ -497,6 +511,21 @@ export class ProductAnalytics {
     sanitized: Record<string, Json>
   ): PendingAnalyticsEvent {
     const eventProperties = { ...sanitized };
+    // Browser callers express installer intent; observed native identity comes
+    // only from the health context captured for this event.
+    delete eventProperties.agent_architecture;
+    delete eventProperties.package_target;
+    delete eventProperties.native_startup_id;
+    if (this.context.instanceId) {
+      const arch =
+        this.context.architecture === 'arm64' || this.context.architecture === 'x64'
+          ? this.context.architecture
+          : 'unknown';
+      eventProperties.agent_architecture = arch;
+      if (this.context.nativeStartupId)
+        eventProperties.native_startup_id = this.context.nativeStartupId;
+      eventProperties.package_target = this.context.packageTarget ?? 'unknown';
+    }
     delete eventProperties.flow_id;
     delete eventProperties.run_id;
     const attemptId = safeOpaqueId(sanitized.attempt_id);

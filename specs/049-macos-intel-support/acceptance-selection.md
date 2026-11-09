@@ -1,0 +1,9 @@
+# Installer selection verification
+
+> Current owner policy (2026-11-07): [intel-user-feedback-v1](release-policy.md). Physical/native Intel tests are post-release user feedback, not a publication prerequisite. Earlier hardware-blocking checkpoints below are historical; no unexecuted case is marked passed. ARM native beta, Windows hosted, static Intel seals/signatures and applicable Apple trust remain required.
+
+The automated fixture matrix covers explicit Intel/Apple Silicon/Windows selection, native identity overriding browser identity, legacy and unknown native identity, missing Intel artifact, wrong target, exact-version URL pinning and invalid or placeholder digest. A zero SHA candidate cannot become a downloadable installer. Signed historical ARM channels remain usable; a new version-2 channel requires every platform. New release/update callers use the shared installer component and explicit unavailable/choice-required outcomes.
+
+The resolver, manifest signature and release-update notice focused run passed 22 tests. This verifies source behavior and rendered fixture expectations. Manual keyboard/screen-reader acceptance across all download surfaces and physical packaged ARM/Windows controls have not been observed and remain open under T017. A native automatic updater was absent at the source base; same-target manual handoff is implemented without claiming automatic installation or Apple trust acceptance.
+
+Account and onboarding fixtures now refuse guessed ARM links when the verified manifest is absent. A complete typed three-target manifest exercises actual explicit Intel/ARM/Windows link rendering. A separate regression proved that missing native architecture previously allowed a known Intel package target to be switched to ARM; the resolver now retains the known package binding.

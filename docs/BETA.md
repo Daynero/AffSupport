@@ -514,3 +514,7 @@ Beta must keep real authentication, entitlement checks and production telemetry 
 No test uses production credentials, buckets or customer media. Missing provider setup remains
 an explicit release blocker. Old-client refusal, accepted legacy retry, local-only input,
 keyboard/touch and light/dark modes belong to the packaged acceptance matrix.
+
+### Intel source implementation checkpoint (049)
+
+Mac packaging and verification accept `--arch=arm64|x64` through npm `--`; no argument preserves ARM. Intel staging/seals live under `release/beta/x64/`. Under the owner's `intel-user-feedback-v1` policy, `beta:verify -- --arch=x64` performs static target, signature, dependency, config and payload qualification without executing x64 binaries or requiring Intel hardware. Schema 3 records runtime/hardware unverified; ARM keeps real native login/entitlement/operation verification. Both records bind exact source/build/config/agent/web/metadata bytes. Static Intel proof cannot be reused for ARM or relabelled native in mini baselines. Public Apple trust and Windows hosted evidence are unchanged. Prepare/verify Intel before starting the ARM beta app; packaging never stops an active same-flavor app. Full policy: [release-policy.md](../specs/049-macos-intel-support/release-policy.md).
