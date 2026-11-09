@@ -39,3 +39,20 @@ Lint: `eslint` і `prettier` на змінених файлах чисті.
 ## Спостереження, що вплинули на тест
 
 Hardened-бінар, який падає під час старту всередині каталогу `*.app` з `Contents/MacOS`, не завершується: macOS показує модальний діалог «програму пошкоджено, перенесіть у Смітник» і тримає процес призупиненим, доки діалог не закриють; потім процес отримує SIGKILL без крашрепорту. Поза `.app` той самий бінар падає за секунду з SIGTRAP і крашрепортом. Тому негативний контроль живе в порожньому каталозі. Для продукту це означає: Node без JIT-пари в підписаному Soty.app виглядав би для користувача як «Soty пошкоджено», і саме це має виключити T009 до переходу production-пакування на ланцюжок.
+
+## Прогін 2026-11-10 (T008, T013, T016–T019)
+
+**Машина**: та сама; реліз 1.4.1 стояв на заблокованому кроці, воркер не працював, load 3,1. **Реальний Node**: `/Applications/Soty.app/Contents/Resources/runtime/node` зі встановленого Soty 1.4.0, статичний, v24.13.0. **Воркдерево**: `AffSupport-048-trust` на 1b071d37, `node_modules` симлінком на основну копію, `packages/shared/dist` копією.
+
+```zsh
+SOTY_TEST_NODE_BINARY=/Applications/Soty.app/Contents/Resources/runtime/node npx vitest run \
+  tests/mac-signing-chain.test.ts tests/mac-signing-policy.test.ts tests/macos-signing-summary.test.ts \
+  tests/macos-trust-preflight.test.ts tests/macos-trust-evidence.test.ts tests/macos-release-evidence.test.ts \
+  tests/macos-static-qualification.test.ts tests/finder-integration.test.ts tests/release-runner-step-adapter.test.ts \
+  tests/beta-promotion-gate.test.ts tests/environment-packaging.test.ts tests/web-only-policy.test.ts \
+  --pool=forks --poolOptions.forks.singleFork=true
+```
+
+Результат: 12 файлів, 136 passed, 1 skipped (Gatekeeper і staple, потребує Developer ID), 32 с. Зокрема: реальний Node через ланцюжок виконує JS і WebAssembly, без JIT-пари не стартує; три закриті коди входів спрацьовують до першого `codesign` (CDHash рантайму незмінний); списки заборонених entitlements, JIT-пара і правила відбору збігаються в ланцюжку, гейті, тесті, plist і контракті; статична x64-кваліфікація проходить із фікстурою, підписаною ланцюжком, і доказ несе `codeSigning` (6 hardened Mach-O, 5 у підсумку); раннер відмовляє `macos_package` без входів довіри і `publish` без `signing.json` під `developer-id`, а під явним `adhoc-pre-048` проходить як раніше; preflight читає команду і строк дії з сертифіката, згенерованого openssl.
+
+`tsc -p tsconfig.check.json` чистий. `tsc -p tsconfig.scripts.json` показав три помилки типів у JSDoc нового коду (опція `expectedTeam`, читання `childEnv` як `NodeJS.ProcessEnv`); виправлено в 5fbff4a9, повторний прогін відкладено до звільнення машини від релізу 1.4.1.
