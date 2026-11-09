@@ -213,8 +213,8 @@ async function signingProblems(
   return problems;
 }
 
-/** The two codesign calls `scripts/package-mac.sh` makes today, applied to the fixture. */
-async function signLikePackageMacToday(app: string, nested: string[]) {
+/** The two codesign calls `scripts/package-mac.sh` made before 048, applied to the fixture. */
+async function signLikePre048Packaging(app: string, nested: string[]) {
   for (const file of nested) await codesign(['--force', '--sign', '-', file]);
   await codesign(['--force', '--deep', '--preserve-metadata=entitlements', '--sign', '-', app]);
 }
@@ -245,23 +245,36 @@ async function runChain(app: string) {
 }
 
 describeRequiring(macHost, 'the signing verifier has teeth', () => {
-  it('rejects the ad-hoc chain package-mac.sh ships today', async () => {
+  it('rejects the ad-hoc signing every release before 048 shipped', async () => {
     // C1 itself: an ad-hoc signature with the hardened runtime off. This is the bundle users
-    // are currently told to clear quarantine on by hand.
+    // were told to clear quarantine on by hand up to 1.4.x.
     const { app, nested } = await fixtureBundle();
-    await signLikePackageMacToday(app, nested);
+    await signLikePre048Packaging(app, nested);
     const problems = await signingProblems(app, { requireTrustedIdentity: true });
     expect(problems.some(problem => problem.includes('hardened runtime is off'))).toBe(true);
     expect(problems.some(problem => problem.includes('ad-hoc signature'))).toBe(true);
     expect(problems.some(problem => problem.includes('exactly the JIT pair'))).toBe(true);
   });
 
-  it('confirms package-mac.sh still signs ad-hoc, so the gap above is the shipped one', async () => {
-    const script = await readFile('scripts/package-mac.sh', 'utf8');
-    const delegates = script.includes('sign-mac-app.sh');
-    // Once 048 T010 routes packaging through the chain, after the hardened packaged beta
-    // boots, this flips and the chain cases below are what guard the shipped bundle.
-    expect(delegates || /codesign[^\n]*--sign -/u.test(script)).toBe(true);
+  it('confirms every packager delegates to the chain instead of signing ad-hoc itself (048 T010)', async () => {
+    const production = await readFile('scripts/package-mac.sh', 'utf8');
+    expect(production).toContain('zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"');
+    expect(production).not.toMatch(/codesign[^\n]*--sign -/u);
+    // An ad-hoc production package is the owner's explicit pre-048 choice, never a fallback.
+    expect(production).toContain('SOTY_MACOS_TRUST_POLICY:-}" == adhoc-pre-048');
+    for (const packager of ['scripts/package-dev-mac.sh', 'scripts/package-beta-mac.sh']) {
+      const text = await readFile(packager, 'utf8');
+      expect(text).toContain(
+        'SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"'
+      );
+      expect(text).not.toMatch(/codesign[^\n]*--sign -/u);
+    }
+    // The image is signed, notarized and stapled on its own, and hashed only after that.
+    const image = await readFile('scripts/package-dmg.sh', 'utf8');
+    expect(image).toContain('xcrun stapler staple "$dmg"');
+    expect(image.indexOf('xcrun stapler staple "$dmg"')).toBeLessThan(
+      image.indexOf('shasum -a 256')
+    );
   });
 
   it('accepts a hardened bundle signed by hand with the JIT pair only on the runtime', async () => {

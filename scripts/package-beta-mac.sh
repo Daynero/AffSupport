@@ -164,7 +164,6 @@ swiftc "$root/Launcher.generated.swift" \
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
-codesign --force --sign - "$app/Contents/Resources/runtime/node"
 for binary in ffmpeg ffprobe whisper-cli; do
   cp "$source_app/Contents/Resources/runtime/bin/$binary" "$app/Contents/Resources/runtime/bin/$binary"
 done
@@ -201,10 +200,12 @@ node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "
 node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
-# Ad-hoc signature only. The release-manifest key signs stable.json and nothing
-# else; beta never writes that file, so a beta artifact is not merely unsigned
-# by it — it is unreachable by it.
-codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
+# Ad-hoc signature only, but through the 048 chain: hardened runtime and one measured
+# entitlement profile per binary, exactly as production signs, minus the identity. The
+# chain's summary stays beside the package for the beta proof. The release-manifest key
+# signs stable.json and nothing else; beta never writes that file, so a beta artifact is
+# not merely unsigned by it — it is unreachable by it.
+SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
 archive="$root/$archive_name"
 rm -f "$root"/Soty-Beta-*-macOS-$arch.zip(N) "$root"/Soty-Beta-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"

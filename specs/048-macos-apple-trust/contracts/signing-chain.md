@@ -10,13 +10,14 @@ zsh scripts/sign-mac-app.sh <App.app>
 
 ## Середовище
 
-| Змінна                         | Значення                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------- |
-| `SOTY_SIGNING_IDENTITY`        | ідентичність для `codesign --sign`; `-` типово, тобто ad-hoc                                 |
-| `SOTY_SIGNING_KEYCHAIN`        | шлях до keychain з ідентичністю; необов'язково                                               |
-| `SOTY_SKIP_NOTARIZATION`       | `1` вимикає нотаризацію і staple; обов'язково для ad-hoc                                     |
-| `SOTY_NOTARY_KEYCHAIN_PROFILE` | ім'я профілю `xcrun notarytool store-credentials`; обов'язково, коли нотаризація не вимкнена |
-| `SOTY_ENTITLEMENTS_DIR`        | каталог профілів; типово `packaging/macos/entitlements`                                      |
+| Змінна                         | Значення                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `SOTY_SIGNING_IDENTITY`        | ідентичність для `codesign --sign`; `-` типово, тобто ad-hoc                                                    |
+| `SOTY_SIGNING_KEYCHAIN`        | шлях до keychain з ідентичністю; необов'язково                                                                  |
+| `SOTY_SKIP_NOTARIZATION`       | `1` вимикає нотаризацію і staple; обов'язково для ad-hoc                                                        |
+| `SOTY_NOTARY_KEYCHAIN_PROFILE` | ім'я профілю `xcrun notarytool store-credentials`; обов'язково, коли нотаризація не вимкнена                    |
+| `SOTY_ENTITLEMENTS_DIR`        | каталог профілів; типово `packaging/macos/entitlements`                                                         |
+| `SOTY_NOTARY_TIMEOUT`          | скільки чекати Apple у `notarytool --wait`; типово `30m`, у межах 45-хвилинного бюджету кроку пакування раннера |
 
 Жодне значення не читається з трекнутих файлів.
 
@@ -80,3 +81,10 @@ zsh scripts/sign-mac-app.sh <App.app>
 ## Гейт релізу
 
 `scripts/verify-macos-release-trust.mjs <dmg> --arch=<arm64|x64>` під `developer-id` додатково до чинних перевірок вимагає прапорець `runtime` на кожному Mach-O застосунку, відсутність заборонених entitlements, після T017 також `TeamIdentifier=` очікуваної команди і `Timestamp=` на кожному Mach-O, і `stapler validate` на застосунку та на DMG. Коди: `MACOS_HARDENED_RUNTIME_MISSING: <шлях>`, `MACOS_ENTITLEMENT_FORBIDDEN: <шлях> <ключ>`, після T017 `MACOS_MACHO_SIGNER_MISMATCH: <шлях>`. Політика `adhoc-pre-048` не змінюється.
+
+## Пакувальники і раннер
+
+- `scripts/package-mac.sh` викликає ланцюжок після `release.json`, `runtime-inputs.json` та `AppIcon.icns` і до `ditto`, зберігає підсумок як `signing.json` у корені цілі (`release/`, `release/x64/`). З ідентичністю `-` він вимагає явного `SOTY_MACOS_TRUST_POLICY=adhoc-pre-048` або `SOTY_SKIP_NOTARIZATION=1`, інакше зупиняється з `SIGN_IDENTITY_REQUIRED`; неявного відкату до ad-hoc немає. `package-dev-mac.sh` і `package-beta-mac.sh` завжди підписують ad-hoc через ланцюжок і теж пишуть `signing.json`.
+- `scripts/package-dmg.sh` з іменованою ідентичністю підписує образ із timestamp, вимагає степлений застосунок усередині, подає образ у `notarytool --wait`, степлить, валідує і перевіряє `spctl --type open`; SHA-256 образу рахується лише після staple. З `-` ті самі умови явності, образ лишається непідписаним.
+- `scripts/audit-macos-signing.mjs <App.app> --signing=<signing.json> [--team=<TEAMID>]` перевіряє hardened runtime і заборонені entitlements на кожному Mach-O та відповідність підсумку бандлу; `verify-beta-package.sh` і `record-macos-beta-proof.mjs` вбудовують результат у доказ бети як `codeSigning`, без якого `validateMacosBetaEvidence` відкидає доказ (`MACOS_BETA_SIGNING_UNPROVEN`).
+- Раннер (`scripts/lib/release/step-adapter.mjs`): крок `macos_package` починається з preflight (`macos-trust-preflight.mjs`): під `developer-id` потрібні `SOTY_SIGNING_IDENTITY`, `MACOS_EXPECTED_TEAM_ID`, `SOTY_NOTARY_KEYCHAIN_PROFILE`; ідентичність має бути в списку `security find-identity -v`, OU її сертифіката дорівнює команді, сертифікат не прострочений, `notarytool history` відповідає. Коди: `MACOS_TRUST_INPUTS_MISSING`, `MACOS_TRUST_IDENTITY_MISSING`, `MACOS_TRUST_TEAM_MISMATCH`, `MACOS_TRUST_IDENTITY_EXPIRED`, `MACOS_TRUST_NOTARY_PROFILE_INVALID`. Крок `publish` читає запис гейта з його stdout і `signing.json` поруч з образом як `unknown` (`scripts/lib/macos-signing-summary.mjs`), вимагає їх згоди з політикою (`MACOS_SIGNING_SUMMARY_REQUIRED`, `MACOS_SIGNING_IDENTITY_ADHOC`, `MACOS_SIGNING_TEAM_MISMATCH`, `MACOS_SIGNING_NOT_NOTARIZED`, `MACOS_SIGNING_POLICY_CONFLICT`) і журналить події `macos_trust_preflight` та `macos_trust`; `manifest_beta_verify` переносить їх у `release/beta/platform-baseline.json` як `macos[target].trust` і `macos[target].signing`, а під `developer-id` без них зупиняється (`MACOS_TRUST_RECORD_MISSING`).
