@@ -505,6 +505,26 @@ describe('background recovery worker', () => {
       reason: 'checkpoint_unavailable'
     });
   });
+  it('lets the person retry a claim the server reported as still pending', async () => {
+    // An interrupted server claim answers {pending:true}; the worker parks as
+    // checkpoint_unavailable and must accept an explicit retry (1.4.3).
+    const f = await fixture();
+    f.fetcher.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, value: { pending: true } }), { status: 200 })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({
+      state: 'blocked',
+      reason: 'checkpoint_unavailable'
+    });
+    await expect(f.worker.retry(TEAM)).resolves.toEqual({ retrying: true });
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
   it('honors a larger Retry-After and stops if it exceeds the episode budget', async () => {
     const f = await fixture();
     f.fetcher.mockImplementation(

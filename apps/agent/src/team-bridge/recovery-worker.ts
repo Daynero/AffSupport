@@ -370,7 +370,11 @@ export class TeamRecoveryWorker {
     const checkpoint = this.#checkpoints.find(c => c.delegationId === registration?.delegationId);
     if (
       !registration ||
-      checkpoint?.reason !== 'retry_exhausted' ||
+      // checkpoint_unavailable is where an interrupted server claim leaves the
+      // worker (a pending receipt or an uncertain transport); the person must be
+      // able to retry it, not only toggle background work off and on.
+      (checkpoint?.reason !== 'retry_exhausted' &&
+        checkpoint?.reason !== 'checkpoint_unavailable') ||
       this.#running.has(registration.delegationId)
     )
       throw new Error('WRONG_STATE');
