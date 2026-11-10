@@ -13,10 +13,16 @@ afterEach(() => vi.unstubAllEnvs());
 describe('quality modes', () => {
   it('runs beam search on both models and loads a different file for each', () => {
     vi.stubEnv('WHISPER_MODEL_PATH', undefined);
-    const build = (quality: 'fast' | 'accurate', platform: 'darwin' | 'win32' | 'linux') =>
+    // The architecture is explicit: left to default it reads the CI runner's own CPU, and
+    // the Windows runner is x64, which would turn every "darwin" case into an Intel Mac.
+    const build = (
+      quality: 'fast' | 'accurate',
+      platform: 'darwin' | 'win32' | 'linux',
+      architecture = 'arm64'
+    ) =>
       buildWhisperArgs(
         { wavPath: 'a.wav', outputBase: 'out', language: 'auto', quality },
-        { threads: 4, vadModelPath: null, platform }
+        { threads: 4, vadModelPath: null, platform, architecture }
       );
     const beams = (args: string[]) => args.slice(args.indexOf('-bs'), args.indexOf('-bs') + 4);
     // On Apple Silicon the turbo decoder makes the search close to free, so both modes
@@ -27,6 +33,9 @@ describe('quality modes', () => {
     expect(beams(build('fast', 'win32'))).toEqual(['-bs', '1', '-bo', '5']);
     expect(beams(build('accurate', 'win32'))).toEqual(['-bs', '5', '-bo', '5']);
     expect(beams(build('fast', 'linux'))).toEqual(['-bs', '1', '-bo', '5']);
+    // An Intel Mac has no turbo decoder either, so its fast mode decodes greedily too.
+    expect(beams(build('fast', 'darwin', 'x64'))).toEqual(['-bs', '1', '-bo', '5']);
+    expect(beams(build('accurate', 'darwin', 'x64'))).toEqual(['-bs', '5', '-bo', '5']);
     // Each mode loads its own model file.
     const fast = build('fast', 'darwin');
     const accurate = build('accurate', 'darwin');

@@ -1,6 +1,5 @@
 import { CatalogProfileVideoCount } from './CatalogProfileVideoCount';
 import { CatalogVideoVariationsDialog } from './CatalogVideoVariationsDialog';
-import { builtForEnvironment } from '../../lib/config';
 import { CatalogPublicationDialog } from '../product-catalog/CatalogPublicationDialog';
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
@@ -40,7 +39,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
 import { searchFieldEscape } from '../../lib/searchField';
-import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessage, teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
@@ -1466,7 +1465,11 @@ function CatalogUpdaterDialogScope({
                               ? ` · ${t('catalogVideoCreationUnknown')}`
                               : row.videoGeneration.state === 'cancel_requested'
                                 ? ` · ${t('catalogVideoCreationCanceling')}`
-                                : ''}
+                                : row.videoGeneration.waitReason === 'AGENT_REQUIRED'
+                                  ? ` · ${t('catalogVideoCreationWaitingAgent')}`
+                                  : row.videoGeneration.waitReason
+                                    ? ` · ${teamErrorMessage(row.videoGeneration.waitReason, t)}`
+                                    : ''}
                           </small>
                         )}
                       <span
@@ -1682,16 +1685,10 @@ function CatalogUpdaterDialogScope({
                             teamId={teamId}
                             permissions={permissions}
                             onVideoVariations={
-                              builtForEnvironment() === 'beta' &&
-                              import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' &&
-                              mayRun
-                                ? () => setVideoVariationsRow(row)
-                                : undefined
+                              mayRun ? () => setVideoVariationsRow(row) : undefined
                             }
                             onPublication={
-                              builtForEnvironment() === 'beta' && mayRun
-                                ? () => setPublicationCatalogId(row.catalogId)
-                                : undefined
+                              mayRun ? () => setPublicationCatalogId(row.catalogId) : undefined
                             }
                             onChanged={registry.reload}
                             onReveal={onReveal}
@@ -1876,26 +1873,22 @@ function CatalogUpdaterDialogScope({
                       catalogMaterialId={row.catalogId}
                       disabled={!mayRun}
                     />
-                    {builtForEnvironment() === 'beta' &&
-                      import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' && (
-                        <CatalogProfileVideoCount
-                          value={row.profile.videoVariantCount ?? 1}
-                          productCount={row.productCount}
-                          disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
-                          onSave={async value => {
-                            if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
-                            if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
-                              throw new TeamApiError('WRONG_STATE', false);
-                            const confirmed = await inline.change(
-                              row.catalogId,
-                              'videoVariantCount',
-                              value
-                            );
-                            if (!confirmed)
-                              throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
-                          }}
-                        />
-                      )}
+                    <CatalogProfileVideoCount
+                      value={row.profile.videoVariantCount ?? 1}
+                      productCount={row.productCount}
+                      disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
+                      onSave={async value => {
+                        if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                        if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
+                          throw new TeamApiError('WRONG_STATE', false);
+                        const confirmed = await inline.change(
+                          row.catalogId,
+                          'videoVariantCount',
+                          value
+                        );
+                        if (!confirmed) throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+                      }}
+                    />
                     <CatalogIconLegend
                       teamId={teamId}
                       onOpenSettings={href =>

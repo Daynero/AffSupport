@@ -543,7 +543,7 @@ const protectedCatalogVariantProcess: NonNullable<
       upstreamSignal.throwIfAborted();
       const url = new URL(input instanceof Request ? input.url : String(input));
       if (
-        url.origin !== 'http://127.0.0.1:54321' &&
+        url.origin !== config.backendOrigin &&
         !(
           url.protocol === 'https:' &&
           ['www.googleapis.com', 'content.googleapis.com'].includes(url.hostname) &&
@@ -607,7 +607,7 @@ const protectedCatalogVariantProcess: NonNullable<
           const url = new URL(input instanceof Request ? input.url : String(input));
           if (url.href === request.transferUrl) return sourceFetch(input, init);
           if (
-            url.origin !== 'http://127.0.0.1:54321' &&
+            url.origin !== config.backendOrigin &&
             !(
               url.protocol === 'https:' &&
               ['www.googleapis.com', 'content.googleapis.com'].includes(url.hostname) &&
@@ -665,14 +665,13 @@ const teamRecoveryWorker = new TeamRecoveryWorker({
   journal: new RecoveryJournal(path.join(applicationSupportRoot(), 'Recovery', config.environment)),
   process: teamProcessBridge,
   allowed: () => entitlementGate.status().entitled,
-  catalogVariants:
-    config.environment === 'beta' && process.env.SOTY_CATALOG_VIDEO_VARIANTS === 'true'
-      ? {
-          nativeInstanceId: catalogRuntimeBootId,
-          enabled: () => Boolean(nativeRestitchController),
-          protectedProcess: protectedCatalogVariantProcess
-        }
-      : undefined,
+  catalogVariants: hasCapability('team-background-recovery-actor-bound')
+    ? {
+        nativeInstanceId: catalogRuntimeBootId,
+        enabled: () => Boolean(nativeRestitchController),
+        protectedProcess: protectedCatalogVariantProcess
+      }
+    : undefined,
   record: (code, props) => diagnosticsLog.record('team', code, props)
 });
 entitlementGate.onBeforeActorChange(actorId => teamRecoveryWorker.prepareActorChange(actorId));
@@ -695,211 +694,211 @@ const teamRestitchPrepareBridge = new RestitchPrepareBridge({
   transfer: teamTransfer,
   events: teamOperationEvents
 });
-const nativeRestitchController =
-  config.environment === 'beta' && hasCapability('team-background-recovery-actor-bound')
-    ? new NativeRestitchController({
-        endpoint: 'http://127.0.0.1:54321/functions/v1/drive-ops',
-        environment: config.environment,
-        nativeInstanceId: catalogRuntimeBootId,
-        currentActorId: () => entitlementGate.currentActorId(),
-        journal: new NativeRestitchJournal(
-          path.join(applicationSupportRoot(), 'NativeRestitch', config.environment)
-        ),
-        cache: teamScreenCache,
-        run: async ({
-          request,
-          provider,
-          context,
-          sourceFetch,
-          authorize,
-          reportFailureStage,
-          signal
-        }) => {
-          const delegate = createRestitchDelegate({
-            embedding: () => queue.state().settings.imageEmbedding,
-            imagePathFor: screenImagePath,
-            screenCache: teamScreenCache,
-            threads: () => activeThreadBudget(),
-            screenRecovery: async input => {
-              if (
-                input.sourceChecksum?.toLowerCase() !== context.source.checksum ||
-                input.sourceSizeBytes !== context.source.sizeBytes
-              )
-                throw new ScreenCacheError('SOURCE_CHANGED');
-              return provider;
+const nativeRestitchController = hasCapability('team-background-recovery-actor-bound')
+  ? new NativeRestitchController({
+      endpoint: `${config.backendOrigin}/functions/v1/drive-ops`,
+      environment: config.environment,
+      nativeInstanceId: catalogRuntimeBootId,
+      currentActorId: () => entitlementGate.currentActorId(),
+      journal: new NativeRestitchJournal(
+        path.join(applicationSupportRoot(), 'NativeRestitch', config.environment)
+      ),
+      cache: teamScreenCache,
+      run: async ({
+        request,
+        provider,
+        context,
+        sourceFetch,
+        authorize,
+        reportFailureStage,
+        signal
+      }) => {
+        const delegate = createRestitchDelegate({
+          embedding: () => queue.state().settings.imageEmbedding,
+          imagePathFor: screenImagePath,
+          screenCache: teamScreenCache,
+          threads: () => activeThreadBudget(),
+          screenRecovery: async input => {
+            if (
+              input.sourceChecksum?.toLowerCase() !== context.source.checksum ||
+              input.sourceSizeBytes !== context.source.sizeBytes
+            )
+              throw new ScreenCacheError('SOURCE_CHANGED');
+            return provider;
+          }
+        });
+        const bridge = new TeamDownloadBridge({
+          transfer: new TeamTransferClient({ fetchImpl: sourceFetch }),
+          delegates: { restitch: delegate },
+          events: teamOperationEvents,
+          beforeSave: authorize,
+          onFailureStage: reportFailureStage
+        });
+        const abort = () => bridge.cancel(request.operationId);
+        signal.addEventListener('abort', abort, { once: true });
+        try {
+          if (signal.aborted) throw new Error('PROCESS_CANCELED');
+          return await bridge.download({
+            ...request,
+            compress: null,
+            process: {
+              tool: 'restitch',
+              defaults: context.defaults,
+              prepared: null,
+              screens: null,
+              teamId: context.teamId,
+              suffix: request.process?.tool === 'restitch' ? request.process.suffix : undefined
             }
           });
-          const bridge = new TeamDownloadBridge({
-            transfer: new TeamTransferClient({ fetchImpl: sourceFetch }),
-            delegates: { restitch: delegate },
-            events: teamOperationEvents,
-            beforeSave: authorize,
-            onFailureStage: reportFailureStage
-          });
-          const abort = () => bridge.cancel(request.operationId);
-          signal.addEventListener('abort', abort, { once: true });
-          try {
-            if (signal.aborted) throw new Error('PROCESS_CANCELED');
-            return await bridge.download({
-              ...request,
-              compress: null,
-              process: {
-                tool: 'restitch',
-                defaults: context.defaults,
-                prepared: null,
-                screens: null,
-                teamId: context.teamId,
-                suffix: request.process?.tool === 'restitch' ? request.process.suffix : undefined
-              }
-            });
-          } finally {
-            signal.removeEventListener('abort', abort);
-            await bridge.shutdown();
-          }
+        } finally {
+          signal.removeEventListener('abort', abort);
+          await bridge.shutdown();
         }
-      })
-    : undefined;
+      }
+    })
+  : undefined;
 if (nativeRestitchController)
   entitlementGate.onBeforeActorChange(actor => nativeRestitchController.prepareActorChange(actor));
-const catalogForeground =
-  config.environment === 'beta' && hasCapability('catalog-video-foreground-v1')
-    ? new CatalogVideoForegroundController({
-        nativeInstanceId: catalogRuntimeBootId,
-        currentActorId: () => entitlementGate.currentActorId(),
-        allowed: () => entitlementGate.status().entitled,
-        vault: new NativeRestitchVaultFile(
-          path.join(
-            applicationSupportRoot(),
-            'NativeRestitch',
-            config.environment,
-            'catalog-foreground.vault'
-          ),
-          CATALOG_FOREGROUND_VAULT_ACCOUNT
+const catalogForeground = hasCapability('catalog-video-foreground-v1')
+  ? new CatalogVideoForegroundController({
+      nativeInstanceId: catalogRuntimeBootId,
+      currentActorId: () => entitlementGate.currentActorId(),
+      allowed: () => entitlementGate.status().entitled,
+      vault: new NativeRestitchVaultFile(
+        path.join(
+          applicationSupportRoot(),
+          'NativeRestitch',
+          config.environment,
+          'catalog-foreground.vault'
         ),
-        redeem: body => callCatalogForeground('redeem', body),
-        awaitBinding: (body, signal) => callCatalogForeground('await', body, undefined, signal),
-        reconcileCanceled: async (setId, ticket, enrollmentId, oldExecutionBoot) => {
-          if (!nativeRestitchController) return false;
-          const call = (action: string, body: Record<string, unknown>) =>
-            callCatalogForeground(
-              action,
-              {
-                ...body,
-                protocolVersion: 1,
-                variantProtocolVersion: 1,
-                setId,
-                enrollmentId,
-                nativeInstanceId: oldExecutionBoot
-              },
-              ticket
-            );
-          const snapshot = await call('load', {});
+        CATALOG_FOREGROUND_VAULT_ACCOUNT
+      ),
+      redeem: body => callCatalogForeground('redeem', body),
+      awaitBinding: (body, signal) => callCatalogForeground('await', body, undefined, signal),
+      reconcileCanceled: async (setId, ticket, enrollmentId, oldExecutionBoot) => {
+        if (!nativeRestitchController) return false;
+        const call = (action: string, body: Record<string, unknown>) =>
+          callCatalogForeground(
+            action,
+            {
+              ...body,
+              protocolVersion: 1,
+              variantProtocolVersion: 1,
+              setId,
+              enrollmentId,
+              nativeInstanceId: oldExecutionBoot
+            },
+            ticket
+          );
+        const snapshot = await call('load', {});
+        if (
+          snapshot.setId !== setId ||
+          !Array.isArray(snapshot.children) ||
+          snapshot.children.length < 1 ||
+          snapshot.children.length > 400
+        )
+          return false;
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+        let recovered = 0;
+        let allClosed = true;
+        for (const [index, child] of snapshot.children.entries()) {
           if (
-            snapshot.setId !== setId ||
-            !Array.isArray(snapshot.children) ||
-            snapshot.children.length < 1 ||
-            snapshot.children.length > 400
+            !isRecord(child) ||
+            child.index !== index ||
+            typeof child.requestId !== 'string' ||
+            !uuid.test(child.requestId) ||
+            !['queued', 'working', 'unknown', 'registered'].includes(String(child.state))
           )
             return false;
-          const uuid =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-          let recovered = 0;
-          let allClosed = true;
-          for (const [index, child] of snapshot.children.entries()) {
-            if (
-              !isRecord(child) ||
-              child.index !== index ||
-              typeof child.requestId !== 'string' ||
-              !uuid.test(child.requestId) ||
-              !['queued', 'working', 'unknown', 'registered'].includes(String(child.state))
-            )
-              return false;
-            if (child.state === 'queued' || child.state === 'registered') continue;
-            if (typeof child.operationId !== 'string' || !uuid.test(child.operationId))
-              return false;
-            const original = { index, requestId: child.requestId, operationId: child.operationId };
-            const pulse = await call('heartbeat', original);
-            if (
-              pulse.continue !== false ||
-              pulse.registered !== false ||
-              pulse.reason !== 'canceled'
-            ) {
-              allClosed = false;
-              continue;
-            }
-            const observation = {
-              operationId: setId,
-              childOperationId: child.operationId,
-              requestId: child.requestId,
-              readyCount: snapshot.children.filter(
-                value => isRecord(value) && value.state === 'registered'
-              ).length,
-              requestedCount: snapshot.children.length
-            };
-            diagnosticsLog.record('team', 'catalog_variant_stage', {
-              ...observation,
-              stage: 'reconciling'
-            });
-            const closed = await nativeRestitchController
-              .reconcileCatalogCancellation(child.operationId, async () => {
-                const result = await call('complete', {
-                  ...original,
-                  outcome: 'canceled',
-                  failureCode: 'PROCESS_CANCELED'
-                });
-                return (
-                  result.operationId === original.operationId &&
-                  result.kind === 'terminal' &&
-                  result.state === 'canceled'
-                );
-              })
-              .catch(() => false);
-            diagnosticsLog.record('team', 'catalog_variant_stage', {
-              ...observation,
-              stage: closed ? 'canceled' : 'unknown',
-              ...(closed ? {} : { errorCode: 'PROCESS_RESULT_UNCERTAIN' })
-            });
-            if (closed) recovered++;
-            else allClosed = false;
-          }
-          return recovered > 0 && allClosed;
-        },
-        run: async (setId, ticket, enrollmentId, signal, executionNativeInstanceId) => {
-          const call = (action: string, body: Record<string, unknown>) =>
-            callCatalogForeground(
-              action.replace(/^variant_/u, ''),
-              {
-                ...body,
-                protocolVersion: 1,
-                setId,
-                enrollmentId,
-                nativeInstanceId: executionNativeInstanceId
-              },
-              ticket
-            );
-          await runCatalogVariantRecovery({
-            initialSetId: setId,
-            nativeInstanceId: executionNativeInstanceId,
-            call,
-            closureCall: call,
-            process: teamProcessBridge,
-            protectedProcess: protectedCatalogVariantProcess,
-            signal
-          });
-          const value = await call('load', {});
+          if (child.state === 'queued' || child.state === 'registered') continue;
+          if (typeof child.operationId !== 'string' || !uuid.test(child.operationId)) return false;
+          const original = { index, requestId: child.requestId, operationId: child.operationId };
+          const pulse = await call('heartbeat', original);
           if (
-            value.setId !== setId ||
-            !Array.isArray(value.children) ||
-            value.children.length < 1 ||
-            value.children.some(
-              (child: unknown) => !isRecord(child) || child.state !== 'registered'
-            )
-          )
-            throw new Error('PROCESS_RESULT_UNCERTAIN');
+            pulse.continue !== false ||
+            pulse.registered !== false ||
+            pulse.reason !== 'canceled'
+          ) {
+            allClosed = false;
+            continue;
+          }
+          const observation = {
+            operationId: setId,
+            childOperationId: child.operationId,
+            requestId: child.requestId,
+            readyCount: snapshot.children.filter(
+              value => isRecord(value) && value.state === 'registered'
+            ).length,
+            requestedCount: snapshot.children.length
+          };
+          diagnosticsLog.record('team', 'catalog_variant_stage', {
+            ...observation,
+            stage: 'reconciling'
+          });
+          const closed = await nativeRestitchController
+            .reconcileCatalogCancellation(child.operationId, async () => {
+              const result = await call('complete', {
+                ...original,
+                outcome: 'canceled',
+                failureCode: 'PROCESS_CANCELED'
+              });
+              return (
+                result.operationId === original.operationId &&
+                result.kind === 'terminal' &&
+                result.state === 'canceled'
+              );
+            })
+            .catch(() => false);
+          diagnosticsLog.record('team', 'catalog_variant_stage', {
+            ...observation,
+            stage: closed ? 'canceled' : 'unknown',
+            ...(closed ? {} : { errorCode: 'PROCESS_RESULT_UNCERTAIN' })
+          });
+          if (closed) recovered++;
+          else allClosed = false;
         }
-      })
-    : undefined;
-const callCatalogForeground = callCatalogVideoForegroundHttp;
+        return recovered > 0 && allClosed;
+      },
+      run: async (setId, ticket, enrollmentId, signal, executionNativeInstanceId) => {
+        const call = (action: string, body: Record<string, unknown>) =>
+          callCatalogForeground(
+            action.replace(/^variant_/u, ''),
+            {
+              ...body,
+              protocolVersion: 1,
+              setId,
+              enrollmentId,
+              nativeInstanceId: executionNativeInstanceId
+            },
+            ticket
+          );
+        await runCatalogVariantRecovery({
+          functionsBase: `${config.backendOrigin}/functions/v1`,
+          initialSetId: setId,
+          nativeInstanceId: executionNativeInstanceId,
+          call,
+          closureCall: call,
+          process: teamProcessBridge,
+          protectedProcess: protectedCatalogVariantProcess,
+          signal
+        });
+        const value = await call('load', {});
+        if (
+          value.setId !== setId ||
+          !Array.isArray(value.children) ||
+          value.children.length < 1 ||
+          value.children.some((child: unknown) => !isRecord(child) || child.state !== 'registered')
+        )
+          throw new Error('PROCESS_RESULT_UNCERTAIN');
+      }
+    })
+  : undefined;
+const callCatalogForeground = (
+  action: string,
+  body: Record<string, unknown>,
+  ticket?: string,
+  signal?: AbortSignal
+) => callCatalogVideoForegroundHttp(config.backendOrigin, action, body, ticket, signal);
 
 if (catalogForeground) {
   await catalogForeground

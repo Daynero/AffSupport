@@ -346,6 +346,21 @@ it('shows per-catalog frequency, next run and confirmed success without hovering
     screen.getByRole('button', { name: /^Last success: polo.mp4 catalog/ }).textContent
   ).toContain('17/10');
 });
+it('says the restitch round is waiting for the agent instead of a bare 0 of N', async () => {
+  const item = row('1', 'polo.mp4', {
+    videoGeneration: {
+      setId: '23000000-0000-4000-8000-000000000777',
+      requestedCount: 1,
+      registeredCount: 0,
+      state: 'accepted',
+      waitReason: 'AGENT_REQUIRED'
+    }
+  });
+  renderDialog(client([item], running));
+  await screen.findByLabelText('polo.mp4 catalog');
+  const status = screen.getByText(/Videos ready: 0 of 1/);
+  expect(status.textContent).toContain('Waiting for the computer agent');
+});
 it('keeps an older verified success when the latest attempt was partial', async () => {
   const item = row('1', 'polo.mp4', {
     lastUpdatedAt: '2026-10-18T10:00:00Z',
@@ -802,7 +817,6 @@ it('exposes safe undo after a confirmed write', async () => {
 });
 it('renders numeric variation changes in recent changes and undoes the original count', async () => {
   vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
   try {
     const item = row('1', 'polo.mp4');
     let stored: CatalogUpdateProfile = { ...profileFor(item.catalogId), videoVariantCount: 1 };

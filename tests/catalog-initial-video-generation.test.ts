@@ -63,3 +63,34 @@ it('reuses an accepted past due without calendar revalidation and writes blank i
   });
   expect(authority.serverNow).not.toHaveBeenCalled();
 });
+it('promises the deferred link only on a stack whose targeted writer answers', async () => {
+  // 1.4.1 stamped every scheduled creation "unsupported", so even a stack that
+  // publishes the link told the person the storage could not update the sheet.
+  const scheduled = {
+    mode: 'scheduled' as const,
+    dueAt: '2030-01-01T10:00:00.000Z',
+    localDateTime: '2030-01-01T10:00',
+    resolvedOffset: '+00:00',
+    timeZone: 'UTC'
+  };
+  const observe = async (targetedWriterEnabled: boolean | undefined) => {
+    const plan = createCatalogInitialVideoPlan(preferences, 3, Date.parse('2030-01-01T00:00:00Z'));
+    plan.preferences.videoPublication = scheduled;
+    const seen: unknown[] = [];
+    const authority: CatalogInitialVideoAuthority = {
+      ...(targetedWriterEnabled === undefined ? {} : { targetedWriterEnabled }),
+      serverNow: vi.fn(),
+      prepare: vi.fn(async () => ({ state: 'preparing' as const, registeredCount: 1 })),
+      registerCreated: vi.fn()
+    };
+    await prepareCatalogInitialVideo(authority, body.videoMaterialId, plan, p => seen.push(p));
+    return seen[0] as Record<string, unknown>;
+  };
+  expect(await observe(true)).toMatchObject({
+    catalogVideoCells: 'deferred_blank',
+    publicationHeld: false
+  });
+  expect(await observe(true)).not.toHaveProperty('providerCas');
+  expect(await observe(false)).toMatchObject({ providerCas: 'unsupported' });
+  expect(await observe(undefined)).toMatchObject({ providerCas: 'unsupported' });
+});

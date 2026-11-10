@@ -20,7 +20,6 @@ const profile = (id: string, n: number) => ({
 });
 beforeEach(() => {
   localStorage.setItem('language', 'en');
-  vi.stubEnv('VITE_CATALOG_VIDEO_VARIANTS', 'true');
 });
 afterEach(() => {
   cleanup();

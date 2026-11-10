@@ -20,7 +20,8 @@ import { createCatalogInitialVideoAuthority } from './catalog-initial-video-auth
 import {
   readCatalogInitialVideoProgress,
   cancelCatalogInitialVideo,
-  readAcceptedInitialCatalogRequest
+  readAcceptedInitialCatalogRequest,
+  withCatalogVideoWriter
 } from './catalog-video-generation.ts';
 import { admitCatalogVideoVariant } from './catalog-video-variant-admission.ts';
 import {
@@ -33,7 +34,7 @@ import {
   handleCatalogPublicationSave,
   withCatalogPublicationWriter
 } from './catalog-publication.ts';
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { nativeRestitchEnabled, targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import { handleRestitchNativeControl } from './restitch-native-control.ts';
 import { authorizeRestitchNativeEnrollment } from './restitch-native-auth.ts';
 import { handleRestitchNativeSelection } from './restitch-native-selection.ts';
@@ -2749,6 +2750,49 @@ async function handleEnsureWorkspaceFolder(
   return { folderId: resolved.folderId, created: resolved.created, name: resolved.name };
 }
 
+/** `list_material_product_catalogs` for a worker without a signed-in caller: the same
+ * filters and order, read with the service client. */
+async function serviceReadLiveCatalogs(
+  service: ReturnType<typeof clients>['service'],
+  teamId: string,
+  videoId: string
+): Promise<ExistingCatalog[]> {
+  const materials = await service
+    .from('team_materials')
+    .select('id,name,drive_file_id')
+    .eq('team_id', teamId)
+    .eq('companion_of', videoId)
+    .eq('companion_kind', 'product_catalog')
+    .eq('lifecycle', 'active');
+  if (materials.error || !Array.isArray(materials.data))
+    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+  if (materials.data.length === 0) return [];
+  const records = await service
+    .from('team_product_catalogs')
+    .select('material_id,sheet_url,source_link,product_count,variant,created_at')
+    .in(
+      'material_id',
+      materials.data.map(row => (row as { id: string }).id)
+    );
+  if (records.error || !Array.isArray(records.data))
+    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+  const byId = new Map(
+    materials.data.map(row => [(row as { id: string }).id, row as Record<string, unknown>])
+  );
+  return records.data
+    .flatMap(raw => {
+      const record = raw as Record<string, unknown>;
+      const sheet = byId.get(String(record.material_id));
+      const catalog = sheet ? existingCatalogFrom({ ...record, ...sheet }) : null;
+      return catalog ? [catalog] : [];
+    })
+    .sort(
+      (a, b) =>
+        (a.variant ?? 0) - (b.variant ?? 0) ||
+        String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''))
+    );
+}
+
 function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatalog | null {
   if (!row) return null;
   const materialId = stringValue(row, 'id') ?? stringValue(row, 'materialId');
@@ -2816,6 +2860,17 @@ async function proveLaunchSource(
   }
   if (expected && !sameExpectedContent) throw new TeamFunctionError('SOURCE_CHANGED');
   return live;
+}
+
+/** The targeted catalog cell writer for this stack (see targetedCatalogWriterEnabled). */
+function catalogWriterEnabled(): boolean {
+  return targetedCatalogWriterEnabled({
+    enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
+    variants: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+    environment: Deno.env.get('SOTY_ENVIRONMENT'),
+    oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+    siteUrl: Deno.env.get('WISHLY_SITE_URL')
+  });
 }
 
 function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
@@ -3243,7 +3298,7 @@ Deno.serve(async request => {
     const foregroundRoute = /^\/catalog-video\/foreground\/([a-z_]+)$/u.exec(path);
     if (foregroundRoute) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3302,7 +3357,7 @@ Deno.serve(async request => {
       path === '/restitch/manual/read'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3394,7 +3449,7 @@ Deno.serve(async request => {
               createInitialVideoAuthority: identity =>
                 createCatalogInitialVideoAuthority(
                   configured.service,
-                  identity,
+                  { ...identity, targetedWriterEnabled: catalogWriterEnabled() },
                   catalog.fullDriveFor
                 ),
               proveSource: async (config, source) => {
@@ -3426,7 +3481,7 @@ Deno.serve(async request => {
         }
       );
       const initialCatalogs = await runInitialCatalogRecovery(configured.service, {
-        enabled: nativeRestitchBetaEnabled({
+        enabled: nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3434,7 +3489,15 @@ Deno.serve(async request => {
         }),
         executeFrozen: async (frozenBody, actorId) => {
           const catalogRequest = parseCreateProductCatalogRequest(frozenBody);
-          const catalog = productCatalogDeps(request, configured.caller, configured.service);
+          const catalog = {
+            ...productCatalogDeps(request, configured.caller, configured.service),
+            // A cron pass has no signed-in caller, so the caller-scoped list RPC
+            // (auth.uid()) failed and every resumed catalog stopped at
+            // INVALID_RESPONSE. Read the same rows with the service client; the
+            // actor's view/upload rights were checked when the intent was listed.
+            readLiveCatalogs: (teamId: string, videoId: string) =>
+              serviceReadLiveCatalogs(configured.service, teamId, videoId)
+          };
           const initialVideoAuthority = await createCatalogInitialVideoAuthority(
             configured.service,
             {
@@ -3445,7 +3508,8 @@ Deno.serve(async request => {
               expectedExecutorId: catalogRequest.expectedExecutorId,
               foregroundExecutor: catalogRequest.foregroundExecutor,
               restitchEnabled: catalogRequest.restitchEnabled,
-              ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {})
+              ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {}),
+              targetedWriterEnabled: catalogWriterEnabled()
             },
             catalog.fullDriveFor
           );
@@ -3489,7 +3553,7 @@ Deno.serve(async request => {
         request.headers.has('origin') ||
         !credential ||
         !/^[A-Za-z0-9_-]{43}$/u.test(credential) ||
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3583,7 +3647,7 @@ Deno.serve(async request => {
       path === '/catalog-publication/verify/read'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3591,14 +3655,7 @@ Deno.serve(async request => {
         })
       )
         throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
-      const targetedWriterEnabled =
-        Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
-        nativeRestitchBetaEnabled({
-          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
-          environment: Deno.env.get('SOTY_ENVIRONMENT'),
-          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-          siteUrl: Deno.env.get('WISHLY_SITE_URL')
-        });
+      const targetedWriterEnabled = catalogWriterEnabled();
       if (path === '/catalog-publication/action')
         return successResponse(
           withCatalogPublicationWriter(
@@ -3625,7 +3682,7 @@ Deno.serve(async request => {
     }
     if (path === '/launches/catalog-video/read' || path === '/launches/catalog-video/cancel') {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3645,7 +3702,7 @@ Deno.serve(async request => {
       path === '/updater/variants/resume'
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3736,7 +3793,7 @@ Deno.serve(async request => {
     }
     if (path === '/product-catalog/video/read' || path === '/product-catalog/video/cancel') {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3747,7 +3804,7 @@ Deno.serve(async request => {
       const progress = path.endsWith('/read')
         ? await readCatalogInitialVideoProgress(configured.service, userId, body)
         : await cancelCatalogInitialVideo(configured.service, userId, body);
-      return successResponse(progress, cors);
+      return successResponse(withCatalogVideoWriter(progress, catalogWriterEnabled()), cors);
     }
     let value: unknown;
     let status = 200;
@@ -3889,7 +3946,7 @@ Deno.serve(async request => {
         assertExpectedMutationActor(body.expectedActorId, userId);
       if (
         catalogRequest.catalogVideoProtocolVersion === 1 &&
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -3932,23 +3989,27 @@ Deno.serve(async request => {
                 }
               : {}),
             restitchEnabled: catalogRequest.restitchEnabled,
-            ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {})
+            ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {}),
+            targetedWriterEnabled: catalogWriterEnabled()
           },
           deps.fullDriveFor
         );
       }
-      value = await createDurableProductCatalog(
-        deps,
-        catalogIntentStore(
-          configured.service,
-          catalogRequest.teamId,
-          catalogRequest.videoMaterialId,
-          userId,
-          catalogRequest.idempotencyKey
+      value = withCatalogVideoWriter(
+        await createDurableProductCatalog(
+          deps,
+          catalogIntentStore(
+            configured.service,
+            catalogRequest.teamId,
+            catalogRequest.videoMaterialId,
+            userId,
+            catalogRequest.idempotencyKey
+          ),
+          deps.fullDriveFor,
+          catalogRequest,
+          userId
         ),
-        deps.fullDriveFor,
-        catalogRequest,
-        userId
+        catalogWriterEnabled()
       );
     } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
       if (path === '/updater/claim-as-actor')

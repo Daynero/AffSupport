@@ -52,3 +52,49 @@ it.each(['windows_smoke', 'publish'])(
     }
   }
 );
+
+it('rides out transient read failures instead of ending the watch', async () => {
+  const errors: number[] = [];
+  const responses: Array<() => unknown> = [
+    () => ({ status: 'in_progress', conclusion: null, jobs: [] }),
+    () => {
+      throw new Error('net/http: TLS handshake timeout');
+    },
+    () => {
+      throw new Error('read: connection reset by peer');
+    },
+    () => ({ status: 'completed', conclusion: 'success', jobs: [] })
+  ];
+  const result = await watchWorkflow({
+    read: async () => responses.shift()!(),
+    sleep: async () => {},
+    onReadError: (_error, failures) => errors.push(failures)
+  });
+  expect(result.ok).toBe(true);
+  expect(errors).toEqual([1, 2]);
+});
+
+it('gives up after a sustained outage, and at once on a run that does not exist', async () => {
+  let reads = 0;
+  const outage = await watchWorkflow({
+    read: async () => {
+      reads += 1;
+      throw new Error('i/o timeout');
+    },
+    sleep: async () => {},
+    maxReadFailures: 4
+  });
+  expect(outage).toMatchObject({ ok: false, error: 'WORKFLOW_UNREADABLE' });
+  expect(reads).toBe(4);
+
+  reads = 0;
+  const missing = await watchWorkflow({
+    read: async () => {
+      reads += 1;
+      throw new Error('failed to get run: HTTP 404: Not Found');
+    },
+    sleep: async () => {}
+  });
+  expect(missing).toMatchObject({ ok: false, error: 'WORKFLOW_UNREADABLE' });
+  expect(reads).toBe(1);
+});

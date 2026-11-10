@@ -184,10 +184,9 @@ export class TeamRecoveryWorker {
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   constructor(readonly options: RecoveryWorkerOptions) {
-    if (
-      options.catalogVariants &&
-      (options.environment !== 'beta' || !UUID.test(options.catalogVariants.nativeInstanceId))
-    )
+    // Catalog variant recovery shipped to production in 1.4.1; what still has to
+    // hold is the identity of the native instance the claims are bound to.
+    if (options.catalogVariants && !UUID.test(options.catalogVariants.nativeInstanceId))
       throw new Error('INVALID_INPUT');
     this.#secrets = options.secrets ?? platformRecoverySecrets;
     this.#fetch = options.fetch ?? fetch;
@@ -837,6 +836,8 @@ export class TeamRecoveryWorker {
           ]);
         try {
           const setId = await runCatalogVariantRecovery({
+            // r.endpoint passed recoveryEndpoint(): https in production, loopback in beta.
+            functionsBase: new URL(r.endpoint).origin + '/functions/v1',
             nativeInstanceId: variants.nativeInstanceId,
             process: variants.process ?? this.options.process,
             protectedProcess: variants.protectedProcess,

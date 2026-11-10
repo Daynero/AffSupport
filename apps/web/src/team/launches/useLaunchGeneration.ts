@@ -4,7 +4,6 @@ import { catalogForeground } from '../../api/catalog-video-foreground-client';
 import type { CatalogForegroundExecutor } from '../../api/catalog-video-foreground';
 import { recoveryInstallation } from '../../api/recovery-installation';
 import { privateCacheActor, privateCacheEpoch } from '../private-cache-scope';
-import { launchCatalogVideoEnabled } from './catalogVideoProtocol';
 import { launchReply, whileLaunchActive } from './reply';
 import { launchIntent, launchAction, launchLocalStage } from './analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -296,7 +295,7 @@ export function useLaunchGeneration(
               : (expectedVersion ?? savedDraft.current?.version ?? null),
           requestKey: crypto.randomUUID(),
           config:
-            launchCatalogVideoEnabled() && config.method === 'catalog' && config.catalog
+            config.method === 'catalog' && config.catalog
               ? {
                   ...config,
                   catalog: {

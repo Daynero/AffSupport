@@ -17,12 +17,12 @@ if (!Number.isFinite(pollSeconds) || pollSeconds < 15) {
 const result = await watchWorkflow({
   pollMs: pollSeconds * 1000,
   read: async () => {
-    let run;
     try {
-      run = JSON.parse(
+      return JSON.parse(
         execFileSync('gh', ['run', 'view', runId, '--json', 'status,conclusion,jobs,url'], {
           encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe']
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 60_000
         })
       );
     } catch (error) {
@@ -30,13 +30,18 @@ const result = await watchWorkflow({
       const stderr = /** @type {{ stderr?: { toString(): string } }} */ (error)?.stderr
         ?.toString()
         .trim();
-      console.error(stderr || `Could not read GitHub Actions run ${runId}`);
-      process.exit(2);
+      throw new Error(stderr || `Could not read GitHub Actions run ${runId}`, { cause: error });
     }
-
-    return run;
   },
-  onState: ({ summary }) => console.log(`${new Date().toISOString()} ${summary}`)
+  onState: ({ summary }) => console.log(`${new Date().toISOString()} ${summary}`),
+  onReadError: (error, failures) =>
+    console.error(
+      `${new Date().toISOString()} read failed (${failures} in a row): ${error instanceof Error ? error.message : error}`
+    )
 });
+if (result.error === 'WORKFLOW_UNREADABLE') {
+  console.error(`Could not read GitHub Actions run ${runId}: ${result.detail}`);
+  process.exit(2);
+}
 if (result.run?.url) console.log(result.run.url);
 process.exit(result.ok ? 0 : 1);

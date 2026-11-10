@@ -4,7 +4,7 @@ import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db
 const OWNER = '50000000-0000-4000-8000-000000000011';
 const VIEWER = '50000000-0000-4000-8000-000000000012';
 const OUTSIDER = '50000000-0000-4000-8000-000000000013';
-const MIGRATION = '20261207191000_catalog_video_r2.sql';
+const MIGRATION = '20261207193000_catalog_video_r2.sql';
 const WORKER = 'catalog-video-r2:test-worker-0001';
 let db: TeamTestDb;
 let team: string;

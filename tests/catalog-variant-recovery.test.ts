@@ -221,3 +221,72 @@ it('an original registered result wins a late cancel observation and starts no r
     vi.useRealTimers();
   }
 });
+
+it('uses the agent backend origin for variant transfer URLs, never the server-reported loopback one', async () => {
+  // Production 1.4.1: team-recovery issued http://127.0.0.1:54321 URLs, the native
+  // source guard rejected them locally and every restitch failed at "downloading"
+  // with PERMISSION_DENIED before any request reached drive-transfer.
+  let snapshot: CatalogVariantSnapshot = {
+    setId: id(1),
+    revision: 0,
+    children: [{ index: 0, requestId: id(2), operationId: null, state: 'queued', outputId: null }]
+  };
+  const grant = {
+    ticket: 't'.repeat(43),
+    expiresAt: '2030-01-01T00:00:00Z',
+    maxRangeBytes: 33554432,
+    maxUses: 9
+  };
+  const call = vi.fn(
+    async (action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      if (action === 'variant_claim') return { setId: id(1) };
+      if (action === 'variant_load') return snapshot as unknown as Record<string, unknown>;
+      if (action === 'variant_save') {
+        snapshot = structuredClone(body.snapshot) as CatalogVariantSnapshot;
+        return { saved: true };
+      }
+      if (action === 'variant_reconcile') return { kind: 'absent' };
+      if (action === 'variant_admit') return { operationId: id(3) };
+      if (action === 'variant_dispatch') return { executionAllowed: true };
+      if (action === 'variant_authorize') return { authorized: true };
+      if (action === 'variant_process')
+        return {
+          operationId: id(3),
+          state: 'running',
+          agentContractVersion: 1,
+          sourceGrant: { ...grant, purpose: 'process_input' },
+          finalizeGrant: { ...grant, purpose: 'finalize' },
+          transferUrl: 'http://127.0.0.1:54321/functions/v1/drive-transfer/range',
+          cloudBaseUrl: 'http://127.0.0.1:54321/functions/v1/drive-ops',
+          options: { restitchSelectionRootId: id(6) }
+        };
+      throw new Error('unexpected action');
+    }
+  );
+  const seen: Array<{ transferUrl: string; cloudBaseUrl: string }> = [];
+  const protectedProcess = vi.fn<
+    NonNullable<Parameters<typeof runCatalogVariantRecovery>[0]['protectedProcess']>
+  >(async request => {
+    seen.push({ transferUrl: request.transferUrl, cloudBaseUrl: request.cloudBaseUrl });
+    return {
+      operationId: request.operationId,
+      state: 'succeeded' as const,
+      materialId: id(4),
+      reused: false
+    };
+  });
+  await runCatalogVariantRecovery({
+    nativeInstanceId: id(5),
+    functionsBase: 'https://yvvvignywfmbdgkcxtfk.supabase.co/functions/v1',
+    call,
+    process: { process: vi.fn(), cancel: vi.fn() },
+    protectedProcess,
+    signal: new AbortController().signal
+  });
+  expect(seen).toEqual([
+    {
+      transferUrl: 'https://yvvvignywfmbdgkcxtfk.supabase.co/functions/v1/drive-transfer/range',
+      cloudBaseUrl: 'https://yvvvignywfmbdgkcxtfk.supabase.co/functions/v1/drive-ops'
+    }
+  ]);
+});

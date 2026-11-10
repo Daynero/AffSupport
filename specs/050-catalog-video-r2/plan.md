@@ -67,7 +67,7 @@ specs/050-catalog-video-r2/
 ```text
 supabase/
 ├── migrations/
-│   └── 20261207191000_catalog_video_r2.sql        # адитивно: config, preferences, copies, parts, uses, purges, journal, RPC,
+│   └── 20261207193000_catalog_video_r2.sql        # адитивно: config, preferences, copies, parts, uses, purges, journal, RPC,
 │                                                  # public.team_catalog_video_r2_signals (Realtime), nullable link_kind у
 │                                                  # catalog_publication_link_receipts, заміна service_record_catalog_publication_link
 │                                                  # (p_link_kind default 'drive'), invoke_catalog_video_r2_worker() + cron.schedule

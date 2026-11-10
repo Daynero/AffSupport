@@ -1,6 +1,5 @@
 import { request, requestBody, cancelTeamDownload } from '../../api/client';
 import { invokeTeamFunction, teamApi } from '../../api/team';
-import { builtForEnvironment } from '../../lib/config';
 import { privateCacheActor } from '../private-cache-scope';
 
 type RecordValue = Record<string, unknown>;
@@ -39,7 +38,6 @@ const defaults: Dependencies = {
   cancelLocal: cancelTeamDownload
 };
 export async function nativeManualRestitchSupported(): Promise<boolean> {
-  if (builtForEnvironment() !== 'beta') return false;
   try {
     const value = await request<unknown>('/api/team/restitch/native/capabilities');
     if (

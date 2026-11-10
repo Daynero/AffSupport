@@ -2,7 +2,7 @@ import {
   prepareCatalogVideoRestitchAlias,
   enrollCatalogVideoRestitchControl
 } from '../drive-ops/catalog-video-restitch-alias.ts';
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { catalogVideoFunctionBase, nativeRestitchEnabled } from '../_shared/restitch-native.ts';
 import { catalogVideoNativeStore } from '../drive-ops/catalog-video-native-store.ts';
 import { catalogVideoProcessGrants } from '../drive-ops/catalog-video-process-grants.ts';
 import { TEAM_RECOVERY_PROTOCOL_VERSION } from '../../../packages/shared/dist/team/recovery.js';
@@ -91,7 +91,7 @@ Deno.serve(async request => {
           throw new TeamFunctionError('DRIVE_UNAVAILABLE');
         return value.value;
       },
-      variants: nativeRestitchBetaEnabled({
+      variants: nativeRestitchEnabled({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
         environment: Deno.env.get('SOTY_ENVIRONMENT'),
         oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
@@ -213,7 +213,7 @@ Deno.serve(async request => {
               };
             if (action === 'variant_process')
               return catalogVideoProcessGrants(service, native, {
-                functionBase: 'http://127.0.0.1:54321/functions/v1',
+                functionBase: catalogVideoFunctionBase(Deno.env.get('SOTY_ENVIRONMENT')),
                 secret: key,
                 prepareAlias: async (context, originalChild) => {
                   if (!originalChild.operationId) throw new TeamFunctionError('INVALID_INPUT');

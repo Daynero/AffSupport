@@ -5,7 +5,7 @@
 ## T001 — стан на старті (2026-11-10)
 
 - **Робоча копія**: worktree `/Users/daynero/RiderProjects/AffSupport-050-video-r2`, гілка `050-catalog-video-r2` від `main` `563d8351` (спека `a71d3ad1` уже в `main`/`origin/main`). Спільну робочу копію `main` (релізна сесія 1.4.0) не перемикаємо; stash 048 і worktree `AffSupport-048-trust` належать іншій сесії — не чіпати.
-- **Слот міграції**: `20261207191000_catalog_video_r2.sql`; останній наявний — `20261207190000_agent_native_identity_analytics.sql`. Повторно перевірити перед T007 і перед релізом (релізна сесія може додати міграції).
+- **Слот міграції**: `20261207193000_catalog_video_r2.sql`; останній наявний — `20261207190000_agent_native_identity_analytics.sql`. Повторно перевірити перед T007 і перед релізом (релізна сесія може додати міграції).
 - **Environment-входи edge-функції `catalog-video-r2`** (нічого з цього не записується в репозиторій):
   - нові: `CATALOG_VIDEOS_ENABLED` (лише точне `true`), `R2_CATALOG_VIDEO_STAGING_BUCKET` = `soty-catalog-videos-<environment>-staging`, `R2_CATALOG_VIDEO_PUBLIC_BUCKET` = `soty-catalog-videos-<environment>-public`, `R2_CATALOG_VIDEO_PUBLIC_ORIGIN` (окремий HTTPS-домен без шляху), `R2_CATALOG_VIDEO_TARGET_CONFIRMATION` = `<environment>:<accountId>:<staging>:<public>:<origin>`, `R2_CATALOG_VIDEO_ACCESS_KEY_ID`, `R2_CATALOG_VIDEO_SECRET_ACCESS_KEY` (пара, обмежена двома відео-bucket), необов'язково `CATALOG_VIDEOS_PART_VERIFICATION` = `readback` (за замовчуванням) | `provider_checksum` (лише після доказу T003);
   - спільні з 045: `CATALOG_IMAGES_ENVIRONMENT`, `R2_CATALOG_ACCOUNT_ID`, `R2_CATALOG_ZONE_ID`, `R2_CATALOG_PURGE_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `DRIVE_OAUTH_MODE`, `WISHLY_SITE_URL`;
@@ -28,7 +28,7 @@
 | Шар | Файли | Доказ |
 |---|---|---|
 | Shared контракт | `packages/shared/src/team/catalog-video-r2.ts`, `transport.ts` (+16 кодів), `launches.ts`/`launches/validation.ts` (`copyVideoToR2`) | `tests/catalog-video-r2-contract.test.ts` — 7 pass |
-| Міграція | `supabase/migrations/20261207191000_catalog_video_r2.sql` (8 private таблиць, публічні сигнали, nullable `link_kind` у квитанції, заміна `service_record_catalog_publication_link` з default, RPC, тригери-надгробки, інвокатор + 2 cron, 4 analytics-view) | `tests/catalog-video-r2-schema.test.ts` — 11 pass на PGlite з усіма міграціями; `supabase/tests/database/catalog-video-r2.test.sql` написано (pgTAP, потребує Docker-БД) |
+| Міграція | `supabase/migrations/20261207193000_catalog_video_r2.sql` (8 private таблиць, публічні сигнали, nullable `link_kind` у квитанції, заміна `service_record_catalog_publication_link` з default, RPC, тригери-надгробки, інвокатор + 2 cron, 4 analytics-view) | `tests/catalog-video-r2-schema.test.ts` — 11 pass на PGlite з усіма міграціями; `supabase/tests/database/catalog-video-r2.test.sql` написано (pgTAP, потребує Docker-БД) |
 | Адаптер R2 | `_shared/r2-catalog-video.ts`, `_shared/md5.ts` | `tests/catalog-video-r2-adapter.test.ts` — 7 pass (in-memory S3 + CDN) |
 | Резолвер | `_shared/catalog-video-link.ts` | `tests/catalog-video-link-resolver.test.ts` — 8 pass |
 | Воркер/handler/entry | `catalog-video-r2/{worker,handler,index}.ts` | `catalog-video-r2-worker.test.ts` — 8 pass; `catalog-video-r2-handler.test.ts` — 4 pass |
@@ -49,5 +49,5 @@
 ## Регресія 2026-11-10
 
 - `tests/catalog-*` + `tests/product-catalog*`: 169 файлів, 1573 тести — pass.
-- `tests/launch-*` + `tests/team-*` + `tests/analytics-*`: 303 файли, 2868 тестів — pass після двох правок, яких вимагали наявні гейти: (1) `tests/analytics-investigate-command.test.ts` — очікуваний список сліпих зон `investigate` доповнено п'ятьма зонами `catalog-video-r2`; (2) контракт кодів помилок — нові `VIDEO_R2_*` коди мають власну додаткову міграцію `supabase/migrations/20261207192000_catalog_video_r2_error_codes.sql`, згенеровану `scripts/generate-team-contract-sql.mjs` (новий `--video-extension-output`); `node scripts/generate-team-contract-sql.mjs --check` — current; `tests/team-contract.test.ts` перевіряє дельту і forward-upgrade на PGlite.
+- `tests/launch-*` + `tests/team-*` + `tests/analytics-*`: 303 файли, 2868 тестів — pass після двох правок, яких вимагали наявні гейти: (1) `tests/analytics-investigate-command.test.ts` — очікуваний список сліпих зон `investigate` доповнено п'ятьма зонами `catalog-video-r2`; (2) контракт кодів помилок — нові `VIDEO_R2_*` коди мають власну додаткову міграцію `supabase/migrations/20261207194000_catalog_video_r2_error_codes.sql`, згенеровану `scripts/generate-team-contract-sql.mjs` (новий `--video-extension-output`); `node scripts/generate-team-contract-sql.mjs --check` — current; `tests/team-contract.test.ts` перевіряє дельту і forward-upgrade на PGlite.
 - Разом із 10 новими файлами фічі: усе зелено; `npm run verify` повністю не запускався (машина спільна з релізом 1.4.0).

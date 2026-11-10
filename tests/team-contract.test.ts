@@ -259,7 +259,7 @@ describe('team contract', () => {
     const publicationPath =
       'supabase/migrations/20261207179000_catalog_publication_error_codes.sql';
     const publicationDelta = readFileSync(publicationPath, 'utf8');
-    const videoPath = 'supabase/migrations/20261207192000_catalog_video_r2_error_codes.sql';
+    const videoPath = 'supabase/migrations/20261207194000_catalog_video_r2_error_codes.sql';
     const videoDelta = readFileSync(videoPath, 'utf8');
     expect(createHash('sha256').update(mutationDelta.replaceAll('\r\n', '\n')).digest('hex')).toBe(
       '5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9'

@@ -26,6 +26,12 @@ for _ in {1..40}; do
   sleep 0.25
 done
 [[ -d "$mount" ]] || { print -u2 "DMG volume did not mount at $mount"; hdiutil detach -quiet "$device" || true; exit 1; }
+# Finder registers the volume later still; the layout script fails with -1728 if it asks
+# first. Wait until Finder itself can see the disk.
+for _ in {1..60}; do
+  osascript -e "tell application \"Finder\" to exists disk \"$volume_name\"" 2>/dev/null | grep -q true && break
+  sleep 0.5
+done
 osascript <<APPLESCRIPT
 tell application "Finder"
   tell disk "$volume_name"

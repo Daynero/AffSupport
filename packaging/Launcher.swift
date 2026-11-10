@@ -5,19 +5,6 @@ import FinderSync
 import Foundation
 import OSLog
 
-// BEGIN beta catalog video flag
-// Only a sealed beta plist boolean may enable this experiment. Reject strings
-// and numeric NSNumber values; inherited shell environment never opts in.
-private func betaCatalogVideoEnabled(releaseChannel: String, infoValue: Any?) -> Bool {
-  guard releaseChannel == "beta", let boolean = infoValue as? NSNumber,
-    CFGetTypeID(boolean) == CFBooleanGetTypeID()
-  else {
-    return false
-  }
-  return boolean.boolValue
-}
-// END beta catalog video flag
-
 private let agentPort = __AGENT_PORT__
 private let agentBaseURL = URL(string: "http://127.0.0.1:\(agentPort)")!
 private let applicationName = "__APP_NAME__"
@@ -900,10 +887,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_BUILD_NUMBER": expectedBuildNumber,
       "AGENT_BUILD_ID": expectedBuildID,
       "AGENT_RELEASE_CHANNEL": releaseChannel,
-      "SOTY_CATALOG_VIDEO_VARIANTS": betaCatalogVideoEnabled(
-        releaseChannel: releaseChannel,
-        infoValue: Bundle.main.object(forInfoDictionaryKey: "SotyBetaCatalogVideoVariants")
-      ) ? "true" : "false",
       "AGENT_SOURCE_REVISION": sourceRevision,
       "AGENT_LAUNCHER_PID": String(ProcessInfo.processInfo.processIdentifier),
       "AGENT_INSTALLED_RELEASE_PATH": resources.appendingPathComponent("release.json").path,

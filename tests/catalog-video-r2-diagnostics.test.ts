@@ -27,7 +27,7 @@ const rpc = async <T = unknown>(name: string, args: unknown[]) =>
   (await db.root<{ v: T }>(`select public.${name}(${placeholders(args.length)}) v`, args))[0]!.v;
 
 beforeAll(async () => {
-  db = await createTeamTestDb({ throughMigration: '20261207191000_catalog_video_r2.sql' });
+  db = await createTeamTestDb({ throughMigration: '20261207193000_catalog_video_r2.sql' });
   setQueryExecutor(async (sql, params) => db.root(sql, params));
   await createUser(db, { id: OWNER, email: 'video-r2-diag@example.test' });
   await db.root('insert into public.admin_users(user_id) values($1)', [OWNER]);
@@ -158,7 +158,7 @@ describe('catalog video R2 diagnostics', () => {
       evidence: expect.stringMatching(/^catalog-video-r2:\d+$/u)
     });
     expect(quota?.code_locations?.files).toContain(
-      'supabase/migrations/20261207191000_catalog_video_r2.sql'
+      'supabase/migrations/20261207193000_catalog_video_r2.sql'
     );
     expect(diagnosis.observed_copies).toMatchObject({
       status: 'current_observation',

@@ -376,15 +376,7 @@
       "required": [],
       "secret": false,
       "format": "boolean",
-      "note": "Off by default. Experimental manual native restitch requires beta environment, testing OAuth and the exact beta loopback web origin. Production never activates this route."
-    },
-    {
-      "name": "VITE_CATALOG_VIDEO_VARIANTS",
-      "surface": "web",
-      "required": [],
-      "secret": false,
-      "format": "boolean",
-      "note": "Off by default. Shows catalog video variants only in beta builds; the server independently enforces beta authority."
+      "note": "Beta only. A beta stack answers the native restitch and catalog publication routes only with this switch, testing OAuth and the exact beta loopback web origin. Production answers them unconditionally since 1.4.1 and ignores this."
     },
     {
       "name": "SOTY_CATALOG_VIDEO_VARIANTS",
@@ -392,7 +384,7 @@
       "required": [],
       "secret": false,
       "format": "boolean",
-      "note": "Off by default. Catalog video variants require beta environment, testing OAuth and the exact beta loopback web origin; production cannot activate them."
+      "note": "Beta only. A beta stack answers the catalog video variant routes only with this switch, testing OAuth and the exact beta loopback web origin. Production answers them unconditionally since 1.4.1 and ignores this."
     },
     {
       "name": "CATALOG_NATIVE_SHEETS_BETA",
@@ -400,7 +392,7 @@
       "required": [],
       "secret": false,
       "format": "boolean",
-      "note": "Off by default. Experimental native catalog cells require this opt-in plus testing OAuth and exact beta loopback origins. Never activates for the production site or verified OAuth."
+      "note": "Beta only. A beta stack writes catalog cells natively (deferred video links, non-video updates) only with this opt-in, testing OAuth and the exact beta loopback origins. Production writes them unconditionally since 1.4.2 and ignores this; native catalog creation stays beta-only."
     },
     {
       "name": "CATALOG_IMAGES_ENABLED",

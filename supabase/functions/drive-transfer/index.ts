@@ -1,4 +1,4 @@
-import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
+import { nativeRestitchEnabled } from '../_shared/restitch-native.ts';
 import {
   authorizeNativeRestitchSource,
   type NativeRestitchSourceAuthority
@@ -1660,7 +1660,7 @@ Deno.serve(async request => {
       url.pathname.endsWith('/restitch/screen-range')
     ) {
       if (
-        !nativeRestitchBetaEnabled({
+        !nativeRestitchEnabled({
           enabled: Deno.env.get('SOTY_NATIVE_RESTITCH_CONTROL'),
           environment: Deno.env.get('SOTY_ENVIRONMENT'),
           oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),

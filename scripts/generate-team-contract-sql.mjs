@@ -56,7 +56,7 @@ const defaultImageExtensionOutput = resolve(
 );
 const defaultVideoExtensionOutput = resolve(
   root,
-  'supabase/migrations/20261207192000_catalog_video_r2_error_codes.sql'
+  'supabase/migrations/20261207194000_catalog_video_r2_error_codes.sql'
 );
 /** @type {Set<string>} */
 const extensionCodes = new Set([
