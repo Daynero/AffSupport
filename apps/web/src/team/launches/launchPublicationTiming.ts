@@ -1,3 +1,4 @@
+import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
 import type { LaunchCatalogConfig } from '@video-compressor/shared';
 import { resolveCatalogPublicationDraft } from '../product-catalog/catalogPublicationDraft';
 
@@ -30,6 +31,8 @@ export function launchPublicationTimePassed(
   catalog: Pick<LaunchCatalogConfig, 'videoPublication'> | null | undefined,
   now = Date.now()
 ): boolean {
+  // A stored schedule is ignored while deferred publication is switched off (1.4.2 hotfix).
+  if (!CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return false;
   const publication = catalog?.videoPublication;
   if (publication?.mode !== 'scheduled') return false;
   const due = scheduledInstant(publication);
