@@ -28,20 +28,23 @@ export function createCatalogNonVideoUpdater(
     });
     if (result.error || !isRecord(result.data))
       throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
-    const c = result.data;
-    if (
-      typeof c.contextToken !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(c.contextToken) ||
-      c.currentProductCount !== item.productCount ||
-      typeof c.productCount !== 'number' ||
-      !Number.isSafeInteger(c.productCount) ||
-      c.productCount < item.productCount ||
-      c.productCount > 400 ||
-      c.fileId !== item.driveFileId ||
-      c.credentialId !== item.credentialId ||
-      typeof c.rootFolderId !== 'string'
-    )
+    // Shape is enforced by catalogNonVideoContextMismatch below before any use.
+    const c = result.data as Record<string, unknown> & {
+      contextToken: string;
+      productCount: number;
+      rootFolderId: string;
+    };
+    // The context returns credentialId/rootFolderId only for a 'connected' Drive
+    // connection, while the claim also admits 'unavailable'. That is a transient
+    // provider state, not an inconsistency: retry it instead of failing the round.
+    if (c.credentialId === null && c.rootFolderId === null)
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    const mismatch = catalogNonVideoContextMismatch(c, item);
+    if (mismatch) {
+      // Field name only, never values: the next failure names its cause.
+      console.error('[catalog-updater] non-video context mismatch', item.catalogId, mismatch);
       throw uncertain();
+    }
     const productCount = c.productCount;
     const drive = await driveFor(item.credentialId),
       before = await drive.getFile(item.driveFileId, item.resourceKey);
@@ -158,4 +161,26 @@ export function createCatalogNonVideoUpdater(
       }
     };
   };
+}
+
+/** The first field of the prepared non-video context that disagrees with the
+ * claimed catalog, or null when the context may be used. */
+export function catalogNonVideoContextMismatch(
+  c: Record<string, unknown>,
+  item: Pick<ClaimedCatalog, 'productCount' | 'driveFileId' | 'credentialId'>
+): string | null {
+  if (typeof c.contextToken !== 'string' || !/^[a-f0-9]{64}$/u.test(c.contextToken))
+    return 'contextToken';
+  if (c.currentProductCount !== item.productCount) return 'currentProductCount';
+  if (
+    typeof c.productCount !== 'number' ||
+    !Number.isSafeInteger(c.productCount) ||
+    c.productCount < item.productCount ||
+    c.productCount > 400
+  )
+    return 'productCount';
+  if (c.fileId !== item.driveFileId) return 'fileId';
+  if (c.credentialId !== item.credentialId) return 'credentialId';
+  if (typeof c.rootFolderId !== 'string') return 'rootFolderId';
+  return null;
 }

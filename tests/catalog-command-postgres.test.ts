@@ -625,7 +625,7 @@ describe.skipIf(!container)(
         )
       ).toBe('new-claim:false');
     }, 15000);
-    it('keeps an old terminal and makes a racing Stop observe the quarantine', async () => {
+    it('keeps an old terminal and closes its finished round before a racing Stop (1.4.3)', async () => {
       const sheet = await fixture(),
         command = randomUUID();
       await sql(asActor(request(command, sheet)));
@@ -640,10 +640,17 @@ describe.skipIf(!container)(
           `select public.cancel_team_catalog_update('${team}','${sheet}') /* claim_stop_wait */`
         )
       );
-      const rejected = expect(stopping).rejects.toThrow(/CATALOG_UPDATE_RECONCILIATION_REQUIRED/);
+      // A finished attempt's round is closed by the park, not quarantined, so the
+      // racing Stop finds nothing left to stop instead of a permanent hold.
+      const resolved = expect(stopping).resolves.toBeDefined();
       await held('claim_stop_wait', 'Lock');
       await parked;
-      await rejected;
+      await resolved;
+      expect(
+        await sql(
+          `select coalesce(reconciliation_required,false)::text from public.team_catalog_updater_items where catalog_material_id='${sheet}' union all select 'false' limit 1`
+        )
+      ).toBe('false');
       expect(
         await sql(
           `select result||':'||failure_code from public.team_catalog_update_attempts where catalog_material_id='${sheet}'`
