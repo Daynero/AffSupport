@@ -20,9 +20,8 @@ it('lists registered intents with an open initial check and paces their retries'
       `select pg_get_functiondef('public.service_list_initial_catalog_recovery(integer)'::regprocedure) d`
     )
   )[0]!.d;
-  expect(listing).toContain(
-    "or (i.state='registered' and exists(select 1 from private.catalog_initial_publication_checks ic join private.catalog_video_publication_jobs j on j.id=ic.job_id where ic.intent_id=i.id and ic.state='reading' and ic.retry_after<=statement_timestamp() and j.state='blocked' and j.blocked_reason='legacy_adoption_required'))"
-  );
+  // 194000 moved the registered branch behind a committed pacing claim.
+  expect(listing).toContain('private.initial_publication_reverify_owed(i)');
   // The interrupted branch is unchanged.
   expect(listing).toContain(
     "(i.state in('interrupted','create_started','created','finalized') and i.next_attempt_at<=statement_timestamp()"

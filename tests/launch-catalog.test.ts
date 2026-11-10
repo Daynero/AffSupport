@@ -959,3 +959,108 @@ it('creates and verifies the scheduled blank catalog while admitted N work is st
   expect(serverNow).toHaveBeenCalledOnce();
   expect(f.state.checkpoint.initialVideoPlan).toEqual(original);
 });
+
+it('claims a paced re-verification before any work and records the failure code', async () => {
+  // 1.4.2 paced inside the begin step, so a begin that raised rolled the pacing
+  // back and the intent was retried every pass. The claim now commits first.
+  const f = fixture(false);
+  const plan = { recipeRowIds: ['r1', 'r2'], preferences: { catalogVideoProtocolVersion: 1 } };
+  f.state.state = 'registered';
+  f.state.checkpoint = { materialId: 'catalog-material', initialVideoPlan: plan };
+  f.state.result = {
+    outcome: 'created',
+    videoShared: true,
+    catalog: {
+      materialId: 'catalog-material',
+      name: 'TR_v1_catalog',
+      sheetUrl: 'https://docs.google.com/spreadsheets/d/x',
+      sourceLink: body.sourceLink,
+      productCount: 2,
+      createdAt: null
+    }
+  };
+  const claims: Array<'go' | 'paced' | 'exhausted' | 'done'> = ['paced', 'go', 'exhausted'];
+  const claimReverify = vi.fn(async () => claims.shift()!);
+  const noteReverify = vi.fn(async () => {});
+  const registerCreated = vi.fn(async () => {
+    throw new TeamFunctionError('WRONG_STATE');
+  });
+  f.deps.initialVideoAuthority = {
+    serverNow: vi.fn(async () => Date.now()),
+    prepare: vi.fn(),
+    registerCreated,
+    claimReverify,
+    noteReverify
+  };
+  const request = {
+    ...body,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: false,
+    videoVariationCount: 1,
+    videoPublication: { mode: 'immediate' }
+  };
+  // Paced: nothing runs.
+  await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR);
+  expect(registerCreated).not.toHaveBeenCalled();
+  // Claimed: it runs, fails, and the code is recorded; the result stays registered.
+  expect(
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+  ).toMatchObject({ outcome: 'created' });
+  expect(registerCreated).toHaveBeenCalledTimes(1);
+  expect(noteReverify).toHaveBeenCalledWith('intent', 'WRONG_STATE');
+  expect(f.state.state).toBe('registered');
+  // Exhausted: nothing runs again.
+  await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR);
+  expect(registerCreated).toHaveBeenCalledTimes(1);
+  expect(claimReverify).toHaveBeenCalledTimes(3);
+});
+
+it('begins the initial publication when the catalog is recovered as already created', async () => {
+  // Production 2026-11-10: the first verification failed before any policy
+  // existed; the next pass found the finished catalog and registered it without
+  // ever beginning its publication, so the deferred link was never written.
+  const f = fixture(false);
+  const recovered = {
+    outcome: 'created' as const,
+    videoShared: true,
+    catalog: {
+      materialId: 'catalog-material',
+      name: 'TR_v1_catalog',
+      sheetUrl: 'https://docs.google.com/spreadsheets/d/x',
+      sourceLink: body.sourceLink,
+      productCount: 2,
+      createdAt: null
+    }
+  };
+  f.store.completed = vi.fn(async () => recovered);
+  const registerCreated = vi.fn(async () => {});
+  f.deps.initialVideoAuthority = {
+    serverNow: vi.fn(async () => Date.parse('2026-11-10T19:54:58Z')),
+    prepare: vi.fn(),
+    registerCreated,
+    claimReverify: vi.fn(async () => 'go' as const)
+  };
+  const request = {
+    ...body,
+    productCount: 2,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: false,
+    videoVariationCount: 1,
+    videoPublication: {
+      mode: 'scheduled',
+      localDateTime: '2026-11-10T21:57',
+      timeZone: 'Europe/Kyiv',
+      resolvedOffset: '+02:00',
+      dueAt: '2026-11-10T19:57:00.000Z'
+    }
+  };
+  expect(
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+  ).toMatchObject({ outcome: 'created', catalog: { materialId: 'catalog-material' } });
+  expect(f.state.state).toBe('registered');
+  expect(registerCreated).toHaveBeenCalledTimes(1);
+  expect(registerCreated).toHaveBeenCalledWith(
+    expect.objectContaining({ intentId: 'intent', catalogMaterialId: 'catalog-material' })
+  );
+  expect(f.create).not.toHaveBeenCalled();
+});

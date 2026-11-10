@@ -208,6 +208,29 @@ export function catalogInitialVideoAuthority(
     },
     registerCreated({ intentId, plan, catalogMaterialId }) {
       return identity.verifyAndRegisterCreated(intentId, plan, catalogMaterialId);
+    },
+    async claimReverify(intentId) {
+      const claimed = await service.rpc('service_claim_initial_publication_reverify', {
+        p_team: identity.teamId,
+        p_actor: identity.actorId,
+        p_intent: intentId
+      });
+      if (claimed.error) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+      if (
+        claimed.data !== 'go' &&
+        claimed.data !== 'paced' &&
+        claimed.data !== 'exhausted' &&
+        claimed.data !== 'done'
+      )
+        throw new TeamFunctionError('INVALID_RESPONSE');
+      return claimed.data;
+    },
+    async noteReverify(intentId, code) {
+      await service.rpc('service_note_initial_publication_reverify', {
+        p_team: identity.teamId,
+        p_intent: intentId,
+        p_code: code
+      });
     }
   };
 }

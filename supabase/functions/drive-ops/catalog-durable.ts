@@ -300,18 +300,20 @@ async function reverifyRegisteredInitialPublication(
     plan.recipeRowIds.length !== request.productCount
   )
     return;
+  const authority = deps.initialVideoAuthority;
   try {
-    await deps.initialVideoAuthority.registerCreated({
+    // Pacing is claimed in its own transaction before any work: a failure
+    // anywhere below can no longer roll it back and relist the intent every pass.
+    if (authority.claimReverify && (await authority.claimReverify(intent.id)) !== 'go') return;
+    await authority.registerCreated({
       intentId: intent.id,
       plan: plan as unknown as CatalogInitialVideoPlan,
       catalogMaterialId: result.catalog.materialId
     });
   } catch (error) {
-    console.error(
-      '[catalog] initial publication verification still pending',
-      intent.id,
-      launchFailure(error).code
-    );
+    const code = launchFailure(error).code;
+    console.error('[catalog] initial publication verification still pending', intent.id, code);
+    await authority.noteReverify?.(intent.id, code).catch(() => undefined);
   }
 }
 
@@ -447,6 +449,9 @@ export async function createDurableProductCatalog(
     if (recovered) {
       await deps.finalizeImageUses?.(request.teamId, intent.id, true);
       await store.checkpoint(intent, owner, 'registered', {}, undefined, recovered);
+      // The catalog already exists, but its initial publication may never have
+      // begun (the first verification failed before the policy was created).
+      await reverifyRegisteredInitialPublication(deps, intent, request, recovered);
       return recovered;
     }
     let child = (await store.operation?.(intent)) ?? null;

@@ -137,6 +137,12 @@ export interface CatalogInitialVideoAuthority {
     plan: CatalogInitialVideoPlan;
     catalogMaterialId: string;
   }): Promise<void>;
+  /** Claims one paced re-verification of a registered intent's initial
+   * publication in its own transaction: 'go' runs it, 'paced' and 'exhausted'
+   * skip it, 'done' means nothing is owed. */
+  claimReverify?(intentId: string): Promise<'go' | 'paced' | 'exhausted' | 'done'>;
+  /** Records the closed code a re-verification attempt ended with. */
+  noteReverify?(intentId: string, code: string): Promise<void>;
 }
 export async function prepareCatalogInitialVideo(
   authority: CatalogInitialVideoAuthority,
