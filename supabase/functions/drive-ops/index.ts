@@ -20,7 +20,8 @@ import { createCatalogInitialVideoAuthority } from './catalog-initial-video-auth
 import {
   readCatalogInitialVideoProgress,
   cancelCatalogInitialVideo,
-  readAcceptedInitialCatalogRequest
+  readAcceptedInitialCatalogRequest,
+  withCatalogVideoWriter
 } from './catalog-video-generation.ts';
 import { admitCatalogVideoVariant } from './catalog-video-variant-admission.ts';
 import {
@@ -33,7 +34,7 @@ import {
   handleCatalogPublicationSave,
   withCatalogPublicationWriter
 } from './catalog-publication.ts';
-import { nativeRestitchBetaIsolated, nativeRestitchEnabled } from '../_shared/restitch-native.ts';
+import { nativeRestitchEnabled, targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import { handleRestitchNativeControl } from './restitch-native-control.ts';
 import { authorizeRestitchNativeEnrollment } from './restitch-native-auth.ts';
 import { handleRestitchNativeSelection } from './restitch-native-selection.ts';
@@ -2861,6 +2862,17 @@ async function proveLaunchSource(
   return live;
 }
 
+/** The targeted catalog cell writer for this stack (see targetedCatalogWriterEnabled). */
+function catalogWriterEnabled(): boolean {
+  return targetedCatalogWriterEnabled({
+    enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
+    variants: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+    environment: Deno.env.get('SOTY_ENVIRONMENT'),
+    oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+    siteUrl: Deno.env.get('WISHLY_SITE_URL')
+  });
+}
+
 function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
   const contexts = new Map<string, MaterialOperationContext>();
   let destinationClient: GoogleDriveClient | null = null;
@@ -3407,7 +3419,7 @@ Deno.serve(async request => {
               createInitialVideoAuthority: identity =>
                 createCatalogInitialVideoAuthority(
                   configured.service,
-                  identity,
+                  { ...identity, targetedWriterEnabled: catalogWriterEnabled() },
                   catalog.fullDriveFor
                 ),
               proveSource: async (config, source) => {
@@ -3465,7 +3477,8 @@ Deno.serve(async request => {
               initialCatalogKey: catalogRequest.idempotencyKey,
               expectedExecutorId: catalogRequest.expectedExecutorId,
               foregroundExecutor: catalogRequest.foregroundExecutor,
-              restitchEnabled: catalogRequest.restitchEnabled
+              restitchEnabled: catalogRequest.restitchEnabled,
+              targetedWriterEnabled: catalogWriterEnabled()
             },
             catalog.fullDriveFor
           );
@@ -3611,14 +3624,7 @@ Deno.serve(async request => {
         })
       )
         throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
-      const targetedWriterEnabled =
-        Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
-        nativeRestitchBetaIsolated({
-          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
-          environment: Deno.env.get('SOTY_ENVIRONMENT'),
-          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-          siteUrl: Deno.env.get('WISHLY_SITE_URL')
-        });
+      const targetedWriterEnabled = catalogWriterEnabled();
       if (path === '/catalog-publication/action')
         return successResponse(
           withCatalogPublicationWriter(
@@ -3767,7 +3773,7 @@ Deno.serve(async request => {
       const progress = path.endsWith('/read')
         ? await readCatalogInitialVideoProgress(configured.service, userId, body)
         : await cancelCatalogInitialVideo(configured.service, userId, body);
-      return successResponse(progress, cors);
+      return successResponse(withCatalogVideoWriter(progress, catalogWriterEnabled()), cors);
     }
     let value: unknown;
     let status = 200;
@@ -3951,23 +3957,27 @@ Deno.serve(async request => {
                   foregroundSecret: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
                 }
               : {}),
-            restitchEnabled: catalogRequest.restitchEnabled
+            restitchEnabled: catalogRequest.restitchEnabled,
+            targetedWriterEnabled: catalogWriterEnabled()
           },
           deps.fullDriveFor
         );
       }
-      value = await createDurableProductCatalog(
-        deps,
-        catalogIntentStore(
-          configured.service,
-          catalogRequest.teamId,
-          catalogRequest.videoMaterialId,
-          userId,
-          catalogRequest.idempotencyKey
+      value = withCatalogVideoWriter(
+        await createDurableProductCatalog(
+          deps,
+          catalogIntentStore(
+            configured.service,
+            catalogRequest.teamId,
+            catalogRequest.videoMaterialId,
+            userId,
+            catalogRequest.idempotencyKey
+          ),
+          deps.fullDriveFor,
+          catalogRequest,
+          userId
         ),
-        deps.fullDriveFor,
-        catalogRequest,
-        userId
+        catalogWriterEnabled()
       );
     } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
       if (path === '/updater/claim-as-actor')

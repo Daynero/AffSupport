@@ -1,5 +1,6 @@
 import {
   nativeRestitchBetaIsolated,
+  targetedCatalogWriterEnabled,
   nativeRestitchEnabled
 } from '../supabase/functions/_shared/restitch-native';
 import { expect, it, vi } from 'vitest';
@@ -205,4 +206,35 @@ it.each([
     authority.bindGrant({ ...grant, purpose: 'process_input', ...override })
   ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
   expect(f.fetcher).not.toHaveBeenCalled();
+});
+it('answers the targeted catalog writer in production and keeps the beta opt-in', () => {
+  // 1.4.2: before this every due deferred publication on production was blocked
+  // as writer_unsupported, so a scheduled video link never reached the sheet.
+  for (const environment of [undefined, 'production'])
+    expect(
+      targetedCatalogWriterEnabled({
+        enabled: undefined,
+        variants: undefined,
+        environment,
+        oauthMode: 'verified',
+        siteUrl: 'x'
+      })
+    ).toBe(true);
+  const beta = {
+    enabled: 'true',
+    variants: 'true',
+    environment: 'beta',
+    oauthMode: 'testing',
+    siteUrl: 'http://127.0.0.1:5175'
+  };
+  expect(targetedCatalogWriterEnabled(beta)).toBe(true);
+  for (const override of [
+    { enabled: undefined },
+    { enabled: 'false' },
+    { variants: undefined },
+    { oauthMode: 'verified' },
+    { siteUrl: 'https://soty.example.invalid' }
+  ])
+    expect(targetedCatalogWriterEnabled({ ...beta, ...override })).toBe(false);
+  expect(targetedCatalogWriterEnabled({ ...beta, environment: 'development' })).toBe(false);
 });

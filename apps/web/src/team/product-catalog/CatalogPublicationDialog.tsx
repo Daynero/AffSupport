@@ -281,11 +281,13 @@ export function CatalogPublicationDialog({
     >
       <h2 id={title}>{t('catalogPublicationTitle')}</h2>
       <p className="field-hint">{t('catalogPublicationExplanation')}</p>
-      {snapshot?.providerCas === 'unsupported' && snapshot.writerMode !== 'video_columns' && (
-        <p className="team-inline-note" role="status">
-          {t('catalogWriteUnsupported')}
-        </p>
-      )}
+      {snapshot?.providerCas === 'unsupported' &&
+        snapshot.writerMode !== 'video_columns' &&
+        snapshot.job?.state !== 'published' && (
+          <p className="team-inline-note" role="status">
+            {t('catalogWriteUnsupported')}
+          </p>
+        )}
       {unknown || verification.unknown ? (
         <>
           <p role="status">{t('catalogPublicationUnknown')}</p>

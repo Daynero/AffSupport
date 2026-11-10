@@ -37,6 +37,7 @@ export function catalogInitialVideoAuthority(
     readyCatalogIntentId?: string;
     initialCatalogKey?: string;
     sourceMaterialId: string;
+    targetedWriterEnabled?: boolean;
     readRestitchDefaults(): Promise<TeamRestitchDefaults>;
     captureFreshSource(): Promise<CatalogVideoFreshSource>;
     resolveReadyLinks(
@@ -53,6 +54,9 @@ export function catalogInitialVideoAuthority(
 ): CatalogInitialVideoAuthority {
   const identity = { ...input };
   return {
+    ...(input.targetedWriterEnabled === undefined
+      ? {}
+      : { targetedWriterEnabled: input.targetedWriterEnabled }),
     async serverNow() {
       const result = await service.rpc('service_catalog_publication_clock', {});
       if (result.error || typeof result.data !== 'number' || !Number.isSafeInteger(result.data))
@@ -225,6 +229,7 @@ export async function createCatalogInitialVideoAuthority(
     /** Server-frozen Launch candidate; exact consumer proof is required in prepare. */
     readyVideoSetId?: string;
     initialCatalogKey?: string;
+    targetedWriterEnabled?: boolean;
   },
   driveFor: (credentialId: string) => Promise<import('../_shared/drive.ts').GoogleDriveClient>
 ): Promise<CatalogInitialVideoAuthority> {

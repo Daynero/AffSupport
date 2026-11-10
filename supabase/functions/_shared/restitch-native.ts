@@ -59,3 +59,29 @@ export function catalogVideoFunctionBase(environment: unknown): string {
 export function isCatalogVideoFunctionOrigin(origin: string): boolean {
   return origin === BETA_FUNCTION_ORIGIN || origin === PRODUCTION_BACKEND_ORIGIN;
 }
+
+/** Whether the targeted catalog cell writer (video-link publication and
+ * non-video updates written as typed cells) answers. Production answers
+ * unconditionally since 1.4.2: before that every due deferred publication was
+ * blocked as writer_unsupported there. A beta keeps its explicit opt-in
+ * (CATALOG_NATIVE_SHEETS_BETA) on top of the isolation rule. */
+export function targetedCatalogWriterEnabled(input: {
+  enabled: unknown;
+  variants: unknown;
+  environment: unknown;
+  oauthMode: unknown;
+  siteUrl: unknown;
+}): boolean {
+  if (input.environment === undefined || input.environment === 'production') return true;
+  if (input.environment === 'beta')
+    return (
+      input.enabled === 'true' &&
+      nativeRestitchBetaIsolated({
+        enabled: input.variants,
+        environment: input.environment,
+        oauthMode: input.oauthMode,
+        siteUrl: input.siteUrl
+      })
+    );
+  return false;
+}

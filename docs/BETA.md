@@ -185,9 +185,10 @@ actually need to verify Drive-dependent flows.
 For the native catalog experiment, enable Google Sheets API in the dedicated beta
 Google project and explicitly set `CATALOG_NATIVE_SHEETS_BETA=true` in the local
 function environment, then recreate the beta backend to load it. The default is off.
-The experimental writer requires both testing OAuth and the exact
-beta loopback site/origins; it cannot activate for the production site or verified
-OAuth. It preserves the durable Drive marker and frozen rows, writes typed cells
+On a beta the writer requires both testing OAuth and the exact beta loopback
+site/origins. Production runs the targeted cell writer (deferred video links and
+non-video updates) unconditionally since 1.4.2 and needs the Google Sheets API
+enabled in its Google project; native catalog creation remains beta-only. It preserves the durable Drive marker and frozen rows, writes typed cells
 without XLSX conversion, and retains legacy XLSX retries. Disabling the opt-in stops fresh native work;
 accepted native attempts keep their writer for recovery. Native files use a separate
 private marker so older code cannot mistake an incomplete native file for a complete XLSX conversion. The catalog diagnostic

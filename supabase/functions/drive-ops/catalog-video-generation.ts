@@ -113,6 +113,10 @@ export function createCatalogInitialVideoPlan(
   };
 }
 export interface CatalogInitialVideoAuthority {
+  /** Whether this stack's targeted cell writer will publish deferred links
+   * (see targetedCatalogWriterEnabled). Absent means unknown, reported as
+   * unsupported. */
+  readonly targetedWriterEnabled?: boolean;
   serverNow(): Promise<number>;
   prepare(input: { intentId: string; plan: CatalogInitialVideoPlan }): Promise<
     | {
@@ -154,7 +158,11 @@ export async function prepareCatalogInitialVideo(
     state: result.state,
     ...(result.executor ? { executor: result.executor } : {}),
     catalogVideoCells: scheduled ? 'deferred_blank' : 'assigned',
-    ...(scheduled ? { providerCas: 'unsupported' as const, publicationHeld: false } : {})
+    // Only a stack whose cell writer answers may promise the deferred link.
+    ...(scheduled && !authority.targetedWriterEnabled
+      ? { providerCas: 'unsupported' as const }
+      : {}),
+    ...(scheduled ? { publicationHeld: false } : {})
   });
   if (
     scheduled &&
@@ -328,4 +336,23 @@ function parseForegroundProgress(raw: unknown): CatalogVideoForegroundProgressEx
     uuid.test(p.nativeInstanceId)
     ? { mode: 'paired_session', enrollmentId: p.enrollmentId, nativeInstanceId: p.nativeInstanceId }
     : null;
+}
+
+/** Current writer capability over a stored receipt: the SQL snapshots stamp
+ * `providerCas: 'unsupported'` unconditionally, so a stack whose targeted
+ * writer answers removes the stamp from the progress it hands back. Receipts
+ * themselves are never rewritten. */
+export function withCatalogVideoWriter<T>(value: T, targetedWriterEnabled: boolean): T {
+  if (!targetedWriterEnabled || !value || typeof value !== 'object' || Array.isArray(value))
+    return value;
+  const copy = { ...(value as Record<string, unknown>) };
+  for (const key of ['videoGeneration', 'videoGenerationObservation']) {
+    const progress = copy[key];
+    if (progress && typeof progress === 'object' && !Array.isArray(progress)) {
+      const rest = { ...(progress as Record<string, unknown>) };
+      delete rest.providerCas;
+      copy[key] = rest;
+    }
+  }
+  return copy as T;
 }
