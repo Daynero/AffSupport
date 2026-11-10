@@ -115,6 +115,9 @@ type Phase =
   | { kind: 'busy'; step: 'restitch' | 'catalog' }
   | { kind: 'result'; heading: TranslationKey; catalog: ShownCatalog };
 
+const VIDEO_READBACK_INITIAL_MS = 3_000;
+const VIDEO_READBACK_MAX_MS = 30_000;
+
 function errorKey(error: unknown): TranslationKey | null {
   // A delayed publication checked on submit: a passed time is the person's to fix,
   // never the generic "some data is invalid" that names no field.
@@ -669,6 +672,26 @@ export function CreateProductCatalogDialog({
   useEffect(() => {
     if (videoProtocol && videoKey.current) void checkVideoRef.current();
   }, [videoProtocol, workspaceRevision, updaterRevision]);
+  const videoWatching = Boolean(
+    videoProtocol &&
+    (videoPending ||
+      videoUnknown ||
+      (createdVideo && !['ready', 'canceled'].includes(createdVideo.state)))
+  );
+  // Agent events say when a video finished; the server then finishes the catalog
+  // on its own, in the background, and nothing announces that. Re-read on a
+  // widening timer while anything is still pending, so the window does not sit
+  // on a stale count after the server is done (1.4.2).
+  useEffect(() => {
+    if (!videoWatching) return;
+    let delay = VIDEO_READBACK_INITIAL_MS;
+    let timer = setTimeout(function tick() {
+      if (videoKey.current) void checkVideoRef.current();
+      delay = Math.min(delay * 2, VIDEO_READBACK_MAX_MS);
+      timer = setTimeout(tick, delay);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [videoWatching]);
   useAgentEventStream<{
     type: 'team:operations';
     operations: Array<{ operationId: string; state: string }>;

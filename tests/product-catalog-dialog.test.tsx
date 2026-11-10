@@ -1045,6 +1045,21 @@ describe('beta durable video creation', () => {
     expect(Object.values(localStorage)).not.toContain(originalKey);
     expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1);
   });
+  it('re-reads on its own after the server finishes the catalog in the background', async () => {
+    // The agent reports the video; the server then registers the catalog from a
+    // cron pass, which announces nothing. The window must notice by itself.
+    let serverDone = false;
+    const read = vi.fn(async () => (serverDone ? created : pending));
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: read
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    serverDone = true;
+    expect(await screen.findByText('The catalog is ready', {}, { timeout: 8_000 })).toBeTruthy();
+  }, 15_000);
   it('recovers a lost reply on reopen through read only using the original key', async () => {
     const read = vi.fn().mockResolvedValue(pending);
     const client = dialogClient({
