@@ -850,6 +850,59 @@ it('journals a definite initial admission failure before a video set exists', as
   expect(f.create).not.toHaveBeenCalled();
 });
 
+it('re-runs the open initial publication verification for an already registered catalog', async () => {
+  // The check stayed open after the create-time verification failed; the
+  // recovery pass lists the registered intent again until it verifies.
+  const f = fixture(false);
+  const plan = { recipeRowIds: ['r1', 'r2'], preferences: { catalogVideoProtocolVersion: 1 } };
+  f.state.state = 'registered';
+  f.state.checkpoint = { materialId: 'catalog-material', initialVideoPlan: plan };
+  f.state.result = {
+    outcome: 'created',
+    videoShared: true,
+    catalog: {
+      materialId: 'catalog-material',
+      name: 'TR_v1_catalog',
+      sheetUrl: 'https://docs.google.com/spreadsheets/d/x',
+      sourceLink: body.sourceLink,
+      productCount: 2,
+      createdAt: null
+    }
+  };
+  const registerCreated = vi
+    .fn(async () => {})
+    .mockRejectedValueOnce(new TeamFunctionError('PERMISSION_DENIED'));
+  f.deps.initialVideoAuthority = {
+    serverNow: vi.fn(async () => Date.now()),
+    prepare: vi.fn(),
+    registerCreated
+  };
+  const request = {
+    ...body,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: false,
+    videoVariationCount: 1,
+    videoPublication: { mode: 'immediate' }
+  };
+  // A failed verification leaves the registered result untouched.
+  expect(
+    await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR)
+  ).toMatchObject({ outcome: 'created', catalog: { materialId: 'catalog-material' } });
+  expect(registerCreated).toHaveBeenCalledWith({
+    intentId: 'intent',
+    plan,
+    catalogMaterialId: 'catalog-material'
+  });
+  expect(f.state.state).toBe('registered');
+  expect(f.create).not.toHaveBeenCalled();
+  // The next pass verifies.
+  await createDurableProductCatalog(f.deps, f.store, async () => f.drive, request, ACTOR);
+  expect(registerCreated).toHaveBeenCalledTimes(2);
+  // A legacy request (no video protocol) never touches the authority.
+  await createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR);
+  expect(registerCreated).toHaveBeenCalledTimes(2);
+});
+
 it('creates and verifies the scheduled blank catalog while admitted N work is still preparing', async () => {
   const f = fixture(false),
     serverNow = vi.fn(async () => Date.parse('2030-01-01T00:00:00Z'));

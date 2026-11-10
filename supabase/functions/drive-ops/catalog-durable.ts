@@ -21,6 +21,7 @@ import type { GoogleDriveClient, DriveFileMetadata } from '../_shared/drive.ts';
 import {
   createProductCatalog,
   parseCreateProductCatalogRequest,
+  type CreateProductCatalogRequest,
   type ProductCatalogDeps,
   type CatalogDrive,
   type CreateProductCatalogResult
@@ -276,6 +277,44 @@ function existingResult(value: unknown): CreateProductCatalogResult | null {
     }
   };
 }
+/**
+ * A catalog registered while its first publication verification was still open
+ * (the create-time check failed after the sheet existed; the recovery pass then
+ * registered the catalog) keeps its autoupdate and deferred links blocked until
+ * that verification finishes. The recovery listing brings such intents back
+ * here; re-running the same verification is idempotent (a verified check
+ * answers at once) and a failure only leaves the check open for the next pass.
+ */
+async function reverifyRegisteredInitialPublication(
+  deps: ProductCatalogDeps,
+  intent: CatalogIntent,
+  request: CreateProductCatalogRequest,
+  result: CreateProductCatalogResult
+): Promise<void> {
+  const plan = intent.checkpoint.initialVideoPlan;
+  if (
+    request.catalogVideoProtocolVersion !== 1 ||
+    !deps.initialVideoAuthority ||
+    !isRecord(plan) ||
+    !Array.isArray(plan.recipeRowIds) ||
+    plan.recipeRowIds.length !== request.productCount
+  )
+    return;
+  try {
+    await deps.initialVideoAuthority.registerCreated({
+      intentId: intent.id,
+      plan: plan as unknown as CatalogInitialVideoPlan,
+      catalogMaterialId: result.catalog.materialId
+    });
+  } catch (error) {
+    console.error(
+      '[catalog] initial publication verification still pending',
+      intent.id,
+      launchFailure(error).code
+    );
+  }
+}
+
 /** Decorates the existing generator; no second rows/template/XLSX implementation. */
 export async function createDurableProductCatalog(
   deps: ProductCatalogDeps,
@@ -300,6 +339,7 @@ export async function createDurableProductCatalog(
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     const result = existingResult(intent.result);
     if (!result) throw new TeamFunctionError('INVALID_RESPONSE');
+    await reverifyRegisteredInitialPublication(deps, intent, request, result);
     return result;
   }
   let initialVideoPlan: CatalogInitialVideoPlan | undefined;
