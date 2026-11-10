@@ -17,6 +17,8 @@ export const en = {
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
+  catalogVideoCreationWaitingAgent:
+    'Waiting for the computer agent. Turn on background work on this computer to continue.',
   catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',
 
   catalogPublicationStatusUnknown: 'Video-link publication status is not confirmed.',

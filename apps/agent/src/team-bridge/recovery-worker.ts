@@ -836,6 +836,8 @@ export class TeamRecoveryWorker {
           ]);
         try {
           const setId = await runCatalogVariantRecovery({
+            // r.endpoint passed recoveryEndpoint(): https in production, loopback in beta.
+            functionsBase: new URL(r.endpoint).origin + '/functions/v1',
             nativeInstanceId: variants.nativeInstanceId,
             process: variants.process ?? this.options.process,
             protectedProcess: variants.protectedProcess,

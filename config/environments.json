@@ -392,7 +392,7 @@
       "required": [],
       "secret": false,
       "format": "boolean",
-      "note": "Off by default. Experimental native catalog cells require this opt-in plus testing OAuth and exact beta loopback origins. Never activates for the production site or verified OAuth."
+      "note": "Beta only. A beta stack writes catalog cells natively (deferred video links, non-video updates) only with this opt-in, testing OAuth and the exact beta loopback origins. Production writes them unconditionally since 1.4.2 and ignores this; native catalog creation stays beta-only."
     },
     {
       "name": "CATALOG_IMAGES_ENABLED",

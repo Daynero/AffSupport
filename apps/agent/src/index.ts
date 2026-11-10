@@ -873,6 +873,7 @@ const catalogForeground = hasCapability('catalog-video-foreground-v1')
             ticket
           );
         await runCatalogVariantRecovery({
+          functionsBase: `${config.backendOrigin}/functions/v1`,
           initialSetId: setId,
           nativeInstanceId: executionNativeInstanceId,
           call,

@@ -37,6 +37,7 @@ export function catalogInitialVideoAuthority(
     readyCatalogIntentId?: string;
     initialCatalogKey?: string;
     sourceMaterialId: string;
+    targetedWriterEnabled?: boolean;
     readRestitchDefaults(): Promise<TeamRestitchDefaults>;
     captureFreshSource(): Promise<CatalogVideoFreshSource>;
     resolveReadyLinks(
@@ -53,6 +54,9 @@ export function catalogInitialVideoAuthority(
 ): CatalogInitialVideoAuthority {
   const identity = { ...input };
   return {
+    ...(input.targetedWriterEnabled === undefined
+      ? {}
+      : { targetedWriterEnabled: input.targetedWriterEnabled }),
     async serverNow() {
       const result = await service.rpc('service_catalog_publication_clock', {});
       if (result.error || typeof result.data !== 'number' || !Number.isSafeInteger(result.data))
@@ -225,6 +229,7 @@ export async function createCatalogInitialVideoAuthority(
     /** Server-frozen Launch candidate; exact consumer proof is required in prepare. */
     readyVideoSetId?: string;
     initialCatalogKey?: string;
+    targetedWriterEnabled?: boolean;
   },
   driveFor: (credentialId: string) => Promise<import('../_shared/drive.ts').GoogleDriveClient>
 ): Promise<CatalogInitialVideoAuthority> {
@@ -391,69 +396,8 @@ export async function createCatalogInitialVideoAuthority(
     indexedVersion = source.version;
     return source;
   };
-  const resolveReadyLinks = async (
-    setId: string,
-    recipeRevision: number,
-    rowIds: readonly string[]
-  ) => {
-    const result = await service.rpc('service_initial_catalog_video_outputs', {
-      p_team: identity.teamId,
-      p_actor: identity.actorId,
-      p_set: setId,
-      p_recipe: recipeRevision
-    });
-    if (result.error || !Array.isArray(result.data) || result.data.length !== rowIds.length)
-      throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-    const links = new Map<string, string>();
-    for (const row of result.data) {
-      if (
-        !isRecord(row) ||
-        typeof row.rowId !== 'string' ||
-        typeof row.fileId !== 'string' ||
-        typeof row.rootFolderId !== 'string' ||
-        typeof row.credentialId !== 'string'
-      )
-        throw new TeamFunctionError('INVALID_RESPONSE');
-      const drive = await driveFor(row.credentialId);
-      await proveLiveAncestry({
-        client: drive,
-        fileId: row.fileId,
-        rootFolderId: row.rootFolderId,
-        maximumDepth: 16
-      });
-      const live = await drive.getFile(row.fileId);
-      if (live.capabilities.canDownload !== true) throw new TeamFunctionError('PERMISSION_DENIED');
-      if (
-        typeof row.materialId !== 'string' ||
-        typeof row.connectionId !== 'string' ||
-        typeof row.sourceVersion !== 'string' ||
-        (await catalogPublicationSourceIdentity(
-          {
-            materialId: row.materialId,
-            connectionId: row.connectionId,
-            fileId: live.id,
-            checksum: live.checksum,
-            mimeType: live.mimeType,
-            sizeBytes: live.size,
-            driveVersion: live.version
-          },
-          row.sourceVersion.startsWith('strict-v1:')
-        )) !== row.sourceVersion
-      )
-        throw new TeamFunctionError('SOURCE_CHANGED');
-      const permissions = await drive.listAnyonePermissions(row.fileId);
-      if (permissions.length === 0) {
-        if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-        await ensureAnyoneReader(drive, row.fileId, permissions);
-      }
-      links.set(row.rowId, videoShareLink(live.id, live.resourceKey));
-    }
-    return rowIds.map(id => {
-      const link = links.get(id);
-      if (!link) throw new TeamFunctionError('INVALID_RESPONSE');
-      return link;
-    });
-  };
+  const resolveReadyLinks = (setId: string, recipeRevision: number, rowIds: readonly string[]) =>
+    resolveCatalogReadyLinks(service, identity, driveFor, setId, recipeRevision, rowIds);
   return catalogInitialVideoAuthority(service, {
     ...identity,
     readyCatalogIntentId,
@@ -481,5 +425,94 @@ export async function createCatalogInitialVideoAuthority(
             }
       );
     }
+  });
+}
+
+/** Ready video links for a frozen recipe: each distinct output is proven live,
+ * shared and identity-checked once, then mapped onto every row it serves. */
+export async function resolveCatalogReadyLinks(
+  service: ServiceRpcClient,
+  identity: { teamId: string; actorId: string },
+  driveFor: (credentialId: string) => Promise<import('../_shared/drive.ts').GoogleDriveClient>,
+  setId: string,
+  recipeRevision: number,
+  rowIds: readonly string[]
+): Promise<string[]> {
+  const result = await service.rpc('service_initial_catalog_video_outputs', {
+    p_team: identity.teamId,
+    p_actor: identity.actorId,
+    p_set: setId,
+    p_recipe: recipeRevision
+  });
+  if (result.error || !Array.isArray(result.data) || result.data.length !== rowIds.length)
+    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+  const links = new Map<string, string>();
+  // Rows share a few video files (N variants for up to 400 products). Each
+  // distinct output is proven once per call; proving it per row made a
+  // 100-product catalog issue hundreds of sequential Drive calls and outlive
+  // the function's wall clock, so the catalog never finished.
+  const proven = new Map<string, string>();
+  for (const row of result.data) {
+    if (
+      !isRecord(row) ||
+      typeof row.rowId !== 'string' ||
+      typeof row.fileId !== 'string' ||
+      typeof row.rootFolderId !== 'string' ||
+      typeof row.credentialId !== 'string'
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    const provenKey = JSON.stringify([
+      row.credentialId,
+      row.fileId,
+      row.rootFolderId,
+      row.materialId,
+      row.connectionId,
+      row.sourceVersion
+    ]);
+    const already = proven.get(provenKey);
+    if (already !== undefined) {
+      links.set(row.rowId, already);
+      continue;
+    }
+    const drive = await driveFor(row.credentialId);
+    await proveLiveAncestry({
+      client: drive,
+      fileId: row.fileId,
+      rootFolderId: row.rootFolderId,
+      maximumDepth: 16
+    });
+    const live = await drive.getFile(row.fileId);
+    if (live.capabilities.canDownload !== true) throw new TeamFunctionError('PERMISSION_DENIED');
+    if (
+      typeof row.materialId !== 'string' ||
+      typeof row.connectionId !== 'string' ||
+      typeof row.sourceVersion !== 'string' ||
+      (await catalogPublicationSourceIdentity(
+        {
+          materialId: row.materialId,
+          connectionId: row.connectionId,
+          fileId: live.id,
+          checksum: live.checksum,
+          mimeType: live.mimeType,
+          sizeBytes: live.size,
+          driveVersion: live.version
+        },
+        row.sourceVersion.startsWith('strict-v1:')
+      )) !== row.sourceVersion
+    )
+      throw new TeamFunctionError('SOURCE_CHANGED');
+    const permissions = await drive.listAnyonePermissions(row.fileId);
+    if (permissions.length === 0) {
+      if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+      await ensureAnyoneReader(drive, row.fileId, permissions);
+    }
+    const link = videoShareLink(live.id, live.resourceKey);
+    proven.set(provenKey, link);
+    links.set(row.rowId, link);
+  }
+  return rowIds.map(id => {
+    const link = links.get(id);
+    if (!link) throw new TeamFunctionError('INVALID_RESPONSE');
+    return link;
   });
 }

@@ -1,6 +1,6 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
 import { createTargetedCatalogPublicationIo } from './publication-io.ts';
-import { nativeRestitchBetaIsolated } from '../_shared/restitch-native.ts';
+import { targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import {
   settleCatalogUpdaterVariantTargets,
   prepareScheduledCatalogVideoSets
@@ -85,14 +85,13 @@ Deno.serve(async request => {
     await rpcValue(service, 'service_settle_launch_restitch_batch', { p_limit: 3 });
     const launches = await rpcValue(service, 'service_settle_launch_batch', { p_limit: 3 });
 
-    const targetedNativeSheets =
-      Deno.env.get('CATALOG_NATIVE_SHEETS_BETA') === 'true' &&
-      nativeRestitchBetaIsolated({
-        enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
-        environment: Deno.env.get('SOTY_ENVIRONMENT'),
-        oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-        siteUrl: Deno.env.get('WISHLY_SITE_URL')
-      });
+    const targetedNativeSheets = targetedCatalogWriterEnabled({
+      enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
+      variants: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+      environment: Deno.env.get('SOTY_ENVIRONMENT'),
+      oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+      siteUrl: Deno.env.get('WISHLY_SITE_URL')
+    });
     let publications: Awaited<ReturnType<typeof runCatalogPublicationScheduler>> | undefined;
     if (!targetedNativeSheets)
       publications = await runCatalogPublicationScheduler({
