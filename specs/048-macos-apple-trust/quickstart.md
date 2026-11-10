@@ -25,8 +25,17 @@ SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "release/beta/Soty Beta.app
 Один раз на релізній машині, нічого з цього не потрапляє в репозиторій:
 
 ```zsh
+# 1. Сертифікат: developer.apple.com/account/resources/certificates/add, тип Developer ID Application,
+#    CSR: ~/Library/Application Support/Soty/signing/Soty-DeveloperID-Application.certSigningRequest
+#    (приватний ключ уже в login keychain); завантажений .cer імпортувати поруч із ключем:
+security import ~/Downloads/developerID_application.cer -k ~/Library/Keychains/login.keychain-db
 security find-identity -v -p codesigning            # має показати Developer ID Application: … (TEAMID)
-xcrun notarytool store-credentials soty-notary      # Apple ID і app-specific пароль або ключ App Store Connect
+#    якщо ідентичність не valid, бракує проміжного Developer ID Certification Authority (G2)
+#    з apple.com/certificateauthority: security import DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db
+# 2. Профіль нотаризації: ключ App Store Connect API (Users and Access, Integrations, Team Keys, роль Developer);
+#    .p8 завантажується один раз і лежить лише поза репозиторієм:
+xcrun notarytool store-credentials soty-notary --key "$HOME/Library/Application Support/Soty/signing/AuthKey_<KEYID>.p8" --key-id <KEYID> --issuer <ISSUER_ID>
+xcrun notarytool history --keychain-profile soty-notary   # порожня історія без помилки = профіль чинний
 ```
 
 Середовище релізу:
