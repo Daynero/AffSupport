@@ -31,3 +31,16 @@ it('rejects malformed counts and child identities rather than inventing progress
   ])
     expect(parseCatalogVideoRowProgress({ ...progress, ...patch })).toBeNull();
 });
+
+it('keeps a known wait reason for an accepted round and rejects an unknown one', () => {
+  expect(
+    parseCatalogVideoRowProgress({
+      ...progress,
+      registeredCount: 0,
+      state: 'accepted',
+      waitReason: 'AGENT_REQUIRED'
+    })
+  ).toMatchObject({ state: 'accepted', waitReason: 'AGENT_REQUIRED' });
+  expect(parseCatalogVideoRowProgress({ ...progress, waitReason: 'SOMETHING_ELSE' })).toBeNull();
+  expect(parseCatalogVideoRowProgress(progress)).not.toHaveProperty('waitReason');
+});

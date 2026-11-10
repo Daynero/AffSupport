@@ -9,7 +9,19 @@ export interface CatalogVideoRowProgress {
   state: 'accepted' | 'preparing' | 'ready' | 'cancel_requested' | 'canceled' | 'unknown';
   activeChildOperationId?: string | null;
   executor?: CatalogVideoForegroundProgressExecutor;
+  /** Why an accepted variant round has not started: the manager says it instead of a bare "0 of N". */
+  waitReason?: CatalogVideoRowWaitReason;
 }
+
+export const CATALOG_VIDEO_ROW_WAIT_REASONS = [
+  'AGENT_REQUIRED',
+  'AGENT_ID_CONFLICT',
+  'PERMISSION_DENIED',
+  'SOURCE_CHANGED',
+  'RESTITCH_INVALID',
+  'PROCESS_RESULT_UNCERTAIN'
+] as const;
+export type CatalogVideoRowWaitReason = (typeof CATALOG_VIDEO_ROW_WAIT_REASONS)[number];
 
 export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowProgress | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -27,6 +39,8 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
     ) ||
     (row.state === 'ready' && row.registeredCount !== row.requestedCount) ||
     (row.activeChildOperationId != null && !isCatalogCommandUuid(row.activeChildOperationId)) ||
+    (row.waitReason !== undefined &&
+      !CATALOG_VIDEO_ROW_WAIT_REASONS.includes(row.waitReason as CatalogVideoRowWaitReason)) ||
     (row.executor !== undefined &&
       (!row.executor ||
         typeof row.executor !== 'object' ||
@@ -52,6 +66,9 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
     state: row.state as CatalogVideoRowProgress['state'],
     ...(row.activeChildOperationId !== undefined
       ? { activeChildOperationId: row.activeChildOperationId as string | null }
+      : {}),
+    ...(row.waitReason !== undefined
+      ? { waitReason: row.waitReason as CatalogVideoRowWaitReason }
       : {})
   };
 }

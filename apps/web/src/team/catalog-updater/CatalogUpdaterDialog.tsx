@@ -39,7 +39,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { catalogSelectedCountKey, useI18n } from '../../i18n';
 import { searchFieldEscape } from '../../lib/searchField';
-import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
+import { teamErrorCodeOf, teamErrorMessage, teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
@@ -1464,7 +1464,11 @@ function CatalogUpdaterDialogScope({
                               ? ` · ${t('catalogVideoCreationUnknown')}`
                               : row.videoGeneration.state === 'cancel_requested'
                                 ? ` · ${t('catalogVideoCreationCanceling')}`
-                                : ''}
+                                : row.videoGeneration.waitReason === 'AGENT_REQUIRED'
+                                  ? ` · ${t('catalogVideoCreationWaitingAgent')}`
+                                  : row.videoGeneration.waitReason
+                                    ? ` · ${teamErrorMessage(row.videoGeneration.waitReason, t)}`
+                                    : ''}
                           </small>
                         )}
                       <span
