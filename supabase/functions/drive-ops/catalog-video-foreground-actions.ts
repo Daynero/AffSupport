@@ -1,3 +1,4 @@
+import { catalogVideoFunctionBase } from '../_shared/restitch-native.ts';
 import { catalogVideoNativeStore } from './catalog-video-native-store.ts';
 import { catalogVideoProcessGrants } from './catalog-video-process-grants.ts';
 import {
@@ -111,7 +112,7 @@ export async function executeCatalogForegroundAction(
     };
   if (action === 'variant_process')
     return catalogVideoProcessGrants(service, native, {
-      functionBase: 'http://127.0.0.1:54321/functions/v1',
+      functionBase: catalogVideoFunctionBase(Deno.env.get('SOTY_ENVIRONMENT')),
       secret: key,
       prepareAlias: async (context, originalChild) => {
         if (!originalChild.operationId) throw new TeamFunctionError('INVALID_INPUT');

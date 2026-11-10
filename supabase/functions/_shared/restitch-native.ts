@@ -1,3 +1,5 @@
+import { PRODUCTION_BACKEND_ORIGIN } from '../../../packages/shared/dist/release.js';
+
 /**
  * Whether the native restitch and catalog video routes answer.
  *
@@ -39,4 +41,21 @@ export function nativeRestitchBetaIsolated(input: {
   } catch {
     return false;
   }
+}
+
+const BETA_FUNCTION_ORIGIN = 'http://127.0.0.1:54321';
+
+/** Where an agent reaches the Edge functions for catalog video work. A beta agent
+ * stays on the local stack; a production agent must get the hosted origin, never the
+ * beta loopback (1.4.1 sent loopback URLs to production agents, which refused them
+ * locally as PERMISSION_DENIED before any byte was requested). */
+export function catalogVideoFunctionBase(environment: unknown): string {
+  return (
+    (environment === 'beta' ? BETA_FUNCTION_ORIGIN : PRODUCTION_BACKEND_ORIGIN) + '/functions/v1'
+  );
+}
+
+/** The only origins a process grant may name for an agent. */
+export function isCatalogVideoFunctionOrigin(origin: string): boolean {
+  return origin === BETA_FUNCTION_ORIGIN || origin === PRODUCTION_BACKEND_ORIGIN;
 }

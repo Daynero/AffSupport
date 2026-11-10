@@ -13,6 +13,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
  * transport owns credential rotation and endpoint validation. */
 export async function runCatalogVariantRecovery(input: {
   nativeInstanceId: string;
+  /** This agent's own functions base (`<backend origin>/functions/v1`). The
+   * transfer and finalize URLs are derived from it, never taken from the server
+   * response: 1.4.1 production issued beta loopback URLs and the native source
+   * guard refused every download locally. */
+  functionsBase?: string;
   /** Exact foreground set; never invokes the background global claim. */
   initialSetId?: string;
   call: (action: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -202,8 +207,12 @@ export async function runCatalogVariantRecovery(input: {
         toolId: 'restitch',
         sourceGrant: parsed.sourceGrant,
         finalizeGrant: parsed.finalizeGrant,
-        transferUrl: result.transferUrl,
-        cloudBaseUrl: result.cloudBaseUrl,
+        transferUrl: input.functionsBase
+          ? input.functionsBase + '/drive-transfer/range'
+          : result.transferUrl,
+        cloudBaseUrl: input.functionsBase
+          ? input.functionsBase + '/drive-ops'
+          : result.cloudBaseUrl,
         options: result.options
       } as TeamProcessRequest;
     }

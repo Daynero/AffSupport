@@ -24,7 +24,11 @@ import { prepareCatalogRestitch } from './catalog-orchestration';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Copy } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { restitchDefaultsSaveable, type TeamRestitchDefaults } from '@video-compressor/shared';
+import {
+  CatalogPublicationValidationError,
+  restitchDefaultsSaveable,
+  type TeamRestitchDefaults
+} from '@video-compressor/shared';
 import type {
   ProductCatalogCreateResult,
   ProductCatalogSettings,
@@ -112,6 +116,12 @@ type Phase =
   | { kind: 'result'; heading: TranslationKey; catalog: ShownCatalog };
 
 function errorKey(error: unknown): TranslationKey | null {
+  // A delayed publication checked on submit: a passed time is the person's to fix,
+  // never the generic "some data is invalid" that names no field.
+  if (error instanceof CatalogPublicationValidationError)
+    return error.reason === 'time_in_past'
+      ? 'catalogPublicationTimePassed'
+      : 'catalogPublicationInvalid';
   const details = (error as { details?: Record<string, unknown> } | null)?.details;
   const code = (error as { code?: unknown } | null)?.code;
   if (details?.reason === 'settings_missing') return 'productCatalogErrorSettingsMissing';

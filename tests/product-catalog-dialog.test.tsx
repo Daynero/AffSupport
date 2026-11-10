@@ -583,6 +583,28 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
+  it('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
+    const createProductCatalogVideo = vi.fn();
+    const client = dialogClient({ createProductCatalogVideo } as Partial<DialogClient>);
+    renderDialog(client);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
+    // The switch fills "now + 1 hour"; the dialog then stays open past that time.
+    await user.click(screen.getByRole('switch', { name: 'Schedule the video link' }));
+    const later = Date.now() + 3 * 60 * 60 * 1000;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await user.click(confirm());
+
+    expect(
+      await screen.findByText(
+        'The video-link time has already passed. Choose a future date and time or turn the delay off.'
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(/Some of the data is invalid/u)).toBeNull();
+    expect(createProductCatalogVideo).not.toHaveBeenCalled();
+  });
+
   it('keeps provider progress unknown until the catalog reply arrives', async () => {
     let finish: (value: typeof created) => void = () => undefined;
     const client = dialogClient({

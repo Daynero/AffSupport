@@ -1,3 +1,4 @@
+import { isCatalogVideoFunctionOrigin } from '../_shared/restitch-native.ts';
 import { sampleCatalogVideoDuration } from './catalog-video-duration.ts';
 import {
   AGENT_INTAKE_MAX_BYTES,
@@ -37,7 +38,7 @@ export function catalogVideoProcessGrants(
   const native = { ...original },
     base = new URL(options.functionBase);
   if (
-    base.origin !== 'http://127.0.0.1:54321' ||
+    !isCatalogVideoFunctionOrigin(base.origin) ||
     base.pathname.replace(/\/$/u, '') !== '/functions/v1' ||
     base.username ||
     base.password ||
