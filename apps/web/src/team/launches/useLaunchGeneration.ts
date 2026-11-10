@@ -1,3 +1,4 @@
+import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
 import { isCatalogForegroundPreparationFailure } from '../../api/catalog-video-foreground';
 import { teamErrorCodeOf } from '../errors';
 import { catalogForeground } from '../../api/catalog-video-foreground-client';
@@ -302,7 +303,9 @@ export function useLaunchGeneration(
                     ...config.catalog,
                     catalogVideoProtocolVersion: 1,
                     videoVariationCount: config.catalog.videoVariationCount ?? 1,
-                    videoPublication: config.catalog.videoPublication ?? { mode: 'immediate' }
+                    videoPublication: CATALOG_DEFERRED_PUBLICATION_AVAILABLE
+                      ? (config.catalog.videoPublication ?? { mode: 'immediate' })
+                      : { mode: 'immediate' }
                   }
                 }
               : config,

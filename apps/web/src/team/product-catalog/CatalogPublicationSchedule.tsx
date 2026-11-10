@@ -5,6 +5,10 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Switch } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { catalogTimeZoneLabel } from './catalogTimeZones';
+/** 1.4.2 hotfix: deferred video-link publication is switched off in the product until
+ * production proves it end to end. While false, no surface offers the switch. */
+export const CATALOG_DEFERRED_PUBLICATION_AVAILABLE = false;
+
 export function CatalogPublicationSchedule({
   enabled,
   disabled,
@@ -25,6 +29,7 @@ export function CatalogPublicationSchedule({
   const { t, language } = useI18n();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
+  if (!CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return null;
   let summary = t('catalogPublicationChoose');
   try {
     if (date) {
