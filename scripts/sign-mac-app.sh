@@ -97,10 +97,16 @@ done < <(mach_o_files "$app")
 typeset -A profile_counts
 profile_counts=(node 0 chromium 0 hardened 0)
 typeset -A profile_of
+# The chain attests what it signed: the digest of each Mach-O as it was handed over and
+# as it leaves. Staging records the pinned upstream bytes before signing changes them;
+# verify-staged-dependencies.mjs ties the two ends together through this record.
+digest_of() { /usr/bin/shasum -a 256 "$1" | cut -d ' ' -f1; }
+typeset -A before_of after_of
 for file in "${loose[@]}"; do
   profile=$(profile_for "$file")
   profile_of[$file]=$profile
   profile_counts[$profile]=$(( profile_counts[$profile] + 1 ))
+  before_of[$file]=$(digest_of "$file")
   # Drop the input's own signature and entitlements first: the official Node
   # ships six, four of which notarization and the hardened runtime forbid.
   codesign --remove-signature "$file" 2>/dev/null || true
@@ -109,6 +115,7 @@ for file in "${loose[@]}"; do
     node|chromium) args+=(--entitlements "$entitlements_dir/$profile.plist") ;;
   esac
   codesign "${args[@]}" --sign "$identity" "$file" 2>/dev/null || fail SIGN_FAILED "$file"
+  after_of[$file]=$(digest_of "$file")
 done
 
 for bundle in "${nested_bundles[@]}"; do
@@ -123,8 +130,10 @@ for bundle in "${nested_bundles[@]}"; do
   codesign "${args[@]}" --sign "$identity" "$bundle" 2>/dev/null || fail SIGN_FAILED "$bundle"
 done
 
+before_of[$main_executable]=$(digest_of "$main_executable")
 codesign "${sign_args[@]}" --entitlements "$entitlements_dir/launcher.plist" --sign "$identity" "$app" 2>/dev/null \
   || fail SIGN_FAILED "$app"
+after_of[$main_executable]=$(digest_of "$main_executable")
 
 # Verification: the chain does not trust its own signing calls.
 entitlement_keys() {
@@ -197,6 +206,15 @@ fi
 json_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 if [[ "$identity" == "-" ]]; then identity_kind=adhoc; team_json=null; else identity_kind=developer-id; team_json="\"$(json_string "$team_id")\""; fi
 if [[ -n "$submission_id" ]]; then submission_json="\"$(json_string "$submission_id")\""; else submission_json=null; fi
-printf '{"app":"%s","identity":"%s","teamId":%s,"machO":%d,"nestedBundles":%d,"profiles":{"node":%d,"chromium":%d,"hardened":%d},"notarized":%s,"stapled":%s,"submissionId":%s}\n' \
+# One entry per Mach-O the chain signed on its own (the `machO` count), by path.
+typeset -A entry_by_path
+for file in "${loose[@]}" "$main_executable"; do
+  relative=${file#$app/}
+  entry_by_path[$relative]="{\"path\":\"$(json_string "$relative")\",\"profile\":\"${profile_of[$file]:-launcher}\",\"before\":\"${before_of[$file]}\",\"after\":\"${after_of[$file]}\"}"
+done
+file_entries=()
+for relative in "${(@ko)entry_by_path}"; do file_entries+=("${entry_by_path[$relative]}"); done
+files_json="[${(j:,:)file_entries}]"
+printf '{"app":"%s","identity":"%s","teamId":%s,"machO":%d,"nestedBundles":%d,"profiles":{"node":%d,"chromium":%d,"hardened":%d},"files":%s,"notarized":%s,"stapled":%s,"submissionId":%s}\n' \
   "$(json_string "$app")" "$identity_kind" "$team_json" $(( ${#loose[@]} + 1 )) "${#nested_bundles[@]}" \
-  "${profile_counts[node]}" "${profile_counts[chromium]}" "${profile_counts[hardened]}" "$notarized" "$stapled" "$submission_json"
+  "${profile_counts[node]}" "${profile_counts[chromium]}" "${profile_counts[hardened]}" "$files_json" "$notarized" "$stapled" "$submission_json"

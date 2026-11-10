@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +18,25 @@ import { removeTemporaryDirectory } from './support/temp-dir.js';
  * one rule that ties them to the policy the owner chose.
  */
 
+const digest = (seed: string) => createHash('sha256').update(seed).digest('hex');
+const signedFile = (relative: string, profile: string) => ({
+  path: relative,
+  profile,
+  before: digest(`${relative}:before`),
+  after: digest(`${relative}:after`)
+});
+/** One attested entry per Mach-O the chain signs on its own: 8 loose plus the launcher. */
+const files = [
+  signedFile('Contents/MacOS/SotyAgent', 'launcher'),
+  signedFile('Contents/Resources/runtime/node', 'node'),
+  signedFile(
+    'Contents/Resources/agent/browser/chromium-headless-shell/chrome-headless-shell-mac-arm64/chrome-headless-shell',
+    'chromium'
+  ),
+  ...['ffmpeg', 'ffprobe', 'whisper-cli', 'a', 'b', 'c', 'd'].map(name =>
+    signedFile(`Contents/Resources/runtime/bin/${name}`, 'hardened')
+  )
+];
 const adhoc = {
   app: '/build/release/Soty.app',
   identity: 'adhoc',
@@ -24,6 +44,7 @@ const adhoc = {
   machO: 10,
   nestedBundles: 1,
   profiles: { node: 1, chromium: 1, hardened: 7 },
+  files,
   notarized: false,
   stapled: false,
   submissionId: null
@@ -68,8 +89,43 @@ describe('the signing summary beside a Mac package', () => {
       Object.entries(adhoc).filter(([key]) => key !== 'submissionId')
     );
     expect(parseSigningSummary(withoutSubmission)).toMatchObject({ ok: true });
+    // A chain older than the per-file attestation printed no files; that reads as none.
+    const withoutFiles = Object.fromEntries(
+      Object.entries(adhoc).filter(([key]) => key !== 'files')
+    );
+    expect(parseSigningSummary(withoutFiles)).toMatchObject({ ok: true, value: { files: [] } });
+    const [launcher, node, chromium, ...hardened] = files;
     for (const [broken, error] of [
       [null, 'SIGNING_SUMMARY_INVALID'],
+      // Attested files must be exactly the signed set: one launcher, the profile counts.
+      [{ ...adhoc, files: files.slice(1) }, 'SIGNING_SUMMARY_FILES_INVALID'],
+      [{ ...adhoc, files: [node, node, chromium, ...hardened] }, 'SIGNING_SUMMARY_FILES_INVALID'],
+      [
+        { ...adhoc, files: [launcher, launcher, chromium, ...hardened] },
+        'SIGNING_SUMMARY_FILES_INVALID'
+      ],
+      [
+        {
+          ...adhoc,
+          files: [{ ...launcher, path: '/Contents/MacOS/SotyAgent' }, node, chromium, ...hardened]
+        },
+        'SIGNING_SUMMARY_FILES_INVALID'
+      ],
+      [
+        {
+          ...adhoc,
+          files: [{ ...launcher, path: 'Contents/../MacOS/SotyAgent' }, node, chromium, ...hardened]
+        },
+        'SIGNING_SUMMARY_FILES_INVALID'
+      ],
+      [
+        { ...adhoc, files: [{ ...launcher, profile: 'nested' }, node, chromium, ...hardened] },
+        'SIGNING_SUMMARY_FILES_INVALID'
+      ],
+      [
+        { ...adhoc, files: [{ ...launcher, after: 'signed' }, node, chromium, ...hardened] },
+        'SIGNING_SUMMARY_FILES_INVALID'
+      ],
       [{ ...adhoc, app: '/build/release/Soty.zip' }, 'SIGNING_SUMMARY_APP_INVALID'],
       [{ ...adhoc, identity: 'self-signed' }, 'SIGNING_SUMMARY_IDENTITY_INVALID'],
       [{ ...adhoc, teamId: 'ABCDEFGHIJ' }, 'SIGNING_SUMMARY_TEAM_INVALID'],

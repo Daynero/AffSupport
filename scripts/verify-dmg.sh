@@ -27,7 +27,7 @@ codesign --verify --strict "$finder_extension"
 for binary in "$app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/node"; do [[ "$(file "$binary")" == *"$macho"* ]]; done
 if [[ "$arch" == x64 ]]; then
   codesign --verify --deep --strict "$app"
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static --signing="$target_root/signing.json"
   print "Intel DMG layout, target payload, dependencies and signatures verified. Native execution is unverified under intel-user-feedback-v1."
   exit 0
 fi

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import {
   chmod,
@@ -383,6 +384,32 @@ describeRequiring(macHost, 'the signing chain (scripts/sign-mac-app.sh)', () => 
       // Apple's receipt travels with the summary; without notarization there is none.
       expect(summary.submissionId).toEqual(
         expectNotarized ? expect.stringMatching(/^[0-9a-f-]{36}$/u) : null
+      );
+      // The chain attests each Mach-O it signed: the bytes it received and the bytes it
+      // left, so a verifier can tie a re-signed binary back to its recorded source.
+      const files = summary.files as {
+        path: string;
+        profile: string;
+        before: string;
+        after: string;
+      }[];
+      expect(files.map(file => [file.path, file.profile])).toEqual([
+        ['Contents/MacOS/Fixture', 'launcher'],
+        ['Contents/Resources/bin/ffmpeg', 'hardened'],
+        ['Contents/Resources/runtime/node', 'node']
+      ]);
+      const sha256 = async (file: string) =>
+        createHash('sha256')
+          .update(await readFile(file))
+          .digest('hex');
+      for (const file of files) {
+        expect(file.before).toMatch(/^[a-f0-9]{64}$/u);
+        expect(file.after).toEqual(await sha256(path.join(app, file.path)));
+        expect(file.after).not.toEqual(file.before);
+      }
+      // The fixture's runtime was the unsigned copy of /bin/echo the bundle was built from.
+      expect(files.find(file => file.profile === 'node')?.before).toEqual(
+        await sha256('/bin/echo')
       );
     },
     120_000

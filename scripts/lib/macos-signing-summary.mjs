@@ -13,9 +13,68 @@ export const TRUST_POLICIES = Object.freeze(['developer-id', 'adhoc-pre-048']);
 const TEAM_ID = /^[A-Z0-9]{10}$/u;
 const SUBMISSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const PROFILES = Object.freeze(['node', 'chromium', 'hardened']);
+const FILE_PROFILES = Object.freeze([...PROFILES, 'launcher']);
+const DIGEST = /^[a-f0-9]{64}$/u;
 
 const count = (value, max) => Number.isSafeInteger(value) && value >= 0 && value <= max;
-const invalid = error => ({ ok: false, error });
+const invalid = error => ({ ok: /** @type {false} */ (false), error });
+
+/**
+ * The chain's per-file attestation: one entry for each Mach-O it signed on its own —
+ * the loose binaries and the main executable, exactly the `machO` count — with the
+ * digest it received (`before`) and the digest it left (`after`). A summary from a
+ * chain older than this record carries none, which reads as an empty attestation.
+ * @param {unknown} input
+ * @param {number} machO
+ * @param {{ node: number, chromium: number, hardened: number }} profiles
+ * @returns {{ ok: true, value: { path: string, profile: string, before: string, after: string }[] } | { ok: false, error: string }}
+ */
+function parseSignedFiles(input, machO, profiles) {
+  if (input === undefined) return { ok: true, value: [] };
+  if (!Array.isArray(input) || input.length !== machO)
+    return invalid('SIGNING_SUMMARY_FILES_INVALID');
+  const seen = new Set();
+  const counts = { node: 0, chromium: 0, hardened: 0, launcher: 0 };
+  const files = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      return invalid('SIGNING_SUMMARY_FILES_INVALID');
+    const {
+      path: relative,
+      profile,
+      before,
+      after
+    } = /** @type {Record<string, unknown>} */ (entry);
+    if (
+      typeof relative !== 'string' ||
+      !relative ||
+      relative.startsWith('/') ||
+      relative.split('/').some(segment => segment === '' || segment === '.' || segment === '..') ||
+      seen.has(relative)
+    )
+      return invalid('SIGNING_SUMMARY_FILES_INVALID');
+    if (typeof profile !== 'string' || !FILE_PROFILES.includes(profile))
+      return invalid('SIGNING_SUMMARY_FILES_INVALID');
+    if (
+      typeof before !== 'string' ||
+      !DIGEST.test(before) ||
+      typeof after !== 'string' ||
+      !DIGEST.test(after)
+    )
+      return invalid('SIGNING_SUMMARY_FILES_INVALID');
+    seen.add(relative);
+    counts[/** @type {keyof typeof counts} */ (profile)] += 1;
+    files.push({ path: relative, profile, before, after });
+  }
+  if (
+    counts.launcher !== 1 ||
+    counts.node !== profiles.node ||
+    counts.chromium !== profiles.chromium ||
+    counts.hardened !== profiles.hardened
+  )
+    return invalid('SIGNING_SUMMARY_FILES_INVALID');
+  return { ok: true, value: files };
+}
 
 /**
  * The chain's summary. `machO` counts the loose binaries plus the main executable, so
@@ -55,6 +114,13 @@ export function parseSigningSummary(input) {
   )
     return invalid('SIGNING_SUMMARY_SUBMISSION_INVALID');
   if (notarized !== (submissionId !== null)) return invalid('SIGNING_SUMMARY_SUBMISSION_INVALID');
+  const profileCounts = {
+    node: Number(counts.node),
+    chromium: Number(counts.chromium),
+    hardened: Number(counts.hardened)
+  };
+  const files = parseSignedFiles(record.files, Number(machO), profileCounts);
+  if (!files.ok) return files;
   return {
     ok: true,
     value: {
@@ -63,11 +129,8 @@ export function parseSigningSummary(input) {
       teamId: identity === 'developer-id' ? String(teamId) : null,
       machO: Number(machO),
       nestedBundles: Number(nestedBundles),
-      profiles: {
-        node: Number(counts.node),
-        chromium: Number(counts.chromium),
-        hardened: Number(counts.hardened)
-      },
+      profiles: profileCounts,
+      files: files.value,
       notarized,
       stapled,
       submissionId

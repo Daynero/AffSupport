@@ -80,7 +80,7 @@ codesign --verify --deep --strict "$app"
 node scripts/audit-macos-signing.mjs "$app" --signing="$record_dir/signing.json"
 [[ -d "$finder_extension" ]] || true
 if [[ "$arch" == x64 ]]; then
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static --signing="$record_dir/signing.json"
   node "${0:A:h}/record-macos-beta-proof.mjs" --arch="$arch"
   print "Recorded Intel static qualification under intel-user-feedback-v1. Native execution remains unverified; user feedback follows release."
   exit 0
