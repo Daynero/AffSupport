@@ -129,7 +129,7 @@ current permissions; the worker route accepts only the named secret.
 
 ## Quotas and cost
 
-- `team_quota_bytes` (50 GiB by default) bounds `uploading|verifying|ready|retiring` bytes per
+- `team_quota_bytes` (5 GB by default, owner decision 2026-11-11) bounds `uploading|verifying|ready|retiring` bytes per
   space; exceeding it refuses the copy with `VIDEO_R2_QUOTA_EXCEEDED` and keeps the Drive link.
 - The space tariff page shows used bytes and a monthly estimate derived from the 045 cost model
   with 100 MB videos; it is an estimate, never an invoice.

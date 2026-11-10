@@ -84,9 +84,14 @@ export function CatalogVideoR2UsageSection({
           {t('catalogVideoR2Copies', { ready: usage.readyCopies, retiring: usage.retiringCopies })}
         </p>
         <p className="text-ink-muted">
-          {estimate
-            ? t('catalogVideoR2Estimate', { low: money(estimate.low), high: money(estimate.high) })
-            : t('catalogVideoR2EstimateUnknown')}
+          {!estimate
+            ? t('catalogVideoR2EstimateUnknown')
+            : estimate.high < 0.005
+              ? t('catalogVideoR2EstimateTiny')
+              : t('catalogVideoR2Estimate', {
+                  low: money(estimate.low),
+                  high: money(estimate.high)
+                })}
         </p>
       </div>
     </SettingsSection>

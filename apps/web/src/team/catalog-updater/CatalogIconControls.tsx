@@ -1,11 +1,42 @@
 import { useRef, useState, type CSSProperties } from 'react';
-import { Clapperboard, Link, Image, Type, ListPlus, LoaderCircle, LockKeyhole } from 'lucide-react';
+import {
+  Clapperboard,
+  CloudUpload,
+  Link,
+  Image,
+  Type,
+  ListPlus,
+  LoaderCircle,
+  LockKeyhole
+} from 'lucide-react';
 import type { CatalogUpdateProfile } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { spaceRouteFor } from '../SpaceSettingsLink';
 import { Tooltip } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import type { CatalogField, InlineChangeState } from './useCatalogInlineChanges';
+import type { CatalogVideoR2Row } from '../product-catalog/useCatalogVideoR2Team';
+import { teamErrorMessageFor } from '../errors';
+
+type Translate = ReturnType<typeof useI18n>['t'];
+
+/** One sentence for the settings panel: where the catalog's video link is now (050). */
+export function catalogVideoR2Sentence(row: CatalogVideoR2Row, t: Translate): string {
+  if (row.link === 'r2' && row.enabled) return t('catalogVideoR2PanelReady');
+  // Every reason message already says that the Drive link stays.
+  if (row.reason) return teamErrorMessageFor({ code: row.reason }, t);
+  return t('catalogVideoR2PanelPending');
+}
+
+/** Where the catalog's link is now, in the words the tooltip uses (050). */
+export function catalogVideoR2Status(row: CatalogVideoR2Row, t: Translate): string {
+  if (row.link === 'r2' && row.enabled) return t('catalogVideoR2StatusR2');
+  // Turned off, but the cells still hold the R2 link until the Drive links are back.
+  if (!row.enabled && row.link === 'r2') return t('catalogVideoR2StatusReturning');
+  if (!row.enabled) return t('catalogVideoR2StatusDrive');
+  if (row.reason) return teamErrorMessageFor({ code: row.reason }, t);
+  return t('catalogVideoR2StatusPending');
+}
 
 export const CATALOG_FIELDS = [
   {
@@ -47,7 +78,8 @@ export function CatalogIconControls({
   state,
   restitchProgress,
   onChange,
-  onReadiness
+  onReadiness,
+  videoR2
 }: {
   profile: CatalogUpdateProfile;
   name: string;
@@ -56,8 +88,11 @@ export function CatalogIconControls({
   restitchProgress?: number | null;
   onChange: (field: CatalogField, value: boolean) => void;
   onReadiness?: () => void;
+  /** 050: the catalog's R2 option, saved on its own; absent while R2 is unavailable. */
+  videoR2?: { row: CatalogVideoR2Row; disabledReason?: string; onToggle: (next: boolean) => void };
 }) {
   const { t } = useI18n();
+  const count = CATALOG_FIELDS.length + (videoR2 ? 1 : 0);
   const group = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const pending = state?.phase === 'pending';
@@ -92,7 +127,11 @@ export function CatalogIconControls({
           if (!delta && event.key !== 'Home' && event.key !== 'End') return;
           event.preventDefault();
           const next =
-            event.key === 'Home' ? 0 : event.key === 'End' ? 4 : (active + delta + 5) % 5;
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? count - 1
+                : (active + delta + count) % count;
           setActive(next);
           group.current?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
         }}
@@ -156,6 +195,62 @@ export function CatalogIconControls({
             </div>
           );
         })}
+        {videoR2 &&
+          (() => {
+            const { row, disabledReason: r2Disabled, onToggle } = videoR2;
+            const index = CATALOG_FIELDS.length;
+            const error = row.error ? teamErrorMessageFor(row.error, t) : null;
+            const description = [
+              t('catalogVideoR2Toggle'),
+              t(row.enabled ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff'),
+              catalogVideoR2Status(row, t),
+              ...(error ? [error] : []),
+              ...(r2Disabled ? [r2Disabled] : [])
+            ].join(' · ');
+            return (
+              <div key="videoR2" className="fit-mode-pictos is-single catalog-video-r2-toggle">
+                <Tooltip asChild label={description} disabled={row.pending}>
+                  <button
+                    type="button"
+                    className={row.enabled ? 'is-selected' : undefined}
+                    data-video-r2-state={
+                      !row.enabled
+                        ? 'off'
+                        : row.link === 'r2'
+                          ? 'ready'
+                          : row.reason
+                            ? 'blocked'
+                            : 'preparing'
+                    }
+                    tabIndex={active === index ? 0 : -1}
+                    aria-pressed={row.enabled}
+                    aria-disabled={Boolean(r2Disabled) || row.pending}
+                    aria-busy={row.pending}
+                    aria-invalid={error ? true : undefined}
+                    aria-label={`${description}: ${name}`}
+                    data-catalog-field="copyVideoToR2"
+                    onFocus={() => setActive(index)}
+                    onClick={() => {
+                      if (!r2Disabled && !row.pending) onToggle(!row.enabled);
+                    }}
+                  >
+                    {row.pending ? (
+                      <LoaderCircle
+                        size={ICON_SIZE}
+                        strokeWidth={ICON_STROKE}
+                        className="is-spinning"
+                        aria-hidden="true"
+                      />
+                    ) : r2Disabled ? (
+                      <LockKeyhole size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    ) : (
+                      <CloudUpload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )}
+                  </button>
+                </Tooltip>
+              </div>
+            );
+          })()}
       </div>
     </div>
   );
@@ -163,10 +258,13 @@ export function CatalogIconControls({
 
 export function CatalogIconLegend({
   teamId,
-  onOpenSettings
+  onOpenSettings,
+  videoR2 = false
 }: {
   teamId: string;
   onOpenSettings: (href: string) => void;
+  /** 050: list the R2 icon only where the option is offered. */
+  videoR2?: boolean;
 }) {
   const { t } = useI18n();
   const linkedEffect = (field: CatalogField, effect: Parameters<typeof t>[0]) => {
@@ -220,6 +318,15 @@ export function CatalogIconLegend({
           </span>
         </div>
       ))}
+      {videoR2 && (
+        <div>
+          <CloudUpload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          <span>
+            <strong>{t('catalogVideoR2Toggle')}</strong>
+            <small>{t('catalogVideoR2Legend')}</small>
+          </span>
+        </div>
+      )}
       <p>{t('catalogIconsLegendHint')}</p>
     </div>
   );

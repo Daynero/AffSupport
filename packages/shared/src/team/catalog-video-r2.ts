@@ -17,7 +17,7 @@ export const CATALOG_VIDEO_R2_LIMITS = {
   maxPartBytes: 64 * 1024 * 1024,
   maxParts: 10_000,
   maxObjectBytes: 2 * 1024 * 1024 * 1024,
-  teamQuotaBytes: 50 * 1024 * 1024 * 1024,
+  teamQuotaBytes: 5_000_000_000,
   /** Window between the last use leaving a copy and its deletion. */
   graceSeconds: 6 * 3600,
   /** One edge invocation copies parts until this budget is spent, then yields the lease. */
@@ -142,6 +142,17 @@ export interface CatalogVideoR2State {
   revision: number;
 }
 
+/** One catalog's option and link state, as the catalog manager lists them for a space. */
+export interface CatalogVideoR2Signal {
+  catalogMaterialId: string;
+  enabled: boolean;
+  link: CatalogVideoR2LinkKind;
+  copyState: CatalogVideoR2CopyState | null;
+  reason: CatalogVideoR2Reason | null;
+  lastSuccessfulUpdateAt: string | null;
+  revision: number;
+}
+
 export interface CatalogVideoR2PreferenceReceipt {
   enabled: boolean;
   revision: number;
@@ -223,6 +234,23 @@ export function isCatalogVideoR2State(v: unknown): v is CatalogVideoR2State {
     typeof v.canManage === 'boolean' &&
     boundedInteger(v.revision)
   );
+}
+
+export function isCatalogVideoR2Signal(v: unknown): v is CatalogVideoR2Signal {
+  return (
+    isRecord(v) &&
+    short(v.catalogMaterialId) &&
+    typeof v.enabled === 'boolean' &&
+    isCatalogVideoR2LinkKind(v.link) &&
+    (v.copyState === null || isCatalogVideoR2CopyState(v.copyState)) &&
+    (v.reason === null || isCatalogVideoR2Reason(v.reason)) &&
+    timestamp(v.lastSuccessfulUpdateAt) &&
+    boundedInteger(v.revision)
+  );
+}
+
+export function isCatalogVideoR2Signals(v: unknown): v is CatalogVideoR2Signal[] {
+  return Array.isArray(v) && v.length <= 10_000 && v.every(isCatalogVideoR2Signal);
 }
 
 export function isCatalogVideoR2PreferenceReceipt(

@@ -10,6 +10,11 @@ import {
 import type { CatalogVideoR2Client } from '../apps/web/src/api/team-catalog-video-r2';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { CatalogVideoR2Toggle } from '../apps/web/src/team/product-catalog/CatalogVideoR2Toggle';
+import {
+  CatalogIconControls,
+  CatalogIconLegend
+} from '../apps/web/src/team/catalog-updater/CatalogIconControls';
+import type { CatalogVideoR2Row } from '../apps/web/src/team/product-catalog/useCatalogVideoR2Team';
 import { CatalogVideoR2UsageSection } from '../apps/web/src/team/tariffs/CatalogVideoR2UsageSection';
 import { TeamApiError } from '../apps/web/src/api/team';
 
@@ -43,6 +48,7 @@ function client(overrides: Partial<CatalogVideoR2Client> = {}): CatalogVideoR2Cl
       revision: 2,
       updatedAt: '2026-11-10T09:00:00Z'
     })),
+    listSignals: vi.fn(async () => []),
     readUsage: vi.fn(async () => ({
       usedBytes: 0,
       quotaBytes: 50_000_000_000,
@@ -90,7 +96,9 @@ describe('CatalogVideoR2Toggle', () => {
     expect((box as HTMLInputElement).disabled).toBe(false);
     fireEvent.click(box);
     expect(onChange).toHaveBeenCalledWith(true);
-    expect(screen.getByText(/Only the active version is kept/u)).toBeTruthy();
+    // The explanation lives in the help hint beside the control, not in a block of text.
+    expect(screen.getByLabelText(/Only the active version is kept/u)).toBeTruthy();
+    expect(screen.queryByText(/Only the active version is kept/u)).toBeNull();
     cleanup();
     const hidden = client({
       availability: vi.fn(async (): Promise<CatalogVideoR2Availability> => ({
@@ -210,6 +218,105 @@ describe('CatalogVideoR2Toggle', () => {
     fireEvent.click(box);
     await screen.findByRole('alert');
     expect((box as HTMLInputElement).checked).toBe(true);
+  });
+});
+
+describe('CatalogVideoR2Toggle as a switch', () => {
+  it('renders the same kind of control as the re-stitch switch beside it', async () => {
+    const onChange = vi.fn();
+    mount(
+      <CatalogVideoR2Toggle
+        mode="create"
+        control="switch"
+        teamId={TEAM}
+        checked={false}
+        onChange={onChange}
+        client={client()}
+      />
+    );
+    const toggle = await screen.findByRole('switch', { name: 'Copy the video to R2' });
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(true);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+});
+
+describe('R2 icon in the catalog toolbar', () => {
+  const profile = {
+    catalogId: CATALOG,
+    refreshImages: true,
+    refreshTexts: false,
+    growProducts: false,
+    randomLinkVariation: true,
+    restitch: false,
+    version: 1,
+    updatedAt: '2026-11-10T10:00:00Z'
+  };
+  const row = (overrides: Partial<CatalogVideoR2Row> = {}): CatalogVideoR2Row => ({
+    enabled: false,
+    link: 'drive',
+    copyState: null,
+    reason: null,
+    pending: false,
+    error: null,
+    ...overrides
+  });
+  it('is a sixth toggle with its state in the tip, and turns the option on in one press', () => {
+    const onToggle = vi.fn();
+    render(
+      <CatalogIconControls
+        profile={profile}
+        name="Catalog"
+        onChange={vi.fn()}
+        videoR2={{ row: row(), onToggle }}
+      />
+    );
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(6);
+    const r2 = buttons[5]!;
+    expect(r2.getAttribute('aria-pressed')).toBe('false');
+    expect(r2.getAttribute('aria-label')).toMatch(/^Copy the video to R2 · .* · Drive: Catalog$/u);
+    fireEvent.click(r2);
+    expect(onToggle).toHaveBeenCalledWith(true);
+    buttons[0]!.focus();
+    fireEvent.keyDown(buttons[0]!, { key: 'End' });
+    expect(document.activeElement).toBe(r2);
+  });
+  it('says where the link is and why it stayed on Drive, and is locked without the permission', () => {
+    const onToggle = vi.fn();
+    const view = render(
+      <CatalogIconControls
+        profile={profile}
+        name="Catalog"
+        onChange={vi.fn()}
+        videoR2={{ row: row({ enabled: true, link: 'r2', copyState: 'ready' }), onToggle }}
+      />
+    );
+    expect(screen.getAllByRole('button')[5]!.getAttribute('aria-label')).toMatch(
+      / · R2: Catalog$/u
+    );
+    view.rerender(
+      <CatalogIconControls
+        profile={profile}
+        name="Catalog"
+        onChange={vi.fn()}
+        videoR2={{
+          row: row({ enabled: true, reason: 'VIDEO_R2_QUOTA_EXCEEDED' }),
+          disabledReason: 'No permission',
+          onToggle
+        }}
+      />
+    );
+    const locked = screen.getAllByRole('button')[5]!;
+    expect(locked.getAttribute('aria-label')).toMatch(/R2 video limit.*No permission/u);
+    fireEvent.click(locked);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+  it('appears in the icon legend only where R2 is offered', () => {
+    const view = render(<CatalogIconLegend teamId={TEAM} onOpenSettings={vi.fn()} />);
+    expect(screen.queryByText('Copy the video to R2')).toBeNull();
+    view.rerender(<CatalogIconLegend teamId={TEAM} onOpenSettings={vi.fn()} videoR2 />);
+    expect(screen.getByText('Copy the video to R2')).toBeTruthy();
   });
 });
 

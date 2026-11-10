@@ -1,10 +1,12 @@
 import {
   isCatalogVideoR2Availability,
   isCatalogVideoR2PreferenceReceipt,
+  isCatalogVideoR2Signals,
   isCatalogVideoR2State,
   isCatalogVideoR2Usage,
   type CatalogVideoR2Availability,
   type CatalogVideoR2PreferenceReceipt,
+  type CatalogVideoR2Signal,
   type CatalogVideoR2State,
   type CatalogVideoR2Usage
 } from '@video-compressor/shared';
@@ -29,6 +31,8 @@ export interface CatalogVideoR2Client {
     input: { enabled: boolean }
   ): Promise<CatalogVideoR2PreferenceReceipt>;
   readUsage(teamId: string, options?: { signal?: AbortSignal }): Promise<CatalogVideoR2Usage>;
+  /** Every catalog of the space that has (or had) the option, in one read. */
+  listSignals(teamId: string, options?: { signal?: AbortSignal }): Promise<CatalogVideoR2Signal[]>;
 }
 
 const query = (path: string, values: Record<string, string>) => {
@@ -57,6 +61,11 @@ export const catalogVideoR2Client: CatalogVideoR2Client = {
       { enabled: input.enabled },
       isCatalogVideoR2PreferenceReceipt
     ),
+  listSignals: (teamId, options) =>
+    invokeTeamFunction(query('signals', { teamId }), {}, isCatalogVideoR2Signals, {
+      method: 'GET',
+      ...(options?.signal ? { signal: options.signal } : {})
+    }),
   readUsage: (teamId, options) =>
     invokeTeamFunction(query('usage', { teamId }), {}, isCatalogVideoR2Usage, {
       method: 'GET',

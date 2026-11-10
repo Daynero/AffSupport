@@ -10,7 +10,7 @@ create table private.catalog_video_r2_config (
   public_origin text check(public_origin is null or (public_origin ~ '^https://[a-z0-9.-]+$' and public_origin !~ '\.r2\.dev$' and public_origin !~ '\.r2\.cloudflarestorage\.com$')),
   part_bytes integer not null default 16777216 check(part_bytes between 5242880 and 67108864),
   grace_interval interval not null default interval '6 hours',
-  team_quota_bytes bigint not null default 53687091200 check(team_quota_bytes>0),
+  team_quota_bytes bigint not null default 5000000000 check(team_quota_bytes>0),
   max_object_bytes bigint not null default 2147483648 check(max_object_bytes>0),
   max_claim_attempts integer not null default 24 check(max_claim_attempts between 1 and 1000),
   updated_at timestamptz not null default now()

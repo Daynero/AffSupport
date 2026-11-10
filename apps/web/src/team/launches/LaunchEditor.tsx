@@ -604,20 +604,6 @@ export function LaunchEditor({
                       })
                     }
                   />
-                  <CatalogVideoR2Toggle
-                    mode="create"
-                    teamId={teamId}
-                    checked={config.catalog.copyVideoToR2 === true}
-                    disabled={disabled}
-                    onChange={copyVideoToR2 =>
-                      changed({
-                        catalog: {
-                          ...config.catalog!,
-                          ...(copyVideoToR2 ? { copyVideoToR2: true } : { copyVideoToR2: false })
-                        }
-                      })
-                    }
-                  />
                   {config.catalog.restitchEnabled && (
                     <RestitchDurationControl
                       value={config.catalog}
@@ -633,6 +619,22 @@ export function LaunchEditor({
                       }
                     />
                   )}
+                  {/* 050: after every re-stitch setting, so it never splits them. */}
+                  <CatalogVideoR2Toggle
+                    mode="create"
+                    teamId={teamId}
+                    control="switch"
+                    checked={config.catalog.copyVideoToR2 === true}
+                    disabled={disabled}
+                    onChange={copyVideoToR2 =>
+                      changed({
+                        catalog: {
+                          ...config.catalog!,
+                          ...(copyVideoToR2 ? { copyVideoToR2: true } : { copyVideoToR2: false })
+                        }
+                      })
+                    }
+                  />
                 </div>
                 {
                   <Suspense fallback={null}>

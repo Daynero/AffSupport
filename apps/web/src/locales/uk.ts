@@ -293,11 +293,16 @@ export const uk: Record<keyof typeof en, string> = {
     'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
   catalogVideoR2Toggle: 'Копіювати відео в R2',
   catalogVideoR2Explain:
-    'Готове відео каталогу копіюється у сховище Soty (Cloudflare R2), і каталог отримує стабільне публічне посилання за непрозорою адресою. Зберігається лише активна версія: попередня видаляється, щойно каталог підтверджено на новій. Каталог переходить на нове посилання сам, щойно копія готова й перевірена — одразу або при найближчому оновленні; доти працює посилання Drive.',
+    'Готове відео копіюється в сховище Soty (Cloudflare R2), і каталог отримує стабільне посилання за непрозорою адресою замість Drive. Каталог переходить сам, щойно копія готова; доти працює посилання Drive. Зберігається лише активна версія.',
+  catalogVideoR2Legend:
+    'Копіює готове відео в сховище Soty і дає каталогу стабільне посилання. Діє одразу, без оновлення; зелена іконка — посилання вже на R2.',
+  catalogVideoR2PanelReady: 'Посилання на відео в каталозі вже веде на R2.',
+  catalogVideoR2PanelPending: 'Копія відео готується; доти в каталозі працює посилання Drive.',
   catalogVideoR2NextUpdate: 'Посилання зміниться, щойно копія буде готова.',
   catalogVideoR2NoPermission:
     'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
   catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusReturning: 'Повертається на Drive',
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Копія готується',
   catalogVideoR2StatusFallback: 'Лишається посилання Drive',
@@ -309,6 +314,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2UsageOf: '{used} із {quota}',
   catalogVideoR2Copies: '{ready} активних, {retiring} чекають видалення',
   catalogVideoR2Estimate: 'Орієнтовно {low}–{high} USD на місяць (оцінка, не рахунок)',
+  catalogVideoR2EstimateTiny: 'Менше ніж 0,01 USD на місяць (оцінка, не рахунок)',
   catalogVideoR2EstimateUnknown: 'Оцінки поки немає',
   catalogVideoR2Saved: 'Збережено. Посилання в каталозі зміниться автоматично.',
   catalogVideoR2On: 'Увімкнено',

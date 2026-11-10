@@ -290,10 +290,16 @@ export const en = {
     'The file list is not complete. Check the selected pictures and retry.',
   catalogVideoR2Toggle: 'Copy the video to R2',
   catalogVideoR2Explain:
-    'The catalog’s ready video is copied to Soty storage (Cloudflare R2) and the catalog gets a stable public link at an opaque address. Only the active version is kept: the previous copy is deleted once the catalog is confirmed on the new one. The catalog switches to the new link by itself once the copy is ready and verified — right away or at the nearest update; until then the Drive link keeps working.',
+    'The ready video is copied to Soty storage (Cloudflare R2), and the catalog gets a stable link at an opaque address instead of Drive. The catalog switches by itself once the copy is ready; until then the Drive link keeps working. Only the active version is kept.',
+  catalogVideoR2Legend:
+    'Copies the ready video to Soty storage and gives the catalog a stable link. Takes effect at once, without an update; a green icon means the link is already on R2.',
+  catalogVideoR2PanelReady: 'The catalog’s video link already points at R2.',
+  catalogVideoR2PanelPending:
+    'The video copy is being prepared; until then the catalog keeps its Drive link.',
   catalogVideoR2NextUpdate: 'The link changes once the copy is ready.',
   catalogVideoR2NoPermission: 'Only a member who can change the catalog settings can turn this on.',
   catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusReturning: 'Returning to Drive',
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Copy in progress',
   catalogVideoR2StatusFallback: 'Drive link kept',
@@ -305,6 +311,7 @@ export const en = {
   catalogVideoR2UsageOf: '{used} of {quota}',
   catalogVideoR2Copies: '{ready} active, {retiring} awaiting deletion',
   catalogVideoR2Estimate: 'About {low}–{high} USD per month (an estimate, not an invoice)',
+  catalogVideoR2EstimateTiny: 'Under 0.01 USD per month (an estimate, not an invoice)',
   catalogVideoR2EstimateUnknown: 'No estimate yet',
   catalogVideoR2Saved: 'Saved. The catalog link changes automatically.',
   catalogVideoR2On: 'On',

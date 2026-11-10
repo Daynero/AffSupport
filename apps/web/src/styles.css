@@ -18941,6 +18941,11 @@ a.history-subject {
 .catalog-icon-toolbar .catalog-video-toggle {
   margin-right: var(--space-3);
 }
+/* 050: the R2 choice is about how the link is delivered, not what an update
+   changes, so it stands apart from the four update toggles like the video does. */
+.catalog-icon-toolbar .catalog-video-r2-toggle {
+  margin-left: var(--space-3);
+}
 .catalog-icon-toolbar button[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: var(--catalog-disabled-opacity);
@@ -19420,6 +19425,18 @@ a.history-subject {
   background: var(--color-success-soft);
 }
 .catalog-icon-toolbar .catalog-video-toggle button[data-video-state='blocked'] {
+  color: var(--color-error-text);
+  border-color: var(--color-error-border);
+  background: var(--color-error-soft);
+}
+/* 050: the R2 icon speaks the same colours as the video icon — green once the
+   catalog points at the copy, red when the copy failed and Drive stayed. */
+.catalog-icon-toolbar .catalog-video-r2-toggle button[data-video-r2-state='ready'] {
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+.catalog-icon-toolbar .catalog-video-r2-toggle button[data-video-r2-state='blocked'] {
   color: var(--color-error-text);
   border-color: var(--color-error-border);
   background: var(--color-error-soft);

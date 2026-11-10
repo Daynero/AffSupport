@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import type { CatalogVideoR2Availability, CatalogVideoR2State } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
-import { Badge, Checkbox } from '../../components/ui/index';
+import { CircleHelp } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Badge, Checkbox, Switch, Tooltip } from '../../components/ui/index';
+// The create dialog's own checkboxes (re-stitch beside this one) are the form checkbox.
+import { Checkbox as FormCheckbox } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { useOptionalTeam } from '../TeamContext';
@@ -25,6 +29,8 @@ export type CatalogVideoR2ToggleProps =
       checked: boolean;
       onChange: (checked: boolean) => void;
       disabled?: boolean;
+      /** The same kind of control as the re-stitch choice beside it. */
+      control?: 'checkbox' | 'switch';
       client?: CatalogVideoR2Client;
     }
   | {
@@ -94,15 +100,37 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
   const disabled = props.disabled === true || !canManage || saving;
 
   if (props.mode === 'create') {
-    return (
-      <div className="catalog-video-r2 flex flex-col gap-1" data-testid="catalog-video-r2-toggle">
-        <Checkbox
+    const explain = t('catalogVideoR2Explain');
+    const control =
+      props.control === 'switch' ? (
+        <Switch
           checked={props.checked}
           disabled={disabled}
           onChange={checked => props.onChange(checked)}
           label={t('catalogVideoR2Toggle')}
         />
-        <p className="team-inline-note">{t('catalogVideoR2Explain')}</p>
+      ) : (
+        <FormCheckbox
+          checked={props.checked}
+          disabled={disabled}
+          onChange={event => props.onChange(event.target.checked)}
+          label={t('catalogVideoR2Toggle')}
+        />
+      );
+    return (
+      <div className="catalog-video-r2" data-testid="catalog-video-r2-toggle">
+        <div className="inline-flex items-center gap-2">
+          {control}
+          <Tooltip label={explain} asChild>
+            <span
+              tabIndex={0}
+              aria-label={explain}
+              className="inline-flex items-center text-ink-muted"
+            >
+              <CircleHelp size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </span>
+          </Tooltip>
+        </div>
         {!canManage && <p className="team-inline-note">{t('catalogVideoR2NoPermission')}</p>}
       </div>
     );

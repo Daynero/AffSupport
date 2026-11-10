@@ -1031,13 +1031,16 @@ export function CreateProductCatalogDialog({
               </p>
             )}
           </div>
-          <CatalogVideoR2Toggle
-            mode="create"
-            teamId={teamId}
-            checked={copyVideoToR2}
-            onChange={setCopyVideoToR2}
-            disabled={busy}
-          />
+          <div className="product-catalog-restitch">
+            <CatalogVideoR2Toggle
+              mode="create"
+              control="checkbox"
+              teamId={teamId}
+              checked={copyVideoToR2}
+              onChange={setCopyVideoToR2}
+              disabled={busy}
+            />
+          </div>
 
           {phase.kind === 'busy' && phase.step === 'restitch' && (
             <CatalogRestitchProgress

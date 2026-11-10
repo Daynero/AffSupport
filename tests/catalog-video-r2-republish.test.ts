@@ -483,4 +483,35 @@ describe('catalog video R2 link reconciliation', () => {
       ])
     ).rejects.toThrow(/INVALID_INPUT/u);
   });
+
+  it('reads the videos of a first publication from its target when it left no link receipts', async () => {
+    // The first publication of a new catalog writes no link receipts; ticking the
+    // option on such a catalog planned nothing and the icon waited for ever (beta).
+    const version = 'content-v1:' + '9'.repeat(64);
+    const video = await material('video', 'video/mp4', 3_000_000);
+    const id = await catalog(video);
+    const target = (
+      await db.root<{ id: string }>(
+        "insert into private.catalog_publication_targets(team_id,kind,source_material_id,source_version) values($1,'source',$2,$3) returning id",
+        [team, video, version]
+      )
+    )[0]!.id;
+    await db.root(
+      "insert into private.catalog_video_publication_policies(catalog_material_id,team_id,actor_id,revision,mode,target_id,legacy_delivery_unverified) values($1,$2,$3,1,'immediate',$4,false)",
+      [id, team, OWNER, target]
+    );
+    await insertJob(id, 1, target, 'published', null, null, video, version);
+    await rpc('service_catalog_video_r2_set_preference', [OWNER, id, true]);
+    const copy = await db.root<{ id: string; state: string }>(
+      'select id,state from private.catalog_video_r2_copies where source_version=$1',
+      [version]
+    );
+    expect(copy).toMatchObject([{ state: 'planned' }]);
+    await finishCopy(copy[0]!.id, 3_000_000);
+    expect((await jobs(id)).at(-1)).toMatchObject({
+      revision: '2',
+      state: 'waiting',
+      origin: 'video_r2'
+    });
+  });
 });

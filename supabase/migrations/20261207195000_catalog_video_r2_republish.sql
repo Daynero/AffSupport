@@ -15,6 +15,31 @@
 -- are never touched (SC-001); catalogs without a policy keep the whole-file
 -- path, where the update itself resolves the link.
 
+-- The videos a published job put into the cells. A job written by the targeted
+-- cell writer leaves link receipts; the first publication of a new catalog does
+-- not, so its videos come from the job's target (one source, or the registered
+-- outputs of a video set) and its links are Drive links.
+create function private.catalog_video_r2_cell_sources(p_job uuid)
+returns table(material_id uuid, source_version text, link_kind text)
+language sql stable security definer set search_path='' as $$
+ select rc.material_id, rc.source_version, coalesce(rc.link_kind,'drive')
+ from private.catalog_publication_link_receipts rc where rc.job_id=p_job
+ union all
+ select t.source_material_id, t.source_version, 'drive'
+ from private.catalog_video_publication_jobs j
+ join private.catalog_publication_targets t on t.id=j.target_id and t.team_id=j.team_id
+ where j.id=p_job and t.kind='source' and t.source_material_id is not null
+  and not exists(select 1 from private.catalog_publication_link_receipts rc where rc.job_id=p_job)
+ union all
+ select distinct v.output_material_id, private.catalog_publication_source_version(v.output_material_id,j.team_id), 'drive'
+ from private.catalog_video_publication_jobs j
+ join private.catalog_publication_targets t on t.id=j.target_id and t.team_id=j.team_id
+ join private.catalog_video_variants v on v.video_set_id=t.video_set_id and v.state='registered' and v.output_material_id is not null
+ where j.id=p_job and t.kind='video_set'
+  and not exists(select 1 from private.catalog_publication_link_receipts rc where rc.job_id=p_job)
+$$;
+revoke all on function private.catalog_video_r2_cell_sources(uuid) from public,anon,authenticated;
+
 create function private.catalog_video_r2_reconcile(p_catalog uuid,p_plan boolean default false) returns text
 language plpgsql security definer set search_path='' as $$
 declare pref private.catalog_video_r2_preferences%rowtype; cfg private.catalog_video_r2_config%rowtype;
@@ -37,11 +62,11 @@ begin
   order by verified_at desc nulls last limit 1;
  if not found then return 'none'; end if;
  for r in
-  select rc.material_id,rc.source_version,coalesce(rc.link_kind,'drive') as kind,m.size_bytes,m.mime_type,m.checksum,m.lifecycle,
-   exists(select 1 from private.catalog_video_r2_copies c where c.team_id=p.team_id and c.source_version=rc.source_version and c.state='ready') as ready
-  from private.catalog_publication_link_receipts rc
-  left join public.team_materials m on m.id=rc.material_id and m.team_id=p.team_id
-  where rc.job_id=last.id
+  select cs.material_id,cs.source_version,cs.link_kind as kind,m.size_bytes,m.mime_type,m.checksum,m.lifecycle,
+   exists(select 1 from private.catalog_video_r2_copies c where c.team_id=p.team_id and c.source_version=cs.source_version and c.state='ready') as ready
+  from private.catalog_video_r2_cell_sources(last.id) cs
+  left join public.team_materials m on m.id=cs.material_id and m.team_id=p.team_id
+  where cs.source_version is not null
  loop
   n:=n+1;
   if r.kind='r2' then any_r2:=true; else any_drive:=true; end if;
@@ -115,8 +140,8 @@ begin
   where pref.team_id=new.team_id and pref.enabled and exists(
    select 1 from private.catalog_video_publication_policies p
    join private.catalog_video_publication_jobs j on j.catalog_material_id=p.catalog_material_id and j.target_id=p.target_id and j.state='published'
-   join private.catalog_publication_link_receipts rc on rc.job_id=j.id
-   where p.catalog_material_id=pref.catalog_material_id and rc.source_version=new.source_version)
+   cross join lateral private.catalog_video_r2_cell_sources(j.id) cs
+   where p.catalog_material_id=pref.catalog_material_id and cs.source_version=new.source_version)
   limit 100
  loop
   begin
@@ -144,8 +169,8 @@ begin
    and ((not pref.enabled and exists(select 1 from private.catalog_video_r2_uses u where u.catalog_material_id=pref.catalog_material_id))
     or (pref.enabled and exists(select 1 from private.catalog_video_publication_policies p
       join private.catalog_video_publication_jobs j on j.catalog_material_id=p.catalog_material_id and j.target_id=p.target_id and j.revision=p.revision and j.state='published'
-      join private.catalog_publication_link_receipts rc on rc.job_id=j.id
-      where p.catalog_material_id=pref.catalog_material_id and coalesce(rc.link_kind,'drive')<>'r2')))
+      cross join lateral private.catalog_video_r2_cell_sources(j.id) cs
+      where p.catalog_material_id=pref.catalog_material_id and cs.link_kind<>'r2')))
   order by pref.updated_at limit p_limit
  loop
   begin
@@ -178,13 +203,15 @@ begin
  on conflict(catalog_material_id) do update set enabled=excluded.enabled,revision=private.catalog_video_r2_preferences.revision+1,configured_by=excluded.configured_by,updated_at=clock_timestamp()
  returning * into pref;
  perform private.catalog_video_r2_journal_write(m.team_id,null,p_catalog,null,p_actor,'configured',case when p_enabled then null else 'VIDEO_R2_DISABLED' end);
+ -- The signal first: planning below may record why R2 was refused (quota, format),
+ -- and a later plain refresh would erase that reason (found on beta).
+ perform private.catalog_video_r2_signal(p_catalog);
  if exists(select 1 from private.catalog_video_publication_policies where catalog_material_id=p_catalog) then
   perform private.catalog_video_r2_reconcile(p_catalog,true);
  elsif p_enabled then
   perform public.service_catalog_video_r2_resolve_current(p_catalog);
   perform public.service_catalog_video_r2_kick('claim');
  end if;
- perform private.catalog_video_r2_signal(p_catalog);
  return jsonb_build_object('enabled',pref.enabled,'revision',pref.revision,'updatedAt',pref.updated_at);
 end $$;
 
@@ -200,8 +227,8 @@ language sql stable security definer set search_path='' as $$
   and not exists(select 1 from private.catalog_video_r2_preferences pref
    join public.team_materials m on m.id=pref.catalog_material_id and m.lifecycle='active'
    join private.catalog_video_publication_jobs j on j.catalog_material_id=pref.catalog_material_id and j.state not in('superseded')
-   join private.catalog_publication_link_receipts rc on rc.job_id=j.id and rc.source_version=c.source_version
-   where pref.team_id=c.team_id and pref.enabled)
+   cross join lateral private.catalog_video_r2_cell_sources(j.id) cs
+   where pref.team_id=c.team_id and pref.enabled and cs.source_version=c.source_version)
   and case
    when c.requested_by_catalog is not null then not exists(select 1 from private.catalog_video_r2_preferences pref
      join public.team_materials m on m.id=pref.catalog_material_id and m.lifecycle='active'
@@ -325,3 +352,18 @@ declare k text;v jsonb;limit_value numeric;c jsonb;begin
  end loop;
  return new;
 end $$;
+
+-- One read for the whole catalog manager: each catalog's R2 option and link state,
+-- so the toolbar icon does not cost one request per row.
+create function public.service_catalog_video_r2_signals(p_actor uuid,p_team uuid) returns jsonb
+language plpgsql stable security definer set search_path='' as $$
+begin
+ if p_actor is null or p_team is null or not private.can(p_team,'view',p_actor) then raise exception 'PERMISSION_DENIED' using errcode='42501'; end if;
+ return coalesce((select jsonb_agg(jsonb_build_object(
+   'catalogMaterialId',s.catalog_material_id,'enabled',s.enabled,'link',s.link_kind,'copyState',s.copy_state,
+   'reason',s.reason,'lastSuccessfulUpdateAt',s.last_successful_update_at,'revision',s.revision) order by s.catalog_material_id)
+  from public.team_catalog_video_r2_signals s join public.team_materials m on m.id=s.catalog_material_id and m.lifecycle='active'
+  where s.team_id=p_team),'[]'::jsonb);
+end $$;
+revoke all on function public.service_catalog_video_r2_signals(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.service_catalog_video_r2_signals(uuid,uuid) to service_role;

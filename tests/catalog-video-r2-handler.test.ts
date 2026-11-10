@@ -160,6 +160,32 @@ describe('catalog video R2 handler', () => {
     expect((await h.call('GET', '/nowhere')).body.error?.code).toBe('NOT_FOUND');
   });
 
+  it('lists every catalog option of a space in one read for the manager', async () => {
+    const signal = {
+      catalogMaterialId: CATALOG,
+      enabled: true,
+      link: 'r2',
+      copyState: 'ready',
+      reason: null,
+      lastSuccessfulUpdateAt: '2026-11-11T00:00:00Z',
+      revision: 3
+    };
+    const h = harness({}, { service_catalog_video_r2_signals: [signal] });
+    expect((await h.call('GET', `/signals?teamId=${TEAM}`)).body.value).toEqual([signal]);
+    expect(h.rpc).toHaveBeenCalledWith('service_catalog_video_r2_signals', {
+      p_actor: ACTOR,
+      p_team: TEAM
+    });
+    const broken = harness(
+      {},
+      { service_catalog_video_r2_signals: [{ ...signal, reason: 'free text' }] }
+    );
+    expect((await broken.call('GET', `/signals?teamId=${TEAM}`)).body.error?.code).toBe(
+      'INVALID_RESPONSE'
+    );
+    expect((await h.call('GET', '/signals?teamId=nope')).body.error?.code).toBe('INVALID_INPUT');
+  });
+
   it('writes the preference with the caller as actor and reports the server refusal codes', async () => {
     const h = harness(
       {},

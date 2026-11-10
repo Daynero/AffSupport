@@ -2,6 +2,7 @@
 import {
   isCatalogVideoR2Availability,
   isCatalogVideoR2PreferenceReceipt,
+  isCatalogVideoR2Signals,
   isCatalogVideoR2State,
   isCatalogVideoR2Usage,
   parseCatalogVideoR2WorkerRoute
@@ -109,6 +110,15 @@ export async function handleCatalogVideoR2(
       const teamId = videoR2Id(url.searchParams.get('teamId'));
       const value = await rpc('service_catalog_video_r2_usage', { p_actor: actor, p_team: teamId });
       if (!isCatalogVideoR2Usage(value)) throw new TeamFunctionError('INVALID_RESPONSE');
+      return successResponse(value, headers);
+    }
+    if (request.method === 'GET' && path === '/signals') {
+      const teamId = videoR2Id(url.searchParams.get('teamId'));
+      const value = await rpc('service_catalog_video_r2_signals', {
+        p_actor: actor,
+        p_team: teamId
+      });
+      if (!isCatalogVideoR2Signals(value)) throw new TeamFunctionError('INVALID_RESPONSE');
       return successResponse(value, headers);
     }
     const route = /^\/catalogs\/([^/]+)\/(state|preference)$/u.exec(path);
