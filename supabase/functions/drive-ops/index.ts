@@ -2906,7 +2906,9 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
       if (value.available !== true)
         throw new TeamFunctionError(
-          value.reason === 'VIDEO_R2_POLICY_PENDING' ? 'VIDEO_R2_POLICY_PENDING' : 'VIDEO_R2_DISABLED',
+          value.reason === 'VIDEO_R2_POLICY_PENDING'
+            ? 'VIDEO_R2_POLICY_PENDING'
+            : 'VIDEO_R2_DISABLED',
           { retryable: false }
         );
     },
