@@ -458,4 +458,29 @@ describe('catalog video R2 link reconciliation', () => {
       )
     ).toEqual([{ reason: 'failed_upload' }, { reason: 'failed_upload' }]);
   });
+
+  it('lets launch defaults keep the R2 choice of the catalog, as a boolean only', async () => {
+    const catalog = {
+      productCount: 20,
+      restitchEnabled: false,
+      finalDurationMode: 'random-30-40',
+      customFinalDurationSeconds: null
+    };
+    await db.root(
+      'insert into public.team_launch_defaults(team_id,config,updated_by) values($1,$2,$3)',
+      [team, JSON.stringify({ catalog: { ...catalog, copyVideoToR2: true } }), OWNER]
+    );
+    expect(
+      await db.root(
+        "select config->'catalog'->'copyVideoToR2' v from public.team_launch_defaults where team_id=$1",
+        [team]
+      )
+    ).toEqual([{ v: true }]);
+    await expect(
+      db.root('update public.team_launch_defaults set config=$2 where team_id=$1', [
+        team,
+        JSON.stringify({ catalog: { ...catalog, copyVideoToR2: 'yes' } })
+      ])
+    ).rejects.toThrow(/INVALID_INPUT/u);
+  });
 });

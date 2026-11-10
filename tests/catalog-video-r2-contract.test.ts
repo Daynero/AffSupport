@@ -14,6 +14,8 @@ import {
 } from '../packages/shared/src/team/catalog-video-r2';
 import { TEAM_ERROR_CODES } from '../packages/shared/src/team/transport';
 import { parseLaunchConfig } from '../packages/shared/src/team/launches/validation';
+import { parseLaunchDraft } from '../packages/shared/src/team/launches/persistence';
+import { launchDefaultValues } from '../packages/shared/src/team/launches/defaults';
 
 const state = {
   catalogMaterialId: 'a3c6e8a4-7d1a-4f2a-9d2a-0f0a1b2c3d4e',
@@ -230,5 +232,30 @@ describe('local edge runtime module graph', () => {
       );
     });
     expect(missing).toEqual([]);
+  });
+});
+
+describe('launch draft round trip', () => {
+  const catalog = {
+    productCount: 20,
+    restitchEnabled: false,
+    finalDurationMode: 'random-30-40',
+    customFinalDurationSeconds: null
+  };
+  it('keeps the R2 choice through the saved draft (the box unticked after autosave)', () => {
+    expect(
+      parseLaunchDraft({ catalog: { ...catalog, copyVideoToR2: true } })?.catalog
+    ).toMatchObject({
+      copyVideoToR2: true
+    });
+    expect(
+      parseLaunchDraft({ catalog: { ...catalog, copyVideoToR2: false } })?.catalog?.copyVideoToR2
+    ).toBe(false);
+    expect(parseLaunchDraft({ catalog })?.catalog).not.toHaveProperty('copyVideoToR2');
+    expect(parseLaunchDraft({ catalog: { ...catalog, copyVideoToR2: 'yes' } })).toBeNull();
+  });
+  it('carries the R2 choice into launch defaults', () => {
+    const draft = parseLaunchDraft({ catalog: { ...catalog, copyVideoToR2: true } })!;
+    expect(launchDefaultValues(draft).catalog).toMatchObject({ copyVideoToR2: true });
   });
 });
