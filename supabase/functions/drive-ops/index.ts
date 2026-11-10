@@ -2749,6 +2749,49 @@ async function handleEnsureWorkspaceFolder(
   return { folderId: resolved.folderId, created: resolved.created, name: resolved.name };
 }
 
+/** `list_material_product_catalogs` for a worker without a signed-in caller: the same
+ * filters and order, read with the service client. */
+async function serviceReadLiveCatalogs(
+  service: ReturnType<typeof clients>['service'],
+  teamId: string,
+  videoId: string
+): Promise<ExistingCatalog[]> {
+  const materials = await service
+    .from('team_materials')
+    .select('id,name,drive_file_id')
+    .eq('team_id', teamId)
+    .eq('companion_of', videoId)
+    .eq('companion_kind', 'product_catalog')
+    .eq('lifecycle', 'active');
+  if (materials.error || !Array.isArray(materials.data))
+    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+  if (materials.data.length === 0) return [];
+  const records = await service
+    .from('team_product_catalogs')
+    .select('material_id,sheet_url,source_link,product_count,variant,created_at')
+    .in(
+      'material_id',
+      materials.data.map(row => (row as { id: string }).id)
+    );
+  if (records.error || !Array.isArray(records.data))
+    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+  const byId = new Map(
+    materials.data.map(row => [(row as { id: string }).id, row as Record<string, unknown>])
+  );
+  return records.data
+    .flatMap(raw => {
+      const record = raw as Record<string, unknown>;
+      const sheet = byId.get(String(record.material_id));
+      const catalog = sheet ? existingCatalogFrom({ ...record, ...sheet }) : null;
+      return catalog ? [catalog] : [];
+    })
+    .sort(
+      (a, b) =>
+        (a.variant ?? 0) - (b.variant ?? 0) ||
+        String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''))
+    );
+}
+
 function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatalog | null {
   if (!row) return null;
   const materialId = stringValue(row, 'id') ?? stringValue(row, 'materialId');
@@ -3404,7 +3447,15 @@ Deno.serve(async request => {
         }),
         executeFrozen: async (frozenBody, actorId) => {
           const catalogRequest = parseCreateProductCatalogRequest(frozenBody);
-          const catalog = productCatalogDeps(request, configured.caller, configured.service);
+          const catalog = {
+            ...productCatalogDeps(request, configured.caller, configured.service),
+            // A cron pass has no signed-in caller, so the caller-scoped list RPC
+            // (auth.uid()) failed and every resumed catalog stopped at
+            // INVALID_RESPONSE. Read the same rows with the service client; the
+            // actor's view/upload rights were checked when the intent was listed.
+            readLiveCatalogs: (teamId: string, videoId: string) =>
+              serviceReadLiveCatalogs(configured.service, teamId, videoId)
+          };
           const initialVideoAuthority = await createCatalogInitialVideoAuthority(
             configured.service,
             {
