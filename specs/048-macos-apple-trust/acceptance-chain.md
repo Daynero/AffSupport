@@ -55,4 +55,18 @@ SOTY_TEST_NODE_BINARY=/Applications/Soty.app/Contents/Resources/runtime/node npx
 
 Результат: 12 файлів, 136 passed, 1 skipped (Gatekeeper і staple, потребує Developer ID), 32 с. Зокрема: реальний Node через ланцюжок виконує JS і WebAssembly, без JIT-пари не стартує; три закриті коди входів спрацьовують до першого `codesign` (CDHash рантайму незмінний); списки заборонених entitlements, JIT-пара і правила відбору збігаються в ланцюжку, гейті, тесті, plist і контракті; статична x64-кваліфікація проходить із фікстурою, підписаною ланцюжком, і доказ несе `codeSigning` (6 hardened Mach-O, 5 у підсумку); раннер відмовляє `macos_package` без входів довіри і `publish` без `signing.json` під `developer-id`, а під явним `adhoc-pre-048` проходить як раніше; preflight читає команду і строк дії з сертифіката, згенерованого openssl.
 
-`tsc -p tsconfig.check.json` чистий. `tsc -p tsconfig.scripts.json` показав три помилки типів у JSDoc нового коду (опція `expectedTeam`, читання `childEnv` як `NodeJS.ProcessEnv`); виправлено в 5fbff4a9, повторний прогін відкладено до звільнення машини від релізу 1.4.1.
+`tsc -p tsconfig.check.json` чистий. `tsc -p tsconfig.scripts.json` показав три помилки типів у JSDoc нового коду (опція `expectedTeam`, читання `childEnv` як `NodeJS.ProcessEnv`); виправлено в 5fbff4a9; повторний прогін 2026-11-10 після релізу 1.4.1 (база `main` f7e33e93) чистий.
+
+## Прогін 2026-11-10, атестація підписаних файлів (після T009)
+
+T009 знайшов єдиний гейт після підпису, який переподпис ламає: `verify-staged-dependencies.mjs` вимагав байтової рівності Chromium Headless Shell із завантаженням Playwright. Ланцюжок тепер друкує `files` (шлях, профіль, SHA-256 до і після підпису кожного Mach-O), аудит звіряє кожен `after` з бандлом, а верифікатор стейджингу приймає переподписаний Chromium лише через `--signing=` (контракт, «Вивід»). Коміт c9823615.
+
+```zsh
+SOTY_TEST_NODE_BINARY=/Applications/Soty.app/Contents/Resources/runtime/node npx vitest run \
+  tests/mac-signing-chain.test.ts tests/macos-signing-summary.test.ts tests/staged-browser-provenance.test.ts \
+  tests/macos-static-qualification.test.ts tests/mac-signing-policy.test.ts tests/release.test.ts \
+  tests/release-runner-step-adapter.test.ts tests/macos-release-evidence.test.ts \
+  --pool=forks --poolOptions.forks.singleFork=true
+```
+
+Результат: 8 файлів, 60 passed, 1 skipped (той самий нотаризований кейс), 16 с; `tsc -p tsconfig.scripts.json` і `tsc -p tsconfig.check.json` чисті. Ланцюжок на фікстурі: три записи `files` за шляхом, кожен `after` дорівнює дайджесту файла в бандлі й відрізняється від `before`, `before` рантайму дорівнює дайджесту `/bin/echo`, з якого фікстуру зібрано. Провенанс Chromium: рівність байтів без підсумку проходить як до 048; переподписані байти без підсумку відхиляються; з підсумком приймаються лише коли `before` дорівнює записаному завантаженню, а `after` — поточним байтам; підміна `before`, `after`, профілю, шляху, застосунку чи відсутність файла відхиляються закритими кодами.

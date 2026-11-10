@@ -71,12 +71,29 @@ zsh scripts/sign-mac-app.sh <App.app>
   "machO": 8,
   "nestedBundles": 1,
   "profiles": { "node": 1, "chromium": 1, "hardened": 5 },
+  "files": [
+    {
+      "path": "Contents/MacOS/SotyAgent",
+      "profile": "launcher",
+      "before": "<sha256>",
+      "after": "<sha256>"
+    },
+    {
+      "path": "Contents/Resources/runtime/node",
+      "profile": "node",
+      "before": "<sha256>",
+      "after": "<sha256>"
+    }
+  ],
   "notarized": false,
-  "stapled": false
+  "stapled": false,
+  "submissionId": null
 }
 ```
 
 `identity` є `adhoc` або `developer-id`. `machO` рахує вільні Mach-O разом із головним виконуваним файлом, тож дорівнює сумі профілів плюс один; бінарі вкладених бандлів входять у `nestedBundles`, не в `machO`. Гейт натомість рахує в `hardenedMachO` кожен Mach-O бандла, включно з бінарями вкладених, тому для Soty 1.3.2 ланцюжок дає 10, а гейт 11; раннер (T013) порівнює не кількості, а вид ідентичності й команду. Після T017 рядок також містить `"submissionId"`: UUID подання нотаризації або `null`, щоб журнал publish тримав квитанцію Apple без повторного звернення. Пакувальники зберігають цей рядок як `signing.json` поруч з артефактом (T008, T010); це «підсумок підпису» зі спеки.
+
+`files` (після T009) — атестація кожного Mach-O, який ланцюжок підписав сам (рівно `machO` записів, відсортованих за шляхом): шлях відносно бандла, профіль (`launcher` для головного виконуваного файла, інакше з таблиці) і SHA-256 файла до зняття чужого підпису (`before`) та після підпису (`after`). Між цими двома дайджестами ланцюжок лише знімає і накладає підпис. Запис закриває єдиний гейт після підпису, який переподпис ламає: `scripts/verify-staged-dependencies.mjs <agent> [--static] --signing=<signing.json>` порівнює `executableSha256` з `browser-runtime.json` (дайджест завантаження Playwright, записаний стейджингом) з `before` відповідного запису профілю `chromium`, а поточні байти Chromium Headless Shell з `after`; без `--signing=` діє рівність байтів, як до 048. Аудит `audit-macos-signing.mjs` додатково перевіряє, що кожен `after` збігається з файлом у бандлі (`MACOS_SIGNING_SUMMARY_FILE_MISMATCH: <шлях>`). Підсумок без `files` (ланцюжок до T009) читається як порожня атестація; `files` з іншою кількістю, повторним шляхом, абсолютним шляхом, невідомим профілем чи не-SHA-256 відкидається (`SIGNING_SUMMARY_FILES_INVALID`).
 
 ## Гейт релізу
 
