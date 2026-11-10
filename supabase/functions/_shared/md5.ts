@@ -8,9 +8,9 @@
  */
 const K = new Uint32Array(64);
 const S = [
-  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9,
-  14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15,
-  21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14,
+  20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6,
+  10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
 ];
 for (let i = 0; i < 64; i += 1) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0;
 
@@ -58,7 +58,8 @@ export class Md5 {
     if (tail.byteLength === 128) this.#block(tail, 64);
     let hex = '';
     for (const word of this.#state) {
-      for (let i = 0; i < 4; i += 1) hex += ((word >>> (8 * i)) & 0xff).toString(16).padStart(2, '0');
+      for (let i = 0; i < 4; i += 1)
+        hex += ((word >>> (8 * i)) & 0xff).toString(16).padStart(2, '0');
     }
     return hex;
   }
@@ -68,7 +69,8 @@ export class Md5 {
     for (let i = 0; i < 16; i += 1) {
       const at = offset + i * 4;
       w[i] =
-        (bytes[at]! | (bytes[at + 1]! << 8) | (bytes[at + 2]! << 16) | (bytes[at + 3]! << 24)) >>> 0;
+        (bytes[at]! | (bytes[at + 1]! << 8) | (bytes[at + 2]! << 16) | (bytes[at + 3]! << 24)) >>>
+        0;
     }
     let [a, b, c, d] = this.#state as unknown as [number, number, number, number];
     for (let i = 0; i < 64; i += 1) {

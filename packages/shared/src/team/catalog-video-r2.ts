@@ -178,7 +178,8 @@ export const isCatalogVideoR2PurgeReason = oneOf(CATALOG_VIDEO_R2_PURGE_REASONS)
 export function parseCatalogVideoR2WorkerRoute(value: unknown): CatalogVideoR2WorkerRoute | null {
   if (!isRecord(value)) return null;
   const route = value.route;
-  return typeof route === 'string' && (CATALOG_VIDEO_R2_WORKER_ROUTES as readonly string[]).includes(route)
+  return typeof route === 'string' &&
+    (CATALOG_VIDEO_R2_WORKER_ROUTES as readonly string[]).includes(route)
     ? (route as CatalogVideoR2WorkerRoute)
     : null;
 }
@@ -224,7 +225,9 @@ export function isCatalogVideoR2State(v: unknown): v is CatalogVideoR2State {
   );
 }
 
-export function isCatalogVideoR2PreferenceReceipt(v: unknown): v is CatalogVideoR2PreferenceReceipt {
+export function isCatalogVideoR2PreferenceReceipt(
+  v: unknown
+): v is CatalogVideoR2PreferenceReceipt {
   return (
     isRecord(v) &&
     typeof v.enabled === 'boolean' &&

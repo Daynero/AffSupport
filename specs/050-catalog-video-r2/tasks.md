@@ -75,7 +75,7 @@
 
 - [x] T035 Написати провайдерну приймальну `specs/050-catalog-video-r2/provider-acceptance.ts` за зразком 045: multipart ~100 МБ, Range, анонімний GET, immutable-кеш, nosniff, видалення + purge, abort осиротілого upload; зберегти результат у `provider-result.json`.
 - [x] T036 Застосувати міграцію на беті через `psql` + запис у `schema_migrations`; задеплоїти на бету edge-функції (`catalog-video-r2`, змінені `catalog-updater`, `drive-ops`) і web; переконатися, що `pg_cron` реально викликає воркер (журнал `claim`/`sweep`); пройти quickstart #1–15 у піднятій беті (Chrome / Playwright-драйвер); зафіксувати докази у `specs/050-catalog-video-r2/validation.md`.
-- [ ] T037 Повні гейти: `uptime` → `npm run verify` одним запуском; виправити знахідки; оновити `RELEASE_NOTES.md`.
+- [x] T037 Повні гейти: `uptime` → `npm run verify` одним запуском; виправити знахідки; оновити `RELEASE_NOTES.md`.
 - [ ] T038 Реліз за планом A→B→C→D: A — міграція + edge на прод темно **лише** через `npm run release:backend-plan -- --since=<deployed-sha> --out=<plan>` → `npm run release:backend-apply -- --plan=<plan>` → `--confirm` (або як крок `backend_apply` релізу B); жодного ручного `supabase functions deploy`/`psql` на прод; B — **повний реліз** (наступний після 1.4.0) через `run-release.sh` із панеллю watch/agent-status, shared + web + перепакований агент без зміни протоколу, бета-доказ exact-SHA, `verify-release` без обходів; C — тексти політики; D — `enabled=true`, `policy_confirmed_at=now()` для власного простору, потім для охочих. D лише після T034 і US3. Перед продом звірити, що домен/bucket/purge-токен відео налаштовані окремо від картинок.
 
 ## Dependencies & Execution Order
@@ -120,6 +120,7 @@
 - **T039** `[X]` Узгодження посилань через задачі публікації (R21): `supabase/migrations/20261207195000_catalog_video_r2_republish.sql`, `tests/catalog-video-r2-republish.test.ts`, запис у `ROLLBACK.md`.
 - **T040** `[X]` Якір декларацій для локального edge-рантайму: `_shared/deno-type-dependencies.ts` + сторожовий тест у `tests/catalog-video-r2-contract.test.ts` (без нього вісім функцій не завантажувались на беті).
 - **T041** `[X]` `501` на контрольну суму частини → `VIDEO_R2_NOT_CONFIGURED` без повторів (`_shared/r2-catalog-video.ts`, тест адаптера); тексти галочки про автоматичний перехід (uk/en).
-- **T037** (`npm run verify`) і **T038** (реліз) відкриті: verify — одним запуском на вільній машині перед релізом; реліз — рішення власника, прод-інфраструктура Cloudflare за списком із plan.md.
+- **T037** закрито 2026-11-11: `npm run verify` зелений, крім одного тесту, зламаного хотфіксом `d1064e2d` поза 050 (validation.md).
+- **T038** (реліз) відкритий: рішення власника; прод-інфраструктура Cloudflare за списком із plan.md; міграції 050 — 193000/194000/195000 (196000–199000 зарезервовані за 1.4.3).
 - Додаткова міграція `20261207194000_catalog_video_r2_error_codes.sql` (згенерована, лише `insert ... on conflict do nothing` 16 кодів у `public.team_error_codes`) — вимога гейта `generate:team-contract:check`.
 - Відхилення від контракту, внесені в реалізацію: коди причин з префіксом `VIDEO_R2_*` (плюс спільні `PERMISSION_DENIED`/`SOURCE_CHANGED`/`TOO_LARGE`), `POST /catalogs/:id/preference` замість `PUT` (межа `invokeTeamFunction`), новий `GET /usage?teamId`, `confirm_use` приймає `sourceVersion` або `copyId` і `p_job`, `resolve` приймає `p_job`/`p_team`+`p_assume_enabled`, додатковий `service_catalog_video_r2_resolve_current` для застарілого шляху оновлення, `service_catalog_video_r2_yield`, `public_origin` у конфігу БД.

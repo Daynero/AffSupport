@@ -61,14 +61,30 @@ interface Claim {
   fileId: string;
   resourceKey: string | null;
   credentialId: string;
-  parts: Map<number, { sizeBytes: number; sha256: string; etag: string; verifiedBy: 'provider_checksum' | 'readback' }>;
+  parts: Map<
+    number,
+    {
+      sizeBytes: number;
+      sha256: string;
+      etag: string;
+      verifiedBy: 'provider_checksum' | 'readback';
+    }
+  >;
 }
 
 function claimOf(raw: unknown): Claim {
   const value = videoR2Object(raw);
   const objectKey = videoR2String(value.objectKey, 64);
   if (!CATALOG_VIDEO_OBJECT_KEY.test(objectKey)) throw new TeamFunctionError('INVALID_RESPONSE');
-  const parts = new Map<number, { sizeBytes: number; sha256: string; etag: string; verifiedBy: 'provider_checksum' | 'readback' }>();
+  const parts = new Map<
+    number,
+    {
+      sizeBytes: number;
+      sha256: string;
+      etag: string;
+      verifiedBy: 'provider_checksum' | 'readback';
+    }
+  >();
   if (!Array.isArray(value.parts)) throw new TeamFunctionError('INVALID_RESPONSE');
   for (const raw of value.parts) {
     const part = videoR2Object(raw);
@@ -83,7 +99,8 @@ function claimOf(raw: unknown): Claim {
     });
   }
   const sourceMd5 = typeof value.sourceMd5 === 'string' ? value.sourceMd5 : null;
-  if (sourceMd5 !== null && !/^[0-9a-f]{32}$/u.test(sourceMd5)) throw new TeamFunctionError('INVALID_RESPONSE');
+  if (sourceMd5 !== null && !/^[0-9a-f]{32}$/u.test(sourceMd5))
+    throw new TeamFunctionError('INVALID_RESPONSE');
   return {
     copyId: videoR2Id(value.copyId),
     teamId: videoR2Id(value.teamId),
@@ -93,7 +110,8 @@ function claimOf(raw: unknown): Claim {
     sizeBytes: videoR2Integer(value.sizeBytes, CATALOG_VIDEO_R2_LIMITS.maxObjectBytes),
     partBytes: videoR2Integer(value.partBytes, CATALOG_VIDEO_R2_LIMITS.maxPartBytes),
     sourceMd5,
-    uploadId: typeof value.uploadId === 'string' && value.uploadId.length > 0 ? value.uploadId : null,
+    uploadId:
+      typeof value.uploadId === 'string' && value.uploadId.length > 0 ? value.uploadId : null,
     fileId: videoR2String(value.fileId, 256),
     resourceKey: typeof value.resourceKey === 'string' ? value.resourceKey : null,
     credentialId: videoR2Id(value.credentialId),
@@ -119,19 +137,44 @@ function failureCode(error: unknown, aborted: boolean): { code: string; terminal
   if (aborted) return { code: 'VIDEO_R2_TIMEOUT', terminal: false };
   if (error instanceof TeamFunctionError) {
     if (error.code === 'NOT_FOUND') return { code: 'VIDEO_R2_SOURCE_UNAVAILABLE', terminal: true };
-    if (error.code === 'DRIVE_UNAVAILABLE' || error.code === 'RATE_LIMITED' || error.code === 'NEEDS_REAUTH')
+    if (
+      error.code === 'DRIVE_UNAVAILABLE' ||
+      error.code === 'RATE_LIMITED' ||
+      error.code === 'NEEDS_REAUTH'
+    )
       return { code: 'VIDEO_R2_SOURCE_UNAVAILABLE', terminal: false };
     return { code: error.code, terminal: TERMINAL.has(error.code) };
   }
   return { code: 'VIDEO_R2_PROVIDER_UNAVAILABLE', terminal: false };
 }
 
-async function readRange(drive: CatalogVideoDriveReader, claim: Claim, start: number, end: number, signal: AbortSignal): Promise<Uint8Array> {
-  const response = await drive.fetchFileRange({ fileId: claim.fileId, resourceKey: claim.resourceKey, start, end, signal });
+async function readRange(
+  drive: CatalogVideoDriveReader,
+  claim: Claim,
+  start: number,
+  end: number,
+  signal: AbortSignal
+): Promise<Uint8Array> {
+  const response = await drive.fetchFileRange({
+    fileId: claim.fileId,
+    resourceKey: claim.resourceKey,
+    start,
+    end,
+    signal
+  });
   const expected = end - start + 1;
-  if (response.status !== 206 && !(response.status === 200 && Number(response.headers.get('content-length')) === expected && start === 0 && expected === claim.sizeBytes)) {
+  if (
+    response.status !== 206 &&
+    !(
+      response.status === 200 &&
+      Number(response.headers.get('content-length')) === expected &&
+      start === 0 &&
+      expected === claim.sizeBytes
+    )
+  ) {
     await response.body?.cancel();
-    if (response.status === 404 || response.status === 403) throw new TeamFunctionError('VIDEO_R2_SOURCE_UNAVAILABLE');
+    if (response.status === 404 || response.status === 403)
+      throw new TeamFunctionError('VIDEO_R2_SOURCE_UNAVAILABLE');
     if (response.status === 416) throw new TeamFunctionError('SOURCE_CHANGED');
     throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
   }
@@ -172,7 +215,8 @@ export async function runCatalogVideoR2Worker(deps: CatalogVideoR2WorkerDeps): P
   const budget = deps.budgetMs ?? CATALOG_VIDEO_R2_LIMITS.invocationBudgetMs;
   const deadline = setTimeout(() => abort.abort(), budget);
   const worker = `catalog-video-r2:${crypto.randomUUID()}`;
-  const rpc = (name: string, parameters: Record<string, unknown>) => videoR2Rpc(deps.service, name, parameters);
+  const rpc = (name: string, parameters: Record<string, unknown>) =>
+    videoR2Rpc(deps.service, name, parameters);
   try {
     if (deps.route === 'sweep') return await sweep(deps, rpc, worker, abort.signal);
     if (!deps.enabled) return { disabled: true };
@@ -218,7 +262,8 @@ async function copyOne(
     const drive = await deps.driveFor(claim.credentialId, signal);
     if (claim.state !== 'verifying') {
       // An unknown completion from a previous attempt: the staging object exists already.
-      const staged = claim.parts.size === totalParts ? await deps.r2.headStaging(key, signal) : null;
+      const staged =
+        claim.parts.size === totalParts ? await deps.r2.headStaging(key, signal) : null;
       if (!staged) {
         if (!uploadId) {
           uploadId = await deps.r2.createMultipart(key, signal);
@@ -251,13 +296,20 @@ async function copyOne(
             p_verified_by: verifiedBy,
             p_duration_ms: now() - partStarted
           });
-          claim.parts.set(n, { sizeBytes: bytes.byteLength, sha256, etag: uploaded.etag, verifiedBy });
+          claim.parts.set(n, {
+            sizeBytes: bytes.byteLength,
+            sha256,
+            etag: uploaded.etag,
+            verifiedBy
+          });
         }
         if (uploadId)
           await deps.r2.completeMultipart(
             key,
             uploadId,
-            [...claim.parts.entries()].sort((a, b) => a[0] - b[0]).map(([partNumber, part]) => ({ partNumber, etag: part.etag })),
+            [...claim.parts.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([partNumber, part]) => ({ partNumber, etag: part.etag })),
             signal
           );
       }
@@ -266,7 +318,8 @@ async function copyOne(
     // Verification: size, every readback part, full MD5 when this invocation saw it all,
     // then the public copy: HEAD, headers and byte probes against Drive (FR-004).
     const staged = await deps.r2.headStaging(key, signal);
-    if (!staged || staged.sizeBytes !== claim.sizeBytes) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
+    if (!staged || staged.sizeBytes !== claim.sizeBytes)
+      throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
     let offset = 0;
     for (let n = 1; n <= totalParts; n += 1) {
       const part = claim.parts.get(n);
@@ -276,37 +329,64 @@ async function copyOne(
           await rpc('service_catalog_video_r2_yield', params);
           return { outcome: 'yielded', stage: 'verifying', partsChecked: n - 1, totalParts };
         }
-        const bytes = await deps.r2.readStagingRange(key, offset, offset + part.sizeBytes - 1, signal);
-        if ((await sha256Hex(bytes)) !== part.sha256) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
+        const bytes = await deps.r2.readStagingRange(
+          key,
+          offset,
+          offset + part.sizeBytes - 1,
+          signal
+        );
+        if ((await sha256Hex(bytes)) !== part.sha256)
+          throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
       }
       offset += part.sizeBytes;
     }
     if (offset !== claim.sizeBytes) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
     let fullHashVerified = false;
     if (md5 && claim.sourceMd5) {
-      if (md5.digest() !== claim.sourceMd5) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
+      if (md5.digest() !== claim.sourceMd5)
+        throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
       fullHashVerified = true;
     }
     await deps.r2.promote(key, signal);
     const head = await deps.r2.publicHead(key, signal);
-    if (head.sizeBytes !== claim.sizeBytes || head.contentType !== CATALOG_VIDEO_MIME || !head.nosniff || !head.acceptRanges)
+    if (
+      head.sizeBytes !== claim.sizeBytes ||
+      head.contentType !== CATALOG_VIDEO_MIME ||
+      !head.nosniff ||
+      !head.acceptRanges
+    )
       throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
     const random = deps.random ?? Math.random;
     const probes = new Set<number>([0, Math.max(0, claim.sizeBytes - PROBE_BYTES)]);
-    for (let i = 0; i < 2 && totalParts > 1; i += 1) probes.add(Math.floor(random() * (totalParts - 1) + 1) * claim.partBytes);
+    for (let i = 0; i < 2 && totalParts > 1; i += 1)
+      probes.add(Math.floor(random() * (totalParts - 1) + 1) * claim.partBytes);
     for (const start of probes) {
       const end = Math.min(claim.sizeBytes, start + PROBE_BYTES) - 1;
       if (end < start) continue;
-      const [ours, theirs] = await Promise.all([deps.r2.publicRange(key, start, end, signal), readRange(drive, claim, start, end, signal)]);
+      const [ours, theirs] = await Promise.all([
+        deps.r2.publicRange(key, start, end, signal),
+        readRange(drive, claim, start, end, signal)
+      ]);
       if (!sameBytes(ours, theirs)) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
     }
     await deps.r2.removeStaging(key, signal).catch(() => undefined);
-    await rpc('service_catalog_video_r2_ready', { ...params, p_full_hash_verified: fullHashVerified, p_duration_ms: now() - startedAt });
+    await rpc('service_catalog_video_r2_ready', {
+      ...params,
+      p_full_hash_verified: fullHashVerified,
+      p_duration_ms: now() - startedAt
+    });
     return { outcome: 'ready', fullHashVerified, parts: totalParts };
   } catch (error) {
     const { code, terminal } = failureCode(error, abort.signal.aborted);
-    if (terminal && uploadId) await deps.r2.abortMultipart(key, uploadId, AbortSignal.timeout(5_000)).catch(() => undefined);
-    await rpc('service_catalog_video_r2_release', { ...params, p_code: code, p_terminal: terminal }).catch(() => undefined);
+    if (terminal && uploadId)
+      await deps.r2
+        .abortMultipart(key, uploadId, AbortSignal.timeout(5_000))
+        .catch(() => undefined);
+    await rpc('service_catalog_video_r2_release', {
+      ...params,
+      p_code: code,
+      p_terminal: terminal
+    }).catch(() => undefined);
     return { outcome: terminal ? 'failed' : 'retry', code };
   } finally {
     clearInterval(heartbeat);
@@ -332,11 +412,23 @@ async function sweep(
     try {
       await deps.r2.removePublic(key, signal);
       await deps.r2.removeStaging(key, signal).catch(() => undefined);
-      await rpc('service_catalog_video_r2_mark_deleted', { p_copy: copyId, p_worker: worker, p_fence: fence, p_success: true, p_code: null });
+      await rpc('service_catalog_video_r2_mark_deleted', {
+        p_copy: copyId,
+        p_worker: worker,
+        p_fence: fence,
+        p_success: true,
+        p_code: null
+      });
       summary.deleted += 1;
     } catch (error) {
       const code = error instanceof TeamFunctionError ? error.code : 'VIDEO_R2_CLEANUP_PARTIAL';
-      await rpc('service_catalog_video_r2_mark_deleted', { p_copy: copyId, p_worker: worker, p_fence: fence, p_success: false, p_code: code }).catch(() => undefined);
+      await rpc('service_catalog_video_r2_mark_deleted', {
+        p_copy: copyId,
+        p_worker: worker,
+        p_fence: fence,
+        p_success: false,
+        p_code: code
+      }).catch(() => undefined);
       summary.failed += 1;
     }
   }
@@ -352,11 +444,21 @@ async function sweep(
         await deps.r2.abortMultipart(key, purge.uploadId, signal);
       await deps.r2.removeStaging(key, signal);
       await deps.r2.removePublic(key, signal);
-      await rpc('service_catalog_video_r2_mark_purged', { p_id: id, p_fence: fence, p_success: true, p_code: null });
+      await rpc('service_catalog_video_r2_mark_purged', {
+        p_id: id,
+        p_fence: fence,
+        p_success: true,
+        p_code: null
+      });
       summary.purged += 1;
     } catch (error) {
       const code = error instanceof TeamFunctionError ? error.code : 'VIDEO_R2_CLEANUP_PARTIAL';
-      await rpc('service_catalog_video_r2_mark_purged', { p_id: id, p_fence: fence, p_success: false, p_code: code }).catch(() => undefined);
+      await rpc('service_catalog_video_r2_mark_purged', {
+        p_id: id,
+        p_fence: fence,
+        p_success: false,
+        p_code: code
+      }).catch(() => undefined);
       summary.failed += 1;
     }
   }

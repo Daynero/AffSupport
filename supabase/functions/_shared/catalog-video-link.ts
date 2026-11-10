@@ -27,8 +27,7 @@ export interface CatalogVideoLinkSource {
 }
 
 export type CatalogVideoLink =
-  | { kind: 'drive'; url: string }
-  | { kind: 'r2'; url: string; copyId: string };
+  { kind: 'drive'; url: string } | { kind: 'r2'; url: string; copyId: string };
 
 /**
  * Who is asking: an existing catalog, a publication job (the catalog is derived
@@ -60,7 +59,9 @@ export interface CatalogVideoLinkDeps {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
-export function createCatalogVideoLinkResolver(deps: CatalogVideoLinkDeps): CatalogVideoLinkResolver {
+export function createCatalogVideoLinkResolver(
+  deps: CatalogVideoLinkDeps
+): CatalogVideoLinkResolver {
   return {
     async resolve(input) {
       const scope = input.scope;
@@ -72,7 +73,8 @@ export function createCatalogVideoLinkResolver(deps: CatalogVideoLinkDeps): Cata
             : scope.teamId;
       if (!UUID.test(scopeId) || !UUID.test(input.source.materialId))
         throw new TeamFunctionError('INVALID_INPUT');
-      if ('teamId' in scope && !scope.assumeEnabled) return { kind: 'drive', url: await input.drive() };
+      if ('teamId' in scope && !scope.assumeEnabled)
+        return { kind: 'drive', url: await input.drive() };
       let decision: unknown;
       try {
         const { data, error } = await deps.service.rpc('service_catalog_video_r2_resolve', {
@@ -91,11 +93,14 @@ export function createCatalogVideoLinkResolver(deps: CatalogVideoLinkDeps): Cata
       } catch (error) {
         deps.log?.(
           '[catalog-video-link] resolve failed, using Drive',
-          error instanceof Error ? error.message.match(/[A-Z][A-Z0-9_]+/u)?.[0] ?? 'UNKNOWN' : 'UNKNOWN'
+          error instanceof Error
+            ? (error.message.match(/[A-Z][A-Z0-9_]+/u)?.[0] ?? 'UNKNOWN')
+            : 'UNKNOWN'
         );
         return { kind: 'drive', url: await input.drive() };
       }
-      if (!isRecord(decision) || decision.enabled !== true) return { kind: 'drive', url: await input.drive() };
+      if (!isRecord(decision) || decision.enabled !== true)
+        return { kind: 'drive', url: await input.drive() };
       if (
         typeof decision.url === 'string' &&
         typeof decision.copyId === 'string' &&

@@ -173,7 +173,17 @@ describe('catalog video R2 diagnostics', () => {
 
   it('serves the CLI command with paging and refuses anything but ids', async () => {
     const page = await executeCommand(
-      parseArgs(['catalog-video-r2', team, '--period', 'all', '--as-of', ASOF, '--limit', '3', '--json'])
+      parseArgs([
+        'catalog-video-r2',
+        team,
+        '--period',
+        'all',
+        '--as-of',
+        ASOF,
+        '--limit',
+        '3',
+        '--json'
+      ])
     );
     const data = page.data as Awaited<ReturnType<typeof getCatalogVideoR2Diagnosis>>;
     expect(data.evidence).toHaveLength(3);

@@ -63,7 +63,9 @@ export function CatalogVideoR2UsageSection({
     return null;
   const estimate = estimateCatalogVideoR2MonthlyUsd(usage.usedBytes);
   const money = (value: number) =>
-    new Intl.NumberFormat(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    new Intl.NumberFormat(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+      value
+    );
   return (
     <SettingsSection
       icon={Film}

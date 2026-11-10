@@ -64,7 +64,10 @@ const body = (overrides: Record<string, unknown> = {}) => ({
 
 function setup(options: { assert?: 'ok' | 'denied' | 'disabled'; linkFails?: boolean } = {}) {
   const order: string[] = [];
-  const anyone = new Map<string, Array<{ id: string; role: string }>>([['drive-video', []], ['drive-sheet', []]]);
+  const anyone = new Map<string, Array<{ id: string; role: string }>>([
+    ['drive-video', []],
+    ['drive-sheet', []]
+  ]);
   const drive = {
     listAnyonePermissions: vi.fn(async (fileId: string) => anyone.get(fileId) ?? []),
     createAnyoneReaderPermission: vi.fn(async (fileId: string) => {
@@ -73,14 +76,36 @@ function setup(options: { assert?: 'ok' | 'denied' | 'disabled'; linkFails?: boo
     }),
     createConvertedFile: vi.fn(async (input: { name: string }) => {
       order.push('create-file');
-      return metadata({ id: 'drive-sheet', name: input.name, mimeType: 'application/vnd.google-apps.spreadsheet', webViewLink: 'https://docs.google.com/spreadsheets/d/drive-sheet/edit', size: 4096 });
+      return metadata({
+        id: 'drive-sheet',
+        name: input.name,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        webViewLink: 'https://docs.google.com/spreadsheets/d/drive-sheet/edit',
+        size: 4096
+      });
     }),
     updateFileMetadata: vi.fn(async () => metadata())
   };
   const deps: ProductCatalogDeps = {
-    loadVideo: vi.fn(async () => ({ id: VIDEO, name: 'clip.mp4', category: 'video', driveFileId: 'drive-video', resourceKey: null, parentFolderId: 'folder', credentialId: 'cred' })),
-    resolveRestitchedVideo: vi.fn(async () => { throw new Error('unused'); }),
-    readSettings: vi.fn(async () => ({ title: 'Polo', description: 'Knit', imageLink: 'https://img.example.test/a.png', priceMin: 10, priceMax: 10 })),
+    loadVideo: vi.fn(async () => ({
+      id: VIDEO,
+      name: 'clip.mp4',
+      category: 'video',
+      driveFileId: 'drive-video',
+      resourceKey: null,
+      parentFolderId: 'folder',
+      credentialId: 'cred'
+    })),
+    resolveRestitchedVideo: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    readSettings: vi.fn(async () => ({
+      title: 'Polo',
+      description: 'Knit',
+      imageLink: 'https://img.example.test/a.png',
+      priceMin: 10,
+      priceMax: 10
+    })),
     drawTexts: vi.fn(async () => []),
     drawImages: vi.fn(async () => []),
     readLiveCatalogs: vi.fn(async () => []),
@@ -89,10 +114,17 @@ function setup(options: { assert?: 'ok' | 'denied' | 'disabled'; linkFails?: boo
     proveVideo: vi.fn(async () => metadata()),
     destination: vi.fn(async () => {
       order.push('destination');
-      return { materialId: null, live: metadata({ id: 'folder', mimeType: 'application/vnd.google-apps.folder' }) };
+      return {
+        materialId: null,
+        live: metadata({ id: 'folder', mimeType: 'application/vnd.google-apps.folder' })
+      };
     }),
     planName: vi.fn(async ({ name }: { name: string }) => ({ name, reservationKey: name })),
-    startOperation: vi.fn(async () => ({ operationId: 'op', state: 'pending' as const, reused: false })),
+    startOperation: vi.fn(async () => ({
+      operationId: 'op',
+      state: 'pending' as const,
+      reused: false
+    })),
     bindIntent: vi.fn(async () => undefined),
     markRunning: vi.fn(async () => undefined),
     failOperation: vi.fn(async () => undefined),
@@ -118,9 +150,15 @@ function setup(options: { assert?: 'ok' | 'denied' | 'disabled'; linkFails?: boo
 describe('catalog video R2 option at creation', () => {
   it('parses the option as an optional boolean and leaves the old request untouched', () => {
     expect(parseCreateProductCatalogRequest(body())).not.toHaveProperty('copyVideoToR2');
-    expect(parseCreateProductCatalogRequest(body({ copyVideoToR2: false }))).not.toHaveProperty('copyVideoToR2');
-    expect(parseCreateProductCatalogRequest(body({ copyVideoToR2: true })).copyVideoToR2).toBe(true);
-    expect(() => parseCreateProductCatalogRequest(body({ copyVideoToR2: 'yes' }))).toThrow(/INVALID_INPUT/u);
+    expect(parseCreateProductCatalogRequest(body({ copyVideoToR2: false }))).not.toHaveProperty(
+      'copyVideoToR2'
+    );
+    expect(parseCreateProductCatalogRequest(body({ copyVideoToR2: true })).copyVideoToR2).toBe(
+      true
+    );
+    expect(() => parseCreateProductCatalogRequest(body({ copyVideoToR2: 'yes' }))).toThrow(
+      /INVALID_INPUT/u
+    );
   });
 
   it('checks the option before any provider side effect and records it only after registration', async () => {
@@ -128,16 +166,24 @@ describe('catalog video R2 option at creation', () => {
     const result = await createProductCatalog(f.deps, body({ copyVideoToR2: true }), ACTOR);
     expect(result.outcome).toBe('created');
     expect(f.order).toEqual(['assert-r2', 'destination', 'create-file', 'link', 'apply-r2']);
-    expect(f.deps.applyVideoR2Option).toHaveBeenCalledWith({ teamId: TEAM, actorId: ACTOR, catalogMaterialId: NEW_SHEET });
+    expect(f.deps.applyVideoR2Option).toHaveBeenCalledWith({
+      teamId: TEAM,
+      actorId: ACTOR,
+      catalogMaterialId: NEW_SHEET
+    });
   });
 
   it('refuses the request without the catalog settings permission or with the feature unavailable, leaving nothing behind', async () => {
     const denied = setup({ assert: 'denied' });
-    await expect(createProductCatalog(denied.deps, body({ copyVideoToR2: true }), ACTOR)).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    await expect(
+      createProductCatalog(denied.deps, body({ copyVideoToR2: true }), ACTOR)
+    ).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
     expect(denied.order).toEqual(['assert-r2']);
     expect(denied.deps.destination).not.toHaveBeenCalled();
     const pending = setup({ assert: 'disabled' });
-    await expect(createProductCatalog(pending.deps, body({ copyVideoToR2: true }), ACTOR)).rejects.toMatchObject({ code: 'VIDEO_R2_POLICY_PENDING' });
+    await expect(
+      createProductCatalog(pending.deps, body({ copyVideoToR2: true }), ACTOR)
+    ).rejects.toMatchObject({ code: 'VIDEO_R2_POLICY_PENDING' });
     expect(pending.deps.startOperation).not.toHaveBeenCalled();
   });
 
@@ -147,7 +193,9 @@ describe('catalog video R2 option at creation', () => {
     expect(plain.deps.assertVideoR2Option).not.toHaveBeenCalled();
     expect(plain.deps.applyVideoR2Option).not.toHaveBeenCalled();
     const failed = setup({ assert: 'ok', linkFails: true });
-    await expect(createProductCatalog(failed.deps, body({ copyVideoToR2: true }), ACTOR)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      createProductCatalog(failed.deps, body({ copyVideoToR2: true }), ACTOR)
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     expect(failed.deps.applyVideoR2Option).not.toHaveBeenCalled();
   });
 });

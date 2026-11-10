@@ -145,7 +145,11 @@ export interface ProductCatalogDeps {
   /** 050: refuse `copyVideoToR2` before any side effect unless the feature is available and the actor may manage catalog settings. */
   assertVideoR2Option?(teamId: string, actorId: string): Promise<void>;
   /** 050: record the option on the registered catalog and queue its first copy. */
-  applyVideoR2Option?(input: { teamId: string; actorId: string; catalogMaterialId: string }): Promise<void>;
+  applyVideoR2Option?(input: {
+    teamId: string;
+    actorId: string;
+    catalogMaterialId: string;
+  }): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
   /** A completed re-stitch of this video by this member, verified before the sheet is made. */
@@ -753,7 +757,11 @@ export async function createProductCatalog(
         await trashQuietly(deps, drive, retired, 'retired catalog');
       }
       if (request.copyVideoToR2)
-        await deps.applyVideoR2Option?.({ teamId, actorId, catalogMaterialId: committed.materialId });
+        await deps.applyVideoR2Option?.({
+          teamId,
+          actorId,
+          catalogMaterialId: committed.materialId
+        });
       return {
         outcome: replaces ? 'recreated' : 'created',
         catalog: {

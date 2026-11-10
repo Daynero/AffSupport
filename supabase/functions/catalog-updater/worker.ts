@@ -134,7 +134,11 @@ export interface CatalogUpdaterDeps {
   resolveVideoLink?(
     catalogId: string,
     sourceMaterialId: string | null
-  ): Promise<{ kind: 'r2'; url: string; sourceMaterialId: string; sourceVersion: string } | { kind: 'drive' } | null>;
+  ): Promise<
+    | { kind: 'r2'; url: string; sourceMaterialId: string; sourceVersion: string }
+    | { kind: 'drive' }
+    | null
+  >;
   /** 050: after a confirmed write, which copies this catalog now points at (set-replace). */
   confirmVideoLink?(
     catalogId: string,
@@ -654,7 +658,9 @@ async function updateOne(
     // current_video_link and the spare's shared_link stay Drive identities.
     const videoR2 = nonVideo
       ? null
-      : await deps.resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null).catch(() => null);
+      : await deps
+          .resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null)
+          .catch(() => null);
     await deps.progress(item.catalogId, 'building').catch(() => false);
     const builtRows = rebuildCatalogRows({
       record: {
@@ -772,7 +778,12 @@ async function updateOne(
             item.catalogId,
             videoR2.kind,
             videoR2.kind === 'r2'
-              ? [{ sourceMaterialId: videoR2.sourceMaterialId, sourceVersion: videoR2.sourceVersion }]
+              ? [
+                  {
+                    sourceMaterialId: videoR2.sourceMaterialId,
+                    sourceVersion: videoR2.sourceVersion
+                  }
+                ]
               : []
           )
           .catch(() => undefined);

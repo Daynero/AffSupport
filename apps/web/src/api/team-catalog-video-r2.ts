@@ -16,8 +16,14 @@ import { invokeTeamFunction } from './team';
  * narrowed by the shared guards before a component sees it.
  */
 export interface CatalogVideoR2Client {
-  availability(teamId: string, options?: { signal?: AbortSignal }): Promise<CatalogVideoR2Availability>;
-  readState(catalogMaterialId: string, options?: { signal?: AbortSignal }): Promise<CatalogVideoR2State>;
+  availability(
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogVideoR2Availability>;
+  readState(
+    catalogMaterialId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogVideoR2State>;
   setPreference(
     catalogMaterialId: string,
     input: { enabled: boolean }

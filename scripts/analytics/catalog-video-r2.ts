@@ -109,7 +109,12 @@ export async function getCatalogVideoR2Diagnosis(
     last_proven_stage: null,
     terminal: null,
     findings: [],
-    coverage: { schema_version: null, installed_at: null, capture_enabled: null, missing_stages: [...CATALOG_VIDEO_R2_EXPECTED_STAGES] },
+    coverage: {
+      schema_version: null,
+      installed_at: null,
+      capture_enabled: null,
+      missing_stages: [...CATALOG_VIDEO_R2_EXPECTED_STAGES]
+    },
     proof: { full_hash_verified: null, part_verification: [] },
     observed_copies: {
       status: period.as_of ? 'historical_unknown' : 'not_observed',
@@ -132,10 +137,17 @@ export async function getCatalogVideoR2Diagnosis(
   if (!schema.tables.analytics_catalog_video_r2_journal)
     return {
       ...base,
-      blind_spots: ['Catalog-video R2 diagnostic projection is unavailable or not readable by this role.', ...base.blind_spots]
+      blind_spots: [
+        'Catalog-video R2 diagnostic projection is unavailable or not readable by this role.',
+        ...base.blind_spots
+      ]
     };
   if (id === null && !options.userId)
-    return { ...base, supported: true, blind_spots: ['No authenticated subject for catalog video copies.', ...base.blind_spots] };
+    return {
+      ...base,
+      supported: true,
+      blind_spots: ['No authenticated subject for catalog video copies.', ...base.blind_spots]
+    };
   const limit = Math.min(500, Math.max(1, options.limit ?? 100));
   const coverage = schema.tables.analytics_catalog_video_r2_coverage
     ? await query<{ installed_at: string; schema_version: number; capture_enabled: boolean }>(
@@ -168,7 +180,9 @@ export async function getCatalogVideoR2Diagnosis(
       STAGES.includes(row.stage) &&
       (row.code === null || CODES.includes(row.code)) &&
       (row.link_kind === null || row.link_kind === 'drive' || row.link_kind === 'r2') &&
-      (row.part_verification === null || row.part_verification === 'provider_checksum' || row.part_verification === 'readback') &&
+      (row.part_verification === null ||
+        row.part_verification === 'provider_checksum' ||
+        row.part_verification === 'readback') &&
       timestamp(row.occurred_at) &&
       timestamp(row.received_at)
   );
@@ -177,7 +191,10 @@ export async function getCatalogVideoR2Diagnosis(
   const terminalRow = evidence.find(row => TERMINAL.has(row.stage));
   const meta = coverage[0];
   const capture =
-    meta && timestamp(meta.installed_at) && Number.isSafeInteger(meta.schema_version) && typeof meta.capture_enabled === 'boolean'
+    meta &&
+    timestamp(meta.installed_at) &&
+    Number.isSafeInteger(meta.schema_version) &&
+    typeof meta.capture_enabled === 'boolean'
       ? meta
       : null;
   const findings = evidence
@@ -191,9 +208,14 @@ export async function getCatalogVideoR2Diagnosis(
   const ready = evidence.find(row => row.stage === 'ready');
   const proof = {
     full_hash_verified: ready?.full_hash_verified ?? null,
-    part_verification: [...new Set(evidence.flatMap(row => (row.part_verification ? [row.part_verification] : [])))]
+    part_verification: [
+      ...new Set(evidence.flatMap(row => (row.part_verification ? [row.part_verification] : [])))
+    ]
   };
-  const teams = [...new Set(evidence.flatMap(row => (row.team_id ? [row.team_id] : [])))].slice(0, 50);
+  const teams = [...new Set(evidence.flatMap(row => (row.team_id ? [row.team_id] : [])))].slice(
+    0,
+    50
+  );
   let observed = base.observed_copies;
   if (!period.as_of && teams.length && schema.tables.analytics_catalog_video_r2_copies) {
     const totals = await query<Record<string, unknown>>(
@@ -204,7 +226,10 @@ export async function getCatalogVideoR2Diagnosis(
       [teams]
     );
     const row = totals[0];
-    if (row && Object.values(row).every(value => Number.isSafeInteger(Number(value)) && Number(value) >= 0))
+    if (
+      row &&
+      Object.values(row).every(value => Number.isSafeInteger(Number(value)) && Number(value) >= 0)
+    )
       observed = {
         ...observed,
         status: 'current_observation',
@@ -220,7 +245,9 @@ export async function getCatalogVideoR2Diagnosis(
     supported: true,
     evidence,
     last_proven_stage: latest?.stage ?? null,
-    terminal: terminalRow ? { stage: terminalRow.stage, at: terminalRow.occurred_at, code: terminalRow.code } : null,
+    terminal: terminalRow
+      ? { stage: terminalRow.stage, at: terminalRow.occurred_at, code: terminalRow.code }
+      : null,
     findings,
     coverage: {
       schema_version: capture?.schema_version ?? null,
@@ -230,12 +257,15 @@ export async function getCatalogVideoR2Diagnosis(
     },
     proof,
     observed_copies: observed,
-    next_cursor: rows.length > limit && page.length ? String(page[page.length - 1]!.evidence_id) : null,
+    next_cursor:
+      rows.length > limit && page.length ? String(page[page.length - 1]!.evidence_id) : null,
     truncated: rows.length > limit,
     omitted_malformed: page.length - evidence.length,
     blind_spots: [
       ...(proof.full_hash_verified === false
-        ? ['The last ready copy was verified by parts and probes only; the full source checksum was not compared.']
+        ? [
+            'The last ready copy was verified by parts and probes only; the full source checksum was not compared.'
+          ]
         : []),
       ...base.blind_spots
     ]

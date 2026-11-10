@@ -188,7 +188,8 @@ export function createTargetedCatalogPublicationIo(
           const permissions = await drive.listAnyonePermissions(fileId);
           if (permissions.length === 0) {
             if (!allowSharing) throw new TeamFunctionError('PERMISSION_DENIED');
-            if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+            if (live.capabilities.canShare !== true)
+              throw new TeamFunctionError('SHARE_NOT_ALLOWED');
             await ensureAnyoneReader(drive, fileId, permissions);
           }
           return videoShareLink(live.id, live.resourceKey);

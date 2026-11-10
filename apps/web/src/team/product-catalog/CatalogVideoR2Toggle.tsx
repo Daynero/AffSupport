@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import type {
-  CatalogVideoR2Availability,
-  CatalogVideoR2State
-} from '@video-compressor/shared';
+import type { CatalogVideoR2Availability, CatalogVideoR2State } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import { Badge, Checkbox } from '../../components/ui/index';
@@ -41,8 +38,10 @@ export type CatalogVideoR2ToggleProps =
 
 function statusOf(state: CatalogVideoR2State, t: (key: never) => string) {
   const label = t as unknown as (key: string) => string;
-  if (state.link === 'r2') return { color: 'success' as const, text: label('catalogVideoR2StatusR2') };
-  if (!state.enabled) return { color: 'neutral' as const, text: label('catalogVideoR2StatusDrive') };
+  if (state.link === 'r2')
+    return { color: 'success' as const, text: label('catalogVideoR2StatusR2') };
+  if (!state.enabled)
+    return { color: 'neutral' as const, text: label('catalogVideoR2StatusDrive') };
   if (state.copy && state.copy.state !== 'ready' && state.copy.state !== 'failed' && !state.reason)
     return { color: 'info' as const, text: label('catalogVideoR2StatusPending') };
   return { color: 'warning' as const, text: label('catalogVideoR2StatusFallback') };
@@ -68,7 +67,14 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
     void client
       .availability(props.teamId, { signal: controller.signal })
       .then(value => setAvailability(value))
-      .catch(() => setAvailability({ available: false, reason: 'VIDEO_R2_NOT_CONFIGURED', canManage: false, contractVersion: 1 }));
+      .catch(() =>
+        setAvailability({
+          available: false,
+          reason: 'VIDEO_R2_NOT_CONFIGURED',
+          canManage: false,
+          contractVersion: 1
+        })
+      );
     return () => controller.abort();
   }, [client, props.teamId]);
 
@@ -116,7 +122,9 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
     setSaved(false);
     try {
       const receipt = await client.setPreference(catalogId, { enabled: checked });
-      setState(current => (current ? { ...current, enabled: receipt.enabled, revision: receipt.revision } : current));
+      setState(current =>
+        current ? { ...current, enabled: receipt.enabled, revision: receipt.revision } : current
+      );
       setSaved(true);
       (props as Extract<CatalogVideoR2ToggleProps, { mode: 'catalog' }>).onSaved?.(receipt.enabled);
     } catch (cause) {

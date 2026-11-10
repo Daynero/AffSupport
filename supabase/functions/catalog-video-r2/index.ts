@@ -57,7 +57,10 @@ Deno.serve(async request => {
     const secretAccessKey = env('R2_CATALOG_VIDEO_SECRET_ACCESS_KEY');
     const r2 =
       configured && accessKeyId && secretAccessKey
-        ? new CatalogVideoR2(configured, new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' }))
+        ? new CatalogVideoR2(
+            configured,
+            new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })
+          )
         : null;
     const enabled = env('CATALOG_VIDEOS_ENABLED') === 'true' && r2 !== null;
     const tokens = new Map<string, Promise<string>>();
@@ -105,7 +108,9 @@ Deno.serve(async request => {
     });
   } catch (error) {
     return errorResponse(
-      error instanceof TeamFunctionError ? error : new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true })
+      error instanceof TeamFunctionError
+        ? error
+        : new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true })
     );
   }
 });

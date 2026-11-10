@@ -45,9 +45,11 @@ export async function videoR2Rpc(
     throw new TeamFunctionError(code ?? 'VIDEO_R2_PROVIDER_UNAVAILABLE', {
       retryable:
         !code ||
-        ['VIDEO_R2_PROVIDER_UNAVAILABLE', 'VIDEO_R2_PROVIDER_RATE_LIMITED', 'LEASE_MISMATCH'].includes(
-          code
-        )
+        [
+          'VIDEO_R2_PROVIDER_UNAVAILABLE',
+          'VIDEO_R2_PROVIDER_RATE_LIMITED',
+          'LEASE_MISMATCH'
+        ].includes(code)
     });
   }
   return data;

@@ -8,7 +8,12 @@ import {
 } from '../../../packages/shared/dist/team/catalog-video-r2.js';
 import { corsHeadersForRequest } from '../_shared/cors.ts';
 import { errorResponse, successResponse, TeamFunctionError } from '../_shared/errors.ts';
-import { videoR2Id, videoR2Object, videoR2Rpc, type CatalogVideoR2Rpc } from '../_shared/catalog-video-r2.ts';
+import {
+  videoR2Id,
+  videoR2Object,
+  videoR2Rpc,
+  type CatalogVideoR2Rpc
+} from '../_shared/catalog-video-r2.ts';
 import { isRecord } from '../_shared/validation.ts';
 
 export interface CatalogVideoR2HandlerDeps {
@@ -38,7 +43,9 @@ async function bodyOf(request: Request): Promise<Record<string, unknown>> {
     if (!offset) return {};
     let value: unknown;
     try {
-      value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, offset)));
+      value = JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, offset))
+      );
     } catch {
       throw new TeamFunctionError('INVALID_INPUT');
     }
@@ -52,10 +59,15 @@ async function bodyOf(request: Request): Promise<Record<string, unknown>> {
   }
 }
 
-export async function handleCatalogVideoR2(request: Request, deps: CatalogVideoR2HandlerDeps): Promise<Response> {
+export async function handleCatalogVideoR2(
+  request: Request,
+  deps: CatalogVideoR2HandlerDeps
+): Promise<Response> {
   const cors = corsHeadersForRequest(request, deps.siteUrl);
-  if (request.method === 'OPTIONS') return new Response(null, { status: cors ? 204 : 403, headers: cors ?? {} });
-  if (request.headers.has('origin') && !cors) return errorResponse(new TeamFunctionError('PERMISSION_DENIED'));
+  if (request.method === 'OPTIONS')
+    return new Response(null, { status: cors ? 204 : 403, headers: cors ?? {} });
+  if (request.headers.has('origin') && !cors)
+    return errorResponse(new TeamFunctionError('PERMISSION_DENIED'));
   const headers = cors ?? {};
   try {
     const url = new URL(request.url);
@@ -68,16 +80,27 @@ export async function handleCatalogVideoR2(request: Request, deps: CatalogVideoR
       return successResponse(await deps.runWorker(route), headers);
     }
     const actor = await deps.authorize(request);
-    const rpc = (name: string, parameters: Record<string, unknown>) => videoR2Rpc(deps.service, name, parameters);
+    const rpc = (name: string, parameters: Record<string, unknown>) =>
+      videoR2Rpc(deps.service, name, parameters);
     if (request.method === 'GET' && path === '/availability') {
       const teamId = videoR2Id(url.searchParams.get('teamId'));
-      const value = videoR2Object(await rpc('service_catalog_video_r2_availability', { p_actor: actor, p_team: teamId }));
+      const value = videoR2Object(
+        await rpc('service_catalog_video_r2_availability', { p_actor: actor, p_team: teamId })
+      );
       const canManage = value.canManage === true;
       // The database decides policy and enablement; the runtime decides whether the
       // bucket it would write to is the one the database hands out links for.
-      const runtimeOk = deps.enabled && deps.configuredOrigin !== null && (value.available !== true || value.publicOrigin === deps.configuredOrigin);
+      const runtimeOk =
+        deps.enabled &&
+        deps.configuredOrigin !== null &&
+        (value.available !== true || value.publicOrigin === deps.configuredOrigin);
       const answer = runtimeOk
-        ? { available: value.available === true, ...(value.available === true ? {} : { reason: value.reason }), canManage, contractVersion: 1 }
+        ? {
+            available: value.available === true,
+            ...(value.available === true ? {} : { reason: value.reason }),
+            canManage,
+            contractVersion: 1
+          }
         : { available: false, reason: 'VIDEO_R2_NOT_CONFIGURED', canManage, contractVersion: 1 };
       if (!isCatalogVideoR2Availability(answer)) throw new TeamFunctionError('INVALID_RESPONSE');
       return successResponse(answer, headers);
@@ -93,7 +116,10 @@ export async function handleCatalogVideoR2(request: Request, deps: CatalogVideoR
     const catalogId = videoR2Id(route[1]);
     if (route[2] === 'state') {
       if (request.method !== 'GET') throw new TeamFunctionError('INVALID_INPUT');
-      const value = await rpc('service_catalog_video_r2_state', { p_actor: actor, p_catalog: catalogId });
+      const value = await rpc('service_catalog_video_r2_state', {
+        p_actor: actor,
+        p_catalog: catalogId
+      });
       if (!isCatalogVideoR2State(value)) throw new TeamFunctionError('INVALID_RESPONSE');
       return successResponse(value, headers);
     }
@@ -102,12 +128,18 @@ export async function handleCatalogVideoR2(request: Request, deps: CatalogVideoR
     if (typeof body.enabled !== 'boolean') throw new TeamFunctionError('INVALID_INPUT');
     if (body.enabled && (!deps.enabled || deps.configuredOrigin === null))
       throw new TeamFunctionError('VIDEO_R2_NOT_CONFIGURED');
-    const value = await rpc('service_catalog_video_r2_set_preference', { p_actor: actor, p_catalog: catalogId, p_enabled: body.enabled });
+    const value = await rpc('service_catalog_video_r2_set_preference', {
+      p_actor: actor,
+      p_catalog: catalogId,
+      p_enabled: body.enabled
+    });
     if (!isCatalogVideoR2PreferenceReceipt(value)) throw new TeamFunctionError('INVALID_RESPONSE');
     return successResponse(value, headers);
   } catch (error) {
     return errorResponse(
-      error instanceof TeamFunctionError ? error : new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true }),
+      error instanceof TeamFunctionError
+        ? error
+        : new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true }),
       headers
     );
   }

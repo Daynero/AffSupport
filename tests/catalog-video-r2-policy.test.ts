@@ -43,13 +43,21 @@ describe('catalog video R2 policy and terms', () => {
 
   it('answers POLICY_PENDING until the owner confirms the policy, even with the runtime configured', async () => {
     const response = await handleCatalogVideoR2(
-      new Request('https://p.supabase.co/functions/v1/catalog-video-r2/availability?teamId=50000000-0000-4000-8000-000000000701', {
-        headers: { authorization: 'Bearer user' }
-      }),
+      new Request(
+        'https://p.supabase.co/functions/v1/catalog-video-r2/availability?teamId=50000000-0000-4000-8000-000000000701',
+        {
+          headers: { authorization: 'Bearer user' }
+        }
+      ),
       {
         service: {
           rpc: async () => ({
-            data: { available: false, reason: 'VIDEO_R2_POLICY_PENDING', canManage: true, contractVersion: 1 },
+            data: {
+              available: false,
+              reason: 'VIDEO_R2_POLICY_PENDING',
+              canManage: true,
+              contractVersion: 1
+            },
             error: null
           })
         },
@@ -63,7 +71,12 @@ describe('catalog video R2 policy and terms', () => {
     );
     expect(await response.json()).toEqual({
       ok: true,
-      value: { available: false, reason: 'VIDEO_R2_POLICY_PENDING', canManage: true, contractVersion: 1 }
+      value: {
+        available: false,
+        reason: 'VIDEO_R2_POLICY_PENDING',
+        canManage: true,
+        contractVersion: 1
+      }
     });
   });
 });

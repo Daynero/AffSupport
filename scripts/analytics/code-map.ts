@@ -1667,13 +1667,18 @@ function build(): Record<string, CodeLocation> {
   for (const code of [...CATALOG_VIDEO_R2_REASONS, 'UNKNOWN']) {
     map[`catalog:video_r2:${code}`] = {
       files:
-        code === 'PERMISSION_DENIED' || code === 'VIDEO_R2_DISABLED' || code === 'VIDEO_R2_POLICY_PENDING' || code === 'VIDEO_R2_NOT_CONFIGURED'
+        code === 'PERMISSION_DENIED' ||
+        code === 'VIDEO_R2_DISABLED' ||
+        code === 'VIDEO_R2_POLICY_PENDING' ||
+        code === 'VIDEO_R2_NOT_CONFIGURED'
           ? [
               'supabase/functions/catalog-video-r2/handler.ts',
               'supabase/migrations/20261207193000_catalog_video_r2.sql',
               'apps/web/src/team/product-catalog/CatalogVideoR2Toggle.tsx'
             ]
-          : code === 'VIDEO_R2_QUOTA_EXCEEDED' || code === 'TOO_LARGE' || code === 'VIDEO_R2_UNSUPPORTED_FORMAT'
+          : code === 'VIDEO_R2_QUOTA_EXCEEDED' ||
+              code === 'TOO_LARGE' ||
+              code === 'VIDEO_R2_UNSUPPORTED_FORMAT'
             ? [
                 'supabase/migrations/20261207193000_catalog_video_r2.sql',
                 'supabase/functions/_shared/catalog-video-link.ts',
