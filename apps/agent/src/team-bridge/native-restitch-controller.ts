@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
   isRecord,
   TEAM_ERROR_CODES,
@@ -35,6 +36,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const TOKEN = /^[A-Za-z0-9_-]{43}$/u;
 const failureCodes = new Set<string>([...TEAM_ERROR_CODES, ...STITCH_ERROR_CODES]);
 const uncertain = () => new ScreenCacheError('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+/** Waits between repeated authorization reads after a transport failure. */
+export const AUTHORIZE_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000, 8_000];
 function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new ScreenCacheError('INVALID_INPUT');
   return value.toLowerCase();
@@ -85,6 +88,8 @@ export interface NativeRestitchVault {
   write(value: unknown): Promise<void>;
 }
 export interface NativeRestitchControllerOptions {
+  /** Test seam: waits between repeated authorization reads. */
+  authorizeRetryDelaysMs?: readonly number[];
   endpoint: string;
   environment: AppEnvironment;
   currentActorId: () => string | null;
@@ -855,13 +860,30 @@ export class NativeRestitchController {
                     failureStage = stage;
                   },
                   authorize: async () => {
-                    const current = await this.#rpc(
-                      record,
-                      'control',
-                      'authorize',
-                      {},
-                      scope.signal
-                    );
+                    // A read: asking again cannot spend or grant anything. One slow
+                    // backend reply (15 s) used to fail a video that was already
+                    // built, and a failed variant can never be run again.
+                    const retryDelays =
+                      this.options.authorizeRetryDelaysMs ?? AUTHORIZE_RETRY_DELAYS_MS;
+                    let current: unknown;
+                    for (let attempt = 0; ; attempt += 1) {
+                      try {
+                        current = await this.#rpc(record, 'control', 'authorize', {}, scope.signal);
+                        break;
+                      } catch (error) {
+                        if (
+                          attempt >= retryDelays.length ||
+                          scope.signal.aborted ||
+                          !(error instanceof ScreenCacheError) ||
+                          error.code !== 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
+                        )
+                          throw error;
+                        await delay(retryDelays[attempt]!, undefined, {
+                          signal: scope.signal
+                        }).catch(() => undefined);
+                        if (scope.signal.aborted) throw error;
+                      }
+                    }
                     if (
                       !isRecord(current) ||
                       current.grantId !== record.enrollmentId ||

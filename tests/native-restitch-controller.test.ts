@@ -701,3 +701,92 @@ it('reaches the hosted backend only as a production agent, and a local stack fro
     'INVALID_INPUT'
   );
 });
+it('asks for authorization again after one lost reply instead of failing the finished video', async () => {
+  // Production 1.4.2: the backend answered nothing for 15 s right after a
+  // variant was built; the single authorization read failed and the variant
+  // became terminally failed, which no later pass may run again.
+  const f = setup();
+  const implementation = f.fetcher.getMockImplementation()!;
+  let nativeInstanceId = '',
+    authorizeCalls = 0;
+  f.fetcher.mockImplementation(async (input, init) => {
+    const action = new URL(String(input)).pathname.split('/').at(-1);
+    if (action === 'authorize') {
+      authorizeCalls += 1;
+      if (authorizeCalls === 1) throw new TypeError('fetch failed');
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value: {
+            grantId: JSON.parse(String(init?.body)).grantId,
+            rootOperationId: root,
+            actorId: actor,
+            teamId: team,
+            nativeInstanceId,
+            executorId: id(4),
+            epoch: 1,
+            active: true
+          }
+        }),
+        { headers: { 'content-type': 'application/json' } }
+      );
+    }
+    const response = await implementation(input, init);
+    if (action === 'context')
+      nativeInstanceId = (await response.clone().json()).value.nativeInstanceId;
+    return response;
+  });
+  const controller = new NativeRestitchController({
+    endpoint,
+    environment: 'beta',
+    currentActorId: () => actor,
+    vault: f.store,
+    journal: f.journal,
+    cache: {} as never,
+    fetch: f.fetcher,
+    run: vi.fn(),
+    authorizeRetryDelaysMs: [1, 1]
+  });
+  const enrollment = await controller.prepare({ rootOperationId: root, teamId: team }, 'process');
+  await controller.redeem(enrollment.enrollmentId);
+  const result = await controller.process(enrollment.enrollmentId, root, async ({ authorize }) => {
+    await authorize();
+    return { operationId: root, state: 'succeeded', materialId: id(8), reused: false };
+  });
+  expect(result).toMatchObject({ state: 'succeeded' });
+  expect(authorizeCalls).toBe(2);
+  await controller.shutdown();
+});
+it('still fails when authorization stays unreachable', async () => {
+  const f = setup();
+  const implementation = f.fetcher.getMockImplementation()!;
+  let authorizeCalls = 0;
+  f.fetcher.mockImplementation(async (input, init) => {
+    if (new URL(String(input)).pathname.endsWith('/authorize')) {
+      authorizeCalls += 1;
+      throw new TypeError('fetch failed');
+    }
+    return implementation(input, init);
+  });
+  const controller = new NativeRestitchController({
+    endpoint,
+    environment: 'beta',
+    currentActorId: () => actor,
+    vault: f.store,
+    journal: f.journal,
+    cache: {} as never,
+    fetch: f.fetcher,
+    run: vi.fn(),
+    authorizeRetryDelaysMs: [1, 1]
+  });
+  const enrollment = await controller.prepare({ rootOperationId: root, teamId: team }, 'process');
+  await controller.redeem(enrollment.enrollmentId);
+  await expect(
+    controller.process(enrollment.enrollmentId, root, async ({ authorize }) => {
+      await authorize();
+      return { operationId: root, state: 'succeeded', materialId: id(8), reused: false };
+    })
+  ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN' });
+  expect(authorizeCalls).toBe(3);
+  await controller.shutdown();
+});
