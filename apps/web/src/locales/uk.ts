@@ -293,8 +293,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
   catalogVideoR2Toggle: 'Копіювати відео в R2',
   catalogVideoR2Explain:
-    'Готове відео каталогу копіюється у сховище Soty (Cloudflare R2), і каталог отримує стабільне публічне посилання за непрозорою адресою. Зберігається лише активна версія: попередня видаляється, щойно каталог підтверджено на новій. Перехід відбувається при наступному оновленні каталогу.',
-  catalogVideoR2NextUpdate: 'Діє з наступного оновлення.',
+    'Готове відео каталогу копіюється у сховище Soty (Cloudflare R2), і каталог отримує стабільне публічне посилання за непрозорою адресою. Зберігається лише активна версія: попередня видаляється, щойно каталог підтверджено на новій. Каталог переходить на нове посилання сам, щойно копія готова й перевірена — одразу або при найближчому оновленні; доти працює посилання Drive.',
+  catalogVideoR2NextUpdate: 'Посилання зміниться, щойно копія буде готова.',
   catalogVideoR2NoPermission:
     'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
   catalogVideoR2StatusR2: 'R2',
@@ -303,16 +303,18 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2StatusFallback: 'Лишається посилання Drive',
   catalogVideoR2LastUpdate: 'Останнє успішне оновлення',
   catalogVideoR2Never: 'ще не було',
-  catalogVideoR2FullHashPartial: 'Перевірено частинами й пробами; повну контрольну суму звірити не вдалося.',
+  catalogVideoR2FullHashPartial:
+    'Перевірено частинами й пробами; повну контрольну суму звірити не вдалося.',
   catalogVideoR2Usage: 'Відео в R2',
   catalogVideoR2UsageOf: '{used} із {quota}',
   catalogVideoR2Copies: '{ready} активних, {retiring} чекають видалення',
   catalogVideoR2Estimate: 'Орієнтовно {low}–{high} USD на місяць (оцінка, не рахунок)',
   catalogVideoR2EstimateUnknown: 'Оцінки поки немає',
-  catalogVideoR2Saved: 'Збережено. Застосується при наступному оновленні каталогу.',
+  catalogVideoR2Saved: 'Збережено. Посилання в каталозі зміниться автоматично.',
   catalogVideoR2On: 'Увімкнено',
   catalogVideoR2ErrorDisabled: 'Копіювання відео в R2 поки недоступне для цього простору.',
-  catalogVideoR2ErrorSource: 'Відео на Drive недоступне або змінилося; каталог лишається на посиланні Drive.',
+  catalogVideoR2ErrorSource:
+    'Відео на Drive недоступне або змінилося; каталог лишається на посиланні Drive.',
   catalogVideoR2ErrorFormat: 'Копіюються лише відео MP4; каталог лишається на посиланні Drive.',
   catalogVideoR2ErrorQuota:
     'Досягнуто ліміт відео в R2 для простору; каталог лишається на посиланні Drive. Звільніть місце або підвищте ліміт.',
@@ -324,7 +326,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Копія не пройшла звірку з джерелом; каталог лишається на посиланні Drive, наступне оновлення повторить спробу.',
   catalogVideoR2ErrorCatalogWrite:
     'Не вдалося записати в каталог посилання R2; наступне оновлення повторить спробу.',
-  catalogVideoR2ErrorInterrupted: 'Копіювання перервано; наступне оновлення продовжить його.',
+  catalogVideoR2ErrorInterrupted: 'Копіювання перервано; воно продовжиться автоматично.',
   catalogVideoR2ErrorCleanup:
     'Стару копію ще не прибрано повністю; очищення повторюється самостійно.',
   accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',

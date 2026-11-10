@@ -3510,7 +3510,6 @@ Deno.serve(async request => {
               expectedExecutorId: catalogRequest.expectedExecutorId,
               foregroundExecutor: catalogRequest.foregroundExecutor,
               restitchEnabled: catalogRequest.restitchEnabled,
-              ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {}),
               targetedWriterEnabled: catalogWriterEnabled()
             },
             catalog.fullDriveFor
@@ -3991,7 +3990,6 @@ Deno.serve(async request => {
                 }
               : {}),
             restitchEnabled: catalogRequest.restitchEnabled,
-            ...(catalogRequest.copyVideoToR2 ? { copyVideoToR2: true } : {}),
             targetedWriterEnabled: catalogWriterEnabled()
           },
           deps.fullDriveFor

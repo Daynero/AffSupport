@@ -41,16 +41,27 @@ describe('catalog video R2 contract', () => {
 
   it('accepts the state shape and rejects prose, extra states and unbounded numbers', () => {
     expect(isCatalogVideoR2State(state)).toBe(true);
-    expect(isCatalogVideoR2State({ ...state, copy: null, link: 'drive', reason: 'VIDEO_R2_QUOTA_EXCEEDED' })).toBe(true);
+    expect(
+      isCatalogVideoR2State({
+        ...state,
+        copy: null,
+        link: 'drive',
+        reason: 'VIDEO_R2_QUOTA_EXCEEDED'
+      })
+    ).toBe(true);
     expect(isCatalogVideoR2State({ ...state, link: 'gcs' })).toBe(false);
-    expect(isCatalogVideoR2State({ ...state, copy: { ...state.copy, state: 'exploded' } })).toBe(false);
+    expect(isCatalogVideoR2State({ ...state, copy: { ...state.copy, state: 'exploded' } })).toBe(
+      false
+    );
     expect(isCatalogVideoR2State({ ...state, reason: 'something went wrong' })).toBe(false);
     expect(isCatalogVideoR2State({ ...state, usedBytes: -1 })).toBe(false);
     expect(isCatalogVideoR2State({ ...state, lastSuccessfulUpdateAt: 'yesterday' })).toBe(false);
   });
 
   it('models availability as a discriminated gate', () => {
-    expect(isCatalogVideoR2Availability({ available: true, canManage: true, contractVersion: 1 })).toBe(true);
+    expect(
+      isCatalogVideoR2Availability({ available: true, canManage: true, contractVersion: 1 })
+    ).toBe(true);
     expect(
       isCatalogVideoR2Availability({
         available: false,
@@ -59,17 +70,46 @@ describe('catalog video R2 contract', () => {
         contractVersion: 1
       })
     ).toBe(true);
-    expect(isCatalogVideoR2Availability({ available: false, canManage: false, contractVersion: 1 })).toBe(false);
     expect(
-      isCatalogVideoR2Availability({ available: true, reason: 'VIDEO_R2_DISABLED', canManage: true, contractVersion: 1 })
+      isCatalogVideoR2Availability({ available: false, canManage: false, contractVersion: 1 })
     ).toBe(false);
-    expect(isCatalogVideoR2Availability({ available: true, canManage: true, contractVersion: 2 })).toBe(false);
+    expect(
+      isCatalogVideoR2Availability({
+        available: true,
+        reason: 'VIDEO_R2_DISABLED',
+        canManage: true,
+        contractVersion: 1
+      })
+    ).toBe(false);
+    expect(
+      isCatalogVideoR2Availability({ available: true, canManage: true, contractVersion: 2 })
+    ).toBe(false);
   });
 
   it('validates receipts, usage and worker routes', () => {
-    expect(isCatalogVideoR2PreferenceReceipt({ enabled: true, revision: 1, updatedAt: '2026-11-10T08:00:00Z' })).toBe(true);
-    expect(isCatalogVideoR2PreferenceReceipt({ enabled: 'yes', revision: 1, updatedAt: '2026-11-10T08:00:00Z' })).toBe(false);
-    expect(isCatalogVideoR2Usage({ usedBytes: 0, quotaBytes: 1, readyCopies: 0, retiringCopies: 0, enabledCatalogs: 0 })).toBe(true);
+    expect(
+      isCatalogVideoR2PreferenceReceipt({
+        enabled: true,
+        revision: 1,
+        updatedAt: '2026-11-10T08:00:00Z'
+      })
+    ).toBe(true);
+    expect(
+      isCatalogVideoR2PreferenceReceipt({
+        enabled: 'yes',
+        revision: 1,
+        updatedAt: '2026-11-10T08:00:00Z'
+      })
+    ).toBe(false);
+    expect(
+      isCatalogVideoR2Usage({
+        usedBytes: 0,
+        quotaBytes: 1,
+        readyCopies: 0,
+        retiringCopies: 0,
+        enabledCatalogs: 0
+      })
+    ).toBe(true);
     expect(isCatalogVideoR2Usage({ usedBytes: 0, quotaBytes: 1, readyCopies: 0 })).toBe(false);
     expect(parseCatalogVideoR2WorkerRoute({ route: 'claim' })).toBe('claim');
     expect(parseCatalogVideoR2WorkerRoute({ route: 'sweep' })).toBe('sweep');
@@ -80,14 +120,20 @@ describe('catalog video R2 contract', () => {
   it('accepts only opaque public video URLs', () => {
     const key = 'f'.repeat(32);
     expect(isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4`)).toBe(true);
-    expect(isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4`, 'https://videos.example')).toBe(true);
-    expect(isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4`, 'https://other.example')).toBe(false);
+    expect(
+      isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4`, 'https://videos.example')
+    ).toBe(true);
+    expect(
+      isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4`, 'https://other.example')
+    ).toBe(false);
     expect(isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4?token=1`)).toBe(false);
     expect(isCatalogVideoR2PublicUrl(`https://videos.example/v/${key}.mp4#x`)).toBe(false);
     expect(isCatalogVideoR2PublicUrl(`https://user:pw@videos.example/v/${key}.mp4`)).toBe(false);
     expect(isCatalogVideoR2PublicUrl(`http://videos.example/v/${key}.mp4`)).toBe(false);
     expect(isCatalogVideoR2PublicUrl('https://videos.example/team/alice/IN 40.mp4')).toBe(false);
-    expect(isCatalogVideoR2PublicUrl(`https://drive.google.com/file/d/abc/view?usp=sharing`)).toBe(false);
+    expect(isCatalogVideoR2PublicUrl(`https://drive.google.com/file/d/abc/view?usp=sharing`)).toBe(
+      false
+    );
   });
 
   it('estimates monthly cost as a range and nothing for an empty space', () => {
@@ -128,11 +174,61 @@ describe('catalog video R2 contract', () => {
     const absent = parseLaunchConfig(base);
     expect(absent.ok).toBe(true);
     if (absent.ok) expect(absent.value.catalog.copyVideoToR2).toBeUndefined();
-    const enabled = parseLaunchConfig({ ...base, catalog: { ...base.catalog, copyVideoToR2: true } });
+    const enabled = parseLaunchConfig({
+      ...base,
+      catalog: { ...base.catalog, copyVideoToR2: true }
+    });
     expect(enabled.ok).toBe(true);
     if (enabled.ok) expect(enabled.value.catalog.copyVideoToR2).toBe(true);
-    const invalid = parseLaunchConfig({ ...base, catalog: { ...base.catalog, copyVideoToR2: 'yes' } });
+    const invalid = parseLaunchConfig({
+      ...base,
+      catalog: { ...base.catalog, copyVideoToR2: 'yes' }
+    });
     expect(invalid.ok).toBe(false);
     if (!invalid.ok) expect(invalid.errors.catalog).toBe('INVALID_INPUT');
+  });
+});
+
+describe('local edge runtime module graph', () => {
+  it('anchors every self-typed shared module the functions import', async () => {
+    // The local Supabase CLI mounts only runtime imports; a shared module that
+    // names its declaration with @ts-self-types boots as "Module not found"
+    // unless the anchor imports that declaration too (found on beta, 050).
+    const { readFileSync, readdirSync, statSync } = await import('node:fs');
+    const path = await import('node:path');
+    const root = path.resolve(__dirname, '..');
+    const anchor = readFileSync(
+      path.join(root, 'supabase/functions/_shared/deno-type-dependencies.ts'),
+      'utf8'
+    );
+    const files: string[] = [];
+    const walk = (directory: string) => {
+      for (const name of readdirSync(directory)) {
+        const full = path.join(directory, name);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (name.endsWith('.ts')) files.push(full);
+      }
+    };
+    walk(path.join(root, 'supabase/functions'));
+    const imported = new Set<string>();
+    for (const file of files)
+      for (const match of readFileSync(file, 'utf8').matchAll(
+        /packages\/shared\/dist\/([\w/-]+)\.js'/gu
+      ))
+        imported.add(match[1]!);
+    const missing = [...imported].filter(name => {
+      const source = path.join(root, 'packages/shared/src', `${name}.ts`);
+      let text: string;
+      try {
+        text = readFileSync(source, 'utf8');
+      } catch {
+        return false;
+      }
+      return (
+        /^\/\/ @ts-self-types=/u.test(text) &&
+        !anchor.includes(`packages/shared/dist/${name}.d.ts'`)
+      );
+    });
+    expect(missing).toEqual([]);
   });
 });

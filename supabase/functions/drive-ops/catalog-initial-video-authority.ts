@@ -10,7 +10,6 @@ import { parseTeamRestitchDefaults } from '../../../packages/shared/dist/team/re
 import { captureCatalogVideoSource } from './catalog-video-set-admission.ts';
 import { proveLiveAncestry } from '../_shared/drive.ts';
 import { videoShareLink } from '../_shared/product-catalog.ts';
-import { createCatalogVideoLinkResolver } from '../_shared/catalog-video-link.ts';
 import { verifyInitialCatalogPublication } from './catalog-initial-publication.ts';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import type { TeamRestitchDefaults } from '../../../packages/shared/dist/team/restitch.js';
@@ -226,8 +225,6 @@ export async function createCatalogInitialVideoAuthority(
     foregroundScope?: CatalogForegroundScope;
     foregroundSecret?: string;
     restitchEnabled?: boolean;
-    /** 050: the create request asked for an R2 copy; the preference row follows registration. */
-    copyVideoToR2?: boolean;
     frozenRestitchDefaults?: TeamRestitchDefaults;
     /** Server-frozen Launch candidate; exact consumer proof is required in prepare. */
     readyVideoSetId?: string;
@@ -435,7 +432,7 @@ export async function createCatalogInitialVideoAuthority(
  * shared and identity-checked once, then mapped onto every row it serves. */
 export async function resolveCatalogReadyLinks(
   service: ServiceRpcClient,
-  identity: { teamId: string; actorId: string; copyVideoToR2?: boolean },
+  identity: { teamId: string; actorId: string },
   driveFor: (credentialId: string) => Promise<import('../_shared/drive.ts').GoogleDriveClient>,
   setId: string,
   recipeRevision: number,
@@ -449,7 +446,6 @@ export async function resolveCatalogReadyLinks(
   });
   if (result.error || !Array.isArray(result.data) || result.data.length !== rowIds.length)
     throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-  const videoLinks = createCatalogVideoLinkResolver({ service });
   const links = new Map<string, string>();
   // Rows share a few video files (N variants for up to 400 products). Each
   // distinct output is proven once per call; proving it per row made a
@@ -505,27 +501,12 @@ export async function resolveCatalogReadyLinks(
       )) !== row.sourceVersion
     )
       throw new TeamFunctionError('SOURCE_CHANGED');
-    // 050: a catalog being created has no preference row yet; its request carries the option.
-    const fileId: string = row.fileId;
-    const resolved = await videoLinks.resolve({
-      scope: { teamId: identity.teamId, assumeEnabled: identity.copyVideoToR2 === true },
-      source: {
-        materialId: row.materialId,
-        sourceVersion: row.sourceVersion,
-        sizeBytes: live.size,
-        mimeType: live.mimeType,
-        checksum: live.checksum
-      },
-      drive: async () => {
-        const permissions = await drive.listAnyonePermissions(fileId);
-        if (permissions.length === 0) {
-          if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-          await ensureAnyoneReader(drive, fileId, permissions);
-        }
-        return videoShareLink(live.id, live.resourceKey);
-      }
-    });
-    const link = resolved.url;
+    const permissions = await drive.listAnyonePermissions(row.fileId);
+    if (permissions.length === 0) {
+      if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+      await ensureAnyoneReader(drive, row.fileId, permissions);
+    }
+    const link = videoShareLink(live.id, live.resourceKey);
     proven.set(provenKey, link);
     links.set(row.rowId, link);
   }

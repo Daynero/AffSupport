@@ -1,0 +1,81 @@
+{
+  "environment": "beta",
+  "ok": true,
+  "partBytes": 16777216,
+  "totalBytes": 50343993,
+  "steps": [
+    {
+      "name": "provider_checksum_probe",
+      "at": "2026-11-10T19:07:50.706Z",
+      "supported": false,
+      "code": "VIDEO_R2_NOT_CONFIGURED"
+    },
+    {
+      "name": "multipart_created",
+      "at": "2026-11-10T19:07:50.907Z"
+    },
+    {
+      "name": "part_uploaded",
+      "at": "2026-11-10T19:07:52.106Z",
+      "part": 1,
+      "hashMs": 15,
+      "totalMs": 1199
+    },
+    {
+      "name": "part_uploaded",
+      "at": "2026-11-10T19:07:53.636Z",
+      "part": 2,
+      "hashMs": 13,
+      "totalMs": 1530
+    },
+    {
+      "name": "part_uploaded",
+      "at": "2026-11-10T19:07:55.532Z",
+      "part": 3,
+      "hashMs": 16,
+      "totalMs": 1895
+    },
+    {
+      "name": "part_uploaded",
+      "at": "2026-11-10T19:07:55.826Z",
+      "part": 4,
+      "hashMs": 0,
+      "totalMs": 294
+    },
+    {
+      "name": "multipart_completed",
+      "at": "2026-11-10T19:07:56.142Z",
+      "parts": 4,
+      "maxPartMs": 1895
+    },
+    {
+      "name": "readback_verified",
+      "at": "2026-11-10T19:08:02.362Z",
+      "parts": 4,
+      "md5Matches": true
+    },
+    {
+      "name": "public_head",
+      "at": "2026-11-10T19:08:07.499Z",
+      "sizeBytes": 50343993,
+      "contentType": "video/mp4",
+      "nosniff": true,
+      "acceptRanges": true
+    },
+    {
+      "name": "public_range",
+      "at": "2026-11-10T19:08:08.813Z",
+      "bytes": 1000,
+      "cacheControl": "public, max-age=31536000, immutable"
+    },
+    {
+      "name": "deleted_and_purged",
+      "at": "2026-11-10T19:08:09.904Z",
+      "status": 404
+    },
+    {
+      "name": "orphan_aborted",
+      "at": "2026-11-10T19:08:10.247Z"
+    }
+  ]
+}

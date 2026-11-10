@@ -101,7 +101,8 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 
 function hexToBase64(hex: string): string {
   const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i += 1) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < bytes.length; i += 1)
+    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
@@ -192,7 +193,12 @@ export class CatalogVideoR2 {
     sha256: string,
     signal: AbortSignal
   ): Promise<{ etag: string; verifiedBy: 'provider_checksum' | null }> {
-    if (!/^[0-9a-f]{64}$/u.test(sha256) || !Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10_000)
+    if (
+      !/^[0-9a-f]{64}$/u.test(sha256) ||
+      !Number.isInteger(partNumber) ||
+      partNumber < 1 ||
+      partNumber > 10_000
+    )
       throw new TeamFunctionError('INVALID_INPUT');
     const url = this.endpoint('staging', key);
     url.searchParams.set('partNumber', String(partNumber));
@@ -221,12 +227,19 @@ export class CatalogVideoR2 {
     }
     await response.body?.cancel();
     if (!response.ok) {
-      if (response.status >= 500) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
-      if (provider && response.status === 400) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
+      // The storage does not implement the additional checksum header: a configuration
+      // mistake, not an outage, so it must not be retried for ever.
+      if (provider && response.status === 501)
+        throw new TeamFunctionError('VIDEO_R2_NOT_CONFIGURED');
+      if (response.status >= 500)
+        throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+      if (provider && response.status === 400)
+        throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
       providerFailure(response.status);
     }
     const etag = response.headers.get('etag');
-    if (!etag || etag.length > 255) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+    if (!etag || etag.length > 255)
+      throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
     const echoed = response.headers.get('x-amz-checksum-sha256');
     return {
       etag,
@@ -272,11 +285,13 @@ export class CatalogVideoR2 {
     }
     const text = await response.text();
     if (!response.ok) {
-      if (response.status >= 500) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+      if (response.status >= 500)
+        throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
       providerFailure(response.status);
     }
     // S3 may answer 200 with an error document; only a result with an ETag is a completion.
-    if (!xmlValue(text, 'ETag')) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+    if (!xmlValue(text, 'ETag'))
+      throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
   }
 
   async abortMultipart(key: string, uploadId: string, signal: AbortSignal): Promise<void> {
@@ -289,7 +304,9 @@ export class CatalogVideoR2 {
   }
 
   async headStaging(key: string, signal: AbortSignal): Promise<{ sizeBytes: number } | null> {
-    const signed = await this.signer.sign(new Request(this.endpoint('staging', key), { method: 'HEAD' }));
+    const signed = await this.signer.sign(
+      new Request(this.endpoint('staging', key), { method: 'HEAD' })
+    );
     const response = await this.send(signed, signal);
     await response.body?.cancel();
     if (response.status === 404) return null;
@@ -299,8 +316,19 @@ export class CatalogVideoR2 {
     return { sizeBytes: size };
   }
 
-  async readStagingRange(key: string, start: number, end: number, signal: AbortSignal): Promise<Uint8Array> {
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end - start + 1 > 64 * 1024 * 1024)
+  async readStagingRange(
+    key: string,
+    start: number,
+    end: number,
+    signal: AbortSignal
+  ): Promise<Uint8Array> {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end < start ||
+      end - start + 1 > 64 * 1024 * 1024
+    )
       throw new TeamFunctionError('INVALID_INPUT');
     const signed = await this.signer.sign(
       new Request(this.endpoint('staging', key), { headers: { Range: `bytes=${start}-${end}` } })
@@ -308,7 +336,8 @@ export class CatalogVideoR2 {
     const response = await this.send(signed, signal);
     if (response.status !== 206) {
       await response.body?.cancel();
-      if (response.status === 404) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+      if (response.status === 404)
+        throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
       providerFailure(response.status);
     }
     return collect(response, end - start + 1);
@@ -337,16 +366,23 @@ export class CatalogVideoR2 {
     }
     const text = await response.text();
     if (!response.ok) {
-      if (response.status >= 500) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+      if (response.status >= 500)
+        throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
       providerFailure(response.status);
     }
-    if (!xmlValue(text, 'ETag')) throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
+    if (!xmlValue(text, 'ETag'))
+      throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
   }
 
   async publicHead(
     key: string,
     signal: AbortSignal
-  ): Promise<{ sizeBytes: number; contentType: string | null; nosniff: boolean; acceptRanges: boolean }> {
+  ): Promise<{
+    sizeBytes: number;
+    contentType: string | null;
+    nosniff: boolean;
+    acceptRanges: boolean;
+  }> {
     let response: Response;
     try {
       response = await this.fetcher(this.publicUrl(key), {
@@ -360,9 +396,11 @@ export class CatalogVideoR2 {
       throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
     }
     await response.body?.cancel();
-    if (!response.ok) throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
+    if (!response.ok)
+      throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
     const size = Number(response.headers.get('content-length'));
-    if (!Number.isSafeInteger(size) || size < 0) throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
+    if (!Number.isSafeInteger(size) || size < 0)
+      throw new TeamFunctionError('VIDEO_R2_PUBLIC_UNREACHABLE', { retryable: true });
     return {
       sizeBytes: size,
       contentType: response.headers.get('content-type')?.split(';')[0]?.trim() ?? null,
@@ -371,8 +409,19 @@ export class CatalogVideoR2 {
     };
   }
 
-  async publicRange(key: string, start: number, end: number, signal: AbortSignal): Promise<Uint8Array> {
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end - start + 1 > 16 * 1024 * 1024)
+  async publicRange(
+    key: string,
+    start: number,
+    end: number,
+    signal: AbortSignal
+  ): Promise<Uint8Array> {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end < start ||
+      end - start + 1 > 16 * 1024 * 1024
+    )
       throw new TeamFunctionError('INVALID_INPUT');
     let response: Response;
     try {
@@ -394,7 +443,9 @@ export class CatalogVideoR2 {
   }
 
   async removeStaging(key: string, signal: AbortSignal): Promise<void> {
-    const signed = await this.signer.sign(new Request(this.endpoint('staging', key), { method: 'DELETE' }));
+    const signed = await this.signer.sign(
+      new Request(this.endpoint('staging', key), { method: 'DELETE' })
+    );
     const response = await this.send(signed, signal);
     await response.body?.cancel();
     if (!response.ok && response.status !== 404) providerFailure(response.status);
@@ -402,7 +453,9 @@ export class CatalogVideoR2 {
 
   /** Delete the public object, prove it is gone, and purge the CDN; any doubt is `CLEANUP_PARTIAL`. */
   async removePublic(key: string, signal: AbortSignal): Promise<void> {
-    const signed = await this.signer.sign(new Request(this.endpoint('public', key), { method: 'DELETE' }));
+    const signed = await this.signer.sign(
+      new Request(this.endpoint('public', key), { method: 'DELETE' })
+    );
     const response = await this.send(signed, signal);
     await response.body?.cancel();
     if (!response.ok && response.status !== 404) providerFailure(response.status);
@@ -411,7 +464,8 @@ export class CatalogVideoR2 {
       signal
     );
     await readback.body?.cancel();
-    if (readback.status !== 404) throw new TeamFunctionError('VIDEO_R2_CLEANUP_PARTIAL', { retryable: true });
+    if (readback.status !== 404)
+      throw new TeamFunctionError('VIDEO_R2_CLEANUP_PARTIAL', { retryable: true });
     const purge = await this.send(
       new Request(`https://api.cloudflare.com/client/v4/zones/${this.config.zoneId}/purge_cache`, {
         method: 'POST',

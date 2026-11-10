@@ -36,7 +36,6 @@ export interface LaunchCatalogExecutionDeps {
     expectedExecutorId?: string;
     readyVideoSetId?: string;
     restitchEnabled: boolean;
-    copyVideoToR2?: boolean;
     frozenRestitchDefaults?: TeamRestitchDefaults;
   }) => Promise<CatalogInitialVideoAuthority>;
   readCatalogVideoFailure?: (scope: {
@@ -274,7 +273,6 @@ export async function executeLaunchCatalog(
         actorId,
         sourceMaterialId: config.materialId,
         restitchEnabled: config.catalog.restitchEnabled,
-        ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true } : {}),
         ...(typeof frozenVideo.readyVideoSetId === 'string'
           ? { readyVideoSetId: frozenVideo.readyVideoSetId }
           : {}),

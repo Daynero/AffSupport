@@ -9,8 +9,8 @@
 //
 // What it proves (and records in provider-result.json):
 //   1. multipart create / upload-part / complete / abort on the staging bucket;
-//   2. whether `UploadPart` with a wrong `x-amz-checksum-sha256` is refused (decides
-//      `CATALOG_VIDEOS_PART_VERIFICATION=provider_checksum`) and whether the right one is echoed;
+//   2. whether `UploadPart` accepts and echoes `x-amz-checksum-sha256` (decides
+//      `CATALOG_VIDEOS_PART_VERIFICATION=provider_checksum`; R2 answered 501 on 2026-11-10);
 //   3. readback of every part from staging matches the hashes computed on the way in;
 //   4. server-side promotion to the public bucket, anonymous HEAD/Range on the public origin
 //      with `video/mp4`, `nosniff`, `accept-ranges: bytes` and the immutable cache header;
@@ -54,19 +54,30 @@ for (let i = 0; i < TOTAL; i += 4096) {
 }
 const md5 = new Md5().update(source).digest();
 
-async function probeProviderChecksum(): Promise<{ refusesWrong: boolean; echoesRight: boolean }> {
+// R2 answers 501 NotImplemented to `x-amz-checksum-sha256` on UploadPart (measured on
+// 2026-11-10), so the probe sends the right checksum only: a wrong *payload* hash is not
+// refused but left hanging until the client gives up, which proves nothing in bounded time.
+async function probeProviderChecksum(): Promise<{ supported: boolean; code: string | null }> {
   const strict = new CatalogVideoR2({ ...config!, partVerification: 'provider_checksum' }, signer);
   const uploadId = await strict.createMultipart(key, signal);
   const bytes = source.subarray(0, PART);
-  let refusesWrong = false;
+  let supported = false;
+  let code: string | null = null;
   try {
-    await strict.uploadPart(key, uploadId, 1, bytes, 'f'.repeat(64), signal);
+    const right = await strict.uploadPart(
+      key,
+      uploadId,
+      1,
+      bytes,
+      await sha256Hex(bytes),
+      AbortSignal.timeout(120_000)
+    );
+    supported = right.verifiedBy === 'provider_checksum';
   } catch (error) {
-    refusesWrong = error instanceof Error && error.message === 'VIDEO_R2_CHECKSUM_MISMATCH';
+    code = error instanceof Error ? error.message : 'UNKNOWN';
   }
-  const right = await strict.uploadPart(key, uploadId, 1, bytes, await sha256Hex(bytes), signal);
   await strict.abortMultipart(key, uploadId, signal);
-  return { refusesWrong, echoesRight: right.verifiedBy === 'provider_checksum' };
+  return { supported, code };
 }
 
 const signer = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
@@ -88,7 +99,11 @@ try {
     const uploaded = await r2.uploadPart(key, uploadId, n, bytes, sha256, signal);
     timings.push(performance.now() - started);
     parts.push({ partNumber: n, etag: uploaded.etag, sha256, size: bytes.byteLength });
-    step('part_uploaded', { part: n, hashMs: Math.round(hashed - started), totalMs: Math.round(performance.now() - started) });
+    step('part_uploaded', {
+      part: n,
+      hashMs: Math.round(hashed - started),
+      totalMs: Math.round(performance.now() - started)
+    });
   }
   await r2.completeMultipart(key, uploadId, parts, signal);
   uploadId = null;
@@ -98,18 +113,30 @@ try {
   let offset = 0;
   for (const part of parts) {
     const back = await r2.readStagingRange(key, offset, offset + part.size - 1, signal);
-    if ((await sha256Hex(back)) !== part.sha256) throw new Error(`readback mismatch on part ${part.partNumber}`);
+    if ((await sha256Hex(back)) !== part.sha256)
+      throw new Error(`readback mismatch on part ${part.partNumber}`);
     offset += part.size;
   }
-  step('readback_verified', { parts: parts.length, md5Matches: new Md5().update(source).digest() === md5 });
+  step('readback_verified', {
+    parts: parts.length,
+    md5Matches: new Md5().update(source).digest() === md5
+  });
   await r2.promote(key, signal);
   const head = await r2.publicHead(key, signal);
   step('public_head', head);
-  if (head.sizeBytes !== TOTAL || head.contentType !== 'video/mp4' || !head.nosniff || !head.acceptRanges)
+  if (
+    head.sizeBytes !== TOTAL ||
+    head.contentType !== 'video/mp4' ||
+    !head.nosniff ||
+    !head.acceptRanges
+  )
     throw new Error('public object headers are not what the catalog needs');
   const tail = await r2.publicRange(key, TOTAL - 1000, TOTAL - 1, signal);
-  if (!tail.every((byte, i) => byte === source[TOTAL - 1000 + i])) throw new Error('public range mismatch');
-  const cacheHeader = (await fetch(r2.publicUrl(key), { method: 'HEAD' })).headers.get('cache-control');
+  if (!tail.every((byte, i) => byte === source[TOTAL - 1000 + i]))
+    throw new Error('public range mismatch');
+  const cacheHeader = (await fetch(r2.publicUrl(key), { method: 'HEAD' })).headers.get(
+    'cache-control'
+  );
   step('public_range', { bytes: tail.byteLength, cacheControl: cacheHeader });
   await r2.removeStaging(key, signal);
   await r2.removePublic(key, signal);
@@ -121,7 +148,8 @@ try {
   ok = true;
 } catch (error) {
   step('failed', { code: error instanceof Error ? error.message : 'UNKNOWN' });
-  if (uploadId) await r2.abortMultipart(key, uploadId, AbortSignal.timeout(30_000)).catch(() => undefined);
+  if (uploadId)
+    await r2.abortMultipart(key, uploadId, AbortSignal.timeout(30_000)).catch(() => undefined);
   await r2.removeStaging(key, AbortSignal.timeout(30_000)).catch(() => undefined);
   await r2.removePublic(key, AbortSignal.timeout(30_000)).catch(() => undefined);
 } finally {
