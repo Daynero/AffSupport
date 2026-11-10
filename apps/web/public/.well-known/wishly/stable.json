@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.4.1",
-  "buildNumber": "81",
-  "buildId": "1.4.1+81",
+  "version": "1.4.2",
+  "buildNumber": "82",
+  "buildId": "1.4.2+82",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-09T22:43:47.970Z",
+  "publishedAt": "2026-11-10T12:36:33.000Z",
   "summary": {
-    "uk": "Кілька відео на каталог і відкладені посилання тепер доступні всім.",
-    "en": "Multiple videos per catalog and deferred links are now available to everyone."
+    "uk": "Виправлено створення каталогів із перезашивкою, відкладені посилання й оновлення в менеджері.",
+    "en": "Fixes catalog creation with re-stitching, deferred links and catalog manager updates."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-macOS-arm64.dmg",
-      "sha256": "63451773168ca40da805e2a95c7d155113ef1cecca9dfbc5ed4f642b0e11b339"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-macOS-x64.dmg",
-      "sha256": "d7bf6ae2819171c65236cb4e7aaf9cbe8baa913f9a799e7f0a9614508e3659bd"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.1/Soty-v1.4.1-Windows-x64.exe",
-      "sha256": "d7eaa254efa7a35bb904c4e5fd9462e0eeff386c1bfdd3a71ee721bf1d802bc0"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -47,6 +47,6 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "OD3FECcJVkWz3g8rZ-qL6_-SaMpsxD2v0KikolwX2uuZv7y2gAyAKdqzugAbx42DWB-XmS08UZXR9K820fpI2w",
+  "signature": "D6DWGK0vGHhJBR3p4pTIqT662gJitkX9kNBjCwjdrx6uiLsp7iAtkncfGfJPgB9iyRWT4KkRdSm4uLpw4iS7nQ",
   "platformSetVersion": 2
 }
