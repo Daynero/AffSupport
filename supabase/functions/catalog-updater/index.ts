@@ -1,5 +1,6 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
 import { createTargetedCatalogPublicationIo } from './publication-io.ts';
+import { isRecord } from '../_shared/validation.ts';
 import { nativeRestitchBetaEnabled } from '../_shared/restitch-native-beta.ts';
 import {
   settleCatalogUpdaterVariantTargets,
@@ -312,6 +313,38 @@ Deno.serve(async request => {
               p_worker: workerId,
               p_stage: stage
             })) === true,
+          // 050: the legacy writer keeps the catalog's R2 link from the indexed source row.
+          resolveVideoLink: async (catalogId, sourceMaterialId) => {
+            const value = await rpcValue(service, 'service_catalog_video_r2_resolve_current', {
+              p_catalog: catalogId,
+              p_source_material: sourceMaterialId
+            });
+            if (!isRecord(value) || value.enabled !== true) return null;
+            if (
+              typeof value.url === 'string' &&
+              value.state === 'ready' &&
+              typeof value.sourceMaterialId === 'string' &&
+              typeof value.sourceVersion === 'string'
+            )
+              return {
+                kind: 'r2',
+                url: value.url,
+                sourceMaterialId: value.sourceMaterialId,
+                sourceVersion: value.sourceVersion
+              };
+            await rpcValue(service, 'service_catalog_video_r2_kick', { p_route: 'claim' }).catch(
+              () => undefined
+            );
+            return { kind: 'drive' };
+          },
+          confirmVideoLink: async (catalogId, linkKind, uses) => {
+            await rpcValue(service, 'service_catalog_video_r2_confirm_use', {
+              p_catalog: catalogId,
+              p_link_kind: linkKind,
+              p_uses: uses,
+              p_job: null
+            });
+          },
           beginWrite: async (catalogId, input) =>
             (await rpcValue(
               service,

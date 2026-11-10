@@ -84,6 +84,12 @@ export function LaunchDefaultsReview({
               <dd>
                 {config.catalog?.restitchEnabled ? t('launchesDuration') + ': ' + minutes : '—'}
               </dd>
+              {config.catalog?.copyVideoToR2 && (
+                <>
+                  <dt>{t('catalogVideoR2Toggle')}</dt>
+                  <dd>{t('catalogVideoR2On')}</dd>
+                </>
+              )}
               {config.catalog?.catalogVideoProtocolVersion === 1 && (
                 <>
                   <dt>{t('catalogVideoVariationCount')}</dt>

@@ -6,14 +6,14 @@
 
 1. Бета-стек піднято (див. пам'ять про cold start після ребуту: `colima start`, далі `beta:up`).
 2. Є тестовий простір із підключеним Drive та каталогом з відео-варіантом; користувач із `manage_metadata`.
-3. Environment для відео-bucket задано (staging + public bucket, домен, purge-токен); секрет воркера — чинний `wishly_catalog_sync_secret` із vault (нічого нового не провізіонити); у тестовій БД `catalog_video_r2_config.enabled=true` і `policy_confirmed_at` заповнено; `pg_cron` викликає `claim`/`sweep` (видно в журналі).
+3. Environment для відео-bucket задано: `CATALOG_VIDEOS_ENABLED=true`, `R2_CATALOG_VIDEO_STAGING_BUCKET`, `R2_CATALOG_VIDEO_PUBLIC_BUCKET`, `R2_CATALOG_VIDEO_PUBLIC_ORIGIN`, `R2_CATALOG_VIDEO_TARGET_CONFIRMATION`, `R2_CATALOG_VIDEO_ACCESS_KEY_ID`/`SECRET_ACCESS_KEY` (спільні з 045 `CATALOG_IMAGES_ENVIRONMENT`, `R2_CATALOG_ACCOUNT_ID`, `R2_CATALOG_ZONE_ID`, `R2_CATALOG_PURGE_TOKEN` уже є); секрет воркера — чинний `wishly_catalog_sync_secret` із vault (нічого нового не провізіонити); у тестовій БД `catalog_video_r2_config.enabled=true` і `policy_confirmed_at` заповнено; `pg_cron` викликає `claim`/`sweep` (видно в журналі).
 
 ## Сценарії
 
 | # | Дія | Очікування | Spec |
 |---|---|---|---|
 | 1 | Створити каталог **без** галочки | Усе як до фічі; в R2 нічого; посилання Drive | FR-001/019, SC-001 |
-| 2 | Створити каталог **з** галочкою (діалог і через Launch із `copyVideoToR2` у конфігурації) | Відео в R2, анонімний GET за посиланням, байти збігаються; Drive-файл не отримав «anyone»; `fullHashVerified` правдивий для файлу, що вмістився в один виклик | US1 |
+| 2 | Створити каталог **з** галочкою (діалог і через Launch із `copyVideoToR2` у конфігурації; окремо — без ре-стітчу і з ре-стітчем) | Копія планується одразу після реєстрації; перший запис може бути Drive, після готовності копії наступне оновлення (або перший publication job) дає R2: анонімний GET за посиланням, байти збігаються; для каталогу без ре-стітчу Drive-файл не отримав «anyone» (резолвер не ділиться); для ре-стітчнутого — запасна копія на Drive розшарена наявною механікою, а клітинка каталогу все одно веде в R2; `current_video_link` лишається Drive-посиланням; `fullHashVerified` правдивий для файлу, що вмістився в один виклик | US1, R20 |
 | 3 | Вимкнути R2 у відключеному середовищі | Галочки немає в жодному з місць створення/налаштувань | FR-018 |
 | 4 | Існуючий каталог на Drive: увімкнути в менеджері | Посилання не змінюється до оновлення; після оновлення — R2 | US2.1 |
 | 5 | Оновлення без нового відео, галочка ввімкнена | Існуюче відео копіюється; повторне оновлення не дублює копію | FR-005/007 |
@@ -24,16 +24,21 @@
 | 10 | Вимкнути галочку | Наступне оновлення — Drive; R2-копія видаляється за правилами US3 | US2.4 |
 | 11 | Користувач без права | Галочку не ввімкнути; прямий запит відхилено | FR-013 |
 | 12 | Агент: `investigate`/`journey` по невдалій спробі | Остання доведена стадія, код, безпечний повтор | AD-004, SC-006 |
-| 13 | Видалити тестовий простір із R2-копіями | Рядки копій зникли каскадом, надгробки лишились, sweep прибрав об'єкти (404) і purge | FR-012, US3.6 |
+| 13 | Видалити тестовий простір із R2-копіями наявним шляхом (чернетка — `public.delete_draft_team`; інакше видалення акаунта власника через `delete-account`); у SQL-тесті — пряме `delete from public.teams` | Рядки копій зникли каскадом, надгробки лишились, sweep прибрав об'єкти (404) і purge | FR-012, US3.6 |
 | 14 | Каталог у кошик → відновити; зняти з автооновлення; поставити на паузу | У всіх трьох випадках копії та R2-посилання без змін; лише остаточне видалення матеріалу → `retiring` → після вікна видалено | FR-012, US3.5 |
 | 15 | Прибрати одне відео-джерело з каталогу з кількома джерелами й дочекатись оновлення | Копія прибраного джерела `retiring` після підтвердження (set-replace), решта активні | FR-009/010, M8 |
+| 16 | Учасник з `edit` на відео, але без `manage_metadata`: створити каталог з `copyVideoToR2=true` прямим запитом; зберегти конфігурацію запуску з полем і виконати запуск іншим актором без права | Обидва відхилені `PERMISSION_DENIED`, каталог не створено з опцією мовчки; у UI галочка disabled | FR-013, R19 |
+| 17 | Застарілий шлях оновлення (без publication job) для каталогу з опцією | Клітинка — R2-посилання (override пройшов через резолвер); `current_video_link`/`shared_link` — Drive | R1, R20 |
+| 18 | Змінити опцію іншим учасником, тримаючи каталог відкритим | Стан у UI оновився через Realtime-сигнал без перезавантаження і без polling | R17 |
 
 ## Команди (орієнтовно)
 
 ```bash
-npx vitest run tests/catalog-video-r2-*.test.ts --pool=forks --poolOptions.forks.singleFork=true
-# SQL-тести міграції — через канонічний disposable DB runner проєкту
-# Провайдерна приймальна (бета-bucket): specs/050-catalog-video-r2/provider-acceptance.ts
+npx vitest run 'tests/catalog-video-r2-*' tests/catalog-video-link-resolver.test.ts --pool=forks --poolOptions.forks.singleFork=true
+# схема на PGlite з усіма міграціями: tests/catalog-video-r2-schema.test.ts (11 кейсів, у т.ч. каскади і надгробки)
+# pgTAP на Docker-БД: supabase/tests/database/catalog-video-r2.test.sql (npm run test:db)
+# Провайдерна приймальна (бета-bucket, deno, креденшели власника): specs/050-catalog-video-r2/provider-acceptance.ts
+npm run analytics -- catalog-video-r2 <team-id> --period all --json
 ```
 
 Фінальний гейт: `npm run verify` — лише коли машина вільна й після завершення задач.

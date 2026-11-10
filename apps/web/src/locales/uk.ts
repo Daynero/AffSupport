@@ -289,6 +289,42 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesErrorRevoked: 'Публікацію картинки відкликано. Оберіть іншу готову картинку.',
   catalogImagesErrorManifest:
     'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
+  catalogVideoR2Toggle: 'Копіювати відео в R2',
+  catalogVideoR2Explain:
+    'Готове відео каталогу копіюється у сховище Soty (Cloudflare R2), і каталог отримує стабільне публічне посилання за непрозорою адресою. Зберігається лише активна версія: попередня видаляється, щойно каталог підтверджено на новій. Перехід відбувається при наступному оновленні каталогу.',
+  catalogVideoR2NextUpdate: 'Діє з наступного оновлення.',
+  catalogVideoR2NoPermission:
+    'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
+  catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusDrive: 'Drive',
+  catalogVideoR2StatusPending: 'Копія готується',
+  catalogVideoR2StatusFallback: 'Лишається посилання Drive',
+  catalogVideoR2LastUpdate: 'Останнє успішне оновлення',
+  catalogVideoR2Never: 'ще не було',
+  catalogVideoR2FullHashPartial: 'Перевірено частинами й пробами; повну контрольну суму звірити не вдалося.',
+  catalogVideoR2Usage: 'Відео в R2',
+  catalogVideoR2UsageOf: '{used} із {quota}',
+  catalogVideoR2Copies: '{ready} активних, {retiring} чекають видалення',
+  catalogVideoR2Estimate: 'Орієнтовно {low}–{high} USD на місяць (оцінка, не рахунок)',
+  catalogVideoR2EstimateUnknown: 'Оцінки поки немає',
+  catalogVideoR2Saved: 'Збережено. Застосується при наступному оновленні каталогу.',
+  catalogVideoR2On: 'Увімкнено',
+  catalogVideoR2ErrorDisabled: 'Копіювання відео в R2 поки недоступне для цього простору.',
+  catalogVideoR2ErrorSource: 'Відео на Drive недоступне або змінилося; каталог лишається на посиланні Drive.',
+  catalogVideoR2ErrorFormat: 'Копіюються лише відео MP4; каталог лишається на посиланні Drive.',
+  catalogVideoR2ErrorQuota:
+    'Досягнуто ліміт відео в R2 для простору; каталог лишається на посиланні Drive. Звільніть місце або підвищте ліміт.',
+  catalogVideoR2ErrorUnavailable:
+    'Сховище не відповіло вчасно; каталог лишається на посиланні Drive, наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorUncertain:
+    'Результат завантаження невідомий; наступне оновлення узгодить його без дублювання копії.',
+  catalogVideoR2ErrorVerification:
+    'Копія не пройшла звірку з джерелом; каталог лишається на посиланні Drive, наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorCatalogWrite:
+    'Не вдалося записати в каталог посилання R2; наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorInterrupted: 'Копіювання перервано; наступне оновлення продовжить його.',
+  catalogVideoR2ErrorCleanup:
+    'Стару копію ще не прибрано повністю; очищення повторюється самостійно.',
   accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',
   accountsUnmatchedLaunches: 'Запуски без пов’язаного РК',
   accountsMoveInstructions:

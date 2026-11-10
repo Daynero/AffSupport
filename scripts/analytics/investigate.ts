@@ -4,6 +4,7 @@ import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
 import { getCommercialAccessEvidence } from './commercial-access.js';
 import { getTranslationRetirementEvidence } from './library-retirement.js';
 import { getCatalogImageDiagnosis } from './catalog-images.js';
+import { getCatalogVideoR2Diagnosis } from './catalog-video-r2.js';
 import { getRecoveryRetirementEvidence } from './recovery-retirement.js';
 import { getMembershipAccessEvidence } from './membership-access.js';
 import { getRecoveryEvidence } from './tariff-recovery.js';
@@ -1897,6 +1898,26 @@ export async function getInvestigation(
         'Inspect the image attempt and confirm publication and dictionary receipts before retrying. Normal random-mode pictures require no matching fix.'
     });
   }
+  const catalog_video_r2 = await getCatalogVideoR2Diagnosis(null, period, {
+    userId: scope.userId,
+    limit: 100
+  });
+  for (const detail of catalog_video_r2.blind_spots)
+    blindSpots.push({ kind: 'workspace_evidence_gap', detail, values: [] });
+  for (const item of catalog_video_r2.findings) {
+    findings.push({
+      id: hashId(['catalog_video_r2', item.evidence, item.code]),
+      kind: item.kind,
+      severity: item.code === 'UNKNOWN' ? 'low' : 'medium',
+      rule: 'catalog_video_r2_copy',
+      title: `Catalog video R2 evidence: ${item.code}; last proven stage: ${catalog_video_r2.last_proven_stage ?? 'unknown'}.`,
+      evidence: [item.evidence],
+      fingerprint: `catalog:video_r2:${item.code}`,
+      code_locations: item.code_locations ? [item.code_locations] : [],
+      next_step:
+        'The catalog kept its working Drive link; the next update retries the copy. Check the reason code, then the copy state and tombstones before any manual cleanup.'
+    });
+  }
   const commercial_access = await getCommercialAccessEvidence(
     scope.userId,
     period.start,
@@ -2319,6 +2340,7 @@ export async function getInvestigation(
   return {
     subject,
     catalog_images,
+    catalog_video_r2,
     recovery_retirement,
     translation_retirement,
     membership_access,

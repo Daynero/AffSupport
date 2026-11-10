@@ -18,6 +18,24 @@ corrected when the background path is decided (see R6).
 
 Owner-selected exception: explicitly published catalog pictures from local files or selected Drive sources may be copied to Cloudflare R2 Standard. The copy is public by opaque URL; publication is deliberate and permission-checked. This exception covers only catalog pictures, not video, private previews, thumbnails or re-stitch screens. Private staging exists only for bounded verification and is cleaned after grants/leases expire. Ready team-owned copies survive source removal and uploader departure; explicit revocation/team deletion uses durable cleanup and own-CDN purge, with external caches unobservable. Until 045 is configured and enabled, the existing Drive path remains in use. This supersedes the blanket no-server-image wording for this narrow journey; privacy/terms and agent-readable diagnostics must agree before enable.
 
+## Public catalog video exception (050)
+
+Owner-selected exception, opt-in per catalog: when a member with the catalog settings
+permission turns on «Копіювати відео в R2» for a catalog (at creation, in the auto-update
+settings, or in a Launch catalog configuration), the catalog's ready video on Drive is copied by
+the server to Cloudflare R2 and the catalog's issued video link points at that copy. The copy is
+public by an opaque URL that carries no tenant, name or path. Only the **active** version of each
+video source is retained: once the catalog is confirmed on a newer version, the previous copy
+becomes a deletion candidate and is removed after a short grace window with an own-CDN purge;
+external caches are unobservable. A catalog in Trash, removed from auto-update or paused keeps its
+copy, because the issued catalog still points at it; only permanent deletion of the catalog, of
+the video source, or of the space makes the copy a candidate, and a tombstone record survives every
+cascade until the object is actually gone. Turning the option off returns the next update to the
+Drive link and retires the copy by the same rules. Any failure to prepare the copy leaves the
+catalog on its working Drive link. Drive remains the source of truth for the library, tasks and
+previews; nothing else is uploaded. The feature stays hidden (`POLICY_PENDING`) until the privacy
+policy and terms name this exception and the owner confirms it in the server configuration.
+
 ## Audit findings
 
 Updated 2026-10-08 after commit 30d4d506 and an independent code audit of HEAD

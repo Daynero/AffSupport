@@ -10,6 +10,7 @@ import { parseTeamRestitchDefaults } from '../../../packages/shared/dist/team/re
 import { captureCatalogVideoSource } from './catalog-video-set-admission.ts';
 import { proveLiveAncestry } from '../_shared/drive.ts';
 import { videoShareLink } from '../_shared/product-catalog.ts';
+import { createCatalogVideoLinkResolver } from '../_shared/catalog-video-link.ts';
 import { verifyInitialCatalogPublication } from './catalog-initial-publication.ts';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import type { TeamRestitchDefaults } from '../../../packages/shared/dist/team/restitch.js';
@@ -221,6 +222,8 @@ export async function createCatalogInitialVideoAuthority(
     foregroundScope?: CatalogForegroundScope;
     foregroundSecret?: string;
     restitchEnabled?: boolean;
+    /** 050: the create request asked for an R2 copy; the preference row follows registration. */
+    copyVideoToR2?: boolean;
     frozenRestitchDefaults?: TeamRestitchDefaults;
     /** Server-frozen Launch candidate; exact consumer proof is required in prepare. */
     readyVideoSetId?: string;
@@ -391,6 +394,7 @@ export async function createCatalogInitialVideoAuthority(
     indexedVersion = source.version;
     return source;
   };
+  const videoLinks = createCatalogVideoLinkResolver({ service });
   const resolveReadyLinks = async (
     setId: string,
     recipeRevision: number,
@@ -441,12 +445,27 @@ export async function createCatalogInitialVideoAuthority(
         )) !== row.sourceVersion
       )
         throw new TeamFunctionError('SOURCE_CHANGED');
-      const permissions = await drive.listAnyonePermissions(row.fileId);
-      if (permissions.length === 0) {
-        if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-        await ensureAnyoneReader(drive, row.fileId, permissions);
-      }
-      links.set(row.rowId, videoShareLink(live.id, live.resourceKey));
+      // 050: a catalog being created has no preference row yet; its request carries the option.
+      const fileId: string = row.fileId;
+      const link = await videoLinks.resolve({
+        scope: { teamId: identity.teamId, assumeEnabled: identity.copyVideoToR2 === true },
+        source: {
+          materialId: row.materialId,
+          sourceVersion: row.sourceVersion,
+          sizeBytes: live.size,
+          mimeType: live.mimeType,
+          checksum: live.checksum
+        },
+        drive: async () => {
+          const permissions = await drive.listAnyonePermissions(fileId);
+          if (permissions.length === 0) {
+            if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+            await ensureAnyoneReader(drive, fileId, permissions);
+          }
+          return videoShareLink(live.id, live.resourceKey);
+        }
+      });
+      links.set(row.rowId, link.url);
     }
     return rowIds.map(id => {
       const link = links.get(id);

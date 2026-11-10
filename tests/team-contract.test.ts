@@ -27,6 +27,7 @@ import {
   TEAM_CATALOG_PUBLICATION_ERROR_CODES,
   RESTITCH_RECOVERY_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
+  CATALOG_VIDEO_R2_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -258,6 +259,8 @@ describe('team contract', () => {
     const publicationPath =
       'supabase/migrations/20261207179000_catalog_publication_error_codes.sql';
     const publicationDelta = readFileSync(publicationPath, 'utf8');
+    const videoPath = 'supabase/migrations/20261207192000_catalog_video_r2_error_codes.sql';
+    const videoDelta = readFileSync(videoPath, 'utf8');
     expect(createHash('sha256').update(mutationDelta.replaceAll('\r\n', '\n')).digest('hex')).toBe(
       '5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9'
     );
@@ -288,6 +291,7 @@ describe('team contract', () => {
     expect(codes(mutationDelta)).toEqual([...TEAM_CATALOG_MUTATION_ERROR_CODES]);
     expect(codes(publicationDelta)).toEqual([...TEAM_CATALOG_PUBLICATION_ERROR_CODES]);
     expect(codes(restitchRecoveryDelta)).toEqual([...RESTITCH_RECOVERY_ERROR_CODES]);
+    expect(codes(videoDelta)).toEqual([...CATALOG_VIDEO_R2_ERROR_CODES]);
     expect(
       [
         ...codes(base),
@@ -302,7 +306,8 @@ describe('team contract', () => {
         ...codes(linkDelta),
         ...codes(mutationDelta),
         ...codes(publicationDelta),
-        ...codes(restitchRecoveryDelta)
+        ...codes(restitchRecoveryDelta),
+        ...codes(videoDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
@@ -312,6 +317,7 @@ describe('team contract', () => {
     const temporaryProcess = join(directory, 'process.sql');
     const temporaryImage = join(directory, 'images.sql');
     const temporaryPublication = join(directory, 'publication.sql');
+    const temporaryVideo = join(directory, 'video.sql');
     const rendered = spawnSync(
       process.execPath,
       [
@@ -325,7 +331,9 @@ describe('team contract', () => {
         '--image-extension-output',
         temporaryImage,
         '--publication-extension-output',
-        temporaryPublication
+        temporaryPublication,
+        '--video-extension-output',
+        temporaryVideo
       ],
       { encoding: 'utf8' }
     );
@@ -335,6 +343,7 @@ describe('team contract', () => {
     expect(readFileSync(temporaryProcess, 'utf8')).toBe(processDelta);
     expect(readFileSync(temporaryImage, 'utf8')).toBe(imageDelta);
     expect(readFileSync(temporaryPublication, 'utf8')).toBe(publicationDelta);
+    expect(readFileSync(temporaryVideo, 'utf8')).toBe(videoDelta);
     expect(readFileSync(publicationPath, 'utf8')).toBe(publicationDelta);
     expect(
       readFileSync('supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql', 'utf8')
@@ -417,7 +426,9 @@ describe('team contract', () => {
       expect(before).not.toContain('CATALOG_PUBLICATION_PENDING');
       expect(before).not.toContain('CATALOG_WRITE_UNSUPPORTED');
       expect(before).toContain('CATALOG_STOP_TARGET_UNKNOWN');
+      expect(before).not.toContain('VIDEO_R2_DISABLED');
       await db.db.exec(publicationDelta);
+      await db.db.exec(videoDelta);
       const catalog = await db.root<{ code: string }>(
         'select code from public.team_error_codes order by code'
       );
@@ -426,10 +437,13 @@ describe('team contract', () => {
         catalog
           .map(row => row.code)
           .filter(
-            code => !(TEAM_CATALOG_PUBLICATION_ERROR_CODES as readonly string[]).includes(code)
+            code =>
+              !(TEAM_CATALOG_PUBLICATION_ERROR_CODES as readonly string[]).includes(code) &&
+              !(CATALOG_VIDEO_R2_ERROR_CODES as readonly string[]).includes(code)
           )
       ).toEqual(before);
       await db.db.exec(publicationDelta);
+      await db.db.exec(videoDelta);
       expect(
         (
           await db.root<{ code: string }>('select code from public.team_error_codes order by code')

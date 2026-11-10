@@ -71,7 +71,8 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
     typeof value.productCount !== 'number' ||
     !Number.isFinite(value.productCount) ||
     (required && !positive(value.productCount, CATALOG_PRODUCT_COUNT_MAX)) ||
-    typeof value.restitchEnabled !== 'boolean'
+    typeof value.restitchEnabled !== 'boolean' ||
+    (value.copyVideoToR2 !== undefined && typeof value.copyVideoToR2 !== 'boolean')
   )
     return null;
   const video = parseLaunchCatalogVideoConfig(value, required);
@@ -110,6 +111,7 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
     return null;
   return {
     ...video,
+    ...(typeof value.copyVideoToR2 === 'boolean' ? { copyVideoToR2: value.copyVideoToR2 } : {}),
     productCount: value.productCount,
     restitchEnabled: value.restitchEnabled,
     finalDurationMode: mode,

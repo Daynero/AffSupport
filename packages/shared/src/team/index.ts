@@ -34,6 +34,7 @@ export * from './task-cleanup.js';
 
 export * from './launch-assignment.js';
 export * from './catalog-images.js';
+export * from './catalog-video-r2.js';
 export * from './catalog-publication-api.js';
 export * from './catalog-publication-lifecycle.js';
 export * from './catalog-publication-runner.js';

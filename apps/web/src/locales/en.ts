@@ -286,6 +286,42 @@ export const en = {
   catalogImagesErrorRevoked: 'This picture publication was revoked. Choose another ready picture.',
   catalogImagesErrorManifest:
     'The file list is not complete. Check the selected pictures and retry.',
+  catalogVideoR2Toggle: 'Copy the video to R2',
+  catalogVideoR2Explain:
+    'The catalog’s ready video is copied to Soty storage (Cloudflare R2) and the catalog gets a stable public link at an opaque address. Only the active version is kept: the previous copy is deleted once the catalog is confirmed on the new one. The switch happens at the next catalog update.',
+  catalogVideoR2NextUpdate: 'Takes effect at the next update.',
+  catalogVideoR2NoPermission:
+    'Only a member who can change the catalog settings can turn this on.',
+  catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusDrive: 'Drive',
+  catalogVideoR2StatusPending: 'Copy in progress',
+  catalogVideoR2StatusFallback: 'Drive link kept',
+  catalogVideoR2LastUpdate: 'Last successful update',
+  catalogVideoR2Never: 'not yet',
+  catalogVideoR2FullHashPartial: 'Verified by parts and probes; the full checksum could not be compared.',
+  catalogVideoR2Usage: 'Videos in R2',
+  catalogVideoR2UsageOf: '{used} of {quota}',
+  catalogVideoR2Copies: '{ready} active, {retiring} awaiting deletion',
+  catalogVideoR2Estimate: 'About {low}–{high} USD per month (an estimate, not an invoice)',
+  catalogVideoR2EstimateUnknown: 'No estimate yet',
+  catalogVideoR2Saved: 'Saved. The next catalog update applies it.',
+  catalogVideoR2On: 'On',
+  catalogVideoR2ErrorDisabled: 'Copying videos to R2 is not available for this space yet.',
+  catalogVideoR2ErrorSource: 'The video on Drive is unavailable or changed; the catalog keeps its Drive link.',
+  catalogVideoR2ErrorFormat: 'Only MP4 videos can be copied; the catalog keeps its Drive link.',
+  catalogVideoR2ErrorQuota:
+    'The space’s R2 video limit is reached; the catalog keeps its Drive link. Free space or raise the limit.',
+  catalogVideoR2ErrorUnavailable:
+    'Storage did not answer in time; the catalog keeps its Drive link and the next update retries.',
+  catalogVideoR2ErrorUncertain:
+    'The upload result is unknown; the next update reconciles it without duplicating the copy.',
+  catalogVideoR2ErrorVerification:
+    'The copy did not verify against the source; the catalog keeps its Drive link and the next update retries.',
+  catalogVideoR2ErrorCatalogWrite:
+    'The catalog could not be written with the R2 link; the next update retries.',
+  catalogVideoR2ErrorInterrupted: 'The copy was interrupted; the next update continues it.',
+  catalogVideoR2ErrorCleanup:
+    'An old copy has not been fully removed yet; cleanup retries on its own.',
   accountsMoveDropped: 'Position selected. Saving the order.',
   accountsUnmatchedLaunches: 'Launches without a linked ad account',
   accountsMoveInstructions:

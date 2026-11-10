@@ -37,6 +37,7 @@ import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
+import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 
 // Beta-only catalog video variants: Vite inlines this flag, so production bundles
 // drop the branch and never emit (or download) these fields.
@@ -605,6 +606,20 @@ export function LaunchEditor({
                           ...(config.catalog!.catalogVideoProtocolVersion === 1 && !restitchEnabled
                             ? { videoVariationCount: 1 }
                             : {})
+                        }
+                      })
+                    }
+                  />
+                  <CatalogVideoR2Toggle
+                    mode="create"
+                    teamId={teamId}
+                    checked={config.catalog.copyVideoToR2 === true}
+                    disabled={disabled}
+                    onChange={copyVideoToR2 =>
+                      changed({
+                        catalog: {
+                          ...config.catalog!,
+                          ...(copyVideoToR2 ? { copyVideoToR2: true } : { copyVideoToR2: false })
                         }
                       })
                     }

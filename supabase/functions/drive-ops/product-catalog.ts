@@ -65,7 +65,8 @@ const BODY_KEYS = new Set([
   'videoPublication',
   'restitchDuration',
   'expectedExecutorId',
-  'foregroundExecutor'
+  'foregroundExecutor',
+  'copyVideoToR2'
 ]);
 
 export type CatalogDrive = Pick<
@@ -141,6 +142,10 @@ export interface ProductCatalogDeps {
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
   assertImageContract?(teamId: string, version: 2 | undefined): Promise<void>;
+  /** 050: refuse `copyVideoToR2` before any side effect unless the feature is available and the actor may manage catalog settings. */
+  assertVideoR2Option?(teamId: string, actorId: string): Promise<void>;
+  /** 050: record the option on the registered catalog and queue its first copy. */
+  applyVideoR2Option?(input: { teamId: string; actorId: string; catalogMaterialId: string }): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
   /** A completed re-stitch of this video by this member, verified before the sheet is made. */
@@ -228,6 +233,8 @@ export interface CatalogCreationVideoPreferences {
 }
 export interface CreateProductCatalogRequest extends Partial<CatalogCreationVideoPreferences> {
   catalogImageContractVersion?: 2;
+  /** 050: copy the catalog video to R2 and issue the R2 link from the next update on. */
+  copyVideoToR2?: boolean;
   teamId: string;
   videoMaterialId: string;
   sourceLink: string;
@@ -285,12 +292,14 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   if (!count.ok) invalid('count');
   if (body.randomLinkVariation !== undefined && typeof body.randomLinkVariation !== 'boolean')
     invalid();
+  if (body.copyVideoToR2 !== undefined && typeof body.copyVideoToR2 !== 'boolean') invalid();
   if (body.catalogImageContractVersion !== undefined && body.catalogImageContractVersion !== 2)
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   const videoPreferences = parseCatalogCreationVideoPreferences(body, count.value);
   return {
     ...videoPreferences,
     ...(body.catalogImageContractVersion === 2 ? { catalogImageContractVersion: 2 } : {}),
+    ...(body.copyVideoToR2 === true ? { copyVideoToR2: true } : {}),
     teamId,
     videoMaterialId,
     sourceLink: link.value,
@@ -491,6 +500,7 @@ export async function createProductCatalog(
   // Refusals first: nothing below this block may leave anything behind.
   const video = await deps.loadVideo({ teamId, videoId, actorId, permission: 'view' });
   if (video.category !== 'video') wrongState('not_a_video');
+  if (request.copyVideoToR2) await deps.assertVideoR2Option?.(teamId, actorId);
   const settings = await deps.readSettings(teamId);
   if (!settings) wrongState('settings_missing');
 
@@ -742,6 +752,8 @@ export async function createProductCatalog(
       for (const retired of linked.retired) {
         await trashQuietly(deps, drive, retired, 'retired catalog');
       }
+      if (request.copyVideoToR2)
+        await deps.applyVideoR2Option?.({ teamId, actorId, catalogMaterialId: committed.materialId });
       return {
         outcome: replaces ? 'recreated' : 'created',
         catalog: {

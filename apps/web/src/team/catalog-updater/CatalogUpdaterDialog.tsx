@@ -52,6 +52,7 @@ import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
 import { CatalogIconControls, CatalogIconLegend, CATALOG_FIELDS } from './CatalogIconControls';
+import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 import { useCatalogInlineChanges, type CatalogField } from './useCatalogInlineChanges';
 import { CatalogCreatedFilter } from './CatalogCreatedFilter';
 import { matchesCatalogCreatedAt } from './catalogCreatedDate';
@@ -1867,6 +1868,13 @@ function CatalogUpdaterDialogScope({
                       }
                       onChange={(field, value) => changeField(row, field, value)}
                       onReadiness={registry.reload}
+                    />
+                    {/* 050: the catalog's R2 option lives beside the other auto-update choices. */}
+                    <CatalogVideoR2Toggle
+                      mode="catalog"
+                      teamId={teamId}
+                      catalogMaterialId={row.catalogId}
+                      disabled={!mayRun}
                     />
                     {builtForEnvironment() === 'beta' &&
                       import.meta.env.VITE_CATALOG_VIDEO_VARIANTS === 'true' && (

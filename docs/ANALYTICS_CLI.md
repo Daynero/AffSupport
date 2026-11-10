@@ -724,3 +724,24 @@ cleanup errors. Beta analytics remains disabled.
 `npm run analytics -- cohorts --cohort-by agent-architecture --json` groups by native platform, runtime CPU and local build. `macos:x64` is distinct from `windows:x64`; a runtime under translation does not prove physical Intel hardware. `investigate` and `inspect` expose native fields separately from existing browser `architectures`. Missing legacy identity stays unknown with an explicit investigation blind spot. No download click proves bytes/install/boot, and no terminal without visible-result evidence proves delivery. The forward SQL guard migration must ship through the normal release before new properties reach production; no report command applies it.
 
 Installer request intent is `properties.installer_target` and is projected separately as `requested_installer_targets` by inspect/investigate. `properties.package_target` describes observed installed metadata from the native health context. A fresh download request never establishes native architecture, installation or successful delivery.
+
+### Відео каталогу в R2 (050)
+
+```bash
+npm run analytics -- catalog-video-r2 <team-id|catalog-id|source-material-id|copy-id> --period 30d --json
+npm run analytics -- catalog-video-r2 <id> --as-of <iso> --limit 100 --cursor <next_cursor> --json
+npm run analytics -- investigate <user-email> --as-of <iso> --json
+```
+
+`catalog-video-r2` читає immutable journal `analytics_catalog_video_r2_journal`
+через SELECT-only projections; запитів до R2 і змін production немає. Стадії —
+`configured → planned → uploading → part_verified → verifying → ready →
+confirmed`, далі `retiring → deleted` і `purged`; `failed` з закритим кодом
+причини (`VIDEO_R2_*`, `SOURCE_CHANGED`, `TOO_LARGE`, `PERMISSION_DENIED`).
+`proof.full_hash_verified` каже, чи звірено повну контрольну суму джерела, чи
+копію доведено лише частинами й пробами (межа доказу, не помилка); `link_kind`
+у стадії `confirmed` — на яке посилання каталог підтверджено. `observed_copies`
+— поточні стани копій простору (не історичні байти). Публічний GET доводить
+доступність у точці перевірки, а не прийняття зовнішньою платформою; вартість —
+лише оцінка з публічного прайсу. `investigate` додає ці знахідки під правилом
+`catalog_video_r2_copy` з fingerprint `catalog:video_r2:<code>`.

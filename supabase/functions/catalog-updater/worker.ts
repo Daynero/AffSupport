@@ -130,6 +130,17 @@ export interface CatalogUpdaterDeps {
   ): Promise<CatalogDrawnImage[]>;
   /** Names and texts from the space's pool, the same way (024, US21). */
   drawTexts?(teamId: string, count: number): Promise<Array<{ title: string; description: string }>>;
+  /** 050: the catalog's R2 link for its in-use video, when the option is on and a copy is ready. */
+  resolveVideoLink?(
+    catalogId: string,
+    sourceMaterialId: string | null
+  ): Promise<{ kind: 'r2'; url: string; sourceMaterialId: string; sourceVersion: string } | { kind: 'drive' } | null>;
+  /** 050: after a confirmed write, which copies this catalog now points at (set-replace). */
+  confirmVideoLink?(
+    catalogId: string,
+    linkKind: 'drive' | 'r2',
+    uses: ReadonlyArray<{ sourceMaterialId: string; sourceVersion: string }>
+  ): Promise<void>;
   openRounds(): Promise<number>;
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
@@ -639,6 +650,11 @@ async function updateOne(
     if (pictures.status === 'rejected') throw pictures.reason;
     if (texts.status === 'rejected') throw texts.reason;
     const rows = refreshedTexts(item, pictures.value, count, texts.value);
+    // 050: an R2 copy of the in-use video replaces the stored Drive link in the cells only;
+    // current_video_link and the spare's shared_link stay Drive identities.
+    const videoR2 = nonVideo
+      ? null
+      : await deps.resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null).catch(() => null);
     await deps.progress(item.catalogId, 'building').catch(() => false);
     const builtRows = rebuildCatalogRows({
       record: {
@@ -649,7 +665,8 @@ async function updateOne(
         randomLinkVariation: item.randomLinkVariation,
         rows
       },
-      videoLinkOverride: item.spare?.link ?? item.currentVideoLink,
+      videoLinkOverride:
+        videoR2?.kind === 'r2' ? videoR2.url : (item.spare?.link ?? item.currentVideoLink),
       ...(nonVideo ? { preservedVideoCells: nonVideo.videoCells } : {})
     });
     const bytes = nonVideo
@@ -749,6 +766,16 @@ async function updateOne(
     if (item.teamId && item.imageAttemptId)
       await deps.finalizeImageUses?.(item.teamId, item.imageAttemptId, true);
     if (await deps.complete(item.catalogId, nextCount, swappedCopy, became)) {
+      if (!nonVideo && videoR2)
+        await deps
+          .confirmVideoLink?.(
+            item.catalogId,
+            videoR2.kind,
+            videoR2.kind === 'r2'
+              ? [{ sourceMaterialId: videoR2.sourceMaterialId, sourceVersion: videoR2.sourceVersion }]
+              : []
+          )
+          .catch(() => undefined);
       await deps.finishWrite(item.catalogId);
       summary.updated += 1;
     } else {

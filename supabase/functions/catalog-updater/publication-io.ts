@@ -8,6 +8,9 @@ import {
   videoShareLink
 } from '../_shared/product-catalog.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
+import { createCatalogVideoLinkResolver } from '../_shared/catalog-video-link.ts';
+// @deno-types="../../../packages/shared/dist/team/catalog-video-r2.d.ts"
+import { isCatalogVideoR2PublicUrl } from '../../../packages/shared/dist/team/catalog-video-r2.js';
 import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import type { CatalogPublicationIo } from './publication-authority.ts';
@@ -41,6 +44,13 @@ export function createTargetedCatalogPublicationIo(
       : drive;
   }
   const ancestorCache = new Map<string, ReturnType<GoogleDriveClient['getFile']>>();
+  // 050: the one place that decides Drive or R2 for a cell; Drive stays byte for byte.
+  const videoLinks = createCatalogVideoLinkResolver({
+    service,
+    kick: async () => {
+      await service.rpc('service_catalog_video_r2_kick', { p_route: 'claim' });
+    }
+  });
   async function rpc(name: string, args: Record<string, unknown>) {
     const r = await service.rpc(name, args);
     if (r.error) {
@@ -165,13 +175,26 @@ export function createTargetedCatalogPublicationIo(
         )) !== source.sourceVersion
       )
         throw new TeamFunctionError('SOURCE_CHANGED');
-      const permissions = await drive.listAnyonePermissions(fileId);
-      if (permissions.length === 0) {
-        if (!allowSharing) throw new TeamFunctionError('PERMISSION_DENIED');
-        if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-        await ensureAnyoneReader(drive, fileId, permissions);
-      }
-      const url = videoShareLink(live.id, live.resourceKey);
+      const link = await videoLinks.resolve({
+        scope: { publicationJobId: scope.jobId },
+        source: {
+          materialId,
+          sourceVersion: source.sourceVersion,
+          sizeBytes: live.size,
+          mimeType: live.mimeType,
+          checksum: live.checksum
+        },
+        drive: async () => {
+          const permissions = await drive.listAnyonePermissions(fileId);
+          if (permissions.length === 0) {
+            if (!allowSharing) throw new TeamFunctionError('PERMISSION_DENIED');
+            if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+            await ensureAnyoneReader(drive, fileId, permissions);
+          }
+          return videoShareLink(live.id, live.resourceKey);
+        }
+      });
+      const url = link.url;
       if (old && old.url !== url) throw new TeamFunctionError('SOURCE_CHANGED');
       if (
         (await rpc('service_record_catalog_publication_link', {
@@ -179,7 +202,8 @@ export function createTargetedCatalogPublicationIo(
           p_worker: workerId,
           p_material: materialId,
           p_source_version: source.sourceVersion,
-          p_url: url
+          p_url: url,
+          p_link_kind: link.kind
         })) !== true
       )
         throw uncertain();
@@ -266,6 +290,30 @@ export function createTargetedCatalogPublicationIo(
     if (!parseFrozenPublicationCells(saved)) throw uncertain();
     return 'ready';
   }
+  /** After a verified write: which R2 copies this catalog now points at (set-replace, R7). */
+  async function confirmVideoUses(jobId: string) {
+    const c = await context(jobId);
+    if (!Array.isArray(c.sources)) throw uncertain();
+    const links = receipts(c);
+    const uses: { sourceMaterialId: string; sourceVersion: string }[] = [];
+    for (const source of c.sources) {
+      if (!isRecord(source)) throw uncertain();
+      const receipt = links.get(field(source, 'materialId'));
+      if (receipt && isCatalogVideoR2PublicUrl(field(receipt, 'url')))
+        uses.push({
+          sourceMaterialId: field(source, 'materialId'),
+          sourceVersion: field(receipt, 'sourceVersion')
+        });
+    }
+    const confirmed = await service.rpc('service_catalog_video_r2_confirm_use', {
+      p_catalog: null,
+      p_link_kind: uses.length > 0 ? 'r2' : 'drive',
+      p_uses: uses,
+      p_job: jobId
+    });
+    if (confirmed.error)
+      throw new TeamFunctionError('VIDEO_R2_CATALOG_WRITE_FAILED', { retryable: true });
+  }
   return {
     writerPolicy: 'targeted_video_cells',
     async availability(_item, scope) {
@@ -340,7 +388,17 @@ export function createTargetedCatalogPublicationIo(
       try {
         if ((await prepare(scope, false)) !== 'ready') return { outcome: 'unknown' };
         const { drive, frozen } = await load(scope.jobId);
-        return await verifyPublicationCells(drive, { ...frozen, markerValue: fence });
+        const verified = await verifyPublicationCells(drive, { ...frozen, markerValue: fence });
+        if (verified.outcome === 'verified') {
+          // A verified write with an unconfirmed R2 use would let the copy retire under the
+          // catalog; report unknown so the next verification confirms it (FR-010).
+          try {
+            await confirmVideoUses(scope.jobId);
+          } catch {
+            return { outcome: 'unknown' };
+          }
+        }
+        return verified;
       } catch (cause) {
         const code =
           cause instanceof TeamFunctionError &&

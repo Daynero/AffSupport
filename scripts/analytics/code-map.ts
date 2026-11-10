@@ -1,6 +1,7 @@
 import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
 import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
+import { CATALOG_VIDEO_R2_REASONS } from '../../packages/shared/src/team/catalog-video-r2.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
   MACOS_STARTUP_CODES,
@@ -1661,6 +1662,45 @@ function build(): Record<string, CodeLocation> {
             ],
       check:
         'Inspect the immutable image stages and publication receipt before retrying; normal unclassified pictures are random-mode successes, while missing readback or a lost response remains unknown.'
+    };
+  }
+  for (const code of [...CATALOG_VIDEO_R2_REASONS, 'UNKNOWN']) {
+    map[`catalog:video_r2:${code}`] = {
+      files:
+        code === 'PERMISSION_DENIED' || code === 'VIDEO_R2_DISABLED' || code === 'VIDEO_R2_POLICY_PENDING' || code === 'VIDEO_R2_NOT_CONFIGURED'
+          ? [
+              'supabase/functions/catalog-video-r2/handler.ts',
+              'supabase/migrations/20261207191000_catalog_video_r2.sql',
+              'apps/web/src/team/product-catalog/CatalogVideoR2Toggle.tsx'
+            ]
+          : code === 'VIDEO_R2_QUOTA_EXCEEDED' || code === 'TOO_LARGE' || code === 'VIDEO_R2_UNSUPPORTED_FORMAT'
+            ? [
+                'supabase/migrations/20261207191000_catalog_video_r2.sql',
+                'supabase/functions/_shared/catalog-video-link.ts',
+                'apps/web/src/team/tariffs/CatalogVideoR2UsageSection.tsx'
+              ]
+            : code === 'VIDEO_R2_CLEANUP_PARTIAL'
+              ? [
+                  'supabase/functions/catalog-video-r2/worker.ts',
+                  'supabase/functions/_shared/r2-catalog-video.ts',
+                  'supabase/migrations/20261207191000_catalog_video_r2.sql'
+                ]
+              : code === 'VIDEO_R2_CATALOG_WRITE_FAILED'
+                ? [
+                    'supabase/functions/catalog-updater/publication-io.ts',
+                    'supabase/migrations/20261207191000_catalog_video_r2.sql',
+                    'supabase/functions/catalog-updater/worker.ts'
+                  ]
+                : [
+                    'supabase/functions/catalog-video-r2/worker.ts',
+                    'supabase/functions/_shared/r2-catalog-video.ts',
+                    'supabase/functions/_shared/catalog-video-link.ts',
+                    'apps/web/src/team/product-catalog/CatalogVideoR2Toggle.tsx'
+                  ],
+      check:
+        code === 'UNKNOWN'
+          ? 'Missing or malformed stage evidence is unknown, never proof that the copy stopped there; read the copy state and tombstones directly.'
+          : 'The catalog kept its Drive link. Check the copy state, verified parts and full_hash_verified before retrying; the next update retries on its own.'
     };
   }
   map['catalog:image:POOL_REMOVED'] = {

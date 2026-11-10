@@ -6,6 +6,8 @@ import { teamErrorMessageFor } from '../errors';
 import { TeamApiError, type CatalogUpdaterInterval } from '../../api/team';
 import { beginCatalogUiFlow, type CatalogUiFlow } from './analytics';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
+import { useOptionalTeam } from '../TeamContext';
+import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 
 const FIELDS = [
   ['randomLinkVariation', 'catalogRandomLinkVariation', 'catalogUpdaterLinkVariationEffect'],
@@ -49,6 +51,7 @@ export function CatalogProfileEditor({
   activeAttempt?: boolean;
 }) {
   const { t } = useI18n();
+  const activeTeamId = useOptionalTeam()?.activeTeamId ?? null;
   const [draft, setDraft] = useState<CatalogUpdateProfilePatch>({});
   const [baseline, setBaseline] = useState({ profile, interval });
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -204,6 +207,15 @@ export function CatalogProfileEditor({
           </div>
         ))}
       </div>
+      {/* 050: saved on its own, not part of the profile patch; the next update applies it. */}
+      {activeTeamId && (
+        <CatalogVideoR2Toggle
+          mode="catalog"
+          teamId={activeTeamId}
+          catalogMaterialId={profile.catalogId}
+          disabled={pending}
+        />
+      )}
       {(draft.restitch ?? base.restitch) && (
         <p className="field-hint" role="status">
           {profile.restitchStatus === 'ready'

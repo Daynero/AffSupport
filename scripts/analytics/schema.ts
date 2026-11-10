@@ -47,6 +47,10 @@ const TABLES = [
   'analytics_commercial_access',
   'analytics_translation_retirement',
   'analytics_catalog_image_journal',
+  'analytics_catalog_video_r2_journal',
+  'analytics_catalog_video_r2_copies',
+  'analytics_catalog_video_r2_purges',
+  'analytics_catalog_video_r2_coverage',
   'analytics_catalog_text_schedule',
   'analytics_catalog_text_schedule_journal',
   'analytics_catalog_text_schedule_coverage',
@@ -130,6 +134,18 @@ async function probe(): Promise<AnalyticsSchema> {
       ...(has('table', 'analytics_catalog_image_journal')
         ? { analytics_catalog_image_journal: true }
         : {}),
+      ...(has('table', 'analytics_catalog_video_r2_journal')
+        ? { analytics_catalog_video_r2_journal: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_r2_copies')
+        ? { analytics_catalog_video_r2_copies: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_r2_purges')
+        ? { analytics_catalog_video_r2_purges: true }
+        : {}),
+      ...(has('table', 'analytics_catalog_video_r2_coverage')
+        ? { analytics_catalog_video_r2_coverage: true }
+        : {}),
       ...(has('table', 'analytics_recovery_retirement')
         ? { analytics_recovery_retirement: true }
         : {}),
@@ -207,6 +223,11 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_commercial_access' &&
         table !== 'analytics_translation_retirement' &&
         table !== 'analytics_catalog_image_journal' &&
+        // 050 projections: the catalog-video-r2 reader reports its own blind spot when absent.
+        table !== 'analytics_catalog_video_r2_journal' &&
+        table !== 'analytics_catalog_video_r2_copies' &&
+        table !== 'analytics_catalog_video_r2_purges' &&
+        table !== 'analytics_catalog_video_r2_coverage' &&
         table !== 'analytics_catalog_text_schedule' &&
         table !== 'analytics_catalog_text_schedule_journal' &&
         table !== 'analytics_catalog_text_schedule_coverage' &&
