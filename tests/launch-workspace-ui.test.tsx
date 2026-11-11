@@ -2115,7 +2115,9 @@ it('keeps the date filter and reports where to find a scheduled copy', async () 
   await act(async () => resolveCopy({ id: copyId, version: '1' }));
   await waitFor(() => expect(push).toHaveBeenCalledOnce());
   const notice = push.mock.calls[0][0];
-  expect(notice.text).toContain('2026-11-01');
+  const { formatDayValue } = await import('../apps/web/src/format');
+  expect(notice.text).toContain(formatDayValue('2026-11-01', 'en-US'));
+  expect(notice.text).not.toContain('2026-11-01');
   expect(notice.action.label).toBe('Open copy');
   act(() => notice.action.run());
   expect(window.location.search).toContain(copyId);
