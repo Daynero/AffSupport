@@ -52,6 +52,7 @@ import { useLaunchDraft } from './useLaunchDraft';
 import { newLaunchDraft } from './launchDraftDefaults';
 import { mergeLaunchOverrides, useLaunchOverrides } from './useLaunchOverrides';
 import { useLaunchGeneration } from './useLaunchGeneration';
+import { catalogComparable, withCatalogGenerationDefaults } from './catalogGenerationDefaults';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
 import { LaunchAssignmentControls } from './LaunchAssignmentControls';
@@ -222,8 +223,10 @@ export function LaunchSession({
       manual.acknowledge({});
       setOverrides({});
     }
+    // Untouched since Generate: take the saved draft as the editor's value too, so a
+    // fuller server spelling of the same settings is not autosaved back as an edit.
     if (own && launchValuesEqual(approvedConfig.current, currentSignature))
-      draft.acknowledge(next.draft, next.expectedSourceSnapshot, next.version);
+      draft.adopt(next.draft, next.expectedSourceSnapshot, next.version);
     pendingGeneration.current = null;
     ownedKey.current = null;
     approvedOutputs.current = null;
@@ -874,7 +877,10 @@ export function LaunchSession({
     if (active) setChangeReview(request);
     else await executeGeneration(request);
   };
-  const executeGeneration = async (request: GenerationRequest) => {
+  const executeGeneration = async (submitted: GenerationRequest) => {
+    // Hold exactly what is generated: the generation fills in the catalog video
+    // defaults, and an editor left on the shorter shape would autosave it back.
+    const request = { ...submitted, config: withCatalogGenerationDefaults(submitted.config) };
     if (!generationClick.current) progressScroll.reveal();
     setPreflighting(false);
     setError(null);
@@ -932,6 +938,7 @@ export function LaunchSession({
           }
         });
         if (!inputAuthority.current.mounted) return;
+        prepared.config = withCatalogGenerationDefaults(prepared.config);
         draft.setConfig(prepared.config);
         draft.setSources(prepared.sources);
         const key = generation.intent('catalog', prepared.detail.id);
@@ -1609,8 +1616,8 @@ export function LaunchSession({
               return (
                 !parsed.ok ||
                 !launchValuesEqual(
-                  { ...parsed.value, notes: undefined },
-                  { ...displayedRevision.config, notes: undefined }
+                  { ...catalogComparable(parsed.value), notes: undefined },
+                  { ...catalogComparable(displayedRevision.config), notes: undefined }
                 )
               );
             })()

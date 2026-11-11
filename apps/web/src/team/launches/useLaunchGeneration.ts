@@ -1,4 +1,4 @@
-import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
+import { withCatalogGenerationDefaults } from './catalogGenerationDefaults';
 import { isCatalogForegroundPreparationFailure } from '../../api/catalog-video-foreground';
 import { teamErrorCodeOf } from '../errors';
 import { catalogForeground } from '../../api/catalog-video-foreground-client';
@@ -299,20 +299,7 @@ export function useLaunchGeneration(
               ? savedDraft.current.version
               : (expectedVersion ?? savedDraft.current?.version ?? null),
           requestKey: crypto.randomUUID(),
-          config:
-            config.method === 'catalog' && config.catalog
-              ? {
-                  ...config,
-                  catalog: {
-                    ...config.catalog,
-                    catalogVideoProtocolVersion: 1,
-                    videoVariationCount: config.catalog.videoVariationCount ?? 1,
-                    videoPublication: CATALOG_DEFERRED_PUBLICATION_AVAILABLE
-                      ? (config.catalog.videoPublication ?? { mode: 'immediate' })
-                      : { mode: 'immediate' }
-                  }
-                }
-              : config,
+          config: withCatalogGenerationDefaults(config),
           sources
         };
       if (!request.current) {
