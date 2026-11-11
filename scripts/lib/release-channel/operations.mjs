@@ -441,7 +441,7 @@ export function describeStatus(report) {
   const { state, live, origins } = report;
   const lines = [];
   const name = (/** @type {any} */ r) =>
-    `${r.version} (збірка ${r.buildId}, ${r.deployedAt.slice(0, 16).replace('T', ' ')} UTC)`;
+    `${r.version} (збірка ${r.buildId}, ${r.kind === 'adopted' ? 'записано' : 'викладено'} ${r.deployedAt.slice(0, 16).replace('T', ' ')} UTC)`;
   lines.push(
     state.production
       ? `Прод ${origins.production}: ${name(state.production)}${live.production === false ? ' — УВАГА: сайт зараз віддає щось інше' : live.production === null ? ' — сайт не відповів' : ''}`

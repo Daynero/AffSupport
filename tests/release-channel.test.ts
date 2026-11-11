@@ -268,6 +268,7 @@ describe('release channel (051)', () => {
     expect(report.live).toEqual({ next: true, production: true });
     const text = describeStatus(report);
     expect(text).toContain('Прод https://soty.test: 1.4.0');
+    expect(text).toContain('записано');
     expect(text).toContain('Тест https://next.soty.test: 1.5.0');
     expect(text).toContain('збірка №1');
     expect(text).toContain('Відкат: немає попередньої версії');
