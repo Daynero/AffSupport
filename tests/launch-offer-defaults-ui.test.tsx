@@ -58,6 +58,9 @@ beforeEach(() => {
   api.track.mockReset();
 });
 afterEach(cleanup);
+it('starts a new launch at the usual minimum age instead of an empty field (1.4.3)', () => {
+  expect(newLaunchDraft().age).toBe(18);
+});
 it('never proposes resetting an existing launch when StrictMode replays its initial read', async () => {
   api.defaults.mockResolvedValue(profile(8));
   const { result } = mount({ ...newLaunchDraft(), offerId: 'A', campaignCount: 7 }, true, true);
@@ -181,7 +184,8 @@ it('protects manual changes before and during a slow read; explicit apply replac
     budgets: null,
     offerId: 'A'
   });
-  expect(result.current.config.age).toBeUndefined();
+  // A profile without an age falls back to the new-launch default, as every other field does.
+  expect(result.current.config.age).toBe(18);
   expect(result.current.config.minBudget).toBeUndefined();
 });
 it('ignores out-of-order reads and records obsolete work as cancelled', async () => {
