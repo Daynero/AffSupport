@@ -6,6 +6,8 @@ import {
   SPREADSHEET_MIME_TYPE
 } from '../_shared/product-catalog.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+// @deno-types="../../../packages/shared/dist/team/catalog-video-r2.d.ts"
+import { isCatalogVideoR2PublicUrl } from '../../../packages/shared/dist/team/catalog-video-r2.js';
 export interface CatalogBaselineScope {
   readonly catalogMaterialId: string;
   readonly catalogFileId: string;
@@ -19,15 +21,101 @@ export interface CatalogBaselineScope {
   readonly sourceConnectionId: string;
   readonly sourceLink: string;
   readonly productCount: number;
+  /** Ready video sets whose variant outputs the cells may hold (restitched catalogs). */
+  readonly videoSets?: readonly CatalogBaselineVideoSet[];
 }
+export interface CatalogBaselineVideoVariant {
+  readonly materialId: string;
+  readonly fileId: string;
+  readonly resourceKey: string | null;
+  readonly credentialId: string;
+  readonly rootFolderId: string;
+  /** Public URLs of this output's ready R2 copies (050). */
+  readonly r2Urls: readonly string[];
+}
+export interface CatalogBaselineVideoSet {
+  readonly videoSetId: string;
+  readonly recipeRevision: number;
+  readonly variants: readonly CatalogBaselineVideoVariant[];
+  /** Expected output per product, or null when the catalog never recorded it. */
+  readonly rows: readonly Readonly<{ productId: string; materialId: string }>[] | null;
+}
+type VariantDrive = Pick<GoogleDriveClient, 'getFile' | 'listAnyonePermissions'>;
 export type VerifiedCatalogVideoBaseline = Readonly<{
   catalogMaterialId: string;
   providerRevision: string;
   videoCellsDigest: string;
-  outcome: 'blank' | 'source';
-  target: Readonly<{ kind: 'source'; materialId: string; sourceVersion: string }> | null;
+  outcome: 'blank' | 'source' | 'video_set';
+  target:
+    | Readonly<{ kind: 'source'; materialId: string; sourceVersion: string }>
+    | Readonly<{ kind: 'video_set'; videoSetId: string; recipeRevision: number }>
+    | null;
 }>;
 const unknown = () => new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', { retryable: false });
+/** The Drive file a cell link names, or null for anything that is not a plain
+ * https Drive file link. Variation marks and resource keys do not matter here. */
+function driveLinkFileId(link: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(link);
+  } catch {
+    return null;
+  }
+  if (
+    u.protocol !== 'https:' ||
+    u.hostname !== 'drive.google.com' ||
+    u.username ||
+    u.password ||
+    u.hash
+  )
+    return null;
+  const id = /^\/file\/d\/([^/]+)(?:\/|$)/u.exec(u.pathname)?.[1] ?? u.searchParams.get('id');
+  if (!id) return null;
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return null;
+  }
+}
+type VariantMatch = Readonly<{
+  variant: CatalogBaselineVideoVariant;
+  via: 'drive' | 'r2';
+  link: string;
+}>;
+function matchVariant(set: CatalogBaselineVideoSet, link: string): VariantMatch | null {
+  for (const variant of set.variants)
+    if (variant.r2Urls.includes(link) && isCatalogVideoR2PublicUrl(link))
+      return { variant, via: 'r2', link };
+  const fileId = driveLinkFileId(link);
+  if (fileId === null) return null;
+  const variant = set.variants.find(v => v.fileId === fileId);
+  return variant ? { variant, via: 'drive', link } : null;
+}
+/** Every cell holds an output of this set (and, where the catalog recorded it, the
+ * output assigned to that product); null when the set does not explain the cells. */
+function explainCells(
+  set: CatalogBaselineVideoSet,
+  productIds: readonly string[],
+  links: readonly string[]
+): VariantMatch[] | null {
+  const expected =
+    set.rows &&
+    set.rows.length === productIds.length &&
+    new Set(set.rows.map(r => r.productId)).size === set.rows.length &&
+    productIds.every(id => set.rows!.some(r => r.productId === id))
+      ? new Map(set.rows.map(r => [r.productId, r.materialId]))
+      : null;
+  const matches: VariantMatch[] = [];
+  for (let i = 0; i < links.length; i++) {
+    const match = links[i] ? matchVariant(set, links[i]!) : null;
+    if (!match) return null;
+    if (expected && expected.get(productIds[i]!) !== match.variant.materialId) return null;
+    matches.push(match);
+  }
+  return matches;
+}
+const hasPublicReader = (permissions: readonly { role: string }[]) =>
+  permissions.some(p => ['reader', 'writer', 'commenter'].includes(p.role));
 function canonicalSourceLink(link: string, fileId: string): string {
   let u: URL;
   try {
@@ -57,7 +145,10 @@ export async function verifyCatalogVideoBaseline(input: {
     'getFile' | 'getNativeSpreadsheetSheets' | 'readNativeCatalogColumns'
   >;
   sourceDrive: Pick<GoogleDriveClient, 'getFile' | 'listAnyonePermissions'>;
-  authorize: () => Promise<void>;
+  /** Drive for a variant output's own connection credential. */
+  variantDrive?: (credentialId: string) => Promise<VariantDrive>;
+  /** Re-authorizes the check; may return the current candidate video sets. */
+  authorize: () => Promise<void | readonly CatalogBaselineVideoSet[]>;
 }): Promise<VerifiedCatalogVideoBaseline> {
   const scope = Object.freeze({ ...input.scope });
   if (
@@ -157,18 +248,67 @@ export async function verifyCatalogVideoBaseline(input: {
   )
     throw unknown();
   const blank = links.every(link => link === '');
-  if (
+  const original =
     !blank &&
-    links.some(link => !link || canonicalSourceLink(link, scope.sourceFileId) !== expected)
-  )
-    throw unknown();
+    links.every(link => {
+      if (!link) return false;
+      try {
+        return canonicalSourceLink(link, scope.sourceFileId) === expected;
+      } catch {
+        return false;
+      }
+    });
+  // A restitched catalog holds its set's variant outputs instead of the original;
+  // the same empty rule applies, so a partly empty column is still refused.
+  let chosen: Readonly<{ set: CatalogBaselineVideoSet; matches: VariantMatch[] }> | null = null;
+  if (!blank && !original) {
+    for (const set of scope.videoSets ?? []) {
+      const matches = explainCells(set, productIds, links);
+      if (matches) {
+        chosen = { set, matches };
+        break;
+      }
+    }
+    if (!chosen) throw unknown();
+  }
   if (
-    !blank &&
-    !(await input.sourceDrive.listAnyonePermissions(scope.sourceFileId)).some(p =>
-      ['reader', 'writer', 'commenter'].includes(p.role)
-    )
+    original &&
+    !hasPublicReader(await input.sourceDrive.listAnyonePermissions(scope.sourceFileId))
   )
     throw new TeamFunctionError('PERMISSION_DENIED');
+  if (chosen) {
+    // Each Drive output a cell names must still live under its connection and be
+    // public; an R2 URL is ours by construction and is re-checked as still ready.
+    const viaDrive = new Map<string, CatalogBaselineVideoVariant>();
+    for (const m of chosen.matches)
+      if (m.via === 'drive') viaDrive.set(m.variant.materialId, m.variant);
+    const drives = new Map<string, Promise<VariantDrive>>();
+    const driveFor = (credentialId: string) => {
+      if (!input.variantDrive) throw unknown();
+      let drive = drives.get(credentialId);
+      if (!drive) {
+        drive = input.variantDrive(credentialId);
+        drives.set(credentialId, drive);
+      }
+      return drive;
+    };
+    const prove = async (variant: CatalogBaselineVideoVariant) => {
+      const drive = await driveFor(variant.credentialId);
+      const live = await proveLiveAncestry({
+        client: drive,
+        fileId: variant.fileId,
+        rootFolderId: variant.rootFolderId,
+        resourceKey: variant.resourceKey,
+        maximumDepth: 16
+      });
+      if (live.id !== variant.fileId || live.trashed) throw new TeamFunctionError('SOURCE_CHANGED');
+      if (!hasPublicReader(await drive.listAnyonePermissions(variant.fileId)))
+        throw new TeamFunctionError('PERMISSION_DENIED');
+    };
+    const pending = [...viaDrive.values()];
+    for (let offset = 0; offset < pending.length; offset += 4)
+      await Promise.all(pending.slice(offset, offset + 4).map(prove));
+  }
   const after = await proveLiveAncestry({
     client: input.catalogDrive,
     fileId: scope.catalogFileId,
@@ -183,7 +323,22 @@ export async function verifyCatalogVideoBaseline(input: {
     resourceKey: scope.sourceResourceKey,
     maximumDepth: 16
   });
-  await input.authorize();
+  const current = await input.authorize();
+  if (chosen && current) {
+    const still = current.find(
+      s => s.videoSetId === chosen.set.videoSetId && s.recipeRevision === chosen.set.recipeRevision
+    );
+    if (
+      !still ||
+      chosen.matches.some(m => {
+        const v = still.variants.find(x => x.materialId === m.variant.materialId);
+        return (
+          !v || v.fileId !== m.variant.fileId || (m.via === 'r2' && !v.r2Urls.includes(m.link))
+        );
+      })
+    )
+      throw new TeamFunctionError('SOURCE_CHANGED');
+  }
   if (
     after.id !== before.id ||
     after.trashed ||
@@ -197,10 +352,8 @@ export async function verifyCatalogVideoBaseline(input: {
   if (!after.capabilities.canModifyContent || !sourceAfter.capabilities.canDownload)
     throw new TeamFunctionError('PERMISSION_DENIED');
   if (
-    !blank &&
-    !(await input.sourceDrive.listAnyonePermissions(scope.sourceFileId)).some(p =>
-      ['reader', 'writer', 'commenter'].includes(p.role)
-    )
+    original &&
+    !hasPublicReader(await input.sourceDrive.listAnyonePermissions(scope.sourceFileId))
   )
     throw new TeamFunctionError('PERMISSION_DENIED');
   const digest = new Uint8Array(
@@ -213,14 +366,20 @@ export async function verifyCatalogVideoBaseline(input: {
     catalogMaterialId: scope.catalogMaterialId,
     providerRevision: after.version!,
     videoCellsDigest: Array.from(digest, b => b.toString(16).padStart(2, '0')).join(''),
-    outcome: blank ? 'blank' : 'source',
+    outcome: blank ? 'blank' : chosen ? 'video_set' : 'source',
     target: blank
       ? null
-      : Object.freeze({
-          kind: 'source',
-          materialId: scope.sourceMaterialId,
-          sourceVersion: scope.sourceVersion
-        })
+      : chosen
+        ? Object.freeze({
+            kind: 'video_set' as const,
+            videoSetId: chosen.set.videoSetId,
+            recipeRevision: chosen.set.recipeRevision
+          })
+        : Object.freeze({
+            kind: 'source' as const,
+            materialId: scope.sourceMaterialId,
+            sourceVersion: scope.sourceVersion
+          })
   });
 }
 
@@ -232,6 +391,78 @@ const baselineUuid = (x: unknown): x is string =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(x);
 const baselineRecord = (x: unknown): x is Record<string, unknown> =>
   !!x && typeof x === 'object' && !Array.isArray(x);
+/** The server's candidate video sets; absent means none (a server without them). */
+export function parseCatalogBaselineVideoSets(
+  x: unknown
+): readonly CatalogBaselineVideoSet[] | null {
+  if (x === undefined || x === null) return [];
+  if (!Array.isArray(x) || x.length > 4) return null;
+  const sets: CatalogBaselineVideoSet[] = [];
+  for (const set of x) {
+    if (
+      !baselineRecord(set) ||
+      !baselineUuid(set.videoSetId) ||
+      !Number.isSafeInteger(set.recipeRevision) ||
+      (set.recipeRevision as number) < 1 ||
+      !Array.isArray(set.variants) ||
+      set.variants.length < 1 ||
+      set.variants.length > 400 ||
+      (set.rows !== null && (!Array.isArray(set.rows) || set.rows.length > 400))
+    )
+      return null;
+    const variants: CatalogBaselineVideoVariant[] = [];
+    for (const v of set.variants) {
+      if (
+        !baselineRecord(v) ||
+        !baselineUuid(v.materialId) ||
+        !baselineUuid(v.credentialId) ||
+        typeof v.fileId !== 'string' ||
+        !v.fileId ||
+        typeof v.rootFolderId !== 'string' ||
+        !v.rootFolderId ||
+        (v.resourceKey !== null && typeof v.resourceKey !== 'string') ||
+        !Array.isArray(v.r2Urls) ||
+        v.r2Urls.length > 16 ||
+        !v.r2Urls.every(url => isCatalogVideoR2PublicUrl(url))
+      )
+        return null;
+      variants.push(
+        Object.freeze({
+          materialId: v.materialId,
+          fileId: v.fileId,
+          resourceKey: v.resourceKey,
+          credentialId: v.credentialId,
+          rootFolderId: v.rootFolderId,
+          r2Urls: Object.freeze([...(v.r2Urls as string[])])
+        })
+      );
+    }
+    let rows: { productId: string; materialId: string }[] | null = null;
+    if (Array.isArray(set.rows)) {
+      rows = [];
+      for (const r of set.rows) {
+        if (
+          !baselineRecord(r) ||
+          typeof r.productId !== 'string' ||
+          !r.productId ||
+          r.productId.length > 100 ||
+          !baselineUuid(r.materialId)
+        )
+          return null;
+        rows.push(Object.freeze({ productId: r.productId, materialId: r.materialId }));
+      }
+    }
+    sets.push(
+      Object.freeze({
+        videoSetId: set.videoSetId,
+        recipeRevision: set.recipeRevision as number,
+        variants: Object.freeze(variants),
+        rows: rows && Object.freeze(rows)
+      })
+    );
+  }
+  return Object.freeze(sets);
+}
 /** Private backend entry. The public body contains identities only. Outcome and
  * digest are produced by provider readback inside this function, never supplied
  * by a client checkbox or an arbitrary "verified" boolean. */
@@ -295,6 +526,8 @@ export async function handleCatalogPublicationVerify(
     (raw.sourceResourceKey !== null && typeof raw.sourceResourceKey !== 'string')
   )
     throw unknown();
+  const videoSets = parseCatalogBaselineVideoSets(raw.videoSets);
+  if (!videoSets) throw unknown();
   const fence = raw.fence;
   const scope: CatalogBaselineScope = Object.freeze({
     catalogMaterialId: raw.catalogMaterialId as string,
@@ -308,7 +541,8 @@ export async function handleCatalogPublicationVerify(
     catalogRootFolderId: raw.catalogRootFolderId,
     sourceRootFolderId: raw.sourceRootFolderId,
     sourceConnectionId: raw.sourceConnectionId,
-    productCount: raw.productCount as number
+    productCount: raw.productCount as number,
+    videoSets
   });
   let finishDispatched = false;
   try {
@@ -321,6 +555,12 @@ export async function handleCatalogPublicationVerify(
       scope,
       catalogDrive,
       sourceDrive,
+      variantDrive: async credentialId =>
+        credentialId === raw.catalogCredentialId
+          ? catalogDrive
+          : credentialId === raw.sourceCredentialId
+            ? sourceDrive
+            : await driveFor(credentialId),
       authorize: async () => {
         const ctx = await rpc('service_authorize_catalog_baseline_check', {
           ...ids,
@@ -341,6 +581,9 @@ export async function handleCatalogPublicationVerify(
           ctx.sourceRootFolderId !== scope.sourceRootFolderId
         )
           throw unknown();
+        const current = parseCatalogBaselineVideoSets(ctx.videoSets);
+        if (!current) throw unknown();
+        return current;
       }
     });
     finishDispatched = true;
@@ -349,7 +592,10 @@ export async function handleCatalogPublicationVerify(
       p_fence: fence,
       p_outcome: proof.outcome,
       p_provider_revision: proof.providerRevision,
-      p_video_cells_digest: proof.videoCellsDigest
+      p_video_cells_digest: proof.videoCellsDigest,
+      ...(proof.target?.kind === 'video_set'
+        ? { p_video_set: proof.target.videoSetId, p_recipe_revision: proof.target.recipeRevision }
+        : {})
     });
     const parsed = parseCatalogPublicationSnapshot(receipt);
     if (!parsed || parsed.catalogId !== body.catalogId || parsed.revision !== body.expectedRevision)
