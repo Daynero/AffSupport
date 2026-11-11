@@ -1164,3 +1164,34 @@ it('counts overlapping claims so one surface closing does not release another', 
   act(() => b());
   expect(view.result.current.claimed.size).toBe(0);
 });
+
+it('starts and works through a bulk trash even when the receipt list cannot be read', async () => {
+  let hosted: BulkTrashGroup | null = null;
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn().mockRejectedValue(new TeamApiError('INVALID_RESPONSE', false)),
+    startBulkTrash: vi.fn(async (_team: string, id: string, ids: string[]) => {
+      hosted = {
+        id,
+        teamId: team,
+        actorId: actor,
+        items: ids.map(materialId => ({
+          materialId,
+          idempotencyKey: `${id}:${materialId}`,
+          state: 'queued' as const,
+          errorCode: null
+        }))
+      };
+      return structuredClone(hosted);
+    }),
+    prepareBulkTrashItem: vi.fn(async () => structuredClone(hosted!)),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const tail = { trashMaterial: vi.fn(async () => ({})) };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await view.result.current.start(rows.slice(0, 1), tail as never);
+  });
+  expect(client.startBulkTrash).toHaveBeenCalledOnce();
+  await waitFor(() => expect(client.prepareBulkTrashItem).toHaveBeenCalled());
+  expect(view.result.current.groups.map(group => group.id)).toEqual([hosted!.id]);
+});

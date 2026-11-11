@@ -39,7 +39,7 @@ import { Button, IconButton } from '../../components/ui/index';
 import { SelectMenu } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import { catalogSelectedCountKey, useI18n } from '../../i18n';
+import { catalogDeleteConfirmKey, catalogSelectedCountKey, useI18n } from '../../i18n';
 import { searchFieldEscape } from '../../lib/searchField';
 import { teamErrorCodeOf, teamErrorMessage, teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
@@ -2324,8 +2324,10 @@ function CatalogUpdaterDialogScope({
           title={t('catalogUpdaterDeleteSelected')}
           body={
             confirmDelete.some(id => videoR2.row(id).enabled)
-              ? `${t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })} ${t('catalogVideoR2DeleteWarning')}`
-              : t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })
+              ? `${t(catalogDeleteConfirmKey(language, confirmDelete.length), { count: confirmDelete.length })} ${t('catalogVideoR2DeleteWarning')}`
+              : t(catalogDeleteConfirmKey(language, confirmDelete.length), {
+                  count: confirmDelete.length
+                })
           }
           confirmLabel={t('catalogUpdaterDeleteSelected')}
           cancelLabel={t('teamCancel')}

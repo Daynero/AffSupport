@@ -69,3 +69,53 @@ export function isBulkTrashGroup(value: unknown): value is BulkTrashGroup {
     );
   });
 }
+
+/**
+ * A validated copy of one hosted group, with every receipt instant rewritten to
+ * UTC `Z` (the server may render `+00:00`). Null when the group is malformed.
+ */
+export function parseBulkTrashGroup(value: unknown): BulkTrashGroup | null {
+  if (!isBulkTrashGroup(value)) return null;
+  return {
+    ...value,
+    items: value.items.map(item => {
+      if (!item.historicalReceipt) return { ...item };
+      const parsed = parseTeamFileOperationResult({
+        operationId: 'historical',
+        materialId: 'material',
+        state: 'succeeded',
+        reused: true,
+        historicalReceipt: item.historicalReceipt
+      });
+      return { ...item, historicalReceipt: parsed!.historicalReceipt! };
+    })
+  };
+}
+
+/**
+ * The hosted list, one group at a time: a malformed group is dropped and
+ * reported, never allowed to make the rest unreadable. Null only when the
+ * list itself is not a list.
+ */
+export function parseBulkTrashGroups(
+  value: unknown
+): { groups: BulkTrashGroup[]; rejected: string[] } | null {
+  if (!Array.isArray(value)) return null;
+  const groups: BulkTrashGroup[] = [];
+  const rejected: string[] = [];
+  for (const candidate of value) {
+    const group = parseBulkTrashGroup(candidate);
+    if (group) groups.push(group);
+    else
+      rejected.push(
+        candidate &&
+          typeof candidate === 'object' &&
+          'id' in candidate &&
+          typeof candidate.id === 'string' &&
+          uuid.test(candidate.id)
+          ? candidate.id
+          : 'unidentified'
+      );
+  }
+  return { groups, rejected };
+}

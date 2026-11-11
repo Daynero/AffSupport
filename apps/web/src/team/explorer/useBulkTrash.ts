@@ -246,7 +246,9 @@ export function useBulkTrash(
     async (
       group: BulkTrashGroup,
       rows: readonly Pick<TeamMaterialRow, 'id' | 'name' | 'category'>[],
-      tailClient: TrashTailClient
+      tailClient: TrashTailClient,
+      /** The hosted start acknowledgement, used only when the receipt read itself fails. */
+      acknowledged?: BulkTrashGroup
     ) => {
       if (!scopeCurrent() || active.current.has(group.id)) return;
       active.current.add(group.id);
@@ -255,7 +257,17 @@ export function useBulkTrash(
       const current = generation.current;
       try {
         // Reconcile before replay: a missing response cannot make a second operation key.
-        const receipts = await refresh();
+        let receipts: BulkTrashGroup[];
+        try {
+          receipts = await refresh();
+        } catch (cause) {
+          // A list that cannot be read says nothing about this group. Straight
+          // after its own start acknowledgement the hosted group is known, and
+          // each item is prepared against its hosted receipt before any request.
+          if (!acknowledged || !scopeCurrent() || current !== generation.current) throw cause;
+          observed.current.get(group.id)?.diagnostic('trash_refresh', cause);
+          receipts = [acknowledged];
+        }
         if (!scopeCurrent() || current !== generation.current)
           throw new DOMException('Bulk trash scope ended', 'AbortError');
         const authoritative = receipts.find(receipt => receipt.id === group.id);
@@ -385,7 +397,16 @@ export function useBulkTrash(
       observed.current.set(groupId, flow);
       let source: WorkspaceDiagnosticSource = 'trash_refresh';
       try {
-        const existing = await refresh();
+        let existing: readonly BulkTrashGroup[];
+        try {
+          existing = await refresh();
+        } catch (cause) {
+          // The overlap check here is a courtesy; the server fences overlap and
+          // replays the same group id. An unreadable list must not stop a start.
+          if (current !== generation.current || !scopeCurrent()) throw cause;
+          flow.diagnostic('trash_refresh', cause);
+          existing = groupsRef.current;
+        }
         if (current !== generation.current || !scopeCurrent())
           throw new DOMException('Bulk trash scope ended', 'AbortError');
         const busy = new Set(
@@ -427,7 +448,10 @@ export function useBulkTrash(
             throw new DOMException('Bulk trash scope ended', 'AbortError');
           retainAcknowledged();
           flow.diagnostic('trash_reconcile', cause);
-          flow.stage('unknown', teamErrorCodeOf(cause) ?? 'DRIVE_UNAVAILABLE');
+          // The start was acknowledged; the work goes ahead on that receipt.
+          void execute(group, rows, tailClient, group).catch(() => {
+            if (current === generation.current && scopeCurrent()) setUncertain(true);
+          });
           return group;
         }
         if (current !== generation.current || !scopeCurrent())
