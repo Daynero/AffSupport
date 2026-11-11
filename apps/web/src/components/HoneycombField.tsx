@@ -11,6 +11,12 @@ const POOL_CORNERS = [
 ] as const;
 
 const R = 170; // cursor influence radius (svg units)
+// The sparks crawl only while someone is using the page: they wake on input and
+// sleep after this long without any, or at once when the tab is hidden. Left
+// running, they kept an idle tab's main thread most of a core busy — on the
+// same machine the local agent stitches videos on.
+const TRACE_IDLE_MS = 8000;
+const TRACE_WAKE_THROTTLE_MS = 1000;
 const LIFT = 0.075; // max scale-up near the cursor — uniform for every cell
 
 // Full-viewport Soty honeycomb backdrop, rendered as real React elements.
@@ -20,6 +26,7 @@ const LIFT = 0.075; // max scale-up near the cursor — uniform for every cell
 // crawl the cell walls.
 export function HoneycombField() {
   const ref = useRef<SVGSVGElement>(null);
+  const traceRef = useRef<SVGSVGElement>(null);
   const { theme } = useTheme();
   const prevTheme = useRef<Theme>(theme);
 
@@ -52,6 +59,44 @@ export function HoneycombField() {
       baseVeil.style.fill = '';
     };
   }, [theme]);
+
+  // Spark wake/sleep: `data-awake` on the trace layer runs the CSS animation.
+  useEffect(() => {
+    const layer = traceRef.current;
+    if (!layer) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    let timer: number | undefined;
+    let lastWake = Number.NEGATIVE_INFINITY;
+    const sleep = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = undefined;
+      layer.removeAttribute('data-awake');
+    };
+    const wake = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (timer !== undefined && now - lastWake < TRACE_WAKE_THROTTLE_MS) return;
+      lastWake = now;
+      layer.setAttribute('data-awake', '');
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(sleep, TRACE_IDLE_MS);
+    };
+    const onVisibility = () => {
+      if (document.hidden) sleep();
+      else wake();
+    };
+
+    const events = ['pointermove', 'pointerdown', 'keydown', 'wheel'] as const;
+    for (const name of events) window.addEventListener(name, wake, { passive: true });
+    document.addEventListener('visibilitychange', onVisibility);
+    wake();
+    return () => {
+      for (const name of events) window.removeEventListener(name, wake);
+      document.removeEventListener('visibilitychange', onVisibility);
+      sleep();
+    };
+  }, []);
 
   // Cursor lift: accent cells near the pointer rise with a theme-tinted glow.
   useEffect(() => {
@@ -236,6 +281,7 @@ export function HoneycombField() {
         <rect className="hc-base-veil" width={VW} height={VH} />
       </svg>
       <svg
+        ref={traceRef}
         className="soty-trace-layer"
         viewBox={`0 0 ${VW} ${VH}`}
         preserveAspectRatio="xMidYMid slice"
