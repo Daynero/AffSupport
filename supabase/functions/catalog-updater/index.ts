@@ -7,6 +7,7 @@ import {
   prepareScheduledCatalogVideoSets
 } from '../drive-ops/updater-variants.ts';
 import { runCatalogPublicationScheduler } from './publication-authority.ts';
+import { isPublicationLaneRequest, runCatalogPublicationLane } from './publication-lane.ts';
 import { prepareCatalogClaims } from './claim-preparation.ts';
 import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
@@ -75,6 +76,13 @@ Deno.serve(async request => {
     const service = serviceClient();
     const publicationWorkerId = crypto.randomUUID();
     const workerId = `catalog-updater:${publicationWorkerId}`;
+    // The ten-second deferred-publication lane runs the publication scheduler only.
+    if (isPublicationLaneRequest(await request.json().catch(() => null))) {
+      const publications = await runCatalogPublicationLane(service, publicationWorkerId, name =>
+        Deno.env.get(name)
+      );
+      return successResponse({ publications });
+    }
     // Text schedules must run even when no catalog is due or Drive OAuth is unavailable.
     await runCatalogTextScheduleTickSafely((name, parameters) =>
       rpcValue(service, name, parameters)

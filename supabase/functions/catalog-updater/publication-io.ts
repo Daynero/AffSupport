@@ -217,8 +217,12 @@ export function createTargetedCatalogPublicationIo(
       if (failed) throw failed.reason;
     }
     c = await context(scope.jobId);
-    if (!complete(c) || Date.now() > deadlineAt - 2_500) return 'waiting';
+    if (!complete(c)) return 'waiting';
+    // Already frozen: nothing left to read here, so the tick's preparation budget
+    // does not apply. Checking the budget first turned every same-pass readback
+    // after a write into 'unknown' and cost a whole extra tick (1.4.3).
     if (c.prepared) return 'ready';
+    if (Date.now() > deadlineAt - 2_500) return 'waiting';
     const cached = receipts(c);
     if (!Array.isArray(c.sources) || typeof c.productCount !== 'number') throw uncertain();
     const links = c.sources.map(source => {

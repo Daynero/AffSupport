@@ -2971,3 +2971,13 @@ released the worker's lease (the round stays due until delivery is confirmed). I
 variant whose operation already ended (failed or canceled) to 'unknown', and repairs canceled sets
 once. Rolling back means restoring the previous bodies through a reviewed forward migration; the
 read change is display-only and the repaired variants need no reversal.
+
+### 20261207399000 — deferred video links are published within seconds of their time
+
+Adds `private.catalog_publication_work_due(boolean)`, `private.invoke_catalog_publication_worker(boolean)`,
+the trigger `catalog_ready_set_wakes_publication` on `private.catalog_video_sets`, the ten-second cron
+job `soty-catalog-publication` (it calls the catalog-updater with `{"publicationsOnly":true}` only while
+a publication became due recently), and patches `private.invoke_catalog_updater_worker` so the
+per-minute pass also starts for any due publication. Rolling back means `cron.unschedule('soty-catalog-publication')`,
+dropping the trigger and restoring the previous invoker body through a reviewed forward migration;
+publications then fall back to the per-minute pass, and nothing in the jobs needs reversal.

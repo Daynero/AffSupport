@@ -124,3 +124,75 @@ it('does not restart a slow 400-output validation cohort when early receipts age
     vi.useRealTimers();
   }
 });
+it('verifies a frozen write in the same pass even after the tick preparation budget ran out', async () => {
+  // 1.4.3 QA: the readback right after a write re-ran preparation, hit the tick's
+  // seven-second budget before seeing the frozen payload, and returned unknown,
+  // so every deferred link cost one more updater tick.
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(new Date('2030-01-01T00:20:00Z'));
+    const fence = uuid(9);
+    const frozen = {
+      fileId: 'file',
+      rootFolderId: 'root',
+      sheetName: 'catalog_products',
+      sheetId: 7,
+      idColumn: 0,
+      videoColumn: 25,
+      idHeaders: ['description', 'id'],
+      videoHeaders: ['description', 'video[0].url'],
+      products: [{ id: 'one', url: 'https://example.test/one' }],
+      markerKey: 'soty_video_publication',
+      markerValue: uuid(3)
+    };
+    const sources = [{ materialId: uuid(10), sourceVersion: 'immutable-0' }];
+    const rpc = vi.fn(async () => ({
+      error: null,
+      data: {
+        state: 'ready',
+        phase: 'due',
+        sources,
+        links: [{ ...sources[0], url: 'https://example.test/one', dueVerified: true }],
+        productCount: 1,
+        credentialId: uuid(11),
+        prepared: frozen
+      }
+    }));
+    const drive = {
+      getFile: vi.fn(async (id: string) => ({
+        id,
+        version: '1',
+        parents: id === 'file' ? ['root'] : [],
+        mimeType:
+          id === 'root'
+            ? 'application/vnd.google-apps.folder'
+            : 'application/vnd.google-apps.spreadsheet',
+        trashed: false,
+        capabilities: { canModifyContent: true }
+      })),
+      getNativeSpreadsheetSheets: vi.fn(async () => [
+        { sheetId: 7, title: 'catalog_products', rowCount: 1000, columnCount: 30 }
+      ]),
+      readNativeCatalogColumns: vi.fn(async () => [
+        ['description', 'id', 'one'],
+        ['description', 'video[0].url', 'https://example.test/one']
+      ]),
+      readNativeSpreadsheetMarkers: vi.fn(async () => [fence])
+    };
+    const io = createTargetedCatalogPublicationIo(
+      { rpc } as never,
+      uuid(7),
+      async () => drive as never
+    );
+    // Preparation, the reservation and the write used up the tick budget.
+    vi.setSystemTime(new Date('2030-01-01T00:20:09Z'));
+    const result = await io.verify({} as never, fence, {
+      teamId: uuid(1),
+      actorId: uuid(2),
+      jobId: uuid(3)
+    });
+    expect(result.outcome).toBe('verified');
+  } finally {
+    vi.useRealTimers();
+  }
+});
