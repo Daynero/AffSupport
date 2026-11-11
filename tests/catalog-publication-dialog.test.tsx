@@ -134,8 +134,7 @@ it('does not strand a definite validation refusal as an unknown mutation', async
     Object.keys(localStorage).filter(key => key.startsWith('soty:catalog-publication:v1:'))
   ).toEqual([]);
 });
-// Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE).
-it.skip('shows a dated collapsed summary and expands calendar and timezone without dispatch', async () => {
+it('shows a dated collapsed summary and expands calendar and timezone without dispatch', async () => {
   view();
   await waitFor(() =>
     expect(screen.getByRole('switch', { name: 'Schedule the video link' })).toHaveProperty(
