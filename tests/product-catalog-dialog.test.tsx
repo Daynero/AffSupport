@@ -1022,6 +1022,31 @@ describe('beta durable video creation', () => {
       expect.any(Object)
     );
   });
+  it('names a computer agent that stopped answering and keeps cancellation at hand', async () => {
+    // 1.4.3 (beta 2026-11-11): the agent was killed mid-run and the window
+    // kept counting as if nothing had happened.
+    const silent = { ...pending, agentSilent: true };
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(silent),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(silent)
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(screen.getByText(/Soty on the computer is not responding/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
+    expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+  });
+  it('does not call a heartbeating agent silent', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(screen.queryByText(/is not responding/)).toBeNull();
+  });
   it('unlocks the original inputs after a proved missing paired executor without retaining an unknown request', async () => {
     const client = dialogClient({
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
