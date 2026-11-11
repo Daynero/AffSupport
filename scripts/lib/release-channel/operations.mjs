@@ -222,6 +222,14 @@ export async function promote(options, { confirm = false } = {}) {
         'CHANNEL_NEXT_DRIFTED',
         'next no longer serves the recorded candidate; publish it again before promoting'
       );
+    // The build a rollback returns to must be what production serves now. A
+    // release shipped some other way (before 051, or by hand) leaves the record
+    // stale, and promoting over it would make "rollback" restore the wrong bytes.
+    if (state.production && (await liveMatches(ctx, 'production', state.production)) !== true)
+      throw new ChannelError(
+        'CHANNEL_PRODUCTION_DRIFTED',
+        `${ctx.binding.siteOrigin} does not serve the recorded production ${state.production.version}; run adopt-live --confirm first`
+      );
     const plan = {
       from: state.production,
       to: candidate,

@@ -184,6 +184,22 @@ describe('release channel (051)', () => {
     expect(w.served.has(PROD)).toBe(false);
   });
 
+  it('refuses to promote over a production that changed behind its back', async () => {
+    const w = await world();
+    const live = await w.bundle('1.4.0', 'live');
+    await w.options.upload({ directory: live, branch: 'main' });
+    await adoptLive(w.options, { confirm: true, search: [live] });
+    const shippedElsewhere = await w.bundle('1.4.1', 'elsewhere');
+    await w.options.upload({ directory: shippedElsewhere, branch: 'main' });
+    await w.publish('1.5.0', 'candidate');
+    await expect(promote(w.options, { confirm: true })).rejects.toThrow(
+      'CHANNEL_PRODUCTION_DRIFTED'
+    );
+    await adoptLive(w.options, { confirm: true, search: [shippedElsewhere] });
+    const done = await promote(w.options, { confirm: true });
+    expect(done.state.previous[0]?.version).toBe('1.4.1');
+  });
+
   it('refuses to promote without a candidate, and records a failed upload without moving state', async () => {
     const w = await world();
     await expect(promote(w.options, { confirm: true })).rejects.toThrow('CHANNEL_NO_CANDIDATE');
