@@ -360,6 +360,8 @@ export const en = {
   launchesProgressCatalog: 'Catalog',
   launchesProgressResult: 'Result',
   launchesProgressRetryCancel: 'Retry cancellation',
+  launchesProgressRecovering:
+    'The run was interrupted and continues on its own in a moment. Confirmed stages are preserved.',
   launchesProgressReconciling: 'Updating generation status. Confirmed stages are preserved.',
   launchesProgressElapsed: 'Generation duration: {time}',
   launchesOriginalVideoHint:

@@ -363,6 +363,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressCatalog: 'Каталог',
   launchesProgressResult: 'Результат',
   launchesProgressRetryCancel: 'Повторити скасування',
+  launchesProgressRecovering:
+    'Виконання перервалося й за мить продовжиться саме. Підтверджені етапи збережено.',
   launchesProgressReconciling: 'Оновлюємо стан генерації. Підтверджені етапи збережено.',
   launchesProgressElapsed: 'Тривалість генерації: {time}',
   launchesOriginalVideoHint:
