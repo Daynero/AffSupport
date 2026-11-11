@@ -40,7 +40,7 @@ it('lists genuine recovery first and registered intents only while owed, unpaced
   );
   // A registered catalog with no check and no policy at all is owed its publication.
   expect(owed).toContain(
-    "not exists(select 1 from private.catalog_video_publication_policies p where p.catalog_material_id::text=i.checkpoint->>'materialId')"
+    "not exists(select 1 from private.catalog_video_publication_policies p where p.catalog_material_id=(i.checkpoint->>'materialId')::uuid)"
   );
 });
 
