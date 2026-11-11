@@ -7,6 +7,7 @@ const generation = { id: 'gen', attemptNo: 1 } as LaunchGeneration;
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
+  localStorage.clear();
   vi.useRealTimers();
 });
 it('keeps one clock through preparation, acceptance, new child and catalog stages, then freezes on failure', async () => {
@@ -61,4 +62,16 @@ it('retains elapsed time when the same generation is reopened', async () => {
 it('does not fabricate a historical duration when opening an old failed generation', () => {
   const { result } = renderHook(() => useLaunchElapsed('launch', generation, false, false));
   expect(result.current).toBeNull();
+});
+it('keeps counting from the first sight when the launch is reopened in a new tab (1.4.3)', async () => {
+  vi.useFakeTimers();
+  const first = renderHook(() => useLaunchElapsed('launch', generation, false, true));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(95_000);
+  });
+  first.unmount();
+  // A new tab, window or browser context starts with an empty sessionStorage.
+  sessionStorage.clear();
+  const next = renderHook(() => useLaunchElapsed('launch', generation, false, true));
+  expect(next.result.current).toBe('01:35');
 });

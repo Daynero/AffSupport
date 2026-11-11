@@ -29,6 +29,7 @@ afterEach(() => {
   workspace.realtimeState = 'connected';
   workspace.realtimeConnectionState = 'connected';
   sessionStorage.clear();
+  localStorage.clear();
   vi.useRealTimers();
 });
 const generation = {

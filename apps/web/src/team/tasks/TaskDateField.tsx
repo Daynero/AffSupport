@@ -11,6 +11,7 @@
 import { useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
+import { formatDayValue } from '../../format';
 import { useI18n, type Language } from '../../i18n';
 import { dateFromValue } from './TaskDateFilter';
 import { localDateValue } from './useTasks';
@@ -21,12 +22,7 @@ export function formatTaskDate(language: Language, value: string, full = false):
   const locale = language === 'uk' ? 'uk-UA' : 'en-US';
   const date = dateFromValue(value);
   if (full) return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(date);
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'short',
-    ...(sameYear ? {} : { year: 'numeric' })
-  }).format(date);
+  return formatDayValue(value, locale);
 }
 
 export function TaskDateField({

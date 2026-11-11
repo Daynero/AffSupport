@@ -659,6 +659,20 @@ it('keeps unsaved RAM edits after a retryable detail refresh error', async () =>
   expect(screen.getByText('Age: 50')).toBeTruthy();
 });
 
+it('keeps the open launch on screen when an overloaded server fails a refresh (1.4.3)', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.detail.mockResolvedValueOnce(detail('SYNTHETIC_OVERLOADED_DETAIL_URL'));
+  const view = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await screen.findByText('SYNTHETIC_OVERLOADED_DETAIL_URL');
+  seams.detail.mockRejectedValueOnce(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true));
+  seams.revision++;
+  view.rerender(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.detail).toHaveBeenCalledTimes(2));
+  expect(await screen.findByText('The server is responding slowly. Try again.')).toBeTruthy();
+  expect(screen.getByText('SYNTHETIC_OVERLOADED_DETAIL_URL')).toBeTruthy();
+  expect(screen.getByRole('dialog', { name: 'Launches' })).toBeTruthy();
+});
+
 it('does not display a previous result while a different revision is loading', async () => {
   const currentConfig = launchConfig({ originalUrl: 'https://example.invalid/current-revision' });
   const oldConfig = launchConfig({ originalUrl: 'https://example.invalid/old-revision' });
@@ -2101,7 +2115,9 @@ it('keeps the date filter and reports where to find a scheduled copy', async () 
   await act(async () => resolveCopy({ id: copyId, version: '1' }));
   await waitFor(() => expect(push).toHaveBeenCalledOnce());
   const notice = push.mock.calls[0][0];
-  expect(notice.text).toContain('2026-11-01');
+  const { formatDayValue } = await import('../apps/web/src/format');
+  expect(notice.text).toContain(formatDayValue('2026-11-01', 'en-US'));
+  expect(notice.text).not.toContain('2026-11-01');
   expect(notice.action.label).toBe('Open copy');
   act(() => notice.action.run());
   expect(window.location.search).toContain(copyId);

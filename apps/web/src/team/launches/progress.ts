@@ -78,10 +78,13 @@ export function launchProgressDisplayStage(input: {
   if (videoSet && ['accepted', 'preparing', 'unknown', 'cancel_requested'].includes(videoSet.state))
     return videoSet.activeChildOperationId ? 'restitch_processing' : 'restitch_preparing';
   const succeeded = succeededStages(input.generation);
+  // A ready durable video set is a video receipt too: a lost lease that re-runs
+  // preflight must not walk a reopened launch back to "Step 1" (1.4.3).
   return input.generation &&
     input.restitch &&
     (groups[0].stages as readonly string[]).includes(input.stage) &&
-    (input.childSucceeded ||
+    (videoSet?.state === 'ready' ||
+      input.childSucceeded ||
       succeeded.has('restitch_processing') ||
       succeeded.has('restitch_uploading'))
     ? 'catalog_planning'
