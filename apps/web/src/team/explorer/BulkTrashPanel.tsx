@@ -14,6 +14,8 @@ export function BulkTrashPanel({
   rows,
   uncertain,
   historicalReceipts,
+  names,
+  executing = false,
   onRetry,
   onVisible,
   onDismiss
@@ -22,6 +24,10 @@ export function BulkTrashPanel({
   rows: readonly Pick<TeamMaterialRow, 'id' | 'name'>[];
   uncertain: boolean;
   historicalReceipts?: ReadonlyMap<string, TeamHistoricalFileReceipt>;
+  /** Names remembered when the work started, for rows this surface does not list. */
+  names?: ReadonlyMap<string, string>;
+  /** This tab is working through the group now; queued items are progress, not a stall. */
+  executing?: boolean;
   onRetry?: () => void;
   onVisible: (id: string, outcome?: 'unknown') => void;
   onDismiss?: (id: string) => void;
@@ -82,7 +88,8 @@ export function BulkTrashPanel({
   ).length;
   const unresolved =
     Boolean(historicalReceipts?.size) ||
-    group.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state));
+    (!executing && group.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state)));
+  const nameOf = (id: string) => rows.find(row => row.id === id)?.name || names?.get(id);
   return (
     <div ref={root}>
       <ProcessPanel
@@ -92,7 +99,10 @@ export function BulkTrashPanel({
         detail={t('teamWorkspaceItemsProgress', { done: confirmed, total: group.items.length })}
         phase={uncertain || historicalReceipts?.size ? t('teamBulkTrashUnknown') : null}
         progress={group.items.length ? (confirmed / group.items.length) * 100 : 100}
-        active={group.items.some(item => item.state === 'running' || item.state === 'queued')}
+        active={
+          // Queued items nobody is working through are held, not moving.
+          executing || group.items.some(item => item.state === 'running')
+        }
         actions={
           complete && onDismiss
             ? [{ label: t('teamOperationClose'), run: () => onDismiss(group.id) }]
@@ -109,12 +119,8 @@ export function BulkTrashPanel({
         <ul className="m-0 grid max-h-64 min-w-0 list-none gap-2 overflow-y-auto p-0">
           {group.items.map((item, index) => (
             <li key={item.materialId} className="min-w-0">
-              <span
-                className="block min-w-0 truncate"
-                title={rows.find(row => row.id === item.materialId)?.name}
-              >
-                {rows.find(row => row.id === item.materialId)?.name ??
-                  t('teamBulkTrashFile', { number: index + 1 })}
+              <span className="block min-w-0 truncate" title={nameOf(item.materialId)}>
+                {nameOf(item.materialId) ?? t('teamBulkTrashFile', { number: index + 1 })}
               </span>
               <span className="block break-words text-caption text-muted">
                 {t(

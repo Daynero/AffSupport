@@ -13,6 +13,8 @@ export interface BulkTrashGroup {
   teamId: string;
   actorId: string;
   items: BulkTrashItem[];
+  /** The viewer closed it, or it is finished work nobody needs to see again. */
+  dismissed?: boolean;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 export function isBulkTrashGroup(value: unknown): value is BulkTrashGroup {
@@ -29,7 +31,10 @@ export function isBulkTrashGroup(value: unknown): value is BulkTrashGroup {
     uuid.test(value.actorId) &&
     'items' in value &&
     Array.isArray(value.items) &&
-    value.items.length <= 500
+    value.items.length <= 500 &&
+    (!('dismissed' in value) ||
+      value.dismissed === undefined ||
+      typeof value.dismissed === 'boolean')
   ))
     return false;
   return value.items.every((item: unknown) => {

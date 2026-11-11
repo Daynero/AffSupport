@@ -2259,29 +2259,37 @@ function ExplorerBody({
           selection, and pinned to the same pixel the second hid the first. */}
       {processStack(
         <>
-          {workspaceOperations?.bulkTrash?.groups.slice(0, 3).map(group => (
-            <BulkTrashPanel
-              key={group.id}
-              group={group}
-              historicalReceipts={workspaceOperations.bulkTrash?.historicalReceipts?.get(group.id)}
-              rows={page.rows}
-              uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
-              onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}
-              onDismiss={workspaceOperations.bulkTrash!.dismiss}
-              onRetry={
-                permissions?.delete && workspaceOperations.bulkTrash?.owns(group)
-                  ? () => {
-                      void workspaceOperations.bulkTrash
-                        ?.retry(group, page.rows, tailClient)
-                        .then(changed)
-                        .catch(cause =>
-                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
-                        );
-                    }
-                  : undefined
-              }
-            />
-          ))}
+          {/* A group the catalog manager is showing is reported there, once. */}
+          {workspaceOperations?.bulkTrash?.groups
+            .filter(group => !workspaceOperations.bulkTrash?.claimed?.has(group.id))
+            .slice(0, 3)
+            .map(group => (
+              <BulkTrashPanel
+                key={group.id}
+                group={group}
+                historicalReceipts={workspaceOperations.bulkTrash?.historicalReceipts?.get(
+                  group.id
+                )}
+                rows={page.rows}
+                names={workspaceOperations.bulkTrash?.names}
+                executing={workspaceOperations.bulkTrash?.executing?.has(group.id)}
+                uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
+                onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}
+                onDismiss={workspaceOperations.bulkTrash!.dismiss}
+                onRetry={
+                  permissions?.delete && workspaceOperations.bulkTrash?.owns(group)
+                    ? () => {
+                        void workspaceOperations.bulkTrash
+                          ?.retry(group, page.rows, tailClient)
+                          .then(changed)
+                          .catch(cause =>
+                            push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
+                          );
+                      }
+                    : undefined
+                }
+              />
+            ))}
           {!space && (queue.active || queue.queued.length > 0) && (
             <AgentQueuePanel queue={queue} t={t} />
           )}
