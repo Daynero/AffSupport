@@ -2776,8 +2776,8 @@ rollback or production data repair is authorized.
 Replaces `service_catalog_video_r2_retire_orphans` so that, before retiring unused copies, it
 deletes the `private.catalog_video_r2_uses` rows of catalogs whose material is `missing` with
 reason `removed`, or `trashed` for more than 30 days. The existing `catalog_video_r2_use_removed`
-trigger then retires a copy no other catalog uses (`catalog_deleted`, 6 h grace) and the sweep
-deletes the object. Catalogs in the trash (under 30 days) and files moved out of the watched
+trigger then retires a copy no other catalog uses (`catalog_deleted`); its grace window is
+dropped, so the same sweep deletes the object. Catalogs in the trash (under 30 days) and files moved out of the watched
 folder (`out_of_root`) keep their copies.
 
 Rolling back means a reviewed forward migration that recreates the function from

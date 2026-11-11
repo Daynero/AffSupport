@@ -55,8 +55,8 @@ therefore works through that one writer (`20261207195000_catalog_video_r2_republ
   grace window (6 h) and is deleted after another (6 h).
 - A catalog deleted for good lets go of its copies: every sweep (5 min) releases the uses of
   catalogs whose sheet is `missing` with reason `removed` or has been `trashed` for more than
-  30 days (Drive's own trash period); a copy no other catalog uses then retires
-  (`catalog_deleted`, 6 h) and is deleted. A catalog in the trash, or moved out of the watched
+  30 days (Drive's own trash period); a copy no other catalog uses is deleted in the same sweep,
+  without the 6 h grace (nothing reads that sheet again and nothing can restore it). A catalog in the trash, or moved out of the watched
   folder (`out_of_root`), keeps its copy: its sheet still points at it and a restore must work.
 - A catalog without a policy (created before 047) keeps the whole-file path: ticking the option
   plans the copy of its current video, and the next update writes the R2 link once the copy is

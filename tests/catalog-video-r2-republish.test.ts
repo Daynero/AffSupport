@@ -587,6 +587,19 @@ describe('catalog video R2 link reconciliation', () => {
       state: 'retiring',
       retire_reason: 'catalog_deleted'
     });
+    // Nothing to return to: no grace window, the same sweep deletes them.
+    expect(
+      await db.root<{ due: boolean }>(
+        'select retire_after<=clock_timestamp() due from private.catalog_video_r2_copies where id=any($1::uuid[]) order by id',
+        [[removed.copy, expired.copy]]
+      )
+    ).toEqual([{ due: true }, { due: true }]);
+    expect(
+      await db.root<{ due: boolean }>(
+        'select retire_after is null due from private.catalog_video_r2_copies where id=$1',
+        [trashed.copy]
+      )
+    ).toEqual([{ due: true }]);
     expect(await uses(expired.id)).toBe('0');
     expect(await copyState(expired.copy)).toEqual({
       state: 'retiring',

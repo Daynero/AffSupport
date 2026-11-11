@@ -290,7 +290,7 @@ export const en = {
     'The file list is not complete. Check the selected pictures and retry.',
   catalogVideoR2Toggle: 'Copy the video to R2',
   catalogVideoR2Explain:
-    'The ready video is copied to Soty storage (Cloudflare R2), and the catalog gets its own video link instead of Drive. Anyone with the link can open it; it contains no file or folder name. The catalog switches by itself once the copy is ready; until then the Drive link keeps working. Only the active version is kept.',
+    'The ready video is copied to Soty storage (Cloudflare R2), and the catalog gets its own video link instead of Drive. Anyone with the link can open it; it contains no file or folder name. The catalog switches by itself once the copy is ready; until then the Drive link keeps working. Only the active version is kept: once the catalog’s video changes or the catalog is deleted, the old link stops working, so do not paste it anywhere by hand.',
   catalogVideoR2Legend:
     'Copies the ready video to Soty storage and gives the catalog a stable link. Takes effect at once, without an update; a green icon means the link is already on R2.',
   catalogVideoR2PanelReady: 'The catalog’s video link already points at R2.',
