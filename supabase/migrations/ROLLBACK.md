@@ -2952,3 +2952,12 @@ and dropping the table and helpers; rows backed off at that moment are simply re
 The same migration adds the trigger `catalog_video_set_canceled_closes_variants` (a set entering
 'canceled' returns its operation-less 'working' variants to 'queued') and repairs canceled sets once;
 dropping the trigger restores the old behavior, and the repaired variants need no reversal.
+
+### 20261207396000 — the video R2 worker's minute loops back off a failing row
+
+Redefines `service_catalog_video_r2_reconcile_pending` and `service_catalog_video_r2_retire_orphans`
+with the 20261207395000 rule: a catalog (scope `video_r2_reconcile`) or orphan copy (scope
+`video_r2_retire_orphan`) that raises is recorded in `private.settle_row_failures`, skipped while backed
+off, and cleared once it passes; the orphan loop now runs each copy in its own subtransaction instead of
+aborting the pass. Rolling back means restoring the bodies left by 20261207195500 through a reviewed
+forward migration and deleting the rows of those two scopes; nothing else depends on them.
