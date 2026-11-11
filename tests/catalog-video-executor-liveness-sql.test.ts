@@ -1,5 +1,11 @@
 import { beforeAll, afterAll, expect, it } from 'vitest';
-import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import {
+  applyMigrationsAfter,
+  createTeamTestDb,
+  createUser,
+  type TeamTestDb
+} from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 
 /**
  * 1.4.3 (beta 2026-11-11): a restitch whose agent died hung until the 12-hour
@@ -375,4 +381,32 @@ it('tells the creation read that the agent stopped answering', async () => {
     [f.set]
   );
   expect(await read()).toMatchObject({ outcome: 'preparing_video', agentSilent: true });
+});
+
+it('one silent set whose observation cannot be written does not stop the others', async () => {
+  // This suite pins 240000; the row isolation lands later in the release.
+  await applyMigrationsAfter(db, '20261207240000_catalog_video_executor_liveness.sql');
+  const healthy = await fixture();
+  const poisoned = await fixture();
+  await silence(healthy.op!, 20);
+  await silence(poisoned.op!, 20);
+  const cure = await poisonRows(db, 'private.catalog_video_variants', 'video_set_id', [
+    poisoned.set
+  ]);
+  try {
+    await settle();
+    expect((await variant(healthy.set)).silence_observed_at).not.toBeNull();
+    expect((await variant(poisoned.set)).silence_observed_at).toBeNull();
+    expect(await settleFailure(db, 'catalog_video_silent_retry', poisoned.set)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'catalog_video_silent_retry', poisoned.set);
+  await settle();
+  expect((await variant(poisoned.set)).silence_observed_at).not.toBeNull();
+  expect(await settleFailure(db, 'catalog_video_silent_retry', poisoned.set)).toBeUndefined();
 });

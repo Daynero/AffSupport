@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 
 /**
  * 1.4.3: catalog manager rounds that can never finish.
@@ -348,4 +349,112 @@ it('releases a catalog stranded in review with nothing to reconcile', async () =
     )
   )[0]!;
   expect(record.last_update_error).toBeNull();
+});
+
+/** A manager variant round whose child 0 finished unconfirmed and child 1 failed. */
+async function failedChildRound() {
+  const catalog = await newCatalog();
+  const r = (
+    await db.root<{ v: Record<string, unknown> }>(
+      'select public.service_accept_catalog_updater_variants($1,$2,$3,$4,2,(select version from public.team_catalog_update_profiles where catalog_material_id=$3))v',
+      [team, owner, catalog, crypto.randomUUID()]
+    )
+  )[0]!.v;
+  const rowIds = r.recipe_row_ids as string[],
+    childIds = r.child_request_ids as string[];
+  await db.root('select public.service_accept_catalog_video_set($1,$2,$3,$4,$5,$6)', [
+    team,
+    owner,
+    r.executor_id,
+    {
+      setId: r.set_id,
+      catalogMaterialId: catalog,
+      updateAttemptId: r.attempt_id,
+      sourceMaterialId: source,
+      sourceVersion: '1',
+      settings: r.settings_snapshot,
+      settingsDigest: 'b'.repeat(64),
+      requestedCount: 2,
+      productCount: 3,
+      recipeRevision: 1,
+      seed: r.assignment_seed
+    },
+    childIds.map((id, index) => ({ index, requestId: id })),
+    rowIds.map((recipeRowId, index) => ({ recipeRowId, videoVariantIndex: index % 2 }))
+  ]);
+  const output = (
+    await db.root<{ id: string }>(
+      "insert into public.team_materials(team_id,connection_id,drive_file_id,name,kind,category,mime_type,size_bytes,checksum,drive_version)values($1,$2,gen_random_uuid()::text,'out','file','video','video/mp4',4,repeat('a',32),'1')returning id",
+      [team, connection]
+    )
+  )[0]!.id;
+  const children = [];
+  for (const [index, childId] of childIds.entries()) {
+    const op = crypto.randomUUID();
+    await db.root(
+      "insert into public.team_operations(id,team_id,actor_id,kind,state,source_material_id,result_material_id,error_code,idempotency_key,request_nonce,finished_at)values($1,$2,$3,'process',$4,$5,$6,$7,$8,$8,clock_timestamp())",
+      [
+        op,
+        team,
+        owner,
+        index === 0 ? 'succeeded' : 'failed',
+        source,
+        index === 0 ? output : null,
+        index === 0 ? null : 'PROCESS_FAILED',
+        'catalog-variant:' + childId
+      ]
+    );
+    await db.root(
+      "insert into private.team_operation_intents(operation_id,team_id,tool_id,expected_source_version,expected_source_drive_file_id,expected_source_checksum)values($1,$2,'restitch','1','source',repeat('a',32))",
+      [op, team]
+    );
+    children.push({ index, requestId: childId, operationId: op, state: 'unknown', outputId: null });
+  }
+  await db.root('select public.service_checkpoint_catalog_video_set($1,$2,$3,$4,1,0,$5)', [
+    r.set_id,
+    team,
+    owner,
+    r.executor_id,
+    children
+  ]);
+  const request = (
+    await db.root<{ request_id: string }>(
+      'select request_id from private.catalog_updater_variant_requests where set_id=$1',
+      [r.set_id]
+    )
+  )[0]!.request_id;
+  return { set: r.set_id as string, request };
+}
+
+const variantStates = async (set: string) =>
+  (
+    await db.root<{ state: string }>(
+      'select state from private.catalog_video_variants where video_set_id=$1 order by video_variant_index',
+      [set]
+    )
+  ).map(row => row.state);
+
+it('one variant round that cannot be written does not stop the sweep', async () => {
+  const healthy = await failedChildRound();
+  const poisoned = await failedChildRound();
+  const cure = await poisonRows(db, 'private.catalog_video_variants', 'video_set_id', [
+    poisoned.set
+  ]);
+  try {
+    const swept = await sweep();
+    expect(swept.variantSets).toBeGreaterThanOrEqual(1);
+    expect(await variantStates(healthy.set)).toEqual(['registered', 'queued']);
+    expect(await variantStates(poisoned.set)).toEqual(['unknown', 'unknown']);
+    expect(await settleFailure(db, 'catalog_round_variant_sweep', poisoned.request)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'catalog_round_variant_sweep', poisoned.request);
+  await sweep();
+  expect(await variantStates(poisoned.set)).toEqual(['registered', 'queued']);
+  expect(await settleFailure(db, 'catalog_round_variant_sweep', poisoned.request)).toBeUndefined();
 });

@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 import { beforeAll, afterAll, expect, it } from 'vitest';
-import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import {
+  applyMigrationsAfter,
+  createTeamTestDb,
+  createUser,
+  type TeamTestDb
+} from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 
 /**
  * Beta 2026-11-11 (gateway paused mid-upload): a catalog variant whose operation
@@ -340,4 +346,37 @@ it('wakes the per-minute dispatcher for a due uncertain upload', async () => {
   const due = await db.root<{ v: boolean }>('select private.process_output_cleanup_due()v');
   expect(due[0]!.v).toBe(true);
   await claim(f.op);
+});
+
+it('one never-started upload that cannot be failed does not stop the claim', async () => {
+  // This suite pins 347000; the row isolation lands later in the release.
+  await applyMigrationsAfter(db, '20261207347000_catalog_variant_uncertain_upload_reconcile.sql');
+  const healthy = await uploading('prepared');
+  const poisoned = await uploading('prepared');
+  await silence(healthy.op, 3);
+  await silence(poisoned.op, 3);
+  const cure = await poisonRows(db, 'private.catalog_video_variants', 'video_set_id', [
+    poisoned.set
+  ]);
+  try {
+    await claim();
+    expect(await state(healthy)).toMatchObject({
+      operation: 'failed',
+      cleanup: 'not_created',
+      variant: 'queued',
+      retry: 1
+    });
+    expect((await state(poisoned)).operation).toBe('running');
+    expect(await settleFailure(db, 'uncertain_process_upload', poisoned.op)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'uncertain_process_upload', poisoned.op);
+  await claim(poisoned.op);
+  expect(await state(poisoned)).toMatchObject({ operation: 'failed', variant: 'queued' });
+  expect(await settleFailure(db, 'uncertain_process_upload', poisoned.op)).toBeUndefined();
 });

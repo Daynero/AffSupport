@@ -157,3 +157,31 @@ it('a canceled creation never blocks a new one for the same video, even while it
   // The canceled creation's number is free again: no catalog was registered.
   expect(next.variant).toBe(f.intent.variant);
 });
+
+const variantRow = async (set: string) =>
+  (
+    await db.root<{ state: string; heartbeat_at: Date | null }>(
+      'select state,heartbeat_at from private.catalog_video_variants where video_set_id=$1 and video_variant_index=0',
+      [set]
+    )
+  )[0]!;
+
+it('95a121a2: a set that closes as canceled leaves no operation-less variant working', async () => {
+  const f = await canceledCreation({ dispatched: false, heartbeatAgo: null });
+  await db.root(
+    "update private.catalog_video_variants set state='working',heartbeat_at=clock_timestamp()-interval '10 minutes' where video_set_id=$1",
+    [f.set]
+  );
+  await settle();
+  expect(await setState(f.set)).toBe('canceled');
+  expect(await variantRow(f.set)).toEqual({ state: 'queued', heartbeat_at: null });
+});
+
+it('any path to canceled returns an operation-less working variant to queued', async () => {
+  const f = await canceledCreation({ dispatched: false, heartbeatAgo: null });
+  await db.root("update private.catalog_video_variants set state='working' where video_set_id=$1", [
+    f.set
+  ]);
+  await db.root("update private.catalog_video_sets set state='canceled' where id=$1", [f.set]);
+  expect((await variantRow(f.set)).state).toBe('queued');
+});

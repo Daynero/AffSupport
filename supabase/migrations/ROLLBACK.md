@@ -2930,3 +2930,17 @@ recovery delegation exists for its executor, and `backgroundStalled: true` when 
 has not claimed since the set was accepted while not busy with another set. Rolling back means
 restoring the 192000 body through a reviewed forward migration; the new key is advisory and older
 clients ignore it.
+
+### 20261207395000 — one row can no longer abort a per-minute settlement pass
+
+Adds `private.settle_row_failures` with `private.settle_row_deferred`,
+`private.note_settle_row_failure` and `private.clear_settle_row_failure`, and redefines
+`service_settle_catalog_video_cancellations`, `service_settle_launch_restitch_cancellations`,
+`service_sweep_catalog_updater_rounds` (its variant-round loop), `service_claim_uncertain_process_uploads`
+and `private.close_unreachable_catalog_rounds` so each row runs in its own subtransaction: a row that
+raises is recorded with a closed code, backed off up to an hour, and the pass continues. Rolling back
+means restoring the previous bodies (those left by 300000–347000) through a reviewed forward migration
+and dropping the table and helpers; rows backed off at that moment are simply retried on the next pass.
+The same migration adds the trigger `catalog_video_set_canceled_closes_variants` (a set entering
+'canceled' returns its operation-less 'working' variants to 'queued') and repairs canceled sets once;
+dropping the trigger restores the old behavior, and the repaired variants need no reversal.
