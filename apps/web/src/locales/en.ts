@@ -310,6 +310,7 @@ export const en = {
   catalogVideoR2StatusCopied: 'Copy ready, sheet still on Drive',
   catalogVideoR2DeleteWarning:
     'Catalogs with an R2 video are deleted for good: the R2 video is removed at once, the links to it in the sheet stop working, and the catalog does not appear in the Soty trash.',
+  catalogVideoR2AvailabilityFailed: 'Could not check whether copying the video to R2 is available.',
   catalogVideoR2DeleteTitle: 'Delete the catalog for good?',
   catalogVideoR2DeleteBody:
     '“{name}” has its video in R2. The catalog is deleted for good: the R2 video is removed at once, the links to it stop working, and the catalog cannot be restored.',

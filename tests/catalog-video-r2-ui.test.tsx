@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_ROLE_PERMISSIONS,
@@ -239,6 +239,67 @@ describe('CatalogVideoR2Toggle as a switch', () => {
     fireEvent.click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
     expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+});
+
+describe('R2 availability that could not be read', () => {
+  afterEach(() => vi.useRealTimers());
+  const toggle = (api: CatalogVideoR2Client) =>
+    mount(
+      <CatalogVideoR2Toggle
+        mode="create"
+        teamId={TEAM}
+        checked={false}
+        onChange={vi.fn()}
+        client={api}
+      />
+    );
+
+  it('retries a failed read instead of hiding the option', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const availability = vi
+      .fn<CatalogVideoR2Client['availability']>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(available());
+    toggle(client({ availability }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(await screen.findByRole('checkbox', { name: 'Copy the video to R2' })).toBeTruthy();
+    expect(availability).toHaveBeenCalledTimes(2);
+  });
+
+  it('says it could not check after every retry, and offers to try again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const availability = vi
+      .fn<CatalogVideoR2Client['availability']>()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    toggle(client({ availability }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000 + 5_000 + 10_000);
+    });
+    expect(
+      await screen.findByText('Could not check whether copying the video to R2 is available.')
+    ).toBeTruthy();
+    expect(availability).toHaveBeenCalledTimes(4);
+    expect(screen.queryByRole('checkbox', { name: 'Copy the video to R2' })).toBeNull();
+
+    availability.mockResolvedValue(available());
+    fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+    expect(await screen.findByRole('checkbox', { name: 'Copy the video to R2' })).toBeTruthy();
+  });
+
+  it('still hides the option when the server says it is not available', async () => {
+    const availability = vi.fn<CatalogVideoR2Client['availability']>().mockResolvedValue({
+      available: false,
+      reason: 'VIDEO_R2_NOT_CONFIGURED',
+      canManage: true,
+      contractVersion: 1
+    });
+    toggle(client({ availability }));
+    await waitFor(() => expect(availability).toHaveBeenCalled());
+    expect(screen.queryByRole('checkbox', { name: 'Copy the video to R2' })).toBeNull();
+    expect(screen.queryByText(/Could not check/u)).toBeNull();
   });
 });
 

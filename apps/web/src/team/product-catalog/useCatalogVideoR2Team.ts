@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CatalogVideoR2Availability, CatalogVideoR2Signal } from '@video-compressor/shared';
+import type { CatalogVideoR2Signal } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import { useOptionalTeam } from '../TeamContext';
+import { useCatalogVideoR2Availability } from './useCatalogVideoR2Availability';
 
 export interface CatalogVideoR2Row {
   enabled: boolean;
@@ -43,33 +44,16 @@ export function useCatalogVideoR2Team(
   const team = useOptionalTeam();
   const revision = team?.revision ?? 0;
   const updaterRevision = team?.updaterRevision ?? 0;
-  const [availability, setAvailability] = useState<CatalogVideoR2Availability | null>(null);
+  const { availability } = useCatalogVideoR2Availability(teamId, client);
   const [signals, setSignals] = useState<ReadonlyMap<string, CatalogVideoR2Signal>>(new Map());
   const [pending, setPending] = useState<ReadonlyMap<string, boolean>>(new Map());
   const [errors, setErrors] = useState<ReadonlyMap<string, unknown>>(new Map());
   const reads = useRef(0);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void client
-      .availability(teamId, { signal: controller.signal })
-      .then(setAvailability)
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setAvailability({
-            available: false,
-            reason: 'VIDEO_R2_NOT_CONFIGURED',
-            canManage: false,
-            contractVersion: 1
-          });
-      });
-    return () => controller.abort();
-  }, [client, teamId]);
-
-  useEffect(() => {
-    // Read even while R2 is unavailable: a catalog with the option on is deleted for
-    // good by the server either way, and the delete dialogs must be able to say so.
-    if (!availability) return;
+    // Read whatever R2's availability is, or whether it could be read at all: a catalog
+    // with the option on is deleted for good by the server either way, and the delete
+    // dialogs must be able to say so.
     const controller = new AbortController();
     const read = ++reads.current;
     void client
@@ -81,7 +65,7 @@ export function useCatalogVideoR2Team(
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [availability, client, teamId, revision, updaterRevision]);
+  }, [client, teamId, revision, updaterRevision]);
 
   const toggle = useCallback(
     async (catalogId: string, enabled: boolean) => {

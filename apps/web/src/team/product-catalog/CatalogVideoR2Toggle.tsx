@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import type { CatalogVideoR2Availability, CatalogVideoR2State } from '@video-compressor/shared';
+import type { CatalogVideoR2State } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import { CircleHelp } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { Badge, Checkbox, Switch, Tooltip } from '../../components/ui/index';
+import { Badge, Button, Checkbox, Switch, Tooltip } from '../../components/ui/index';
 // The create dialog's own checkboxes (re-stitch beside this one) are the form checkbox.
 import { Checkbox as FormCheckbox } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { useOptionalTeam } from '../TeamContext';
+import { useCatalogVideoR2Availability } from './useCatalogVideoR2Availability';
 
 /**
  * «Копіювати відео в R2» (050), the same control wherever a catalog is made or
@@ -61,28 +62,14 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
   const revision = team?.revision ?? 0;
   const updaterRevision = team?.updaterRevision ?? 0;
   const client = props.client ?? teamApi.catalogVideoR2;
-  const [availability, setAvailability] = useState<CatalogVideoR2Availability | null>(null);
   const [state, setState] = useState<CatalogVideoR2State | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const catalogId = props.mode === 'catalog' ? props.catalogMaterialId : null;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void client
-      .availability(props.teamId, { signal: controller.signal })
-      .then(value => setAvailability(value))
-      .catch(() =>
-        setAvailability({
-          available: false,
-          reason: 'VIDEO_R2_NOT_CONFIGURED',
-          canManage: false,
-          contractVersion: 1
-        })
-      );
-    return () => controller.abort();
-  }, [client, props.teamId]);
+  const availabilityRead = useCatalogVideoR2Availability(props.teamId, client);
+  const availability = availabilityRead.availability;
 
   useEffect(() => {
     if (!catalogId) return;
@@ -94,6 +81,16 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
     return () => controller.abort();
   }, [client, catalogId, revision, updaterRevision]);
 
+  if (!availability && availabilityRead.failed)
+    return (
+      <div className="catalog-video-r2 flex flex-wrap items-center gap-2" role="status">
+        <p className="team-inline-note">{t('catalogVideoR2AvailabilityFailed')}</p>
+        <Button size="sm" variant="outline" onClick={availabilityRead.retry}>
+          {t('retry')}
+        </Button>
+      </div>
+    );
+  // Only the server's own "not available" hides the option; while it is read, nothing.
   if (!availability?.available) return null;
   // The server's answer is the permission predicate itself (FR-013), not a client-side guess.
   const canManage = state ? state.canManage : availability.canManage;
