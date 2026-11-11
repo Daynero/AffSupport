@@ -118,6 +118,30 @@ type Phase =
 const VIDEO_READBACK_INITIAL_MS = 3_000;
 const VIDEO_READBACK_MAX_MS = 30_000;
 
+const TRANSIENT_CATALOG_CODES = new Set([
+  'TEAM_TRANSPORT_UNAVAILABLE',
+  'PROCESS_RESULT_UNCERTAIN',
+  'RATE_LIMITED',
+  'DRIVE_UNAVAILABLE',
+  'WORKSPACE_READ_TIMEOUT'
+]);
+/** A failure that says the server was slow or unreachable, not that the action is wrong. */
+function isTransientCatalogFailure(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === 'string') return TRANSIENT_CATALOG_CODES.has(code);
+  if (error instanceof DOMException && error.name === 'AbortError') return false;
+  return error instanceof TypeError;
+}
+
+/** Where this browser remembers an unfinished catalog creation for one video. */
+export function pendingCatalogCreationStorageKey(
+  actor: string,
+  teamId: string,
+  videoId: string
+): string {
+  return `soty:catalog-video-create:v1:${actor}:${teamId}:${videoId}`;
+}
+
 function errorKey(error: unknown): TranslationKey | null {
   // A delayed publication checked on submit: a passed time is the person's to fix,
   // never the generic "some data is invalid" that names no field.
@@ -208,7 +232,7 @@ export function CreateProductCatalogDialog({
   const videoKey = useRef<string | null>(null);
   const videoOwner = useRef<{ actor: string | null; epoch: number } | null>(null);
   const videoStorageKey = privateCacheActor()
-    ? `soty:catalog-video-create:v1:${privateCacheActor()}:${teamId}:${video.id}`
+    ? pendingCatalogCreationStorageKey(privateCacheActor()!, teamId, video.id)
     : null;
   const videoCancelId = useRef<string | null>(null);
 
@@ -660,7 +684,11 @@ export function CreateProductCatalogDialog({
     } catch (cause) {
       if (owns()) {
         setVideoUnknown(true);
-        setFailure(teamErrorMessageFor(cause, t));
+        // A timeout or lost connection says nothing about the operation; the
+        // person only needs to know it is temporary and the action is still there.
+        setFailure(
+          isTransientCatalogFailure(cause) ? t('catalogServerSlow') : teamErrorMessageFor(cause, t)
+        );
       }
     } finally {
       videoCommandBusy.current = false;
@@ -852,6 +880,17 @@ export function CreateProductCatalogDialog({
   }
 
   const busy = phase.kind === 'busy' || videoPending !== null || videoUnknown;
+  // While the create request is still on its way the result is not "unconfirmed"
+  // yet: that only becomes true once the request failed without an answer.
+  const requestInFlight = phase.kind === 'busy';
+  const showVideoUnknown = videoUnknown && !requestInFlight;
+  // A tracked creation has its own actions (check, resume, cancel the video); the
+  // form's close and create would be a second "Скасувати" and a dead "Створити".
+  const videoTracked =
+    !requestInFlight &&
+    (videoPending !== null ||
+      videoUnknown ||
+      Boolean(createdVideo && !['ready', 'canceled'].includes(createdVideo.state)));
   // An empty field is not a mistake yet — Create simply waits for it. The dialog opened with
   // "Paste a link that starts with http://" in red before anything had been typed.
   const linkError = touched.link && link.trim() !== '' && !linkCheck.ok;
@@ -1071,15 +1110,13 @@ export function CreateProductCatalogDialog({
               )}
             </p>
           )}
-          {videoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
-          {(videoPending ||
-            videoUnknown ||
-            (createdVideo && !['ready', 'canceled'].includes(createdVideo.state))) && (
+          {showVideoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
+          {videoTracked && (
             <div className="team-dialog-actions">
               <InventoryButton type="button" onClick={() => void checkVideo()}>
                 {t('catalogPublicationCheck')}
               </InventoryButton>
-              {(videoUnknown ||
+              {(showVideoUnknown ||
                 (videoPending?.state === 'preparing' &&
                   videoPending.registeredCount === videoPending.requestedCount)) && (
                 <InventoryButton type="button" onClick={() => void checkVideo(false, true)}>
@@ -1115,14 +1152,16 @@ export function CreateProductCatalogDialog({
             />
           )}
         </div>
-        <div className="team-dialog-actions">
-          <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
-            {t('productCatalogCancel')}
-          </Button>
-          <Button type="submit" variant="primary" loading={busy} disabled={!canConfirm}>
-            {t(replaces ? 'productCatalogRecreateConfirm' : 'productCatalogConfirm')}
-          </Button>
-        </div>
+        {!videoTracked && (
+          <div className="team-dialog-actions">
+            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+              {t('productCatalogCancel')}
+            </Button>
+            <Button type="submit" variant="primary" loading={busy} disabled={!canConfirm}>
+              {t(replaces ? 'productCatalogRecreateConfirm' : 'productCatalogConfirm')}
+            </Button>
+          </div>
+        )}
       </form>
     </Modal>
   );

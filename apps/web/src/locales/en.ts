@@ -16,6 +16,7 @@ export const en = {
   catalogVideoCreationProgress: 'Videos ready: {ready} of {total}',
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
+  catalogServerSlow: 'The server is responding slowly. Try again.',
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
   catalogVideoCreationWaitingAgent:
     'Waiting for the computer agent. Turn on background work on this computer to continue.',

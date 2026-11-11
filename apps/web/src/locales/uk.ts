@@ -18,6 +18,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationProgress: 'Готово відео: {ready} з {total}',
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
+  catalogServerSlow: 'Сервер відповідає повільно. Спробуйте ще раз.',
   catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
   catalogVideoCreationWaitingAgent:
     'Чекає на комп’ютерний агент. Увімкніть фонову роботу на цьому комп’ютері, щоб продовжити.',

@@ -1097,6 +1097,55 @@ describe('beta durable video creation', () => {
       expect(vi.mocked(client.readProductCatalogVideo!).mock.calls.length).toBe(reads);
     }
   );
+  it('does not call the result unconfirmed while the create request is still in flight', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn(
+        () =>
+          new Promise(resolve => {
+            answer = resolve;
+          })
+      ),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    await startVideo(client);
+    await waitFor(() => expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+    answer(pending);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+  });
+
+  it('offers one cancel action while a video creation is tracked', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    // Only the modal's own close (×, labelled "Cancel") remains next to the generation's cancel.
+    expect(screen.getAllByRole('button', { name: 'Cancel' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Cancel video generation' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
+  });
+
+  it('says a slow server is temporary when cancelling times out', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      cancelProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
+    expect(await screen.findByText('The server is responding slowly. Try again.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
+  });
+
   it('recovers a lost reply on reopen through read only using the original key', async () => {
     const read = vi.fn().mockResolvedValue(pending);
     const client = dialogClient({
