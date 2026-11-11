@@ -100,7 +100,9 @@ begin
  execute d;
 end $owner$;
 
--- Sets already stuck this way.
+-- Sets already stuck this way. Each row is repaired on its own: a row the
+-- repair cannot write is left for the per-minute settlement, never allowed to
+-- abort the migration (and with it every later migration of the release).
 do $repair$
 declare stuck record;
 begin
@@ -108,7 +110,11 @@ begin
   where v.state='unknown' and v.operation_id is null and s.state in('accepted','preparing','unknown')
   and not exists(select 1 from public.team_operations o where o.team_id=s.team_id and o.actor_id=s.actor_id and o.kind='process' and o.idempotency_key='catalog-variant:'||v.request_id::text)
   order by v.video_set_id,v.video_variant_index loop
-  perform private.retry_failed_catalog_video_variant(stuck.video_set_id,stuck.video_variant_index);
+  begin
+   perform private.retry_failed_catalog_video_variant(stuck.video_set_id,stuck.video_variant_index);
+  exception when others then
+   raise warning 'VARIANT_REPAIR_SKIPPED set=% index=% sqlstate=%',stuck.video_set_id,stuck.video_variant_index,sqlstate;
+  end;
  end loop;
 end $repair$;
 commit;

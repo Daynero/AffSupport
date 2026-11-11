@@ -183,6 +183,35 @@ export async function createTeamTestDb(
   return { db, root, asUser, close: () => db.close() };
 }
 
+/**
+ * Apply every migration after `afterMigration`, in version order, to a database
+ * built with `throughMigration`. This is how a release reaches production: data
+ * written under the old schema meets the new migrations, one-shot repairs
+ * included. Returns each migration's file name and duration.
+ */
+export async function applyMigrationsAfter(
+  harness: TeamTestDb,
+  afterMigration: string
+): Promise<{ file: string; ms: number }[]> {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter(name => name.endsWith('.sql') && name > afterMigration)
+    .sort();
+  const applied: { file: string; ms: number }[] = [];
+  for (const file of files) {
+    const sql = portable(readFileSync(`${MIGRATIONS_DIR}/${file}`, 'utf8'));
+    const started = performance.now();
+    try {
+      await harness.db.exec(sql);
+    } catch (error) {
+      throw new Error(`migration ${file} failed to apply over existing data: ${String(error)}`, {
+        cause: error
+      });
+    }
+    applied.push({ file, ms: performance.now() - started });
+  }
+  return applied;
+}
+
 /** Create a confirmed account the team functions will accept as an actor. */
 export async function createUser(
   harness: TeamTestDb,
