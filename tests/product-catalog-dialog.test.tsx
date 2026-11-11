@@ -1027,6 +1027,128 @@ describe('a creation still running behind the catalogs list (1.4.3)', () => {
     expect(await screen.findByText(catalog.name)).toBeTruthy();
     expect(screen.queryByText('A catalog is being created')).toBeNull();
   });
+
+  describe('listed by the server, from any browser', () => {
+    const serverKey = 'product-catalog:47000000-0000-4000-8000-000000000031';
+    const unfinished = {
+      idempotencyKey: serverKey,
+      variant: 8,
+      replacesMaterialId: null,
+      createdAt: '2026-11-11T12:38:51.000Z',
+      intentState: 'interrupted',
+      safeErrorCode: null,
+      sourceLink: 'https://offer.example.test/qa-n4a',
+      productCount: 100,
+      restitch: true,
+      variationCount: 3,
+      duration: { finalDurationMode: 'random-40-50', customFinalDurationSeconds: 2700 },
+      copyVideoToR2: false,
+      setState: 'preparing',
+      requestedCount: 3,
+      registeredCount: 1,
+      workingCount: 0,
+      queuedCount: 2,
+      unknownCount: 0,
+      agentSilent: false
+    };
+
+    it('shows a creation this browser never saw, and reopens it with what was submitted', async () => {
+      const listClient = client({
+        listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([unfinished])
+      });
+      renderList(listClient);
+      expect(await screen.findByText('clip_v8_catalog')).toBeTruthy();
+      expect(
+        screen.getByText(/Waiting for Soty on the computer · Videos ready: 1 of 3/)
+      ).toBeTruthy();
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Show progress of clip_v8_catalog' })
+      );
+      expect(listClient.readProductCatalogVideo).toHaveBeenCalledWith(
+        TEAM_ID,
+        serverKey,
+        expect.anything()
+      );
+      expect((screen.getByLabelText(/^Link(?: · Required)?$/) as HTMLInputElement).value).toBe(
+        'https://offer.example.test/qa-n4a'
+      );
+      expect(((await screen.findByLabelText('Video variations')) as HTMLInputElement).value).toBe(
+        '3'
+      );
+    });
+
+    it('opens on the list, not the form, when the only thing is a running creation', async () => {
+      renderList(
+        client({
+          listProductCatalogs: vi.fn().mockResolvedValue([]),
+          listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([unfinished])
+        })
+      );
+      expect(await screen.findByText('clip_v8_catalog')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
+    });
+
+    it('names a computer that went quiet', async () => {
+      renderList(
+        client({
+          listUnfinishedProductCatalogCreations: vi
+            .fn()
+            .mockResolvedValue([{ ...unfinished, workingCount: 1, agentSilent: true }])
+        })
+      );
+      expect(
+        await screen.findByText(/Soty on the computer is not answering — open Soty/)
+      ).toBeTruthy();
+    });
+
+    it('cancels from the row after a confirmation, and reads the list again', async () => {
+      const cancelProductCatalogVideo = vi
+        .fn()
+        .mockResolvedValue({ ...pending, state: 'canceled' });
+      const listUnfinishedProductCatalogCreations = vi
+        .fn()
+        .mockResolvedValueOnce([unfinished])
+        .mockResolvedValue([]);
+      renderList(client({ listUnfinishedProductCatalogCreations, cancelProductCatalogVideo }));
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Cancel creating clip_v8_catalog' })
+      );
+      expect(cancelProductCatalogVideo).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel creation' }));
+      await waitFor(() =>
+        expect(cancelProductCatalogVideo).toHaveBeenCalledWith(
+          TEAM_ID,
+          serverKey,
+          expect.any(String)
+        )
+      );
+      await waitFor(() => expect(screen.queryByText('clip_v8_catalog')).toBeNull());
+      expect(listUnfinishedProductCatalogCreations).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to this browser when the server list cannot be read', async () => {
+      localStorage.setItem(
+        `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+        pendingKey
+      );
+      renderList(
+        client({
+          listUnfinishedProductCatalogCreations: vi.fn().mockRejectedValue(new Error('down'))
+        })
+      );
+      expect(await screen.findByText('A catalog is being created')).toBeTruthy();
+    });
+
+    it('trusts the server over this browser when the creation already finished', async () => {
+      localStorage.setItem(
+        `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+        pendingKey
+      );
+      renderList(client({ listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([]) }));
+      expect(await screen.findByText(catalog.name)).toBeTruthy();
+      expect(screen.queryByText('A catalog is being created')).toBeNull();
+    });
+  });
 });
 
 describe('a catalog re-stitched with pictures from the space (030)', () => {

@@ -276,6 +276,77 @@ export interface ProductCatalogSummary {
   createdAt: string;
 }
 
+/**
+ * 1.4.3 — one of the caller's own catalog creations for a video that has not
+ * finished. The server lists it so a closed creation can be found, reopened and
+ * canceled from the video's catalogs, in any browser.
+ */
+export interface UnfinishedCatalogCreation {
+  idempotencyKey: string;
+  variant: number;
+  replacesMaterialId: string | null;
+  createdAt: string;
+  intentState: string;
+  safeErrorCode: string | null;
+  sourceLink: string | null;
+  productCount: number | null;
+  restitch: boolean;
+  variationCount: number | null;
+  duration: Record<string, unknown> | null;
+  copyVideoToR2: boolean;
+  /** The video set's state; null for a creation without restitch. */
+  setState: string | null;
+  requestedCount: number | null;
+  registeredCount: number;
+  workingCount: number;
+  queuedCount: number;
+  unknownCount: number;
+  /** A video is being made but the computer making it went quiet. */
+  agentSilent: boolean;
+}
+
+function unfinishedCatalogCreationFrom(value: unknown): UnfinishedCatalogCreation | null {
+  const row =
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  if (
+    !row ||
+    typeof row.idempotencyKey !== 'string' ||
+    !/^product-catalog:[0-9a-f-]{36}$/iu.test(row.idempotencyKey) ||
+    typeof row.variant !== 'number' ||
+    typeof row.createdAt !== 'string' ||
+    typeof row.intentState !== 'string'
+  )
+    return null;
+  const text = (field: unknown) => (typeof field === 'string' ? field : null);
+  const count = (field: unknown) => (typeof field === 'number' ? field : null);
+  return {
+    idempotencyKey: row.idempotencyKey,
+    variant: row.variant,
+    replacesMaterialId: text(row.replacesMaterialId),
+    createdAt: row.createdAt,
+    intentState: row.intentState,
+    safeErrorCode: text(row.safeErrorCode),
+    sourceLink: text(row.sourceLink),
+    productCount: count(row.productCount),
+    restitch: row.restitch === true,
+    variationCount: count(row.variationCount),
+    duration:
+      row.duration !== null && typeof row.duration === 'object' && !Array.isArray(row.duration)
+        ? (row.duration as Record<string, unknown>)
+        : null,
+    copyVideoToR2: row.copyVideoToR2 === true,
+    setState: text(row.setState),
+    requestedCount: count(row.requestedCount),
+    registeredCount: count(row.registeredCount) ?? 0,
+    workingCount: count(row.workingCount) ?? 0,
+    queuedCount: count(row.queuedCount) ?? 0,
+    unknownCount: count(row.unknownCount) ?? 0,
+    agentSilent: row.agentSilent === true
+  };
+}
+
 /** 022 — the four values every catalog in a space is filled from. */
 export interface ProductCatalogSettings {
   /** One name for every row, used only while the name pool is empty (024). */
@@ -2483,6 +2554,24 @@ export const teamApi = {
           createdAt: row.created_at
         }
       ];
+    });
+  },
+
+  /** 1.4.3 — the caller's own creations for a video that have not finished yet. */
+  async listUnfinishedProductCatalogCreations(
+    teamId: string,
+    videoId: string
+  ): Promise<UnfinishedCatalogCreation[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_my_unfinished_product_catalog_creations', {
+        p_team: teamId,
+        p_video: videoId
+      })
+    );
+    throwRpc(error);
+    return (Array.isArray(data) ? data : []).flatMap(value => {
+      const row = unfinishedCatalogCreationFrom(value);
+      return row ? [row] : [];
     });
   },
 

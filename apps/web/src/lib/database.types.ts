@@ -7805,6 +7805,10 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
+      list_my_unfinished_product_catalog_creations: {
+        Args: { p_team: string; p_video: string };
+        Returns: Json;
+      };
       list_restitch_sources: {
         Args: { p_scope: string; p_team: string };
         Returns: Json;

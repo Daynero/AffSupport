@@ -193,6 +193,36 @@ function readPendingCreationForm(storageKey: string, key: string): PendingCreati
   }
 }
 
+/**
+ * Make a creation the server listed the one this dialog reopens (1.4.3). The video's catalogs
+ * show the person's unfinished creations from any browser; «Показати прогрес» opens this dialog
+ * on one through the same restore path a creation started here takes. A form this browser
+ * already remembers for the same key is richer (the delayed time) and stays. Throws when
+ * storage is unavailable; the caller reports it.
+ */
+export function rememberPendingCatalogCreation(
+  storageKey: string,
+  creation: Omit<PendingCreationForm, 'videoDraft'> & { variationCount: string }
+): void {
+  const known =
+    localStorage.getItem(storageKey) === creation.key &&
+    readPendingCreationForm(storageKey, creation.key) !== null;
+  localStorage.setItem(storageKey, creation.key);
+  if (known) return;
+  const { variationCount, ...form } = creation;
+  const stored: PendingCreationForm = {
+    ...form,
+    videoDraft: {
+      variationCount,
+      delayed: false,
+      date: '',
+      time: '12:00',
+      zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Kyiv'
+    }
+  };
+  localStorage.setItem(pendingFormStorageKey(storageKey), JSON.stringify(stored));
+}
+
 /** The pending key and the form remembered with it leave together. */
 function forgetPendingCreation(storageKey: string) {
   localStorage.removeItem(storageKey);

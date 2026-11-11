@@ -2863,3 +2863,10 @@ that already executes the set calls `private.release_silent_catalog_video_varian
 minutes)`, as a redeem from a new instance has since 240000. Rolling back means restoring the
 340000 body of the function through a reviewed forward migration; variants already failed and
 requeued stay as they are and need no repair.
+
+### 20261207370000 — a person's unfinished catalog creations are listed for a video
+
+Adds `public.list_my_unfinished_product_catalog_creations(team, video)`, a read-only,
+security-definer list of the caller's own unregistered, uncanceled creations with their video
+set progress. It writes nothing. Rolling back means dropping the function through a reviewed
+forward migration; the web then falls back to the browser-remembered creation only.

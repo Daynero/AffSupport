@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Copy, ExternalLink, MoreHorizontal, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import type { TeamFileOperationResult } from '@video-compressor/shared';
-import type { ProductCatalogSummary } from '../../api/team';
+import type { ProductCatalogSummary, UnfinishedCatalogCreation } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -11,12 +11,15 @@ import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { privateCacheActor } from '../private-cache-scope';
+import { productCatalogNameFor } from '../materials/tail';
+import type { RestitchDurationValue } from '../../components/ui/index';
 import { useTeam } from '../TeamContext';
 import { useCatalogVideoR2Team } from './useCatalogVideoR2Team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import {
   CreateProductCatalogDialog,
   pendingCatalogCreationStorageKey,
+  rememberPendingCatalogCreation,
   type CreateProductCatalogClient
 } from './CreateProductCatalogDialog';
 
@@ -27,6 +30,11 @@ export interface VideoProductCatalogClient extends CreateProductCatalogClient {
     materialId: string;
     idempotencyKey: string;
   }) => Promise<TeamFileOperationResult>;
+  /** 1.4.3: the person's own unfinished creations for the video, from any browser. */
+  listUnfinishedProductCatalogCreations?: (
+    teamId: string,
+    videoId: string
+  ) => Promise<UnfinishedCatalogCreation[]>;
 }
 
 const defaultClient: VideoProductCatalogClient = teamApi;
@@ -66,6 +74,55 @@ function hasRunningCreation(teamId: string, videoId: string): boolean {
   }
 }
 
+/** What an unfinished creation is doing, in the words its row shows. */
+function creationStatus(creation: UnfinishedCatalogCreation): TranslationKey {
+  if (creation.setState === 'cancel_requested') return 'productCatalogCreationCanceling';
+  if (creation.agentSilent) return 'productCatalogCreationAgentSilent';
+  if (creation.setState === 'unknown' || creation.unknownCount > 0)
+    return 'productCatalogCreationAttention';
+  if (
+    creation.restitch &&
+    creation.requestedCount !== null &&
+    creation.registeredCount < creation.requestedCount
+  )
+    return creation.workingCount > 0
+      ? 'productCatalogCreationStitching'
+      : 'productCatalogCreationWaitingComputer';
+  return 'productCatalogCreationAssembling';
+}
+
+/** A creation can be canceled while its videos are still being made. */
+function creationCancelable(creation: UnfinishedCatalogCreation): boolean {
+  return (
+    creation.restitch &&
+    creation.setState !== null &&
+    !['cancel_requested', 'ready', 'canceled'].includes(creation.setState)
+  );
+}
+
+function durationOf(creation: UnfinishedCatalogCreation): RestitchDurationValue | undefined {
+  const value = creation.duration;
+  return value && typeof value.finalDurationMode === 'string'
+    ? (value as unknown as RestitchDurationValue)
+    : undefined;
+}
+
+/**
+ * Where the window opens: on the list when there is a catalog or a creation still running,
+ * straight on the form when there is nothing to list.
+ */
+function openView(loaded: {
+  found: ProductCatalogSummary[];
+  open: UnfinishedCatalogCreation[] | null;
+}): View {
+  return loaded.found.length > 0 || (loaded.open?.length ?? 0) > 0
+    ? { kind: 'list' }
+    : { kind: 'create', replaces: null, fromList: false };
+}
+
+/** While a creation is unfinished its row re-reads the server this often. */
+const UNFINISHED_REFRESH_MS = 15_000;
+
 /**
  * A video's catalogs (022; variations in 024, US15).
  *
@@ -99,6 +156,10 @@ export function ProductCatalogMenuDialog({
   const { can } = useTeam();
   const titleId = useId();
   const [catalogs, setCatalogs] = useState<ProductCatalogSummary[]>([]);
+  // null: the server could not say; the list then falls back to this browser's memory.
+  const [unfinished, setUnfinished] = useState<UnfinishedCatalogCreation[] | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<UnfinishedCatalogCreation | null>(null);
+  const cancelIds = useRef(new Map<string, string>());
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [loadError, setLoadError] = useState(false);
   // 050: a catalog with its video in R2 is deleted for good, so it asks first.
@@ -115,7 +176,18 @@ export function ProductCatalogMenuDialog({
         )
       ]);
       setCatalogs(found);
-      return found;
+      // A creation still running is shown beside the finished catalogs. Its list is a
+      // convenience: when it fails, the catalogs still open.
+      let open: UnfinishedCatalogCreation[] | null = null;
+      if (client.listUnfinishedProductCatalogCreations && client.createProductCatalogVideo) {
+        try {
+          open = await client.listUnfinishedProductCatalogCreations(teamId, video.id);
+        } catch {
+          open = null;
+        }
+      }
+      setUnfinished(open);
+      return { found, open };
     } catch {
       setLoadError(true);
       return null;
@@ -124,21 +196,80 @@ export function ProductCatalogMenuDialog({
 
   useEffect(() => {
     let active = true;
-    void load().then(found => {
-      if (active) {
-        if (found) {
-          setView(
-            found.length > 0
-              ? { kind: 'list' }
-              : { kind: 'create', replaces: null, fromList: false }
-          );
-        }
-      }
+    void load().then(loaded => {
+      if (active && loaded) setView(openView(loaded));
     });
     return () => {
       active = false;
     };
   }, [load]);
+
+  // An unfinished creation moves on its own; its row follows the server while the list is open.
+  const watching = view.kind === 'list' && (unfinished?.length ?? 0) > 0;
+  useEffect(() => {
+    if (!watching) return;
+    const timer = window.setInterval(() => void load(), UNFINISHED_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [watching, load]);
+
+  const creationName = (creation: UnfinishedCatalogCreation) =>
+    productCatalogNameFor(video.name, creation.variant);
+
+  /** Reopen the creation dialog on a creation the server listed, with the person's inputs. */
+  const showProgress = (creation: UnfinishedCatalogCreation) => {
+    const actor = privateCacheActor();
+    if (actor) {
+      try {
+        const duration = durationOf(creation);
+        rememberPendingCatalogCreation(pendingCatalogCreationStorageKey(actor, teamId, video.id), {
+          key: creation.idempotencyKey,
+          link: creation.sourceLink ?? '',
+          count: creation.productCount === null ? '' : String(creation.productCount),
+          restitch: creation.restitch,
+          copyVideoToR2: creation.copyVideoToR2,
+          variationCount: String(creation.variationCount ?? 1),
+          ...(duration ? { duration } : {}),
+          name: creationName(creation)
+        });
+      } catch {
+        push({ tone: 'error', text: t('catalogPublicationStorageError') });
+        return;
+      }
+    }
+    const replaces = creation.replacesMaterialId
+      ? (catalogs.find(catalog => catalog.id === creation.replacesMaterialId) ?? null)
+      : null;
+    setView({ kind: 'create', replaces, fromList: true });
+  };
+
+  const cancelCreation = async (creation: UnfinishedCatalogCreation) => {
+    const key = creation.idempotencyKey;
+    // The same cancel request on a retry, so a lost answer cannot cancel twice.
+    const requestId = cancelIds.current.get(key) ?? crypto.randomUUID();
+    cancelIds.current.set(key, requestId);
+    setUnfinished(current =>
+      current
+        ? current.map(item =>
+            item.idempotencyKey === key ? { ...item, setState: 'cancel_requested' } : item
+          )
+        : current
+    );
+    try {
+      await (client.cancelProductCatalogVideo ?? teamApi.cancelProductCatalogVideo)(
+        teamId,
+        key,
+        requestId
+      );
+      push({
+        tone: 'success',
+        text: t('productCatalogCreationCanceled', { name: creationName(creation) })
+      });
+    } catch (cause) {
+      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    } finally {
+      void load();
+    }
+  };
 
   const copy = async (text: string, done: TranslationKey) => {
     try {
@@ -179,14 +310,8 @@ export function ProductCatalogMenuDialog({
                   type="button"
                   variant="secondary"
                   onClick={() =>
-                    void load().then(found => {
-                      if (found) {
-                        setView(
-                          found.length > 0
-                            ? { kind: 'list' }
-                            : { kind: 'create', replaces: null, fromList: false }
-                        );
-                      }
+                    void load().then(loaded => {
+                      if (loaded) setView(openView(loaded));
                     })
                   }
                 >
@@ -231,7 +356,11 @@ export function ProductCatalogMenuDialog({
   }
 
   const mayMake = can('upload');
-  const running = Boolean(client.createProductCatalogVideo) && hasRunningCreation(teamId, video.id);
+  // The server's list when it answered; this browser's memory only when it could not.
+  const running =
+    unfinished === null &&
+    Boolean(client.createProductCatalogVideo) &&
+    hasRunningCreation(teamId, video.id);
   return (
     <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="md">
       <div className="team-dialog-form product-catalog-dialog">
@@ -256,6 +385,16 @@ export function ProductCatalogMenuDialog({
               </div>
             </li>
           )}
+          {unfinished?.map(creation => (
+            <UnfinishedCreationRow
+              key={creation.idempotencyKey}
+              creation={creation}
+              name={creationName(creation)}
+              mayCancel={mayMake && creationCancelable(creation)}
+              onShow={() => showProgress(creation)}
+              onCancel={() => setConfirmCancel(creation)}
+            />
+          ))}
           {catalogs.map(catalog => (
             <CatalogRow
               key={catalog.id}
@@ -287,6 +426,21 @@ export function ProductCatalogMenuDialog({
           </Button>
         </div>
       </div>
+      {confirmCancel && (
+        <ConfirmDialog
+          nested
+          title={t('productCatalogCreationCancelTitle')}
+          body={t('productCatalogCreationCancelBody', { name: creationName(confirmCancel) })}
+          confirmLabel={t('productCatalogCreationCancelConfirm')}
+          cancelLabel={t('productCatalogCreationKeep')}
+          onCancel={() => setConfirmCancel(null)}
+          onConfirm={() => {
+            const creation = confirmCancel;
+            setConfirmCancel(null);
+            void cancelCreation(creation);
+          }}
+        />
+      )}
       {confirmRemove && (
         <ConfirmDialog
           nested
@@ -303,6 +457,63 @@ export function ProductCatalogMenuDialog({
         />
       )}
     </Modal>
+  );
+}
+
+/** One of the person's creations for the video that has not finished. */
+function UnfinishedCreationRow({
+  creation,
+  name,
+  mayCancel,
+  onShow,
+  onCancel
+}: {
+  creation: UnfinishedCatalogCreation;
+  name: string;
+  mayCancel: boolean;
+  onShow: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const progress =
+    creation.restitch && creation.requestedCount
+      ? t('catalogVideoCreationProgress', {
+          ready: creation.registeredCount,
+          total: creation.requestedCount
+        })
+      : null;
+  return (
+    <li className="product-catalog-row">
+      <div className="product-catalog-row-text" role="status">
+        <strong title={name}>{name}</strong>
+        <small>
+          {t(creationStatus(creation))}
+          {progress ? ` · ${progress}` : ''}
+        </small>
+      </div>
+      <div className="product-catalog-row-actions">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          aria-label={t('productCatalogCreationShowOf', { name })}
+          onClick={onShow}
+        >
+          {t('productCatalogCreationShow')}
+        </Button>
+        {mayCancel && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-label={t('productCatalogCreationCancelOf', { name })}
+            onClick={onCancel}
+          >
+            {t('productCatalogCreationCancel')}
+          </Button>
+        )}
+      </div>
+    </li>
   );
 }
 
