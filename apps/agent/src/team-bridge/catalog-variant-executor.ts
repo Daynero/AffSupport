@@ -25,7 +25,9 @@ export interface CatalogVariantAuthority {
     | { kind: 'registered'; outputId: string; operationId: string }
     | { kind: 'admitted'; operationId: string }
     | { kind: 'absent' }
-    | { kind: 'unknown' }
+    /** `retry`: the server proved the operation failed without output and
+     * requeued this variant under a new identity (bounded server-side). */
+    | { kind: 'unknown'; retry?: { attempt: number } }
   >;
   admit(
     child: Readonly<CatalogVariantChild>,
@@ -75,8 +77,17 @@ export interface CatalogVariantObservation {
   childRequestId?: string;
   childOperationId?: string;
   errorCode?: string;
+  /** Set only with `retrying`: which bounded retry of this variant begins. */
+  retryAttempt?: number;
   stage:
-    'accepted' | 'reconciling' | 'processing' | 'registered' | 'ready' | 'unknown' | 'canceled';
+    | 'accepted'
+    | 'reconciling'
+    | 'retrying'
+    | 'processing'
+    | 'registered'
+    | 'ready'
+    | 'unknown'
+    | 'canceled';
   ready: number;
   total: number;
 }
@@ -91,6 +102,7 @@ export class CatalogVariantExecutor {
         ...(event.childOperationId ? { childOperationId: event.childOperationId } : {}),
         stage: event.stage,
         ...(event.errorCode ? { errorCode: event.errorCode } : {}),
+        ...(event.retryAttempt ? { retryAttempt: event.retryAttempt } : {}),
         readyCount: event.ready,
         requestedCount: event.total
       });
@@ -112,7 +124,8 @@ export class CatalogVariantExecutor {
     const stage = (
       value: CatalogVariantObservation['stage'],
       child?: CatalogVariantChild,
-      errorCode?: string
+      errorCode?: string,
+      retryAttempt?: number
     ) => {
       try {
         this.observe({
@@ -125,6 +138,7 @@ export class CatalogVariantExecutor {
             : {}),
           stage: value,
           ...(errorCode ? { errorCode } : {}),
+          ...(retryAttempt ? { retryAttempt } : {}),
           ready: snapshot.children.filter(c => c.state === 'registered').length,
           total: snapshot.children.length
         });
@@ -179,11 +193,21 @@ export class CatalogVariantExecutor {
         stage('reconciling', child);
         const observed = await this.authority.reconcile(Object.freeze({ ...child }), signal);
         current();
-        if (observed.kind === 'unknown') {
+        if (observed.kind === 'unknown' && observed.retry) {
+          // The requeued variant has a new request id and no operation; only the
+          // authority's own snapshot may say so.
+          snapshot = capture(await this.authority.load());
+          current();
+          child = snapshot.children[original.index]!;
+          if (!child || child.state !== 'queued' || child.operationId !== null) {
+            stage('unknown', child);
+            throw uncertain();
+          }
+          stage('retrying', child, undefined, observed.retry.attempt);
+        } else if (observed.kind === 'unknown') {
           stage('unknown', child);
           throw uncertain();
-        }
-        if (observed.kind === 'registered') {
+        } else if (observed.kind === 'registered') {
           await save(child.index, 'registered', observed.outputId, observed.operationId);
           notify();
           continue;

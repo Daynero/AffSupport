@@ -227,6 +227,15 @@ export async function runCatalogVariantRecovery(input: {
     },
     reconcile: async child => {
       const result = await invoke('variant_reconcile', body(child));
+      if (
+        result.kind === 'unknown' &&
+        isRecord(result.retry) &&
+        typeof result.retry.attempt === 'number' &&
+        Number.isSafeInteger(result.retry.attempt) &&
+        result.retry.attempt >= 1 &&
+        result.retry.attempt <= 2
+      )
+        return { kind: 'unknown', retry: { attempt: result.retry.attempt } };
       if (result.kind === 'absent' || result.kind === 'unknown') return { kind: result.kind };
       if (
         (result.kind === 'registered' || result.kind === 'admitted') &&

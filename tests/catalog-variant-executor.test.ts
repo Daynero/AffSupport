@@ -2,7 +2,8 @@ import { expect, it, vi } from 'vitest';
 import {
   CatalogVariantExecutor,
   type CatalogVariantSnapshot,
-  type CatalogVariantAuthority
+  type CatalogVariantAuthority,
+  type CatalogVariantObservation
 } from '../apps/agent/src/team-bridge/catalog-variant-executor';
 const id = (n: number) => '47000000-0000-4000-8000-' + String(n).padStart(12, '0');
 function fixture(count = 5) {
@@ -132,4 +133,71 @@ it('keeps unknown diagnostic causes bounded and separates request from admitted 
     })
   );
   expect(JSON.stringify(events)).not.toContain('private-provider');
+});
+it('re-runs a variant the server requeued after a proven failure, under its new identity', async () => {
+  // 1.4.3: a failed video used to stay unknown forever and bury the whole set.
+  let stored: CatalogVariantSnapshot = {
+    setId: id(1),
+    revision: 4,
+    children: [
+      { index: 0, requestId: id(10), operationId: id(50), state: 'registered', outputId: id(100) },
+      { index: 1, requestId: id(11), operationId: id(51), state: 'unknown', outputId: null }
+    ]
+  };
+  const events: CatalogVariantObservation[] = [];
+  const authority: CatalogVariantAuthority = {
+    load: vi.fn(async () => structuredClone(stored)),
+    save: vi.fn(async (rev, next) => {
+      if (rev !== stored.revision) return false;
+      stored = structuredClone(next);
+      return true;
+    }),
+    reconcile: vi.fn(async () => {
+      // The server retired the failed identity and requeued the variant.
+      stored = {
+        ...stored,
+        revision: stored.revision + 1,
+        children: [
+          stored.children[0]!,
+          { index: 1, requestId: id(21), operationId: null, state: 'queued', outputId: null }
+        ]
+      };
+      return { kind: 'unknown' as const, retry: { attempt: 1 } };
+    }),
+    admit: vi.fn(async () => ({ operationId: id(61) })),
+    execute: vi.fn(async () => ({ outputId: id(101) }))
+  };
+  const result = await new CatalogVariantExecutor(authority, event => events.push(event)).run(
+    new AbortController().signal
+  );
+  expect(result.children[1]).toEqual({
+    index: 1,
+    requestId: id(21),
+    operationId: id(61),
+    state: 'registered',
+    outputId: id(101)
+  });
+  expect(vi.mocked(authority.admit).mock.calls[0]![0]).toMatchObject({
+    requestId: id(21),
+    operationId: null
+  });
+  expect(authority.execute).toHaveBeenCalledTimes(1);
+  expect(events.find(event => event.stage === 'retrying')).toMatchObject({
+    childRequestId: id(21),
+    retryAttempt: 1
+  });
+});
+it('stays unknown when a claimed retry is not what the authority snapshot shows', async () => {
+  const x = fixture(1);
+  vi.mocked(x.authority.execute).mockRejectedValueOnce(Error('lost reply'));
+  await expect(x.executor.run(new AbortController().signal)).rejects.toThrow('lost reply');
+  // The reply says "retry", but the stored variant still carries its old operation.
+  vi.mocked(x.authority.reconcile).mockResolvedValueOnce({
+    kind: 'unknown',
+    retry: { attempt: 1 }
+  });
+  await expect(
+    new CatalogVariantExecutor(x.authority).run(new AbortController().signal)
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(x.authority.execute).toHaveBeenCalledTimes(1);
 });
