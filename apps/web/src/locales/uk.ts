@@ -18,6 +18,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationProgress: 'Готово відео: {ready} з {total}',
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
+  catalogVideoCheckingResult: 'перевіряємо результат',
+  catalogVideoCheckingCreation: 'Перевіряємо результат створення…',
   catalogServerSlow: 'Сервер відповідає повільно. Спробуйте ще раз.',
   catalogVideoReadInterrupted:
     'Зв’язок із сервером перервався, робота триває — оновимо стан автоматично.',
@@ -435,6 +437,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressRecovering:
     'Виконання перервалося й за мить продовжиться саме. Підтверджені етапи збережено.',
   launchesProgressReconciling: 'Оновлюємо стан генерації. Підтверджені етапи збережено.',
+  launchesProgressCheckingResult:
+    'Перевіряємо результат відео. Генерація продовжиться сама — підтверджені етапи збережено.',
   launchesProgressElapsed: 'Тривалість генерації: {time}',
   launchesOriginalVideoHint:
     'Або створіть каталог з оригінальним відео без перезашивки. Під час наступних оновлень каталогу відео також не перезашиватиметься.',

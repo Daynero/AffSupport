@@ -274,6 +274,10 @@ export function parseLaunchGeneration(value: unknown): LaunchGeneration | null {
     id: value.id,
     ...(value.videoGeneration === undefined ? {} : { videoGeneration }),
     ...(typeof value.attemptNo === 'number' ? { attemptNo: value.attemptNo } : {}),
+    // A missing or unreadable start only loses the server clock, not the generation.
+    ...(typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt))
+      ? { startedAt: value.startedAt }
+      : {}),
     ...(typeof value.requestKey === 'string' ? { requestKey: value.requestKey } : {}),
     ...(typeof value.inputVersion === 'string' ? { inputVersion: value.inputVersion } : {}),
     ...(value.restitchOperationId === null || typeof value.restitchOperationId === 'string'

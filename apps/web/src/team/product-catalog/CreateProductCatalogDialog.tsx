@@ -46,6 +46,7 @@ import {
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useBrowserRoute } from '../../lib/navigation';
+import { useSustained } from '../../lib/useSustained';
 import { startTeamAgentProcess, agentCanRestitch } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
@@ -120,6 +121,8 @@ type Phase =
 const VIDEO_READBACK_INITIAL_MS = 3_000;
 const VIDEO_READBACK_MAX_MS = 30_000;
 const CATALOG_VIDEO_READ_DEADLINE_MS = 10_000;
+/** How long an unconfirmed creation is read calmly before it is called unconfirmed. */
+export const CREATION_UNCERTAIN_PATIENCE_MS = 20_000;
 
 const TRANSIENT_CATALOG_CODES = new Set([
   'TEAM_TRANSPORT_UNAVAILABLE',
@@ -987,6 +990,13 @@ export function CreateProductCatalogDialog({
     }
   };
 
+  // Under load the first reads after a create can take seconds; that is a result
+  // still being read, not an uncertain one. «Результат ще не підтверджено» flashed
+  // for 9 s before «Каталог готовий» (1.4.3 QA). It waits for a failure or a while.
+  const unknownLingers = useSustained(
+    videoUnknown && phase.kind !== 'busy',
+    CREATION_UNCERTAIN_PATIENCE_MS
+  );
   if (phase.kind === 'result') {
     const shown = phase.catalog;
     return (
@@ -1079,7 +1089,8 @@ export function CreateProductCatalogDialog({
   // While the create request is still on its way the result is not "unconfirmed"
   // yet: that only becomes true once the request failed without an answer.
   const requestInFlight = phase.kind === 'busy';
-  const showVideoUnknown = videoUnknown && !requestInFlight;
+  const showVideoUnknown = videoUnknown && !requestInFlight && (failure !== null || unknownLingers);
+  const checkingCreation = videoUnknown && !requestInFlight && !showVideoUnknown;
   // A tracked creation has its own actions (check, resume, cancel the video); the
   // form's close and create would be a second "Скасувати" and a dead "Створити".
   const videoTracked =
@@ -1332,6 +1343,11 @@ export function CreateProductCatalogDialog({
             </p>
           )}
           {showVideoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
+          {checkingCreation && !readInterrupted && (
+            <p role="status" className="team-inline-note">
+              {t('catalogVideoCheckingCreation')}
+            </p>
+          )}
           {videoTracked && (
             <div className="team-dialog-actions">
               <InventoryButton type="button" onClick={() => void checkVideo()}>

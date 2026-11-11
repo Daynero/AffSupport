@@ -11,8 +11,9 @@ type Clock = {
 
 const PREFIX = 'soty:launch-elapsed:';
 // A clock outlives its tab: a launch reopened in a new tab or window kept
-// counting from 00:00 while its generation had run for minutes (1.4.3). The
-// server sends no start time, so this device's first sight is the anchor.
+// counting from 00:00 while its generation had run for minutes (1.4.3). When
+// the server sends the attempt's start, that is the anchor; otherwise this
+// device's first sight is.
 const KEEP_MS = 3 * 24 * 60 * 60 * 1000;
 
 function readClock(key: string): Clock | null {
@@ -48,6 +49,8 @@ export function useLaunchElapsed(
   const [elapsed, setElapsed] = useState<number | null>(null);
   const id = generation?.id ?? null;
   const attempt = generation?.attemptNo ?? 1;
+  const parsedStart = generation?.startedAt ? Date.parse(generation.startedAt) : NaN;
+  const serverStart = Number.isFinite(parsedStart) ? parsedStart : null;
   useEffect(() => {
     if (!clock.current) {
       try {
@@ -82,6 +85,10 @@ export function useLaunchElapsed(
       current.id = id;
       current.attempt = attempt;
     }
+    // The server knows when this attempt really began: a reopened launch showed
+    // 00:31 for a generation that had run for seven minutes (1.4.3 QA).
+    if (serverStart !== null && id && current.id === id)
+      current.started = Math.min(serverStart, current.stopped ?? Date.now());
     if (!active && current.stopped === null) current.stopped = Date.now();
     clock.current = current;
     try {
@@ -97,7 +104,7 @@ export function useLaunchElapsed(
     if (!active) return;
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [key, id, attempt, pending, active]);
+  }, [key, id, attempt, pending, active, serverStart]);
   if (elapsed === null) return null;
   const hours = Math.floor(elapsed / 3600);
   const minutes = Math.floor((elapsed % 3600) / 60)

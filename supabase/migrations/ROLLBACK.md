@@ -2989,3 +2989,11 @@ Adds `private.catalog_registry_video_publication(uuid, uuid)` and patches
 zone, whether its videos are still being made) while a scheduled publication is pending. Display
 only. Rolling back means restoring the previous snapshot body through a reviewed forward migration
 and dropping the helper; older clients ignore the extra key.
+
+### 20261207399600 — the launch read says when the current attempt began
+
+Renames `public.get_launch` to `public.get_launch_before_started_at` (no grants) and wraps it so the
+generation carries `startedAt`: the generation's creation for its first attempt, the first step of a
+later attempt, and nothing while a retried attempt has no step yet. Display only (the elapsed clock).
+Rolling back means dropping the wrapper and renaming the inner function back, with the
+`authenticated` and `service_role` grants restored; older clients ignore the extra key.

@@ -58,8 +58,16 @@ export function CatalogRowStage({
 }) {
   const { t } = useI18n();
   const live = catalogRowProgress(row);
+  // The round's identity fades once its lease is released, while the delivery
+  // check that follows is still the same update: keep the last one seen, or the
+  // stage would start over and step back to «Перевіряємо таблицю…».
+  const round = row.videoGeneration?.setId ?? row.activeAttemptId ?? row.activeRoundAt ?? null;
+  const lastRound = useRef<{ catalog: string; round: string } | null>(null);
+  if (round) lastRound.current = { catalog: row.catalogId, round };
+  const identity =
+    round ?? (lastRound.current?.catalog === row.catalogId ? lastRound.current.round : '');
   const label = useSteadyStage(
-    `${row.catalogId}:${row.videoGeneration?.setId ?? row.activeAttemptId ?? row.activeRoundAt ?? ''}`,
+    `${row.catalogId}:${identity}`,
     live.active && roundReportsStage(row) ? live.label : fallback
   );
   return <span className="catalog-row-stage">{t(label)}</span>;

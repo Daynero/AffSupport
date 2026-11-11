@@ -1561,9 +1561,37 @@ function CatalogUpdaterDialogScope({
                           >
                             {t('catalogRunNeedsReview')}
                           </button>
-                        ) : row.profile?.reconciliationRequired &&
-                          row.profile.lastResult === 'running' ? (
-                          t('catalogUpdaterStageVerifying')
+                        ) : row.updatePending &&
+                          !row.profile?.reconciliationRequired &&
+                          needsVideo(row) &&
+                          row.profile?.restitchStatus === 'blocked' &&
+                          row.profile?.restitchBlockedCode ? (
+                          <button
+                            type="button"
+                            className="catalog-outcome-details"
+                            onClick={() => setExpandedCatalogId(row.catalogId)}
+                          >
+                            {t('catalogRunVideoRetryWaiting')}
+                          </button>
+                        ) : (row.updatePending && !row.profile?.reconciliationRequired) ||
+                          (row.profile?.reconciliationRequired &&
+                            row.profile.lastResult === 'running') ? (
+                          // One stage, one place: the delivery check that follows the
+                          // round goes through the same forward-only stage, so the row
+                          // no longer steps back from «Зберігаємо…» to «Перевіряємо
+                          // таблицю…» seconds before success (1.4.3 QA).
+                          <CatalogRowStage
+                            row={row}
+                            fallback={
+                              row.profile?.reconciliationRequired
+                                ? 'catalogUpdaterStageVerifying'
+                                : needsVideo(row) && row.profile?.restitchStatus !== 'ready'
+                                  ? row.profile?.restitchStatus === 'preparing'
+                                    ? 'catalogRunPreparingVideo'
+                                    : 'catalogRunVideoWaiting'
+                                  : 'catalogUpdaterUpdatingNow'
+                            }
+                          />
                         ) : row.profile?.reconciliationRequired ? (
                           <button
                             type="button"
@@ -1581,30 +1609,6 @@ function CatalogUpdaterDialogScope({
                                 : 'catalogDeliveryUncertain'
                             )}
                           </button>
-                        ) : row.updatePending &&
-                          needsVideo(row) &&
-                          row.profile?.restitchStatus === 'blocked' &&
-                          row.profile?.restitchBlockedCode ? (
-                          <button
-                            type="button"
-                            className="catalog-outcome-details"
-                            onClick={() => setExpandedCatalogId(row.catalogId)}
-                          >
-                            {t('catalogRunVideoRetryWaiting')}
-                          </button>
-                        ) : row.updatePending ? (
-                          // The round's own stage, not the profile's: the profile
-                          // still says «Очікуємо підготовку відео…» while the round stitches.
-                          <CatalogRowStage
-                            row={row}
-                            fallback={
-                              needsVideo(row) && row.profile?.restitchStatus !== 'ready'
-                                ? row.profile?.restitchStatus === 'preparing'
-                                  ? 'catalogRunPreparingVideo'
-                                  : 'catalogRunVideoWaiting'
-                                : 'catalogUpdaterUpdatingNow'
-                            }
-                          />
                         ) : row.lastUpdateError ||
                           ['failed', 'partial', 'unknown'].includes(
                             row.profile?.lastResult ?? ''

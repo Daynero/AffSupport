@@ -1655,6 +1655,24 @@ describe('beta durable video creation', () => {
     expect(client.createProductCatalogVideo).toHaveBeenCalledTimes(1);
     expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
   });
+
+  it('reads a reopened creation calmly instead of calling it unconfirmed while the read is slow (1.4.3)', async () => {
+    // QA round 7: under load «Результат ще не підтверджено…» flashed for 9 s
+    // before «Каталог готовий», with no error behind it.
+    const read = vi.fn().mockResolvedValue(pending);
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: read
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    cleanup();
+    read.mockImplementation(() => new Promise(() => undefined));
+    renderDialog(client);
+    expect(await screen.findByText('Checking the result of the creation…')).toBeTruthy();
+    expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+  });
 });
 
 it('shows current N progress after the scheduled blank catalog was already created', async () => {

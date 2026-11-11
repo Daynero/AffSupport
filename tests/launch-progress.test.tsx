@@ -2,7 +2,10 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { LaunchGenerationProgress } from '../apps/web/src/team/launches/LaunchGenerationProgress';
+import {
+  LAUNCH_RECOVERY_PATIENCE_MS,
+  LaunchGenerationProgress
+} from '../apps/web/src/team/launches/LaunchGenerationProgress';
 import { LAUNCH_STATUS_POLL_MS } from '../apps/web/src/team/launches/useLaunchProgressWatch';
 import type { LaunchGeneration } from '../packages/shared/src/team/launches';
 const child = vi.hoisted(() => ({
@@ -842,7 +845,9 @@ it('moves a restarted N attempt back to video instead of retaining the old activ
   expect(screen.queryByText('Verifying sources')).toBeNull();
 });
 
-it('keeps an interrupted unknown N receipt visible during Repeat instead of presenting new source verification', () => {
+it('checks an interrupted unknown N receipt calmly during Repeat instead of presenting new source verification (1.4.3)', () => {
+  // An unsettled video result is picked up again by the agent or the server;
+  // the run finished 5 of 5 while the dialog said «Генерацію зупинено».
   render(
     <LaunchGenerationProgress
       generation={{
@@ -858,17 +863,43 @@ it('keeps an interrupted unknown N receipt visible during Repeat instead of pres
         }
       }}
       pendingStage="preparing"
+      retryActions={<button type="button">Retry</button>}
+      onCancel={vi.fn()}
+      disabled
+    />
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText('Generation stopped')).toBeNull();
+  expect(screen.getByText(/Checking the video result/)).toBeTruthy();
+  expect(screen.getByText(/Videos ready: 0 of 5 · checking the result/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  expect(
+    screen.getAllByRole('listitem').find(item => item.textContent === 'Video')?.dataset.state
+  ).not.toBe('attention');
+  expect(screen.queryByText('Verifying sources')).toBeNull();
+});
+
+it('keeps an unknown N receipt a stop once the run has failed', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'failed',
+        stage: 'catalog_planning',
+        errorCode: 'PROCESS_RESULT_UNCERTAIN',
+        videoGeneration: {
+          setId: '47000000-0000-4000-8000-000000000003',
+          requestedCount: 5,
+          registeredCount: 0,
+          state: 'unknown'
+        }
+      }}
       onCancel={vi.fn()}
       disabled
     />
   );
   expect(screen.getByRole('alert').textContent).toContain('Generation stopped');
-  expect(
-    screen.getAllByRole('listitem').find(item => item.textContent === 'Video')?.dataset.state
-  ).toBe('attention');
-  expect(screen.queryByRole('progressbar')).toBeNull();
-  expect(screen.queryByText('Verifying sources')).toBeNull();
-  expect(screen.getByText(/Videos ready: 0 of 5/)).toBeTruthy();
+  expect(screen.getByText(/Videos ready: 0 of 5 · The result is not confirmed/)).toBeTruthy();
 });
 
 it('advances from a ready N set to actual catalog planning without dropping the active phase', () => {
@@ -1008,6 +1039,7 @@ it('names a confirmed canceled generation even when its final backend stage is n
 });
 
 it('shows an interruption the server recovers as continuing work, not a stopped generation (1.4.3)', () => {
+  vi.useFakeTimers();
   const view = render(
     <LaunchGenerationProgress
       generation={{
@@ -1026,7 +1058,11 @@ it('shows an interruption the server recovers as continuing work, not a stopped 
   expect(screen.queryByText('Generation stopped')).toBeNull();
   expect(screen.getByText(/continues on its own/)).toBeTruthy();
   expect(screen.getByRole('progressbar')).toBeTruthy();
-  // Retry stays within reach in case the recovery never comes.
+  // No Retry while the run picks itself up; it returns in case the recovery never comes.
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  act(() => {
+    vi.advanceTimersByTime(LAUNCH_RECOVERY_PATIENCE_MS);
+  });
   expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
   // A cause the server does not retry is still a stop.
   view.rerender(

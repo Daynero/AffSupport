@@ -75,3 +75,17 @@ it('keeps counting from the first sight when the launch is reopened in a new tab
   const next = renderHook(() => useLaunchElapsed('launch', generation, false, true));
   expect(next.result.current).toBe('01:35');
 });
+it('counts from the server start on a computer that never saw the launch begin (1.4.3)', () => {
+  // QA round 7: a reopened launch showed 00:31 for a generation running about 7 minutes.
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-11T18:59:00Z'));
+  const started = { ...generation, startedAt: '2026-11-11T18:52:00.000000Z' };
+  const view = renderHook(() => useLaunchElapsed('other-computer', started, false, true));
+  expect(view.result.current).toBe('07:00');
+  // A server start in the future (clock skew) never yields a negative clock.
+  view.unmount();
+  localStorage.clear();
+  const ahead = { ...generation, startedAt: '2026-11-11T19:05:00Z' };
+  const skewed = renderHook(() => useLaunchElapsed('skewed', ahead, false, true));
+  expect(skewed.result.current).toBe('00:00');
+});

@@ -134,6 +134,12 @@ export interface LaunchGeneration {
   id: string;
   /** Accepted parent retry; absent on older servers. */
   attemptNo?: number;
+  /**
+   * When the current attempt started on the server (ISO 8601). The elapsed
+   * clock counts from it, so a reopened launch does not restart at 00:00.
+   * Absent on older servers and before a retried attempt has a first step.
+   */
+  startedAt?: string;
   requestKey?: string;
   inputVersion?: string;
   restitchOperationId?: string | null;

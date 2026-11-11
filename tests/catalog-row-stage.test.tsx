@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import React from 'react';
+import { render, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { useSteadyStage } from '../apps/web/src/team/catalog-updater/CatalogRowStage';
+import {
+  CatalogRowStage,
+  useSteadyStage
+} from '../apps/web/src/team/catalog-updater/CatalogRowStage';
+import type { CatalogRegistryRow } from '../apps/web/src/api/team';
 import type { TranslationKey } from '../apps/web/src/i18n';
 
 it('keeps a later stage on screen when a poll briefly reads an earlier one', () => {
@@ -32,4 +37,31 @@ it('starts over for a new attempt and never holds an unordered wording', () => {
   expect(result.current).toBe('catalogRunVideoWaiting');
   rerender({ identity: 'c:a2', label: 'catalogVideoCreationCanceling' });
   expect(result.current).toBe('catalogVideoCreationCanceling');
+});
+
+it('does not step back to «Checking the sheet» once the round has saved and released its lease', () => {
+  // QA round 7: about 6 s before success the row went from «Saving the completed
+  // update…» back to «Checking the sheet on Google Drive…»: the delivery check
+  // was rendered outside the forward-only stage and the round id had faded.
+  const running = {
+    catalogId: 'c1',
+    updatePending: true,
+    updateStage: 'finalizing',
+    activeAttemptId: 'a1',
+    progressAttemptId: 'a1',
+    activeRoundAt: '2026-11-11T18:00:00Z',
+    profile: { reconciliationRequired: false, lastResult: 'running' }
+  } as unknown as CatalogRegistryRow;
+  const view = render(<CatalogRowStage row={running} fallback="catalogUpdaterUpdatingNow" />);
+  expect(view.container.textContent).toBe('Saving the completed update…');
+  const checking = {
+    ...running,
+    updatePending: false,
+    updateStage: null,
+    activeAttemptId: null,
+    activeRoundAt: undefined,
+    profile: { reconciliationRequired: true, lastResult: 'running' }
+  } as unknown as CatalogRegistryRow;
+  view.rerender(<CatalogRowStage row={checking} fallback="catalogUpdaterStageVerifying" />);
+  expect(view.container.textContent).toBe('Saving the completed update…');
 });

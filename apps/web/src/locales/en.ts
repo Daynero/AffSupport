@@ -16,6 +16,8 @@ export const en = {
   catalogVideoCreationProgress: 'Videos ready: {ready} of {total}',
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
+  catalogVideoCheckingResult: 'checking the result',
+  catalogVideoCheckingCreation: 'Checking the result of the creation…',
   catalogServerSlow: 'The server is responding slowly. Try again.',
   catalogVideoReadInterrupted:
     'The connection to the server dropped; the work goes on — the status will refresh on its own.',
@@ -432,6 +434,8 @@ export const en = {
   launchesProgressRecovering:
     'The run was interrupted and continues on its own in a moment. Confirmed stages are preserved.',
   launchesProgressReconciling: 'Updating generation status. Confirmed stages are preserved.',
+  launchesProgressCheckingResult:
+    'Checking the video result. The generation continues on its own; confirmed stages are preserved.',
   launchesProgressElapsed: 'Generation duration: {time}',
   launchesOriginalVideoHint:
     'Or create the catalog using the original video without stitching. Future catalog updates will also keep the video unstitched.',

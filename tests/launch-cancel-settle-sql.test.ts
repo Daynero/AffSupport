@@ -577,3 +577,31 @@ it('one canceled Launch that cannot be written does not stop the others', async 
   expect((await generationOf(poisoned.generation)).state).toBe('canceled');
   expect(await settleFailure(db, 'launch_restitch_cancel', poisoned.generation)).toBeUndefined();
 });
+
+it('reads when the current attempt began, so a reopened launch does not count from 00:00', async () => {
+  // QA round 7 (1.4.3): a reopened launch showed 00:31 for a seven-minute generation.
+  const f = await catalogLaunch('working');
+  const row = (
+    await db.root<{ launch_id: string; created_at: Date }>(
+      'select launch_id,created_at from public.team_launch_generations where id=$1',
+      [f.generation]
+    )
+  )[0]!;
+  const read = async () =>
+    (
+      await db.asUser<{ v: { generation: { id: string; startedAt?: string } } }>(
+        ACTOR,
+        'select public.get_launch($1,$2) v',
+        [team, row.launch_id]
+      )
+    )[0]!.v.generation;
+  const first = await read();
+  expect(first.id).toBe(f.generation);
+  expect(first.startedAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/u);
+  expect(Date.parse(first.startedAt!)).toBe(row.created_at.getTime());
+  // A retried attempt without a step yet has no server start: the browser keeps its own.
+  await db.root('update public.team_launch_generations set attempt_no=2 where id=$1', [
+    f.generation
+  ]);
+  expect((await read()).startedAt).toBeUndefined();
+});
