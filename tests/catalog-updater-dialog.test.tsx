@@ -655,6 +655,22 @@ it.each([
     }
   }
 );
+it('shows the round stitching instead of the profile still waiting for video', async () => {
+  // QA round 5: during the stitch the row said «Очікуємо підготовку відео…»
+  // because it read the profile, which lags the running round.
+  const item = row('1', 'polo.mp4', {
+    updatePending: true,
+    updateStage: 'restitching',
+    activeRoundAt: '2026-11-05T10:00:00Z',
+    activeAttemptId: '47000000-0000-4000-8000-000000000099',
+    profile: { ...profileFor(row('1', '').catalogId), restitch: true, restitchStatus: 'waiting' }
+  });
+  renderDialog(client([item], running));
+  const identity = await screen.findByLabelText('polo.mp4 catalog');
+  const tableRow = identity.closest('tr')!;
+  expect(within(tableRow).getAllByText('Preparing replacement video…').length).toBeGreaterThan(0);
+  expect(within(tableRow).queryByText('Waiting for video preparation…')).toBeNull();
+});
 it('keeps a frozen video failure visible after restitch is disabled for future runs', async () => {
   const item = row('1', 'polo.mp4', {
     updatePending: true,
@@ -694,7 +710,11 @@ it('does not label an active sheet write as waiting for next-run video', async (
   renderDialog(client([item], running));
   const identity = await screen.findByLabelText('polo.mp4 catalog');
   const tableRow = identity.closest('tr')!;
-  expect(within(tableRow).getByText('Updating…')).toBeTruthy();
+  // The row names the round's real stage, not a generic «Updating…» (QA round 5).
+  expect(
+    within(tableRow).getAllByText('Building the updated product sheet…').length
+  ).toBeGreaterThan(0);
+  expect(within(tableRow).queryByText('Waiting for video preparation…')).toBeNull();
   expect(
     within(tableRow).queryByRole('button', { name: 'Video preparation failed · details' })
   ).toBeNull();
@@ -1485,7 +1505,9 @@ it('does not report Stop delivery before a fresh authoritative read and visible 
       invalidRowCount: 0
     });
   });
-  expect(await screen.findByText('The observed update is no longer active.')).toBeTruthy();
+  // Our own accepted stop ended the round: a success, not a stale target (QA LOW-14).
+  expect(await screen.findByText('Update stopped.')).toBeTruthy();
+  expect(screen.queryByText('The observed update is no longer active.')).toBeNull();
   const completed = stopCalls().filter(([event]) => event === 'operation_completed');
   expect(completed).toHaveLength(1);
   expect(completed[0]?.[1]).toMatchObject({

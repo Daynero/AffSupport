@@ -322,6 +322,68 @@ export async function runCatalogVariantRecovery(input: {
     },
     execute: process
   });
-  await executor.run(input.signal, (ready, total) => input.progress?.(setId, ready, total));
+  try {
+    await executor.run(input.signal, (ready, total) => input.progress?.(setId, ready, total));
+  } catch (error) {
+    // A user's «Зупинити» cancels the set on the server while this run is in
+    // flight: the next admission, save or heartbeat is then refused and reads
+    // as an uncertain result. Ask the server once; a confirmed cancellation is
+    // a clean end of this set, not an uncertainty to park the worker on.
+    const code = error instanceof Error ? error.message : '';
+    if (
+      !input.signal.aborted &&
+      CANCEL_CANDIDATE_CODES.has(code) &&
+      (await setCanceled(input, setId))
+    )
+      throw new CatalogVariantSetCanceled(setId, { cause: error });
+    throw error;
+  }
   return setId;
+}
+
+/** A refusal that a cancellation of the set on the server can explain. */
+const CANCEL_CANDIDATE_CODES = new Set([
+  'PROCESS_CANCELED',
+  'PROCESS_RESULT_UNCERTAIN',
+  'WRONG_STATE',
+  'INVALID_RESPONSE'
+]);
+
+/** The server confirmed the set was cancelled: the run ended cleanly. */
+export class CatalogVariantSetCanceled extends Error {
+  constructor(
+    readonly setId: string,
+    options?: { cause?: unknown }
+  ) {
+    super('PROCESS_CANCELED', options);
+    this.name = 'CatalogVariantSetCanceled';
+  }
+}
+
+async function setCanceled(
+  input: {
+    call: (action: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    nativeInstanceId: string;
+  },
+  setId: string
+): Promise<boolean> {
+  try {
+    const scope = { setId, nativeInstanceId: input.nativeInstanceId, variantProtocolVersion: 1 };
+    const snapshot = await input.call('variant_load', scope);
+    const children = Array.isArray(snapshot.children) ? snapshot.children : [];
+    const child = children.find(c => isRecord(c) && c.state !== 'registered') ?? children[0];
+    if (!isRecord(child) || typeof child.index !== 'number' || typeof child.requestId !== 'string')
+      return false;
+    // A probe: answered from the set's state, never recorded as life.
+    const value = await input.call('variant_heartbeat', {
+      ...scope,
+      index: child.index,
+      requestId: child.requestId,
+      operationId: typeof child.operationId === 'string' ? child.operationId : null,
+      probe: true
+    });
+    return value.continue === false && value.reason === 'canceled' && value.registered !== true;
+  } catch {
+    return false;
+  }
 }

@@ -51,6 +51,7 @@ import { DropdownMenu } from '../../components/ui/index';
 import { beginCatalogUiFlow, type CatalogUiFlow, type CatalogUiFailure } from './analytics';
 import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogProgressRow } from './CatalogProgressRow';
+import { CatalogRowStage } from './CatalogRowStage';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
 import {
@@ -638,7 +639,8 @@ function CatalogUpdaterDialogScope({
     row: CatalogRegistryRow,
     flow: CatalogUiFlow,
     controller: AbortController,
-    requestFlowId: string
+    requestFlowId: string,
+    accepted = false
   ) => {
     flow.stage('stop_readback_requested');
     let inactive = false;
@@ -685,7 +687,13 @@ function CatalogUpdaterDialogScope({
       flow.stage('stop_readback_unknown', readCode);
     }
     if (inactive) {
-      showStopFeedback(flow, { tone: 'info', text: t('catalogStopObservedInactive') });
+      // Our own accepted stop ended the round: that is a success, not a stale target.
+      showStopFeedback(
+        flow,
+        accepted
+          ? { tone: 'success', text: t('catalogStopDone') }
+          : { tone: 'info', text: t('catalogStopObservedInactive') }
+      );
       return;
     }
     showStopFeedback(
@@ -749,6 +757,7 @@ function CatalogUpdaterDialogScope({
           throw new TeamApiError('CATALOG_STOP_TARGET_UNKNOWN', false);
         const controller = new AbortController();
         stopControllers.current.add(controller);
+        let accepted = false;
         try {
           try {
             const cancelled =
@@ -768,6 +777,7 @@ function CatalogUpdaterDialogScope({
               flow.cancel();
               return;
             }
+            accepted = cancelled === true;
             flow.stage(cancelled ? 'stop_accepted' : 'stop_not_active');
           } catch (cause) {
             if (!owner.current()) {
@@ -783,7 +793,7 @@ function CatalogUpdaterDialogScope({
               throw cause;
             flow.stage('stop_reply_unknown', code ?? 'UNKNOWN');
           }
-          await observeStop(row, flow, controller, flow.id);
+          await observeStop(row, flow, controller, flow.id, accepted);
         } finally {
           stopControllers.current.delete(controller);
         }
@@ -1577,13 +1587,18 @@ function CatalogUpdaterDialogScope({
                             {t('catalogRunVideoRetryWaiting')}
                           </button>
                         ) : row.updatePending ? (
-                          t(
-                            needsVideo(row) && row.profile?.restitchStatus !== 'ready'
-                              ? row.profile?.restitchStatus === 'preparing'
-                                ? 'catalogRunPreparingVideo'
-                                : 'catalogRunVideoWaiting'
-                              : 'catalogUpdaterUpdatingNow'
-                          )
+                          // The round's own stage, not the profile's: the profile
+                          // still says «Очікуємо підготовку відео…» while the round stitches.
+                          <CatalogRowStage
+                            row={row}
+                            fallback={
+                              needsVideo(row) && row.profile?.restitchStatus !== 'ready'
+                                ? row.profile?.restitchStatus === 'preparing'
+                                  ? 'catalogRunPreparingVideo'
+                                  : 'catalogRunVideoWaiting'
+                                : 'catalogUpdaterUpdatingNow'
+                            }
+                          />
                         ) : row.lastUpdateError ||
                           ['failed', 'partial', 'unknown'].includes(
                             row.profile?.lastResult ?? ''
@@ -1642,6 +1657,7 @@ function CatalogUpdaterDialogScope({
                           profile={row.profile}
                           restitchProgress={row.restitchProgress}
                           updatePending={row.updatePending}
+                          restitching={row.updatePending && row.updateStage === 'restitching'}
                           name={row.name}
                           state={state}
                           disabledReason={disabledReason}
@@ -1924,6 +1940,7 @@ function CatalogUpdaterDialogScope({
                       profile={row.profile}
                       restitchProgress={row.restitchProgress}
                       updatePending={row.updatePending}
+                      restitching={row.updatePending && row.updateStage === 'restitching'}
                       name={row.name}
                       state={inline.states[row.catalogId]}
                       disabledReason={

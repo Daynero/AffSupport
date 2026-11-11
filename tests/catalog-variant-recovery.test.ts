@@ -1,5 +1,8 @@
 import { expect, it, vi } from 'vitest';
-import { runCatalogVariantRecovery } from '../apps/agent/src/team-bridge/catalog-variant-recovery';
+import {
+  CatalogVariantSetCanceled,
+  runCatalogVariantRecovery
+} from '../apps/agent/src/team-bridge/catalog-variant-recovery';
 import type { CatalogVariantSnapshot } from '../apps/agent/src/team-bridge/catalog-variant-executor';
 import {
   HEARTBEAT_RETRY_MS,
@@ -246,7 +249,11 @@ it('a definitive refusal on a heartbeat still stops the stitch at once', async (
     const f = await activeCpu('denied');
     await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs);
     expect((await f.result).error?.message).toBe('PROCESS_RESULT_UNCERTAIN');
-    expect(f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat')).toHaveLength(1);
+    // One live heartbeat; the only other is the end-of-run cancellation probe,
+    // which the refusal also answers, so the result stays uncertain.
+    const beats = f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat');
+    expect(beats.filter(call => call[1].probe !== true)).toHaveLength(1);
+    expect(beats.filter(call => call[1].probe === true)).toHaveLength(1);
   } finally {
     vi.useRealTimers();
   }
@@ -337,3 +344,54 @@ it('uses the agent backend origin for variant transfer URLs, never the server-re
     }
   ]);
 });
+
+it.each([
+  ['WRONG_STATE', true],
+  ['PROCESS_RESULT_UNCERTAIN', true],
+  ['WRONG_STATE', false]
+] as const)(
+  'a stop that lands before admission (%s) is a confirmed cancel only when the server says so (canceled=%s)',
+  async (refusal, canceled) => {
+    // Beta 2026-11-11, set 95a121a2: «Зупинити» right after acceptance made the
+    // admission refuse, the run read it as an uncertain result, and the
+    // background worker parked itself for 78 s.
+    let snapshot: CatalogVariantSnapshot = {
+      setId: id(1),
+      revision: 0,
+      children: [{ index: 0, requestId: id(2), operationId: null, state: 'queued', outputId: null }]
+    };
+    const call = vi.fn(
+      async (action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+        if (action === 'variant_claim') return { setId: id(1) };
+        if (action === 'variant_load') return snapshot as unknown as Record<string, unknown>;
+        if (action === 'variant_save') {
+          snapshot = structuredClone(body.snapshot) as CatalogVariantSnapshot;
+          return { saved: true };
+        }
+        if (action === 'variant_reconcile') return { kind: 'absent' };
+        if (action === 'variant_admit') throw new Error(refusal);
+        if (action === 'variant_heartbeat') {
+          expect(body.probe).toBe(true);
+          return canceled
+            ? { continue: false, registered: false, reason: 'canceled' }
+            : { continue: true, registered: false };
+        }
+        throw new Error('unexpected action ' + action);
+      }
+    );
+    const error = await runCatalogVariantRecovery({
+      nativeInstanceId: id(5),
+      call,
+      process: { process: vi.fn(), cancel: vi.fn() },
+      signal: new AbortController().signal
+    }).then(
+      () => null,
+      (cause: unknown) => cause as Error
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error instanceof CatalogVariantSetCanceled).toBe(canceled);
+    expect(error?.message).toBe(canceled ? 'PROCESS_CANCELED' : refusal);
+    // The probe asks once and is never recorded as life.
+    expect(call.mock.calls.filter(c => c[0] === 'variant_heartbeat')).toHaveLength(1);
+  }
+);

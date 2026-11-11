@@ -2817,6 +2817,7 @@ export const en = {
   catalogUpdaterOffLong: 'Don’t update automatically',
   catalogStopTargetUnknown:
     'The current attempt has not been verified. Refresh the catalog list before stopping this update.',
+  catalogStopDone: 'Update stopped.',
   catalogStopObservedInactive: 'The observed update is no longer active.',
   catalogStopUnconfirmed: 'The stop result is not confirmed yet. Check the current status.',
   catalogUpdaterCancelAlready: 'This update has already finished or stopped.',
