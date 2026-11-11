@@ -5,6 +5,11 @@ import {
   type CatalogVariantChild
 } from './catalog-variant-executor.js';
 import { catalogVariantProcessAdapter } from './catalog-variant-process.js';
+import {
+  HEARTBEAT_RETRY_MS,
+  heartbeatWatchdog,
+  isDefinitiveHeartbeatRefusal
+} from './heartbeat-tolerance.js';
 import type { NativeRestitchEnrollment } from './native-restitch-controller.js';
 import type { TeamFileOperationResult } from '@video-compressor/shared';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
@@ -92,26 +97,52 @@ export async function runCatalogVariantRecovery(input: {
           local.abort(new Error(code));
           if (!input.protectedProcess) input.process.cancel(request.operationId);
         };
-        const heartbeat = setInterval(() => {
+        // Only a definitive answer or 90 s without a successful heartbeat stops
+        // the stitch; a heartbeat lost in transport under load is retried.
+        const watchdog = heartbeatWatchdog({
+          onStall: () => interrupt('PROCESS_RESULT_UNCERTAIN')
+        });
+        let retry: ReturnType<typeof setTimeout> | null = null;
+        const beat = () => {
           if (busy || closed) return;
           busy = true;
+          if (retry) clearTimeout(retry);
+          retry = null;
+          const startedAt = Date.now();
           void invoke('variant_heartbeat', body(child))
             .then(value => {
               if (closed) return;
               if (value.registered === true) {
                 clearInterval(heartbeat);
+                watchdog.close();
                 return;
               }
-              if (value.continue !== true)
+              if (value.continue !== true) {
                 interrupt(
                   value.reason === 'canceled' ? 'PROCESS_CANCELED' : 'PROCESS_RESULT_UNCERTAIN'
                 );
+                return;
+              }
+              watchdog.alive(startedAt);
             })
-            .catch(() => interrupt('PROCESS_RESULT_UNCERTAIN'))
+            .catch((error: unknown) => {
+              if (closed) return;
+              if (isDefinitiveHeartbeatRefusal(error)) {
+                interrupt(
+                  error instanceof Error && error.message === 'PROCESS_CANCELED'
+                    ? 'PROCESS_CANCELED'
+                    : 'PROCESS_RESULT_UNCERTAIN'
+                );
+                return;
+              }
+              retry = setTimeout(beat, HEARTBEAT_RETRY_MS);
+              retry.unref();
+            })
             .finally(() => {
               busy = false;
             });
-        }, RECOVERY_BUDGET.heartbeatMs);
+        };
+        const heartbeat = setInterval(beat, RECOVERY_BUDGET.heartbeatMs);
         heartbeat.unref();
         const complete = async (outcome: 'canceled' | 'failed', code: string) => {
           const result = await (input.closureCall ?? input.call)('variant_complete', {
@@ -182,6 +213,8 @@ export async function runCatalogVariantRecovery(input: {
         } finally {
           closed = true;
           clearInterval(heartbeat);
+          if (retry) clearTimeout(retry);
+          watchdog.close();
         }
       }
     },
