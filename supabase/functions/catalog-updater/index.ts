@@ -84,6 +84,19 @@ Deno.serve(async request => {
     await rpcValue(service, 'service_settle_launch_restitch_cancellations', { p_limit: 3 });
     await rpcValue(service, 'service_settle_launch_restitch_batch', { p_limit: 3 });
     const launches = await rpcValue(service, 'service_settle_launch_batch', { p_limit: 3 });
+    // Manager rounds that can never finish on their own: a variant child that
+    // ended, an attempt no item owns any more, a round nobody claims, a review
+    // quarantine with nothing to reconcile. A failure here must not stop the
+    // regular rounds below.
+    const unstuck = await rpcValue(service, 'service_sweep_catalog_updater_rounds', {
+      p_limit: 10
+    }).catch(error => {
+      console.error(
+        '[catalog-updater] stuck-round sweep pending',
+        error instanceof Error ? error.message : 'UNKNOWN'
+      );
+      return null;
+    });
 
     const targetedNativeSheets = targetedCatalogWriterEnabled({
       enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
@@ -411,6 +424,7 @@ Deno.serve(async request => {
         claimQuarantined,
         claimStale,
         launches,
+        unstuck,
         publications,
         launchCleanup,
         launchVideoCleanup,
