@@ -87,12 +87,17 @@ export function useCatalogPublicationVerification(input: {
       } catch (cause) {
         if (owns()) {
           const code = teamErrorCodeOf(cause);
-          if (revision === undefined && code === 'WRONG_STATE') {
+          // A catalog whose creation-time verification is still open is re-verified
+          // by the server itself; that answer is final for this request, not unknown.
+          const settled =
+            (revision === undefined && code === 'WRONG_STATE') ||
+            code === 'CATALOG_UPDATE_RECONCILIATION_REQUIRED';
+          if (settled && code) {
             try {
               localStorage.removeItem(key);
               setUnknown(null);
-              flow.stage('baseline_aborted', 'WRONG_STATE');
-              flow.fail('WRONG_STATE');
+              flow.stage('baseline_aborted', code);
+              flow.fail(code);
             } catch {
               setUnknown(requestId);
             }
