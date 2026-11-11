@@ -353,6 +353,60 @@ it('does not start generation when draft saving finishes after the session was r
   expect(local.run).not.toHaveBeenCalled();
   expect(onResult).not.toHaveBeenCalled();
 });
+it('keeps generating when the same account refreshes its access while the draft is saving', async () => {
+  // A realtime membership signal or a teams re-read re-keys the private cache
+  // epoch for the same person. That must not abort a Launch with a false
+  // PERMISSION_DENIED (1.4.2, "Запуск не почався — У вас немає дозволу").
+  const actor = '47000000-0000-4000-8000-000000000001';
+  setPrivateCacheScope(actor, 'access-a');
+  let reply: (value: { id: string; version: string }) => void = () => undefined;
+  api.save.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        reply = resolve;
+      })
+  );
+  api.generate.mockResolvedValue(undefined);
+  api.detail.mockResolvedValue({ id: 'launch', generation: { state: 'succeeded' } });
+  const onResult = vi.fn();
+  const { result } = renderHook(() => useLaunchGeneration('team', onResult));
+  let running: Promise<void> = Promise.resolve();
+  await act(async () => {
+    running = result.current.generate(null, launchConfig(), null, null);
+  });
+  setPrivateCacheScope(actor, 'access-b');
+  await act(async () => {
+    reply({ id: 'launch', version: '1' });
+    await running;
+  });
+  expect(api.generate).toHaveBeenCalledTimes(1);
+  expect(onResult).toHaveBeenCalledTimes(1);
+});
+
+it('refuses to finish a Launch under another account that signed in mid-request', async () => {
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'access-a');
+  let reply: (value: { id: string; version: string }) => void = () => undefined;
+  api.save.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        reply = resolve;
+      })
+  );
+  const onResult = vi.fn();
+  const { result } = renderHook(() => useLaunchGeneration('team', onResult));
+  let running: Promise<void> = Promise.resolve();
+  await act(async () => {
+    running = result.current.generate(null, launchConfig(), null, null);
+  });
+  setPrivateCacheScope('47000000-0000-4000-8000-000000000002', 'access-a');
+  await act(async () => {
+    reply({ id: 'launch', version: '1' });
+    await running.catch(() => undefined);
+  });
+  expect(api.generate).not.toHaveBeenCalled();
+  expect(onResult).not.toHaveBeenCalled();
+});
+
 it('finishes an accepted restitch after the detail modal closes', async () => {
   const config = launchConfig({
     method: 'catalog',
@@ -1200,7 +1254,6 @@ it.each([
   'wrong-id',
   'stale',
   'actor',
-  'epoch',
   'team'
 ])('retains uncertain cancellation for %s observations', async scenario => {
   setPrivateCacheScope('actor-a', 'team');
@@ -1230,7 +1283,6 @@ it.each([
     result.current.observe(receipt);
   });
   if (scenario === 'actor') setPrivateCacheScope('actor-b', 'team');
-  if (scenario === 'epoch') setPrivateCacheScope('actor-a', 'different-access');
   if (scenario === 'team') rerender({ team: 'other-team' });
   act(() => {
     result.current.observe({
@@ -1250,6 +1302,31 @@ it.each([
   expect(result.current.busy).toBe(false);
   expect(api.generate).toHaveBeenCalledOnce();
   expect(api.cancelRequest).toHaveBeenCalledOnce();
+});
+
+it('applies the authoritative canceled receipt after the same account refreshes its access', async () => {
+  setPrivateCacheScope('actor-a', 'team');
+  api.save.mockResolvedValueOnce({ id: 'cancel-fenced', version: '1' });
+  api.generate.mockRejectedValueOnce(new Error('lost acceptance'));
+  api.cancelRequest.mockRejectedValueOnce(new Error('lost cancellation'));
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toThrow();
+  });
+  await act(async () => {
+    await expect(result.current.cancelPending()).rejects.toThrow();
+  });
+  const requestKey = api.generate.mock.calls.at(-1)?.[3];
+  setPrivateCacheScope('actor-a', 'different-access');
+  act(() => {
+    result.current.observe({
+      id: 'cancel-fenced',
+      version: '3',
+      generation: { id: 'generation', state: 'canceled', stateVersion: '3', requestKey }
+    } as LaunchDetail);
+  });
+  expect(result.current.hasUnresolvedRequest).toBe(false);
+  expect(api.generate).toHaveBeenCalledOnce();
 });
 
 it('freezes paired-session enrollment with the original Launch request across lost acceptance and cancellation', async () => {

@@ -4,7 +4,7 @@ import { teamErrorCodeOf } from '../errors';
 import { catalogForeground } from '../../api/catalog-video-foreground-client';
 import type { CatalogForegroundExecutor } from '../../api/catalog-video-foreground';
 import { recoveryInstallation } from '../../api/recovery-installation';
-import { privateCacheActor, privateCacheEpoch } from '../private-cache-scope';
+import { privateCacheActor, privateCacheActorEpoch } from '../private-cache-scope';
 import { launchReply, whileLaunchActive } from './reply';
 import { launchIntent, launchAction, launchLocalStage } from './analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -258,7 +258,7 @@ export function useLaunchGeneration(
       owner &&
       (owner.teamId !== teamId ||
         owner.actor !== privateCacheActor() ||
-        owner.epoch !== privateCacheEpoch())
+        owner.epoch !== privateCacheActorEpoch())
     )
       throw new TeamApiError('PERMISSION_DENIED', false);
   };
@@ -277,7 +277,11 @@ export function useLaunchGeneration(
     activeReceipt.current = null;
     if (!request.current && !saveIntent.current) {
       cancelRequested.current = false;
-      requestOwner.current = { teamId, actor: privateCacheActor(), epoch: privateCacheEpoch() };
+      requestOwner.current = {
+        teamId,
+        actor: privateCacheActor(),
+        epoch: privateCacheActorEpoch()
+      };
     }
     const flowId = intent(config.method ?? 'other', detail?.id);
     submitting.current = true;
@@ -428,7 +432,7 @@ export function useLaunchGeneration(
         !cancelRequested.current &&
         owner?.teamId === teamId &&
         owner.actor === privateCacheActor() &&
-        owner.epoch === privateCacheEpoch()
+        owner.epoch === privateCacheActorEpoch()
       ) {
         request.current = null;
         saveIntent.current = null;
@@ -439,7 +443,7 @@ export function useLaunchGeneration(
         !acceptanceConfirmed &&
         owner?.teamId === teamId &&
         owner.actor === privateCacheActor() &&
-        owner.epoch === privateCacheEpoch() &&
+        owner.epoch === privateCacheActorEpoch() &&
         error instanceof TeamApiError &&
         !error.retryable &&
         [
@@ -586,9 +590,9 @@ export function useLaunchGeneration(
     try {
       if (detail.generation.state === 'succeeded' && detail.generation.videoGeneration) {
         const actor = privateCacheActor(),
-          epoch = privateCacheEpoch();
+          epoch = privateCacheActorEpoch();
         const ownsReply = () =>
-          mounted.current && privateCacheActor() === actor && privateCacheEpoch() === epoch;
+          mounted.current && privateCacheActor() === actor && privateCacheActorEpoch() === epoch;
         ownsVideoReply = ownsReply;
         const receipt = await launchReply(
           launchApi.cancelCatalogVideoGeneration(teamId, generationId, cancelIntent.current.key)
@@ -725,7 +729,7 @@ export function useLaunchGeneration(
         (!owner ||
           owner.teamId !== teamId ||
           owner.actor !== privateCacheActor() ||
-          owner.epoch !== privateCacheEpoch())
+          owner.epoch !== privateCacheActorEpoch())
       )
         return false;
       lastObserved.current = detail;
