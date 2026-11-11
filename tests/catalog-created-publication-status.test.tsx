@@ -86,3 +86,11 @@ it('says it waits for the videos when the time has come but the set is still bei
   expect(await screen.findByText(/Waiting for all videos to be ready/)).toBeTruthy();
   expect(screen.queryByText(/not confirmed yet/)).toBeNull();
 });
+it('names the scheduled time in the app language, 24-hour, with a city instead of a zone id', async () => {
+  const read = vi.fn().mockResolvedValue({ ...snapshot, timeZone: 'Europe/Kiev' });
+  render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
+  const status = await screen.findByText(/Video-link publication is scheduled for/);
+  expect(status.textContent).toMatch(/14:00/);
+  expect(status.textContent).toMatch(/\(Kyiv\)/);
+  expect(status.textContent).not.toMatch(/Europe\/Kiev|AM|PM/);
+});

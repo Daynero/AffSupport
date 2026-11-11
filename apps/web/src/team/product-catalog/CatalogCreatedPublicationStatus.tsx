@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n';
 import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
 import { useOptionalTeam } from '../TeamContext';
 import { withReadDeadline } from '../readCoordinator';
+import { catalogTimeZoneCity } from './catalogTimeZones';
 /** A created table and its video-link publication are separate receipts. */
 export function CatalogCreatedPublicationStatus({
   teamId,
@@ -15,7 +16,7 @@ export function CatalogCreatedPublicationStatus({
   catalogId: string;
   read?: typeof teamApi.readCatalogPublication;
 }) {
-  const { t } = useI18n(),
+  const { t, language } = useI18n(),
     epoch = usePrivateCacheEpoch(),
     actor = privateCacheActor(),
     workspace = useOptionalTeam();
@@ -59,7 +60,16 @@ export function CatalogCreatedPublicationStatus({
   let date = snapshot.dueAt ?? '';
   if (snapshot.dueAt)
     try {
-      date = `${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: snapshot.timeZone ?? 'UTC' }).format(new Date(snapshot.dueAt))} (${snapshot.timeZone ?? 'UTC'})`;
+      // The app's language and a 24-hour clock, as the time was entered; the browser's
+      // locale gave "1:00 PM (Europe/Kiev)" to a Ukrainian-speaking team.
+      const zone = snapshot.timeZone ?? 'UTC';
+      const when = new Intl.DateTimeFormat(language, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        hourCycle: 'h23',
+        timeZone: zone
+      }).format(new Date(snapshot.dueAt));
+      date = `${when} (${catalogTimeZoneCity(zone, t)})`;
     } catch {
       date = new Date(snapshot.dueAt).toISOString();
     }
