@@ -1139,6 +1139,28 @@ describe('beta durable video creation', () => {
       expect.any(Object)
     );
   });
+  it('lets the person close the window while the server and the agent prepare the videos', async () => {
+    // 1.4.3 (beta 2026-11-11): a 40-minute re-stitch kept the window open; the ✕
+    // was labelled "Cancel" and did nothing, Escape and the backdrop neither.
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    const { onClose } = renderDialog(client);
+    await userEvent.type(
+      screen.getByLabelText(/^Link(?: · Required)?$/),
+      'https://offer.example.test/'
+    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    await userEvent.click(confirm());
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
   it('names a computer agent that stopped answering and keeps cancellation at hand', async () => {
     // 1.4.3 (beta 2026-11-11): the agent was killed mid-run and the window
     // kept counting as if nothing had happened.
@@ -1266,8 +1288,9 @@ describe('beta durable video creation', () => {
     });
     await startVideo(client);
     await screen.findByText('Videos ready: 2 of 5');
-    // Only the modal's own close (×, labelled "Cancel") remains next to the generation's cancel.
-    expect(screen.getAllByRole('button', { name: 'Cancel' })).toHaveLength(1);
+    // The modal's own × only closes the window; the generation's cancel is the one cancel action.
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(1);
     expect(screen.getAllByRole('button', { name: 'Cancel video generation' })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
   });

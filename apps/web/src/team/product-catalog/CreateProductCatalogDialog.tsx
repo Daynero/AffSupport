@@ -916,10 +916,12 @@ export function CreateProductCatalogDialog({
   return (
     <Modal
       labelledBy={titleId}
-      onClose={busy ? () => undefined : onClose}
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
-      closeLabel={t('productCatalogCancel')}
+      // Only the few seconds of the create request itself hold the window: once the
+      // server has the creation, closing is safe and "Показати прогрес" brings it back.
+      onClose={requestInFlight ? () => undefined : onClose}
+      closeOnBackdrop={!requestInFlight}
+      closeOnEscape={!requestInFlight}
+      closeLabel={t('teamClose')}
       initialFocus={`[id="${linkId}"]`}
       size="md"
       className="product-catalog-create-surface"
