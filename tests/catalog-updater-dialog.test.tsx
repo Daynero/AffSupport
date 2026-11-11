@@ -22,6 +22,16 @@ vi.mock('../apps/web/src/team/explorer/WorkspaceOperationsProvider', () => ({
  * both of them across a selection.
  */
 
+const retryBackgroundRecovery = vi.fn(async (_teamId: string) => ({
+  enabled: true,
+  installationId: null,
+  state: 'claiming',
+  reason: null
+}));
+vi.mock('../apps/web/src/api/recovery', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apps/web/src/api/recovery')>()),
+  retryBackgroundRecovery: (teamId: string) => retryBackgroundRecovery(teamId)
+}));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: '47000000-0000-4000-8000-000000000001' } })
 }));
@@ -360,6 +370,26 @@ it('says the restitch round is waiting for the agent instead of a bare 0 of N', 
   await screen.findByLabelText('polo.mp4 catalog');
   const status = screen.getByText(/Videos ready: 0 of 1/);
   expect(status.textContent).toContain('Waiting for the computer agent');
+});
+it('says background work stopped and resumes it from the row (1.4.3)', async () => {
+  retryBackgroundRecovery.mockClear();
+  const item = row('1', 'polo.mp4', {
+    videoGeneration: {
+      setId: '23000000-0000-4000-8000-000000000779',
+      requestedCount: 1,
+      registeredCount: 0,
+      state: 'accepted',
+      backgroundStalled: true
+    }
+  });
+  renderDialog(client([item], running));
+  await screen.findByLabelText('polo.mp4 catalog');
+  const status = screen.getByText(/Videos ready: 0 of 1/);
+  expect(status.textContent).toContain('Background work on this computer has stopped');
+  await userEvent.click(within(status).getByRole('button', { name: 'Resume' }));
+  await waitFor(() => expect(retryBackgroundRecovery).toHaveBeenCalledOnce());
+  expect(retryBackgroundRecovery.mock.calls[0]![0]).toBeTruthy();
+  await waitFor(() => expect(status.textContent).toContain('Resuming background work'));
 });
 it('points an unconfirmed restitch round at Stop instead of an endless wait', async () => {
   const item = row('1', 'polo.mp4', {

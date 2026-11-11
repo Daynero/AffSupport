@@ -754,8 +754,22 @@ export class TeamRecoveryWorker {
       let saved = this.#checkpoints.find(c => c.delegationId === r.delegationId);
       if (saved?.stage === 'blocked') {
         const history = this.#episodes.get(r.delegationId);
-        // No guessed restart budget: old journals without history require explicit retry.
-        if (
+        // checkpoint_unavailable is a transport or receipt uncertainty, not a
+        // verdict: it resumes on its own through the same path as an explicit
+        // retry (the saved request id, a held grant settled, never rerun). It
+        // used to wait for a retry nobody was offered, and every later round of
+        // this computer sat in «Очікуємо підготовку відео…» (1.4.3).
+        if (saved.reason === 'checkpoint_unavailable') {
+          const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
+          if (recent.length >= RECOVERY_BUDGET.episodesPerHour) {
+            this.#schedule(
+              r,
+              Math.max(RECOVERY_BUDGET.probeMs, Math.min(...recent) + 3_600_000 - this.#now())
+            );
+            return;
+          }
+        } else if (
+          // No guessed restart budget: old journals without history require explicit retry.
           saved.reason !== 'retry_exhausted' ||
           !history?.length ||
           history.length >= RECOVERY_BUDGET.episodesPerHour
@@ -777,7 +791,7 @@ export class TeamRecoveryWorker {
         const active = secrets.active ? activeClaim(secrets.active, r) : null;
         if (secrets.active && !active) throw new Error('INVALID_RESPONSE');
         this.#episodes.set(r.delegationId, [
-          ...history.filter(t => t > this.#now() - 3_600_000),
+          ...(history ?? []).filter(t => t > this.#now() - 3_600_000),
           this.#now()
         ]);
         this.#failures.set(r.delegationId, { count: 0, since: this.#now() });
@@ -809,6 +823,7 @@ export class TeamRecoveryWorker {
             'blocked',
             'checkpoint_unavailable'
           );
+          this.#schedule(r, RECOVERY_BUDGET.probeMs);
           return;
         }
         secrets.active = null;
@@ -915,6 +930,7 @@ export class TeamRecoveryWorker {
       if (!(await this.#checkIdentity(r))) return;
       if (value.pending === true) {
         await this.#checkpoint(r, requestId, null, 'blocked', 'checkpoint_unavailable');
+        this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
       if (value.job === null) {
@@ -1012,6 +1028,7 @@ export class TeamRecoveryWorker {
           'blocked',
           'checkpoint_unavailable'
         );
+        this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
       secrets.active = null;
@@ -1038,6 +1055,7 @@ export class TeamRecoveryWorker {
           'checkpoint_unavailable',
           'PROCESS_RESULT_UNCERTAIN'
         );
+        this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
       if (code === 'SPACE_BLOCKED') {

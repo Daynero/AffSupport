@@ -1088,6 +1088,20 @@ describe('a creation still running behind the catalogs list (1.4.3)', () => {
       expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
     });
 
+    it("titles the progress of a video's first creation as a creation, not a variation", async () => {
+      renderList(
+        client({
+          listProductCatalogs: vi.fn().mockResolvedValue([]),
+          listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([unfinished])
+        })
+      );
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Show progress of clip_v8_catalog' })
+      );
+      expect(await screen.findByRole('heading', { name: 'Create catalog' })).toBeTruthy();
+      expect(screen.queryByRole('heading', { name: 'New catalog variation' })).toBeNull();
+    });
+
     it('names a computer that went quiet', async () => {
       renderList(
         client({

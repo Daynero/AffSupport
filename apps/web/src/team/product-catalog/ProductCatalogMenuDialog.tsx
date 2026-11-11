@@ -336,7 +336,10 @@ export function ProductCatalogMenuDialog({
         teamId={teamId}
         video={video}
         replaces={view.replaces}
-        variation={view.fromList}
+        // A variation sits beside finished catalogs. «Показати прогрес» on a
+        // video's first, unfinished creation opens from the list too, and was
+        // titled «Нова варіація каталогу» (1.4.3).
+        variation={view.fromList && catalogs.length > 0}
         initialCount={catalogs.at(-1)?.productCount}
         client={client}
         onClose={() => {

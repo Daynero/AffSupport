@@ -2948,6 +2948,11 @@ export const en = {
   catalogSpareVideoReady: 'Video ready for the next update',
   catalogRunVideoNotPrepared: 'No video prepared yet',
   catalogRunVideoWaiting: 'Waiting for video preparation…',
+  catalogBackgroundStalled:
+    ' · Background work on this computer has stopped, so the video is not being prepared.',
+  catalogBackgroundStalledRetry: 'Resume',
+  catalogBackgroundStalledRetried: ' · Resuming background work…',
+  catalogBackgroundStalledSettings: 'Open settings',
   catalogRunVideoRetryWaiting: 'Video preparation failed · details',
   catalogRunFailed: 'Update failed · open details',
   catalogRunPartial: 'Partially updated · details',
@@ -4497,6 +4502,8 @@ export const en = {
   tariffBackgroundUpgrade: 'Connect an updated Soty app to allow background work.',
   tariffBackgroundEnable: 'Allow background work',
   tariffBackgroundDisable: 'Turn off on this computer',
+  tariffBackgroundPaused:
+    'Background work paused after a connection failure. It resumes on its own within minutes, or try now.',
   tariffBackgroundFailed: 'Setup was not confirmed. Check Soty and try again.',
   tariffRecoveryRunning: 'Restoring background work…',
   tariffRecoveryComplete: 'Background work has resumed.',

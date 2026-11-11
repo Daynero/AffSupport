@@ -11,6 +11,12 @@ export interface CatalogVideoRowProgress {
   executor?: CatalogVideoForegroundProgressExecutor;
   /** Why an accepted variant round has not started: the manager says it instead of a bare "0 of N". */
   waitReason?: CatalogVideoRowWaitReason;
+  /**
+   * This computer's background work exists but has not picked the round up
+   * since it was accepted (1.4.3): the manager offers to restart it instead of
+   * an endless "waiting for video preparation".
+   */
+  backgroundStalled?: true;
 }
 
 export const CATALOG_VIDEO_ROW_WAIT_REASONS = [
@@ -69,6 +75,8 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
       : {}),
     ...(row.waitReason !== undefined
       ? { waitReason: row.waitReason as CatalogVideoRowWaitReason }
-      : {})
+      : {}),
+    // Anything but `true` is ignored rather than refused: it is advisory only.
+    ...(row.backgroundStalled === true ? { backgroundStalled: true as const } : {})
   };
 }
