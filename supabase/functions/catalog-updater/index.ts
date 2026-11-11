@@ -81,11 +81,22 @@ Deno.serve(async request => {
     );
     // Recover already completed Launch children and provider-free cancellations even
     // when there are no updater rounds and no browser is connected. Unknown provider
-    // outcomes remain unsettled for the ownership-aware recovery path.
-    await rpcValue(service, 'service_settle_catalog_video_cancellations', { p_limit: 3 });
-    await rpcValue(service, 'service_settle_launch_restitch_cancellations', { p_limit: 3 });
-    await rpcValue(service, 'service_settle_launch_restitch_batch', { p_limit: 3 });
-    const launches = await rpcValue(service, 'service_settle_launch_batch', { p_limit: 3 });
+    // outcomes remain unsettled for the ownership-aware recovery path. Each
+    // settlement isolates its own rows; a call that still fails as a whole must
+    // not stop the other settlements or the regular rounds below.
+    const settleSafely = (name: string) =>
+      rpcValue(service, name, { p_limit: 3 }).catch(error => {
+        console.error(
+          '[catalog-updater] settlement pending',
+          name,
+          error instanceof Error ? error.message : 'UNKNOWN'
+        );
+        return null;
+      });
+    await settleSafely('service_settle_catalog_video_cancellations');
+    await settleSafely('service_settle_launch_restitch_cancellations');
+    await settleSafely('service_settle_launch_restitch_batch');
+    const launches = await settleSafely('service_settle_launch_batch');
     // Manager rounds that can never finish on their own: a variant child that
     // ended, an attempt no item owns any more, a round nobody claims, a review
     // quarantine with nothing to reconcile. A failure here must not stop the

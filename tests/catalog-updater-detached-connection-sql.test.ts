@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 
 /**
  * 1.4.3 (beta, 2026-11-11): rounds of catalogs whose Drive connection was
@@ -214,6 +215,43 @@ it('does not re-claim a publication job of a catalog whose connection is detache
   try {
     expect(await usable(catalog)).toBe(false);
   } finally {
+    await db.root(
+      "update public.team_drive_connections set state='connected',detached_at=null where id=$1",
+      [connected]
+    );
+  }
+});
+
+it('one unreachable round that cannot be closed does not stop the others', async () => {
+  const healthy = await newCatalog(connected);
+  const poisoned = await newCatalog(connected);
+  await db.root(
+    "update public.team_drive_connections set state='detached',detached_at=clock_timestamp() where id=$1",
+    [connected]
+  );
+  const cure = await poisonRows(db, 'public.team_catalog_updater_items', 'catalog_material_id', [
+    poisoned
+  ]);
+  const close = async () =>
+    (await db.root<{ n: number }>('select private.close_unreachable_catalog_rounds() n'))[0]!.n;
+  try {
+    expect(await close()).toBeGreaterThanOrEqual(1);
+    expect((await itemOf(healthy))?.round_due_at ?? null).toBeNull();
+    expect((await itemOf(poisoned))!.round_due_at).not.toBeNull();
+    expect(await settleFailure(db, 'catalog_unreachable_round', poisoned)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+    // The claim that runs it every minute keeps working for everyone else.
+    await claim('catalog-updater:w-poisoned');
+    await cure();
+    await expireBackoff(db, 'catalog_unreachable_round', poisoned);
+    expect(await close()).toBeGreaterThanOrEqual(1);
+    expect((await itemOf(poisoned))?.round_due_at ?? null).toBeNull();
+    expect(await settleFailure(db, 'catalog_unreachable_round', poisoned)).toBeUndefined();
+  } finally {
+    await cure();
     await db.root(
       "update public.team_drive_connections set state='connected',detached_at=null where id=$1",
       [connected]

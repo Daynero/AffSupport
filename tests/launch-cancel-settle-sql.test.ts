@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 import { launchConfig } from './fixtures/launches';
 import { assignLaunchFixture } from './support/launch-assignment';
 import { launchPreview, parseLaunchSources } from '../packages/shared/src/team/launches';
@@ -546,4 +547,33 @@ it('keeps a recent unproven upload pending', async () => {
     state: 'canceled_with_cleanup_pending',
     safe_error_code: 'LAUNCH_RESULT_UNCERTAIN'
   });
+});
+
+it('one canceled Launch that cannot be written does not stop the others', async () => {
+  const healthy = await restitchLaunch();
+  const poisoned = await restitchLaunch();
+  for (const f of [healthy, poisoned]) await cancel(f);
+  await settleRestitch();
+  for (const f of [healthy, poisoned]) {
+    await age(f.op, '8 days');
+    await due(f.generation);
+  }
+  const cure = await poisonRows(db, 'public.team_launch_generations', 'id', [poisoned.generation]);
+  try {
+    await settleRestitch();
+    expect((await generationOf(healthy.generation)).state).toBe('canceled');
+    expect((await generationOf(poisoned.generation)).state).toBe('canceled_with_cleanup_pending');
+    expect(await settleFailure(db, 'launch_restitch_cancel', poisoned.generation)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'launch_restitch_cancel', poisoned.generation);
+  await due(poisoned.generation);
+  await settleRestitch();
+  expect((await generationOf(poisoned.generation)).state).toBe('canceled');
+  expect(await settleFailure(db, 'launch_restitch_cancel', poisoned.generation)).toBeUndefined();
 });

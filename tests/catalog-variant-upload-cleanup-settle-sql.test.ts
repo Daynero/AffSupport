@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createTeamTestDb, createUser, type TeamTestDb } from './support/team-db';
+import { expireBackoff, poisonRows, settleFailure } from './support/poison-rows';
 
 /**
  * Production 2026-11-11: catalog video set fa708f8e stayed 'cancel_requested'
@@ -260,4 +261,64 @@ it('a set nobody cancels keeps its answer while cleanup still runs', async () =>
   await finishedAgo(f.op, '1 hour');
   await settle();
   expect((await variant(f.set, 1)).state).toBe('working');
+});
+
+it('one cancellation that cannot be written does not stop the others, and backs off', async () => {
+  const healthy = await creation({ opState: 'failed', cleanup: 'attention', attempts: 24 });
+  const poisoned = await creation({ opState: 'failed', cleanup: 'attention', attempts: 24 });
+  for (const f of [healthy, poisoned]) {
+    await finishedAgo(f.op, '2 hours');
+    await cancel(f.set);
+  }
+  const cure = await poisonRows(db, 'private.catalog_video_sets', 'id', [poisoned.set]);
+  try {
+    await settle();
+    expect(await setState(healthy.set)).toBe('canceled');
+    expect(await setState(poisoned.set)).toBe('cancel_requested');
+    expect(await settleFailure(db, 'catalog_video_cancel', poisoned.set)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+    // Backed off: the next pass skips it instead of failing on it again.
+    await settle();
+    expect((await settleFailure(db, 'catalog_video_cancel', poisoned.set))!.attempts).toBe(1);
+    // Due again, it is retried and backs off further.
+    await expireBackoff(db, 'catalog_video_cancel', poisoned.set);
+    await settle();
+    expect(await settleFailure(db, 'catalog_video_cancel', poisoned.set)).toMatchObject({
+      attempts: 2,
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'catalog_video_cancel', poisoned.set);
+  await settle();
+  expect(await setState(poisoned.set)).toBe('canceled');
+  expect(await settleFailure(db, 'catalog_video_cancel', poisoned.set)).toBeUndefined();
+});
+
+it('one uncanceled set whose retry cannot be written does not stop the others', async () => {
+  const healthy = await creation({ opState: 'failed', cleanup: 'attention', attempts: 24 });
+  const poisoned = await creation({ opState: 'failed', cleanup: 'attention', attempts: 24 });
+  const cure = await poisonRows(db, 'private.catalog_video_variants', 'video_set_id', [
+    poisoned.set
+  ]);
+  try {
+    await settle();
+    expect(await variant(healthy.set, 1)).toEqual({ state: 'queued', retry_count: 1 });
+    expect((await variant(poisoned.set, 1)).state).toBe('working');
+    expect(await settleFailure(db, 'catalog_video_cleaned_retry', poisoned.set)).toEqual({
+      attempts: 1,
+      last_code: 'SETTLE_TEST_POISON',
+      deferred: true
+    });
+  } finally {
+    await cure();
+  }
+  await expireBackoff(db, 'catalog_video_cleaned_retry', poisoned.set);
+  await settle();
+  expect(await variant(poisoned.set, 1)).toEqual({ state: 'queued', retry_count: 1 });
+  expect(await settleFailure(db, 'catalog_video_cleaned_retry', poisoned.set)).toBeUndefined();
 });
