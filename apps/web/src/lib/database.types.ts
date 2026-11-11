@@ -7212,6 +7212,7 @@ export type GeneratedDatabase = {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: boolean;
       };
+      dismiss_team_bulk_trash: { Args: { p_group: string; p_team: string }; Returns: undefined };
       draw_restitch_screens: {
         Args: { p_exclude?: string[]; p_team: string };
         Returns: Json;

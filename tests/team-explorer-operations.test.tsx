@@ -1044,3 +1044,123 @@ it('records a visible historical explanation as unknown delivery instead of a fr
   expect(track.mock.calls.some(([event]) => event === 'operation_completed')).toBe(false);
   expect(client.prepareBulkTrashItem).not.toHaveBeenCalled();
 });
+
+it('keeps a closed bulk-trash panel closed after a reload and hides hosted-dismissed groups', async () => {
+  const finished = (id: string, dismissed?: boolean): BulkTrashGroup => ({
+    id,
+    teamId: team,
+    actorId: actor,
+    ...(dismissed === undefined ? {} : { dismissed }),
+    items: [{ materialId: rows[0]!.id, idempotencyKey: id, state: 'confirmed', errorCode: null }]
+  });
+  const hosted = [finished('closed-elsewhere', true), finished('fresh')];
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => structuredClone(hosted)),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined),
+    dismissBulkTrash: vi.fn(async (_team: string, id: string) => {
+      hosted.find(group => group.id === id)!.dismissed = true;
+    })
+  };
+  const first = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() =>
+    expect(first.result.current.groups.map(group => group.id)).toEqual(['fresh'])
+  );
+  act(() => first.result.current.dismiss('fresh'));
+  expect(first.result.current.groups).toEqual([]);
+  expect(client.dismissBulkTrash).toHaveBeenCalledWith(team, 'fresh');
+  first.unmount();
+  // A reload: a new hook instance with nothing in memory.
+  const second = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await act(async () => {
+    await second.result.current.refresh();
+  });
+  expect(second.result.current.groups).toEqual([]);
+});
+
+it('reports a group being worked through as executing, so queued items offer no retry', async () => {
+  let release: () => void = () => {};
+  const hosted: BulkTrashGroup = {
+    id: 'running-group',
+    teamId: team,
+    actorId: actor,
+    items: rows.slice(0, 1).map(row => ({
+      materialId: row.id,
+      idempotencyKey: row.id,
+      state: 'queued' as const,
+      errorCode: null
+    }))
+  };
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => [structuredClone(hosted)]),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(
+      () =>
+        new Promise<BulkTrashGroup>(resolve => {
+          release = () => resolve(structuredClone({ ...hosted, items: [] }));
+        })
+    ),
+    markBulkTrashRequest: vi.fn().mockResolvedValue(undefined)
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  await waitFor(() => expect(view.result.current.groups).toHaveLength(1));
+  let run: Promise<void> = Promise.resolve();
+  act(() => {
+    run = view.result.current.retry(view.result.current.groups[0]!, rows.slice(0, 1), {
+      trashMaterial: vi.fn()
+    });
+  });
+  await waitFor(() => expect(view.result.current.executing.has('running-group')).toBe(true));
+  expect(view.result.current.names.get(rows[0]!.id)).toBe('File 0');
+  const panel = render(
+    <BulkTrashPanel
+      group={view.result.current.groups[0]!}
+      rows={[]}
+      names={view.result.current.names}
+      executing
+      uncertain={false}
+      onVisible={() => {}}
+      onRetry={() => {}}
+    />
+  );
+  expect(screen.queryByRole('button', { name: 'Repeat' })).toBeNull();
+  expect(screen.getByText('File 0')).toBeTruthy();
+  panel.rerender(
+    <BulkTrashPanel
+      group={view.result.current.groups[0]!}
+      rows={[]}
+      uncertain={false}
+      onVisible={() => {}}
+      onRetry={() => {}}
+    />
+  );
+  expect(screen.getByRole('button', { name: 'Repeat' })).toBeTruthy();
+  await waitFor(() => expect(client.prepareBulkTrashItem).toHaveBeenCalled());
+  await act(async () => {
+    release();
+    await run.catch(() => undefined);
+  });
+  await waitFor(() => expect(view.result.current.executing.size).toBe(0));
+});
+
+it('counts overlapping claims so one surface closing does not release another', () => {
+  const client: BulkTrashClient = {
+    listBulkTrash: vi.fn(async () => []),
+    startBulkTrash: vi.fn(),
+    prepareBulkTrashItem: vi.fn(),
+    markBulkTrashRequest: vi.fn()
+  };
+  const view = renderHook(() => useBulkTrash(team, 0, client, actor));
+  let a: () => void = () => {},
+    b: () => void = () => {};
+  act(() => {
+    a = view.result.current.claim(['g1', 'g2']);
+    b = view.result.current.claim(['g2']);
+  });
+  expect([...view.result.current.claimed].sort()).toEqual(['g1', 'g2']);
+  act(() => a());
+  expect([...view.result.current.claimed]).toEqual(['g2']);
+  act(() => b());
+  expect(view.result.current.claimed.size).toBe(0);
+});

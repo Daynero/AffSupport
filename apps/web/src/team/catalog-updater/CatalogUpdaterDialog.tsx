@@ -9,6 +9,8 @@ import { withReadDeadline } from '../readCoordinator';
 import type { TeamAnalyticsStorage } from '@video-compressor/shared';
 import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
 import { BulkTrashPanel } from '../explorer/BulkTrashPanel';
+import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { createPortal } from 'react-dom';
 import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { TeamApiError } from '../../api/team';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -219,6 +221,7 @@ function CatalogUpdaterDialogScope({
     }
   }, [toasts, owner]);
   const workspaceOperations = useOptionalWorkspaceOperations();
+  const space = useOptionalSpaceAgentQueue();
   const [trashGroups, setTrashGroups] = useState<Set<string>>(() => new Set());
   const directTrashKeys = useRef(new Map<string, string>());
   const observedTrash = useRef('');
@@ -802,6 +805,13 @@ function CatalogUpdaterDialogScope({
         (trashGroups.has(group.id) ||
           group.items.some(item => currentCatalogIds.has(item.materialId)))
     ) ?? [];
+  // The manager reports these itself, with catalog names; the Files corner leaves them.
+  const claimKey = receipts.map(group => group.id).join(',');
+  const claimTrash = managerTrash?.claim;
+  useEffect(() => {
+    if (!claimKey || !claimTrash) return;
+    return claimTrash(claimKey.split(','));
+  }, [claimKey, claimTrash]);
   const receiptFingerprint = receipts
     .map(
       group =>
@@ -918,6 +928,32 @@ function CatalogUpdaterDialogScope({
           })}
     </p>
   );
+
+  const trashPanels = managerTrash
+    ? receipts.map(group => (
+        <BulkTrashPanel
+          key={group.id}
+          group={group}
+          historicalReceipts={managerTrash.historicalReceipts?.get(group.id)}
+          rows={trashRows}
+          names={managerTrash.names}
+          executing={managerTrash.executing?.has(group.id)}
+          uncertain={managerTrash.uncertain}
+          onVisible={managerTrash.acknowledgeVisible}
+          onDismiss={managerTrash.dismiss}
+          onRetry={
+            permissions?.delete && managerTrash.owns(group)
+              ? () => {
+                  void managerTrash
+                    .retry(group, trashRows, teamApi)
+                    .then(() => registry.reload())
+                    .catch(error => push({ tone: 'error', text: teamErrorMessageFor(error, t) }));
+                }
+              : undefined
+          }
+        />
+      ))
+    : null;
 
   return (
     <Modal
@@ -2274,28 +2310,14 @@ function CatalogUpdaterDialogScope({
           onChanged={registry.reload}
         />
       )}
+      {/* In the space's corner stack, which sits above dialogs: inside the
+          dialog it was a second copy of the same panel, in the wrong corner. */}
       {managerTrash &&
-        receipts.map(group => (
-          <BulkTrashPanel
-            key={group.id}
-            group={group}
-            historicalReceipts={managerTrash.historicalReceipts?.get(group.id)}
-            rows={trashRows}
-            uncertain={managerTrash.uncertain}
-            onVisible={managerTrash.acknowledgeVisible}
-            onDismiss={managerTrash.dismiss}
-            onRetry={
-              permissions?.delete && managerTrash.owns(group)
-                ? () => {
-                    void managerTrash
-                      .retry(group, trashRows, teamApi)
-                      .then(() => registry.reload())
-                      .catch(error => push({ tone: 'error', text: teamErrorMessageFor(error, t) }));
-                  }
-                : undefined
-            }
-          />
-        ))}
+        receipts.length > 0 &&
+        createPortal(
+          space?.stack ? trashPanels : <div className="team-process-stack">{trashPanels}</div>,
+          space?.stack ?? document.body
+        )}
       {confirmDelete.length > 0 && (
         <ConfirmDialog
           nested

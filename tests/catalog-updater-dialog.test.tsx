@@ -1207,13 +1207,21 @@ it('rediscovers an unfinished hosted catalog batch after reopening without unrel
       refresh: vi.fn(),
       dismiss: vi.fn(),
       acknowledgeVisible: vi.fn(),
-      owns: () => true
+      owns: () => true,
+      executing: new Set<string>(),
+      names: new Map<string, string>(),
+      claim: vi.fn(() => () => {}),
+      claimed: new Set<string>()
     }
   };
   renderDialog(client([item], stopped));
   await screen.findByLabelText('polo.mp4 catalog');
   expect(screen.getByText('Move files to trash')).toBeTruthy();
   expect(screen.getAllByText('Move files to trash')).toHaveLength(1);
+  // One panel, in the corner stack above the dialog, and the Files corner is told to leave it.
+  expect(screen.getByText('Move files to trash').closest('.team-updater-dialog')).toBeNull();
+  expect(screen.getByText('Move files to trash').closest('.team-process-stack')).toBeTruthy();
+  expect(hostedWorkspace.value?.bulkTrash?.claim).toHaveBeenCalledWith([group.id]);
   expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
   expect(hostedWorkspace.value?.bulkTrash?.start).not.toHaveBeenCalled();
 });

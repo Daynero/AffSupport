@@ -57,3 +57,9 @@ it('refuses malformed groups and items', () => {
   expect(isBulkTrashGroup(group([item({ state: 'done' })]))).toBe(false);
   expect(isBulkTrashGroup(group([item({ errorCode: 'lower' })]))).toBe(false);
 });
+
+it('accepts the hosted dismissal flag only as a boolean', () => {
+  expect(isBulkTrashGroup({ ...group([item()]), dismissed: true })).toBe(true);
+  expect(isBulkTrashGroup({ ...group([item()]), dismissed: false })).toBe(true);
+  expect(isBulkTrashGroup({ ...group([item()]), dismissed: 'yes' })).toBe(false);
+});

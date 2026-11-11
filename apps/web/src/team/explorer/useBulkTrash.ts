@@ -26,6 +26,8 @@ export interface BulkTrashClient {
   listBulkTrash: typeof teamApi.listBulkTrash;
   startBulkTrash: typeof teamApi.startBulkTrash;
   markBulkTrashRequest: typeof teamApi.markBulkTrashRequest;
+  /** Optional so an older client keeps hiding in memory only. */
+  dismissBulkTrash?: typeof teamApi.dismissBulkTrash;
 }
 /** All successes come from hosted receipts, never from local intent or HTTP acceptance. */
 export function useBulkTrash(
@@ -38,6 +40,16 @@ export function useBulkTrash(
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  /** Groups this tab is executing right now: a retry would only be ignored. */
+  const [executing, setExecuting] = useState<ReadonlySet<string>>(() => new Set());
+  /** Names the starting surface knew; receipts never carry them. */
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(() => new Map());
+  /**
+   * Surfaces that show a group themselves (the catalog manager, with catalog
+   * names and its own retry). Every other surface leaves those groups to them,
+   * so one operation is reported by exactly one panel.
+   */
+  const [claims, setClaims] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [uncertain, setUncertain] = useState(false);
   const [historicalReceipts, setHistoricalReceipts] = useState<
     ReadonlyMap<string, ReadonlyMap<string, TeamHistoricalFileReceipt>>
@@ -127,6 +139,8 @@ export function useBulkTrash(
     setGroups([]);
     setHistoricalReceipts(new Map());
     setDismissed(new Set());
+    setExecuting(new Set());
+    setNames(new Map());
     active.current.clear();
     starting.current = null;
     observed.current.clear();
@@ -220,6 +234,14 @@ export function useBulkTrash(
     if (receipts === undefined) throw new DOMException('Bulk trash scope ended', 'AbortError');
     return receipts;
   }, [requestReceipts]);
+  const remember = useCallback((rows: readonly Pick<TeamMaterialRow, 'id' | 'name'>[]) => {
+    if (!rows.some(row => row.name)) return;
+    setNames(previous => {
+      const next = new Map(previous);
+      for (const row of rows) if (row.name) next.set(row.id, row.name);
+      return next;
+    });
+  }, []);
   const execute = useCallback(
     async (
       group: BulkTrashGroup,
@@ -228,6 +250,8 @@ export function useBulkTrash(
     ) => {
       if (!scopeCurrent() || active.current.has(group.id)) return;
       active.current.add(group.id);
+      setExecuting(new Set(active.current));
+      remember(rows);
       const current = generation.current;
       try {
         // Reconcile before replay: a missing response cannot make a second operation key.
@@ -337,10 +361,13 @@ export function useBulkTrash(
           observed.current.get(group.id)?.diagnostic('trash_refresh', cause);
         throw cause;
       } finally {
-        if (current === generation.current && scopeCurrent()) active.current.delete(group.id);
+        if (current === generation.current && scopeCurrent()) {
+          active.current.delete(group.id);
+          setExecuting(new Set(active.current));
+        }
       }
     },
-    [client, refresh, reportStage, teamId, scopeCurrent, waitMutation]
+    [client, refresh, remember, reportStage, teamId, scopeCurrent, waitMutation]
   );
   const start = useCallback(
     async (
@@ -352,6 +379,7 @@ export function useBulkTrash(
       const current = generation.current;
       const intent = mutationJournal().acquire(rows.map(row => row.id));
       starting.current = teamId;
+      remember(rows);
       const groupId = intent.id;
       const flow = beginWorkspaceOperation('bulk_trash', groupId, rows.length);
       observed.current.set(groupId, flow);
@@ -431,6 +459,7 @@ export function useBulkTrash(
       client,
       execute,
       refresh,
+      remember,
       teamId,
       originatingActor,
       scopeCurrent,
@@ -466,15 +495,39 @@ export function useBulkTrash(
     (id: string) => {
       if (!scopeCurrent()) return;
       setDismissed(current => new Set([...current, id]));
+      // Hosted, so a reload or another device does not bring it back. A failed
+      // write only costs the panel reappearing once; it never blocks hiding.
+      void client.dismissBulkTrash?.(teamId, id).catch(() => undefined);
     },
-    [scopeCurrent]
+    [client, teamId, scopeCurrent]
   );
+  const claim = useCallback((ids: readonly string[]) => {
+    const change = (delta: number) =>
+      setClaims(previous => {
+        const next = new Map(previous);
+        for (const id of ids) {
+          const count = (next.get(id) ?? 0) + delta;
+          if (count > 0) next.set(id, count);
+          else next.delete(id);
+        }
+        return next;
+      });
+    change(1);
+    return () => change(-1);
+  }, []);
+  const claimed = useMemo(() => new Set(claims.keys()), [claims]);
   return {
     dismiss,
     historicalReceipts: scopeCurrent() ? historicalReceipts : new Map(),
     groups: scopeCurrent()
-      ? groups.filter(group => group.teamId === teamId && !dismissed.has(group.id))
+      ? groups.filter(
+          group => group.teamId === teamId && !group.dismissed && !dismissed.has(group.id)
+        )
       : [],
+    executing,
+    names,
+    claim,
+    claimed,
     uncertain: scopeCurrent() && uncertain,
     start,
     retry: execute,

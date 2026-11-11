@@ -5018,6 +5018,14 @@ export const teamApi = {
       throw new TeamApiError('INVALID_RESPONSE', false);
     return candidate;
   },
+  /** Hides a bulk-trash panel for this viewer, on every device and after a reload. */
+  async dismissBulkTrash(
+    teamId: string,
+    groupId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<void> {
+    await invokeTeamRpc('dismiss_team_bulk_trash', { p_team: teamId, p_group: groupId }, options);
+  },
 
   async markBulkTrashRequest(
     teamId: string,
