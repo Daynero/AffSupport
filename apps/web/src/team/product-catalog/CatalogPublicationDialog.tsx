@@ -18,7 +18,6 @@ import {
   Button,
   Calendar,
   FormField,
-  Input,
   Select,
   fromCalendarDate,
   toCalendarDate
@@ -26,6 +25,7 @@ import {
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
+import { CatalogTimeInput } from './CatalogTimeInput';
 export function CatalogPublicationDialog({
   teamId,
   catalogId,
@@ -325,14 +325,13 @@ export function CatalogPublicationDialog({
               }}
             />
             <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
-              <Input
+              <CatalogTimeInput
                 id={timeId}
-                type="time"
                 value={time}
                 disabled={pending || verification.pending}
-                onChange={event => {
+                onChange={next => {
                   setSaved(false);
-                  setTime(event.target.value);
+                  setTime(next);
                   setChoice(undefined);
                 }}
               />

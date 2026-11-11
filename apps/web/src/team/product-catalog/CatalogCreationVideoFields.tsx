@@ -10,6 +10,7 @@ import {
   toCalendarDate
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { CatalogTimeInput } from './CatalogTimeInput';
 export interface CatalogCreationVideoDraft {
   variationCount: string;
   delayed: boolean;
@@ -75,12 +76,11 @@ export function CatalogCreationVideoFields({
           onChange={date => change({ date: fromCalendarDate(date) ?? '', occurrence: undefined })}
         />
         <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
-          <Input
+          <CatalogTimeInput
             id={timeId}
-            type="time"
             disabled={disabled}
             value={value.time}
-            onChange={event => change({ time: event.target.value, occurrence: undefined })}
+            onChange={time => change({ time, occurrence: undefined })}
           />
         </FormField>
         <FormField label={t('catalogPublicationZone')} htmlFor={zoneId}>
