@@ -2857,6 +2857,14 @@ cleanup that has not ended 24 hours after the operation finished is recorded as 
 functions through a reviewed forward migration; sets already canceled or variants already
 requeued stay as they are, and ownership rows moved to `attention` keep that recorded outcome.
 
+### 20261207302000 — a canceling set closes over a variant that never had an operation
+
+Patches `private.catalog_video_cancel_quiescent`: a variant with no operation no longer blocks
+its canceling set; a dispatched or reported one first waits three minutes without a heartbeat.
+No operation can be admitted for a canceling set, so nothing can still produce output. Rolling
+back means restoring the 240000 condition through a reviewed forward migration; sets already
+canceled stay canceled and need no repair.
+
 ### 20261207320000 — a retired variant operation releases its output name
 
 Adds two triggers on `public.team_operations`: entering a terminal state stamps
