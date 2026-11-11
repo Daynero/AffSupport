@@ -128,7 +128,9 @@ function endpoint(value: string): string {
 }
 
 /** Dedicated transport, deliberately separate from generic TeamTransferGrant.
- * Server accounting is authoritative. No native retry, refresh or budget reset.
+ * Server accounting is authoritative. No refresh or budget reset here; the
+ * authority itself repeats a reservation lost in transport with its persisted
+ * request ids (exact readback), never with fresh ones.
  */
 export class RestitchScreenDownloader {
   readonly #endpoint: string;

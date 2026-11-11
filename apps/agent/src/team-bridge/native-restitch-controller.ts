@@ -24,6 +24,7 @@ import {
   type NativeScreenRecoveryScope
 } from './native-screen-recovery-provider.js';
 import { RestitchScreenDownloader } from './restitch-screen-download.js';
+import { retryTransient } from './heartbeat-tolerance.js';
 import {
   ScreenCacheError,
   type ProtectedScreenCacheBinding,
@@ -38,6 +39,9 @@ const failureCodes = new Set<string>([...TEAM_ERROR_CODES, ...STITCH_ERROR_CODES
 const uncertain = () => new ScreenCacheError('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
 /** Waits between repeated authorization reads after a transport failure. */
 export const AUTHORIZE_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000, 8_000];
+/** How long a closure (abandon + finish) is redelivered after a lost reply. It
+ * outlasts a short gateway outage; a longer one is left to reconcileClosure. */
+export const CLOSURE_RETRY_BUDGET_MS = 5 * 60_000;
 function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new ScreenCacheError('INVALID_INPUT');
   return value.toLowerCase();
@@ -90,6 +94,14 @@ export interface NativeRestitchVault {
 export interface NativeRestitchControllerOptions {
   /** Test seam: waits between repeated authorization reads. */
   authorizeRetryDelaysMs?: readonly number[];
+  /** Test seam: retry of idempotent selection/closure calls after a transport failure. */
+  transientRetry?: {
+    budgetMs?: number;
+    closureBudgetMs?: number;
+    delaysMs?: readonly number[];
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+    now?: () => number;
+  };
   endpoint: string;
   environment: AppEnvironment;
   currentActorId: () => string | null;
@@ -427,6 +439,25 @@ export class NativeRestitchController {
         .digest('hex')
     });
   }
+  /** A transport or capacity failure of a call the server can replay exactly.
+   * The native vault failing is not transient: nothing it guards may continue. */
+  #transient = (error: unknown) =>
+    !this.#vaultFailed &&
+    error instanceof ScreenCacheError &&
+    (error.code === 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN' || error.code === 'RATE_LIMITED');
+  /** Retries an idempotent call inside the run's 90 s budget (beta 2026-11-11:
+   * one gateway 499 on a screen range reservation ended the whole restitch). */
+  #idempotent<T>(call: () => Promise<T>, signal?: AbortSignal, budgetMs?: number) {
+    const tuning = this.options.transientRetry;
+    return retryTransient(call, {
+      transient: this.#transient,
+      signal,
+      budgetMs: budgetMs ?? tuning?.budgetMs,
+      delaysMs: tuning?.delaysMs,
+      sleep: tuning?.sleep,
+      now: tuning?.now
+    });
+  }
   async #rpc(
     record: Credential,
     area: 'control' | 'selection',
@@ -555,22 +586,36 @@ export class NativeRestitchController {
     if (!checkpoint || checkpoint.quiescenceId !== quiescenceId || !checkpoint.outcome)
       throw uncertain();
     const record = this.#root(identity);
+    // The closure is replayed with the same nonce and range ids (as
+    // reconcileClosure does), so a lost reply is retried rather than leaving the
+    // claim open: beta 2026-11-11, finish got a gateway 499 right after an outage.
+    const budget = this.options.transientRetry?.closureBudgetMs ?? CLOSURE_RETRY_BUDGET_MS;
     for (const range of record.ranges)
-      await this.#rpc(record, 'selection', 'abandon', {
-        slot: range.slot,
-        requestId: range.requestId,
-        rangeGrantId: range.grantId
-      });
-    return this.#rpc(record, 'control', 'finish', {
-      claimId: identity.claimId,
-      quiescenceId,
-      outcome:
-        checkpoint.outcome === 'returned'
-          ? 'delivered'
-          : checkpoint.outcome === 'canceled'
-            ? 'canceled'
-            : 'failed'
-    });
+      await this.#idempotent(
+        () =>
+          this.#rpc(record, 'selection', 'abandon', {
+            slot: range.slot,
+            requestId: range.requestId,
+            rangeGrantId: range.grantId
+          }),
+        undefined,
+        budget
+      );
+    return this.#idempotent(
+      () =>
+        this.#rpc(record, 'control', 'finish', {
+          claimId: identity.claimId,
+          quiescenceId,
+          outcome:
+            checkpoint.outcome === 'returned'
+              ? 'delivered'
+              : checkpoint.outcome === 'canceled'
+                ? 'canceled'
+                : 'failed'
+        }),
+      undefined,
+      budget
+    );
   }
   #context(
     value: unknown,
@@ -658,18 +703,25 @@ export class NativeRestitchController {
       record.ranges.push(entry);
     });
     if (!entry) throw uncertain();
-    return this.#rpc(
-      record,
-      'selection',
-      'range',
-      {
-        slot: binding.slot,
-        versionId: binding.versionId,
-        acquisition: binding.acquisition,
-        offset,
-        requestId: entry.requestId,
-        rangeGrantId: entry.grantId
-      },
+    const issued = entry;
+    // The request and grant ids were persisted above and the server answers an
+    // existing issue by exact readback, so repeating it cannot reserve twice.
+    return this.#idempotent(
+      () =>
+        this.#rpc(
+          record,
+          'selection',
+          'range',
+          {
+            slot: binding.slot,
+            versionId: binding.versionId,
+            acquisition: binding.acquisition,
+            offset,
+            requestId: issued.requestId,
+            rangeGrantId: issued.grantId
+          },
+          signal
+        ),
       signal
     );
   }
@@ -802,7 +854,10 @@ export class NativeRestitchController {
               if (controller.signal.aborted) abort();
               const context = this.#context(
                 await scope.run(() =>
-                  this.#rpc(record, 'selection', 'context', { slot: 'end' }, scope.signal)
+                  this.#idempotent(
+                    () => this.#rpc(record, 'selection', 'context', { slot: 'end' }, scope.signal),
+                    scope.signal
+                  )
                 ),
                 record,
                 scope.receipt
@@ -821,8 +876,15 @@ export class NativeRestitchController {
               const provider = createNativeScreenRecoveryProvider({
                 scope: context,
                 cache: this.options.cache,
+                // Only the read is repeated; next/accept/reject move selection
+                // state and are not proven safe to replay after a lost reply.
                 call: (action, body, signal) =>
-                  this.#rpc(record, 'selection', action, body, signal),
+                  action === 'authorize'
+                    ? this.#idempotent(
+                        () => this.#rpc(record, 'selection', action, body, signal),
+                        signal
+                      )
+                    : this.#rpc(record, 'selection', action, body, signal),
                 download: (binding, signal) => downloader.download(binding, signal),
                 refresh: (binding, requestId, signal) =>
                   this.#refresh(record, binding, requestId, signal)

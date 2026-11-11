@@ -813,7 +813,9 @@ const catalogForeground = hasCapability('catalog-video-foreground-v1')
           if (child.state === 'queued' || child.state === 'registered') continue;
           if (typeof child.operationId !== 'string' || !uuid.test(child.operationId)) return false;
           const original = { index, requestId: child.requestId, operationId: child.operationId };
-          const pulse = await call('heartbeat', original);
+          // A probe: a restarted agent asking whether a child was cancelled is not
+          // the old run's sign of life (it delayed the silence takeover by 2 min).
+          const pulse = await call('heartbeat', { ...original, probe: true });
           if (
             pulse.continue !== false ||
             pulse.registered !== false ||

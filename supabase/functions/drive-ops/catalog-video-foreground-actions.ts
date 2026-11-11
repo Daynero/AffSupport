@@ -102,7 +102,7 @@ export async function executeCatalogForegroundAction(
       throw new TeamFunctionError('INVALID_INPUT');
     return store.complete(child, body.outcome, body.failureCode);
   }
-  if (action === 'variant_heartbeat') return store.heartbeat(child);
+  if (action === 'variant_heartbeat') return store.heartbeat(child, { probe: body.probe === true });
   if (action === 'variant_reconcile') return store.reconcile(child);
   if (action === 'variant_dispatch')
     return {

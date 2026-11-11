@@ -2855,3 +2855,11 @@ state `unknown`) and patches `public.service_settle_catalog_video_cancellations`
 pending/running, owns no output, upload or provider result, and is silent. Rolling back means
 restoring the 240000 bodies of both through a reviewed forward migration; variants already
 failed and requeued stay as they are and need no repair.
+
+### 20261207345000 — the same agent instance takes a silent variant over
+
+Patches `public.service_redeem_catalog_video_foreground` so a redeem from the native instance
+that already executes the set calls `private.release_silent_catalog_video_variants(set, 2
+minutes)`, as a redeem from a new instance has since 240000. Rolling back means restoring the
+340000 body of the function through a reviewed forward migration; variants already failed and
+requeued stay as they are and need no repair.

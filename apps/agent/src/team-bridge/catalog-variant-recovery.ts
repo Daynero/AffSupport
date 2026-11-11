@@ -190,10 +190,13 @@ export async function runCatalogVariantRecovery(input: {
                 complete,
                 async () => {
                   try {
+                    // A probe asks only whether the variant was cancelled; it must
+                    // not count as a sign of life of a run that already stopped.
                     const value = await (input.closureCall ?? input.call)('variant_heartbeat', {
                       ...body(child),
                       nativeInstanceId: input.nativeInstanceId,
-                      variantProtocolVersion: 1
+                      variantProtocolVersion: 1,
+                      probe: true
                     });
                     return (
                       value.continue === false &&

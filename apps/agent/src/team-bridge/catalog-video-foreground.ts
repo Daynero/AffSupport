@@ -9,6 +9,22 @@ import {
   type CatalogVideoForegroundExecutor
 } from '@video-compressor/shared';
 import type { NativeRestitchVaultFile } from './native-restitch-vault.js';
+/** When an interrupted creation is tried again without its dialog. The server
+ * takes a variant over only after 2 minutes of silence, so the first attempt
+ * may be refused; about an hour in all, then the dialog is needed again. */
+export const FOREGROUND_RESUME_DELAYS_MS: readonly number[] = [
+  60_000, 120_000, 240_000, 480_000, 900_000, 1_800_000
+];
+/** Answers that no later attempt can change. */
+const RESUME_FINAL = new Set([
+  'PERMISSION_DENIED',
+  'AUTH_REQUIRED',
+  'EXPIRED',
+  'WRONG_STATE',
+  'INVALID_INPUT',
+  'INVALID_RESPONSE',
+  'AGENT_UPDATE_REQUIRED'
+]);
 interface Entry {
   binding: CatalogVideoForegroundBinding;
   actorId: string;
@@ -49,6 +65,8 @@ export class CatalogVideoForegroundController {
         oldExecutionBoot: string
       ) => Promise<boolean>;
       redeem: (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
+      /** Test seam: waits before each unattended resume attempt. */
+      resumeDelaysMs?: readonly number[];
       run: (
         setId: string,
         ticket: string,
@@ -270,6 +288,8 @@ export class CatalogVideoForegroundController {
         )
         .finally(async () => {
           this.#running.delete(entry.receipt.enrollmentId);
+          // Stopped by this agent (shutdown, account change): never resumed here.
+          if (!abort.signal.aborted) this.#resume(entry);
           await this.#persist();
         })
         .catch(() => {
@@ -348,6 +368,63 @@ export class CatalogVideoForegroundController {
       .catch(() => {})
       .finally(() => {
         this.#waiting.delete(entry.receipt.enrollmentId);
+        this.#waitingTasks.delete(task);
+        if (!abort.signal.aborted) this.#resume(entry);
+      });
+    this.#waitingTasks.add(task);
+  }
+  /** An interrupted creation continues without its dialog: "Створення триває на
+   * сервері, навіть коли це вікно закрите" (beta 2026-11-11: two requeued sets
+   * waited with no dialog open). The server stays the arbiter: a redeem fails a
+   * variant silent for 2 minutes and requeues it, and refuses a takeover while a
+   * variant may still be running anywhere, so an attempt here is never a second
+   * writer. A run that ends unknown again is tried on the next delay. */
+  #resume(entry: Entry) {
+    const id = entry.receipt.enrollmentId;
+    if (
+      !entry.setId ||
+      entry.state !== 'unknown' ||
+      // The server authority lives at most 24 hours; older entries only expire.
+      (entry.createdAt !== undefined && Date.now() - entry.createdAt > 24 * 60 * 60 * 1000) ||
+      this.#stopping ||
+      this.#waiting.has(id) ||
+      this.#running.has(id)
+    )
+      return;
+    const abort = new AbortController();
+    this.#waiting.set(id, abort);
+    const delays = this.options.resumeDelaysMs ?? FOREGROUND_RESUME_DELAYS_MS;
+    const task = (async () => {
+      for (const wait of delays) {
+        await delay(wait, undefined, { signal: abort.signal, ref: false });
+        if (abort.signal.aborted || entry.state !== 'unknown' || !entry.setId) return;
+        let actor: string;
+        try {
+          actor = this.#actor();
+        } catch {
+          if (this.#stopping || this.#faulted) return;
+          continue;
+        }
+        if (actor !== entry.actorId) continue;
+        try {
+          await this.attach({
+            protocolVersion: 1,
+            teamId: entry.binding.teamId,
+            setId: entry.setId,
+            enrollmentId: id,
+            nativeInstanceId: entry.receipt.nativeInstanceId
+          });
+        } catch (error) {
+          if (error instanceof Error && RESUME_FINAL.has(error.message)) return;
+          continue;
+        }
+        await this.#running.get(id)?.task;
+        if (entry.state !== 'unknown') return;
+      }
+    })()
+      .catch(() => {})
+      .finally(() => {
+        if (this.#waiting.get(id) === abort) this.#waiting.delete(id);
         this.#waitingTasks.delete(task);
       });
     this.#waitingTasks.add(task);

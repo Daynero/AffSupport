@@ -75,3 +75,55 @@ export function heartbeatWatchdog(options: {
     }
   };
 }
+
+/** Waits between attempts of an idempotent server call that failed in transport. */
+export const TRANSIENT_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 10_000];
+
+/**
+ * Repeats an idempotent server call while it fails transiently, for at most
+ * `budgetMs` from its first failure. The same 90 s as the heartbeat watchdog:
+ * by then the run stops on its own, so a retry never outlives the executor's
+ * right to act. Only a call whose repeat cannot spend or grant twice may go
+ * through here (persisted request ids, exact readback, the same closure nonce).
+ */
+export async function retryTransient<T>(
+  attempt: () => Promise<T>,
+  options: {
+    transient: (error: unknown) => boolean;
+    signal?: AbortSignal;
+    budgetMs?: number;
+    delaysMs?: readonly number[];
+    now?: () => number;
+    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  }
+): Promise<T> {
+  const budget = options.budgetMs ?? HEARTBEAT_STALL_MS;
+  const delays = options.delaysMs ?? TRANSIENT_RETRY_DELAYS_MS;
+  const now = options.now ?? Date.now;
+  const sleep =
+    options.sleep ??
+    ((ms: number, signal?: AbortSignal) =>
+      new Promise<void>(resolve => {
+        const timer = setTimeout(done, ms);
+        timer.unref?.();
+        function done() {
+          signal?.removeEventListener('abort', done);
+          clearTimeout(timer);
+          resolve();
+        }
+        signal?.addEventListener('abort', done, { once: true });
+      }));
+  let firstFailure: number | null = null;
+  for (let index = 0; ; index += 1) {
+    try {
+      return await attempt();
+    } catch (error) {
+      if (options.signal?.aborted || !options.transient(error)) throw error;
+      firstFailure ??= now();
+      const wait = delays[Math.min(index, delays.length - 1)] ?? 0;
+      if (now() + wait - firstFailure > budget) throw error;
+      await sleep(wait, options.signal);
+      if (options.signal?.aborted) throw error;
+    }
+  }
+}

@@ -109,15 +109,18 @@ export function catalogVideoNativeStore(
         throw new TeamFunctionError('INVALID_RESPONSE');
       return result.executionAllowed;
     },
-    async heartbeat(child: Child) {
+    async heartbeat(child: Child, options: { probe?: boolean } = {}) {
       // The server's only proof that the executor is alive: silence lets a
       // restarted agent take the variant over and a cancellation settle. Best
       // effort — a heartbeat never fails because the note could not be written.
-      try {
-        await service.rpc('service_note_catalog_video_variant_heartbeat', childScope(child));
-      } catch {
-        // Recorded on the next heartbeat.
-      }
+      // A probe (is this child cancelled?) from an agent that is not running the
+      // child is answered without being recorded as life.
+      if (!options.probe)
+        try {
+          await service.rpc('service_note_catalog_video_variant_heartbeat', childScope(child));
+        } catch {
+          // Recorded on the next heartbeat.
+        }
       // One authorization per heartbeat (it used to authorize three times):
       // under load the heartbeat is the call that must stay cheap.
       const scoped = await authorize();

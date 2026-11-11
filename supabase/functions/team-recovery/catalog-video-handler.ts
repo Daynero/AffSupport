@@ -145,6 +145,7 @@ export function parseCatalogVariantRecoveryInput(
       requestId: uuid(body.requestId),
       operationId:
         body.operationId === null || body.operationId === undefined ? null : uuid(body.operationId)
-    }
+    },
+    ...(action === 'variant_heartbeat' && body.probe === true ? { probe: true } : {})
   };
 }
