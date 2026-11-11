@@ -2820,3 +2820,14 @@ wakes its creation, the `drive-ops/launches/recover` route is posted at once thr
 the worker secret the per-minute dispatcher uses. Best-effort: any dispatch error is swallowed.
 Rolling back means restoring the 264000 body through a reviewed forward migration; the
 per-minute pass keeps picking creations up either way.
+
+### 20261207290000 — the baseline check recognizes a restitched catalog's variants
+
+Adds `private.catalog_baseline_video_rows` and `private.catalog_baseline_video_sets`, adds a
+`videoSets` field to `service_authorize_catalog_baseline_check` (169000), and replaces
+`service_finish_catalog_baseline_check` (169000) with a nine-argument version whose two new
+arguments default to null: outcome `video_set` adopts a candidate set as the active delivery.
+The seven-argument call keeps its old meaning. Rolling back means a reviewed forward migration
+that restores both 169000 bodies (dropping the nine-argument finish first) together with an edge
+function that no longer sends `p_video_set`; deliveries already adopted as `video_set` stay valid
+targets and need no repair.
