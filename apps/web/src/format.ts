@@ -93,6 +93,22 @@ export function formatDate(value: string | null | undefined, locale = 'en'): str
 }
 
 /**
+ * A calendar day (`YYYY-MM-DD`, no time zone) as a list shows it: "12 лист.",
+ * with the year only when it is not the current one. Read at local noon so no
+ * offset can move it to the neighbouring day.
+ */
+export function formatDayValue(value: string, locale = 'en'): string {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' })
+  }).format(date);
+}
+
+/**
  * A Google-native file (a sheet, a doc) has no bytes of its own: Drive reports 0 or 1, and
  * "1 B" beside a hundred-row catalog says something untrue (024, US23).
  */

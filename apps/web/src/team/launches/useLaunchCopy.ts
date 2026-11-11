@@ -6,12 +6,13 @@ import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { buildTeamRoute, emptyTeamRouteQuery } from '../routes';
+import { formatDayValue } from '../../format';
 
 /** One config-only copy seam for both the list and an open Launch. */
 export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) => void) {
   const [busy, setBusy] = useState(false);
   const toasts = useOptionalToasts();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [, refresh] = useState(0);
   const mounted = useRef(true);
   const inFlight = useRef(false);
@@ -70,11 +71,14 @@ export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) =>
           section: 'launches',
           query: { ...emptyTeamRouteQuery(), launchId: next.id, launchTab: 'settings' }
         });
+        // The day reads the way the list shows it ("12 лист."), and an action toast
+        // already outlasts a plain receipt; a sticky one hung for minutes (1.4.3).
         if (toasts && next.draft.launchDate)
           toasts.push({
             tone: 'success',
-            sticky: true,
-            text: t('launchesCopyCreatedForDate', { date: next.draft.launchDate }),
+            text: t('launchesCopyCreatedForDate', {
+              date: formatDayValue(next.draft.launchDate, language === 'uk' ? 'uk-UA' : 'en-US')
+            }),
             action: {
               label: t('launchesOpenCopy'),
               run: () => navigateTo(copyPath)

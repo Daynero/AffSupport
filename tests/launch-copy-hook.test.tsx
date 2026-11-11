@@ -142,3 +142,27 @@ it('keeps a confirmed copy successful if its notification host fails', async () 
   expect(hook.result.current.hasUnresolvedRequest).toBe(false);
   expect(api.copy).toHaveBeenCalledOnce();
 });
+
+it('announces a copy with the day the list shows, for the usual toast time (1.4.3)', async () => {
+  const { ToastContextOverride } = await import('../apps/web/src/components/toast');
+  const { formatDayValue } = await import('../apps/web/src/format');
+  api.copy.mockResolvedValueOnce({ id: 'copy' });
+  api.detail.mockResolvedValueOnce({ id: 'copy', draft: { launchDate: '2026-11-12' } });
+  const push = vi.fn((_input: { text: string; sticky?: boolean; action?: unknown }) => 1);
+  const hook = renderHook(() => useLaunchCopy('team', vi.fn()), {
+    wrapper: ({ children }) => (
+      <ToastContextOverride value={{ toasts: [], push, update: vi.fn(), dismiss: vi.fn() }}>
+        {children}
+      </ToastContextOverride>
+    )
+  });
+  await act(async () => {
+    await hook.result.current.copy({ id: 'original', version: '1' });
+  });
+  expect(push).toHaveBeenCalledOnce();
+  const toast = push.mock.calls[0][0];
+  expect(toast.text).not.toContain('2026-11-12');
+  expect(toast.text).toContain(formatDayValue('2026-11-12', 'en-US'));
+  expect(toast.action).toBeTruthy();
+  expect(toast.sticky).toBeFalsy();
+});
