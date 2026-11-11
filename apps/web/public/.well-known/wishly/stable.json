@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.4.2",
-  "buildNumber": "82",
-  "buildId": "1.4.2+82",
+  "version": "1.4.3",
+  "buildNumber": "83",
+  "buildId": "1.4.3+83",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-10T12:36:33.000Z",
+  "publishedAt": "2026-11-11T20:41:22.000Z",
   "summary": {
-    "uk": "Виправлено створення каталогів із перезашивкою, відкладені посилання й оновлення в менеджері.",
-    "en": "Fixes catalog creation with re-stitching, deferred links and catalog manager updates."
+    "uk": "Швидша перезашивка варіацій, стійке створення каталогів і вчасні відкладені посилання.",
+    "en": "Faster multi-variation re-stitching, resilient catalog creation and on-time deferred links."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-macOS-arm64.dmg",
-      "sha256": "665abf61ad0b7c51507028569e43e8aae5056d29beac7b5e9d1d56a610acd5a8"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.3/Soty-v1.4.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-macOS-x64.dmg",
-      "sha256": "1a4a77abddbd82721fb8cbfa0c990bf3e7bdab138ae43cbb4703223051ff514c"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.3/Soty-v1.4.3-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.2/Soty-v1.4.2-Windows-x64.exe",
-      "sha256": "2f9d6ab45e82d834ec77242cdfa6ebd9e1c9690472fda8cea6e3d0d429a47775"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.4.3/Soty-v1.4.3-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -47,6 +47,6 @@
       "teamWorkspace": 1
     }
   },
-  "signature": "V8iRJKjEln3sIe9x02J6JM06IGKpbfhGFqpqAw0wSGkx_BOUTVXg6-DvZWs2BjEzLipXH6sLH-IcAtsTaF2PVA",
+  "signature": "Ye6YWpFBIUW36gKLE1hzJRBi8s1Bu5cdbjdxJPXRcKdlRDCgjsxpZBgMdY153Dk5MmdqR83dS-ADi8ieo2CXLg",
   "platformSetVersion": 2
 }
