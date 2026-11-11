@@ -12,7 +12,8 @@
  * Without --confirm nothing is written anywhere; the command says what it would do.
  * --json prints one machine-readable object instead of prose.
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { activeBinding } from './lib/release/bindings.mjs';
@@ -28,22 +29,33 @@ import { channelDirectory } from './lib/release-channel/state.mjs';
 
 const COMMANDS = ['status', 'promote', 'rollback', 'cancel', 'adopt-live'];
 
-/** Every place on this machine a deploy has ever archived bundles (a bundle itself, or a folder of bundles). */
+/**
+ * Every place on this machine a deploy may have left the bytes production
+ * serves: the channel archive, and each worktree of this repository -- its
+ * legacy `release/automation/bundles` and its built `apps/web/dist`. The
+ * runner's temporary worktrees are worktrees too, so they are found the same way.
+ */
 export function defaultAdoptSearch(root, channelDir) {
-  const roots = [
-    path.join(channelDir, 'bundles'),
-    path.join(root, 'release/automation/bundles'),
-    path.join(path.dirname(channelDir), 'bundles')
-  ];
-  const tmp = '/Volumes/LaCie/Soty/release/tmp';
-  if (existsSync(tmp))
-    for (const name of readdirSync(tmp))
-      if (name.startsWith('soty-release-worktree-'))
-        roots.push(
-          path.join(tmp, name, 'release/automation/bundles'),
-          path.join(tmp, name, 'apps/web/dist')
-        );
-  return [...new Set(roots.map(entry => path.resolve(entry)))];
+  const roots = [path.join(channelDir, 'bundles')];
+  let worktrees = [root];
+  try {
+    worktrees = execFileSync('git', ['-C', root, 'worktree', 'list', '--porcelain'], {
+      encoding: 'utf8',
+      timeout: 10_000
+    })
+      .split('\n')
+      .filter(line => line.startsWith('worktree '))
+      .map(line => line.slice('worktree '.length));
+  } catch {
+    /* not a git checkout: search this directory only */
+  }
+  for (const worktree of worktrees)
+    if (existsSync(worktree))
+      roots.push(
+        path.join(worktree, 'release/automation/bundles'),
+        path.join(worktree, 'apps/web/dist')
+      );
+  return [...new Set(roots.map(entry => path.resolve(entry)))].filter(entry => existsSync(entry));
 }
 
 const say = {
