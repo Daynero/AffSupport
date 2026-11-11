@@ -1299,6 +1299,31 @@ export const en = {
     'Download the update and replace Soty in Applications after current tasks finish.',
   releaseNoticeDownload: 'Download update',
   releaseNoticeLater: 'Later',
+  releaseRollbackEyebrow: 'Stable version',
+  releaseRollbackTitle: 'Return to Soty {version}',
+  releaseRollbackBody:
+    'This computer has a newer build than the stable one. Soty was returned to the stable version — install it so everything keeps working as expected.',
+  releaseRollbackInstruction:
+    'Download it and replace Soty in Applications after current tasks finish. On Windows, just run the installer.',
+  releaseRollbackDownload: 'Download the stable version',
+  nextChannelBadge: 'Test version · build {build}',
+  nextChannelHint:
+    'Only testers see this version. Everyone else uses the main site until it is released.',
+  releaseTesterChecking: 'Checking access to the test version',
+  releaseTesterGateTitle: 'This is a test version of Soty',
+  releaseTesterGateBody:
+    'The next release is checked here before everyone gets it. Your account is not on the tester list.',
+  releaseTesterGateAction: 'Go to the main site',
+  adminReleaseTestersTitle: 'Release testers',
+  adminReleaseTestersSubtitle:
+    'These accounts can use the test version at {origin}. Administrators always can.',
+  adminReleaseTestersEmail: 'Tester email',
+  adminReleaseTestersAdd: 'Add tester',
+  adminReleaseTestersRemove: 'Remove',
+  adminReleaseTestersEmpty: 'Only administrators for now.',
+  adminReleaseTestersUnknown:
+    'There is no account with this email. Ask the person to sign in to Soty once first.',
+  adminReleaseTestersError: 'Could not save. Try again.',
   openSoty: 'Open Soty',
   checkAgain: 'Check again',
   // 032 — the link between this page and the local app, and why it is not there.

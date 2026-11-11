@@ -28,6 +28,24 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      release_testers: {
+        Row: {
+          added_at: string;
+          added_by: string | null;
+          user_id: string;
+        };
+        Insert: {
+          added_at?: string;
+          added_by?: string | null;
+          user_id: string;
+        };
+        Update: {
+          added_at?: string;
+          added_by?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       agent_journal_records: {
         Row: {
           agent_instance_id: string;
@@ -6635,6 +6653,16 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
+      admin_add_release_tester: { Args: { p_email: string }; Returns: string };
+      admin_list_release_testers: {
+        Args: never;
+        Returns: {
+          added_at: string;
+          email: string;
+          user_id: string;
+        }[];
+      };
+      admin_remove_release_tester: { Args: { p_user_id: string }; Returns: boolean };
       admin_list_users: {
         Args: {
           p_account_status?: string;
@@ -7643,6 +7671,7 @@ export type GeneratedDatabase = {
         }[];
       };
       is_admin: { Args: never; Returns: boolean };
+      is_release_tester: { Args: never; Returns: boolean };
       issue_landing_preview_grant: {
         Args: {
           p_actor: string;

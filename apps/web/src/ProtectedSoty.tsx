@@ -14,6 +14,8 @@ import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
+import { NextChannelBadge } from './components/NextChannelBadge';
+import { ReleaseTesterGate } from './components/ReleaseTesterGate';
 import { SupportGoalProvider } from './support/SupportGoalContext';
 import { teamApi } from './api/team';
 import { PowerProvider } from './lib/power';
@@ -27,11 +29,14 @@ export default function ProtectedSoty({ path, route = path }: { path: string; ro
     <AgentProvider>
       <PowerProvider>
         <SupportGoalProvider>
-          <TeamProvider client={teamApi}>
-            <ApplicationShell path={path} route={route} />
-          </TeamProvider>
-          <ReleaseUpdateNotice />
-          <ProfileOnboarding />
+          <ReleaseTesterGate>
+            <TeamProvider client={teamApi}>
+              <ApplicationShell path={path} route={route} />
+            </TeamProvider>
+            <ReleaseUpdateNotice />
+            <ProfileOnboarding />
+          </ReleaseTesterGate>
+          <NextChannelBadge />
         </SupportGoalProvider>
       </PowerProvider>
     </AgentProvider>

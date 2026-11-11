@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
+  PREVIEW_BRANCH,
+  PREVIEW_SITE_ORIGIN,
   PRODUCTION_SITE_ORIGIN,
   RELEASE_DOWNLOAD_URL,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
@@ -45,6 +47,10 @@ export function productionBinding() {
     repository,
     releaseRepository: repository,
     siteOrigin: PRODUCTION_SITE_ORIGIN,
+    // 051: where a candidate is tested before promotion -- the `next` branch
+    // alias of the same Pages project.
+    previewSiteOrigin: PREVIEW_SITE_ORIGIN,
+    previewBranch: PREVIEW_BRANCH,
     cloudflareProject: 'wishly-app',
     supabaseProject: 'yvvvignywfmbdgkcxtfk',
     signingKeyFingerprint: signingKeyFingerprint(RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64),

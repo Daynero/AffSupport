@@ -91,17 +91,48 @@ begin
  if strpos(d,$find$p_video_cells_digest text)$find$)=0
   or strpos(d,$find$ if p_outcome not in('blank','source') or p_outcome is null or$find$)=0
   or strpos(d,$find$  insert into private.catalog_publication_targets(team_id,kind,source_material_id,source_version) values(p_team,'source',b.source_material_id,b.source_version) returning id into target_id;$find$)=0 then raise exception 'BASELINE_FINISH_PATCH_MISSING';end if;
- d:=replace(d,$find$p_video_cells_digest text)$find$,$replace$p_video_cells_digest text, p_video_set uuid DEFAULT NULL::uuid, p_recipe_revision bigint DEFAULT NULL::bigint)$replace$);
- d:=replace(d,$find$ if p_outcome not in('blank','source') or p_outcome is null or$find$,$replace$ if p_outcome not in('blank','source','video_set') or p_outcome is null or (p_outcome='video_set') is distinct from (p_video_set is not null) or (p_video_set is null) is distinct from (p_recipe_revision is null) or$replace$);
- d:=replace(d,$find$  insert into private.catalog_publication_targets(team_id,kind,source_material_id,source_version) values(p_team,'source',b.source_material_id,b.source_version) returning id into target_id;$find$,$replace$  if p_outcome='video_set' then
+end $patch$;
+
+-- The finish gains an optional video-set outcome. Its seven-argument callers (the 1.4.2 edge
+-- function) keep working because both new parameters default to null; the body is spelled
+-- out so the redefinition is explicit, and the checks above refuse a drifted original.
+drop function public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text);
+CREATE OR REPLACE FUNCTION public.service_finish_catalog_baseline_check(p_check uuid, p_team uuid, p_actor uuid, p_fence uuid, p_outcome text, p_provider_revision text, p_video_cells_digest text, p_video_set uuid DEFAULT NULL::uuid, p_recipe_revision bigint DEFAULT NULL::bigint)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare b private.catalog_publication_baseline_checks%rowtype;target_id uuid;response_snapshot jsonb;
+begin
+ select * into b from private.catalog_publication_baseline_checks where id=p_check;
+ if b.id is null then raise exception 'NOT_FOUND' using errcode='P0002';end if;
+ perform 1 from public.team_materials where id=b.catalog_material_id for update;
+ perform 1 from private.catalog_video_publication_policies where catalog_material_id=b.catalog_material_id for update;
+ select * into b from private.catalog_publication_baseline_checks where id=p_check for update;
+ if b.actor_id<>p_actor or b.team_id<>p_team or b.fence is distinct from p_fence or not private.can(p_team,'process',p_actor) then raise exception 'PERMISSION_DENIED' using errcode='42501';end if;
+ if b.state='verified' then return b.receipt;end if;
+ perform public.service_authorize_catalog_baseline_check(p_check,p_team,p_actor,p_fence);
+ if p_outcome not in('blank','source','video_set') or p_outcome is null or (p_outcome='video_set') is distinct from (p_video_set is not null) or (p_video_set is null) is distinct from (p_recipe_revision is null) or p_provider_revision is null or length(p_provider_revision) not between 1 and 1024 or p_video_cells_digest is null or p_video_cells_digest !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_INPUT' using errcode='22023';end if;
+ if p_outcome='blank' then
+  if exists(select 1 from private.catalog_video_deliveries where catalog_material_id=b.catalog_material_id) then raise exception 'SOURCE_CHANGED' using errcode='55000';end if;
+ else
+  if p_outcome='video_set' then
    if not exists(select 1 from jsonb_array_elements(private.catalog_baseline_video_sets(p_team,b.catalog_material_id)) candidate(value) where candidate.value->>'videoSetId'=p_video_set::text and (candidate.value->>'recipeRevision')::bigint=p_recipe_revision) then raise exception 'SOURCE_CHANGED' using errcode='55000';end if;
    insert into private.catalog_publication_targets(team_id,kind,video_set_id,recipe_revision) values(p_team,'video_set',p_video_set,p_recipe_revision) returning id into target_id;
   else
    insert into private.catalog_publication_targets(team_id,kind,source_material_id,source_version) values(p_team,'source',b.source_material_id,b.source_version) returning id into target_id;
-  end if;$replace$);
- drop function public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text);
- execute d;
-end $patch$;
+  end if;
+  insert into private.catalog_video_deliveries(catalog_material_id,team_id,target_id,provider_revision,verified_at) values(b.catalog_material_id,p_team,target_id,p_provider_revision,clock_timestamp())
+  on conflict(catalog_material_id) do update set target_id=excluded.target_id,provider_revision=excluded.provider_revision,verified_at=excluded.verified_at;
+ end if;
+ update private.catalog_video_publication_policies set legacy_delivery_unverified=false where catalog_material_id=b.catalog_material_id;
+ update private.catalog_video_publication_jobs set state='waiting',blocked_reason=null where id=b.job_id and state='blocked' and blocked_reason='legacy_adoption_required';
+ delete from private.catalog_update_reconciliations where catalog_material_id=b.catalog_material_id and marker=p_fence and publication_job_id=b.job_id;
+ response_snapshot:=public.service_read_catalog_publication(p_team,p_actor,b.catalog_material_id);
+ update private.catalog_publication_baseline_checks set state='verified',closed_at=clock_timestamp(),provider_revision=p_provider_revision,video_cells_digest=p_video_cells_digest,receipt=response_snapshot where id=p_check;
+ return response_snapshot;
+end $function$;
 revoke all on function public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text,uuid,bigint) from public,anon,authenticated;
 grant execute on function public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text,uuid,bigint) to service_role;
 

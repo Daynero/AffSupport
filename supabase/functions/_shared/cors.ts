@@ -1,3 +1,8 @@
+import {
+  PREVIEW_SITE_ORIGIN,
+  PRODUCTION_SITE_ORIGIN
+} from '../../../packages/shared/dist/release.js';
+
 /**
  * The installed Agent serves the same authenticated web UI on 43120 (and the
  * isolated beta Agent on 43140). Those origins call Edge Functions directly,
@@ -27,7 +32,25 @@ export function allowedBrowserOrigins(siteUrl = Deno.env.get('WISHLY_SITE_URL'))
   const origins = new Set(LOCAL_ORIGINS);
   const configured = normalizeOrigin(siteUrl);
   if (configured) origins.add(configured);
+  // 051: the candidate address is the same production, so it is trusted exactly
+  // when the configured site is production -- never in beta, never as a wildcard.
+  if (configured === PRODUCTION_SITE_ORIGIN) origins.add(PREVIEW_SITE_ORIGIN);
   return origins;
+}
+
+/**
+ * The site a browser flow should return to: the candidate address when the flow
+ * started there and the configured site is production, otherwise the configured
+ * site. Only these two exact origins can ever be chosen.
+ */
+export function returnSiteOrigin(
+  siteUrl: string | null | undefined,
+  startedFrom: string | null | undefined
+): string | null {
+  const configured = normalizeOrigin(siteUrl);
+  if (configured === PRODUCTION_SITE_ORIGIN && normalizeOrigin(startedFrom) === PREVIEW_SITE_ORIGIN)
+    return PREVIEW_SITE_ORIGIN;
+  return configured;
 }
 
 export function corsHeadersForRequest(

@@ -1,6 +1,9 @@
 import {
   appEnvironmentOrProduction,
   isProductionEndpoint,
+  isSotySiteOrigin,
+  PREVIEW_SITE_ORIGIN,
+  PRODUCTION_SITE_ORIGIN,
   parseAppEnvironment,
   type AppEnvironment
 } from '@video-compressor/shared';
@@ -139,8 +142,36 @@ export function configuredTeamDirectAddMode(env: Env = import.meta.env): TeamDir
   return value(env, 'VITE_TEAM_DIRECT_ADD_MODE') === 'testing' ? 'testing' : 'disabled';
 }
 
+/**
+ * Feature 051: one production bundle is served from two addresses -- the main
+ * site and the candidate address `next` -- and must behave as the address it is
+ * on, because promotion ships the same bytes rather than a rebuild. A production
+ * build therefore takes its site URL from the page when the page is one of those
+ * two exact origins; anywhere else the configured value stands.
+ */
+export function runtimeSiteUrl(configured: string, pageOrigin: string | null): string {
+  return configured === PRODUCTION_SITE_ORIGIN && isSotySiteOrigin(pageOrigin)
+    ? (pageOrigin as string)
+    : configured;
+}
+
+function pageOrigin(): string | null {
+  return typeof window === 'undefined' ? null : window.location.origin;
+}
+
 export function configuredSiteUrl() {
-  return publicConfig.ok ? publicConfig.value.siteUrl : window.location.origin;
+  return publicConfig.ok
+    ? runtimeSiteUrl(publicConfig.value.siteUrl, pageOrigin())
+    : window.location.origin;
+}
+
+export type SiteChannel = 'production' | 'next' | 'other';
+
+/** Which address of production this page is, for the badge, the tester gate and analytics. */
+export function siteChannel(origin: string | null = pageOrigin()): SiteChannel {
+  if (origin === PREVIEW_SITE_ORIGIN) return 'next';
+  if (origin === PRODUCTION_SITE_ORIGIN) return 'production';
+  return 'other';
 }
 
 export function configuredEnvironment(): AppEnvironment {

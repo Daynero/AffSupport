@@ -1,7 +1,9 @@
 import {
   BUILD_ID,
   BUILD_NUMBER,
+  PREVIEW_SITE_ORIGIN,
   PRODUCTION_BACKEND_ORIGIN,
+  PRODUCTION_SITE_ORIGIN,
   PRODUCT_VERSION,
   RELEASE_CHANNEL,
   evaluateBetaEnvironment,
@@ -107,11 +109,25 @@ if (config.environment === 'beta') {
 // Both spellings of the local copy. The agent listens on 127.0.0.1 and the same socket is
 // reached as `localhost`; a browser at one of them is the same page as at the other, and
 // refusing the second turned every POST from a `localhost` bookmark into a 403.
-export const allowedOrigins = new Set(
-  [
-    config.devOrigin,
-    config.publicOrigin,
-    `http://${config.host}:${config.port}`,
-    `http://localhost:${config.port}`
-  ].filter((value): value is string => Boolean(value))
-);
+//
+// 051: a production agent also trusts the candidate address. It is the same
+// production -- the owner tests a release there on real data before promoting
+// it byte for byte -- and is added only when this agent's public origin is the
+// production site, so a beta or development agent never learns it.
+export function originsFor(input: {
+  devOrigin: string;
+  publicOrigin: string | null;
+  host: string;
+  port: number;
+}): Set<string> {
+  return new Set(
+    [
+      input.devOrigin,
+      input.publicOrigin,
+      input.publicOrigin === PRODUCTION_SITE_ORIGIN ? PREVIEW_SITE_ORIGIN : null,
+      `http://${input.host}:${input.port}`,
+      `http://localhost:${input.port}`
+    ].filter((value): value is string => Boolean(value))
+  );
+}
+export const allowedOrigins = originsFor(config);

@@ -1112,11 +1112,20 @@ export async function createStepAdapter({
         { cwd, env: childEnv, admission }
       );
       if (!published.ok) return published;
-      return run('live_verify', [process.execPath, 'scripts/verify-live-smoke.mjs'], {
-        cwd,
-        env: childEnv,
-        admission
-      });
+      // 051: the deploy step published the candidate to `next`. It is judged
+      // there against this release's own manifest, and the main site -- still
+      // serving the previous build on the migrated database -- must also pass.
+      const candidate = await run(
+        'live_verify',
+        [process.execPath, 'scripts/verify-live-smoke.mjs', '--channel=next'],
+        { cwd, env: childEnv, admission }
+      );
+      if (!candidate.ok) return candidate;
+      return run(
+        'live_verify',
+        [process.execPath, 'scripts/verify-live-smoke.mjs', '--served-only'],
+        { cwd, env: childEnv, admission }
+      );
     }
   };
 

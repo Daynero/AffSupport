@@ -299,6 +299,28 @@ Drive pilot accepted on 2026-09-30 is documented in `TEAM_WORKSPACE_OPERATIONS.m
 `SUPABASE_SETUP.md` лишається довідником про те, що означає кожен секрет і як
 підняти проєкт з нуля; він більше не є процедурою релізу.
 
+## Тестове посилання, розкатка й відкат (051) — читати першим
+
+Реліз більше не закінчується на проді. Крок `deploy` раннера і
+`release:web -- --deploy` кладуть бандл на **https://next.soty.pp.ua**. Крок
+`live_verify` перевіряє next проти маніфесту релізу, а основний сайт перевіряє
+як «досі працює на мігрованій базі». Далі:
+
+```bash
+npm run release:channel -- status
+npm run release:channel -- promote            # перевіряє живий next, нічого не пише
+npm run release:channel -- promote --confirm  # лише за командою власника
+npm run release:channel -- rollback --confirm # попередня розкочена збірка, разом з агентом
+npm run release:channel -- cancel --confirm   # next знову показує прод
+```
+
+Promote і rollback не перезбирають нічого. Вони завантажують заархівовані
+байти, читають живий сайт без кешу (`index.html` і `stable.json`) і лише
+тоді записують стан. Невизначений результат (`CHANNEL_LIVE_MISMATCH`)
+перевіряється через `status`, а не повтором навмання. Перед першою
+розкаткою один раз виконайте `release:channel -- adopt-live --confirm`, щоб
+у відкату була ціль. Повний опис: `docs/RELEASE-CHANNEL.md`.
+
 ## Реліз раннером, з нуля (читати першим)
 
 Це послідовність, якою 1.1.1 реально вийшов. Фази нижче по файлу лишаються
@@ -439,7 +461,7 @@ zip переживають перезапуск, Windows-збірка, яка в
   `RESOURCE_SIGNAL_UNKNOWN`, що повторюється довше за хвилину.
 - `gh workflow run --ref main` бере опис воркфлоу з `main`, а не з коміту
   релізу: правки воркфлоу мають потрапити в `main` до запуску.
-- `npm run rollback:web` жодного разу не виконувався по-справжньому.
+- `npm run rollback:web` тепер делегує `release:channel -- rollback` (051).
 
 ## Реліз на дві платформи
 

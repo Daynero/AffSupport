@@ -24,6 +24,7 @@ import {
 } from '../components/ui/index';
 import { ToastProvider } from '../components/toast';
 import { TariffsPanel } from './admin/TariffsPanel';
+import { ReleaseTestersCard } from './admin/ReleaseTestersCard';
 import { TariffsSkeleton } from './admin/TariffsSkeleton';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -442,6 +443,7 @@ export default function AdminPage() {
                 }}
                 onSave={() => void saveSupportGoal()}
               />
+              <ReleaseTestersCard />
               <Card className="admin-card" aria-labelledby="team-waitlist-heading">
                 <div className="admin-card-heading">
                   <div>

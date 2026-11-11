@@ -15,9 +15,15 @@ import { writeWebMarker, outputDigest } from './release-web-meta.mjs';
 import { createHash } from 'node:crypto';
 import { acquireWebReleaseLock, assertWebReleaseUnlocked } from './lib/web-only-lock.mjs';
 import { bundlesToKeep, parseHistory } from './lib/web-rollback.mjs';
+import { recordNextPublication } from './lib/release-channel/operations.mjs';
 
 /**
  * Deploys the built web bundle to the destination its binding names.
+ *
+ * Feature 051: for a target with a preview address -- production has one -- the
+ * bundle goes to the `next` branch alias, never straight to the main site.
+ * Everyone keeps getting the current production until the owner says the
+ * tested build is good and `release:channel -- promote` ships those same bytes.
  *
  * The Cloudflare project used to live in an npm script, which meant the answer
  * to "where does this deploy go" was a string nothing verified. It comes from
@@ -101,9 +107,14 @@ if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
     if (!existsSync(destination)) cpSync(BUNDLE, destination, { recursive: true });
     if ((await outputDigest(destination)) !== marker.outputDigest)
       throw new Error('WEB_ARCHIVE_CHANGED');
+    // A sandbox written before 051 names no preview and keeps deploying as it did.
+    const branch = binding.previewBranch ?? 'main';
+    const destinationOrigin = binding.previewBranch
+      ? binding.previewSiteOrigin
+      : binding.siteOrigin;
     process.stdout.write(
-      `Deploying ${binding.bindingId} → Cloudflare project ${binding.cloudflareProject} ` +
-        `(source ${marker.sourceSha.slice(0, 12)}, bundle ${marker.outputDigest.slice(0, 12)}).\n`
+      `Deploying ${binding.bindingId} → Cloudflare project ${binding.cloudflareProject} branch ${branch} ` +
+        `(${destinationOrigin}; source ${marker.sourceSha.slice(0, 12)}, bundle ${marker.outputDigest.slice(0, 12)}).\n`
     );
     const result = spawnSync(
       'npx',
@@ -116,7 +127,7 @@ if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
         '--project-name',
         binding.cloudflareProject,
         '--branch',
-        'main'
+        branch
       ],
       { shell: false, stdio: 'inherit' }
     );
@@ -139,6 +150,21 @@ if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
       );
       for (const entry of readdirSync(ARCHIVE))
         if (!keep.has(entry)) rmSync(path.join(ARCHIVE, entry), { recursive: true, force: true });
+      if (binding.previewBranch) {
+        await recordNextPublication(
+          { root: process.cwd(), binding },
+          {
+            directory: destination,
+            sourceSha: marker.sourceSha,
+            manifestSha: marker.manifestSha,
+            kind: webProof ? 'web-only' : 'full'
+          }
+        );
+        process.stdout.write(
+          `\nТестова версія опублікована: ${binding.previewSiteOrigin}\n` +
+            'Основний сайт не змінено. Коли версія гарна: npm run release:channel -- promote --confirm\n'
+        );
+      }
     }
 
     process.exitCode = result.status ?? 1;

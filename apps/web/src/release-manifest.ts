@@ -6,6 +6,7 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   compareProductVersions,
   isPinnedReleaseArtifact,
+  isSotySiteOrigin,
   releaseManifestSigningPayload,
   releaseArtifactName,
   type ReleaseSummaryLanguage,
@@ -25,6 +26,21 @@ export type InstalledReleaseStatus =
 export const RELEASE_MANIFEST_URL = `${PRODUCTION_SITE_ORIGIN}/.well-known/wishly/stable.json`;
 
 /**
+ * Feature 051: the signed manifest travels inside the site bundle, so the
+ * candidate address offers the candidate's agent and the main site keeps
+ * offering the current one until the same bundle is promoted. A page on either
+ * of those two origins therefore reads its own copy; anything else (the agent's
+ * local copy, development) reads the main site's.
+ */
+export function releaseManifestUrl(
+  pageOrigin: string | null = typeof window === 'undefined' ? null : window.location.origin
+): string {
+  return isSotySiteOrigin(pageOrigin)
+    ? `${pageOrigin}/.well-known/wishly/stable.json`
+    : RELEASE_MANIFEST_URL;
+}
+
+/**
  * Beta never consults the production update channel.
  *
  * The manifest URL is derived from the production origin, so an unmodified beta
@@ -41,7 +57,7 @@ export async function loadStableReleaseManifest(
   environment: AppEnvironment = configuredEnvironment()
 ): Promise<StableReleaseManifest> {
   if (environment === 'beta') throw new Error(RELEASE_MANIFEST_UNAVAILABLE_IN_BETA);
-  const response = await fetcher(RELEASE_MANIFEST_URL, { cache: 'no-store' });
+  const response = await fetcher(releaseManifestUrl(), { cache: 'no-store' });
   if (!response.ok) throw new Error(`RELEASE_MANIFEST_${response.status}`);
   const value = (await response.json()) as unknown;
   if (!validManifest(value)) throw new Error('RELEASE_MANIFEST_INVALID');

@@ -194,19 +194,16 @@ export async function rollbackWeb({
   }
 }
 
+/**
+ * Feature 051: the command people reach for under pressure goes to the one
+ * rollback that knows where production came from. `rollbackWeb` above stays as
+ * the library the safety tests pin; the CLI returns production -- site and the
+ * signed agent channel together -- to the previous promoted build.
+ */
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    const result = await rollbackWeb({ args: process.argv.slice(2) });
-    process.stdout.write(result.summary);
-    process.stdout.write(
-      result.confirmed
-        ? 'Rolled back; agent update channel unchanged. Run `npm run verify:live-smoke` to check the site.\n'
-        : 'Nothing was deployed. Add --confirm to perform this rollback; the signed agent channel will remain unchanged.\n'
-    );
-  } catch (error) {
-    process.stderr.write(
-      `Rollback refused: ${error instanceof Error ? error.message : String(error)}\n`
-    );
-    process.exitCode = 1;
-  }
+  const { main } = await import('./release-channel.mjs');
+  process.exitCode = await main([
+    'rollback',
+    ...process.argv.slice(2).filter(arg => arg === '--confirm' || arg === '--json')
+  ]);
 }

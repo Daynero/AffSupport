@@ -42,6 +42,22 @@ export const AGENT_PRODUCT_NAME = 'Soty';
  * synchronized when moving the hosted app to another canonical origin.
  */
 export const PRODUCTION_SITE_ORIGIN = 'https://soty.pp.ua';
+
+/**
+ * The second address of the same production (feature 051): a release candidate
+ * is published here first, tested on real data by the owner and listed testers,
+ * and only then promoted byte for byte to PRODUCTION_SITE_ORIGIN. It is the
+ * `next` branch alias of the production Cloudflare Pages project behind a
+ * proxied CNAME. It is trusted exactly where the production origin is trusted
+ * and nowhere else -- never as a wildcard and never in beta.
+ */
+export const PREVIEW_SITE_ORIGIN = 'https://next.soty.pp.ua';
+export const PREVIEW_BRANCH = 'next';
+
+/** True only for the two exact origins one production bundle is served from. */
+export function isSotySiteOrigin(origin: string | null | undefined): boolean {
+  return origin === PRODUCTION_SITE_ORIGIN || origin === PREVIEW_SITE_ORIGIN;
+}
 export const HELP_URL = `${PRODUCTION_SITE_ORIGIN}/help`;
 
 export const BUILD_ID = `${PRODUCT_VERSION}+${BUILD_NUMBER}`;
