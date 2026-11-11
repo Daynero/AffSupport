@@ -19,6 +19,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
   catalogServerSlow: 'Сервер відповідає повільно. Спробуйте ще раз.',
+  catalogVideoReadInterrupted:
+    'Зв’язок із сервером перервався, робота триває — оновимо стан автоматично.',
   catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
   catalogVideoAgentSilent:
     'Soty на комп’ютері не відповідає. Якщо застосунок перезапустився, створення продовжиться саме; інакше відкрийте Soty або скасуйте створення.',
@@ -638,7 +640,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesBusy: 'Готуємо запуск…',
   launchesReady: 'Готовий',
   launchesDraft: 'Чернетка',
-  launchesCopyCreatedForDate: 'Копію створено на {date}. Шукайте її за цією датою.',
+  launchesCopyCreatedForDate: 'Копію створено на {date} — шукайте її за цією датою.',
   launchesOpenCopy: 'Відкрити копію',
   launchesCopySavedNotice: 'Дочекайтеся збереження змін, щоб скопіювати запуск.',
   launchesDefaultBuyerMissing: 'Стандартний Buyer недоступний. Оберіть іншого Buyer.',
@@ -4437,7 +4439,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Простір «{space}» тимчасово недоступний. Запрошення запрацює, коли власник відновить доступ.',
   tariffBlockedOwnerTitle: 'Простір призупинено',
   tariffBlockedOwnerBody:
-    'Дата завершення тарифу — {date}. Усе збережено — файли лишаються на вашому Google Диску, а простір відкриється таким, як був, щойно тариф продовжать.',
+    'Тариф завершився {date}, але все збережено: файли лишаються на вашому Google Диску, а простір відкриється таким, як був, щойно тариф продовжать.',
   tariffBlockedOwnerBodyNoDate:
     'Усе збережено — файли лишаються на вашому Google Диску, а простір відкриється таким, як був, щойно тариф продовжать.',
   tariffBlockedMemberTitle: 'Простір «{space}» призупинено',
@@ -4451,9 +4453,9 @@ export const uk: Record<keyof typeof en, string> = {
   tariffNudgeAlready: 'Власнику вже нагадали сьогодні.',
   tariffCreateHeading: 'Тариф «{plan}» діє до {date} — створіть свій простір',
   tariffBannerEnds: 'Тариф діє до {date} включно.',
-  tariffBannerTomorrow: 'Тариф закінчується завтра, {date}.',
+  tariffBannerTomorrow: 'Завтра, {date}, тариф закінчується.',
   tariffBannerLastDay: 'Сьогодні останній день тарифу.',
-  tariffBannerGrace: 'Тариф закінчився. Простір працюватиме до {date}.',
+  tariffBannerGrace: 'Тариф закінчився. До {date} простір ще працюватиме.',
   tariffBannerUpdaterStops: 'Потім оновлення каталогів зупиниться.',
   tariffBannerRenew: 'Продовжити',
   tariffBannerHide: 'Сховати до завтра',

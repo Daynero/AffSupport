@@ -137,3 +137,28 @@ export function withReadDeadline<T>(
     parent.removeEventListener('abort', cancel);
   });
 }
+
+const SOFT_READ_CODES = new Set<string>([
+  'TEAM_TRANSPORT_UNAVAILABLE',
+  'PROCESS_RESULT_UNCERTAIN',
+  'RATE_LIMITED',
+  'DRIVE_UNAVAILABLE',
+  'INVALID_RESPONSE',
+  ...WORKSPACE_READ_CODES
+]);
+
+/**
+ * A progress read that failed because the server or the line to it did — a
+ * 5xx, a timeout, a dropped connection, an aborted request, a body cut short —
+ * rather than because the work did. On a run already known to be progressing
+ * this says nothing about the run: the last good state stays on screen and the
+ * poll goes on. A permission or other final code is never soft (1.4.3).
+ */
+export function isSoftReadFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === 'string') return SOFT_READ_CODES.has(code);
+  if (error instanceof Error && SOFT_READ_CODES.has(error.message)) return true;
+  if (error instanceof TypeError || error instanceof SyntaxError) return true;
+  return (error as { name?: unknown }).name === 'AbortError';
+}

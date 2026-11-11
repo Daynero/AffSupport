@@ -17,6 +17,8 @@ export const en = {
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
   catalogServerSlow: 'The server is responding slowly. Try again.',
+  catalogVideoReadInterrupted:
+    'The connection to the server dropped; the work goes on — the status will refresh on its own.',
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
   catalogVideoAgentSilent:
     'Soty on the computer is not responding. If the app restarted, creation continues on its own; otherwise open Soty or cancel the creation.',
@@ -636,7 +638,7 @@ export const en = {
   launchesBusy: 'Preparing launch…',
   launchesReady: 'Ready',
   launchesDraft: 'Draft',
-  launchesCopyCreatedForDate: 'Copy created for {date}. Find it under that date.',
+  launchesCopyCreatedForDate: 'Copy created for {date} — find it under that date.',
   launchesOpenCopy: 'Open copy',
   launchesCopySavedNotice: 'Wait for changes to save before copying this launch.',
   launchesDefaultBuyerMissing: 'The default Buyer is unavailable. Select another Buyer.',
