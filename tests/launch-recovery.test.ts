@@ -220,6 +220,52 @@ it('leaves an unknown or unowned native upload pending without a Drive mutation'
   );
 });
 
+it('closes a cleanup whose upload the server proves absent, and keeps it pending otherwise', async () => {
+  const id = '72000000-0000-4000-8000-000000000054';
+  for (const answer of ['absent', 'pending'] as const) {
+    const rpc = vi.fn(async (name: string) => ({
+      error: null,
+      data:
+        name === 'service_claim_launch_video_cleanup'
+          ? [
+              {
+                teamId: id,
+                generationId: id,
+                operationId: id,
+                credentialId: id,
+                parentId: 'parent',
+                fence: '1'
+              }
+            ]
+          : name === 'service_note_launch_video_absent'
+            ? answer
+            : name === 'service_settle_launch_restitch_cancellations'
+              ? 1
+              : 'pending'
+    }));
+    const drive = {
+      findLaunchRestitchFiles: vi.fn(async () => []),
+      getFile: vi.fn(async () => file()),
+      updateFileMetadata: vi.fn()
+    };
+    expect(await runLaunchVideoCleanupTick({ rpc }, async () => drive)).toEqual(
+      answer === 'absent' ? { completed: 1, pending: 0 } : { completed: 0, pending: 1 }
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      'service_note_launch_video_absent',
+      expect.objectContaining({ p_operation: id, p_fence: '1' })
+    );
+    // The server released the lease itself; only an unproven absence finishes as pending.
+    expect(rpc.mock.calls.some(([name]) => name === 'service_finish_launch_video_cleanup')).toBe(
+      answer === 'pending'
+    );
+    expect(
+      rpc.mock.calls.some(([name]) => name === 'service_settle_launch_restitch_cancellations')
+    ).toBe(answer === 'absent');
+    expect(drive.updateFileMetadata).not.toHaveBeenCalled();
+  }
+});
+
 it('reconciles a previously trashed marked video after a lost provider reply', async () => {
   const id = '72000000-0000-4000-8000-000000000053';
   const rpc = vi.fn(async (name: string) => ({

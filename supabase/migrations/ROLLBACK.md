@@ -2832,6 +2832,21 @@ that restores both 169000 bodies (dropping the nine-argument finish first) toget
 function that no longer sends `p_video_set`; deliveries already adopted as `video_set` stay valid
 targets and need no repair.
 
+### 20261207300000 — a canceled restitch Launch settles
+
+Replaces `public.service_settle_launch_restitch_cancellations` (the 154000 body as amended by
+179000, 182000 and 097000) so a canceled generation settles when its restitch succeeded and its
+video is a registered material (the upload phase becomes `retained`), or when an unproven upload
+ended more than seven days ago (nothing is touched; the step checkpoint records
+`provider_output_unverified`). Adds `private.launch_video_absence_observations` and
+`public.service_note_launch_video_absent`, which the video cleanup lane calls after a complete
+Drive search finds no marked file: a second empty search at least ten minutes later, once the
+agent acknowledged quiescence an hour earlier or the operation ended seven days earlier, closes
+the upload as `cleaned` with the step outcome `provider_output_absent`. Rolling back means
+restoring the previous settlement body through a reviewed forward migration and an edge function
+that no longer calls the absence note, then dropping the function and the table; generations
+already settled stay canceled and need no repair.
+
 ### 20261207320000 — a retired variant operation releases its output name
 
 Adds two triggers on `public.team_operations`: entering a terminal state stamps

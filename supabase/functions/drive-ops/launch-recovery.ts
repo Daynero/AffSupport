@@ -148,6 +148,13 @@ export async function runLaunchVideoCleanupTick(
         operationId: plan.operationId,
         parentId: plan.parentId
       });
+      if (files.length === 0) {
+        // A complete search found no marked file. The server decides whether the
+        // absence is proven (repeated, and the upload can no longer complete);
+        // when it is, it closes this cleanup and releases the lease itself.
+        const absence = await rpc('service_note_launch_video_absent', authority);
+        if (absence === 'absent') cleaned = true;
+      }
       if (files.length === 1) {
         const file = files[0];
         if (
