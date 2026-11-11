@@ -583,6 +583,24 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
+  it('keeps the R2 choice when the video link is scheduled (050)', async () => {
+    const { teamApi } = await import('../apps/web/src/api/team');
+    const availability = vi.spyOn(teamApi.catalogVideoR2, 'availability').mockResolvedValue({
+      available: true,
+      canManage: true,
+      contractVersion: 1
+    } as Awaited<ReturnType<typeof teamApi.catalogVideoR2.availability>>);
+    try {
+      renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
+      const user = userEvent.setup();
+      expect(await screen.findByRole('checkbox', { name: /Copy the video to R2/u })).toBeTruthy();
+      await user.click(screen.getByRole('switch', { name: 'Schedule the video link' }));
+      expect(screen.getByRole('checkbox', { name: /Copy the video to R2/u })).toBeTruthy();
+    } finally {
+      availability.mockRestore();
+    }
+  });
+
   it('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
     const createProductCatalogVideo = vi.fn();
     const client = dialogClient({ createProductCatalogVideo } as Partial<DialogClient>);
