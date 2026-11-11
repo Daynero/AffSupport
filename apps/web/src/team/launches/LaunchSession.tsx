@@ -1175,11 +1175,15 @@ export function LaunchSession({
         : savingChanges
           ? t('launchesSavingDraft')
           : (preparationStatus ??
-            (unsavedChanges
-              ? t('launchesDraftPending')
-              : detail
-                ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
-                : t('launchesAutosave')));
+            // A running generation locks the editor and works from the saved launch: an edit
+            // that could not be saved says so above, so "unsaved changes" here only alarmed.
+            (unsavedChanges && showProgress
+              ? t('launchesAutosave')
+              : unsavedChanges
+                ? t('launchesDraftPending')
+                : detail
+                  ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
+                  : t('launchesAutosave')));
   const pendingDefaultsScope = defaultsIntent.current?.[4] ? 'offer' : 'workspace';
   const saveDefaultsDisabled = (scope: 'offer' | 'workspace') =>
     historical ||

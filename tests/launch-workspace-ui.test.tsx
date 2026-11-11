@@ -1477,6 +1477,37 @@ it('does not replace current generation state with an older workspace snapshot',
   expect(screen.queryByText('https://example.invalid/stale-snapshot')).toBeNull();
 });
 
+it('does not call a running generation unsaved changes (1.4.3)', async () => {
+  seams.edit = true;
+  const current = {
+    ...detail('https://example.invalid/generating'),
+    generation: {
+      id: 'generation',
+      state: 'running',
+      stage: 'catalog_sharing',
+      stateVersion: '8',
+      progress: null,
+      errorCode: null,
+      childOperationIds: []
+    }
+  };
+  seams.detail.mockResolvedValue(current);
+  const view = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await screen.findByText('https://example.invalid/generating');
+  // The server moves the launch on while it generates: a newer version with its own draft.
+  seams.detail.mockResolvedValue({
+    ...current,
+    version: '9',
+    draft: { ...current.draft, originalUrl: 'https://example.invalid/generated' },
+    generation: { ...current.generation, stage: 'catalog_creating', stateVersion: '9' }
+  });
+  seams.revision++;
+  view.rerender(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.detail).toHaveBeenCalledTimes(2));
+  const status = document.querySelector('.launch-draft-save-status')!;
+  expect(status.textContent).not.toContain('Changes pending');
+});
+
 function listLaunch(id = LAUNCH) {
   return {
     id,
