@@ -1,6 +1,10 @@
 import { expect, it, vi } from 'vitest';
 import { runCatalogVariantRecovery } from '../apps/agent/src/team-bridge/catalog-variant-recovery';
 import type { CatalogVariantSnapshot } from '../apps/agent/src/team-bridge/catalog-variant-executor';
+import {
+  HEARTBEAT_RETRY_MS,
+  HEARTBEAT_STALL_MS
+} from '../apps/agent/src/team-bridge/heartbeat-tolerance';
 const id = (n: number) => '47000000-0000-4000-8000-' + String(n).padStart(12, '0');
 it('routes library variants through trusted per-I/O parent authority and preserves the original operation', async () => {
   let snapshot: CatalogVariantSnapshot = {
@@ -72,7 +76,7 @@ it('routes library variants through trusted per-I/O parent authority and preserv
   });
 });
 
-async function activeCpu(mode: 'canceled' | 'unknown' | 'registered') {
+async function activeCpu(mode: 'canceled' | 'unknown' | 'registered' | 'flaky' | 'denied') {
   const { RECOVERY_BUDGET } = await import('@video-compressor/shared');
   const { settleCatalogVariantProcess } =
     await import('../apps/agent/src/team-bridge/catalog-variant-closure');
@@ -89,7 +93,8 @@ async function activeCpu(mode: 'canceled' | 'unknown' | 'registered') {
   };
   const timeline: string[] = [];
   let release!: () => void,
-    cleaned = false;
+    cleaned = false,
+    heartbeats = 0;
   const call = vi.fn(
     async (action: string, body: Record<string, unknown>): Promise<Record<string, unknown>> => {
       if (action === 'variant_claim') return { setId: id(1) };
@@ -103,6 +108,13 @@ async function activeCpu(mode: 'canceled' | 'unknown' | 'registered') {
       if (action === 'variant_dispatch') return { executionAllowed: true };
       if (action === 'variant_heartbeat') {
         if (mode === 'unknown') throw new Error('https://private-provider/?token=secret');
+        if (mode === 'denied') throw new Error('PERMISSION_DENIED');
+        if (mode === 'flaky') {
+          heartbeats++;
+          // Gateway 499 / an isolate at its limit: no JSON, then recovery.
+          if (heartbeats <= 2) throw new Error('PROCESS_RESULT_UNCERTAIN');
+          return { continue: true, registered: false };
+        }
         return mode === 'registered'
           ? { continue: true, registered: true }
           : { continue: false, registered: false, reason: 'canceled' };
@@ -189,7 +201,11 @@ it('authorization uncertainty drains CPU but retains the unknown original execut
   vi.useFakeTimers();
   try {
     const f = await activeCpu('unknown');
-    await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs);
+    // A heartbeat lost in transport is retried; the stitch keeps running until
+    // 90 s pass without one success, well inside the server's 2-minute takeover.
+    await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs * 2);
+    expect(f.timeline).toEqual(['cpu']);
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_STALL_MS - f.budget.heartbeatMs * 2);
     expect((await f.result).error?.message).toBe('PROCESS_RESULT_UNCERTAIN');
     expect(f.timeline).toEqual(['cpu', 'cleanup']);
     expect(f.closureCall).not.toHaveBeenCalled();
@@ -198,7 +214,38 @@ it('authorization uncertainty drains CPU but retains the unknown original execut
       requestId: id(2),
       state: 'unknown'
     });
+    const sent = f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat').length;
+    expect(sent).toBeGreaterThanOrEqual(3);
+    await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs * 3);
+    expect(f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat')).toHaveLength(sent);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('a heartbeat that fails in transport under load is retried and the stitch finishes', async () => {
+  // Beta 2026-11-11, set a0f1fd63: one heartbeat timed out at the gateway and
+  // 1.4.2 aborted its own stitch, leaving the variant unknown and its operation running.
+  vi.useFakeTimers();
+  try {
+    const f = await activeCpu('flaky');
+    await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs + 2 * HEARTBEAT_RETRY_MS);
+    expect(f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat')).toHaveLength(3);
+    // Recovered: the 90 s watchdog was re-armed by the success and never fires.
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_STALL_MS * 2);
+    expect(f.timeline).toEqual(['cpu']);
+    f.release();
+    expect((await f.result).error).toBeNull();
+    expect(f.read().children[0]).toMatchObject({ outputId: id(4), state: 'registered' });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('a definitive refusal on a heartbeat still stops the stitch at once', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = await activeCpu('denied');
     await vi.advanceTimersByTimeAsync(f.budget.heartbeatMs);
+    expect((await f.result).error?.message).toBe('PROCESS_RESULT_UNCERTAIN');
     expect(f.call.mock.calls.filter(call => call[0] === 'variant_heartbeat')).toHaveLength(1);
   } finally {
     vi.useRealTimers();

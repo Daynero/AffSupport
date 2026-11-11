@@ -469,6 +469,50 @@ describe('background recovery worker', () => {
     });
     expect(JSON.stringify(f.record.mock.calls)).not.toContain('x'.repeat(43));
   });
+  it.each([
+    ['transient', 'DRIVE_UNAVAILABLE', false],
+    ['stalled', 'DRIVE_UNAVAILABLE', true],
+    ['refused', 'LEASE_MISMATCH', true]
+  ] as const)(
+    'a %s heartbeat failure cancels the run only when definitive or after 90 s without success',
+    async (mode, code, cancels) => {
+      const f = await fixture();
+      let finish!: () => void;
+      f.process.process.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            finish = () =>
+              resolve({ operationId: OP, state: 'succeeded', materialId: JOB, reused: false });
+          })
+      );
+      let heartbeats = 0;
+      f.fetcher.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (body.action === 'heartbeat') {
+          heartbeats++;
+          if (mode !== 'transient' || heartbeats <= 2)
+            return new Response(JSON.stringify({ ok: false, error: { code } }), { status: 503 });
+          return new Response(JSON.stringify({ ok: true, value: { cancel: false } }));
+        }
+        const value = body.action === 'claim' ? brokerClaim() : { pending: false };
+        return new Response(JSON.stringify({ ok: true, value }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.waitFor(() => expect(f.process.process).toHaveBeenCalledOnce());
+      // First heartbeat at 30 s fails; a refusal stops at once, a transport
+      // failure is retried 10 s later.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(f.process.cancel.mock.calls.length > 0).toBe(mode === 'refused');
+      await vi.advanceTimersByTimeAsync(55_000);
+      expect(f.process.cancel.mock.calls.length > 0).toBe(mode === 'refused');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(f.process.cancel.mock.calls.length > 0).toBe(cancels);
+      if (mode === 'transient') expect(heartbeats).toBeGreaterThanOrEqual(3);
+      finish();
+      await f.worker.idle();
+    }
+  );
   it('does not replay an uncertain operation after restart', async () => {
     const f = await fixture('running');
     const grant = {

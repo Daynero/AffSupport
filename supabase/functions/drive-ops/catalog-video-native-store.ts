@@ -118,9 +118,11 @@ export function catalogVideoNativeStore(
       } catch {
         // Recorded on the next heartbeat.
       }
-      const observed = await this.reconcile(child, { retry: false });
+      // One authorization per heartbeat (it used to authorize three times):
+      // under load the heartbeat is the call that must stay cheap.
+      const scoped = await authorize();
+      const observed = await scoped.reconcile(child.index, child.requestId, { retry: false });
       if (observed.kind === 'registered') return { continue: true, registered: true };
-      await authorize();
       const accepted = await call('service_read_catalog_video_acceptance', {
         p_set: captured!.setId,
         p_team: captured!.teamId,
@@ -141,7 +143,7 @@ export function catalogVideoNativeStore(
         throw new TeamFunctionError('PERMISSION_DENIED');
       if (accepted.parentState === 'cancel_requested' || accepted.parentState === 'canceled')
         return { continue: false, registered: false, reason: 'canceled' };
-      await this.processContext(child);
+      await readProcessContext(child);
       return { continue: true, registered: false };
     },
     async complete(child: Child, outcome: 'canceled' | 'failed', code: string) {
@@ -160,62 +162,65 @@ export function catalogVideoNativeStore(
     },
     async processContext(child: Child) {
       await authorize();
-      const result = await call('service_read_catalog_video_process_context', childScope(child));
-      if (
-        !isRecord(result) ||
-        result.operationId !== child.operationId ||
-        !['pending', 'running'].includes(String(result.operationState)) ||
-        result.teamId !== captured?.teamId ||
-        result.actorId !== captured?.actorId ||
-        (result.destinationFolderId !== null &&
-          (typeof result.destinationFolderId !== 'string' ||
-            !UUID.test(result.destinationFolderId))) ||
-        typeof result.materialId !== 'string' ||
-        !UUID.test(result.materialId) ||
-        typeof result.sourceVersion !== 'string' ||
-        !isRecord(result.settings) ||
-        typeof result.settingsDigest !== 'string' ||
-        !/^[a-f0-9]{64}$/u.test(result.settingsDigest) ||
-        typeof result.sourceSizeBytes !== 'number' ||
-        !Number.isSafeInteger(result.sourceSizeBytes) ||
-        result.sourceSizeBytes <= 0
-      )
-        throw new TeamFunctionError('INVALID_RESPONSE');
-      const parsed = parseTeamRestitchDefaults(result.settings);
-      if (!parsed.ok) throw new TeamFunctionError('RESTITCH_INVALID');
-      const range = result.settings.finalDurationRangeSeconds;
-      if (
-        range !== undefined &&
-        (!Array.isArray(range) ||
-          range.length !== 2 ||
-          parsed.value.finalDurationMode !== 'random-centered' ||
-          range.some(
-            value =>
-              typeof value !== 'number' ||
-              !Number.isInteger(value) ||
-              value < 60 ||
-              value > 3600 ||
-              value % 60 !== 0
-          ) ||
-          range[0] > range[1])
-      )
-        throw new TeamFunctionError('RESTITCH_INVALID');
-      const settings =
-        range === undefined
-          ? parsed.value
-          : { ...parsed.value, finalDurationRangeSeconds: [...range] as [number, number] };
-      return {
-        operationId: child.operationId!,
-        operationState: result.operationState as 'pending' | 'running',
-        teamId: captured!.teamId,
-        actorId: captured!.actorId,
-        materialId: result.materialId,
-        destinationFolderId: result.destinationFolderId as string | null,
-        sourceVersion: result.sourceVersion,
-        sourceSizeBytes: result.sourceSizeBytes,
-        settings,
-        settingsDigest: result.settingsDigest
-      };
+      return readProcessContext(child);
     }
   };
+  async function readProcessContext(child: Child) {
+    const result = await call('service_read_catalog_video_process_context', childScope(child));
+    if (
+      !isRecord(result) ||
+      result.operationId !== child.operationId ||
+      !['pending', 'running'].includes(String(result.operationState)) ||
+      result.teamId !== captured?.teamId ||
+      result.actorId !== captured?.actorId ||
+      (result.destinationFolderId !== null &&
+        (typeof result.destinationFolderId !== 'string' ||
+          !UUID.test(result.destinationFolderId))) ||
+      typeof result.materialId !== 'string' ||
+      !UUID.test(result.materialId) ||
+      typeof result.sourceVersion !== 'string' ||
+      !isRecord(result.settings) ||
+      typeof result.settingsDigest !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(result.settingsDigest) ||
+      typeof result.sourceSizeBytes !== 'number' ||
+      !Number.isSafeInteger(result.sourceSizeBytes) ||
+      result.sourceSizeBytes <= 0
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    const parsed = parseTeamRestitchDefaults(result.settings);
+    if (!parsed.ok) throw new TeamFunctionError('RESTITCH_INVALID');
+    const range = result.settings.finalDurationRangeSeconds;
+    if (
+      range !== undefined &&
+      (!Array.isArray(range) ||
+        range.length !== 2 ||
+        parsed.value.finalDurationMode !== 'random-centered' ||
+        range.some(
+          value =>
+            typeof value !== 'number' ||
+            !Number.isInteger(value) ||
+            value < 60 ||
+            value > 3600 ||
+            value % 60 !== 0
+        ) ||
+        range[0] > range[1])
+    )
+      throw new TeamFunctionError('RESTITCH_INVALID');
+    const settings =
+      range === undefined
+        ? parsed.value
+        : { ...parsed.value, finalDurationRangeSeconds: [...range] as [number, number] };
+    return {
+      operationId: child.operationId!,
+      operationState: result.operationState as 'pending' | 'running',
+      teamId: captured!.teamId,
+      actorId: captured!.actorId,
+      materialId: result.materialId,
+      destinationFolderId: result.destinationFolderId as string | null,
+      sourceVersion: result.sourceVersion,
+      sourceSizeBytes: result.sourceSizeBytes,
+      settings,
+      settingsDigest: result.settingsDigest
+    };
+  }
 }

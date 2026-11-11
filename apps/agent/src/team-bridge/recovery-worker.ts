@@ -24,6 +24,11 @@ import {
   type RecoveryRegistration
 } from './recovery-journal.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
+import {
+  HEARTBEAT_RETRY_MS,
+  heartbeatWatchdog,
+  isDefinitiveHeartbeatRefusal
+} from './heartbeat-tolerance.js';
 
 const UUID = /^[0-9a-f-]{36}$/iu;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/u;
@@ -934,8 +939,17 @@ export class TeamRecoveryWorker {
       await this.#checkpoint(r, requestId, active.request.operationId, 'running');
       if (!(await this.#checkIdentity(r))) return;
       let heartbeatBusy = false;
-      const heartbeat = setInterval(() => {
+      let heartbeatRetry: ReturnType<typeof setTimeout> | null = null;
+      // The lease lasts two minutes: stop after 90 s without a successful
+      // heartbeat, but never on one heartbeat lost in transport under load.
+      const watchdog = heartbeatWatchdog({
+        onStall: () => this.options.process.cancel(active.request.operationId),
+        now: this.#now
+      });
+      const beat = () => {
         if (heartbeatBusy) return;
+        if (heartbeatRetry) clearTimeout(heartbeatRetry);
+        heartbeatRetry = null;
         if (!this.#isCurrent(r)) {
           if (!r.revoking && r.actorId && this.options.currentActorId() === null)
             this.options.process.cancel(active.request.operationId);
@@ -943,6 +957,7 @@ export class TeamRecoveryWorker {
           return;
         }
         heartbeatBusy = true;
+        const startedAt = this.#now();
         void this.#call(r.endpoint, 'heartbeat', active.credential, {
           operationId: active.request.operationId,
           jobId: active.jobId,
@@ -950,12 +965,21 @@ export class TeamRecoveryWorker {
         })
           .then(value => {
             if (value.cancel === true) this.options.process.cancel(active.request.operationId);
+            else watchdog.alive(startedAt);
           })
-          .catch(() => this.options.process.cancel(active.request.operationId))
+          .catch((error: unknown) => {
+            if (isDefinitiveHeartbeatRefusal(error))
+              this.options.process.cancel(active.request.operationId);
+            else {
+              heartbeatRetry = setTimeout(beat, HEARTBEAT_RETRY_MS);
+              heartbeatRetry.unref();
+            }
+          })
           .finally(() => {
             heartbeatBusy = false;
           });
-      }, RECOVERY_BUDGET.heartbeatMs);
+      };
+      const heartbeat = setInterval(beat, RECOVERY_BUDGET.heartbeatMs);
       heartbeat.unref();
       try {
         await this.options.process.process(active.request);
@@ -969,6 +993,8 @@ export class TeamRecoveryWorker {
         await this.#secrets.write(r.account, secrets);
       } finally {
         clearInterval(heartbeat);
+        if (heartbeatRetry) clearTimeout(heartbeatRetry);
+        watchdog.close();
       }
       if (!(await this.#checkIdentity(r))) return;
       const settled = await this.#call(r.endpoint, 'settle', active.credential, {

@@ -142,3 +142,31 @@ it('records every heartbeat on the server and never fails one because the note d
     });
   }
 });
+it('authorizes a heartbeat once, not before each of its reads', async () => {
+  // Beta 2026-11-11: a heartbeat that authorized three times timed out under
+  // load at the gateway, and the agent aborted its own stitch.
+  const child = { index: 0, requestId: id(10), operationId: id(50) };
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data:
+      name === 'service_authorize_catalog_video_executor'
+        ? authority
+        : name === 'service_read_catalog_video_acceptance'
+          ? {
+              parentState: 'preparing',
+              snapshot: { children: [{ ...child, state: 'working', outputId: null }] }
+            }
+          : name === 'service_read_catalog_video_process_context'
+            ? null
+            : { kind: 'admitted', operationId: id(50) }
+  }));
+  const store = catalogVideoNativeStore({ rpc }, input());
+  await expect(store.heartbeat(child)).rejects.toThrow('INVALID_RESPONSE');
+  expect(rpc.mock.calls.map(c => c[0])).toEqual([
+    'service_note_catalog_video_variant_heartbeat',
+    'service_authorize_catalog_video_executor',
+    'service_reconcile_catalog_video_variant',
+    'service_read_catalog_video_acceptance',
+    'service_read_catalog_video_process_context'
+  ]);
+});

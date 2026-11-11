@@ -2846,3 +2846,12 @@ reported unknown before any operation of its request existed, counts that as `re
 back means dropping both triggers and restoring the validator, the 240000 resolver body and the
 199000 owner retry body through a reviewed forward migration; released names and requeued
 variants stay as they are and need no repair.
+
+### 20261207340000 — a silent 'unknown' variant with a live operation is taken over
+
+Replaces `private.release_silent_catalog_video_variants` (240000 body, now also over variants in
+state `unknown`) and patches `public.service_settle_catalog_video_cancellations` so the
+15-minute sweep selects and resolves `unknown` variants whose operation is still
+pending/running, owns no output, upload or provider result, and is silent. Rolling back means
+restoring the 240000 bodies of both through a reviewed forward migration; variants already
+failed and requeued stay as they are and need no repair.
