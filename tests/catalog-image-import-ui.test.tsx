@@ -125,6 +125,7 @@ function mount(
   client: CatalogImageClient,
   options: {
     legacy?: React.ReactNode;
+    legacySourceCount?: number | null | 'loading';
     legacySources?: () => Promise<readonly string[]>;
     onPool?: (count: number | null) => void;
     folderClient?: FolderPickerClient;
@@ -147,6 +148,7 @@ function mount(
         teamId={TEAM}
         client={client}
         legacy={options.legacy}
+        legacySourceCount={options.legacySourceCount}
         onPool={options.onPool ?? vi.fn()}
         legacySources={options.legacySources}
         folderClient={options.folderClient}
@@ -1146,6 +1148,11 @@ describe('catalog image import', () => {
     mount(client, { legacy: <button>Saved Drive folder</button> });
     const toggle = await screen.findByRole('button', { name: 'Existing Google Drive sources' });
     expect(toggle.closest('section')?.querySelector('#catalog-r2-images-title')).toBeTruthy();
+    // Open from the start: the sources a space still uses are never hidden behind a fold.
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Saved Drive folder' })).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('button', { name: 'Saved Drive folder' })).toBeNull();
     fireEvent.click(toggle);
     expect(screen.getByRole('button', { name: 'Saved Drive folder' })).toBeTruthy();
@@ -1162,6 +1169,78 @@ describe('catalog image import', () => {
       expect(screen.queryByRole('button', { name: 'Existing Google Drive sources' })).toBeNull()
     );
     expect(screen.queryByRole('button', { name: 'Saved Drive folder' })).toBeNull();
+  });
+
+  it('shows a space without Drive sources only R2, keeping the legacy reader mounted', async () => {
+    const client = fixture();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: true,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'legacy'
+    });
+    const reader = vi.fn(() => null);
+    function Reader() {
+      reader();
+      return <button>Saved Drive folder</button>;
+    }
+    mount(client, { legacy: <Reader />, legacySourceCount: 0 });
+    await screen.findByText('No images yet');
+    expect(screen.queryByRole('button', { name: 'Existing Google Drive sources' })).toBeNull();
+    // Still mounted, so its pool readback keeps working, but not shown.
+    expect(reader).toHaveBeenCalled();
+    expect(screen.getByTestId('catalog-images-legacy').hidden).toBe(true);
+  });
+
+  it('hides the Drive sources while they are still being read when R2 works', async () => {
+    const client = fixture();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: true,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'legacy'
+    });
+    mount(client, { legacy: <button>Saved Drive folder</button>, legacySourceCount: 'loading' });
+    await screen.findByText('No images yet');
+    expect(screen.queryByRole('button', { name: 'Existing Google Drive sources' })).toBeNull();
+  });
+
+  it('keeps the Drive sources when R2 uploads are not available, even without any', async () => {
+    const client = fixture();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: false,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'legacy'
+    });
+    mount(client, { legacy: <button>Saved Drive folder</button>, legacySourceCount: 0 });
+    expect(
+      await screen.findByRole('button', { name: 'Existing Google Drive sources' })
+    ).toBeTruthy();
+  });
+
+  it('opens existing Drive sources and says the empty R2 gallery is for new uploads', async () => {
+    const client = fixture();
+    vi.mocked(client.capabilities).mockResolvedValue({
+      enabled: true,
+      importEnabled: true,
+      canManage: true,
+      contractVersion: 2,
+      mode: 'legacy'
+    });
+    mount(client, { legacy: <button>Saved Drive folder</button>, legacySourceCount: 2 });
+    const toggle = await screen.findByRole('button', { name: 'Existing Google Drive sources' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Saved Drive folder' })).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'Images uploaded to Soty appear here. Catalogs keep using the pictures from the Google Drive sources above.'
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText('No images yet')).toBeNull();
   });
 
   it('imports saved Drive sources only on explicit action and preserves the legacy pool summary', async () => {

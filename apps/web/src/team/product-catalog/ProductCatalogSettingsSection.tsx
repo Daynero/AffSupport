@@ -306,6 +306,9 @@ function CatalogImagesSection({
   onBusyChange: (busy: boolean) => void;
   onPool: (count: number | null) => void;
 }) {
+  // How many Drive sources the legacy reader found: 'loading' while it reads, null when it
+  // could not. A space without any keeps the R2 surface alone.
+  const [legacySourceCount, setLegacySourceCount] = useState<number | null | 'loading'>('loading');
   if (!client.catalogImages)
     return (
       <LegacyCatalogImagesSection
@@ -322,6 +325,7 @@ function CatalogImagesSection({
       section={CatalogSection}
       onBusyChange={onBusyChange}
       onPool={onPool}
+      legacySourceCount={legacySourceCount}
       folderClient={client.listMaterials ? { listMaterials: client.listMaterials } : undefined}
       legacySources={
         client.listProductCatalogImageSources
@@ -337,6 +341,7 @@ function CatalogImagesSection({
           teamId={teamId}
           client={client}
           onPool={onPool}
+          onSources={setLegacySourceCount}
           onBusyChange={onBusyChange}
         />
       }
@@ -349,6 +354,7 @@ function LegacyCatalogImagesSection({
   client,
   onPool,
   onBusyChange,
+  onSources,
   section: Section = CatalogSection
 }: {
   section?: typeof SettingsSection;
@@ -356,6 +362,8 @@ function LegacyCatalogImagesSection({
   client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
   onBusyChange: (busy: boolean) => void;
   onPool: (count: number | null) => void;
+  /** How many Drive sources the space has, or null when they could not be read. */
+  onSources?: (count: number | null) => void;
 }) {
   const { t } = useI18n();
   const diagnostic = useCatalogSettingsFlow();
@@ -381,10 +389,12 @@ function LegacyCatalogImagesSection({
       setSources(found.sources);
       setPoolSize(found.poolSize);
       onPool(found.poolSize);
+      onSources?.(found.sources.length);
       diagnostic.confirm(attempt);
     } catch (error) {
       setReadError(teamErrorMessageFor(error, t));
       onPool(null);
+      onSources?.(null);
       diagnostic.fail('READ_FAILED', attempt);
       throw error;
     }

@@ -2930,3 +2930,11 @@ recovery delegation exists for its executor, and `backgroundStalled: true` when 
 has not claimed since the set was accepted while not busy with another set. Rolling back means
 restoring the 192000 body through a reviewed forward migration; the new key is advisory and older
 clients ignore it.
+
+### 20261207380000 — new spaces get R2 catalog images from the start
+
+Changes the default of `private.catalog_image_config.import_enabled` from `false` to `true`, so the
+row a space gets the first time it opens its image settings starts with R2 uploads enabled.
+Existing rows are untouched. Rolling back means setting the default back to `false` through a
+reviewed forward migration; rows created in the meantime keep `true` unless an operator turns a
+space off on purpose.

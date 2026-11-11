@@ -131,6 +131,8 @@ export const en = {
   catalogImagesHelpTitle: 'Prepare images',
   catalogImagesGalleryHint: 'Images for your catalogs',
   catalogImagesGalleryEmpty: 'No images yet',
+  catalogImagesGalleryEmptyWithDrive:
+    'Images uploaded to Soty appear here. Catalogs keep using the pictures from the Google Drive sources above.',
   catalogImagesDetails: 'Details',
   catalogImagesHistoryEmpty: 'No uploads yet',
   catalogImagesStillUnconfirmed:

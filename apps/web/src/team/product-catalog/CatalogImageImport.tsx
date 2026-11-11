@@ -69,6 +69,7 @@ export function CatalogImageImport({
   legacySources,
   onPool,
   legacy,
+  legacySourceCount,
   section: Section = SettingsSection,
   onBusyChange
 }: {
@@ -78,6 +79,11 @@ export function CatalogImageImport({
   legacySources?: () => Promise<readonly string[]>;
   onPool: (count: number | null) => void;
   legacy?: ReactNode;
+  /**
+   * How many Google Drive sources the legacy reader found: 'loading' while it reads, null when
+   * it could not. Left out, the legacy sources are always offered.
+   */
+  legacySourceCount?: number | null | 'loading';
   section?: typeof SettingsSection;
   onBusyChange?: (busy: boolean) => void;
 }) {
@@ -106,7 +112,9 @@ export function CatalogImageImport({
     'upload' | 'help' | 'storage' | 'history' | 'status' | null
   >(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [legacyOpen, setLegacyOpen] = useState(false);
+  // Open from the start: a space that still has Drive sources must see them, not an empty
+  // gallery that reads as "your pictures are gone".
+  const [legacyOpen, setLegacyOpen] = useState(true);
   const [helpFromUpload, setHelpFromUpload] = useState(false);
   const closeSurface = () => setSurface(surface === 'help' && helpFromUpload ? 'upload' : null);
   const [bulkConfirm, setBulkConfirm] = useState<{
@@ -178,6 +186,14 @@ export function CatalogImageImport({
   const enabled = Boolean(
     state.capabilities?.enabled && state.capabilities.importEnabled && state.capabilities.canManage
   );
+  // R2 is the whole surface for a space that never had Drive sources. The legacy accordion
+  // stays only while Drive sources exist, could not be read, or R2 uploads are not available.
+  const r2Ready = Boolean(state.capabilities?.enabled && state.capabilities.importEnabled);
+  const legacyHidden = r2Ready && (legacySourceCount === 'loading' || legacySourceCount === 0);
+  const hasLegacySources =
+    state.capabilities?.mode === 'legacy' &&
+    typeof legacySourceCount === 'number' &&
+    legacySourceCount > 0;
   useEffect(() => {
     if (state.capabilities?.mode === 'v2')
       onPool(state.readError !== null || !state.inventory ? null : state.inventory.total);
@@ -371,13 +387,17 @@ export function CatalogImageImport({
           {state.capabilities?.mode === 'legacy' && legacy && (
             // Accordion keeps the legacy reader mounted so its pool summary
             // and diagnostic readback remain available while controls are hidden.
-            <Accordion
-              openIds={new Set(legacyOpen ? ['legacy-sources'] : [])}
-              onToggle={() => setLegacyOpen(open => !open)}
-              items={[
-                { id: 'legacy-sources', title: t('catalogImagesLegacySources'), content: legacy }
-              ]}
-            />
+            // A space with no Drive sources, where R2 uploads work, sees R2 alone: the
+            // wrapper hides the accordion without unmounting the reader.
+            <div hidden={legacyHidden} data-testid="catalog-images-legacy">
+              <Accordion
+                openIds={new Set(legacyOpen ? ['legacy-sources'] : [])}
+                onToggle={() => setLegacyOpen(open => !open)}
+                items={[
+                  { id: 'legacy-sources', title: t('catalogImagesLegacySources'), content: legacy }
+                ]}
+              />
+            </div>
           )}
           {state.error !== null && (
             <div className="catalog-image-status" role="alert">
@@ -520,7 +540,13 @@ export function CatalogImageImport({
             state.readError === null && (
               <div className="catalog-image-empty">
                 <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                <p>{t('catalogImagesGalleryEmpty')}</p>
+                <p>
+                  {t(
+                    hasLegacySources
+                      ? 'catalogImagesGalleryEmptyWithDrive'
+                      : 'catalogImagesGalleryEmpty'
+                  )}
+                </p>
                 {enabled && (
                   <Button variant="secondary" onClick={() => setSurface('upload')}>
                     {t('catalogImagesChooseFiles')}

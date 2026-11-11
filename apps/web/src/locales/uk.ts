@@ -131,6 +131,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesHelpTitle: 'Підготувати зображення',
   catalogImagesGalleryHint: 'Зображення для ваших каталогів',
   catalogImagesGalleryEmpty: 'Зображень поки немає',
+  catalogImagesGalleryEmptyWithDrive:
+    'Тут з’являться зображення, завантажені в Soty. Каталоги й далі беруть картинки з джерел Google Drive вище.',
   catalogImagesDetails: 'Деталі',
   catalogImagesHistoryEmpty: 'Завантажень поки немає',
   catalogImagesStillUnconfirmed:
