@@ -93,22 +93,26 @@ export function CatalogCreationVideoFields({
             onChange={zone => change({ zone, occurrence: undefined })}
           />
         </FormField>
-        <Select
-          aria-label={t('catalogPublicationOccurrence')}
-          disabled={disabled}
-          value={value.occurrence ?? ''}
-          onChange={occurrence =>
-            change({
-              occurrence:
-                occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
-            })
-          }
-          options={[
-            { value: '', label: t('catalogPublicationChoose') },
-            { value: 'earlier', label: t('catalogPublicationEarlier') },
-            { value: 'later', label: t('catalogPublicationLater') }
-          ]}
-        />
+        <FormField label={t('catalogPublicationOccurrence')}>
+          {/* An empty value renders the placeholder; listing '' as an option left
+              the trigger blank with no label (seen on beta, 1.4.2). */}
+          <Select
+            aria-label={t('catalogPublicationOccurrence')}
+            disabled={disabled}
+            value={value.occurrence ?? ''}
+            placeholder={t('catalogPublicationChoose')}
+            onChange={occurrence =>
+              change({
+                occurrence:
+                  occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
+              })
+            }
+            options={[
+              { value: 'earlier', label: t('catalogPublicationEarlier') },
+              { value: 'later', label: t('catalogPublicationLater') }
+            ]}
+          />
+        </FormField>
       </CatalogPublicationSchedule>
     </>
   );

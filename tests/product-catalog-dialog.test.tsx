@@ -605,6 +605,14 @@ describe('creating a catalog', () => {
     expect(createProductCatalogVideo).not.toHaveBeenCalled();
   });
 
+  it('labels the repeated-time choice and shows its placeholder instead of a blank select', async () => {
+    renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('switch', { name: 'Schedule the video link' }));
+    expect(await screen.findByText('When local time repeats')).toBeTruthy();
+    expect(screen.getAllByText('Choose if needed').length).toBeGreaterThan(0);
+  });
+
   it('keeps provider progress unknown until the catalog reply arrives', async () => {
     let finish: (value: typeof created) => void = () => undefined;
     const client = dialogClient({
@@ -1098,6 +1106,23 @@ it('shows current N progress after the scheduled blank catalog was already creat
     };
     const client = dialogClient({
       createProductCatalogVideo: vi.fn(),
+      readCatalogPublication: vi.fn().mockResolvedValue({
+        catalogId: catalog.id,
+        revision: 1,
+        mode: 'scheduled',
+        dueAt: '2030-01-01T12:00:00.000Z',
+        timeZone: 'UTC',
+        target: { kind: 'video_set', videoSetId: setId, recipeRevision: 1 },
+        job: {
+          id: catalog.id,
+          state: 'waiting',
+          revision: 1,
+          writerFence: null,
+          blockedReason: null
+        },
+        active: null,
+        serverNow: Date.parse('2029-12-31T00:00:00Z')
+      }),
       readProductCatalogVideo: vi.fn().mockResolvedValue(response),
       cancelProductCatalogVideo: vi.fn().mockResolvedValue({
         ...response,
@@ -1112,6 +1137,8 @@ it('shows current N progress after the scheduled blank catalog was already creat
     expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
     expect(screen.getByText(catalog.name)).toBeTruthy();
     expect(screen.getByText(/catalog is created with empty video fields/)).toBeTruthy();
+    // 1.4.3: a restitched deferred catalog names its scheduled time too.
+    expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
     expect(
       await screen.findByText('Video generation canceled. The created catalog is preserved.')

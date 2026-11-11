@@ -761,7 +761,9 @@ export function CreateProductCatalogDialog({
             </InventoryButton>
           </div>
           <p className="field-hint">{t('productCatalogProducts', { count: shown.productCount })}</p>
-          {videoProtocol && !createdVideo && (
+          {/* The publication line (scheduled time, writer state) belongs to every
+              video-protocol catalog, including a restitched deferred one. */}
+          {videoProtocol && (
             <CatalogCreatedPublicationStatus
               teamId={teamId}
               catalogId={createdCatalog.current?.catalog.materialId ?? ''}
@@ -782,11 +784,6 @@ export function CreateProductCatalogDialog({
               </p>
               {createdVideo.catalogVideoCells === 'deferred_blank' && (
                 <p className="field-hint">{t('catalogVideoDeferredTableReady')}</p>
-              )}
-              {createdVideo.providerCas === 'unsupported' && (
-                <p role="status" className="team-inline-note">
-                  {t('catalogWriteUnsupported')}
-                </p>
               )}
               {videoKey.current && (
                 <div className="team-dialog-actions">

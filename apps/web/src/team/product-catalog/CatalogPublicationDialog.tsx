@@ -355,6 +355,7 @@ export function CatalogPublicationDialog({
               <Select
                 aria-label={t('catalogPublicationOccurrence')}
                 value={choice ?? ''}
+                placeholder={t('catalogPublicationChoose')}
                 disabled={pending || verification.pending}
                 onChange={value => {
                   setSaved(false);
@@ -363,7 +364,6 @@ export function CatalogPublicationDialog({
                   );
                 }}
                 options={[
-                  { value: '', label: t('catalogPublicationChoose') },
                   { value: 'earlier', label: t('catalogPublicationEarlier') },
                   { value: 'later', label: t('catalogPublicationLater') }
                 ]}
