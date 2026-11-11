@@ -1509,7 +1509,42 @@ function throwRpc(error: { message: string; code?: string } | null): void {
   );
   const code = TEAM_ERROR_CODES.find(known => candidates.includes(known));
   if (code === 'PERMISSION_DENIED' || code === 'SPACE_BLOCKED') requestSpaceAccessRecheck();
+  // A slow or overloaded server (statement timeout, pool exhaustion, a 5xx from the
+  // gateway) says nothing about the request itself: it must stay retryable, or a
+  // caller that closes on a permanent failure throws away an open dialog (1.4.3).
+  if (!code && isTransientServerFailure(error))
+    throw new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
   throw new TeamApiError(code ?? 'INVALID_RESPONSE', false);
+}
+
+/** SQLSTATEs and PostgREST codes for a server that is busy, not for a bad request. */
+const TRANSIENT_SERVER_CODES = new Set([
+  '57014', // statement timeout / query canceled
+  '57P01',
+  '57P02',
+  '57P03', // server shutting down / restarting
+  '53300',
+  '53400', // too many connections / configuration limit
+  '08000',
+  '08001',
+  '08003',
+  '08004',
+  '08006', // connection failures
+  '40001',
+  '40P01', // serialization failure / deadlock — safe to retry
+  'PGRST000',
+  'PGRST001',
+  'PGRST002',
+  'PGRST003' // PostgREST could not reach the database in time
+]);
+
+function isTransientServerFailure(error: { message: string; code?: string }): boolean {
+  if (error.code && TRANSIENT_SERVER_CODES.has(error.code)) return true;
+  if (error.code) return false;
+  // A gateway answer has no PostgREST code; its body names the status instead.
+  return /\b(?:50[234]|52[0-4]|Bad Gateway|Service Unavailable|Gateway Time-?out|upstream (?:request )?timeout|timed out|statement timeout)\b/iu.test(
+    error.message
+  );
 }
 /** One authenticated, abortable RPC seam; each consumer still validates its own payload. */
 export async function invokeTeamRpc<

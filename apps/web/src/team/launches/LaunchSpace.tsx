@@ -278,11 +278,17 @@ function LaunchSpaceContent({
       })
       .catch(e => {
         if (seq === sessionRequest.current) {
+          // Only a permanent refusal closes the open Launch. A slow or overloaded
+          // server keeps the dialog (and its running generation) on screen (1.4.3).
           if (e instanceof TeamApiError && !e.retryable) {
             detailRead.current = null;
             setDetail(null);
           }
-          setError(teamErrorMessageFor(e, t));
+          setError(
+            e instanceof TeamApiError && e.retryable && e.code === 'TEAM_TRANSPORT_UNAVAILABLE'
+              ? t('catalogServerSlow')
+              : teamErrorMessageFor(e, t)
+          );
           setPending(false);
         }
       });
