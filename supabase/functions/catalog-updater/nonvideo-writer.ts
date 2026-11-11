@@ -52,10 +52,11 @@ export function createCatalogNonVideoUpdater(
       item.driveFileId,
       CATALOG_NONVIDEO_MARKER
     );
+    const previousMarker = expectedPreviousMarker(c, prior);
     if (
       prior.length > 1 ||
-      (prior.length === 1 && prior[0] !== c.previousMarker) ||
-      (typeof c.previousMarker === 'string' && prior[0] !== c.previousMarker)
+      (prior.length === 1 && prior[0] !== previousMarker) ||
+      (typeof previousMarker === 'string' && prior[0] !== previousMarker)
     )
       throw uncertain();
     await proveLiveAncestry({
@@ -123,7 +124,7 @@ export function createCatalogNonVideoUpdater(
           marker: {
             key: CATALOG_NONVIDEO_MARKER,
             value: marker,
-            ...(typeof c.previousMarker === 'string' ? { replacesValue: c.previousMarker } : {})
+            ...(typeof previousMarker === 'string' ? { replacesValue: previousMarker } : {})
           }
         });
       },
@@ -161,6 +162,20 @@ export function createCatalogNonVideoUpdater(
       }
     };
   };
+}
+
+/** The marker this round may replace. Normally the one the last verified round
+ * recorded. Before 20261207210000 recording the change summary erased that
+ * record while the sheet kept the marker, so a catalog whose latest verified
+ * round lost it (markerRecordLost) adopts the single marker its sheet carries;
+ * more than one marker, or a marker without that evidence, stays a refusal. */
+export function expectedPreviousMarker(
+  c: Record<string, unknown>,
+  prior: readonly string[]
+): string | null {
+  if (typeof c.previousMarker === 'string') return c.previousMarker;
+  if (c.markerRecordLost === true && prior.length === 1) return prior[0]!;
+  return null;
 }
 
 /** The first field of the prepared non-video context that disagrees with the
