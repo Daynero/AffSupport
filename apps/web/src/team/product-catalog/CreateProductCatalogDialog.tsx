@@ -144,6 +144,61 @@ export function pendingCatalogCreationStorageKey(
   return `soty:catalog-video-create:v1:${actor}:${teamId}:${videoId}`;
 }
 
+/**
+ * What the person submitted for a pending creation. The server's read returns
+ * only progress, so "Показати прогрес" reopened an empty form under the
+ * video's name, as if the choice had been lost (1.4.3).
+ */
+interface PendingCreationForm {
+  key: string;
+  link: string;
+  count: string;
+  restitch: boolean;
+  copyVideoToR2: boolean;
+  videoDraft: CatalogCreationVideoDraft;
+  duration?: RestitchDurationValue;
+  name: string | null;
+}
+const pendingFormStorageKey = (storageKey: string) => `${storageKey}:form`;
+
+function readPendingCreationForm(storageKey: string, key: string): PendingCreationForm | null {
+  try {
+    const value = JSON.parse(
+      localStorage.getItem(pendingFormStorageKey(storageKey)) ?? 'null'
+    ) as Partial<PendingCreationForm> | null;
+    if (
+      !value ||
+      value.key !== key ||
+      typeof value.link !== 'string' ||
+      typeof value.count !== 'string' ||
+      typeof value.restitch !== 'boolean' ||
+      typeof value.videoDraft?.variationCount !== 'string' ||
+      typeof value.videoDraft.delayed !== 'boolean'
+    )
+      return null;
+    return {
+      key,
+      link: value.link,
+      count: value.count,
+      restitch: value.restitch,
+      copyVideoToR2: value.copyVideoToR2 === true,
+      videoDraft: value.videoDraft,
+      ...(typeof value.duration?.finalDurationMode === 'string'
+        ? { duration: value.duration }
+        : {}),
+      name: typeof value.name === 'string' ? value.name : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The pending key and the form remembered with it leave together. */
+function forgetPendingCreation(storageKey: string) {
+  localStorage.removeItem(storageKey);
+  localStorage.removeItem(pendingFormStorageKey(storageKey));
+}
+
 function errorKey(error: unknown): TranslationKey | null {
   // A delayed publication checked on submit: a passed time is the person's to fix,
   // never the generic "some data is invalid" that names no field.
@@ -387,7 +442,7 @@ export function CreateProductCatalogDialog({
     });
     const progress = result.videoGenerationObservation ?? result.videoGeneration;
     if (!progress || progress.state === 'ready' || progress.state === 'canceled') {
-      if (videoStorageKey) localStorage.removeItem(videoStorageKey);
+      if (videoStorageKey) forgetPendingCreation(videoStorageKey);
       videoKey.current = null;
     }
     if (deliveredCatalog.current !== result.catalog.materialId) {
@@ -476,6 +531,21 @@ export function CreateProductCatalogDialog({
         };
         if (!videoStorageKey) throw new Error('AUTH_REQUIRED');
         localStorage.setItem(videoStorageKey, input.idempotencyKey);
+        try {
+          const form: PendingCreationForm = {
+            key: input.idempotencyKey,
+            link,
+            count,
+            restitch,
+            copyVideoToR2,
+            videoDraft,
+            ...(restitch ? { duration } : {}),
+            name: plannedName
+          };
+          localStorage.setItem(pendingFormStorageKey(videoStorageKey), JSON.stringify(form));
+        } catch {
+          /* Only the reopened form's details are lost; the creation itself is tracked. */
+        }
         videoKey.current = input.idempotencyKey;
         submittedVideoKey = input.idempotencyKey;
         videoOwner.current = owner;
@@ -555,7 +625,7 @@ export function CreateProductCatalogDialog({
         videoKey.current === submittedVideoKey;
       if (refused) {
         if (videoStorageKey && localStorage.getItem(videoStorageKey) === submittedVideoKey)
-          localStorage.removeItem(videoStorageKey);
+          forgetPendingCreation(videoStorageKey);
         videoKey.current = null;
         videoOwner.current = null;
         videoCancelId.current = null;
@@ -582,7 +652,7 @@ export function CreateProductCatalogDialog({
   const forgetVideo = (key: string | null) => {
     try {
       if (videoStorageKey && (!key || localStorage.getItem(videoStorageKey) === key))
-        localStorage.removeItem(videoStorageKey);
+        forgetPendingCreation(videoStorageKey);
     } catch {
       /* Storage may be unavailable; the in-memory state below still resets. */
     }
@@ -713,8 +783,11 @@ export function CreateProductCatalogDialog({
   };
   // Reopened on a creation this browser started earlier: the next free number is not its name.
   const [resumedCreation, setResumedCreation] = useState(false);
+  // The name the creation was submitted under; the next free number has moved on.
+  const [resumedName, setResumedName] = useState<string | null>(null);
   useEffect(() => {
     setResumedCreation(false);
+    setResumedName(null);
     videoKey.current = null;
     videoOwner.current = null;
     setVideoPending(null);
@@ -730,6 +803,20 @@ export function CreateProductCatalogDialog({
         videoOwner.current = { actor: privateCacheActor(), epoch: privateCacheEpoch() };
         setVideoUnknown(true);
         setResumedCreation(true);
+        const form = readPendingCreationForm(videoStorageKey, key);
+        if (form) {
+          setLink(form.link);
+          setCount(form.count);
+          setCopyVideoToR2(form.copyVideoToR2);
+          setVideoDraft(form.videoDraft);
+          setResumedName(form.name);
+          if (form.restitch) {
+            if (form.duration)
+              durationPreference.current = { key: preferenceKey, value: form.duration };
+            setRestitch(true);
+            setRestitchRequested(true);
+          }
+        }
         void checkVideo();
       }
     } catch {
@@ -910,6 +997,7 @@ export function CreateProductCatalogDialog({
       Boolean(createdVideo && !['ready', 'canceled'].includes(createdVideo.state)));
   // An empty field is not a mistake yet — Create simply waits for it. The dialog opened with
   // "Paste a link that starts with http://" in red before anything had been typed.
+  const shownName = resumedCreation ? resumedName : plannedName;
   const linkError = touched.link && link.trim() !== '' && !linkCheck.ok;
   const countError = touched.count && !countCheck.ok;
 
@@ -941,17 +1029,17 @@ export function CreateProductCatalogDialog({
                   : 'productCatalogCreate'
             )}
           </h2>
-          {plannedName && !resumedCreation ? (
+          {shownName ? (
             <div className="product-catalog-dialog-name-row">
-              <p className="product-catalog-dialog-name" title={plannedName}>
-                {plannedName}
+              <p className="product-catalog-dialog-name" title={shownName}>
+                {shownName}
               </p>
               <IconButton
                 size="sm"
                 variant="outline"
-                label={t('productCatalogCopyNameOf', { name: plannedName })}
+                label={t('productCatalogCopyNameOf', { name: shownName })}
                 title={t('productCatalogCopyName')}
-                onClick={() => void copy(plannedName, 'productCatalogNameCopied')}
+                onClick={() => void copy(shownName, 'productCatalogNameCopied')}
               >
                 <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               </IconButton>

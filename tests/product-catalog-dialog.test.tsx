@@ -1139,6 +1139,61 @@ describe('beta durable video creation', () => {
       expect.any(Object)
     );
   });
+  it('reopens a tracked creation with what the person submitted, not an empty form (1.4.3)', async () => {
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      nextProductCatalogVariant: vi.fn().mockResolvedValue(20),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    expect(screen.getByText('clip_v20_catalog')).toBeTruthy();
+    cleanup();
+    // "Show progress" from the list; by now the next free number has moved on.
+    vi.mocked(client.nextProductCatalogVariant!).mockResolvedValue(21);
+    renderDialog(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect((screen.getByLabelText(/^Link(?: · Required)?$/) as HTMLInputElement).value).toBe(
+      'https://offer.example.test/'
+    );
+    expect(
+      (screen.getByRole('checkbox', { name: 'Re-stitch video' }) as HTMLInputElement).checked
+    ).toBe(true);
+    expect(((await screen.findByLabelText('Video variations')) as HTMLInputElement).value).toBe(
+      '5'
+    );
+    expect(screen.getByText('clip_v20_catalog')).toBeTruthy();
+    expect(screen.queryByText('clip_v21_catalog')).toBeNull();
+  });
+
+  it('forgets the remembered form together with the finished creation', async () => {
+    const key = 'product-catalog:47000000-0000-4000-8000-000000000012';
+    const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+    localStorage.setItem(storageKey, key);
+    localStorage.setItem(
+      `${storageKey}:form`,
+      JSON.stringify({
+        key,
+        link: 'https://offer.example.test/',
+        count: '5',
+        restitch: false,
+        copyVideoToR2: false,
+        videoDraft: { variationCount: '1', delayed: false, date: '', time: '12:00', zone: 'UTC' },
+        name: 'clip_v4_catalog'
+      })
+    );
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue({ ...pending, state: 'canceled' })
+    });
+    renderDialog(client);
+    await screen.findByRole('button', { name: 'Done' });
+    expect(localStorage.getItem(storageKey)).toBeNull();
+    expect(localStorage.getItem(`${storageKey}:form`)).toBeNull();
+  });
+
   it('lets the person close the window while the server and the agent prepare the videos', async () => {
     // 1.4.3 (beta 2026-11-11): a 40-minute re-stitch kept the window open; the ✕
     // was labelled "Cancel" and did nothing, Escape and the backdrop neither.
