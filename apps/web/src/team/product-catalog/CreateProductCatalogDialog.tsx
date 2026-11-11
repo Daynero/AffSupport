@@ -617,20 +617,27 @@ export function CreateProductCatalogDialog({
         setVideoUnknown(true);
         return;
       }
+      // Every video is ready: assemble the catalog now instead of waiting for
+      // the next background pass (it took 2-2.5 minutes). A read does this on
+      // its own; when another executor is already assembling, keep reading.
       if (
         !cancel &&
-        resume &&
         result.outcome === 'preparing_video' &&
         result.state === 'preparing' &&
         result.registeredCount === result.requestedCount
       ) {
-        result = await withCatalogCommandDeadline(
-          signal =>
-            (client.resumeProductCatalogVideo ?? teamApi.resumeProductCatalogVideo)(teamId, key, {
-              signal
-            }),
-          new AbortController().signal
-        );
+        try {
+          result = await withCatalogCommandDeadline(
+            signal =>
+              (client.resumeProductCatalogVideo ?? teamApi.resumeProductCatalogVideo)(teamId, key, {
+                signal
+              }),
+            new AbortController().signal
+          );
+        } catch (cause) {
+          const code = teamErrorCodeOf(cause);
+          if (resume || (code !== 'GROUP_RECONCILING' && code !== 'LEASE_MISMATCH')) throw cause;
+        }
         if (!owns()) return;
       }
       setVideoUnknown(false);

@@ -1178,3 +1178,47 @@ it('shows current N progress after the scheduled blank catalog was already creat
     vi.unstubAllEnvs();
   }
 });
+
+describe('catalog assembly once every video is ready (1.4.3)', () => {
+  const key = 'product-catalog:47000000-0000-4000-8000-000000000020';
+  const allReady = {
+    outcome: 'preparing_video',
+    catalogIntentId: '47000000-0000-4000-8000-000000000021',
+    videoSetId: '47000000-0000-4000-8000-000000000022',
+    requestedCount: 3,
+    registeredCount: 3,
+    state: 'preparing'
+  };
+  beforeEach(() => {
+    vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+    localStorage.setItem(
+      `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+      key
+    );
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  it('assembles the catalog on a plain read instead of waiting for the background pass', async () => {
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(allReady),
+      resumeProductCatalogVideo: vi.fn().mockResolvedValue(allReady)
+    });
+    renderDialog(client);
+    await waitFor(() =>
+      expect(client.resumeProductCatalogVideo).toHaveBeenCalledWith(TEAM_ID, key, expect.anything())
+    );
+  });
+  it('keeps reading quietly when another executor is already assembling it', async () => {
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(allReady),
+      resumeProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('GROUP_RECONCILING', true))
+    });
+    renderDialog(client);
+    await waitFor(() => expect(client.resumeProductCatalogVideo).toHaveBeenCalled());
+    expect(await screen.findByText('Videos ready: 3 of 3')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
