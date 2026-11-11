@@ -1461,7 +1461,7 @@ function CatalogUpdaterDialogScope({
                               total: row.videoGeneration.requestedCount
                             })}
                             {row.videoGeneration.state === 'unknown'
-                              ? ` · ${t('catalogVideoCreationUnknown')}`
+                              ? ` · ${t('catalogUpdaterVideoUnknownStop')}`
                               : row.videoGeneration.state === 'cancel_requested'
                                 ? ` · ${t('catalogVideoCreationCanceling')}`
                                 : row.videoGeneration.waitReason === 'AGENT_REQUIRED'

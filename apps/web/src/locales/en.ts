@@ -2943,6 +2943,8 @@ export const en = {
     'Drive may have accepted the sheet. Automatic replay is stopped to avoid applying changes twice. Check the sheet before starting another update.',
   catalogUpdaterReconciliationHold:
     'We are checking Google Drive confirmation automatically. Wait for the result; another update is temporarily unavailable.',
+  catalogUpdaterVideoUnknownStop:
+    'The video result is not confirmed yet. Soty keeps checking; stop this update if you do not want to wait.',
   catalogUpdaterPartialVideo:
     'Sheet delivery was verified at {date}. The video link was not replaced. Last confirmed stage: {stage}. Prepare a spare video, then retry.',
   catalogUpdaterPartialUnknown:

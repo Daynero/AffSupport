@@ -361,6 +361,21 @@ it('says the restitch round is waiting for the agent instead of a bare 0 of N', 
   const status = screen.getByText(/Videos ready: 0 of 1/);
   expect(status.textContent).toContain('Waiting for the computer agent');
 });
+it('points an unconfirmed restitch round at Stop instead of an endless wait', async () => {
+  const item = row('1', 'polo.mp4', {
+    videoGeneration: {
+      setId: '23000000-0000-4000-8000-000000000778',
+      requestedCount: 2,
+      registeredCount: 0,
+      state: 'unknown'
+    }
+  });
+  renderDialog(client([item], running));
+  await screen.findByLabelText('polo.mp4 catalog');
+  const status = screen.getByText(/Videos ready: 0 of 2/);
+  expect(status.textContent).toContain('stop this update if you do not want to wait');
+  expect(status.textContent).not.toContain('Check the original operation');
+});
 it('keeps an older verified success when the latest attempt was partial', async () => {
   const item = row('1', 'polo.mp4', {
     lastUpdatedAt: '2026-10-18T10:00:00Z',
