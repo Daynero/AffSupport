@@ -762,22 +762,22 @@ export class TeamRecoveryWorker {
         // retry (the saved request id, a held grant settled, never rerun). It
         // used to wait for a retry nobody was offered, and every later round of
         // this computer sat in «Очікуємо підготовку відео…» (1.4.3).
-        if (saved.reason === 'checkpoint_unavailable') {
-          const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
-          if (recent.length >= RECOVERY_BUDGET.episodesPerHour) {
-            this.#schedule(
-              r,
-              Math.max(RECOVERY_BUDGET.probeMs, Math.min(...recent) + 3_600_000 - this.#now())
-            );
-            return;
-          }
-        } else if (
-          // No guessed restart budget: old journals without history require explicit retry.
-          saved.reason !== 'retry_exhausted' ||
-          !history?.length ||
-          history.length >= RECOVERY_BUDGET.episodesPerHour
-        )
+        // retry_exhausted resumes the same way once its hourly budget allows: a
+        // lost network or a sleeping laptop used to park background work for
+        // good, until someone pressed «Відновити» (1.4.3). Old journals without
+        // episode history still wait for an explicit retry.
+        const selfResumes =
+          saved.reason === 'checkpoint_unavailable' ||
+          (saved.reason === 'retry_exhausted' && !!history?.length);
+        if (!selfResumes) return;
+        const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
+        if (recent.length >= RECOVERY_BUDGET.episodesPerHour) {
+          this.#schedule(
+            r,
+            Math.max(RECOVERY_BUDGET.probeMs, Math.min(...recent) + 3_600_000 - this.#now())
+          );
           return;
+        }
         const remaining = (this.#retryNotBefore.get(r.delegationId) ?? 0) - this.#now();
         if (remaining > 0) {
           this.#schedule(r, Math.max(remaining, RECOVERY_BUDGET.probeMs));

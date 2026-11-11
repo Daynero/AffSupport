@@ -880,8 +880,9 @@ describe('background recovery worker', () => {
     expect(actions().filter(a => a === 'claim')).toHaveLength(18);
     expect(actions().filter(a => a === 'probe')).toHaveLength(2);
     expect((await f.journal.load()).checkpoints[0].retryEpisodes).toHaveLength(3);
+    // Within the hour the budget holds, across a restart too.
     const count = f.fetcher.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(3600000);
+    await vi.advanceTimersByTimeAsync(60000);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(count);
     await f.worker.shutdown();
@@ -892,6 +893,17 @@ describe('background recovery worker', () => {
     await restarted.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(count);
     expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason: 'retry_exhausted' });
+    // Once the oldest episode leaves the hour, it resumes on its own with the
+    // same request instead of staying parked until someone presses «Відновити».
+    await vi.advanceTimersByTimeAsync(3600000);
+    await restarted.idle();
+    expect(f.fetcher.mock.calls.length).toBeGreaterThan(count);
+    const claimIds = f.fetcher.mock.calls
+      .map(([, o]) => JSON.parse(String(o?.body)))
+      .filter(body => body.action === 'claim')
+      .map(body => body.requestId);
+    expect(claimIds.length).toBeGreaterThan(18);
+    expect(new Set(claimIds)).toEqual(new Set([REQUEST]));
   });
   it('stops retrying after one bounded transient episode and preserves the request ID', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
