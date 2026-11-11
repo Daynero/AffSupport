@@ -160,9 +160,18 @@ it('Stop still refuses a round an ordinary worker is writing right now', async (
     "insert into public.team_catalog_updater_items(catalog_material_id,team_id,round_due_at,next_attempt_at,lease_owner,lease_expires_at)values($1,$2,clock_timestamp(),clock_timestamp(),'catalog-updater:worker',clock_timestamp()+interval '5 minutes')on conflict(catalog_material_id)do update set round_due_at=excluded.round_due_at,lease_owner=excluded.lease_owner,lease_expires_at=excluded.lease_expires_at",
     [catalog, team]
   );
+  // A claim lease alone no longer blocks Stop (20261207250000); a worker that has
+  // started writing holds the reconciliation marker, and that still refuses.
+  const began = (
+    await db.root<{ v: boolean }>(
+      "select public.service_begin_catalog_update_write($1,'catalog-updater:worker',gen_random_uuid(),'1',3,null,3,'{}'::jsonb)v",
+      [catalog]
+    )
+  )[0]!.v;
+  expect(began).toBe(true);
   await expect(
     db.asUser(owner, 'select public.cancel_team_catalog_update($1,$2)', [team, catalog])
-  ).rejects.toThrow(/WRONG_STATE/);
+  ).rejects.toThrow(/CATALOG_UPDATE_RECONCILIATION_REQUIRED/);
 });
 
 it('the sweep registers a lost confirmation and retries a failed child of a manager round', async () => {
