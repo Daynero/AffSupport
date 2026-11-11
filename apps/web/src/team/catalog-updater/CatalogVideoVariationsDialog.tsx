@@ -11,7 +11,7 @@ import type { CatalogUpdaterVariantsSnapshot } from '../../api/catalog-updater-v
 import { useI18n } from '../../i18n';
 import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
-import { withReadDeadline } from '../readCoordinator';
+import { isSoftReadFailure, withReadDeadline } from '../readCoordinator';
 import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { beginCatalogUiFlow } from './analytics';
 import { useTeam } from '../TeamContext';
@@ -40,7 +40,9 @@ export function CatalogVideoVariationsDialog({
     [snapshot, setSnapshot] = useState<CatalogUpdaterVariantsSnapshot | null>(null),
     [pending, setPending] = useState(false),
     [unknown, setUnknown] = useState<string | null>(null),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    // The last read failed on the line while the run was progressing; its state stands.
+    [interrupted, setInterrupted] = useState(false);
   const mounted = useRef(false),
     busy = useRef<number | null>(null),
     serial = useRef(0),
@@ -88,10 +90,19 @@ export function CatalogVideoVariationsDialog({
         new AbortController().signal
       );
       if (!owns()) return;
+      setInterrupted(false);
       if (result) apply(result);
       else if (request.current) setUnknown(request.current);
     } catch (cause) {
-      if (owns()) setError(teamErrorMessageFor(cause, t));
+      if (!owns()) return;
+      // A loaded server failing one read says nothing about a run in progress (1.4.3).
+      if (
+        snapshot &&
+        ['accepted', 'preparing', 'cancel_requested'].includes(snapshot.state) &&
+        isSoftReadFailure(cause)
+      )
+        setInterrupted(true);
+      else setError(teamErrorMessageFor(cause, t));
     } finally {
       if (busy.current === token) {
         busy.current = null;
@@ -116,6 +127,7 @@ export function CatalogVideoVariationsDialog({
     setSnapshot(null);
     setUnknown(null);
     setError('');
+    setInterrupted(false);
     try {
       if (key) {
         const retained = localStorage.getItem(key);
@@ -140,6 +152,17 @@ export function CatalogVideoVariationsDialog({
   useEffect(() => {
     if (request.current) void readRef.current();
   }, [updaterRevision]);
+  // Re-read on a widening timer until a read answers again.
+  useEffect(() => {
+    if (!interrupted) return;
+    let delay = 3_000;
+    let timer = setTimeout(function tick() {
+      void readRef.current();
+      delay = Math.min(delay * 2, 30_000);
+      timer = setTimeout(tick, delay);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [interrupted]);
   useAgentEventStream<{
     type: 'team:operations';
     operations: Array<{ operationId: string; state: string }>;
@@ -368,6 +391,11 @@ export function CatalogVideoVariationsDialog({
         </p>
       )}
       {unknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
+      {interrupted && !error && (
+        <p role="status" className="team-inline-note">
+          {t('catalogVideoReadInterrupted')}
+        </p>
+      )}
       {error && (
         <p role="alert" className="team-inline-error">
           {error}

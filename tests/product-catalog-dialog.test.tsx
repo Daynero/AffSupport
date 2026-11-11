@@ -1540,6 +1540,51 @@ describe('beta durable video creation', () => {
     expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
   });
 
+  it('keeps the progress and a calm note when a read fails on a loaded server mid-run', async () => {
+    // 1.4.2 prod (Windows, 3 variations): "Videos ready: 1 of 3" sat beside a red
+    // "something went wrong" while the agent kept stitching.
+    const read = vi.fn().mockResolvedValue(pending);
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: read
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    for (const cause of [
+      new TeamApiError('DRIVE_UNAVAILABLE', true),
+      new TeamApiError('INVALID_RESPONSE', false),
+      Object.assign(Error('WORKSPACE_READ_TIMEOUT'), { code: 'WORKSPACE_READ_TIMEOUT' }),
+      new TypeError('Failed to fetch')
+    ]) {
+      read.mockRejectedValueOnce(cause);
+      await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+      expect(await screen.findByText(/connection to the server dropped/)).toBeTruthy();
+      expect(screen.getByText('Videos ready: 2 of 5')).toBeTruthy();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(/result is not confirmed/)).toBeNull();
+    }
+    read.mockResolvedValue({ ...pending, registeredCount: 3 });
+    await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+    expect(await screen.findByText('Videos ready: 3 of 5')).toBeTruthy();
+    expect(screen.queryByText(/connection to the server dropped/)).toBeNull();
+  });
+
+  it('still shows a final refusal as an error mid-run', async () => {
+    const read = vi.fn().mockResolvedValue(pending);
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: read
+    });
+    await startVideo(client);
+    await screen.findByText('Videos ready: 2 of 5');
+    read.mockRejectedValueOnce(new TeamApiError('PERMISSION_DENIED', false));
+    await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByText(/connection to the server dropped/)).toBeNull();
+  });
+
   it('recovers a lost reply on reopen through read only using the original key', async () => {
     const read = vi.fn().mockResolvedValue(pending);
     const client = dialogClient({

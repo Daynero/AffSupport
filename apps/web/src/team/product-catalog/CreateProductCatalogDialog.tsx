@@ -6,7 +6,7 @@ import { CatalogCreatedPublicationStatus } from './CatalogCreatedPublicationStat
 import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { toolEventUrl } from '../../api/client';
-import { withReadDeadline } from '../readCoordinator';
+import { isSoftReadFailure, withReadDeadline } from '../readCoordinator';
 import { withCatalogCommandDeadline } from '../catalog-updater/catalogCommandCoordinator';
 import { beginCatalogUiFlow } from '../catalog-updater/analytics';
 import { recoveryInstallation } from '../../api/recovery-installation';
@@ -312,6 +312,8 @@ export function CreateProductCatalogDialog({
   });
   const [videoPending, setVideoPending] = useState<CatalogVideoPreparingResult | null>(null);
   const [videoUnknown, setVideoUnknown] = useState(false);
+  // The last progress read failed on the line, not on the work; the shown state stands.
+  const [readInterrupted, setReadInterrupted] = useState(false);
   const [createdVideo, setCreatedVideo] = useState<CatalogCreatedVideoProgress | null>(null);
   const createdCatalog = useRef<ProductCatalogCreateResult | null>(null);
   const deliveredCatalog = useRef<string | null>(null);
@@ -696,6 +698,7 @@ export function CreateProductCatalogDialog({
     forgetVideo(videoKey.current);
     setVideoPending(null);
     setVideoUnknown(false);
+    setReadInterrupted(false);
     setFailure(null);
     setPhase({ kind: 'form' });
   };
@@ -773,6 +776,7 @@ export function CreateProductCatalogDialog({
       setVideoUnknown(false);
       // A read that answered supersedes the failure of the one before it.
       setFailure(null);
+      setReadInterrupted(false);
       if (
         result.outcome === 'preparing_video' &&
         (createdCatalog.current?.videoGenerationObservation ??
@@ -798,6 +802,22 @@ export function CreateProductCatalogDialog({
       }
     } catch (cause) {
       if (owns()) {
+        // 1.4.2 prod (Windows, 3 variations): a loaded server failed one poll
+        // and the window put a red "something went wrong" beside "1 of 3" while
+        // the agent kept stitching. A read lost on the line says nothing about
+        // a run already known to be progressing: keep its state, keep polling.
+        const progress =
+          createdCatalog.current?.videoGenerationObservation ??
+          createdCatalog.current?.videoGeneration;
+        const progressing =
+          (videoPending !== null &&
+            ['preparing', 'cancel_requested'].includes(videoPending.state)) ||
+          (progress !== undefined && ['preparing', 'cancel_requested'].includes(progress.state));
+        if (!cancel && progressing && isSoftReadFailure(cause)) {
+          setReadInterrupted(true);
+          return;
+        }
+        setReadInterrupted(false);
         setVideoUnknown(true);
         // A timeout or lost connection says nothing about the operation; the
         // person only needs to know it is temporary and the action is still there.
@@ -822,6 +842,7 @@ export function CreateProductCatalogDialog({
     setResumedName(null);
     videoKey.current = null;
     videoOwner.current = null;
+    setReadInterrupted(false);
     setVideoPending(null);
     setVideoUnknown(false);
     setCreatedVideo(null);
@@ -1266,6 +1287,11 @@ export function CreateProductCatalogDialog({
             videoPending.registeredCount < videoPending.requestedCount && (
               <p role="status">{t('catalogVideoAgentSilent')}</p>
             )}
+          {readInterrupted && !failure && (
+            <p role="status" className="team-inline-note">
+              {t('catalogVideoReadInterrupted')}
+            </p>
+          )}
           {showVideoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
           {videoTracked && (
             <div className="team-dialog-actions">

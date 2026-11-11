@@ -181,3 +181,35 @@ it.each(['INVALID_RESPONSE', 'PROCESS_RESULT_UNCERTAIN'])(
     expect(Object.values(localStorage)).toContain(m.start.mock.calls[0][0].requestId);
   }
 );
+
+it('keeps the last progress and a calm note when a read fails on a loaded server, then recovers', async () => {
+  // 1.4.2 prod: a poll lost on a loaded server read as a hard failure mid-run.
+  localStorage.setItem(`soty:catalog-video-manager:v1:${actor}:${team}:${catalog}`, actor);
+  m.read.mockResolvedValue(state);
+  show();
+  expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+  m.read.mockRejectedValueOnce(
+    Object.assign(Error('TEAM_TRANSPORT_UNAVAILABLE'), { code: 'TEAM_TRANSPORT_UNAVAILABLE' })
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText(/connection to the server dropped/)).toBeTruthy();
+  expect(screen.getByText('Videos ready: 2 of 5')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  m.read.mockResolvedValue({ ...state, registeredCount: 3 });
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByText('Videos ready: 3 of 5')).toBeTruthy();
+  expect(screen.queryByText(/connection to the server dropped/)).toBeNull();
+});
+
+it('still shows a final refusal as an error during a run', async () => {
+  localStorage.setItem(`soty:catalog-video-manager:v1:${actor}:${team}:${catalog}`, actor);
+  m.read.mockResolvedValue(state);
+  show();
+  expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+  m.read.mockRejectedValueOnce(
+    Object.assign(Error('PERMISSION_DENIED'), { code: 'PERMISSION_DENIED' })
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(screen.queryByText(/connection to the server dropped/)).toBeNull();
+});
