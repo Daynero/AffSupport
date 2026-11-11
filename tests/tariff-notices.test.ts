@@ -253,6 +253,18 @@ describe('tariff-notices templates', () => {
     }
   }
 
+  it('never doubles the full stop after a date that carries its year', () => {
+    // 1.4.3: «закінчується завтра, 2 січня 2027 р..» — the year suffix already ends in a dot.
+    for (const kind of ['warn_3d', 'warn_1d', 'grace', 'blocked', 'renewed'] as const) {
+      const notice = parseTariffNotice(
+        row(kind, { endsOn: '2027-01-02', graceUntil: '2027-01-05' })
+      );
+      const message = buildTariffNoticeEmail(notice!, context);
+      expect(`${message.subject}\n${message.text}`).not.toContain('р..');
+      expect(message.text).toMatch(/(2|5) січня 2027 р\./u);
+    }
+  });
+
   it('escapes the space and person names into the HTML part', () => {
     const message = buildTariffNoticeEmail(parseTariffNotice(row('warn_3d'))!, context);
     // Names are flattened to one line of text first, then escaped.

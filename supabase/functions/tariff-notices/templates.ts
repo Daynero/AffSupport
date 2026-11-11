@@ -236,6 +236,14 @@ function quoteEn(value: string): string {
   return `“${value}”`;
 }
 
+/**
+ * Closes a sentence that ends on a date. A Ukrainian date with its year already
+ * ends in "р.", and a second full stop read «2 січня 2027 р..» (1.4.3).
+ */
+function endSentence(text: string): string {
+  return text.endsWith('.') ? text : `${text}.`;
+}
+
 function copyFor(notice: TariffNotice, now: number): Copy {
   const uk = notice.locale === 'uk';
   const date = (value: string | null) => formatNoticeDate(value, notice.locale, now);
@@ -279,7 +287,7 @@ function copyFor(notice: TariffNotice, now: number): Copy {
         subject: uk ? `${tariff} закінчується завтра` : `${tariff} ends tomorrow`,
         paragraphs: [
           uk
-            ? `${tariff}${forSpace} закінчується завтра, ${endsOn}.`
+            ? endSentence(`${tariff}${forSpace} закінчується завтра, ${endsOn}`)
             : `${tariff}${forSpace} ends tomorrow, ${endsOn}.`,
           graceLine(uk, graceUntil),
           ...updaterLine(notice, uk, graceUntil, false)
@@ -295,7 +303,9 @@ function copyFor(notice: TariffNotice, now: number): Copy {
           : `Your plan has ended — the space works until ${graceUntil}`,
         paragraphs: [
           uk
-            ? `Тариф закінчився. Простір${team ? ` ${q(team)}` : ''} працюватиме до ${graceUntil}.`
+            ? endSentence(
+                `Тариф закінчився. Простір${team ? ` ${q(team)}` : ''} працюватиме до ${graceUntil}`
+              )
             : `Your plan has ended. The${team ? ` ${q(team)}` : ''} space keeps working until ${graceUntil}.`,
           ...updaterLine(notice, uk, graceUntil, true)
         ],
@@ -310,7 +320,7 @@ function copyFor(notice: TariffNotice, now: number): Copy {
           : `The${team ? ` ${q(team)}` : ''} space is paused`,
         paragraphs: [
           uk
-            ? `Простір призупинено. Тариф закінчився ${endsOn}.`
+            ? endSentence(`Простір призупинено. Тариф закінчився ${endsOn}`)
             : `The space is paused. Your plan ended on ${endsOn}.`,
           uk
             ? 'Усе збережено — файли лишаються на вашому Google Диску, а простір відкриється таким, як був, щойно тариф продовжать.'
