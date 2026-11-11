@@ -583,8 +583,7 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
-  // Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE).
-  it.skip('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
+  it('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
     const createProductCatalogVideo = vi.fn();
     const client = dialogClient({ createProductCatalogVideo } as Partial<DialogClient>);
     renderDialog(client);
@@ -606,10 +605,12 @@ describe('creating a catalog', () => {
     expect(createProductCatalogVideo).not.toHaveBeenCalled();
   });
 
-  it('does not offer deferred video-link publication while it is switched off', async () => {
+  it('labels the repeated-time choice and shows its placeholder instead of a blank select', async () => {
     renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
-    await screen.findByRole('button', { name: 'Create' });
-    expect(screen.queryByRole('switch', { name: 'Schedule the video link' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('switch', { name: 'Schedule the video link' }));
+    expect(await screen.findByText('When local time repeats')).toBeTruthy();
+    expect(screen.getAllByText('Choose if needed').length).toBeGreaterThan(0);
   });
 
   it('keeps provider progress unknown until the catalog reply arrives', async () => {
@@ -1067,6 +1068,35 @@ describe('beta durable video creation', () => {
     serverDone = true;
     expect(await screen.findByText('The catalog is ready', {}, { timeout: 8_000 })).toBeTruthy();
   }, 15_000);
+  it.each(['canceled', 'cancel_requested'])(
+    'lets a %s creation go so the next one can start (BenGan, 1.4.2)',
+    async state => {
+      const key = 'product-catalog:47000000-0000-4000-8000-000000000011';
+      const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+      localStorage.setItem(storageKey, key);
+      const client = dialogClient({
+        getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+        createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+        readProductCatalogVideo: vi.fn().mockResolvedValue({ ...pending, state })
+      });
+      renderDialog(client);
+      const done = await screen.findByRole('button', { name: 'Done' });
+      if (state === 'canceled') expect(localStorage.getItem(storageKey)).toBeNull();
+      await userEvent.click(done);
+      expect(localStorage.getItem(storageKey)).toBeNull();
+      await userEvent.type(
+        screen.getByLabelText(/^Link(?: · Required)?$/),
+        'https://offer.example.test/'
+      );
+      await waitFor(() => expect(confirm().disabled).toBe(false));
+      const reads = vi.mocked(client.readProductCatalogVideo!).mock.calls.length;
+      cleanup();
+      renderDialog(client);
+      expect(await screen.findByRole('button', { name: 'Create' })).toBeTruthy();
+      // Reopening shows the form; the forgotten operation is never read again.
+      expect(vi.mocked(client.readProductCatalogVideo!).mock.calls.length).toBe(reads);
+    }
+  );
   it('recovers a lost reply on reopen through read only using the original key', async () => {
     const read = vi.fn().mockResolvedValue(pending);
     const client = dialogClient({
@@ -1105,6 +1135,23 @@ it('shows current N progress after the scheduled blank catalog was already creat
     };
     const client = dialogClient({
       createProductCatalogVideo: vi.fn(),
+      readCatalogPublication: vi.fn().mockResolvedValue({
+        catalogId: catalog.id,
+        revision: 1,
+        mode: 'scheduled',
+        dueAt: '2030-01-01T12:00:00.000Z',
+        timeZone: 'UTC',
+        target: { kind: 'video_set', videoSetId: setId, recipeRevision: 1 },
+        job: {
+          id: catalog.id,
+          state: 'waiting',
+          revision: 1,
+          writerFence: null,
+          blockedReason: null
+        },
+        active: null,
+        serverNow: Date.parse('2029-12-31T00:00:00Z')
+      }),
       readProductCatalogVideo: vi.fn().mockResolvedValue(response),
       cancelProductCatalogVideo: vi.fn().mockResolvedValue({
         ...response,
@@ -1119,6 +1166,8 @@ it('shows current N progress after the scheduled blank catalog was already creat
     expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
     expect(screen.getByText(catalog.name)).toBeTruthy();
     expect(screen.getByText(/catalog is created with empty video fields/)).toBeTruthy();
+    // 1.4.3: a restitched deferred catalog names its scheduled time too.
+    expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
     expect(
       await screen.findByText('Video generation canceled. The created catalog is preserved.')

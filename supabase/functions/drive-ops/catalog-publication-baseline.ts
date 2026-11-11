@@ -263,6 +263,10 @@ export async function handleCatalogPublicationVerify(
     p_expected_revision: body.expectedRevision
   });
   if (!baselineRecord(raw)) throw unknown();
+  // The catalog's creation-time verification is still open: the server re-runs
+  // that one (against the catalog's real target) and was just made due now.
+  if (raw.state === 'initial_reverify')
+    throw new TeamFunctionError('CATALOG_UPDATE_RECONCILIATION_REQUIRED', { retryable: true });
   // Imported lazily only for the replay branch below; no provider work repeats.
   const { parseCatalogPublicationSnapshot } =
     await import('../../../packages/shared/dist/team/catalog-publication-api.js');

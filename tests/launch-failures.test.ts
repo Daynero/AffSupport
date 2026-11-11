@@ -36,27 +36,7 @@ it('logs only the class and code frames of an unknown failure, never its message
   ]);
 });
 
-it('ignores a stored schedule while deferred publication is switched off', () => {
-  const now = Date.parse('2026-11-09T01:00:00Z');
-  expect(
-    launchPublicationTimePassed(
-      {
-        videoPublication: {
-          mode: 'scheduled' as const,
-          localDateTime: '2026-11-09T03:00',
-          timeZone: 'Europe/Kyiv',
-          resolvedOffset: '+02:00',
-          dueAt: '2026-11-08T21:18:00.000Z'
-        }
-      },
-      now
-    )
-  ).toBe(false);
-});
-
-// Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE):
-// a stored schedule is ignored, so the timing guard is off until it returns.
-it.skip('flags a scheduled link time that is not at least a minute ahead', () => {
+it('flags a scheduled link time that is not at least a minute ahead', () => {
   const now = Date.parse('2026-11-09T01:00:00Z');
   const at = (iso: string) => ({
     videoPublication: {

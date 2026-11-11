@@ -134,8 +134,7 @@ it('does not strand a definite validation refusal as an unknown mutation', async
     Object.keys(localStorage).filter(key => key.startsWith('soty:catalog-publication:v1:'))
   ).toEqual([]);
 });
-// Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE).
-it.skip('shows a dated collapsed summary and expands calendar and timezone without dispatch', async () => {
+it('shows a dated collapsed summary and expands calendar and timezone without dispatch', async () => {
   view();
   await waitFor(() =>
     expect(screen.getByRole('switch', { name: 'Schedule the video link' })).toHaveProperty(
@@ -181,6 +180,31 @@ it('recovers a lost baseline-check reply by exact read only after reopening', as
   );
   expect(m.verify).toHaveBeenCalledTimes(1);
   expect(await screen.findByText(/save result is not confirmed/)).toBeTruthy();
+});
+
+it('hands a catalog with an open creation check to the automatic re-verification, not to unknown', async () => {
+  // 1.4.3: a restitched catalog's cells hold variant files, so the baseline could
+  // only fail; the server now answers that its own re-verification takes it.
+  m.read.mockResolvedValue({
+    ...snapshot,
+    revision: 1,
+    job: {
+      id: catalog,
+      state: 'blocked',
+      revision: 1,
+      writerFence: null,
+      blockedReason: 'legacy_adoption_required'
+    }
+  });
+  m.verify.mockRejectedValueOnce(Error('CATALOG_UPDATE_RECONCILIATION_REQUIRED'));
+  const h = view();
+  await userEvent.click(await screen.findByRole('button', { name: 'Verify existing links' }));
+  expect(await screen.findByText(/checking Google Drive confirmation automatically/)).toBeTruthy();
+  expect(screen.queryByText(/save result is not confirmed/)).toBeNull();
+  h.unmount();
+  view();
+  await screen.findByRole('button', { name: 'Verify existing links' });
+  expect(m.readVerify).not.toHaveBeenCalled();
 });
 
 it('requests add-now explicitly without presenting its acknowledgement as publication', async () => {
