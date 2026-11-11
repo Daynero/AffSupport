@@ -22,6 +22,7 @@ import {
   type TeamRealtimeState
 } from './useTeamRealtime';
 import { CatalogFreshness, CatalogFreshnessContext } from './catalog/CatalogFreshness';
+import { useWakeCatalogSync } from './useWakeCatalogSync';
 
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
 
@@ -312,6 +313,8 @@ export function TeamProvider({
     retryNonce: realtimeRetryNonce,
     enabled: realtime && insideSpace
   });
+  // An open space keeps its Drive feed on the 1-minute cadence (perf 1.4.3).
+  useWakeCatalogSync(realtime && insideSpace ? (activeTeam?.id ?? null) : null);
   const realtimeState = useMemo(
     () =>
       channelState === 'connected' && activeTeam && !catalogFreshness.isFresh(activeTeam.id)

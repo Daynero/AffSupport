@@ -2997,3 +2997,13 @@ generation carries `startedAt`: the generation's creation for its first attempt,
 later attempt, and nothing while a retried attempt has no step yet. Display only (the elapsed clock).
 Rolling back means dropping the wrapper and renaming the inner function back, with the
 `authenticated` and `service_role` grants restored; older clients ignore the extra key.
+
+### 20261207399700 — an idle space's Drive feed backs off
+
+Adds `private.catalog_sync_jobs.idle_polls`, redefines `service_complete_catalog_sync_job(uuid,text,text,text)`
+so an incremental pass whose change token did not move doubles the next wait (1 → 2 → 4 → 8 → 10
+minutes) and a moved token returns it to 1 minute, makes `private.nudge_catalog_sync_feed` reset the
+backoff, and adds `public.wake_team_catalog_sync(uuid)` (members; the web calls it when a space opens or
+its tab becomes visible). Rolling back means restoring the 20261008100000 bodies through a reviewed
+forward migration, dropping `wake_team_catalog_sync` (and the web call) and the column; feeds then return
+to the fixed 1-minute cadence on their next pass.

@@ -1670,6 +1670,20 @@ export async function invokeTeamRpc<
  */
 export const SPACE_ACCESS_RECHECK_EVENT = 'soty:space-access-recheck';
 
+/**
+ * Asks the server to look for Drive changes now when this space's sync has
+ * gone idle (an idle space's Drive feed is polled less and less often, up to
+ * every 10 minutes). Best effort: a failure only means the next poll comes at
+ * its usual time.
+ */
+export async function wakeCatalogSync(teamId: string): Promise<void> {
+  try {
+    await requireSupabaseClient().rpc('wake_team_catalog_sync', { p_team: teamId });
+  } catch {
+    // No client or no session: nothing to wake.
+  }
+}
+
 export function requestSpaceAccessRecheck(): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(SPACE_ACCESS_RECHECK_EVENT));

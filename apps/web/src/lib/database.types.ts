@@ -11422,6 +11422,10 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
+      wake_team_catalog_sync: {
+        Args: { p_team: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;
