@@ -2872,6 +2872,7 @@ export const en = {
     'Google Drive did not confirm the result. We are checking what was saved automatically; another update is blocked to avoid applying changes twice.',
   catalogRunPreparingVideo: 'Preparing replacement video…',
   catalogSpareVideoReady: 'Video ready for the next update',
+  catalogRunVideoNotPrepared: 'No video prepared yet',
   catalogRunVideoWaiting: 'Waiting for video preparation…',
   catalogRunVideoRetryWaiting: 'Video preparation failed · details',
   catalogRunFailed: 'Update failed · open details',

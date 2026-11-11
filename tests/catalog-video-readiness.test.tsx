@@ -86,3 +86,16 @@ it('clears stale green when blocked or switched off, while preserving the video 
   expect(button.dataset.videoState).toBe('off');
   expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0');
 });
+it('does not say it is waiting for a video before any update asked for one (1.4.3)', () => {
+  const props = {
+    profile: { ...profile, restitchStatus: 'waiting' as const },
+    name: 'Catalog',
+    onChange: vi.fn()
+  };
+  const view = render(<CatalogIconControls {...props} updatePending={false} />);
+  const button = document.querySelector<HTMLButtonElement>('[data-catalog-field="restitch"]')!;
+  expect(button.getAttribute('aria-label')).toContain('No video prepared yet');
+  expect(button.getAttribute('aria-label')).not.toContain('Waiting for video preparation');
+  view.rerender(<CatalogIconControls {...props} updatePending />);
+  expect(button.getAttribute('aria-label')).toContain('Waiting for video preparation');
+});

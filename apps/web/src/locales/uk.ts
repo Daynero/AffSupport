@@ -2865,6 +2865,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Google Drive не підтвердив результат. Автоматично перевіряємо, що збережено; повторний запуск заблокований, щоб не застосувати зміни двічі.',
   catalogRunPreparingVideo: 'Готуємо відео для заміни…',
   catalogSpareVideoReady: 'Відео готове до наступного оновлення',
+  catalogRunVideoNotPrepared: 'Відео ще не підготовлене',
   catalogRunVideoWaiting: 'Очікуємо підготовку відео…',
   catalogRunVideoRetryWaiting: 'Не вдалося підготувати відео · деталі',
   catalogRunFailed: 'Помилка оновлення · відкрийте деталі',

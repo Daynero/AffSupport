@@ -46,6 +46,7 @@ export function CatalogIconControls({
   disabledReason,
   state,
   restitchProgress,
+  updatePending,
   onChange,
   onReadiness
 }: {
@@ -54,6 +55,12 @@ export function CatalogIconControls({
   disabledReason?: string;
   state?: InlineChangeState;
   restitchProgress?: number | null;
+  /**
+   * Whether an update is running now. Without one nothing is preparing a video yet, so "waiting
+   * for video preparation" read as a stuck job on a catalog nobody had asked to update (1.4.3).
+   * Absent keeps the waiting wording.
+   */
+  updatePending?: boolean;
   onChange: (field: CatalogField, value: boolean) => void;
   onReadiness?: () => void;
 }) {
@@ -77,7 +84,9 @@ export function CatalogIconControls({
         ? `${t('catalogRunPreparingVideo')}${measured ? ` · ${Math.round(percent)}%` : ''}`
         : videoState === 'blocked'
           ? t('catalogRunNextVideoFailed')
-          : t('catalogRunVideoWaiting');
+          : updatePending === false
+            ? t('catalogRunVideoNotPrepared')
+            : t('catalogRunVideoWaiting');
 
   return (
     <div className="catalog-icon-group">
