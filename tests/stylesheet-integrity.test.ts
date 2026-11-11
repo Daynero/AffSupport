@@ -93,3 +93,30 @@ describe('the stylesheets', () => {
     }
   });
 });
+
+/**
+ * A merge that kept "both sides" of a conflict inside a rule once left a block
+ * without its closing brace. Every gate that reads stylesheets with regular
+ * expressions passed, the suite stayed green, and Vite answered 500 for the
+ * whole stylesheet: a blank app. Parsing is the only check that sees it.
+ */
+describe('every stylesheet parses', () => {
+  const sources = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+      entry.isDirectory()
+        ? sources(path.join(dir, entry.name))
+        : entry.name.endsWith('.css')
+          ? [path.join(dir, entry.name)]
+          : []
+    );
+  const files = sources(path.join(ROOT, 'apps/web/src'));
+
+  it('finds the stylesheets it is meant to guard', () => {
+    expect(files.length).toBeGreaterThan(3);
+  });
+
+  it.each(files.map(file => [path.relative(ROOT, file), file]))('%s', async (_name, file) => {
+    const { default: postcss } = await import('postcss');
+    expect(() => postcss.parse(readFileSync(file, 'utf8'), { from: file })).not.toThrow();
+  });
+});
