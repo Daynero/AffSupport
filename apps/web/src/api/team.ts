@@ -41,7 +41,8 @@ import {
   type CatalogCommandReceipt,
   isTaskCleanupReceipt,
   type TaskCleanupReceipt,
-  isBulkTrashGroup,
+  parseBulkTrashGroup,
+  parseBulkTrashGroups,
   type BulkTrashGroup,
   RESTITCH_CONTRACT_VERSION,
   MATERIAL_CATEGORIES,
@@ -4955,8 +4956,9 @@ export const teamApi = {
       })
     );
     throwRpc(error);
-    if (!isBulkTrashGroup(data)) throw new TeamApiError('INVALID_RESPONSE', false);
-    return data;
+    const group = parseBulkTrashGroup(data);
+    if (!group) throw new TeamApiError('INVALID_RESPONSE', false);
+    return group;
   },
   async startBulkTrash(
     teamId: string,
@@ -4982,27 +4984,33 @@ export const teamApi = {
     if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
     throwRpc(error);
     const intended = new Set(intendedIds.map(id => id.toLowerCase()));
+    const group = parseBulkTrashGroup(data);
     if (
-      !isBulkTrashGroup(data) ||
-      data.id.toLowerCase() !== groupId.toLowerCase() ||
-      data.teamId.toLowerCase() !== teamId.toLowerCase() ||
-      data.actorId.toLowerCase() !== actor ||
-      data.items.length === 0 ||
-      data.items.length > intended.size ||
-      new Set(data.items.map(item => item.materialId.toLowerCase())).size !== data.items.length ||
-      data.items.some(item => !intended.has(item.materialId.toLowerCase()))
+      !group ||
+      group.id.toLowerCase() !== groupId.toLowerCase() ||
+      group.teamId.toLowerCase() !== teamId.toLowerCase() ||
+      group.actorId.toLowerCase() !== actor ||
+      group.items.length === 0 ||
+      group.items.length > intended.size ||
+      new Set(group.items.map(item => item.materialId.toLowerCase())).size !== group.items.length ||
+      group.items.some(item => !intended.has(item.materialId.toLowerCase()))
     )
       throw new TeamApiError('INVALID_RESPONSE', false);
-    return data;
+    return group;
   },
   async listBulkTrash(
     teamId: string,
     options: { signal?: AbortSignal } = {}
   ): Promise<BulkTrashGroup[]> {
     const candidate = await invokeTeamRpc('list_team_bulk_trash', { p_team: teamId }, options);
-    if (!Array.isArray(candidate) || !candidate.every(isBulkTrashGroup))
-      throw new TeamApiError('INVALID_RESPONSE', false);
-    return candidate;
+    const parsed = parseBulkTrashGroups(candidate);
+    if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
+    // One malformed group (1.4.3: an old receipt's `+00:00` instant) used to make
+    // the whole list INVALID_RESPONSE, and with it every panel and every new
+    // bulk trash. It is dropped here and reported; the rest stays readable.
+    if (parsed.rejected.length)
+      console.warn('Soty bulk trash dropped malformed groups.', { groups: parsed.rejected });
+    return parsed.groups;
   },
   /** Hides a bulk-trash panel for this viewer, on every device and after a reload. */
   async dismissBulkTrash(

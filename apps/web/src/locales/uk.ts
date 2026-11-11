@@ -2859,7 +2859,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterClearSelection: 'Скинути вибір',
   catalogUpdaterDisableSelected: 'Вимкнути оновлення',
   catalogUpdaterDeleteSelected: 'Видалити вибрані',
-  catalogUpdaterDeleteConfirm: 'Перемістити {count} вибраних каталогів у кошик Google Drive?',
+  catalogUpdaterDeleteConfirmOne: 'Перемістити {count} вибраний каталог у кошик Google Drive?',
+  catalogUpdaterDeleteConfirmFew: 'Перемістити {count} вибрані каталоги у кошик Google Drive?',
+  catalogUpdaterDeleteConfirmMany: 'Перемістити {count} вибраних каталогів у кошик Google Drive?',
   catalogUpdaterHowTo:
     'Кожен каталог оновлюється за своїм розкладом. Позначте кілька, щоб змінити їх разом.',
   catalogUpdaterTitle: 'Менеджер каталогів',

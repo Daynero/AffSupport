@@ -69,6 +69,13 @@ export function catalogSelectedCountKey(language: Language, count: number): Tran
   return category === 'few' ? 'catalogUpdaterSelectedFew' : 'catalogUpdaterSelectedMany';
 }
 
+/** 1.4.3 — "Move 4 selected catalogs to the trash?", declined like every other count. */
+export function catalogDeleteConfirmKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'catalogUpdaterDeleteConfirmOne';
+  return category === 'few' ? 'catalogUpdaterDeleteConfirmFew' : 'catalogUpdaterDeleteConfirmMany';
+}
+
 /** 023 — "12 catalogs" on the updater's chip. */
 export function catalogCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);

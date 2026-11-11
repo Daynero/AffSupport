@@ -2865,7 +2865,9 @@ export const en = {
   catalogUpdaterClearSelection: 'Clear selection',
   catalogUpdaterDisableSelected: 'Turn off updates',
   catalogUpdaterDeleteSelected: 'Delete selected',
-  catalogUpdaterDeleteConfirm: 'Move {count} selected catalogs to the Google Drive trash?',
+  catalogUpdaterDeleteConfirmOne: 'Move {count} selected catalog to the Google Drive trash?',
+  catalogUpdaterDeleteConfirmFew: 'Move {count} selected catalogs to the Google Drive trash?',
+  catalogUpdaterDeleteConfirmMany: 'Move {count} selected catalogs to the Google Drive trash?',
   catalogUpdaterHowTo:
     'Each catalog updates on its own schedule. Tick several to change them together.',
   catalogUpdaterTitle: 'Catalog Manager',

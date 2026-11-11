@@ -65,7 +65,9 @@ export function parseMaterialHistoricalReceipt(
       protocolVersion: 1,
       action: expected.action,
       basis: 'catalog_snapshot',
-      observedAt: h.observedAt,
+      // UTC with `Z`, whatever offset the database rendered (1.4.3: `+00:00`
+      // made every client refuse the receipt).
+      observedAt: new Date(h.observedAt).toISOString(),
       state: h.state as 'matches' | 'changed' | 'unknown',
       memberCount: total,
       matchingCount: matching,

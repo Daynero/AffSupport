@@ -1076,6 +1076,33 @@ function normalizeSourceLanguage(value: unknown): string | null {
   return (LANGUAGE_CODES as readonly string[]).includes(code) ? code : null;
 }
 
+/**
+ * An instant as the client stores it: ISO 8601 in UTC with a `Z`.
+ *
+ * Postgres renders a `timestamptz` inside `jsonb_build_object` with a numeric
+ * offset (`2026-11-11T13:45:28.311888+00:00`), so a receipt built that way was
+ * refused as malformed and took a whole list down with it (1.4.3). An explicit
+ * offset is the same instant; it is accepted and rewritten to `Z`. Anything
+ * without a zone stays refused: a local time is not an instant.
+ */
+export function normalizeUtcInstant(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match =
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?)(Z|[+-]\d{2}(?::?\d{2})?)$/u.exec(value);
+  if (!match || !Number.isFinite(Date.parse(`${match[1]!.split('.')[0]}Z`))) return null;
+  if (match[2] === 'Z') return value;
+  const zone = match[2]!;
+  const sign = zone[0] === '-' ? -1 : 1;
+  const digits = zone.slice(1).replace(':', '');
+  const offsetMinutes = sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2) || '0'));
+  if (Math.abs(offsetMinutes) > 18 * 60) return null;
+  const [wall, fraction = ''] = match[1]!.split('.');
+  const utc = new Date(Date.parse(`${wall}Z`) - offsetMinutes * 60_000);
+  if (!Number.isFinite(utc.getTime())) return null;
+  // Keep the sub-millisecond digits the server sent: the offset moves whole minutes.
+  return `${utc.toISOString().slice(0, 19)}${fraction ? `.${fraction}` : ''}Z`;
+}
+
 export function parseTeamFileOperationResult(value: unknown): TeamFileOperationResult | null {
   if (
     !isRecord(value) ||
@@ -1094,10 +1121,8 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
       historical.protocolVersion !== 1 ||
       !['trash', 'restore'].includes(String(historical.action)) ||
       historical.basis !== 'catalog_snapshot' ||
-      typeof historical.observedAt !== 'string' ||
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/u.test(historical.observedAt) ||
+      normalizeUtcInstant(historical.observedAt) === null ||
       value.materialId === null ||
-      !Number.isFinite(Date.parse(historical.observedAt)) ||
       !['matches', 'changed', 'unknown'].includes(String(historical.state)) ||
       ![historical.memberCount, historical.matchingCount, historical.missingCount].every(
         n => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= 5000
@@ -1119,7 +1144,12 @@ export function parseTeamFileOperationResult(value: unknown): TeamFileOperationR
     reused: value.reused,
     ...(sourceLanguage ? { sourceLanguage } : {}),
     ...(historical !== undefined
-      ? { historicalReceipt: { ...historical } as unknown as TeamHistoricalFileReceipt }
+      ? {
+          historicalReceipt: {
+            ...historical,
+            observedAt: normalizeUtcInstant(historical.observedAt)!
+          } as unknown as TeamHistoricalFileReceipt
+        }
       : {})
   };
 }
