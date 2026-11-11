@@ -876,18 +876,21 @@ export class NativeRestitchController {
               const provider = createNativeScreenRecoveryProvider({
                 scope: context,
                 cache: this.options.cache,
-                // Only the read is repeated; next/accept/reject move selection
-                // state and are not proven safe to replay after a lost reply.
+                // Every selection step replays to the same result: `next` returns
+                // the slot's active candidate, accept/reject leave an already
+                // applied budget unchanged (no CAS), authorize is a read. Beta
+                // 2026-11-11 (set ee5595a8): one lost `accept` reply ended a stitch
+                // 19 s into a gateway outage.
                 call: (action, body, signal) =>
-                  action === 'authorize'
-                    ? this.#idempotent(
-                        () => this.#rpc(record, 'selection', action, body, signal),
-                        signal
-                      )
-                    : this.#rpc(record, 'selection', action, body, signal),
+                  this.#idempotent(
+                    () => this.#rpc(record, 'selection', action, body, signal),
+                    signal
+                  ),
                 download: (binding, signal) => downloader.download(binding, signal),
+                // The refresh id is persisted before the first send and the server
+                // answers a repeated one by exact receipt readback.
                 refresh: (binding, requestId, signal) =>
-                  this.#refresh(record, binding, requestId, signal)
+                  this.#idempotent(() => this.#refresh(record, binding, requestId, signal), signal)
               });
               const sourceEndpoint = this.#endpoint.replace(
                 /\/drive-ops$/u,

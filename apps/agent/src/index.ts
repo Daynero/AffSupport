@@ -543,7 +543,15 @@ const teamProcessBridge = new TeamProcessBridge({
 const catalogRuntimeBootId = randomUUID();
 const protectedCatalogVariantProcess: NonNullable<
   Parameters<typeof runCatalogVariantRecovery>[0]['protectedProcess']
-> = async (request, enroll, upstreamSignal, authorizeParent, complete, cancellationRequested) => {
+> = async (
+  request,
+  enroll,
+  upstreamSignal,
+  authorizeParent,
+  complete,
+  cancellationRequested,
+  ended
+) => {
   if (isRecord(request.options) && typeof request.options.restitchSelectionRootId !== 'string') {
     const authorizedFetch: typeof fetch = async (input, init) => {
       await authorizeParent();
@@ -573,6 +581,7 @@ const protectedCatalogVariantProcess: NonNullable<
       signal: upstreamSignal,
       complete,
       cancellationRequested,
+      ended,
       run: () =>
         teamProcessBridge.processProtected(request, {
           transfer: new TeamTransferClient({
@@ -654,6 +663,7 @@ const protectedCatalogVariantProcess: NonNullable<
           signal,
           complete,
           cancellationRequested,
+          ended,
           run: () =>
             teamProcessBridge.processProtected(request, {
               transfer: new TeamTransferClient({

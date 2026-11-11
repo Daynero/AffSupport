@@ -35,7 +35,9 @@ export async function runCatalogVariantRecovery(input: {
     signal: AbortSignal,
     authorize: () => Promise<void>,
     complete: (outcome: 'canceled' | 'failed', code: string) => Promise<Record<string, unknown>>,
-    cancellationRequested: () => Promise<boolean>
+    cancellationRequested: () => Promise<boolean>,
+    /** The local stitch has ended (any result): its heartbeat stops at once. */
+    ended?: () => void
   ) => Promise<TeamFileOperationResult>;
   progress?: (setId: string, ready: number, total: number) => void;
 }): Promise<string | null> {
@@ -90,10 +92,25 @@ export async function runCatalogVariantRecovery(input: {
           signal = AbortSignal.any([input.signal, local.signal]);
         let busy = false,
           closed = false,
+          silenced = false,
           interruption: 'PROCESS_CANCELED' | 'PROCESS_RESULT_UNCERTAIN' | null = null;
+        // A heartbeat is the server's proof that a stitch is still running. Once
+        // the local stitch is over (stopped, failed or done) it must stop at
+        // once, or a dead run looks alive and silence recovery never fires
+        // (beta 2026-11-11, set ee5595a8: heartbeats for six minutes after the
+        // stitch had died while its closure was retried).
+        const silence = () => {
+          if (silenced) return;
+          silenced = true;
+          clearInterval(heartbeat);
+          if (retry) clearTimeout(retry);
+          retry = null;
+          watchdog.close();
+        };
         const interrupt = (code: 'PROCESS_CANCELED' | 'PROCESS_RESULT_UNCERTAIN') => {
           if (closed) return;
           interruption = code;
+          silence();
           local.abort(new Error(code));
           if (!input.protectedProcess) input.process.cancel(request.operationId);
         };
@@ -104,14 +121,14 @@ export async function runCatalogVariantRecovery(input: {
         });
         let retry: ReturnType<typeof setTimeout> | null = null;
         const beat = () => {
-          if (busy || closed) return;
+          if (busy || closed || silenced) return;
           busy = true;
           if (retry) clearTimeout(retry);
           retry = null;
           const startedAt = Date.now();
           void invoke('variant_heartbeat', body(child))
             .then(value => {
-              if (closed) return;
+              if (closed || silenced) return;
               if (value.registered === true) {
                 clearInterval(heartbeat);
                 watchdog.close();
@@ -126,7 +143,7 @@ export async function runCatalogVariantRecovery(input: {
               watchdog.alive(startedAt);
             })
             .catch((error: unknown) => {
-              if (closed) return;
+              if (closed || silenced) return;
               if (isDefinitiveHeartbeatRefusal(error)) {
                 interrupt(
                   error instanceof Error && error.message === 'PROCESS_CANCELED'
@@ -206,7 +223,8 @@ export async function runCatalogVariantRecovery(input: {
                   } catch {
                     return false;
                   }
-                }
+                },
+                silence
               )
             : input.process.process(request));
         } catch (error) {
