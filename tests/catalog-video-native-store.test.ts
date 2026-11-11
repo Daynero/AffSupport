@@ -108,3 +108,37 @@ it('asks for a variant retry on reconcile but never from a heartbeat', async () 
   expect(await store.reconcile(child)).toEqual({ kind: 'unknown', retry: { attempt: 1 } });
   expect(rpc.mock.calls.map(c => c[0])).toContain('service_retry_catalog_video_variant');
 });
+it('records every heartbeat on the server and never fails one because the note did not land', async () => {
+  // 1.4.3: silence is what lets a restarted agent take over and a cancellation settle.
+  const child = { index: 0, requestId: id(10), operationId: id(50) };
+  for (const note of [
+    async () => ({ error: null, data: true }),
+    async () => ({ error: { message: 'function does not exist' }, data: null }),
+    async () => {
+      throw new Error('network');
+    }
+  ]) {
+    const rpc = vi.fn(async (name: string) =>
+      name === 'service_note_catalog_video_variant_heartbeat'
+        ? note()
+        : {
+            error: null,
+            data:
+              name === 'service_authorize_catalog_video_executor'
+                ? authority
+                : { kind: 'registered', operationId: id(50), outputId: id(60) }
+          }
+    );
+    const store = catalogVideoNativeStore({ rpc }, input());
+    expect(await store.heartbeat(child)).toEqual({ continue: true, registered: true });
+    expect(rpc).toHaveBeenCalledWith('service_note_catalog_video_variant_heartbeat', {
+      p_set: id(1),
+      p_hash: 'synthetic-hash',
+      p_native: id(5),
+      p_protocol: 1,
+      p_index: 0,
+      p_request: id(10),
+      p_operation: id(50)
+    });
+  }
+});

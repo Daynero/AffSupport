@@ -19,6 +19,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
   catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
+  catalogVideoAgentSilent:
+    'Soty на комп’ютері не відповідає. Якщо застосунок перезапустився, створення продовжиться саме; інакше відкрийте Soty або скасуйте створення.',
   catalogVideoCreationWaitingAgent:
     'Чекає на комп’ютерний агент. Увімкніть фонову роботу на цьому комп’ютері, щоб продовжити.',
   catalogVideoCreationCanceling: 'Скасування запитано; очікуємо підтвердження завершення.',

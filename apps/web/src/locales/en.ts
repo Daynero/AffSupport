@@ -17,6 +17,8 @@ export const en = {
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
+  catalogVideoAgentSilent:
+    'Soty on the computer is not responding. If the app restarted, creation continues on its own; otherwise open Soty or cancel the creation.',
   catalogVideoCreationWaitingAgent:
     'Waiting for the computer agent. Turn on background work on this computer to continue.',
   catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',

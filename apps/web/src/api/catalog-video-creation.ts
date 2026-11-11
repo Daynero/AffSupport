@@ -30,6 +30,8 @@ export interface CatalogVideoPreparingResult {
   requestedCount: number;
   registeredCount: number;
   state: 'preparing' | 'unknown' | 'cancel_requested' | 'canceled';
+  /** The agent running this creation stopped heartbeating two minutes ago. */
+  agentSilent?: true;
 }
 /** Pending work is an acknowledged operation, never a completed catalog. */
 export function isCatalogVideoPreparingResult(
@@ -51,7 +53,8 @@ export function isCatalogVideoPreparingResult(
     Number.isInteger(row.registeredCount) &&
     row.registeredCount >= 0 &&
     row.registeredCount <= row.requestedCount &&
-    ['preparing', 'unknown', 'cancel_requested', 'canceled'].includes(String(row.state))
+    ['preparing', 'unknown', 'cancel_requested', 'canceled'].includes(String(row.state)) &&
+    (row.agentSilent === undefined || row.agentSilent === true)
   );
 }
 

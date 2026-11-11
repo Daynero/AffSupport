@@ -1094,6 +1094,10 @@ export function CreateProductCatalogDialog({
               )}
             </p>
           )}
+          {videoPending?.agentSilent &&
+            (videoPending.state === 'preparing' || videoPending.state === 'unknown') && (
+              <p role="status">{t('catalogVideoAgentSilent')}</p>
+            )}
           {videoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}
           {(videoPending ||
             videoUnknown ||
