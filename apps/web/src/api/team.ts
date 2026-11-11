@@ -1,4 +1,8 @@
-import { catalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
+import {
+  attachCatalogForeground,
+  catalogForeground,
+  catalogForegroundScope
+} from './catalog-video-foreground-client';
 import type { CatalogForegroundExecutor } from './catalog-video-foreground';
 import {
   isCatalogUpdaterVariantsSnapshot,
@@ -3450,10 +3454,7 @@ export const teamApi = {
         )
       : await run(undefined);
 
-    current();
-    await catalogForeground.attach(input.teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(input.teamId, result, current, options?.signal);
   },
   async resumeCatalogUpdaterVariants(
     teamId: string,
@@ -3470,10 +3471,7 @@ export const teamApi = {
       { signal: options?.signal }
     );
 
-    current();
-    await catalogForeground.attach(teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(teamId, result, current, options?.signal);
   },
   async readCatalogUpdaterVariants(
     teamId: string,
@@ -3491,10 +3489,7 @@ export const teamApi = {
       { signal: options?.signal }
     );
 
-    current();
-    await catalogForeground.attach(teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(teamId, result, current, options?.signal);
   },
   async cancelCatalogUpdaterVariants(
     teamId: string,
@@ -3525,10 +3520,7 @@ export const teamApi = {
       { signal: options?.signal }
     );
 
-    current();
-    await catalogForeground.attach(teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(teamId, result, current, options?.signal);
   },
   async readProductCatalogVideo(
     teamId: string,
@@ -3545,10 +3537,7 @@ export const teamApi = {
       { signal: options?.signal }
     );
 
-    current();
-    await catalogForeground.attach(teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(teamId, result, current, options?.signal);
   },
   async cancelProductCatalogVideo(
     teamId: string,
@@ -3609,10 +3598,7 @@ export const teamApi = {
         )
       : await run(undefined);
 
-    current();
-    await catalogForeground.attach(input.teamId, result, options?.signal);
-    current();
-    return result;
+    return attachCatalogForeground(input.teamId, result, current, options?.signal);
   },
 
   async createProductCatalog(input: {

@@ -32,6 +32,11 @@ export interface CatalogVideoPreparingResult {
   state: 'preparing' | 'unknown' | 'cancel_requested' | 'canceled';
   /** The agent running this creation stopped heartbeating two minutes ago. */
   agentSilent?: true;
+  /**
+   * Set by this browser, never by the server: the local agent could not be
+   * reached when this read was handed to it. The server state is still current.
+   */
+  agentUnreachable?: true;
 }
 /** Pending work is an acknowledged operation, never a completed catalog. */
 export function isCatalogVideoPreparingResult(
