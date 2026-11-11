@@ -30,9 +30,12 @@ export function LaunchCard({
   const generating =
     value.generationState !== null &&
     !['succeeded', 'canceled', 'failed', 'partial', 'interrupted'].includes(value.generationState);
+  // The card names the day the launch is for: the list filters by it, and a copy's
+  // toast tells the user to look the copy up by it. When it was made goes in the title.
   const createdOn = value.createdAt
     ? teamTaskDate({ dateOn: null, createdAt: value.createdAt })
     : null;
+  const shownOn = value.launchDate ?? createdOn;
   const ageLabel =
     value.gender === 'M'
       ? language === 'uk'
@@ -214,14 +217,21 @@ export function LaunchCard({
           </span>
         </span>
       </div>
-      {createdOn && (
+      {shownOn && (
         <div className="team-task-card-footer">
           <time
             className="team-task-card-date"
-            dateTime={createdOn}
-            title={t('teamTaskCreatedAt', { date: formatTaskDate(language, createdOn, true) })}
+            dateTime={shownOn}
+            title={
+              value.launchDate
+                ? t('launchesCardDateTitle', {
+                    date: formatTaskDate(language, value.launchDate, true),
+                    created: createdOn ? formatTaskDate(language, createdOn, true) : '—'
+                  })
+                : t('teamTaskCreatedAt', { date: formatTaskDate(language, shownOn, true) })
+            }
           >
-            {formatTaskDate(language, createdOn)}
+            {formatTaskDate(language, shownOn)}
           </time>
         </div>
       )}

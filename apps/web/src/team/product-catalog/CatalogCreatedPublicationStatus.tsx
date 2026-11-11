@@ -56,7 +56,11 @@ export function CatalogCreatedPublicationStatus({
     return () => controller.abort();
   }, [teamId, catalogId, actor, epoch, read, workspace?.updaterRevision]);
   if (!snapshot)
-    return unknown ? <p role="status">{t('catalogPublicationStatusUnknown')}</p> : null;
+    return unknown ? (
+      <p role="status" className="catalog-publication-line">
+        {t('catalogPublicationStatusUnknown')}
+      </p>
+    ) : null;
   let date = snapshot.dueAt ?? '';
   if (snapshot.dueAt)
     try {
@@ -81,7 +85,7 @@ export function CatalogCreatedPublicationStatus({
     Date.parse(snapshot.dueAt!) < snapshot.serverNow - 60_000;
   return (
     <>
-      <p role="status">
+      <p role="status" className="catalog-publication-line">
         {t(
           snapshot.job?.state === 'published'
             ? 'catalogPublicationPreviouslyVerified'

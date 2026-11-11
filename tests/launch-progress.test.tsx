@@ -21,6 +21,7 @@ vi.mock('../apps/web/src/team/processing/useTeamOperation', () => ({
 }));
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   child.operation = null;
   child.localProgress = null;
   child.localState = null;
@@ -69,6 +70,7 @@ it('keeps video progress independent when a deferred blank catalog has already f
   expect(cancel).toHaveBeenCalledOnce();
 });
 it('keeps catalog progress steady through cache invalidation and preserves it on a real disconnect', () => {
+  vi.useFakeTimers();
   const props = {
     generation: {
       ...generation,
@@ -91,6 +93,15 @@ it('keeps catalog progress steady through cache invalidation and preserves it on
   }
   workspace.realtimeConnectionState = 'reconnecting';
   view.rerender(<LaunchGenerationProgress {...props} />);
+  // A brief outage keeps the last confirmed progress and says so calmly.
+  expect(screen.getByRole('progressbar')).toBeTruthy();
+  expect(screen.getByText(/The connection to the server dropped/u)).toBeTruthy();
+  expect(screen.queryByText(/Live progress is unavailable/u)).toBeNull();
+  expect(catalog.dataset.state).toBe('active');
+  // Only a sustained one asks the user to act.
+  act(() => {
+    vi.advanceTimersByTime(30_000);
+  });
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(screen.getByText(/Live progress is unavailable/u)).toBeTruthy();
   expect(catalog.dataset.state).toBe('attention');
@@ -411,6 +422,7 @@ it('keeps a finished video separate from the still unconfirmed catalog result', 
 });
 
 it('labels disconnected progress as unconfirmed and leaves an explicit status read available', () => {
+  vi.useFakeTimers();
   child.streamDisconnected = true;
   child.localProgress = { stage: 'uploading', progress: 90 };
   const refresh = vi.fn().mockResolvedValue(undefined);
@@ -428,6 +440,12 @@ it('labels disconnected progress as unconfirmed and leaves an explicit status re
       teamId="team"
     />
   );
+  // A brief disconnect is a calm note over the last confirmed progress.
+  expect(screen.getByText(/The connection to the server dropped/u)).toBeTruthy();
+  expect(screen.queryByText(/Live progress is unavailable/u)).toBeNull();
+  act(() => {
+    vi.advanceTimersByTime(30_000);
+  });
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(screen.getByText(/Live progress is unavailable/u)).toBeTruthy();
   expect(screen.queryByText('90%')).toBeNull();
@@ -635,7 +653,8 @@ it('keeps completed segment colors and the active stage coherent through partial
       generation={{ ...current, stateVersion: '9', stage: 'restitch_preparing', steps: [] }}
     />
   );
-  expect(states()).toEqual(['complete', 'complete', 'attention', 'pending']);
+  // A stale observation during a brief outage neither rewinds nor alarms.
+  expect(states()).toEqual(['complete', 'complete', 'active', 'pending']);
   workspace.realtimeConnectionState = 'connected';
   view.rerender(
     <LaunchGenerationProgress

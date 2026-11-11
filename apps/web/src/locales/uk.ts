@@ -4168,6 +4168,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamAgentTaskDetached: '{agent} знято із «{task}»',
   teamAccountTasksLinkTitle: 'Відкрити завдання з тегами цього акаунта',
   teamTaskAccountsLabel: 'РК',
+  launchesCardDateTitle: 'Дата запуску: {date} · створено {created}',
   teamTaskCreatedAt: 'Створено {date}',
   teamTaskDateOn: 'Дата {date}',
   teamTaskDateLabel: 'Дата',

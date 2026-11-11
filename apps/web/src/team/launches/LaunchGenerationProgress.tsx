@@ -1,5 +1,5 @@
 import type { LaunchGeneration, LaunchStage } from '@video-compressor/shared';
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CircleAlert, Clock3 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Alert, Button, Card, StageProgress } from '../../components/ui/index';
@@ -214,7 +214,12 @@ export function LaunchGenerationProgress({
     refresh,
     canonicalCancellationPending && onRefresh ? `${teamId ?? ''}:${generation!.id}` : undefined
   );
-  const uncertain = disconnected || watch.readFailed;
+  const lostTouch = disconnected || watch.readFailed;
+  // A short outage clears by itself: keep the last confirmed state and say so calmly.
+  // Only a sustained one, or a refusal, asks the user to check and retry.
+  const lostTouchLong = useSustained(lostTouch, LAUNCH_OUTAGE_PATIENCE_MS);
+  const briefOutage = lostTouch && !watch.readFailedHard && !lostTouchLong;
+  const uncertain = lostTouch && !briefOutage;
   const elapsedLabel = useLaunchElapsed(
     `${teamId ?? ''}:${launchId ?? 'new'}`,
     generation,
@@ -341,7 +346,7 @@ export function LaunchGenerationProgress({
     canonicalCancellationPending ||
     cleanupPending ||
     reconciling ||
-    (!showError && uncertain) ||
+    (!showError && (uncertain || briefOutage)) ||
     Boolean(current?.stepsTruncated);
   return (
     <Card
@@ -422,6 +427,10 @@ export function LaunchGenerationProgress({
             <p role="status">{t('launchesProgressReconciling')}</p>
           ) : cleanupPending || canonicalCancellationPending ? (
             <p role="status">{t('launchesCleanupPending')}</p>
+          ) : briefOutage && !showError ? (
+            <p role="status" className="team-inline-note">
+              {t('catalogVideoReadInterrupted')}
+            </p>
           ) : uncertain && !showError ? (
             <Alert color="warning" title={t('launchesProgressUnconfirmed')}>
               {t(
@@ -464,4 +473,21 @@ export function LaunchGenerationProgress({
       </div>
     </Card>
   );
+}
+
+/** How long a lost connection may last before the user is asked to act. */
+export const LAUNCH_OUTAGE_PATIENCE_MS = 30_000;
+
+/** True once `flag` has stayed true for `ms` without interruption. */
+function useSustained(flag: boolean, ms: number): boolean {
+  const [sustained, setSustained] = useState(false);
+  useEffect(() => {
+    if (!flag) {
+      setSustained(false);
+      return;
+    }
+    const timer = setTimeout(() => setSustained(true), ms);
+    return () => clearTimeout(timer);
+  }, [flag, ms]);
+  return sustained;
 }
