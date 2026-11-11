@@ -7,13 +7,21 @@ import type { SourceProfile, StitchPlan } from '@video-compressor/shared';
 
 // The body builder's media tools are replaced: these tests are about who builds a body and
 // when, not about FFmpeg. Every "encode" writes its output file and counts itself.
-const tools = vi.hoisted(() => ({ calls: 0, delayMs: 0 }));
+const tools = vi.hoisted(() => ({
+  calls: 0,
+  delayMs: 0,
+  failRaw: false,
+  args: [] as string[][]
+}));
 vi.mock('../apps/agent/src/stitcher/run.js', async () => {
   const fs = await import('node:fs/promises');
   return {
     runTool: async (_command: string, args: string[]) => {
       tools.calls += 1;
+      tools.args.push(args);
       if (tools.delayMs) await new Promise(resolve => setTimeout(resolve, tools.delayMs));
+      if (tools.failRaw && args.includes('rawvideo'))
+        return { code: 1, cancelled: false, spawnErrorCode: null, stderr: 'no' };
       await fs.writeFile(args[args.length - 1] as string, 'body');
       return { code: 0, cancelled: false, spawnErrorCode: null, stderr: '' };
     },
@@ -38,6 +46,7 @@ const { PreparedBodyCache, preparedBodyKey } =
 const { TeamSourceCache } = await import('../apps/agent/src/team-bridge/source-cache.js');
 const { TeamTransferClient } = await import('../apps/agent/src/team-bridge/transfer.js');
 const { contentIdentity } = await import('../apps/agent/src/team-bridge/restitch.js');
+const { buildScreenSegment } = await import('../apps/agent/src/stitcher/segments.js');
 
 const roots: string[] = [];
 async function root() {
@@ -48,6 +57,8 @@ async function root() {
 afterEach(async () => {
   tools.calls = 0;
   tools.delayMs = 0;
+  tools.failRaw = false;
+  tools.args = [];
   const { rm } = await import('node:fs/promises');
   await Promise.all(roots.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
 });
@@ -199,5 +210,52 @@ describe('a source held on this computer', () => {
     expect([...new Uint8Array(await readFile(second.file))]).toEqual([...bytes]);
     await second.cleanup();
     expect(await readdir(temporary)).toEqual([]);
+  });
+});
+
+describe('a held screen', () => {
+  const screenProfile = {
+    path: '/unused',
+    width: 1280,
+    height: 720,
+    pixelFormat: 'yuv420p',
+    frameRate: 30,
+    videoTimescale: 15360,
+    profile: 'High',
+    level: 40
+  } as unknown as SourceProfile;
+  const held = { frameRate: 1, durationSeconds: 30, frames: 30, aacFrames: 0 } as never;
+
+  async function build(dir: string) {
+    const image = path.join(dir, 'end.png');
+    await writeFile(image, 'not-a-real-png');
+    return buildScreenSegment({
+      imagePath: image,
+      profile: screenProfile,
+      screen: held,
+      fitMode: 'cover',
+      workDir: dir,
+      name: 'outro',
+      silenceBankPath: null
+    });
+  }
+
+  it('fits the picture once and loops the fitted frame', async () => {
+    const result = await build(await root());
+    expect(result.ok).toBe(true);
+    const encodes = tools.args.filter(args => args.includes('libx264'));
+    expect(encodes).toHaveLength(1);
+    expect(encodes[0]).toContain('-stream_loop');
+    expect(encodes[0]).not.toContain('-loop');
+  });
+
+  it('falls back to the single encode when the fitted frame cannot be made', async () => {
+    tools.failRaw = true;
+    const result = await build(await root());
+    expect(result.ok).toBe(true);
+    const encodes = tools.args.filter(args => args.includes('libx264'));
+    expect(encodes).toHaveLength(1);
+    expect(encodes[0]).toContain('-loop');
+    expect(encodes[0]).not.toContain('-stream_loop');
   });
 });

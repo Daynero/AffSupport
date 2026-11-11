@@ -167,6 +167,78 @@ export function buildScreenVideoArgs(options: ScreenVideoOptions): string[] {
   ];
 }
 
+/**
+ * The same screen in two steps, for a held screen of more than a couple of frames.
+ *
+ * `-loop 1` decodes the picture again for every frame it emits, and the cover/contain fit
+ * runs Lanczos on every one of them: a Drive photo of twelve megapixels held at one frame a
+ * second is a full decode and a full rescale per second of screen — measured at four to five
+ * seconds per variation of a catalog. Here the picture is decoded, turned and fitted **once**,
+ * written as one raw frame in the encoder's own pixel format, and that frame is looped into
+ * exactly the encoder arguments `buildScreenVideoArgs` uses. The encoder sees the same pixels
+ * at the same timestamps; only the repeated work is gone.
+ */
+export function buildScreenStillArgs(
+  options: ScreenVideoOptions & { frameOutput: string }
+): string[] {
+  const single = buildScreenVideoArgs(options);
+  const chain = single[single.indexOf('-vf') + 1];
+  if (!chain) throw new StitchArgumentError('SCREEN_ARGUMENTS_UNEXPECTED');
+  return [
+    ...BASE,
+    ...threadArgs(options.threads ?? null),
+    '-noautorotate',
+    '-display_rotation',
+    '0',
+    '-i',
+    options.imagePath,
+    '-frames:v',
+    '1',
+    '-vf',
+    chain,
+    '-pix_fmt',
+    options.profile.pixelFormat || 'yuv420p',
+    '-color_range',
+    'tv',
+    '-f',
+    'rawvideo',
+    options.frameOutput
+  ];
+}
+
+/** Encodes the held screen from the one fitted frame `buildScreenStillArgs` wrote. */
+export function buildScreenHoldArgs(options: ScreenVideoOptions & { framePath: string }): string[] {
+  const single = buildScreenVideoArgs(options);
+  const inputStart = single.indexOf('-noautorotate');
+  const chainAt = single.indexOf('-vf') + 1;
+  if (inputStart < 0 || chainAt < 1) throw new StitchArgumentError('SCREEN_ARGUMENTS_UNEXPECTED');
+  const { profile, screen } = options;
+  return [
+    ...single.slice(0, inputStart),
+    '-f',
+    'rawvideo',
+    '-pix_fmt',
+    profile.pixelFormat || 'yuv420p',
+    '-s',
+    `${profile.width}x${profile.height}`,
+    '-framerate',
+    decimal(screen.frameRate, 9),
+    '-color_range',
+    'tv',
+    '-stream_loop',
+    '-1',
+    '-i',
+    options.framePath,
+    '-t',
+    decimal(screen.durationSeconds, 9),
+    // The fitted frame already carries everything the chain did; only its square pixels must
+    // be restated, because a raw frame has no aspect ratio of its own.
+    '-vf',
+    'setsar=1',
+    ...single.slice(chainAt + 1)
+  ];
+}
+
 export interface SilenceBankOptions {
   output: string;
   sampleRate: number;

@@ -7,6 +7,7 @@
  */
 
 import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import type { ChildProcess } from 'node:child_process';
 import type {
   ImageFitMode,
@@ -15,6 +16,8 @@ import type {
 } from '@video-compressor/shared';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import {
+  buildScreenHoldArgs,
+  buildScreenStillArgs,
   buildScreenVideoArgs,
   buildSegmentMuxArgs,
   buildSilenceSliceArgs,
@@ -46,27 +49,34 @@ export async function buildScreenSegment(options: ScreenSegmentOptions): Promise
   const output = path.join(options.workDir, `${options.name}.mp4`);
 
   let videoArgs: string[];
+  const videoOptions = {
+    imagePath: options.imagePath,
+    output: videoPath,
+    profile: options.profile,
+    screen: options.screen,
+    fitMode: options.fitMode,
+    threads: options.threads,
+    orientation: await imageOrientation(options.imagePath)
+  };
   try {
-    videoArgs = buildScreenVideoArgs({
-      imagePath: options.imagePath,
-      output: videoPath,
-      profile: options.profile,
-      screen: options.screen,
-      fitMode: options.fitMode,
-      threads: options.threads,
-      orientation: await imageOrientation(options.imagePath)
-    });
+    videoArgs = buildScreenVideoArgs(videoOptions);
   } catch (error) {
     // A screen the builders refuse is a planning mistake, not a media failure; it must never
     // reach FFmpeg, because the shape they refuse is the one that hangs it.
     return { ok: false, error: isStitchArgumentError(error) ? error.message : 'SCREEN_INVALID' };
   }
 
-  const picture = await runTool(ffmpegPath, videoArgs, {
-    signal: options.signal,
-    onChild: options.onChild
-  });
-  if (!toolSucceeded(picture)) return { ok: false, error: failureOf(picture, 'SCREEN_ENCODE') };
+  const run = { signal: options.signal, onChild: options.onChild };
+  // A held screen is fitted once and looped (see `buildScreenStillArgs`). If that shorter
+  // road fails for any reason other than a cancellation, the original single encode runs:
+  // the two-step path may only ever save time, never cost a screen.
+  const held =
+    options.screen.frames > 2 && (await encodeHeldScreen(videoOptions, options.workDir, run));
+  if (held === 'cancelled') return { ok: false, error: 'STITCH_CANCELLED' };
+  if (held !== true) {
+    const picture = await runTool(ffmpegPath, videoArgs, run);
+    if (!toolSucceeded(picture)) return { ok: false, error: failureOf(picture, 'SCREEN_ENCODE') };
+  }
 
   const wantsSilence = options.screen.aacFrames > 0 && options.silenceBankPath;
   if (wantsSilence && options.silenceBankPath) {
@@ -95,6 +105,38 @@ export async function buildScreenSegment(options: ScreenSegmentOptions): Promise
   if (!toolSucceeded(muxed)) return { ok: false, error: failureOf(muxed, 'SCREEN_MUX') };
 
   return { ok: true, path: output };
+}
+
+/** True when the two-step encode produced the screen; false sends the caller to the old road. */
+async function encodeHeldScreen(
+  videoOptions: Parameters<typeof buildScreenVideoArgs>[0],
+  workDir: string,
+  run: { signal?: AbortSignal; onChild?: (child: ChildProcess) => void }
+): Promise<boolean | 'cancelled'> {
+  const framePath = path.join(
+    workDir,
+    `${path.basename(videoOptions.output, path.extname(videoOptions.output))}-frame.raw`
+  );
+  try {
+    const still = await runTool(
+      ffmpegPath,
+      buildScreenStillArgs({ ...videoOptions, frameOutput: framePath }),
+      run
+    );
+    if (still.cancelled) return 'cancelled';
+    if (!toolSucceeded(still)) return false;
+    const hold = await runTool(
+      ffmpegPath,
+      buildScreenHoldArgs({ ...videoOptions, framePath }),
+      run
+    );
+    if (hold.cancelled) return 'cancelled';
+    return toolSucceeded(hold);
+  } catch {
+    return false;
+  } finally {
+    await rm(framePath, { force: true }).catch(() => undefined);
+  }
 }
 
 function failureOf(result: { spawnErrorCode: string | null; cancelled: boolean }, stage: string) {
