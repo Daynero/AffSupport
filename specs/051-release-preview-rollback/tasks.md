@@ -22,7 +22,7 @@ description: "Tasks for 051 — next link, promote the tested build, rollback"
 ## Phase 3: US1 — тестова версія за постійним посиланням (P1)
 
 - [ ] T006 [US1] `scripts/deploy-web.mjs`: `--channel=next` (за замовчуванням) деплоїть `--branch next`; бандл архівується в каталог стану; після успіху записується publish у стан; `--channel=production` дозволено лише з `SOTY_RELEASE_CHANNEL_TOKEN`
-- [ ] T007 [US1] `scripts/verify-live-smoke.mjs` і `verify-published-release` приймають `--channel=next`; `live_verify` у `scripts/lib/release/step-adapter.mjs` перевіряє next
+- [ ] T007 [US1] `scripts/verify-live-smoke.mjs` і `verify-published-release` приймають `--channel=next`; `live_verify` у `scripts/lib/release/step-adapter.mjs` перевіряє next і що прод досі працює (FR-011)
 - [ ] T008 [P] [US1] Веб: `siteChannel()` і runtime `configuredSiteUrl()` у `apps/web/src/lib/config.ts`; same-origin маніфест у `apps/web/src/release-manifest.ts`
 - [ ] T009 [P] [US1] Веб: `NextChannelBadge` (позначка «Тестова версія · збірка N»), лише на next
 - [ ] T010 [US1] Міграція `release_testers` + функції; веб `ReleaseTesterGate` на next (fallback на `is_admin`); секція тестерів в адмінці
@@ -66,6 +66,7 @@ description: "Tasks for 051 — next link, promote the tested build, rollback"
 - [ ] T030 Supabase Auth: redirect URL `https://next.soty.pp.ua/**`; Google Cloud: referrer ключа Picker
 - [ ] T031 Наживо: деплой збірки гілки на next, перевірка в Chrome (вхід, позначка, гейт), прод не змінився; `cancel` повертає next на прод
 - [ ] T032 `adopt-live --confirm` реєструє нинішній прод як ціль відкату
+- [ ] T034 [P] FR-020: перевірити, що наявне відновлення завантаження (`apps/web/index.html` boot recovery, `vite:preloadError` у `main.tsx`) покриває зміну бандла на тій самій адресі; тест або нотатка
 - [ ] T033 Lint, format, tsc web/agent, фокусні тести; повний suite single-worker
 
 ## Dependencies
