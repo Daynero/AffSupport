@@ -894,6 +894,72 @@ describe('a video’s catalogs (024, US15)', () => {
 });
 // @ts-nocheck — dialog fixture keeps the historical minimal settings shape.
 
+describe('a creation still running behind the catalogs list (1.4.3)', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_APP_ENVIRONMENT', 'beta');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const pendingKey = 'product-catalog:47000000-0000-4000-8000-000000000021';
+  const pending = {
+    outcome: 'preparing_video',
+    catalogIntentId: '47000000-0000-4000-8000-000000000001',
+    videoSetId: '47000000-0000-4000-8000-000000000002',
+    requestedCount: 5,
+    registeredCount: 2,
+    state: 'preparing'
+  };
+  function client(overrides: Partial<ListClient> = {}): ListClient {
+    return {
+      listProductCatalogs: vi.fn().mockResolvedValue([catalog]),
+      trashMaterial: vi.fn(),
+      getProductCatalogSettings: vi.fn().mockResolvedValue(settings),
+      createProductCatalog: vi.fn().mockResolvedValue(created),
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      nextProductCatalogVariant: vi.fn().mockResolvedValue(3),
+      ...overrides
+    } as ListClient;
+  }
+  function renderList(listClient: ListClient) {
+    render(
+      wrap(
+        <ProductCatalogMenuDialog
+          teamId={TEAM_ID}
+          video={VIDEO}
+          client={listClient}
+          onClose={vi.fn()}
+        />
+      )
+    );
+  }
+
+  it('lists the running creation and opens it from there', async () => {
+    localStorage.setItem(
+      `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+      pendingKey
+    );
+    const listClient = client();
+    renderList(listClient);
+    expect(await screen.findByText('A catalog is being created')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Show progress' }));
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(listClient.readProductCatalogVideo).toHaveBeenCalledWith(
+      TEAM_ID,
+      pendingKey,
+      expect.anything()
+    );
+    // The next free number is not the running creation's name.
+    expect(screen.queryByText(/_v3_catalog/)).toBeNull();
+  });
+
+  it('shows no running creation when this browser has none', async () => {
+    renderList(client());
+    expect(await screen.findByText(catalog.name)).toBeTruthy();
+    expect(screen.queryByText('A catalog is being created')).toBeNull();
+  });
+});
+
 describe('a catalog re-stitched with pictures from the space (030)', () => {
   it('carries the drawn screens to the app and speaks contract 2', async () => {
     const screens = [

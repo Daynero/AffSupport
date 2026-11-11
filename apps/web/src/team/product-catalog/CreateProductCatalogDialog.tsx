@@ -698,7 +698,10 @@ export function CreateProductCatalogDialog({
       }
     }
   };
+  // Reopened on a creation this browser started earlier: the next free number is not its name.
+  const [resumedCreation, setResumedCreation] = useState(false);
   useEffect(() => {
+    setResumedCreation(false);
     videoKey.current = null;
     videoOwner.current = null;
     setVideoPending(null);
@@ -713,6 +716,7 @@ export function CreateProductCatalogDialog({
         videoKey.current = key;
         videoOwner.current = { actor: privateCacheActor(), epoch: privateCacheEpoch() };
         setVideoUnknown(true);
+        setResumedCreation(true);
         void checkVideo();
       }
     } catch {
@@ -922,7 +926,7 @@ export function CreateProductCatalogDialog({
                   : 'productCatalogCreate'
             )}
           </h2>
-          {plannedName ? (
+          {plannedName && !resumedCreation ? (
             <div className="product-catalog-dialog-name-row">
               <p className="product-catalog-dialog-name" title={plannedName}>
                 {plannedName}

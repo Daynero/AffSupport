@@ -10,9 +10,11 @@ import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
+import { privateCacheActor } from '../private-cache-scope';
 import { useTeam } from '../TeamContext';
 import {
   CreateProductCatalogDialog,
+  pendingCatalogCreationStorageKey,
   type CreateProductCatalogClient
 } from './CreateProductCatalogDialog';
 
@@ -44,6 +46,22 @@ type View =
  */
 function shortLink(link: string): string {
   return link.replace(/^https?:\/\/(www\.)?/iu, '');
+}
+
+/**
+ * Whether this browser started a catalog for the video that has not finished yet (1.4.3). Such a
+ * creation is not a catalog the server lists, so without this the list showed only the finished
+ * ones and a reopened creation looked lost.
+ */
+function hasRunningCreation(teamId: string, videoId: string): boolean {
+  const actor = privateCacheActor();
+  if (!actor) return false;
+  try {
+    const key = localStorage.getItem(pendingCatalogCreationStorageKey(actor, teamId, videoId));
+    return Boolean(key && /^product-catalog:[0-9a-f-]{36}$/iu.test(key));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -205,12 +223,31 @@ export function ProductCatalogMenuDialog({
   }
 
   const mayMake = can('upload');
+  const running = Boolean(client.createProductCatalogVideo) && hasRunningCreation(teamId, video.id);
   return (
     <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="md">
       <div className="team-dialog-form product-catalog-dialog">
         <h2 id={titleId}>{t('productCatalogListTitle')}</h2>
         <p className="product-catalog-dialog-name">{video.name}</p>
         <ul className="product-catalog-list">
+          {running && (
+            <li className="product-catalog-row">
+              <div className="product-catalog-row-text" role="status">
+                <strong>{t('productCatalogCreationRunning')}</strong>
+                <small>{t('productCatalogCreationRunningHint')}</small>
+              </div>
+              <div className="product-catalog-row-actions">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setView({ kind: 'create', replaces: null, fromList: true })}
+                >
+                  {t('productCatalogCreationShow')}
+                </Button>
+              </div>
+            </li>
+          )}
           {catalogs.map(catalog => (
             <CatalogRow
               key={catalog.id}
