@@ -296,12 +296,15 @@ export const en = {
   catalogVideoR2PanelReady: 'The catalog’s video link already points at R2.',
   catalogVideoR2PanelPending:
     'The video copy is being prepared; until then the catalog keeps its Drive link.',
+  catalogVideoR2PanelCopied:
+    'The video copy is ready; the sheet switches to it with the catalog’s next write, and keeps its Drive link until then.',
   catalogVideoR2NextUpdate: 'The link changes once the copy is ready.',
   catalogVideoR2NoPermission: 'Only a member who can change the catalog settings can turn this on.',
   catalogVideoR2StatusR2: 'R2',
   catalogVideoR2StatusReturning: 'Returning to Drive',
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Copy in progress',
+  catalogVideoR2StatusCopied: 'Copy ready, sheet still on Drive',
   catalogVideoR2StatusFallback: 'Drive link kept',
   catalogVideoR2LastUpdate: 'Last successful update',
   catalogVideoR2Never: 'not yet',

@@ -298,6 +298,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Копіює готове відео в сховище Soty і дає каталогу стабільне посилання. Діє одразу, без оновлення; зелена іконка — посилання вже на R2.',
   catalogVideoR2PanelReady: 'Посилання на відео в каталозі вже веде на R2.',
   catalogVideoR2PanelPending: 'Копія відео готується; доти в каталозі працює посилання Drive.',
+  catalogVideoR2PanelCopied:
+    'Копія відео готова; посилання в таблиці зміниться з наступним записом каталогу, доти працює посилання Drive.',
   catalogVideoR2NextUpdate: 'Посилання зміниться, щойно копія буде готова.',
   catalogVideoR2NoPermission:
     'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
@@ -305,6 +307,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2StatusReturning: 'Повертається на Drive',
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Копія готується',
+  catalogVideoR2StatusCopied: 'Копія готова, таблиця ще на Drive',
   catalogVideoR2StatusFallback: 'Лишається посилання Drive',
   catalogVideoR2LastUpdate: 'Останнє успішне оновлення',
   catalogVideoR2Never: 'ще не було',

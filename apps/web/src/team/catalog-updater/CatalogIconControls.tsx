@@ -25,6 +25,8 @@ export function catalogVideoR2Sentence(row: CatalogVideoR2Row, t: Translate): st
   if (row.link === 'r2' && row.enabled) return t('catalogVideoR2PanelReady');
   // Every reason message already says that the Drive link stays.
   if (row.reason) return teamErrorMessageFor({ code: row.reason }, t);
+  // The copy is done; only the sheet write is left, which the copy does not control.
+  if (row.copyState === 'ready') return t('catalogVideoR2PanelCopied');
   return t('catalogVideoR2PanelPending');
 }
 
@@ -35,6 +37,7 @@ export function catalogVideoR2Status(row: CatalogVideoR2Row, t: Translate): stri
   if (!row.enabled && row.link === 'r2') return t('catalogVideoR2StatusReturning');
   if (!row.enabled) return t('catalogVideoR2StatusDrive');
   if (row.reason) return teamErrorMessageFor({ code: row.reason }, t);
+  if (row.copyState === 'ready') return t('catalogVideoR2StatusCopied');
   return t('catalogVideoR2StatusPending');
 }
 

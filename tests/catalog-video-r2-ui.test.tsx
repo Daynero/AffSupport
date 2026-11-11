@@ -12,7 +12,8 @@ import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { CatalogVideoR2Toggle } from '../apps/web/src/team/product-catalog/CatalogVideoR2Toggle';
 import {
   CatalogIconControls,
-  CatalogIconLegend
+  CatalogIconLegend,
+  catalogVideoR2Sentence
 } from '../apps/web/src/team/catalog-updater/CatalogIconControls';
 import type { CatalogVideoR2Row } from '../apps/web/src/team/product-catalog/useCatalogVideoR2Team';
 import { CatalogVideoR2UsageSection } from '../apps/web/src/team/tariffs/CatalogVideoR2UsageSection';
@@ -294,6 +295,21 @@ describe('R2 icon in the catalog toolbar', () => {
     );
     expect(screen.getAllByRole('button')[5]!.getAttribute('aria-label')).toMatch(
       / · R2: Catalog$/u
+    );
+    // A finished copy whose sheet still holds Drive links says so, not "in progress".
+    view.rerender(
+      <CatalogIconControls
+        profile={profile}
+        name="Catalog"
+        onChange={vi.fn()}
+        videoR2={{ row: row({ enabled: true, copyState: 'ready' }), onToggle }}
+      />
+    );
+    expect(screen.getAllByRole('button')[5]!.getAttribute('aria-label')).toMatch(
+      / · Copy ready, sheet still on Drive: Catalog$/u
+    );
+    expect(catalogVideoR2Sentence(row({ enabled: true, copyState: 'ready' }), key => key)).toBe(
+      'catalogVideoR2PanelCopied'
     );
     view.rerender(
       <CatalogIconControls
