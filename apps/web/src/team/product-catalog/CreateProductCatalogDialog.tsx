@@ -741,6 +741,8 @@ export function CreateProductCatalogDialog({
         if (!owns()) return;
       }
       setVideoUnknown(false);
+      // A read that answered supersedes the failure of the one before it.
+      setFailure(null);
       if (
         result.outcome === 'preparing_video' &&
         (createdCatalog.current?.videoGenerationObservation ??
@@ -1227,7 +1229,7 @@ export function CreateProductCatalogDialog({
               )}
             </p>
           )}
-          {videoPending?.agentSilent &&
+          {(videoPending?.agentSilent || videoPending?.agentUnreachable) &&
             (videoPending.state === 'preparing' || videoPending.state === 'unknown') && (
               <p role="status">{t('catalogVideoAgentSilent')}</p>
             )}

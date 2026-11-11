@@ -1249,6 +1249,21 @@ describe('beta durable video creation', () => {
     expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
     expect(screen.queryByText(/result is not confirmed/)).toBeNull();
   });
+  it('says the agent is not answering when this browser cannot reach it, before the server notices', async () => {
+    // 1.4.3 (beta 2026-11-11): with the agent killed, the read threw on the
+    // local attach and the window said "something went wrong" instead.
+    const unreachable = { ...pending, agentUnreachable: true };
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(unreachable),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(unreachable)
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(screen.getByText(/Soty on the computer is not responding/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
   it('does not call a heartbeating agent silent', async () => {
     const client = dialogClient({
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
