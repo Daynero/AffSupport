@@ -4185,6 +4185,7 @@ export const en = {
   teamAgentTaskDetached: '{agent} taken off “{task}”',
   teamAccountTasksLinkTitle: 'Open the tasks tagged with this account',
   teamTaskAccountsLabel: 'Ad accounts',
+  launchesCardDateTitle: 'Launch date: {date} · created {created}',
   teamTaskCreatedAt: 'Created {date}',
   teamTaskDateOn: 'Date {date}',
   teamTaskDateLabel: 'Date',

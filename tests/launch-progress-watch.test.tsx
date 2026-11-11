@@ -5,6 +5,7 @@ import {
   useLaunchProgressWatch,
   LAUNCH_PROGRESS_QUIET_MS,
   LAUNCH_STATUS_READ_MS,
+  LAUNCH_STATUS_RETRY_MS,
   LAUNCH_CANCEL_STATUS_POLL_MS
 } from '../apps/web/src/team/launches/useLaunchProgressWatch';
 import { readLaunchPreparation } from '../apps/web/src/team/launches/preparation';
@@ -174,6 +175,37 @@ it('reads cancellation immediately and keeps its exact-generation cadence across
     await vi.advanceTimersByTimeAsync(30_000);
   });
   expect(read).toHaveBeenCalledTimes(2);
+  unmount();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('reads again soon after a transient failure and marks only a refusal as hard', async () => {
+  vi.useFakeTimers();
+  const offline = Object.assign(new Error('TEAM_TRANSPORT_UNAVAILABLE'), {
+    code: 'TEAM_TRANSPORT_UNAVAILABLE'
+  });
+  const read = vi
+    .fn((_signal: AbortSignal) => Promise.resolve())
+    .mockRejectedValueOnce(offline)
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'PERMISSION_DENIED' }));
+  const { result, unmount } = renderHook(() => useLaunchProgressWatch(true, 'stage', read));
+  await act(async () => {
+    await result.current.refresh();
+  });
+  expect(result.current.readFailed).toBe(true);
+  expect(result.current.readFailedHard).toBe(false);
+  // The first retry comes after 3 s, long before the 15 s poll.
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LAUNCH_STATUS_RETRY_MS[0]);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(result.current.readFailed).toBe(false);
+  await act(async () => {
+    await result.current.refresh();
+  });
+  expect(result.current.readFailed).toBe(true);
+  expect(result.current.readFailedHard).toBe(true);
   unmount();
   expect(vi.getTimerCount()).toBe(0);
 });

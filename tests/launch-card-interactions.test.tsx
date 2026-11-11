@@ -244,3 +244,14 @@ it('retains an explicit legacy boolean observation without manufacturing an assi
   expect(chip.dataset.availability).toBe('free');
   expect(chip.classList.contains('is-free')).toBe(true);
 });
+it('shows the day the launch is for, with when it was made in the title', () => {
+  const view = render(
+    <LaunchCard
+      value={summary({ createdAt: '2026-11-11T10:00:00Z', launchDate: '2026-11-12' })}
+      onOpen={vi.fn()}
+    />
+  );
+  const time = view.container.querySelector('time')!;
+  expect(time.getAttribute('dateTime')).toBe('2026-11-12');
+  expect(time.getAttribute('title')).toMatch(/Launch date: .*created/u);
+});

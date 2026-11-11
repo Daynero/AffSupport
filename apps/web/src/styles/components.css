@@ -3322,6 +3322,13 @@
   color: var(--color-warning-text);
   background: var(--color-warning-soft);
 }
+/* The publication line under a created catalog: a quiet status, not body text. */
+.catalog-publication-line {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
 
 /* Empty states — the shape the Empty component draws (cleared by C1–C14). */
 .team-empty-state {

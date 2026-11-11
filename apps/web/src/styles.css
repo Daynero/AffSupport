@@ -9197,11 +9197,11 @@ button,
   display: grid;
   gap: var(--space-3);
 }
+/* The rename form: the field takes the dialog's full width, the actions sit below it.
+   Its field is the design-system Input, so no legacy input rule applies to it. */
 .team-material-inline-form {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
 }
-.team-material-inline-form label,
 .team-text-editor label,
 .team-process-dialog label,
 .team-operation-overlay label {
@@ -9210,7 +9210,6 @@ button,
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
-.team-material-inline-form input,
 .team-text-editor textarea,
 .team-process-dialog input,
 .team-process-dialog select,
@@ -9292,9 +9291,6 @@ button,
 }
 
 @media (max-width: 560px) {
-  .team-material-inline-form {
-    grid-template-columns: 1fr;
-  }
   .team-operation-overlay,
   .team-text-editor,
   .team-process-dialog {
