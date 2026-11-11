@@ -337,6 +337,12 @@ export async function createDurableProductCatalog(
     await deps.assertImageContract?.(request.teamId, request.catalogImageContractVersion);
   const owner = crypto.randomUUID();
   const intent = await store.begin({ ...request }, owner);
+  // A resumed intent arrives 'interrupted', and checkpointing that state again
+  // releases the lease, so the next checkpoint of the same pass failed
+  // LEASE_MISMATCH. A restitch creation resumed after its videos were ready
+  // lost two passes that way (settings, then the source proof) and the catalog
+  // appeared a minute or more late. Work in progress is recorded as 'planning'.
+  const workingState = () => (intent.state === 'interrupted' ? 'planning' : intent.state);
   if (intent.state === 'registered') {
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     const result = existingResult(intent.result);
@@ -363,7 +369,7 @@ export async function createDurableProductCatalog(
         request.productCount,
         await deps.initialVideoAuthority.serverNow()
       );
-      await store.checkpoint(intent, owner, intent.state, { initialVideoPlan });
+      await store.checkpoint(intent, owner, workingState(), { initialVideoPlan });
       intent.checkpoint = { ...intent.checkpoint, initialVideoPlan };
     }
     try {
@@ -468,13 +474,7 @@ export async function createDurableProductCatalog(
         await resources;
       }
     };
-    const check = () =>
-      store.checkpoint(
-        intent,
-        owner,
-        intent.state === 'interrupted' ? 'planning' : intent.state,
-        {}
-      );
+    const check = () => store.checkpoint(intent, owner, workingState(), {});
     const recoverFile = async (
       parentId: string,
       credentialId: string
@@ -533,7 +533,7 @@ export async function createDurableProductCatalog(
         intent.checkpoint.createStarted !== true &&
         typeof intent.checkpoint.providerFileId !== 'string');
     if (nativeSpreadsheet && engine === undefined) {
-      await store.checkpoint(intent, owner, intent.state, { sheetEngine: 'native' });
+      await store.checkpoint(intent, owner, workingState(), { sheetEngine: 'native' });
       intent.checkpoint.sheetEngine = 'native';
     }
     const wrapped: ProductCatalogDeps = {
@@ -572,7 +572,7 @@ export async function createDurableProductCatalog(
           };
         }
         const settings = await deps.readSettings(team);
-        if (settings) await store.checkpoint(intent, owner, intent.state, { settings });
+        if (settings) await store.checkpoint(intent, owner, workingState(), { settings });
         return settings;
       },
       async rememberRowRecipe(rows) {
@@ -636,7 +636,7 @@ export async function createDurableProductCatalog(
         )
           throw new TeamFunctionError('SOURCE_CHANGED');
         if (known === undefined)
-          await store.checkpoint(intent, owner, intent.state, { [key]: identity });
+          await store.checkpoint(intent, owner, workingState(), { [key]: identity });
         return live;
       },
       async nextVariant() {
@@ -701,7 +701,7 @@ export async function createDurableProductCatalog(
         });
         if (operation.state === 'canceled' || operation.state === 'failed')
           throw new TeamFunctionError('WRONG_STATE');
-        await store.checkpoint(intent, owner, intent.state, {}, operation.operationId);
+        await store.checkpoint(intent, owner, workingState(), {}, operation.operationId);
         return { ...operation, reused: false };
       },
       async markRunning(id) {
@@ -822,13 +822,13 @@ export async function createDurableProductCatalog(
               if (!sheet) throw new TeamFunctionError('SOURCE_CHANGED');
               const binding = { fileId: input.fileId, sheetId: sheet.sheetId };
               if (saved === undefined)
-                await store.checkpoint(intent, owner, intent.state, { nativeSheet: binding });
+                await store.checkpoint(intent, owner, workingState(), { nativeSheet: binding });
               // The frozen range is overwritten, never appended. A lost reply retries the same
               // marked file and bound sheet ID; an acknowledged write is never repeated.
               await check();
               await deps.validateImageUses?.(request.teamId, intent.id);
               await drive.writeNativeSpreadsheetRows({ ...input, sheet });
-              await store.checkpoint(intent, owner, intent.state, { nativeRowsWritten: binding });
+              await store.checkpoint(intent, owner, workingState(), { nativeRowsWritten: binding });
             }
             const file = await drive.getFile(input.fileId);
             if (
@@ -866,7 +866,7 @@ export async function createDurableProductCatalog(
         await check();
         const linked = await deps.link(input);
         if (linked.linked)
-          await store.checkpoint(intent, owner, intent.state, { linkCompleted: true });
+          await store.checkpoint(intent, owner, workingState(), { linkCompleted: true });
         return linked;
       }
     };
@@ -925,6 +925,24 @@ export async function createDurableProductCatalog(
       });
     }
     throw failure;
+  }
+}
+
+/** The dialog resumes a creation once its videos are ready, and the recovery
+ * pass woken by the same event may already hold the lease. Begin then refuses
+ * with GROUP_RECONCILING; the resume answers with the current progress instead
+ * of a 409, and the dialog keeps polling until the holder registers the catalog. */
+export async function resumeOrReadInitialCatalog<T, P>(
+  resumed: Promise<T>,
+  readProgress: () => Promise<P | null>
+): Promise<T | P> {
+  try {
+    return await resumed;
+  } catch (error) {
+    if (!(error instanceof TeamFunctionError) || error.code !== 'GROUP_RECONCILING') throw error;
+    const progress = await readProgress().catch(() => null);
+    if (progress === null) throw error;
+    return progress;
   }
 }
 

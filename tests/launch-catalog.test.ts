@@ -2,6 +2,7 @@ import { PRODUCT_CATALOG_TEMPLATE } from '../supabase/functions/_shared/product-
 import { describe, expect, it, vi } from 'vitest';
 import {
   createDurableProductCatalog,
+  resumeOrReadInitialCatalog,
   type CatalogIntent,
   type CatalogIntentStore,
   type DurableCatalogDrive
@@ -655,6 +656,67 @@ it('retries a definitive create refusal using the same reserved variation and re
   expect(f.state.variant).toBe(1);
   expect(f.state.checkpoint.sheetRows).toEqual(rows);
   expect(f.deps.nextVariant).not.toHaveBeenCalled();
+});
+
+it('finishes a resumed interrupted intent in one pass without releasing its own lease', async () => {
+  // 1.4.3 QA round 2 (N4): service_checkpoint_catalog_intent releases the lease
+  // whenever the state is 'interrupted'. A resumed intent re-checkpointed its
+  // own 'interrupted' state for the settings and then the source proof, so the
+  // next checkpoint failed LEASE_MISMATCH twice (409 on the dialog's resume)
+  // and only a third pass created the catalog.
+  const f = fixture(false);
+  f.state.state = 'interrupted';
+  let leaseLive = false;
+  vi.mocked(f.store.begin).mockImplementation(async () => {
+    leaseLive = true;
+    return f.state;
+  });
+  const checkpoint = f.store.checkpoint;
+  f.store.checkpoint = vi.fn(async (...args: Parameters<CatalogIntentStore['checkpoint']>) => {
+    if (!leaseLive) throw new TeamFunctionError('LEASE_MISMATCH', { retryable: true });
+    if (args[2] === 'interrupted' || args[2] === 'cleanup_pending') leaseLive = false;
+    await checkpoint(...args);
+  });
+  await expect(
+    createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+  ).resolves.toMatchObject({ catalog: { materialId: 'catalog-material' } });
+  expect(f.state.state).toBe('registered');
+  expect(f.create).toHaveBeenCalledTimes(1);
+  const states = vi.mocked(f.store.checkpoint).mock.calls.map(call => call[2]);
+  expect(states).not.toContain('interrupted');
+});
+
+describe('dialog resume while another pass holds the creation lease', () => {
+  const progress = { outcome: 'preparing_video', state: 'preparing' };
+  it('answers with the current progress instead of GROUP_RECONCILING', async () => {
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => progress
+      )
+    ).resolves.toBe(progress);
+  });
+  it('keeps every other refusal, and the 409 when no progress can be read', async () => {
+    const read = vi.fn(async () => progress);
+    await expect(
+      resumeOrReadInitialCatalog(Promise.reject(new TeamFunctionError('SOURCE_CHANGED')), read)
+    ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+    expect(read).not.toHaveBeenCalled();
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => null
+      )
+    ).rejects.toMatchObject({ code: 'GROUP_RECONCILING' });
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => {
+          throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+        }
+      )
+    ).rejects.toMatchObject({ code: 'GROUP_RECONCILING' });
+  });
 });
 
 it('persists measured successful boundaries in the final attempt receipt', async () => {

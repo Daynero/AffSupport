@@ -59,7 +59,11 @@ import {
   type LaunchConfig,
   type LaunchSourceSnapshot
 } from '../../../packages/shared/dist/team/launches.js';
-import { createDurableProductCatalog, catalogIntentStore } from './catalog-durable.ts';
+import {
+  createDurableProductCatalog,
+  catalogIntentStore,
+  resumeOrReadInitialCatalog
+} from './catalog-durable.ts';
 import { generateLaunch } from './launches.ts';
 import { executeLaunchCatalog } from './launch-catalog.ts';
 import { runLaunchCatalogRecovery } from './launch-recovery.ts';
@@ -3995,20 +3999,29 @@ Deno.serve(async request => {
           deps.fullDriveFor
         );
       }
-      value = withCatalogVideoWriter(
-        await createDurableProductCatalog(
-          deps,
-          catalogIntentStore(
-            configured.service,
-            catalogRequest.teamId,
-            catalogRequest.videoMaterialId,
-            userId,
-            catalogRequest.idempotencyKey
-          ),
-          deps.fullDriveFor,
-          catalogRequest,
-          userId
+      const created = createDurableProductCatalog(
+        deps,
+        catalogIntentStore(
+          configured.service,
+          catalogRequest.teamId,
+          catalogRequest.videoMaterialId,
+          userId,
+          catalogRequest.idempotencyKey
         ),
+        deps.fullDriveFor,
+        catalogRequest,
+        userId
+      );
+      value = withCatalogVideoWriter(
+        path.endsWith('/resume')
+          ? await resumeOrReadInitialCatalog(created, () =>
+              readCatalogInitialVideoProgress(configured.service, userId, {
+                teamId: catalogRequest.teamId,
+                expectedActorId: userId,
+                idempotencyKey: catalogRequest.idempotencyKey
+              })
+            )
+          : await created,
         catalogWriterEnabled()
       );
     } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
