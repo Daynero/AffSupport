@@ -928,4 +928,22 @@ export async function createDurableProductCatalog(
   }
 }
 
+/** The dialog resumes a creation once its videos are ready, and the recovery
+ * pass woken by the same event may already hold the lease. Begin then refuses
+ * with GROUP_RECONCILING; the resume answers with the current progress instead
+ * of a 409, and the dialog keeps polling until the holder registers the catalog. */
+export async function resumeOrReadInitialCatalog<T, P>(
+  resumed: Promise<T>,
+  readProgress: () => Promise<P | null>
+): Promise<T | P> {
+  try {
+    return await resumed;
+  } catch (error) {
+    if (!(error instanceof TeamFunctionError) || error.code !== 'GROUP_RECONCILING') throw error;
+    const progress = await readProgress().catch(() => null);
+    if (progress === null) throw error;
+    return progress;
+  }
+}
+
 export { existingResult as parseStoredProductCatalogResult };

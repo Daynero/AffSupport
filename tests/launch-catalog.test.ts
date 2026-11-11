@@ -2,6 +2,7 @@ import { PRODUCT_CATALOG_TEMPLATE } from '../supabase/functions/_shared/product-
 import { describe, expect, it, vi } from 'vitest';
 import {
   createDurableProductCatalog,
+  resumeOrReadInitialCatalog,
   type CatalogIntent,
   type CatalogIntentStore,
   type DurableCatalogDrive
@@ -683,6 +684,39 @@ it('finishes a resumed interrupted intent in one pass without releasing its own 
   expect(f.create).toHaveBeenCalledTimes(1);
   const states = vi.mocked(f.store.checkpoint).mock.calls.map(call => call[2]);
   expect(states).not.toContain('interrupted');
+});
+
+describe('dialog resume while another pass holds the creation lease', () => {
+  const progress = { outcome: 'preparing_video', state: 'preparing' };
+  it('answers with the current progress instead of GROUP_RECONCILING', async () => {
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => progress
+      )
+    ).resolves.toBe(progress);
+  });
+  it('keeps every other refusal, and the 409 when no progress can be read', async () => {
+    const read = vi.fn(async () => progress);
+    await expect(
+      resumeOrReadInitialCatalog(Promise.reject(new TeamFunctionError('SOURCE_CHANGED')), read)
+    ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
+    expect(read).not.toHaveBeenCalled();
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => null
+      )
+    ).rejects.toMatchObject({ code: 'GROUP_RECONCILING' });
+    await expect(
+      resumeOrReadInitialCatalog(
+        Promise.reject(new TeamFunctionError('GROUP_RECONCILING', { retryable: true })),
+        async () => {
+          throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+        }
+      )
+    ).rejects.toMatchObject({ code: 'GROUP_RECONCILING' });
+  });
 });
 
 it('persists measured successful boundaries in the final attempt receipt', async () => {

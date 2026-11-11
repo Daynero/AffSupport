@@ -2812,3 +2812,11 @@ is trashed or missing is no longer owed its initial publication, and replaces
 its paced row as exhausted with `last_code='CATALOG_INACTIVE'`. Open rows of such intents are
 closed by the migration itself. Rolling back means a reviewed forward migration that restores
 the 230000 and 196000 bodies; closed rows stay closed (a restored catalog is not re-verified).
+
+### 20261207281000 — a ready video set dispatches its creation
+
+Replaces `private.catalog_ready_set_wakes_creation` (264000) so that, when a set becoming ready
+wakes its creation, the `drive-ops/launches/recover` route is posted at once through pg_net with
+the worker secret the per-minute dispatcher uses. Best-effort: any dispatch error is swallowed.
+Rolling back means restoring the 264000 body through a reviewed forward migration; the
+per-minute pass keeps picking creations up either way.
