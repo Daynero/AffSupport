@@ -3,6 +3,7 @@
 type EnsureEntitlement = typeof import('./entitlement').ensureAgentEntitlement;
 import {
   privateCacheActor,
+  privateCacheActorEpoch,
   privateCacheEpoch,
   registerPrivateCache
 } from '../team/private-cache-scope';
@@ -60,10 +61,10 @@ export const catalogForeground = {
 /** Seal the caller before async admission/readback; a replacement account cannot attach its reply. */
 export function catalogForegroundScope(signal?: AbortSignal) {
   const actor = privateCacheActor(),
-    epoch = privateCacheEpoch();
+    epoch = privateCacheActorEpoch();
   return () => {
     if (signal?.aborted) throw Error('PROCESS_CANCELED');
-    if (privateCacheActor() !== actor || privateCacheEpoch() !== epoch)
+    if (privateCacheActor() !== actor || privateCacheActorEpoch() !== epoch)
       throw Error('PERMISSION_DENIED');
   };
 }
