@@ -3007,3 +3007,19 @@ backoff, and adds `public.wake_team_catalog_sync(uuid)` (members; the web calls 
 its tab becomes visible). Rolling back means restoring the 20261008100000 bodies through a reviewed
 forward migration, dropping `wake_team_catalog_sync` (and the web call) and the column; feeds then return
 to the fixed 1-minute cadence on their next pass.
+
+### 20261207399900 — a restarted agent takes its own silent variant over sooner
+
+Redefines `public.service_release_silent_catalog_video_foreground` with an optional
+`p_execution_native`: a new execution instance of the same enrolled agent (its restart) releases
+the predecessor's silent variants after 75 seconds instead of two minutes; the same instance and the
+four-argument call keep two minutes. Rolling back means recreating the four-argument function from
+20261207346000 through a reviewed forward migration; the edge function's five-argument call then
+fails, which it already tolerates (the release is best effort and the redeem decides).
+
+### 20261207399910 — a ready video set wakes its catalog launch
+
+Adds `private.catalog_ready_set_wakes_launch()` and its trigger on `private.catalog_video_sets`: a set
+becoming ready makes a catalog launch generation waiting on its own backoff due at once and dispatches
+the launch recovery route through pg_net (best effort). Rolling back means dropping the trigger and
+the function; launches then wait for their backoff and the per-minute recovery pass again.

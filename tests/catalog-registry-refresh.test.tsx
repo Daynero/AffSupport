@@ -99,6 +99,82 @@ describe('catalog registry first read', () => {
   });
 });
 
+it('follows a deferred link closely around its time and reads again the moment it comes', async () => {
+  // 1.4.3 QA round 9: «Посилання о 21:34» lingered ~56 s past its time on the
+  // one-minute floor, and a video count lagged by up to a minute.
+  vi.useFakeTimers();
+  try {
+    const later = new Date(Date.now() + 10 * 60_000).toISOString();
+    const row = (dueAt: string, waitingForVideos = false) =>
+      ({
+        catalogId: 'catalog',
+        updatePending: false,
+        videoPublication: { dueAt, timeZone: 'UTC', waitingForVideos }
+      }) as unknown as CatalogRegistryRow;
+    // Ten minutes away: only the floor and one read at the time itself.
+    const list = vi.fn().mockResolvedValue([row(later)]);
+    const client = { listTeamProductCatalogs: list } as unknown as CatalogUpdaterClient;
+    const view = renderHook(() => useCatalogRegistry('team', true, client));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const first = list.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(list.mock.calls.length).toBe(first);
+    // Waiting for its videos: followed like a running round.
+    list.mockResolvedValue([row(new Date(Date.now() - 1_000).toISOString(), true)]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    const before = list.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(list.mock.calls.length).toBeGreaterThanOrEqual(before + 3);
+    view.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('reads once more right after the earliest scheduled time', async () => {
+  vi.useFakeTimers();
+  try {
+    const dueAt = new Date(Date.now() + 3 * 60_000).toISOString();
+    // Every read is a new answer, as from the server.
+    const list = vi.fn().mockImplementation(async () => [
+      {
+        catalogId: 'catalog',
+        updatePending: false,
+        videoPublication: { dueAt, timeZone: 'UTC', waitingForVideos: false }
+      }
+    ]);
+    const client = { listTeamProductCatalogs: list } as unknown as CatalogUpdaterClient;
+    const view = renderHook(() => useCatalogRegistry('team', true, client));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const due = Date.parse(dueAt);
+    // Up to a minute before the time only the one-minute floor reads.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(due - 60_000 - Date.now() - 1_000);
+    });
+    const quiet = list.mock.calls.length;
+    // Inside the last minute it is followed every few seconds, and read right after the time.
+    // Step through it: one act() would hold every render until its end.
+    for (let second = 0; second < 64; second++)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+    expect(list.mock.calls.length).toBeGreaterThan(quiet + 5);
+    view.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('uses the single server snapshot instead of independently joining registry and profiles', async () => {
   const snapshot = vi.fn().mockResolvedValue({
     rows: [{ catalogId: 'one', profile: { version: 2 } }],

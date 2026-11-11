@@ -60,7 +60,10 @@ export async function handleCatalogVideoForeground(
           p_set: uuid(body.setId),
           p_enrollment: args.p_enrollment,
           p_native: args.p_native,
-          p_proof_hash: args.p_proof_hash
+          p_proof_hash: args.p_proof_hash,
+          // A new instance of the same enrolled agent is its restart: the predecessor is
+          // gone, so its silent variants are released sooner (20261207399900).
+          p_execution_native: args.p_execution_native
         });
       } catch {
         /* The redeem below answers with the authoritative error. */

@@ -456,6 +456,34 @@ it('labels disconnected progress as unconfirmed and leaves an explicit status re
   expect(screen.queryByRole('button', { name: 'Check status' })).toBeNull();
 });
 
+it('gives a refused status read the same patience before asking to retry (1.4.3 QA)', async () => {
+  vi.useFakeTimers();
+  // A restarted agent still refusing its set made the launch read fail with a
+  // non-transport error, and the dialog asked to retry at once.
+  const refresh = vi
+    .fn()
+    .mockRejectedValue(Object.assign(new Error('REFUSED'), { code: 'LAUNCH_BUSY' }));
+  render(
+    <LaunchGenerationProgress
+      generation={generation}
+      onRefresh={refresh}
+      onCancel={vi.fn()}
+      disabled={false}
+      retryActions={<button type="button">Retry</button>}
+    />
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LAUNCH_STATUS_POLL_MS);
+  });
+  expect(refresh).toHaveBeenCalled();
+  expect(screen.getByText(/The connection to the server dropped/u)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+});
+
 it('keeps long processing active, displays a timer and automatically refreshes', async () => {
   vi.useFakeTimers();
   const refresh = vi.fn().mockResolvedValue(undefined);

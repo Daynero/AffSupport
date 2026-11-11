@@ -20,6 +20,11 @@ import { useTeam } from '../TeamContext';
 
 const FALLBACK_POLL_MS = 60_000;
 const ACTIVE_UPDATE_POLL_MS = 5_000;
+/** A scheduled link this close to its time is followed like a running round. */
+const PUBLICATION_NEAR_MS = 60_000;
+/** Read just after a scheduled time, once the server's 10-second publication lane had a turn. */
+const PUBLICATION_DUE_SETTLE_MS = 2_000;
+const MAX_DUE_TIMER_MS = 6 * 60 * 60 * 1000;
 
 export interface CatalogUpdaterClient {
   listCatalogManagerSnapshot?: (
@@ -133,11 +138,40 @@ export function useCatalogRegistry(
       row =>
         row.updatePending || (row.profile?.restitch && row.profile.restitchStatus === 'preparing')
     ) ?? false;
+  // A deferred link near or past its time, or waiting for its videos, changes within seconds:
+  // follow it like a running round, and read once more the moment the earliest scheduled
+  // time comes. «Посилання о 21:34» lingered ~56 s past its time, and a video count lagged
+  // by up to a minute, on the one-minute floor alone (1.4.3 QA).
+  const now = Date.now();
+  const publicationDue = (value?.rows ?? [])
+    .map(row => row.videoPublication)
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .map(entry => ({ due: Date.parse(entry.dueAt), waiting: entry.waitingForVideos }))
+    .filter(entry => Number.isFinite(entry.due));
+  const publicationActive = publicationDue.some(
+    entry => entry.waiting || entry.due <= now + PUBLICATION_NEAR_MS
+  );
+  const nextDue = publicationDue
+    .map(entry => entry.due)
+    .filter(due => due > now)
+    .reduce((soonest, due) => Math.min(soonest, due), Number.POSITIVE_INFINITY);
   useEffect(() => {
-    if (!enabled || !hasPendingUpdate) return;
+    if (!enabled || !(hasPendingUpdate || publicationActive)) return;
     const timer = window.setInterval(poll, ACTIVE_UPDATE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [enabled, hasPendingUpdate, poll]);
+  }, [enabled, hasPendingUpdate, publicationActive, poll]);
+  useEffect(() => {
+    if (!enabled || !Number.isFinite(nextDue)) return;
+    // Read when the earliest time comes within reach (that read starts the close follow)
+    // and again just after it.
+    const near = nextDue - PUBLICATION_NEAR_MS;
+    const wait = (near > Date.now() ? near : nextDue + PUBLICATION_DUE_SETTLE_MS) - Date.now();
+    // Far-off times are reached by the one-minute floor and later reads.
+    if (wait > MAX_DUE_TIMER_MS) return;
+    const timer = window.setTimeout(poll, Math.max(0, wait));
+    return () => window.clearTimeout(timer);
+    // Every read re-arms it: after the "near" read the same time still needs its after-read.
+  }, [enabled, nextDue, poll, value]);
   return {
     rows: value?.rows ?? null,
     invalidRowCount: value?.invalidRowCount ?? 0,

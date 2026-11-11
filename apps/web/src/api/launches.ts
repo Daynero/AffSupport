@@ -1,4 +1,4 @@
-import { catalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
+import { attachCatalogForeground, catalogForegroundScope } from './catalog-video-foreground-client';
 import type { CatalogForegroundExecutor } from './catalog-video-foreground';
 import {
   isRecord,
@@ -300,9 +300,11 @@ export const launchApi = {
     throwRpc(error);
     const parsed = parseLaunchDetail(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
-    current();
-    await catalogForeground.attach(teamId, parsed.generation?.videoGeneration, signal);
-    current();
+    // The server read is the truth. A local agent that is down, restarting or
+    // still refusing the set (the server hands a dead predecessor's variant over
+    // only after its silence) must not turn this read into «Статус не
+    // підтверджено» with «Повторити» (1.4.3 QA, 11 × 409 after an agent restart).
+    await attachCatalogForeground(teamId, parsed.generation?.videoGeneration, current, signal);
     return parsed;
   },
   async save(input: {

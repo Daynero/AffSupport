@@ -224,9 +224,12 @@ export function LaunchGenerationProgress({
   );
   const lostTouch = disconnected || watch.readFailed;
   // A short outage clears by itself: keep the last confirmed state and say so calmly.
-  // Only a sustained one, or a refusal, asks the user to check and retry.
+  // Only a sustained one asks the user to check and retry. A refused read gets the same
+  // patience: it is retried with backoff, and a restarting agent used to make one look
+  // final at once, «Статус не підтверджено» with «Повторити» (1.4.3 QA). Refusals that
+  // end the session (permission, a vanished launch) close the dialog instead.
   const lostTouchLong = useSustained(lostTouch, LAUNCH_OUTAGE_PATIENCE_MS);
-  const briefOutage = lostTouch && !watch.readFailedHard && !lostTouchLong;
+  const briefOutage = lostTouch && !lostTouchLong;
   const uncertain = lostTouch && !briefOutage;
   const elapsedLabel = useLaunchElapsed(
     `${teamId ?? ''}:${launchId ?? 'new'}`,

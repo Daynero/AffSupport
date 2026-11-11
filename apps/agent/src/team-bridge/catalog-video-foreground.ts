@@ -10,10 +10,11 @@ import {
 } from '@video-compressor/shared';
 import type { NativeRestitchVaultFile } from './native-restitch-vault.js';
 /** When an interrupted creation is tried again without its dialog. The server
- * takes a variant over only after 2 minutes of silence, so the first attempt
- * may be refused; about an hour in all, then the dialog is needed again. */
+ * hands a restarted agent its predecessor's variant after 75 seconds of silence
+ * (2 minutes for anyone else), so the early attempts are dense and a refused one
+ * costs nothing; about an hour in all, then the dialog is needed again. */
 export const FOREGROUND_RESUME_DELAYS_MS: readonly number[] = [
-  60_000, 120_000, 240_000, 480_000, 900_000, 1_800_000
+  30_000, 30_000, 30_000, 30_000, 60_000, 120_000, 240_000, 480_000, 900_000, 1_800_000
 ];
 /** Answers that no later attempt can change. */
 const RESUME_FINAL = new Set([

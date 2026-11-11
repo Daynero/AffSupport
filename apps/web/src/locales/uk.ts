@@ -435,7 +435,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressResult: 'Результат',
   launchesProgressRetryCancel: 'Повторити скасування',
   launchesProgressRecovering:
-    'Виконання перервалося й за мить продовжиться саме. Підтверджені етапи збережено.',
+    'Виконання перервалося й продовжиться саме — зазвичай за хвилину-дві. Підтверджені етапи збережено.',
   launchesProgressReconciling: 'Оновлюємо стан генерації. Підтверджені етапи збережено.',
   launchesProgressCheckingResult:
     'Перевіряємо результат відео. Генерація продовжиться сама — підтверджені етапи збережено.',

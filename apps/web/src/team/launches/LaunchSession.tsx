@@ -617,7 +617,17 @@ export function LaunchSession({
       BigInt(next.generation.stateVersion) < BigInt(current.generation.stateVersion)
     )
       return;
-    if (generation.observe?.(next)) setError(null);
+    // A later read that shows the same run moving on or finished settles an error left by
+    // an earlier attempt: «Помилка — перевірте стан» used to stay until a reload after the
+    // run had succeeded (1.4.3 QA).
+    const settled =
+      next.generation &&
+      current.generation &&
+      next.generation.id === current.generation.id &&
+      (next.generation.state === 'succeeded' ||
+        (['accepted', 'running', 'waiting_dependency'].includes(next.generation.state) &&
+          BigInt(next.generation.stateVersion) > BigInt(current.generation.stateVersion)));
+    if (generation.observe?.(next) || settled) setError(null);
     setRequestErrorCode(null);
     setRequestErrorDefinitive(false);
     onChange(next);

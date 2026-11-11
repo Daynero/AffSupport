@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CatalogPublicationSnapshot } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { useI18n } from '../../i18n';
@@ -9,6 +9,10 @@ import { catalogTimeZoneCity } from './catalogTimeZones';
 
 /** How often an unsettled publication is read again while the line is on screen. */
 export const CATALOG_PUBLICATION_STATUS_POLL_MS = 15_000;
+/** Once its time has come, the write lands within seconds; follow it closely. */
+export const CATALOG_PUBLICATION_DUE_POLL_MS = 5_000;
+/** The time the server normally takes to publish once it can. */
+const PUBLICATION_GRACE_MS = 60_000;
 
 /** Nothing more will change on its own: published, held, or no job at all. */
 function settled(snapshot: CatalogPublicationSnapshot): boolean {
@@ -28,7 +32,8 @@ export function CatalogCreatedPublicationStatus({
   catalogId,
   read = teamApi.readCatalogPublication,
   refresh = '',
-  videoCanceled = false
+  videoCanceled = false,
+  onTargetReady
 }: {
   teamId: string;
   catalogId: string;
@@ -37,6 +42,8 @@ export function CatalogCreatedPublicationStatus({
   refresh?: string;
   /** The creation's video generation was canceled, so a held publication is final. */
   videoCanceled?: boolean;
+  /** The publication saw every video ready before the caller's own count did. */
+  onTargetReady?: () => void;
 }) {
   const { t, language } = useI18n(),
     epoch = usePrivateCacheEpoch(),
@@ -94,11 +101,37 @@ export function CatalogCreatedPublicationStatus({
     return () => controller.abort();
   }, [teamId, catalogId, actor, epoch, read, workspace?.updaterRevision, refresh, poll]);
   const pending = snapshot !== null && !settled(snapshot);
+  // The server's clock at the read, carried forward to now.
+  const serverNow = snapshot
+    ? snapshot.serverNow + Math.max(0, performance.now() - observation.observedAt)
+    : 0;
+  const due = snapshot?.dueAt ? Date.parse(snapshot.dueAt) : Number.NaN;
+  const dueReached = pending && Number.isFinite(due) && due <= serverNow;
   useEffect(() => {
     if (!pending) return;
-    const timer = setTimeout(() => setPoll(value => value + 1), CATALOG_PUBLICATION_STATUS_POLL_MS);
+    const timer = setTimeout(
+      () => setPoll(value => value + 1),
+      dueReached ? CATALOG_PUBLICATION_DUE_POLL_MS : CATALOG_PUBLICATION_STATUS_POLL_MS
+    );
     return () => clearTimeout(timer);
-  }, [pending, observation]);
+  }, [pending, dueReached, observation]);
+  // When the videos become ready, the write may only start then: the grace counts from
+  // that moment, not from a due time that passed while they were still being made. It
+  // used to say «…минув, але запис у таблицю ще не підтверджено» for the ~15 s the
+  // write took, beside a count still showing 2 of 3 (1.4.3 QA).
+  const targetPreparing = snapshot?.targetObservation?.state === 'preparing';
+  const wasPreparing = useRef<{ scope: string; preparing: boolean }>({ scope, preparing: false });
+  const [readySince, setReadySince] = useState<{ scope: string; at: number } | null>(null);
+  const targetReady = useRef(onTargetReady);
+  targetReady.current = onTargetReady;
+  useEffect(() => {
+    if (!snapshot) return;
+    const previous = wasPreparing.current;
+    wasPreparing.current = { scope, preparing: targetPreparing };
+    if (previous.scope !== scope || !previous.preparing || targetPreparing) return;
+    setReadySince({ scope, at: snapshot.serverNow });
+    targetReady.current?.();
+  }, [scope, snapshot, targetPreparing]);
   if (!snapshot)
     return unknown ? (
       <p role="status" className="catalog-publication-line">
@@ -121,9 +154,6 @@ export function CatalogCreatedPublicationStatus({
     } catch {
       date = new Date(snapshot.dueAt).toISOString();
     }
-  // The server's clock at the read, carried forward to now.
-  const serverNow = snapshot.serverNow + Math.max(0, performance.now() - observation.observedAt);
-  const due = snapshot.dueAt ? Date.parse(snapshot.dueAt) : Number.NaN;
   const published = snapshot.job?.state === 'published';
   const held = snapshot.mode === 'held' || snapshot.job?.state === 'held';
   // A due time that already passed without a verified write is not "scheduled" any more.
@@ -132,7 +162,12 @@ export function CatalogCreatedPublicationStatus({
   const reached =
     snapshot.mode === 'scheduled' && !published && Number.isFinite(due) && due <= serverNow;
   const waitingForVideos = reached && snapshot.targetObservation?.state === 'preparing';
-  const overdue = reached && due + 60_000 <= serverNow;
+  const graceFrom = Math.max(
+    due,
+    readySince?.scope === scope ? readySince.at : Number.NEGATIVE_INFINITY
+  );
+  const overdue =
+    reached && snapshot.job?.state !== 'applying' && graceFrom + PUBLICATION_GRACE_MS <= serverNow;
   return (
     <>
       <p role="status" className="catalog-publication-line">

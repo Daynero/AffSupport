@@ -432,7 +432,7 @@ export const en = {
   launchesProgressResult: 'Result',
   launchesProgressRetryCancel: 'Retry cancellation',
   launchesProgressRecovering:
-    'The run was interrupted and continues on its own in a moment. Confirmed stages are preserved.',
+    'The run was interrupted and continues on its own, usually within a minute or two. Confirmed stages are preserved.',
   launchesProgressReconciling: 'Updating generation status. Confirmed stages are preserved.',
   launchesProgressCheckingResult:
     'Checking the video result. The generation continues on its own; confirmed stages are preserved.',

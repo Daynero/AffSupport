@@ -1026,6 +1026,12 @@ export function CreateProductCatalogDialog({
               // Canceling the videos holds the publication; a new count may unblock it.
               refresh={createdVideo ? `${createdVideo.state}:${createdVideo.registeredCount}` : ''}
               videoCanceled={createdVideo?.state === 'canceled'}
+              // The publication can see every video ready before this dialog's own
+              // widening re-read does; catch the count up instead of showing 2 of 3.
+              onTargetReady={() => {
+                readSoon.current = Date.now() + CREATION_FAST_READ_WINDOW_MS;
+                if (videoKey.current) void checkVideoRef.current();
+              }}
             />
           )}
           {createdVideo && (

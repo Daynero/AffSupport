@@ -154,3 +154,74 @@ it('turns a scheduled line into waiting for videos when the time passes on scree
     vi.useRealTimers();
   }
 });
+it('does not call a link overdue right after its videos became ready, and catches the caller up', async () => {
+  // 1.4.3 QA round 9: the due time passed while the videos were made; when they became
+  // ready the line said «…минув, але запис у таблицю ще не підтверджено» for the ~15 s
+  // the write took, beside a count still showing 2 of 3.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const now = Date.now();
+    const waiting = {
+      ...snapshot,
+      writerMode: 'video_columns' as const,
+      // Two minutes past due, well beyond the old one-minute grace.
+      dueAt: new Date(now - 120_000).toISOString(),
+      serverNow: now,
+      targetObservation: { basis: 'indexed' as const, state: 'preparing' as const },
+      job: { ...snapshot.job!, state: 'retry_wait' as const }
+    };
+    const read = vi.fn().mockResolvedValue(waiting);
+    const onTargetReady = vi.fn();
+    render(
+      <CatalogCreatedPublicationStatus
+        teamId={actor}
+        catalogId={catalog}
+        read={read}
+        onTargetReady={onTargetReady}
+      />
+    );
+    expect(await screen.findByText(/Waiting for all videos to be ready/)).toBeTruthy();
+    // The videos are ready now; the write is under way.
+    read.mockResolvedValue({
+      ...waiting,
+      serverNow: now + 5_000,
+      targetObservation: { basis: 'indexed' as const, state: 'available' as const },
+      job: { ...snapshot.job!, state: 'applying' as const }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    await waitFor(() => expect(onTargetReady).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByText(/has passed, but the write to the table is not confirmed/)
+    ).toBeNull();
+    // No longer applying and still unconfirmed: the grace counts from readiness.
+    read.mockResolvedValue({
+      ...waiting,
+      serverNow: now + 30_000,
+      targetObservation: { basis: 'indexed' as const, state: 'available' as const },
+      job: { ...snapshot.job!, state: 'waiting' as const }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(25_000);
+    });
+    expect(
+      screen.queryByText(/has passed, but the write to the table is not confirmed/)
+    ).toBeNull();
+    read.mockResolvedValue({
+      ...waiting,
+      serverNow: now + 70_000,
+      targetObservation: { basis: 'indexed' as const, state: 'available' as const },
+      job: { ...snapshot.job!, state: 'waiting' as const }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40_000);
+    });
+    expect(
+      await screen.findByText(/has passed, but the write to the table is not confirmed/)
+    ).toBeTruthy();
+    expect(onTargetReady).toHaveBeenCalledOnce();
+  } finally {
+    vi.useRealTimers();
+  }
+});
