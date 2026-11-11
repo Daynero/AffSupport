@@ -67,6 +67,7 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
       isRecord(v) &&
       typeof v.productCount === 'number' &&
       typeof v.restitchEnabled === 'boolean' &&
+      (v.copyVideoToR2 === undefined || typeof v.copyVideoToR2 === 'boolean') &&
       parseLaunchCatalogVideoConfig(v, false) !== null &&
       (v.finalDurationMode === 'random-30-40' ||
         v.finalDurationMode === 'random-40-50' ||
@@ -87,6 +88,8 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
         ...parseLaunchCatalogVideoConfig(v, false)!,
         productCount: v.productCount,
         restitchEnabled: v.restitchEnabled,
+        // 050: the draft keeps the R2 choice; dropping it here unticked the box after every autosave.
+        ...(typeof v.copyVideoToR2 === 'boolean' ? { copyVideoToR2: v.copyVideoToR2 } : {}),
         finalDurationMode: v.finalDurationMode,
         customFinalDurationSeconds: v.customFinalDurationSeconds,
         ...(Array.isArray(v.finalDurationRangeSeconds)

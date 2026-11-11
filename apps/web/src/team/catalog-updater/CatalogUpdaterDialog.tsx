@@ -50,7 +50,13 @@ import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
-import { CatalogIconControls, CatalogIconLegend, CATALOG_FIELDS } from './CatalogIconControls';
+import {
+  CatalogIconControls,
+  CatalogIconLegend,
+  CATALOG_FIELDS,
+  catalogVideoR2Sentence
+} from './CatalogIconControls';
+import { useCatalogVideoR2Team } from '../product-catalog/useCatalogVideoR2Team';
 import { useCatalogInlineChanges, type CatalogField } from './useCatalogInlineChanges';
 import { CatalogCreatedFilter } from './CatalogCreatedFilter';
 import { matchesCatalogCreatedAt } from './catalogCreatedDate';
@@ -220,6 +226,16 @@ function CatalogUpdaterDialogScope({
   const titleId = useId();
   const searchId = useId();
   const mayRun = can('process');
+  // 050: the R2 option is one more icon beside the auto-update choices.
+  const videoR2 = useCatalogVideoR2Team(teamId);
+  const videoR2For = (catalogId: string, locked?: string) =>
+    videoR2.available
+      ? {
+          row: videoR2.row(catalogId),
+          disabledReason: !videoR2.canManage ? t('catalogVideoR2NoPermission') : locked,
+          onToggle: (next: boolean) => void videoR2.toggle(catalogId, next)
+        }
+      : undefined;
 
   const updater = useCatalogUpdater(teamId, client);
   const registry = useCatalogRegistry(teamId, true, client);
@@ -1063,6 +1079,7 @@ function CatalogUpdaterDialogScope({
           <h2 id={`${titleId}-icon-help`}>{t('catalogIconsHelp')}</h2>
           <CatalogIconLegend
             teamId={teamId}
+            videoR2={videoR2.available}
             onOpenSettings={href =>
               guard(() => {
                 setLegendOpen(false);
@@ -1585,6 +1602,7 @@ function CatalogUpdaterDialogScope({
                           disabledReason={disabledReason}
                           onChange={(field, value) => changeField(row, field, value)}
                           onReadiness={() => setExpandedCatalogId(row.catalogId)}
+                          videoR2={videoR2For(row.catalogId)}
                         />
                       ) : (
                         <small>{t('catalogUpdaterProfileUnknown')}</small>
@@ -1864,7 +1882,13 @@ function CatalogUpdaterDialogScope({
                       }
                       onChange={(field, value) => changeField(row, field, value)}
                       onReadiness={registry.reload}
+                      videoR2={videoR2For(row.catalogId)}
                     />
+                    {videoR2.available && videoR2.row(row.catalogId).enabled && (
+                      <p className="team-inline-note" data-testid="catalog-video-r2-status">
+                        {catalogVideoR2Sentence(videoR2.row(row.catalogId), t)}
+                      </p>
+                    )}
                     <CatalogProfileVideoCount
                       value={row.profile.videoVariantCount ?? 1}
                       productCount={row.productCount}
@@ -1883,6 +1907,7 @@ function CatalogUpdaterDialogScope({
                     />
                     <CatalogIconLegend
                       teamId={teamId}
+                      videoR2={videoR2.available}
                       onOpenSettings={href =>
                         guard(() => {
                           setLegendOpen(false);
@@ -2266,7 +2291,11 @@ function CatalogUpdaterDialogScope({
         <ConfirmDialog
           nested
           title={t('catalogUpdaterDeleteSelected')}
-          body={t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })}
+          body={
+            confirmDelete.some(id => videoR2.row(id).enabled)
+              ? `${t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })} ${t('catalogVideoR2DeleteWarning')}`
+              : t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })
+          }
           confirmLabel={t('catalogUpdaterDeleteSelected')}
           cancelLabel={t('teamCancel')}
           busy={busyIds.size > 0}

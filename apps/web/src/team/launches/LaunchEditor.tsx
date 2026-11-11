@@ -36,6 +36,7 @@ import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
+import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 
 const LaunchCatalogVideoFields = lazy(() =>
   import('./LaunchCatalogVideoFields').then(module => ({
@@ -618,6 +619,22 @@ export function LaunchEditor({
                       }
                     />
                   )}
+                  {/* 050: after every re-stitch setting, so it never splits them. */}
+                  <CatalogVideoR2Toggle
+                    mode="create"
+                    teamId={teamId}
+                    control="switch"
+                    checked={config.catalog.copyVideoToR2 === true}
+                    disabled={disabled}
+                    onChange={copyVideoToR2 =>
+                      changed({
+                        catalog: {
+                          ...config.catalog!,
+                          ...(copyVideoToR2 ? { copyVideoToR2: true } : { copyVideoToR2: false })
+                        }
+                      })
+                    }
+                  />
                 </div>
                 {
                   <Suspense fallback={null}>

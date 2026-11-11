@@ -146,6 +146,18 @@ export function useTeamRealtime(input: {
       .on(
         'postgres_changes',
         {
+          // 050: the per-catalog mirror of the R2 option and copy state; the
+          // private tables behind it are invisible to Realtime (R17).
+          event: '*',
+          schema: 'public',
+          table: 'team_catalog_video_r2_signals',
+          filter: `team_id=eq.${teamId}`
+        },
+        () => refetch(catalogEventDomains(undefined))
+      )
+      .on(
+        'postgres_changes',
+        {
           event: '*',
           schema: 'public',
           table: 'team_launch_signals',

@@ -288,6 +288,59 @@ export const en = {
   catalogImagesErrorRevoked: 'This picture publication was revoked. Choose another ready picture.',
   catalogImagesErrorManifest:
     'The file list is not complete. Check the selected pictures and retry.',
+  catalogVideoR2Toggle: 'Copy the video to R2',
+  catalogVideoR2Explain:
+    'The ready video is copied to Soty storage (Cloudflare R2), and the catalog gets its own video link instead of Drive. Anyone with the link can open it; it contains no file or folder name. The catalog switches by itself once the copy is ready; until then the Drive link keeps working. Only the active version is kept: once the catalog’s video changes or the catalog is deleted, the old link stops working, so do not paste it anywhere by hand.',
+  catalogVideoR2Legend:
+    'Copies the ready video to Soty storage and gives the catalog a stable link. Takes effect at once, without an update; a green icon means the link is already on R2.',
+  catalogVideoR2PanelReady: 'The catalog’s video link already points at R2.',
+  catalogVideoR2PanelPending:
+    'The video copy is being prepared; until then the catalog keeps its Drive link.',
+  catalogVideoR2PanelCopied:
+    'The video copy is ready; the sheet switches to it with the catalog’s next write, and keeps its Drive link until then.',
+  catalogVideoR2NextUpdate: 'The link changes once the copy is ready.',
+  catalogVideoR2NoPermission: 'Only a member who can change the catalog settings can turn this on.',
+  catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusReturning: 'Returning to Drive',
+  catalogVideoR2StatusDrive: 'Drive',
+  catalogVideoR2StatusPending: 'Copy in progress',
+  catalogVideoR2StatusCopied: 'Copy ready, sheet still on Drive',
+  catalogVideoR2DeleteWarning:
+    'Catalogs with an R2 video are deleted for good: the R2 video is removed at once, the links to it in the sheet stop working, and the catalog does not appear in the Soty trash.',
+  catalogVideoR2DeleteTitle: 'Delete the catalog for good?',
+  catalogVideoR2DeleteBody:
+    '“{name}” has its video in R2. The catalog is deleted for good: the R2 video is removed at once, the links to it stop working, and the catalog cannot be restored.',
+  catalogVideoR2DeleteConfirm: 'Delete for good',
+  catalogVideoR2StatusFallback: 'Drive link kept',
+  catalogVideoR2LastUpdate: 'Last successful update',
+  catalogVideoR2Never: 'not yet',
+  catalogVideoR2FullHashPartial:
+    'Verified by parts and probes; the full checksum could not be compared.',
+  catalogVideoR2Usage: 'Videos in R2',
+  catalogVideoR2UsageOf: '{used} of {quota}',
+  catalogVideoR2Copies: '{ready} active, {retiring} awaiting deletion',
+  catalogVideoR2Estimate: 'About {low}–{high} USD per month (an estimate, not an invoice)',
+  catalogVideoR2EstimateTiny: 'Under 0.01 USD per month (an estimate, not an invoice)',
+  catalogVideoR2EstimateUnknown: 'No estimate yet',
+  catalogVideoR2Saved: 'Saved. The catalog link changes automatically.',
+  catalogVideoR2On: 'On',
+  catalogVideoR2ErrorDisabled: 'Copying videos to R2 is not available for this space yet.',
+  catalogVideoR2ErrorSource:
+    'The video on Drive is unavailable or changed; the catalog keeps its Drive link.',
+  catalogVideoR2ErrorFormat: 'Only MP4 videos can be copied; the catalog keeps its Drive link.',
+  catalogVideoR2ErrorQuota:
+    'The space’s R2 video limit is reached; the catalog keeps its Drive link. Free space or raise the limit.',
+  catalogVideoR2ErrorUnavailable:
+    'Storage did not answer in time; the catalog keeps its Drive link and the next update retries.',
+  catalogVideoR2ErrorUncertain:
+    'The upload result is unknown; the next update reconciles it without duplicating the copy.',
+  catalogVideoR2ErrorVerification:
+    'The copy did not verify against the source; the catalog keeps its Drive link and the next update retries.',
+  catalogVideoR2ErrorCatalogWrite:
+    'The catalog could not be written with the R2 link; the next update retries.',
+  catalogVideoR2ErrorInterrupted: 'The copy was interrupted; it continues automatically.',
+  catalogVideoR2ErrorCleanup:
+    'An old copy has not been fully removed yet; cleanup retries on its own.',
   accountsMoveDropped: 'Position selected. Saving the order.',
   accountsUnmatchedLaunches: 'Launches without a linked ad account',
   accountsMoveInstructions:

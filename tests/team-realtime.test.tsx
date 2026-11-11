@@ -219,6 +219,7 @@ describe('team Realtime invalidation', () => {
       'team_catalog_events',
       'team_catalog_image_imports',
       'team_catalog_image_storage_signals',
+      'team_catalog_video_r2_signals',
       'team_launch_signals',
       'team_launch_workspace_signals',
       'team_membership_access_signals',

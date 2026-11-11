@@ -2895,6 +2895,38 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       });
     },
     assertImageContract: (team, version) => assertCatalogImageContract(imageRpc, team, version),
+    // 050: the option on a create request needs the feature available and the catalog
+    // settings permission; creation itself needs only `edit` on the video (R19).
+    assertVideoR2Option: async (team, actor) => {
+      const value = await rpcValue(service, 'service_catalog_video_r2_availability', {
+        p_actor: actor,
+        p_team: team
+      });
+      if (!isRecord(value) || value.canManage !== true)
+        throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+      if (value.available !== true)
+        throw new TeamFunctionError(
+          value.reason === 'VIDEO_R2_POLICY_PENDING'
+            ? 'VIDEO_R2_POLICY_PENDING'
+            : 'VIDEO_R2_DISABLED',
+          { retryable: false }
+        );
+    },
+    applyVideoR2Option: async ({ teamId: _team, actorId, catalogMaterialId }) => {
+      await rpcValue(service, 'service_catalog_video_r2_apply_create_option', {
+        p_actor: actorId,
+        p_catalog: catalogMaterialId,
+        p_enabled: true
+      });
+      // Queue the first copy from the indexed source row; the next update flips the link.
+      await rpcValue(service, 'service_catalog_video_r2_resolve_current', {
+        p_catalog: catalogMaterialId,
+        p_source_material: null
+      }).catch(() => undefined);
+      await rpcValue(service, 'service_catalog_video_r2_kick', { p_route: 'claim' }).catch(
+        () => undefined
+      );
+    },
     finalizeImageUses: async (team, attempt, delivered) => {
       await imageRpc('service_catalog_image_finalize_uses_v2', {
         p_team: team,

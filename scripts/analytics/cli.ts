@@ -2,6 +2,7 @@ import { lookupCodeLocations } from './code-map.js';
 import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidence.js';
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
+import { getCatalogVideoR2Diagnosis } from './catalog-video-r2.js';
 /**
  * Soty analytics CLI — argument parsing and command dispatch, kept apart from
  * the process entry (`index.ts`) so tests can run a command end to end against
@@ -133,6 +134,7 @@ Commands:
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
   catalog-texts <team-id|run-id>     Weekly text replacement settings, runs and failures
   catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
+  catalog-video-r2 <team-id|catalog-id|copy-id>  Catalog video copies to R2: stages, proof limits, reasons, cleanup
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
   catalog team <team-id>  Recent catalog attempts and video preparation in one space
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
@@ -288,8 +290,8 @@ export async function executeCommand(
     throw new CommandError(
       '--as-of is unavailable for current database snapshots; historical database state is not recorded by these commands.'
     );
-  if (args.cursor && command !== 'catalog-images')
-    throw new CommandError('--cursor is supported only by catalog-images.');
+  if (args.cursor && command !== 'catalog-images' && command !== 'catalog-video-r2')
+    throw new CommandError('--cursor is supported only by catalog-images and catalog-video-r2.');
   if (args.html && command !== 'catalog-trends')
     throw new CommandError('--html is supported only by catalog-trends.');
   const period = resolvePeriod(args.period, args.days, args.asOf);
@@ -502,6 +504,14 @@ export async function executeCommand(
     case 'catalog-texts': {
       const id = requireArg(args, 0, 'catalog-texts <team-id|run-id>');
       const data = await getCatalogTextScheduleDiagnosis(id, period, args.limit);
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'catalog-video-r2': {
+      const id = requireArg(args, 0, 'catalog-video-r2 <team-id|catalog-id|copy-id>');
+      const data = await getCatalogVideoR2Diagnosis(id, period, {
+        limit: args.limit,
+        cursor: args.cursor
+      });
       return done(data, JSON.stringify(data, null, 2));
     }
     case 'catalog-images': {

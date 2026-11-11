@@ -413,7 +413,8 @@ export async function executeLaunchCatalog(
             replacesMaterialId: null,
             restitchOperationId,
             idempotencyKey: `launch:${generationId}:catalog`,
-            randomLinkVariation: true
+            randomLinkVariation: true,
+            ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true } : {})
           },
       actorId
     );

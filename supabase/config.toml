@@ -66,3 +66,8 @@ verify_jwt = false
 # 045: handler authenticates user routes; the scheduled worker requires its named secret.
 [functions.catalog-images]
 verify_jwt = false
+
+# 050: handler authenticates user routes; the scheduled worker requires the same
+# named catalog-sync secret as catalog-images (no new secret is provisioned).
+[functions.catalog-video-r2]
+verify_jwt = false

@@ -291,6 +291,59 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesErrorRevoked: 'Публікацію картинки відкликано. Оберіть іншу готову картинку.',
   catalogImagesErrorManifest:
     'Список файлів ще не завершений. Перевірте вибрані картинки та повторіть дію.',
+  catalogVideoR2Toggle: 'Копіювати відео в R2',
+  catalogVideoR2Explain:
+    'Готове відео копіюється в сховище Soty (Cloudflare R2), і каталог отримує власне посилання на відео замість Drive. Його може відкрити кожен, хто має посилання; назви файлу чи папки в ньому немає. Каталог переходить сам, щойно копія готова; доти працює посилання Drive. Зберігається лише активна версія: коли відео в каталозі зміниться або каталог видалять, старе посилання перестане працювати, тому не вставляйте його вручну деінде.',
+  catalogVideoR2Legend:
+    'Копіює готове відео в сховище Soty і дає каталогу стабільне посилання. Діє одразу, без оновлення; зелена іконка — посилання вже на R2.',
+  catalogVideoR2PanelReady: 'Посилання на відео в каталозі вже веде на R2.',
+  catalogVideoR2PanelPending: 'Копія відео готується; доти в каталозі працює посилання Drive.',
+  catalogVideoR2PanelCopied:
+    'Копія відео готова; посилання в таблиці зміниться з наступним записом каталогу, доти працює посилання Drive.',
+  catalogVideoR2NextUpdate: 'Посилання зміниться, щойно копія буде готова.',
+  catalogVideoR2NoPermission:
+    'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
+  catalogVideoR2StatusR2: 'R2',
+  catalogVideoR2StatusReturning: 'Повертається на Drive',
+  catalogVideoR2StatusDrive: 'Drive',
+  catalogVideoR2StatusPending: 'Копія готується',
+  catalogVideoR2StatusCopied: 'Копія готова, таблиця ще на Drive',
+  catalogVideoR2DeleteWarning:
+    'Каталоги з відео в R2 видаляються остаточно: відео з R2 зникає одразу, посилання на нього в таблиці перестають працювати, а в кошику Soty такого каталогу не буде.',
+  catalogVideoR2DeleteTitle: 'Видалити каталог назавжди?',
+  catalogVideoR2DeleteBody:
+    'У «{name}» відео в R2. Каталог буде видалено остаточно: відео з R2 зникне одразу, посилання на нього перестануть працювати, і відновити каталог не вийде.',
+  catalogVideoR2DeleteConfirm: 'Видалити назавжди',
+  catalogVideoR2StatusFallback: 'Лишається посилання Drive',
+  catalogVideoR2LastUpdate: 'Останнє успішне оновлення',
+  catalogVideoR2Never: 'ще не було',
+  catalogVideoR2FullHashPartial:
+    'Перевірено частинами й пробами; повну контрольну суму звірити не вдалося.',
+  catalogVideoR2Usage: 'Відео в R2',
+  catalogVideoR2UsageOf: '{used} із {quota}',
+  catalogVideoR2Copies: '{ready} активних, {retiring} чекають видалення',
+  catalogVideoR2Estimate: 'Орієнтовно {low}–{high} USD на місяць (оцінка, не рахунок)',
+  catalogVideoR2EstimateTiny: 'Менше ніж 0,01 USD на місяць (оцінка, не рахунок)',
+  catalogVideoR2EstimateUnknown: 'Оцінки поки немає',
+  catalogVideoR2Saved: 'Збережено. Посилання в каталозі зміниться автоматично.',
+  catalogVideoR2On: 'Увімкнено',
+  catalogVideoR2ErrorDisabled: 'Копіювання відео в R2 поки недоступне для цього простору.',
+  catalogVideoR2ErrorSource:
+    'Відео на Drive недоступне або змінилося; каталог лишається на посиланні Drive.',
+  catalogVideoR2ErrorFormat: 'Копіюються лише відео MP4; каталог лишається на посиланні Drive.',
+  catalogVideoR2ErrorQuota:
+    'Досягнуто ліміт відео в R2 для простору; каталог лишається на посиланні Drive. Звільніть місце або підвищте ліміт.',
+  catalogVideoR2ErrorUnavailable:
+    'Сховище не відповіло вчасно; каталог лишається на посиланні Drive, наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorUncertain:
+    'Результат завантаження невідомий; наступне оновлення узгодить його без дублювання копії.',
+  catalogVideoR2ErrorVerification:
+    'Копія не пройшла звірку з джерелом; каталог лишається на посиланні Drive, наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorCatalogWrite:
+    'Не вдалося записати в каталог посилання R2; наступне оновлення повторить спробу.',
+  catalogVideoR2ErrorInterrupted: 'Копіювання перервано; воно продовжиться автоматично.',
+  catalogVideoR2ErrorCleanup:
+    'Стару копію ще не прибрано повністю; очищення повторюється самостійно.',
   accountsMoveDropped: 'Місце обрано. Зберігаємо порядок.',
   accountsUnmatchedLaunches: 'Запуски без пов’язаного РК',
   accountsMoveInstructions:

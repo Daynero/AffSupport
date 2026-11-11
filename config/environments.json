@@ -481,6 +481,70 @@
       "secret": true,
       "format": "non-empty",
       "note": "Least-privilege managed-media CDN purge token; no zone transform write permission."
+    },
+    {
+      "name": "CATALOG_VIDEOS_ENABLED",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "boolean",
+      "note": "Catalog video copies to R2 (050). Disabled by default; only exact true admits new copy work. Shares CATALOG_IMAGES_ENVIRONMENT, R2_CATALOG_ACCOUNT_ID, R2_CATALOG_ZONE_ID and R2_CATALOG_PURGE_TOKEN with catalog images."
+    },
+    {
+      "name": "CATALOG_VIDEOS_PART_VERIFICATION",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "enum:readback|provider_checksum",
+      "note": "Part verification strategy; absent means readback. R2 answers 501 to part checksums (2026-11-10), so keep readback."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_STAGING_BUCKET",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Private multipart staging bucket soty-catalog-videos-<environment>-staging; never public."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_PUBLIC_BUCKET",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Server-write-only public video bucket soty-catalog-videos-<environment>-public; opaque random keys."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_PUBLIC_ORIGIN",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "url",
+      "note": "Dedicated HTTPS custom video origin with a nosniff response-header rule and a cache rule that never caches errors."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_TARGET_CONFIRMATION",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "Exact <environment>:<accountId>:<stagingBucket>:<publicBucket>:<publicOrigin>; a mismatch disables the video adapter."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_ACCESS_KEY_ID",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "R2 S3 key scoped to the two video buckets of this environment only; never a browser value."
+    },
+    {
+      "name": "R2_CATALOG_VIDEO_SECRET_ACCESS_KEY",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Secret counterpart of the video-bucket R2 S3 key."
     }
   ]
 }

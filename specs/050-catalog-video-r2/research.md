@@ -1,32 +1,32 @@
 # Research: Опційна публікація відео каталогу в R2
 
-Усі пункти Technical Context визначені; відкритих `NEEDS CLARIFICATION` немає. Нижче — рішення з обґрунтуванням і відкинутими альтернативами. Факти про код зафіксовані станом на 2026-11-09; R13–R16 додані після аналізу того ж дня.
+Усі пункти Technical Context визначені; відкритих `NEEDS CLARIFICATION` немає. Нижче — рішення з обґрунтуванням і відкинутими альтернативами. Факти про код зафіксовані станом на 2026-11-09; R13–R16 додані після аналізу того ж дня; R17–R20 і правки R1–R5, R13 — після третього проходу 2026-11-10 (перевірка проти коду).
 
 ## R1 — Де вставляти R2 у наявний потік
 
-**Decision**: один спільний резолвер `catalog-video-link.ts`, який замінює пряме `videoShareLink(live.id, live.resourceKey)` у чотирьох місцях (`catalog-updater/publication-io.ts`, `drive-ops/updater-variants.ts`, `drive-ops/catalog-initial-video-authority.ts`, `drive-ops/catalog-durable.ts`).
+**Decision**: один спільний резолвер `catalog-video-link.ts`, який замінює пряме `videoShareLink(live.id, live.resourceKey)` у **п'яти** місцях, де формується посилання клітинки каталогу (grep `videoShareLink(` 2026-11-10): створення — `drive-ops/product-catalog.ts:549,563` (`createProductCatalog`; його викликає `catalog-durable.ts:832`, сам `catalog-durable.ts` посилань не формує) і `drive-ops/catalog-initial-video-authority.ts:449`; оновлення — `catalog-updater/publication-io.ts:174`, `drive-ops/updater-variants.ts:353` і застарілий шлях `catalog-updater/worker.ts:652` (`videoLinkOverride: item.spare?.link ?? item.currentVideoLink` → `_shared/catalog-updater.ts:82` → `_shared/product-catalog.ts:646`), де в клітинку йде збережене Drive-посилання — тут резолвер викликається перед передачею override. Шосте входження, `drive-ops/updater-restitch.ts:475` (`recordRestitchOutput`), формує `shared_link` запасної ре-стітч-копії для `service_record_restitch_output` — це не посилання клітинки, воно **не змінюється**.
 
-**Rationale**: у всіх місцях послідовність однакова: довести живий родовід → довести `canDownload` → звірити `sourceVersion` → переконатися в «anyone» дозволі (`ensureAnyoneReader`) → `videoShareLink`. Єдине, що змінюється при R2, — останні два кроки. Один резолвер дає один тестовий шов і гарантує SC-001.
+**Rationale**: у всіх місцях клітинки послідовність однакова: довести живий родовід → довести `canDownload` → звірити `sourceVersion` → переконатися в «anyone» дозволі (`ensureAnyoneReader`) → `videoShareLink`. Єдине, що змінюється при R2, — останні два кроки. Один резолвер дає один тестовий шов і гарантує SC-001. Перші два проходи аналізу перелічували `catalog-durable.ts` замість `product-catalog.ts` і пропускали override-шлях `catalog-updater/worker.ts` — з таким переліком каталог, створений із галочкою, отримав би Drive-посилання.
 
 **Alternatives**: (а) підміняти URL у xlsx після публікації — ламає frozen recipe та перевірки cells; (б) окремий паралельний конвеєр публікації — подвоює складну логіку cancel/retry/verify.
 
 ## R2 — Заморожений recipe і зміна URL
 
-**Decision**: перехід між видами посилання відбувається лише на межі нового publication job; квитанція посилання отримує `link_kind` (`drive` | `r2`) як частину ключа ідентичності.
+**Decision**: перехід між видами посилання відбувається лише на межі нового publication job; квитанція посилання отримує `link_kind` (`drive` | `r2`) як частину ключа ідентичності. Квитанцію пише `public.service_record_catalog_publication_link(p_job,p_worker,p_material,p_source_version,p_url)` (`20261207176000_catalog_video_cell_publication.sql:171–178`), і її чинна версія **відкидає будь-який не-Drive URL** (`p_url not like 'https://drive.google.com/file/d/%/view?usp=sharing%'` та звірка з `fileId` джерела → `SOURCE_CHANGED`). Тому міграція 050 **замінює** цей RPC (`create or replace`) з новим параметром `p_link_kind text default 'drive'`: `drive` — правило дослівно як сьогодні; `r2` — `p_url` має дорівнювати `https://<videoOrigin>/v/<object_key>` копії зі `state='ready'`, `source_material_id=p_material`, `source_version=p_source_version` при `preferences.enabled=true` для каталогу job, інакше `SOURCE_CHANGED`. Таблиця `private.catalog_publication_link_receipts` отримує nullable `link_kind` (`null` читається як `drive`). Старі виклики без шостого аргументу працюють без змін.
 
-**Rationale**: у `publication-io.ts` перевірка `if (old && old.url !== url) throw SOURCE_CHANGED` захищає від мовчазної підміни. `link_kind` робить зміну явною й перевірною. `publication-cells.ts` зберігає recipe «ID→URL» як заморожений; новий job заморожує новий recipe.
+**Rationale**: у `publication-io.ts` перевірка `if (old && old.url !== url) throw SOURCE_CHANGED` захищає від мовчазної підміни. `link_kind` робить зміну явною й перевірною. `publication-cells.ts` зберігає recipe «ID→URL» як заморожений; новий job заморожує новий recipe. Перевірка prepare-RPC «кожен product має квитанцію з таким самим URL» (рядок 85) лишається чинною для обох видів. Заміна RPC — єдина не-«нова» зміна схеми; вона сумісна з релізнутим клієнтом (default-параметр), що і перевіряє план `release:backend-plan`.
 
 ## R3 — Транспорт копіювання
 
-**Decision**: серверний потік Drive (range read) → edge function → R2 multipart `UploadPart`, окремий воркер `catalog-video-r2`, claim/lease/fence за зразком `catalog-images/worker.ts`.
+**Decision**: серверний потік Drive → edge function → R2 multipart `UploadPart`, окремий воркер `catalog-video-r2`, claim/lease/fence за зразком `catalog-images/worker.ts`. Читання з Drive — чинний `GoogleDriveClient.fetchFileRange({fileId, resourceKey, start, end, signal})` (`_shared/drive.ts:1387`, `alt=media` + `range: bytes=start-end`, повертає потоковий `Response`), а не `downloadFileRange` (буферизує й обмежений 32 МіБ). Частина читається потоком і одночасно хешується (WebCrypto, інкрементально) і передається в `UploadPart`.
 
-**Rationale**: каталог оновлюється на сервері без агента, тож копіювання не може залежати від комп'ютера користувача. Політика допускає транзитний relay Drive-байтів через edge; фіча додає *постійне* зберігання лише за явною згодою.
+**Rationale**: каталог оновлюється на сервері без агента, тож копіювання не може залежати від комп'ютера користувача. Політика допускає транзитний relay Drive-байтів через edge; фіча додає _постійне_ зберігання лише за явною згодою.
 
 **Alternatives**: копіювання з агента; presigned-upload з браузера — обидва залежать від увімкненого пристрою/вкладки.
 
 ## R4 — Розмір частини та таймаути
 
-**Decision**: частина 16 МіБ (≥5 МіБ — мінімум S3), ≤10 000 частин; invocation обробляє стільки частин, скільки вміщається в дедлайн за вирахуванням запасу, і віддає lease; наступний claim продовжує з першої недозавантаженої частини. Невикористані multipart upload скасовуються (`AbortMultipartUpload`) при термінальній невдачі й sweep'ом.
+**Decision**: частина 16 МіБ (≥5 МіБ — мінімум S3), ≤10 000 частин; invocation обробляє стільки частин, скільки вміщається в дедлайн за вирахуванням запасу, і віддає lease; наступний claim продовжує з першої недозавантаженої частини. Бюджет invocation — 60 с, як у 045 (`catalog-images/worker.ts:76` ставить abort на 60 000 мс, інвокатор шле `timeout_milliseconds:=65000`); при ~5–10 МБ/с це 3–6 частин, тобто відео 100 МБ — 1–3 invocation. Невикористані multipart upload скасовуються (`AbortMultipartUpload`) при термінальній невдачі й sweep'ом. Ризик CPU-ліміту edge на хешування частин: T003 вимірює CPU/wall на частину; якщо ліміт тисне — менший `part_bytes` (конфіг 5–64 МіБ).
 
 ## R5 — Перевірка цілісності
 
@@ -64,7 +64,7 @@
 
 ## R11 — Витрати
 
-**Decision**: сумарний обсяг на простір обмежується конфігом (50 ГіБ); оцінка вартості — з моделі 045 (`cost-model.py`) з розміром відео 100 МБ; показується в `apps/web/src/team/tariffs/SpaceTariffSection.tsx` як estimate, не рахунок. За публічними тарифами R2 Standard зберігання коштує порядку $0,015/ГБ·міс, егрес безкоштовний; «лише активна версія» тримає витрати лінійними від кількості ввімкнених каталогів.
+**Decision**: сумарний обсяг на простір обмежується конфігом (5 ГБ, рішення власника 2026-11-11); оцінка вартості — з моделі 045 (`cost-model.py`) з розміром відео 100 МБ; показується в `apps/web/src/team/tariffs/SpaceTariffSection.tsx` як estimate, не рахунок. За публічними тарифами R2 Standard зберігання коштує порядку $0,015/ГБ·міс, егрес безкоштовний; «лише активна версія» тримає витрати лінійними від кількості ввімкнених каталогів.
 
 ## R12 — Діагностика
 
@@ -72,7 +72,7 @@
 
 ## R13 — Шлях релізу (після аналізу, C1)
 
-**Decision**: фіча доставляється **повним релізом** (наступним після 1.4.0) через раннер `run-release.sh`; агент перепаковується без зміни протоколу. Міграція й edge можуть піти на прод раніше темно.
+**Decision**: фіча доставляється **повним релізом** (наступним після 1.4.0) через раннер `run-release.sh`; агент перепаковується без зміни протоколу. Міграція й edge (нова функція та змінені `catalog-updater`/`drive-ops`) можуть піти на прод раніше темно — але **лише** серверним планом раннера: `npm run release:backend-plan -- --since=<deployed-sha> --out=<plan>` → `npm run release:backend-apply -- --plan=<plan>` → `--confirm` (`docs/PRODUCTION.md:277–282`; `scripts/apply-backend-plan.mjs` — «той самий крок `backend_apply`, ті самі гейти»). Ручний `supabase functions deploy` чи `psql` на прод — саме те, що раннер існує, щоб прибрати. Другий прохід аналізу цього не обумовив, і формулювання «можуть піти раніше» читалося як дозвіл на ручний деплой.
 
 **Rationale**: edge-функції імпортують `packages/shared` у 56 файлах; shared — єдине джерело типів для web і edge (Принцип I). `scripts/verify-release.mjs:413` відхиляє web-деплой із нерелізнутими Agent/shared-змінами. Дублювати контракт web-локально, аби обійти гейт, означало б два джерела правди.
 
@@ -96,7 +96,50 @@
 
 **Rationale**: у домені немає стану «скасований каталог» — перша версія R16 посилалась на неіснуючі `cancelled`/`held` стани каталогу (`canceled_at` у схемі належить операціям, не каталогам). Утримання R2-копії для каталогу, що існує, але не оновлюється, — це свідома вартість: каталог досі роздає відео зовнішньому читачеві, і видалити копію означало б зламати його (FR-010).
 
+## R17 — Сигнали для Realtime (третій прохід, M1)
+
+**Decision**: публічна таблиця `public.team_catalog_video_r2_signals` (одна на каталог: `enabled`, `link_kind`, `copy_state`, `reason`, `last_successful_update_at`, `updated_at`) з RLS `private.can(team_id,'view',auth.uid())` і записом лише з RPC; `useTeamRealtime.ts` додає підписку `postgres_changes` з фільтром `team_id`, як для `team_catalog_image_storage_signals` (`useTeamRealtime.ts:141`).
+
+**Rationale**: Supabase Realtime не публікує зміни `private.*`; план обіцяв «наявний Realtime-шов без polling», але всі таблиці фічі були приватні — UI не мав би як дізнатися про готову копію чи зміну опції іншим учасником. 045 розв'язав це так само.
+
+## R18 — Environment відео-bucket (третій прохід, M2)
+
+**Decision**: за зразком `docs/CATALOG_IMAGES.md`: нові `CATALOG_VIDEOS_ENABLED`, `R2_CATALOG_VIDEO_STAGING_BUCKET` (`soty-catalog-videos-<environment>-staging`), `R2_CATALOG_VIDEO_PUBLIC_BUCKET` (`…-public`), `R2_CATALOG_VIDEO_PUBLIC_ORIGIN`, `R2_CATALOG_VIDEO_TARGET_CONFIRMATION`, `R2_CATALOG_VIDEO_ACCESS_KEY_ID`/`R2_CATALOG_VIDEO_SECRET_ACCESS_KEY`; спільні з 045 — `CATALOG_IMAGES_ENVIRONMENT`, `R2_CATALOG_ACCOUNT_ID`, `R2_CATALOG_ZONE_ID`, `R2_CATALOG_PURGE_TOKEN`. `readCatalogVideoR2Config` відмовляє без точного збігу target-confirmation і для `.r2.dev`/`*.r2.cloudflarestorage.com`.
+
+**Rationale**: S3-ключі 045 «обмежені двома bucket картинок» — нові bucket потребують власної пари (least privilege), а ім'я середовища й зона — спільні властивості деплою. Попередні артефакти називали змінні узагальнено (`CATALOG_VIDEO_R2_*`), що не дає власникові провізіонити середовище без вгадування.
+
+## R19 — Право в кожній точці входу (третій прохід, M3)
+
+**Decision**: `copyVideoToR2=true` перевіряється сервером проти `private.can(team,'manage_metadata',actor)` у трьох точках: `PUT /preference` (той, хто викликає), durable create intent (актор створення), виконання запуску (`launch-catalog.ts` передає `p_actor` — актор запуску, не автор конфігурації). Без права — `PERMISSION_DENIED`, каталог не створюється з опцією мовчки.
+
+**Rationale**: створення каталогу сьогодні вимагає лише `edit` на відео (`product-catalog.ts`: `loadVideo({permission:'edit'})`, `SHARE_NOT_ALLOWED` без `canShare`), а не `manage_metadata`; без окремої перевірки поле в create-запиті обходило б FR-013.
+
+## R20 — Drive-ідентичності ре-стітчу не змінюються (третій прохід, H1)
+
+**Decision**: R2-URL ніколи не записується в `team_product_catalogs.current_video_link`/`video_link`, `team_catalog_restitch_copies.shared_link` чи `sourceLink` контексту job; ці поля лишаються Drive-посиланнями. Резолвер застосовується лише до посилання, що йде в клітинку (і в квитанцію з `link_kind='r2'`).
+
+**Rationale**: `20261207169000_catalog_publication_jobs.sql:340` прив'язує job до каталогу умовою `copy.shared_link = c.current_video_link`; `catalog-updater/worker.ts:652` передає `current_video_link` як override у клітинки. Підміна цих полів R2-URL зламала б прив'язку (`SOURCE_CHANGED`) для всіх ре-стітчнутих каталогів.
+
+## R21 — Перехід через задачі публікації (після беті, 2026-11-10)
+
+- **Decision**: посилання каталогу з політикою публікації змінює лише наявний записувач відеоклітинок. Узгодження `private.catalog_video_r2_reconcile` порівнює квитанції посилань останньої опублікованої задачі з тим, чого вимагає опція, і за розбіжності ставить ще одну задачу на ту саму ціль (`catalog_publication_commands.payload.origin = video_r2`, ревізія політики +1). Викликається при зміні опції (вона ж планує копії), коли копія стала `ready`, після кожної опублікованої задачі цього каталогу і щохвилини з `pg_cron` як страховка. Міграція `20261207195000_catalog_video_r2_republish.sql`.
+- **Rationale**: на беті каталог з увімкненою опцією пройшов оновлення й лишився на Drive: `updateOne` для каталогів із політикою йде шляхом `nonVideo` і зберігає відеоклітинки, а `resolveVideoLink` там не викликається. Другий записувач клітинок порушив би CAS і маркери 047; повторна задача на ту саму ціль їх зберігає.
+- **Alternatives considered**: писати відеоклітинки у `nonVideo`-оновленні (другий записувач, конфлікт із `verify`, який вимагає незмінної відеоколонки); чекати наступної зміни відео (каталог без перезашивки не перейшов би ніколи); перевидавати з edge-воркера (зайвий HTTP-крок і гонки з settle; тригер у тій самій транзакції простіший).
+- **Межі**: не чіпає каталоги без рядка опції, з політикою `held`, з неперевіреною legacy-доставкою, поки інша задача каталогу активна, і коли автор політики втратив право публікувати. Задача узгодження, яка не досягла свого напрямку, не повторюється 10 хвилин. Таймер копій не планує.
+
+## R21a — Нічого не копіювати для створення, що не дійшло до публікації (2026-11-10)
+
+- **Decision**: створення каталогу більше не планує копій (`resolveCatalogReadyLinks` знову лише Drive, як у `main`). Копії планує перша підтверджена публікація каталогу (тригер після публікації з `plan=true`). Воркер на кожному claim скасовує копії, яких ніхто не чекає (`VIDEO_R2_CANCELED` + надгробок).
+- **Rationale**: питання власника: «каталог з 30 відео, на 25 падає, людина кидає і створює новий — відео лежать мертвим вантажем на R2». До цього рішення копії планувались ще до появи каталогу (pre-creation scope), тож збій посередині лишав заплановані копії, які воркер доливав, а прибирання наставало лише через 6 + 6 год.
+- **Межі**: якщо створення впало на генерації відео, копій і раніше не було (посилання розв'язуються лише коли весь набір готовий). Копії, заплановані задачею публікації, яка потім не дійшла до кінця, при живому каталозі з опцією доливаються і прибираються як сироти (≤ 12 год).
+
+## R22 — R2 не перевіряє SHA-256 частини (після беті, 2026-11-10)
+
+- **Decision**: стратегія звірки частин — лише `readback`. `provider_checksum` лишається в адаптері вимкненою і на відповідь 501 завершується `VIDEO_R2_NOT_CONFIGURED` без повторів.
+- **Rationale**: `provider-acceptance.ts` на ізольованих bucket-ах беті: `UploadPart` із `x-amz-checksum-sha256` → `501 NotImplemented`. Запит із хибним `X-Amz-Content-Sha256` R2 не відхиляє, а тримає до таймауту клієнта, тому його не можна вважати перевіркою.
+- **Наслідок для бюджету**: 16 МіБ частина йде 1–4 с (хеш 10–20 мс), файл 48 МБ копіюється за одну-дві інвокації; повний MD5 звіряється лише коли файл вклався в одну (`full_hash_verified`).
+
 ## Відкриті для власника значення (не блокують план)
 
-- Початковий ліміт на простір: 50 ГіБ (конфіг).
+- Ліміт на простір: 5 ГБ (конфіг; власник 2026-11-11 зменшив з 50 ГіБ). Ліміту на користувача немає.
 - Вікно перед видаленням: 6 год (конфіг).

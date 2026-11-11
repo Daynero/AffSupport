@@ -279,6 +279,8 @@ export async function resolveCatalogUpdaterVariantLinks(
     await import('../../../packages/shared/dist/team/catalog-publication-source.js');
   const { ensureAnyoneReader } = await import('../_shared/link-sharing.ts');
   const { videoShareLink } = await import('../_shared/product-catalog.ts');
+  const { createCatalogVideoLinkResolver } = await import('../_shared/catalog-video-link.ts');
+  const videoLinks = createCatalogVideoLinkResolver({ service });
   const verified = new Map<string, { sourceVersion: string; url: string }>();
   const rowIds = new Set<string>();
   const mapping: {
@@ -345,12 +347,27 @@ export async function resolveCatalogUpdaterVariantLinks(
       )) !== row.sourceVersion
     )
       throw new TeamFunctionError('SOURCE_CHANGED');
-    const permissions = await drive.listAnyonePermissions(row.fileId);
-    if (permissions.length === 0) {
-      if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-      await ensureAnyoneReader(drive, row.fileId, permissions);
-    }
-    const url = videoShareLink(live.id, live.resourceKey);
+    // 050: with the option and a ready copy the proof is the R2 link; otherwise the Drive path as before.
+    const fileId: string = row.fileId;
+    const link = await videoLinks.resolve({
+      scope: { catalogMaterialId: identity.catalogMaterialId },
+      source: {
+        materialId: row.materialId,
+        sourceVersion: row.sourceVersion,
+        sizeBytes: live.size,
+        mimeType: live.mimeType,
+        checksum: live.checksum
+      },
+      drive: async () => {
+        const permissions = await drive.listAnyonePermissions(fileId);
+        if (permissions.length === 0) {
+          if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+          await ensureAnyoneReader(drive, fileId, permissions);
+        }
+        return videoShareLink(live.id, live.resourceKey);
+      }
+    });
+    const url = link.url;
     verified.set(row.materialId, { sourceVersion: row.sourceVersion, url });
     mapping.push({
       rowId: row.rowId,

@@ -5,12 +5,14 @@ import type { ProductCatalogSummary } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { SotyLoader } from '../../components/ui';
+import { ConfirmDialog, SotyLoader } from '../../components/ui';
 import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { useTeam } from '../TeamContext';
+import { useCatalogVideoR2Team } from './useCatalogVideoR2Team';
+import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import {
   CreateProductCatalogDialog,
   type CreateProductCatalogClient
@@ -62,12 +64,15 @@ export function ProductCatalogMenuDialog({
   teamId,
   video,
   client = defaultClient,
+  videoR2Client,
   onClose,
   onChanged
 }: {
   teamId: string;
   video: { id: string; name: string; parentFolderId?: string | null };
   client?: VideoProductCatalogClient;
+  /** 050: where the R2 option of each catalog is read; the space's own API by default. */
+  videoR2Client?: CatalogVideoR2Client;
   onClose: () => void;
   onChanged?: () => void;
 }) {
@@ -78,6 +83,9 @@ export function ProductCatalogMenuDialog({
   const [catalogs, setCatalogs] = useState<ProductCatalogSummary[]>([]);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [loadError, setLoadError] = useState(false);
+  // 050: a catalog with its video in R2 is deleted for good, so it asks first.
+  const videoR2 = useCatalogVideoR2Team(teamId, videoR2Client);
+  const [confirmRemove, setConfirmRemove] = useState<ProductCatalogSummary | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -219,7 +227,9 @@ export function ProductCatalogMenuDialog({
               onCopyName={() => void copy(catalog.name, 'productCatalogNameCopied')}
               onCopyLink={() => void copy(catalog.sheetUrl, 'productCatalogLinkCopied')}
               onRecreate={() => setView({ kind: 'create', replaces: catalog, fromList: true })}
-              onRemove={() => void remove(catalog)}
+              onRemove={() =>
+                videoR2.row(catalog.id).enabled ? setConfirmRemove(catalog) : void remove(catalog)
+              }
             />
           ))}
         </ul>
@@ -240,6 +250,21 @@ export function ProductCatalogMenuDialog({
           </Button>
         </div>
       </div>
+      {confirmRemove && (
+        <ConfirmDialog
+          nested
+          title={t('catalogVideoR2DeleteTitle')}
+          body={t('catalogVideoR2DeleteBody', { name: confirmRemove.name })}
+          confirmLabel={t('catalogVideoR2DeleteConfirm')}
+          cancelLabel={t('teamCancel')}
+          onCancel={() => setConfirmRemove(null)}
+          onConfirm={() => {
+            const catalog = confirmRemove;
+            setConfirmRemove(null);
+            void remove(catalog);
+          }}
+        />
+      )}
     </Modal>
   );
 }

@@ -47,6 +47,10 @@ export interface AnalyticsSchema {
     analytics_commercial_access?: boolean;
     analytics_translation_retirement?: boolean;
     analytics_catalog_image_journal?: boolean;
+    analytics_catalog_video_r2_journal?: boolean;
+    analytics_catalog_video_r2_copies?: boolean;
+    analytics_catalog_video_r2_purges?: boolean;
+    analytics_catalog_video_r2_coverage?: boolean;
     analytics_catalog_text_schedule?: boolean;
     analytics_catalog_text_schedule_journal?: boolean;
     analytics_catalog_text_schedule_coverage?: boolean;
@@ -138,6 +142,7 @@ export interface JourneyData {
   /** Period selects server receipt time; events remain ordered by occurrence. */
   window_basis: 'created_at';
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
+  catalog_video_r2?: import('./catalog-video-r2.js').CatalogVideoR2Diagnosis;
   events: JourneyEvent[];
   delivery_lag_ms: DeliveryLag;
 }
@@ -288,6 +293,7 @@ export interface InspectFound {
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
+  catalog_video_r2?: import('./catalog-video-r2.js').CatalogVideoR2Diagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
@@ -977,6 +983,7 @@ export interface InvestigateData {
   catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
+  catalog_video_r2?: import('./catalog-video-r2.js').CatalogVideoR2Diagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;
   membership_access?: import('./membership-access.js').MembershipAccessEvidence;
   commercial_access?: import('./commercial-access.js').CommercialAccessEvidence;

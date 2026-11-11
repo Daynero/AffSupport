@@ -581,6 +581,21 @@ describe('investigate · (e) a user with no events', () => {
         detail: expect.stringContaining('Missing or expired stage evidence')
       }),
       expect.objectContaining({
+        detail: expect.stringContaining('Catalog-video R2 diagnostic projection is unavailable')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('A public HEAD and byte probes prove availability')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('did not fit into one invocation')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Deletion proves a 404')
+      }),
+      expect.objectContaining({
+        detail: expect.stringContaining('Storage and request billing are not measured')
+      }),
+      expect.objectContaining({
         detail: expect.stringContaining('Commercial access journal is unavailable')
       }),
       expect.objectContaining({

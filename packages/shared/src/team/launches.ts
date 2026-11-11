@@ -27,6 +27,8 @@ export interface LaunchSubConfig {
 export interface LaunchCatalogConfig {
   /** Optional beta protocol; absence preserves original accepted Launch behavior. */
   catalogVideoProtocolVersion?: 1;
+  /** 050: copy the catalog video to R2 and issue the R2 link; absent means false. */
+  copyVideoToR2?: boolean;
   videoVariationCount?: number;
   videoPublication?: import('./catalog-publication.js').CatalogVideoPublicationRequest;
   productCount: number;

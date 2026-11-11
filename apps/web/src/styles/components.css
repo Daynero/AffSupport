@@ -2503,6 +2503,10 @@
   box-shadow: var(--shadow-menu);
   font-size: var(--text-caption);
   white-space: normal;
+  /* HeroUI's own tooltip class breaks anywhere, which split Ukrainian words in
+     half; wrap between words and only break a word that alone is too wide. */
+  word-break: normal;
+  overflow-wrap: break-word;
   pointer-events: none;
 }
 /* ============================================================

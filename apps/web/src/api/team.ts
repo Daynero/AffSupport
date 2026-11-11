@@ -27,6 +27,7 @@ import {
   TariffGrantIntentError
 } from '../pages/admin/tariffGrantIntent';
 import { catalogImageClient } from './team-catalog-images';
+import { catalogVideoR2Client } from './team-catalog-video-r2';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
   normalizeCatalogCommandRequest,
@@ -1969,6 +1970,7 @@ export type RestitchDefaultsInput = Pick<
 
 export const teamApi = {
   catalogImages: catalogImageClient,
+  catalogVideoR2: catalogVideoR2Client,
   async listTeams(options: { signal?: AbortSignal } = {}): Promise<TeamContextSnapshot[]> {
     const data = (await invokeTeamRpc('list_my_teams', {}, options)) ?? [];
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
@@ -3538,6 +3540,7 @@ export const teamApi = {
       randomLinkVariation?: boolean;
       replacesMaterialId: string | null;
       idempotencyKey: string;
+      copyVideoToR2?: boolean;
     },
     options?: { signal?: AbortSignal }
   ): Promise<ProductCatalogCreateResult | CatalogVideoPreparingResult> {
@@ -3587,6 +3590,8 @@ export const teamApi = {
     replacesMaterialId: string | null;
     restitchOperationId?: string | null;
     idempotencyKey: string;
+    /** 050: copy the catalog video to R2 and issue the R2 link from the next update on. */
+    copyVideoToR2?: boolean;
   }): Promise<ProductCatalogCreateResult> {
     return invokeTeamFunction(
       'drive-ops/product-catalog/create',

@@ -51,6 +51,7 @@ import { teamApi } from '../../api/team';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
 import { useTeam } from '../TeamContext';
+import { CatalogVideoR2Toggle } from './CatalogVideoR2Toggle';
 import { parseTeamRoute } from '../routes';
 import { productCatalogNameFor } from '../materials/tail';
 import {
@@ -99,6 +100,7 @@ export interface CreateProductCatalogClient {
     replacesMaterialId: string | null;
     restitchOperationId?: string | null;
     idempotencyKey: string;
+    copyVideoToR2?: boolean;
   }) => Promise<ProductCatalogCreateResult>;
   /** The number the next variation will take, so its name shows before it is made (024). */
   nextProductCatalogVariant?: (teamId: string, videoMaterialId: string) => Promise<number>;
@@ -189,6 +191,8 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
+  // 050: copy the catalog video to R2; off unless ticked, applied from the next update on.
+  const [copyVideoToR2, setCopyVideoToR2] = useState(false);
   const videoProtocol = Boolean(client.createProductCatalogVideo);
   const [videoDraft, setVideoDraft] = useState<CatalogCreationVideoDraft>({
     variationCount: '1',
@@ -430,6 +434,7 @@ export function CreateProductCatalogDialog({
           idempotencyKey: `product-catalog:${crypto.randomUUID()}`,
           catalogVideoProtocolVersion: 1,
           restitchEnabled: restitch,
+          ...(copyVideoToR2 ? { copyVideoToR2: true } : {}),
           ...(restitch ? { expectedExecutorId: recoveryInstallation() ?? undefined } : {}),
           videoVariationCount: restitch ? Number(videoDraft.variationCount) : 1,
           videoPublication: publication,
@@ -505,6 +510,7 @@ export function CreateProductCatalogDialog({
         randomLinkVariation: true,
         replacesMaterialId: replaces?.id ?? null,
         ...(restitchOperationId ? { restitchOperationId } : {}),
+        ...(copyVideoToR2 ? { copyVideoToR2: true } : {}),
         // A retry after the video finished must reuse the same catalog operation.
         idempotencyKey: catalogKey
       });
@@ -1045,6 +1051,16 @@ export function CreateProductCatalogDialog({
                 {t('launchesDurationInvalid')}
               </p>
             )}
+          </div>
+          <div className="product-catalog-restitch">
+            <CatalogVideoR2Toggle
+              mode="create"
+              control="checkbox"
+              teamId={teamId}
+              checked={copyVideoToR2}
+              onChange={setCopyVideoToR2}
+              disabled={busy}
+            />
           </div>
 
           {phase.kind === 'busy' && phase.step === 'restitch' && (
