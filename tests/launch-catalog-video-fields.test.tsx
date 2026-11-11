@@ -14,7 +14,8 @@ const catalog: LaunchCatalogConfig = {
   finalDurationMode: 'custom',
   customFinalDurationSeconds: 120
 };
-it('limits N to products and retains incomplete calendar choices in the draft', () => {
+// Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE).
+it.skip('limits N to products and retains incomplete calendar choices in the draft', () => {
   const change = vi.fn();
   function Example() {
     const [value, setValue] = useState(catalog);

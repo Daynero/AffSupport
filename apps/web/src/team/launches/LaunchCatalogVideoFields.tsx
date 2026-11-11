@@ -1,3 +1,4 @@
+import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
 import { parseLaunchCatalogVideoConfig, type LaunchCatalogConfig } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import {
@@ -92,6 +93,7 @@ export function LaunchCatalogVideoFields({
         disabled={disabled}
       />
       {(() => {
+        if (!CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return null;
         const passed = launchPublicationTimePassed(value);
         if (!passed && !(invalid && scheduled && local !== 'T12:00')) return null;
         // A real field error: Generate scrolls to the first `.ui-field-error`, so the person

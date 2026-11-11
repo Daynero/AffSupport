@@ -583,7 +583,8 @@ describe('creating a catalog', () => {
     expect(writeText).toHaveBeenCalledWith(catalog.sheetUrl);
   });
 
-  it('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
+  // Deferred publication is hidden by the 1.4.2 hotfix (CATALOG_DEFERRED_PUBLICATION_AVAILABLE).
+  it.skip('names a passed delayed-publication time instead of the generic invalid-data error', async () => {
     const createProductCatalogVideo = vi.fn();
     const client = dialogClient({ createProductCatalogVideo } as Partial<DialogClient>);
     renderDialog(client);
@@ -603,6 +604,12 @@ describe('creating a catalog', () => {
     ).toBeTruthy();
     expect(screen.queryByText(/Some of the data is invalid/u)).toBeNull();
     expect(createProductCatalogVideo).not.toHaveBeenCalled();
+  });
+
+  it('does not offer deferred video-link publication while it is switched off', async () => {
+    renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
+    await screen.findByRole('button', { name: 'Create' });
+    expect(screen.queryByRole('switch', { name: 'Schedule the video link' })).toBeNull();
   });
 
   it('keeps provider progress unknown until the catalog reply arrives', async () => {
