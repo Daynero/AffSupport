@@ -13,6 +13,7 @@ import {
   type CatalogVideoR2Rpc
 } from '../_shared/catalog-video-r2.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+import { keepLease } from '../_shared/lease-keeper.ts';
 import { Md5 } from '../_shared/md5.ts';
 import {
   CATALOG_VIDEO_MIME,
@@ -237,22 +238,17 @@ async function copyOne(
   budget: number,
   now: () => number
 ): Promise<unknown> {
+  // The lease is timed by the wall clock the renewal timers run on.
+  const claimedAt = Date.now();
   const raw = await rpc('service_catalog_video_r2_claim', { p_worker: worker });
   if (raw === null) return { idle: true };
   const claim = claimOf(raw);
   const params = { p_copy: claim.copyId, p_worker: worker, p_fence: claim.fence };
-  let renewal: Promise<void> | null = null;
-  const heartbeat = setInterval(() => {
-    if (renewal) return;
-    renewal = rpc('service_catalog_video_r2_renew', params)
-      .then(value => {
-        if (value !== true) abort.abort();
-      })
-      .catch(() => abort.abort())
-      .finally(() => {
-        renewal = null;
-      });
-  }, 20_000);
+  const lease = keepLease({
+    renew: () => rpc('service_catalog_video_r2_renew', params),
+    onLost: () => abort.abort(),
+    since: claimedAt
+  });
   const signal = abort.signal;
   const key = claim.objectKey;
   const totalParts = Math.ceil(claim.sizeBytes / claim.partBytes);
@@ -389,8 +385,7 @@ async function copyOne(
     }).catch(() => undefined);
     return { outcome: terminal ? 'failed' : 'retry', code };
   } finally {
-    clearInterval(heartbeat);
-    if (renewal) await renewal;
+    await lease.stop();
   }
 }
 

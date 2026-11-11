@@ -13,6 +13,7 @@ import {
   type CatalogImageRpc
 } from '../_shared/catalog-images.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+import { keepLease, type LeaseKeeper } from '../_shared/lease-keeper.ts';
 import {
   readCatalogImageBytes,
   validateCatalogImage
@@ -75,8 +76,7 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
   const abort = new AbortController();
   const deadline = setTimeout(() => abort.abort(), 60_000);
   const worker = `catalog-images:${crypto.randomUUID()}`;
-  let heartbeat: ReturnType<typeof setInterval> | undefined;
-  let renewal: Promise<void> | null = null;
+  let lease: LeaseKeeper | undefined;
   let claim: Record<string, unknown> | null = null;
   let purgeClaimed = false;
   let candidate: Candidate | null = null;
@@ -107,6 +107,7 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
       return { purge: success ? 'observed_deleted' : 'unknown' };
     }
     if (!deps.enabled) return { disabled: true };
+    const claimedAt = Date.now();
     const raw = await rpc('service_catalog_image_claim_v2', { p_worker: worker });
     if (raw === null) return { idle: true };
     claim = catalogImageObject(raw);
@@ -150,17 +151,11 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
     const progress = async (stage: string) => {
       await rpc('service_catalog_image_progress_v2', { ...params, p_stage: stage });
     };
-    heartbeat = setInterval(() => {
-      if (renewal) return;
-      renewal = rpc('service_catalog_image_renew_v2', params)
-        .then(value => {
-          if (value !== true) abort.abort();
-        })
-        .catch(() => abort.abort())
-        .finally(() => {
-          renewal = null;
-        });
-    }, 20_000);
+    lease = keepLease({
+      renew: () => rpc('service_catalog_image_renew_v2', params),
+      onLost: () => abort.abort(),
+      since: claimedAt
+    });
     let bytes: Uint8Array;
     if (claim.state === 'awaiting_reconciliation') {
       candidate = candidateOf(await rpc('service_catalog_image_candidate_v2', params));
@@ -284,10 +279,10 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
     }
     return { outcome: putUncertain ? 'unknown' : 'failed', code };
   } finally {
-    if (heartbeat) clearInterval(heartbeat);
+    const stopping = lease?.stop();
     clearTimeout(deadline);
     abort.abort();
-    if (renewal) await renewal;
+    await stopping;
     release();
     // Cleanup consumes an invocation too. Without a successor dispatch, a
     // backlog of expired staging grants can starve the bounded upload slots.
