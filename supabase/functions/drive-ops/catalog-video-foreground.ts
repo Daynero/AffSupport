@@ -51,6 +51,21 @@ export async function handleCatalogVideoForeground(
       p_execution_native:
         body.executionNativeInstanceId === undefined ? null : uuid(body.executionNativeInstanceId)
     };
+    if (action === 'redeem' && args.p_execution_native !== null) {
+      // The silence takeover commits on its own: a redeem that then refuses
+      // (another variant still working, a stale instance) used to roll it back
+      // with its own error, on every attempt. Best effort; the redeem decides.
+      try {
+        await foregroundRpc(service, 'service_release_silent_catalog_video_foreground', {
+          p_set: uuid(body.setId),
+          p_enrollment: args.p_enrollment,
+          p_native: args.p_native,
+          p_proof_hash: args.p_proof_hash
+        });
+      } catch {
+        /* The redeem below answers with the authoritative error. */
+      }
+    }
     const value = await foregroundRpc(
       service,
       action === 'await'

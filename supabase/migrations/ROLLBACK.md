@@ -2895,3 +2895,11 @@ Adds `public.list_my_unfinished_product_catalog_creations(team, video)`, a read-
 security-definer list of the caller's own unregistered, uncanceled creations with their video
 set progress. It writes nothing. Rolling back means dropping the function through a reviewed
 forward migration; the web then falls back to the browser-remembered creation only.
+
+### 20261207346000 — the foreground silence release commits on its own
+
+Adds `public.service_release_silent_catalog_video_foreground` (drive-ops calls it before a redeem
+that names an execution instance) and patches `public.service_redeem_catalog_video_foreground`
+to answer `WRONG_STATE` for a set that is no longer active. Rolling back means dropping the new
+function (drive-ops ignores its absence: the call is best effort) and restoring the 345000 body
+of the redeem through a reviewed forward migration. Releases already committed need no repair.

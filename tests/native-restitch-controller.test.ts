@@ -745,7 +745,7 @@ it('asks for authorization again after one lost reply instead of failing the fin
     cache: {} as never,
     fetch: f.fetcher,
     run: vi.fn(),
-    authorizeRetryDelaysMs: [1, 1]
+    transientRetry: { delaysMs: [1], sleep: async () => {} }
   });
   const enrollment = await controller.prepare({ rootOperationId: root, teamId: team }, 'process');
   await controller.redeem(enrollment.enrollmentId);
@@ -757,7 +757,8 @@ it('asks for authorization again after one lost reply instead of failing the fin
   expect(authorizeCalls).toBe(2);
   await controller.shutdown();
 });
-it('still fails when authorization stays unreachable', async () => {
+it('still fails when authorization stays unreachable for the whole budget', async () => {
+  let clock = 0;
   const f = setup();
   const implementation = f.fetcher.getMockImplementation()!;
   let authorizeCalls = 0;
@@ -777,7 +778,14 @@ it('still fails when authorization stays unreachable', async () => {
     cache: {} as never,
     fetch: f.fetcher,
     run: vi.fn(),
-    authorizeRetryDelaysMs: [1, 1]
+    // Unreachable for the whole budget: 90 s of 10 s waits on a fake clock.
+    transientRetry: {
+      delaysMs: [10_000],
+      sleep: async ms => {
+        clock += ms;
+      },
+      now: () => clock
+    }
   });
   const enrollment = await controller.prepare({ rootOperationId: root, teamId: team }, 'process');
   await controller.redeem(enrollment.enrollmentId);
@@ -787,6 +795,7 @@ it('still fails when authorization stays unreachable', async () => {
       return { operationId: root, state: 'succeeded', materialId: id(8), reused: false };
     })
   ).rejects.toMatchObject({ code: 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN' });
-  expect(authorizeCalls).toBe(3);
+  // Attempts at 0, 10 s … 90 s: the run's whole 90 s budget, then it gives up.
+  expect(authorizeCalls).toBe(10);
   await controller.shutdown();
 });

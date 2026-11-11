@@ -8,7 +8,8 @@ import { catalogVariantProcessAdapter } from './catalog-variant-process.js';
 import {
   HEARTBEAT_RETRY_MS,
   heartbeatWatchdog,
-  isDefinitiveHeartbeatRefusal
+  isDefinitiveHeartbeatRefusal,
+  retryTransient
 } from './heartbeat-tolerance.js';
 import type { NativeRestitchEnrollment } from './native-restitch-controller.js';
 import type { TeamFileOperationResult } from '@video-compressor/shared';
@@ -201,7 +202,17 @@ export async function runCatalogVariantRecovery(input: {
                 },
                 signal,
                 async () => {
-                  const result = await invoke('variant_authorize', body(child));
+                  // A read of the variant's process context: repeating it grants
+                  // nothing, so a lost reply waits out the run's 90 s budget.
+                  const result = await retryTransient(
+                    () => invoke('variant_authorize', body(child)),
+                    {
+                      transient: error =>
+                        !isDefinitiveHeartbeatRefusal(error) &&
+                        !(error instanceof Error && error.message === 'AUTH_REQUIRED'),
+                      signal
+                    }
+                  );
                   if (result.authorized !== true) throw new Error('PERMISSION_DENIED');
                 },
                 complete,

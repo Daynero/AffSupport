@@ -16,6 +16,13 @@ const preupload = new Set<string>([
   'PROCESS_FAILED',
   'TOO_LARGE'
 ]);
+/** False only when the bridge proved the run stopped before its upload began
+ * (`uploadStarted: false` on its failure): then no output can exist anywhere. */
+export function mayHaveUploaded(error: unknown): boolean {
+  return !(
+    error instanceof Error && (error as { uploadStarted?: unknown }).uploadStarted === false
+  );
+}
 /** Waits between deliveries of a terminal report whose reply was lost. */
 export const TERMINAL_REPORT_RETRY_DELAYS_MS: readonly number[] = [
   2_000, 5_000, 10_000, 20_000, 30_000, 30_000, 30_000, 60_000, 60_000, 60_000
@@ -38,9 +45,11 @@ const TERMINAL_REPORT_FINAL = new Set([
  * native closure's finish is refused while the operation still runs. Beta
  * 2026-11-11 (set ee5595a8): the report went out once into a paused gateway,
  * finish answered 409 for five minutes and the heartbeat kept the dead stitch
- * looking alive. An uncertain stop or an unrecognized failure is still never
- * reported (an upload may exist the server cannot see); the heartbeat stops
- * with the stitch, so the server's silence takeover settles it. */
+ * looking alive. An uncertain stop or an unrecognized failure is reported only
+ * when the run provably never began its upload (beta 2026-11-11, set e1741a2a:
+ * a lost authorization reply after the video was built, nothing uploaded); when
+ * an upload may exist the server cannot see, it is still never reported, the
+ * heartbeat stops with the stitch and the server's silence takeover settles it. */
 export async function settleCatalogVariantProcess(input: {
   operationId: string;
   signal: AbortSignal;
@@ -59,8 +68,14 @@ export async function settleCatalogVariantProcess(input: {
   } catch (error) {
     input.ended?.();
     const reason = input.signal.reason;
-    if (reason instanceof Error && reason.message === 'PROCESS_RESULT_UNCERTAIN')
+    if (reason instanceof Error && reason.message === 'PROCESS_RESULT_UNCERTAIN') {
+      // Stopped without a reachable server. Before any upload the stop is a plain
+      // failure: say so as soon as the server answers, instead of waiting for
+      // the silence takeover. A refusal (already taken over) ends it.
+      if (!mayHaveUploaded(error))
+        await report(input, 'failed', 'PROCESS_FAILED').catch(() => undefined);
       throw new Error('PROCESS_RESULT_UNCERTAIN', { cause: error });
+    }
     let code = error instanceof Error ? error.message : '';
     if (
       code !== 'PROCESS_CANCELED' &&
@@ -68,10 +83,20 @@ export async function settleCatalogVariantProcess(input: {
       (await input.cancellationRequested().catch(() => false))
     )
       code = 'PROCESS_CANCELED';
-    if (code !== 'PROCESS_CANCELED' && !preupload.has(code)) throw error;
+    const reported =
+      code === 'PROCESS_CANCELED' || preupload.has(code)
+        ? code
+        : !mayHaveUploaded(error)
+          ? 'PROCESS_FAILED'
+          : null;
+    if (reported === null) throw error;
     let settled: Record<string, unknown>;
     try {
-      settled = await report(input, code === 'PROCESS_CANCELED' ? 'canceled' : 'failed', code);
+      settled = await report(
+        input,
+        reported === 'PROCESS_CANCELED' ? 'canceled' : 'failed',
+        reported
+      );
     } catch (cause) {
       throw new Error('PROCESS_RESULT_UNCERTAIN', { cause: cause ?? error });
     }
