@@ -88,4 +88,23 @@ it('spells the observed instant in UTC with Z, and the list it rides in parses',
   expect(
     parsed?.groups.find(entry => entry.id === group)?.items[0]?.historicalReceipt?.observedAt
   ).toMatch(/Z$/u);
+  // The viewer's list names the material, and a fresh finished group is still shown.
+  const fresh = parsed?.groups.find(entry => entry.id === group);
+  expect(fresh?.items[0]?.name).toBe('Fixture');
+  expect(fresh?.dismissed).toBe(false);
+  // 1.4.3 QA: a week-old group whose confirmed item carries a `changed` receipt
+  // came back as a zombie panel. Finished work older than a day arrives hidden.
+  await h.root(
+    "update private.team_bulk_trash_groups set created_at=now()-interval '5 days' where id=$1",
+    [group]
+  );
+  const aged = parseBulkTrashGroups(
+    (
+      await h.asUser<{ data: unknown }>(owner, 'select public.list_team_bulk_trash($1) data', [
+        team
+      ])
+    )[0]!.data
+  )?.groups.find(entry => entry.id === group);
+  expect(aged?.items[0]?.historicalReceipt).toBeTruthy();
+  expect(aged?.dismissed).toBe(true);
 });

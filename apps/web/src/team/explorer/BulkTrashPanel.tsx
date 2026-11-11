@@ -34,8 +34,22 @@ export function BulkTrashPanel({
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
-  const complete =
-    !historicalReceipts?.size && group.items.every(item => item.state === 'confirmed');
+  // An item the server confirmed is in the trash, whatever happened to the
+  // catalog afterwards; a later change is a note, not unfinished work.
+  const complete = group.items.every(item => item.state === 'confirmed');
+  const receiptOf = (item: BulkTrashGroup['items'][number]) =>
+    historicalReceipts?.get(item.materialId) ?? item.historicalReceipt;
+  // The note is only worth reading where it can be acted on: on an item still
+  // unresolved, or on one this surface lists, where the next action would start.
+  const noted = (item: BulkTrashGroup['items'][number]) => {
+    const receipt = receiptOf(item);
+    return Boolean(
+      receipt &&
+      receipt.state !== 'matches' &&
+      (item.state !== 'confirmed' || rows.some(row => row.id === item.materialId))
+    );
+  };
+  const hasNotes = group.items.some(noted);
   const reportedHistorical = useRef<string | null>(null);
   const historicalFingerprint = historicalReceipts?.size
     ? JSON.stringify(
@@ -50,6 +64,7 @@ export function BulkTrashPanel({
   useEffect(() => {
     const node = root.current;
     if (!node || (!complete && !historicalFingerprint)) return;
+    const settles = complete && !hasNotes;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const seen = () => {
       if (document.visibilityState === 'visible' && !node.closest('[hidden]')) {
@@ -59,10 +74,9 @@ export function BulkTrashPanel({
             reportedHistorical.current = fingerprint;
             onVisible(group.id, 'unknown');
           }
-          return;
-        }
-        onVisible(group.id);
-        if (onDismiss && timer === undefined) timer = setTimeout(() => onDismiss(group.id), 4000);
+        } else onVisible(group.id);
+        if (settles && onDismiss && timer === undefined)
+          timer = setTimeout(() => onDismiss(group.id), 4000);
       }
     };
     const observer =
@@ -82,14 +96,16 @@ export function BulkTrashPanel({
       observer?.disconnect();
       document.removeEventListener('visibilitychange', foreground);
     };
-  }, [complete, historicalFingerprint, group.id, onVisible, onDismiss]);
-  const confirmed = group.items.filter(
-    item => item.state === 'confirmed' && !historicalReceipts?.has(item.materialId)
-  ).length;
+  }, [complete, hasNotes, historicalFingerprint, group.id, onVisible, onDismiss]);
+  const confirmed = group.items.filter(item => item.state === 'confirmed').length;
   const unresolved =
-    Boolean(historicalReceipts?.size) ||
-    (!executing && group.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state)));
-  const nameOf = (id: string) => rows.find(row => row.id === id)?.name || names?.get(id);
+    !executing && group.items.some(item => ['failed', 'unknown', 'queued'].includes(item.state));
+  const nameOf = (item: BulkTrashGroup['items'][number]) =>
+    rows.find(row => row.id === item.materialId)?.name ||
+    names?.get(item.materialId) ||
+    item.name ||
+    undefined;
+  const check = hasNotes && onRetry ? [{ label: t('catalogCommandCheck'), run: onRetry }] : [];
   return (
     <div ref={root}>
       <ProcessPanel
@@ -97,50 +113,51 @@ export function BulkTrashPanel({
         onDismiss={onDismiss ? () => onDismiss(group.id) : undefined}
         dismissLabel={t('teamBulkTrashHide')}
         detail={t('teamWorkspaceItemsProgress', { done: confirmed, total: group.items.length })}
-        phase={uncertain || historicalReceipts?.size ? t('teamBulkTrashUnknown') : null}
+        phase={uncertain ? t('teamBulkTrashUnknown') : null}
         progress={group.items.length ? (confirmed / group.items.length) * 100 : 100}
         active={
           // Queued items nobody is working through are held, not moving.
           executing || group.items.some(item => item.state === 'running')
         }
         actions={
-          complete && onDismiss
-            ? [{ label: t('teamOperationClose'), run: () => onDismiss(group.id) }]
+          complete
+            ? [
+                ...check,
+                ...(onDismiss
+                  ? [{ label: t('teamOperationClose'), run: () => onDismiss(group.id) }]
+                  : [])
+              ]
             : unresolved && onRetry
-              ? [
-                  {
-                    label: t(historicalReceipts?.size ? 'catalogCommandCheck' : 'retry'),
-                    run: onRetry
-                  }
-                ]
-              : []
+              ? [{ label: t('retry'), run: onRetry }]
+              : check
         }
       >
         <ul className="m-0 grid max-h-64 min-w-0 list-none gap-2 overflow-y-auto p-0">
           {group.items.map((item, index) => (
             <li key={item.materialId} className="min-w-0">
-              <span className="block min-w-0 truncate" title={nameOf(item.materialId)}>
-                {nameOf(item.materialId) ?? t('teamBulkTrashFile', { number: index + 1 })}
+              <span className="block min-w-0 truncate" title={nameOf(item)}>
+                {nameOf(item) ?? t('teamBulkTrashFile', { number: index + 1 })}
               </span>
               <span className="block break-words text-caption text-muted">
                 {t(
-                  historicalReceipts?.get(item.materialId)?.state === 'matches'
-                    ? 'teamBulkTrashHistoricalMatches'
-                    : historicalReceipts?.get(item.materialId)?.state === 'changed'
-                      ? 'teamBulkTrashHistoricalChanged'
-                      : historicalReceipts?.has(item.materialId)
-                        ? 'teamBulkTrashHistoricalUnknown'
-                        : item.state === 'confirmed'
-                          ? 'teamBulkTrashConfirmed'
-                          : item.state === 'running'
-                            ? 'teamBulkTrashRunning'
-                            : item.state === 'queued'
-                              ? 'teamBulkTrashQueued'
-                              : item.state === 'failed'
-                                ? 'teamBulkTrashFailed'
-                                : 'teamBulkTrashUnknown'
+                  item.state === 'confirmed'
+                    ? 'teamBulkTrashConfirmed'
+                    : item.state === 'running'
+                      ? 'teamBulkTrashRunning'
+                      : item.state === 'queued'
+                        ? 'teamBulkTrashQueued'
+                        : item.state === 'failed'
+                          ? 'teamBulkTrashFailed'
+                          : 'teamBulkTrashUnknown'
                 )}
                 {item.errorCode ? ` · ${teamErrorMessageFor({ code: item.errorCode }, t)}` : ''}
+                {noted(item)
+                  ? ` · ${t(
+                      receiptOf(item)?.state === 'changed'
+                        ? 'teamBulkTrashHistoricalChanged'
+                        : 'teamBulkTrashHistoricalUnknown'
+                    )}`
+                  : ''}
               </span>
             </li>
           ))}

@@ -1418,12 +1418,9 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskCleanupTrashed: 'Невикористаний файл вкладення перенесено до кошика простору.',
   teamBulkTrashFile: 'Файл {number}',
   teamBulkTrashHide: 'Прибрати панель',
-  teamBulkTrashHistoricalMatches:
-    'Попередня операція завершилася. Поточний знімок каталогу збігається; поточний стан у сховищі ще не перевірено.',
-  teamBulkTrashHistoricalChanged:
-    'Попередня операція завершилася, але поточний знімок каталогу вже змінився. Оновіть список перед новою дією.',
+  teamBulkTrashHistoricalChanged: 'відтоді файл змінився, оновіть список перед новою дією',
   teamBulkTrashHistoricalUnknown:
-    'Попередня операція завершилася. Поточний файл не вдалося зіставити зі знімком каталогу; перевірте стан перед новою дією.',
+    'поточний стан файлу ще не звірено, оновіть список перед новою дією',
   teamBulkTrashTitle: 'Перенесення файлів до кошика',
   teamBulkTrashQueued: 'У черзі',
   teamBulkTrashRunning: 'Виконується',

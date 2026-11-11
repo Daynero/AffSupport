@@ -1,5 +1,6 @@
 import { parseTeamFileOperationResult, type TeamHistoricalFileReceipt } from './transport.js';
-/** Hosted receipts; names and provider payloads never enter this projection. */
+/** Hosted receipts; provider payloads never enter this projection. The viewer's
+ * list (only) adds each material's catalog name, so a panel can say what it moved. */
 export type BulkTrashState = 'queued' | 'running' | 'confirmed' | 'failed' | 'unknown';
 export interface BulkTrashItem {
   materialId: string;
@@ -7,6 +8,8 @@ export interface BulkTrashItem {
   state: BulkTrashState;
   errorCode: string | null;
   historicalReceipt?: TeamHistoricalFileReceipt;
+  /** The material's name as the viewer's catalog knows it; list only. */
+  name?: string;
 }
 export interface BulkTrashGroup {
   id: string;
@@ -51,6 +54,12 @@ export function isBulkTrashGroup(value: unknown): value is BulkTrashGroup {
           reused: true,
           historicalReceipt: item.historicalReceipt
         }))
+    )
+      return false;
+    if (
+      'name' in item &&
+      item.name !== undefined &&
+      (typeof item.name !== 'string' || item.name.length > 1024)
     )
       return false;
     return (
