@@ -522,6 +522,8 @@ export function SelectMenu({
       mounted.current = false;
     };
   }, []);
+  const selectedLabelRef = useRef(selectedLabel);
+  selectedLabelRef.current = selectedLabel;
   useEffect(() => {
     setQuery(selectedLabel);
   }, [selectedLabel, value]);
@@ -573,14 +575,19 @@ export function SelectMenu({
             setCreating(true);
             setFailed(false);
             void onCreate(candidate)
-              .then(createdValue => {
-                if (typeof createdValue === 'string' && mounted.current) {
+              .then(created => {
+                if (!mounted.current) return;
+                if (typeof created === 'string') {
                   setQuery(candidate);
-                  onChange(createdValue);
-                }
+                  onChange(created);
+                  // Not selected: the field must show what is actually selected,
+                  // never a typed name that a later action would not use.
+                } else setQuery(selectedLabelRef.current);
               })
               .catch(() => {
-                if (mounted.current) setFailed(true);
+                if (!mounted.current) return;
+                setQuery(selectedLabelRef.current);
+                setFailed(true);
               })
               .finally(() => {
                 creatingRef.current = false;

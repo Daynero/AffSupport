@@ -11,6 +11,7 @@ import { launchPreview, type LaunchDetail } from '../packages/shared/src/team/la
 import { launchAction } from '../apps/web/src/team/launches/analytics';
 const TEAM = '79999999-0000-4000-8000-000000000001';
 const LAUNCH = '79999999-0000-4000-8000-000000000002';
+const OFFER_B = '79999999-0000-4000-8000-0000000000b2';
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
 function mockClipboard(writeText: (value: string) => Promise<void>) {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
@@ -132,7 +133,7 @@ vi.mock('../apps/web/src/team/launches/LaunchEditor', () => ({
   }: {
     accountAssignment?: React.ReactNode;
     config: { originalUrl: string; age: number; launchDate: string; maxBudget: number };
-    onChange: (patch: { age?: number; originalUrl?: string }) => void;
+    onChange: (patch: { age?: number; originalUrl?: string; offerId?: string }) => void;
     disabled: boolean;
   }) => {
     React.useEffect(() => {
@@ -147,6 +148,9 @@ vi.mock('../apps/web/src/team/launches/LaunchEditor', () => ({
         <span>Max budget: {config.maxBudget}</span>
         <button disabled={disabled} onClick={() => onChange({ age: 50 })}>
           Age 50
+        </button>
+        <button disabled={disabled} onClick={() => onChange({ offerId: OFFER_B })}>
+          Choose Offer B
         </button>
         <button
           disabled={disabled}
@@ -1644,7 +1648,7 @@ it('loads an editor assignee filter without querying private member management d
   }
 });
 
-it('saves an offer with its own version, clears the old proposal, and preserves an uncertain request for retry', async () => {
+it('saves an offer with its own version, clears the old proposal, and preserves an uncertain request for an identical retry without locking the launch', async () => {
   const { TeamApiError } = await import('../apps/web/src/api/team');
   seams.edit = true;
   seams.manage = true;
@@ -1669,16 +1673,57 @@ it('saves an offer with its own version, clears the old proposal, and preserves 
   fireEvent.click(save);
   await waitFor(() => expect(seams.setDefaults).toHaveBeenCalledOnce());
   await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  // 1.4.3: an uncertain profile write never freezes the Launch itself.
   expect(
     (screen.getByRole('button', { name: 'Save as general defaults' }) as HTMLButtonElement).disabled
-  ).toBe(true);
-  expect((screen.getByRole('button', { name: 'Age 50' }) as HTMLButtonElement).disabled).toBe(true);
+  ).toBe(false);
+  expect((screen.getByRole('button', { name: 'Age 50' }) as HTMLButtonElement).disabled).toBe(
+    false
+  );
   fireEvent.click(save);
   await screen.findByText('Offer settings saved');
   expect(seams.setDefaults.mock.calls[1]).toEqual(seams.setDefaults.mock.calls[0]);
   expect(seams.setDefaults.mock.calls[0][1]).toBe('17');
   expect(seams.setDefaults.mock.calls[0][4]).toBe(current.draft.offerId);
   expect(screen.queryByRole('dialog', { name: 'Apply saved settings?' })).toBeNull();
+});
+
+it('saves the newly selected offer after an uncertain save of the previous one (1.4.3)', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.edit = true;
+  seams.manage = true;
+  const current = detail('SYNTHETIC_OFFER_SWITCH');
+  seams.detail.mockResolvedValue(current);
+  seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
+  seams.offers = [
+    { id: current.draft.offerId, value: 'Offer A', updatedAt: 'now' },
+    { id: OFFER_B, value: 'Offer B', updatedAt: 'now' }
+  ];
+  seams.defaults.mockImplementation(async (_team, offerId) =>
+    offerId === current.draft.offerId
+      ? { config: current.draft, subConfig: launchConfig().subConfig, version: '17' }
+      : null
+  );
+  seams.setDefaults
+    .mockRejectedValueOnce(new TeamApiError('INVALID_RESPONSE', false))
+    .mockResolvedValueOnce({ version: '1' });
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  const save = await screen.findByRole('button', { name: 'Save for offer' });
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
+  await waitFor(() => expect(seams.setDefaults).toHaveBeenCalledOnce());
+  const choose = screen.getByRole('button', { name: 'Choose Offer B' }) as HTMLButtonElement;
+  await waitFor(() => expect(choose.disabled).toBe(false));
+  fireEvent.click(choose);
+  await waitFor(() => expect(seams.defaults).toHaveBeenCalledWith(TEAM, OFFER_B));
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(save);
+  await screen.findByText('Offer settings saved');
+  const [first, second] = seams.setDefaults.mock.calls;
+  expect(first[4]).toBe(current.draft.offerId);
+  expect(second[4]).toBe(OFFER_B);
+  expect(second[1]).toBeNull();
+  expect(second[2]).not.toBe(first[2]);
 });
 
 it('reviews a conflict in the selected offer rather than the workspace profile', async () => {

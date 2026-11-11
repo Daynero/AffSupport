@@ -163,3 +163,34 @@ it('keeps the offer list closed when an apply dialog returns focus to the select
   await user.click(screen.getByRole('combobox', { name: 'Offer' }));
   expect(await screen.findByRole('option', { name: 'ProCaps TR' })).toBeTruthy();
 });
+
+it('shows the still-selected offer when a created one was not selected or failed (1.4.3)', async () => {
+  const user = userEvent.setup();
+  const outcomes: Array<() => Promise<string | void>> = [
+    async () => undefined,
+    async () => {
+      throw new Error('refused');
+    }
+  ];
+  function Harness() {
+    const [value, setValue] = useState('offer-1');
+    return (
+      <LaunchSelector
+        id="launch-selector-test"
+        label="Offer"
+        value={value}
+        options={[{ value: 'offer-1', label: 'Offer 1' }]}
+        onChange={setValue}
+        onCreate={() => outcomes.shift()!()}
+      />
+    );
+  }
+  render(<Harness />);
+  const input = screen.getByRole('combobox', { name: 'Offer' });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await user.clear(input);
+    await user.type(input, 'Offer 2');
+    await user.click(screen.getByRole('option', { name: 'Create “Offer 2”' }));
+    await waitFor(() => expect(input).toHaveProperty('value', 'Offer 1'));
+  }
+});

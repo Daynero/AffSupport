@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, History as HistoryIcon, Trash2, X } from 'lucide-react';
 import {
   applyLaunchDefaultValues,
+  launchDefaultValues,
   launchInputsLocked,
   launchPreview,
   launchRevisionImpact,
@@ -176,7 +177,11 @@ export function LaunchSession({
     onChange(next, 'settings');
   });
   const saveIntent = useRef<Parameters<typeof launchApi.save>[0] | null>(null);
+  // An uncertain defaults save keeps its request for an identical retry, but it
+  // is a profile write, not a Launch mutation: it must never lock the Launch
+  // inputs, and a later save of another offer or other values is a new request.
   const defaultsIntent = useRef<Parameters<typeof launchApi.setDefaults> | null>(null);
+  const defaultsRunning = useRef<'offer' | 'workspace' | null>(null);
   const overridesIntent = useRef<Parameters<typeof launchApi.overrides> | null>(null);
   const overridesRetry = useRef<() => Promise<void>>(async () => {});
   const overridesRetryAttempt = useRef(0);
@@ -289,7 +294,6 @@ export function LaunchSession({
     launchInputsLocked(detail?.generation?.state ?? null) ||
     generation.hasUnresolvedRequest ||
     saveIntent.current !== null ||
-    defaultsIntent.current !== null ||
     overridesIntent.current !== null ||
     archiveIntent.current !== null ||
     workingCopyIntent.current !== null ||
@@ -552,9 +556,13 @@ export function LaunchSession({
           'LAUNCH_SUB_INVALID'
         ].includes(e.code)
       ) {
-        if (defaultsIntent.current && e.code === 'LAUNCH_VERSION_CONFLICT')
+        if (
+          defaultsRunning.current &&
+          defaultsIntent.current &&
+          e.code === 'LAUNCH_VERSION_CONFLICT'
+        )
           setDefaultsConflict({ offerId: defaultsIntent.current[4] });
-        if (!defaultsIntent.current && e.code === 'LAUNCH_VERSION_CONFLICT')
+        if (!defaultsRunning.current && e.code === 'LAUNCH_VERSION_CONFLICT')
           setVersionRejected(true);
         saveIntent.current = null;
         defaultsIntent.current = null;
@@ -565,6 +573,7 @@ export function LaunchSession({
       if (inputAuthority.current.mounted) reportError(e);
     } finally {
       workingRef.current = false;
+      defaultsRunning.current = null;
       if (inputAuthority.current.mounted) setWorking(false);
     }
   };
@@ -1184,7 +1193,6 @@ export function LaunchSession({
                 : detail
                   ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
                   : t('launchesAutosave')));
-  const pendingDefaultsScope = defaultsIntent.current?.[4] ? 'offer' : 'workspace';
   const saveDefaultsDisabled = (scope: 'offer' | 'workspace') =>
     historical ||
     working ||
@@ -1193,19 +1201,24 @@ export function LaunchSession({
     generation.busy ||
     (scope === 'offer' &&
       (!draft.config.offerId || offerDefaults.loading || Boolean(offerDefaults.error))) ||
-    (defaultsIntent.current !== null && pendingDefaultsScope !== scope) ||
-    (locked && defaultsIntent.current === null);
+    locked;
   const saveDefaults = (scope: 'offer' | 'workspace') => {
+    // Read at click time: the selected offer and values are what the button names.
     const offerId = scope === 'offer' ? draft.config.offerId : undefined;
+    const config = draft.config;
+    const version = offerId ? (offerDefaults.profile?.version ?? null) : defaultsVersion;
     void run(async () => {
-      defaultsIntent.current ??= [
-        teamId,
-        offerId ? (offerDefaults.profile?.version ?? null) : defaultsVersion,
-        crypto.randomUUID(),
-        draft.config,
-        offerId
-      ];
-      const intended = defaultsIntent.current;
+      const pending = defaultsIntent.current;
+      // Replay an uncertain request only for the same target and the same values;
+      // anything else is a new save and must never reach the earlier offer.
+      if (
+        !pending ||
+        pending[4] !== offerId ||
+        !launchValuesEqual(launchDefaultValues(pending[3]), launchDefaultValues(config))
+      )
+        defaultsIntent.current = [teamId, version, crypto.randomUUID(), config, offerId];
+      const intended = defaultsIntent.current!;
+      defaultsRunning.current = intended[4] ? 'offer' : 'workspace';
       setDefaultsFeedback(null);
       const observation = observeLaunchDefaults(
         'save',
@@ -1747,7 +1760,14 @@ export function LaunchSession({
                         value,
                         crypto.randomUUID()
                       );
-                      if (inputAuthority.current.mounted) await onDictionaries();
+                      if (!row) throw new TeamApiError('INVALID_RESPONSE', false);
+                      // The row exists now; a slow list refresh is retried once. If it
+                      // still fails the choice is refused and the field shows the offer
+                      // that is actually selected, never the typed name over it.
+                      if (inputAuthority.current.mounted)
+                        await onDictionaries().catch(() =>
+                          inputAuthority.current.mounted ? onDictionaries() : undefined
+                        );
                       if (
                         !inputAuthority.current.mounted ||
                         inputAuthority.current.locked ||
@@ -1779,9 +1799,7 @@ export function LaunchSession({
                 offer: saveDefaultsDisabled('offer'),
                 workspace: saveDefaultsDisabled('workspace')
               }}
-              savingScope={
-                working && defaultsIntent.current !== null ? pendingDefaultsScope : undefined
-              }
+              savingScope={working && defaultsRunning.current ? defaultsRunning.current : undefined}
               primaryAction={
                 <Button
                   color="primary"
