@@ -66,6 +66,8 @@ export interface CatalogVideoPreparingResult {
   requestedCount: number;
   registeredCount: number;
   state: 'preparing' | 'unknown' | 'cancel_requested' | 'canceled';
+  /** The agent running this creation stopped heartbeating two minutes ago. */
+  agentSilent?: true;
 }
 export class CatalogVideoPreparationPending extends Error {
   constructor(readonly result: CatalogVideoPreparingResult) {

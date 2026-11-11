@@ -2724,3 +2724,18 @@ Nothing is written in that case. Rolling back restores the misleading uncertain 
 one-hour due-validation window starts when the videos are ready, not at the due time.
 Rolling back restores the old behaviour: sets slower than one hour after the due time
 block their publication (`validation_epoch_expired`).
+
+### 20261207240000 — catalog video executor liveness
+
+Adds `heartbeat_at` and `silence_observed_at` to `private.catalog_video_variants`
+and records the agent's 30-second variant heartbeat. Silence (no heartbeat, operation
+update or grant round) decides three things that age alone decided before: a restarted
+agent of the same installation takes over a variant silent for 2 minutes, a cancelled
+variant silent for 3 minutes ends canceled, and the per-minute settlement abandons a
+variant silent for 15 minutes on a second observation 2 minutes later. Deploy the
+`drive-ops` and `team-recovery` functions before this migration so heartbeats are
+recorded from the first minute (their note is best-effort and tolerates the missing
+RPC). Rolling back the functions only stops recording heartbeats: a live run would then
+look silent, so roll back the migration through a reviewed forward migration that
+restores the 12-hour rule, the 180000 redeem branch, the 181000/182000 quiescence and
+settlement bodies and the 180000 creation read. The columns may stay.

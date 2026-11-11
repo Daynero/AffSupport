@@ -110,6 +110,14 @@ export function catalogVideoNativeStore(
       return result.executionAllowed;
     },
     async heartbeat(child: Child) {
+      // The server's only proof that the executor is alive: silence lets a
+      // restarted agent take the variant over and a cancellation settle. Best
+      // effort — a heartbeat never fails because the note could not be written.
+      try {
+        await service.rpc('service_note_catalog_video_variant_heartbeat', childScope(child));
+      } catch {
+        // Recorded on the next heartbeat.
+      }
       const observed = await this.reconcile(child, { retry: false });
       if (observed.kind === 'registered') return { continue: true, registered: true };
       await authorize();
