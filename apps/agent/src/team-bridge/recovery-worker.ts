@@ -1,4 +1,7 @@
-import { runCatalogVariantRecovery } from './catalog-variant-recovery.js';
+import {
+  CatalogVariantSetCanceled,
+  runCatalogVariantRecovery
+} from './catalog-variant-recovery.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   isRecord,
@@ -908,6 +911,18 @@ export class TeamRecoveryWorker {
             return;
           }
         } catch (cause) {
+          if (cause instanceof CatalogVariantSetCanceled && !this.#closed && this.#isCurrent(r)) {
+            // The user stopped the round and the server confirmed it: a clean end,
+            // not an uncertainty. Nothing to park on or back off from; claim the
+            // next work at once.
+            this.#variantStates.delete(r.delegationId);
+            this.#failures.delete(r.delegationId);
+            this.#retryNotBefore.delete(r.delegationId);
+            this.#serverRetryNotBefore.delete(r.delegationId);
+            await this.#checkpoint(r, requestId, null, 'settled');
+            this.#schedule(r, 0);
+            return;
+          }
           const state = this.#variantStates.get(r.delegationId);
           if (state) this.#variantStates.set(r.delegationId, { ...state, state: 'unknown' });
           throw cause;

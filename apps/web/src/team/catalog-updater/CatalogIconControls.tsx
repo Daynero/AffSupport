@@ -81,6 +81,7 @@ export function CatalogIconControls({
   state,
   restitchProgress,
   updatePending,
+  restitching,
   onChange,
   onReadiness,
   videoR2
@@ -96,6 +97,12 @@ export function CatalogIconControls({
    * Absent keeps the waiting wording.
    */
   updatePending?: boolean;
+  /**
+   * The running round is stitching this catalog's video now. The profile's own status lags the
+   * round and still says «waiting», so without this the icon read «Очікуємо підготовку відео…»
+   * through the whole stitch.
+   */
+  restitching?: boolean;
   onChange: (field: CatalogField, value: boolean) => void;
   onReadiness?: () => void;
   /** 050: the catalog's R2 option, saved on its own; absent while R2 is unavailable. */
@@ -106,7 +113,8 @@ export function CatalogIconControls({
   const group = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const pending = state?.phase === 'pending';
-  const videoState = !profile.restitch ? 'off' : (profile.restitchStatus ?? 'waiting');
+  const reported = !profile.restitch ? 'off' : (profile.restitchStatus ?? 'waiting');
+  const videoState = reported === 'waiting' && restitching ? 'preparing' : reported;
   const measured = typeof restitchProgress === 'number' && Number.isFinite(restitchProgress);
   // Processing completion is not proof that the finalized spare can be consumed.
   const percent =

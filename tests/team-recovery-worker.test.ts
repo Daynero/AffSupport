@@ -211,6 +211,55 @@ describe('background recovery worker', () => {
     expect(f.process.process).not.toHaveBeenCalled();
   });
 
+  it('a user stop confirmed by the server settles the set and claims next work without parking', async () => {
+    // Beta 2026-11-11, set 95a121a2: «Зупинити» right after acceptance made the
+    // admission refuse; the worker parked as checkpoint_unavailable for 78 s.
+    const f = await fixture('claiming', {
+      catalogVariants: { nativeInstanceId: INSTALL, protectedProcess: vi.fn() }
+    });
+    let snapshot = {
+      setId: JOB,
+      revision: 0,
+      children: [
+        {
+          index: 0,
+          requestId: REQUEST,
+          operationId: null as string | null,
+          state: 'queued',
+          outputId: null
+        }
+      ]
+    };
+    let claims = 0;
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      let value: unknown;
+      if (body.action === 'variant_claim') value = { setId: claims++ === 0 ? JOB : null };
+      else if (body.action === 'variant_load') value = snapshot;
+      else if (body.action === 'variant_save') {
+        snapshot = body.snapshot;
+        value = { saved: true };
+      } else if (body.action === 'variant_reconcile') value = { kind: 'absent' };
+      else if (body.action === 'variant_admit')
+        return new Response(JSON.stringify({ ok: false, error: { code: 'WRONG_STATE' } }), {
+          status: 409
+        });
+      else if (body.action === 'variant_heartbeat') {
+        expect(body.probe).toBe(true);
+        value = { continue: false, registered: false, reason: 'canceled' };
+      } else if (body.action === 'claim') value = { job: null };
+      else throw Error('unexpected private test action ' + body.action);
+      return new Response(JSON.stringify({ ok: true, value }));
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.waitFor(() => expect(claims).toBeGreaterThanOrEqual(2));
+    await f.worker.idle();
+    const checkpoint = (await f.journal.load()).checkpoints[0];
+    expect(checkpoint?.stage).not.toBe('blocked');
+    expect(checkpoint?.reason ?? null).not.toBe('checkpoint_unavailable');
+  });
+
   it('resends a durable screen failure after restart without executing the operation', async () => {
     const f = await fixture('running');
     f.setSecrets({
