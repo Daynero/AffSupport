@@ -16,11 +16,11 @@ describe('catalog video R2 policy and terms', () => {
     for (const phrase of [
       'Copy the video to R2',
       'copied from Google Drive to Cloudflare R2',
-      'opaque public address',
+      'public link that contains no file name, folder or space details',
       'only the active version is kept',
       'Копіювати відео в R2',
       'копіюється з Google Drive у Cloudflare R2',
-      'непрозорою публічною адресою',
+      'публічним посиланням, у якому немає назви файлу, папки чи даних простору',
       'зберігається лише активна версія'
     ])
       expect(legal, phrase).toContain(phrase);
@@ -34,11 +34,11 @@ describe('catalog video R2 policy and terms', () => {
     expect(en.catalogVideoR2Toggle).toBe('Copy the video to R2');
     expect(en.catalogVideoR2Explain).toMatch(/Cloudflare R2/u);
     expect(en.catalogVideoR2Explain).toMatch(/Only the active version is kept/u);
-    expect(en.catalogVideoR2Explain).toMatch(/opaque address/u);
+    expect(en.catalogVideoR2Explain).toMatch(/contains no file or folder name/u);
     expect(uk.catalogVideoR2Toggle).toBe('Копіювати відео в R2');
     expect(uk.catalogVideoR2Explain).toMatch(/Cloudflare R2/u);
     expect(uk.catalogVideoR2Explain).toMatch(/лише активна версія/u);
-    expect(uk.catalogVideoR2Explain).toMatch(/непрозорою адресою/u);
+    expect(uk.catalogVideoR2Explain).toMatch(/назви файлу чи папки в ньому немає/u);
   });
 
   it('answers POLICY_PENDING until the owner confirms the policy, even with the runtime configured', async () => {
