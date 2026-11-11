@@ -1,4 +1,4 @@
-import { CalendarDateTime, toZoned } from '@internationalized/date';
+import { CalendarDate, CalendarDateTime, toZoned, today } from '@internationalized/date';
 import {
   CatalogPublicationValidationError,
   parseCatalogVideoPublication,
@@ -80,4 +80,34 @@ export function resolveCatalogPublicationDraft(
   if (publication.mode !== 'scheduled')
     throw new CatalogPublicationValidationError('invalid_publication');
   return { kind: 'resolved', publication };
+}
+
+/**
+ * Whether this local wall-clock time is irregular in its zone: it happens twice (the hour
+ * the clocks go back, where «При повторенні часу» chooses) or not at all (the skipped
+ * spring hour, which the save then names). The picker used to be shown on every
+ * schedule, where nobody could tell what it was for (1.4.3 QA).
+ */
+export function catalogPublicationTimeRepeats(localDateTime: string, timeZone: string): boolean {
+  try {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/u.exec(localDateTime);
+    if (!match || !isLaunchTimezone(timeZone)) return false;
+    const [, year, month, day, hour, minute] = match.map(Number);
+    const local = new CalendarDateTime(year, month, day, hour, minute);
+    return (
+      toZoned(local, timeZone, 'earlier').toDate().getTime() !==
+      toZoned(local, timeZone, 'later').toDate().getTime()
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The first day a publication may be scheduled on: today in the publication's zone. */
+export function catalogPublicationFirstDay(timeZone: string): CalendarDate {
+  try {
+    return today(isLaunchTimezone(timeZone) ? timeZone : 'Europe/Kyiv');
+  } catch {
+    return today('UTC');
+  }
 }

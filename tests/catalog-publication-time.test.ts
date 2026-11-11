@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { parseCatalogVideoPublication } from '../packages/shared/src/team/catalog-publication';
-import { resolveCatalogPublicationDraft } from '../apps/web/src/team/product-catalog/catalogPublicationDraft';
+import {
+  catalogPublicationFirstDay,
+  catalogPublicationTimeRepeats,
+  resolveCatalogPublicationDraft
+} from '../apps/web/src/team/product-catalog/catalogPublicationDraft';
 const now = Date.parse('2026-01-01T00:00:00Z');
 const scheduled = (
   localDateTime = '2026-11-08T15:00',
@@ -75,6 +79,20 @@ it('asks for an explicit offset for a repeated wall time rather than choosing si
     kind: 'resolved',
     publication: { resolvedOffset: '+02:00', dueAt: '2026-10-25T01:30:00.000Z' }
   });
+});
+it('names only the repeated hour as needing a choice, so the picker hides otherwise', () => {
+  expect(catalogPublicationTimeRepeats('2026-10-25T03:30', 'Europe/Kyiv')).toBe(true);
+  expect(catalogPublicationTimeRepeats('2026-10-25T05:30', 'Europe/Kyiv')).toBe(false);
+  expect(catalogPublicationTimeRepeats('2026-11-11T19:42', 'Europe/Kyiv')).toBe(false);
+  // The skipped spring hour is the other irregular one: it is shown too, so the person
+  // sees the time is special (the save then names it as a time that does not exist).
+  expect(catalogPublicationTimeRepeats('2026-03-29T03:30', 'Europe/Kyiv')).toBe(true);
+  expect(catalogPublicationTimeRepeats('', 'Europe/Kyiv')).toBe(false);
+  expect(catalogPublicationTimeRepeats('2026-10-25T03:30', 'Not/AZone')).toBe(false);
+});
+it('starts the publication calendar today in the publication zone', () => {
+  expect(catalogPublicationFirstDay('Europe/Kyiv').toString()).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+  expect(catalogPublicationFirstDay('Not/AZone').toString()).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
 });
 it('keeps an elapsed fold choice distinct from the still available later occurrence', () => {
   const result = resolveCatalogPublicationDraft(

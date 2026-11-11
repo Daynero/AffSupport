@@ -24,7 +24,15 @@ import {
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
-import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
+import {
+  catalogPublicationFirstDay,
+  catalogPublicationTimeRepeats,
+  resolveCatalogPublicationDraft
+} from './catalogPublicationDraft';
+
+/** How often «Публікуємо…» reads the publication until the write is verified. */
+export const CATALOG_PUBLISH_NOW_POLL_MS = 3_000;
+const CATALOG_PUBLISH_NOW_MAX_READS = 60;
 import { CatalogTimeInput } from './CatalogTimeInput';
 export function CatalogPublicationDialog({
   teamId,
@@ -47,6 +55,9 @@ export function CatalogPublicationDialog({
     actor = privateCacheActor();
   const flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const [saved, setSaved] = useState(false);
+  const [confirmNow, setConfirmNow] = useState(false);
+  /** «Опублікувати зараз» was accepted: follow the write until it is verified. */
+  const [publishing, setPublishing] = useState<'publishing' | 'published' | null>(null);
 
   const saving = useRef(false);
   const clock = useRef<{ serverNow: number; observedAt: number } | null>(null);
@@ -153,6 +164,25 @@ export function CatalogPublicationDialog({
       verification.visible();
     }
   });
+  // After «Опублікувати зараз» the dialog said only «Налаштування публікації збережено»
+  // and never showed the link going out (1.4.3 QA, 87 s later): follow it to «Опубліковано».
+  const publishReads = useRef(0);
+  useEffect(() => {
+    if (publishing !== 'publishing') {
+      publishReads.current = 0;
+      return;
+    }
+    if (snapshot?.job?.state === 'published') {
+      setPublishing('published');
+      return;
+    }
+    if (publishReads.current >= CATALOG_PUBLISH_NOW_MAX_READS) return;
+    const timer = setTimeout(() => {
+      publishReads.current += 1;
+      void read();
+    }, CATALOG_PUBLISH_NOW_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [publishing, snapshot]);
   const saveOwned = async (action?: 'add_now') => {
     if (
       !snapshot ||
@@ -231,6 +261,8 @@ export function CatalogPublicationDialog({
       setSnapshot(saved);
       flow.current?.stage('save_confirmed');
       setSaved(true);
+      if (action === 'add_now')
+        setPublishing(saved.job?.state === 'published' ? 'published' : 'publishing');
       onChanged();
     } catch (cause) {
       if (generation === live.current && owns()) {
@@ -316,7 +348,10 @@ export function CatalogPublicationDialog({
           >
             <Calendar
               label={t('catalogPublicationDate')}
-              isDateUnavailable={() => pending || verification.pending}
+              // Past days are unavailable; a pending save freezes the calendar rather
+              // than marking every day, the chosen one too, invalid (1.4.3).
+              minValue={catalogPublicationFirstDay(zone)}
+              isDisabled={pending || verification.pending}
               value={toCalendarDate(date)}
               onChange={value => {
                 setSaved(false);
@@ -350,37 +385,67 @@ export function CatalogPublicationDialog({
                 }}
               />
             </FormField>
-            <FormField label={t('catalogPublicationOccurrence')}>
-              <Select
-                aria-label={t('catalogPublicationOccurrence')}
-                value={choice ?? ''}
-                placeholder={t('catalogPublicationChoose')}
-                disabled={pending || verification.pending}
-                onChange={value => {
-                  setSaved(false);
-                  setChoice(
-                    value === 'earlier' ? 'earlier' : value === 'later' ? 'later' : undefined
-                  );
-                }}
-                options={[
-                  { value: 'earlier', label: t('catalogPublicationEarlier') },
-                  { value: 'later', label: t('catalogPublicationLater') }
-                ]}
-              />
-            </FormField>
+            {(choice !== undefined || catalogPublicationTimeRepeats(`${date}T${time}`, zone)) && (
+              <FormField label={t('catalogPublicationOccurrence')}>
+                <Select
+                  aria-label={t('catalogPublicationOccurrence')}
+                  value={choice ?? ''}
+                  placeholder={t('catalogPublicationChoose')}
+                  disabled={pending || verification.pending}
+                  onChange={value => {
+                    setSaved(false);
+                    setChoice(
+                      value === 'earlier' ? 'earlier' : value === 'later' ? 'later' : undefined
+                    );
+                  }}
+                  options={[
+                    { value: 'earlier', label: t('catalogPublicationEarlier') },
+                    { value: 'later', label: t('catalogPublicationLater') }
+                  ]}
+                />
+              </FormField>
+            )}
           </CatalogPublicationSchedule>
-          <Button
-            disabled={pending || verification.pending || !snapshot}
-            onClick={() => void save('add_now')}
-          >
-            {t('catalogPublicationAddNow')}
-          </Button>
           <Button
             disabled={pending || verification.pending || !snapshot || saved}
             onClick={() => void save()}
           >
             {t('catalogScheduleSave')}
           </Button>
+          {/* Publishing now writes into the sheet at once: a secondary action with its
+              own confirmation, not an equal button above «Зберегти» (1.4.3 QA). */}
+          {confirmNow ? (
+            <div className="catalog-publication-confirm" role="group">
+              <p>{t('catalogPublicationAddNowConfirm')}</p>
+              <Button
+                variant="secondary"
+                disabled={pending || verification.pending || !snapshot}
+                onClick={() => {
+                  setConfirmNow(false);
+                  void save('add_now');
+                }}
+              >
+                {t('catalogPublicationAddNowConfirmAction')}
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirmNow(false)}>
+                {t('cancel')}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              disabled={
+                pending ||
+                verification.pending ||
+                !snapshot ||
+                publishing !== null ||
+                snapshot.job?.state === 'published'
+              }
+              onClick={() => setConfirmNow(true)}
+            >
+              {t('catalogPublicationAddNow')}
+            </Button>
+          )}
         </>
       )}
       {snapshot?.job?.blockedReason === 'legacy_adoption_required' && (
@@ -398,7 +463,13 @@ export function CatalogPublicationDialog({
             {t('catalogPublicationVerify')}
           </Button>
         )}
-      {saved && <p role="status">{t('catalogPublicationSaved')}</p>}
+      {publishing === 'publishing' ? (
+        <p role="status">{t('catalogPublicationPublishing')}</p>
+      ) : publishing === 'published' ? (
+        <p role="status">{t('catalogPublicationPublished')}</p>
+      ) : (
+        saved && <p role="status">{t('catalogPublicationSaved')}</p>
+      )}
       {error && (
         <p role="alert" className="team-inline-error">
           {error}

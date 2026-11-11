@@ -128,6 +128,20 @@ const TRANSIENT_CATALOG_CODES = new Set([
   'DRIVE_UNAVAILABLE',
   'WORKSPACE_READ_TIMEOUT'
 ]);
+/** After a create the server answered with "someone else holds it", read every few
+ * seconds for this long instead of on the widening timer. */
+const CREATION_FAST_READ_WINDOW_MS = 60_000;
+/** Codes that leave an accepted creation in progress under its key: another executor
+ * holds the lease, or the answer was lost on the way. */
+const CREATION_IN_PROGRESS_CODES = new Set([
+  'GROUP_RECONCILING',
+  'LEASE_MISMATCH',
+  'PROCESS_RESULT_UNCERTAIN'
+]);
+function isCreationStillOurs(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && CREATION_IN_PROGRESS_CODES.has(code);
+}
 /** A failure that says the server was slow or unreachable, not that the action is wrong. */
 function isTransientCatalogFailure(error: unknown): boolean {
   const code = (error as { code?: unknown } | null)?.code;
@@ -320,6 +334,8 @@ export function CreateProductCatalogDialog({
   const deliveredCatalog = useRef<string | null>(null);
   const videoCommandBusy = useRef(false);
   const videoReadDirty = useRef(false);
+  /** Until this time, re-read every few seconds instead of on the widening timer. */
+  const readSoon = useRef(0);
   const videoFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const videoKey = useRef<string | null>(null);
   const videoOwner = useRef<{ actor: string | null; epoch: number } | null>(null);
@@ -588,10 +604,24 @@ export function CreateProductCatalogDialog({
           count: input.videoVariationCount
         });
         videoFlow.current.stage('command_requested');
-        const result = await withCatalogCommandDeadline(
-          signal => client.createProductCatalogVideo!(input, { signal }),
-          new AbortController().signal
-        );
+        let result: Awaited<ReturnType<NonNullable<typeof client.createProductCatalogVideo>>>;
+        try {
+          result = await withCatalogCommandDeadline(
+            signal => client.createProductCatalogVideo!(input, { signal }),
+            new AbortController().signal
+          );
+        } catch (cause) {
+          // The creation was accepted under this key and is being carried on
+          // elsewhere (the background pass holds it) or its answer was lost: it is
+          // a state to read, not an error. Seen as a 409 and a minute of a red
+          // form before «Каталог готовий» (1.4.3 QA, S2).
+          if (!owns() || !isCreationStillOurs(cause)) throw cause;
+          setFailure(null);
+          setPhase({ kind: 'form' });
+          readSoon.current = Date.now() + CREATION_FAST_READ_WINDOW_MS;
+          void checkVideoRef.current();
+          return;
+        }
         if (!owns()) return;
         setVideoUnknown(false);
         if (result.outcome === 'preparing_video') {
@@ -899,7 +929,10 @@ export function CreateProductCatalogDialog({
     let delay = VIDEO_READBACK_INITIAL_MS;
     let timer = setTimeout(function tick() {
       if (videoKey.current) void checkVideoRef.current();
-      delay = Math.min(delay * 2, VIDEO_READBACK_MAX_MS);
+      delay =
+        Date.now() < readSoon.current
+          ? VIDEO_READBACK_INITIAL_MS
+          : Math.min(delay * 2, VIDEO_READBACK_MAX_MS);
       timer = setTimeout(tick, delay);
     }, delay);
     return () => clearTimeout(timer);
@@ -980,6 +1013,9 @@ export function CreateProductCatalogDialog({
               teamId={teamId}
               catalogId={createdCatalog.current?.catalog.materialId ?? ''}
               read={client.readCatalogPublication}
+              // Canceling the videos holds the publication; a new count may unblock it.
+              refresh={createdVideo ? `${createdVideo.state}:${createdVideo.registeredCount}` : ''}
+              videoCanceled={createdVideo?.state === 'canceled'}
             />
           )}
           {createdVideo && (

@@ -19574,6 +19574,16 @@ a.history-subject {
 .catalog-row-feedback:empty {
   display: none;
 }
+/* «Посилання о 19:42»: a scheduled link, quiet beside the row's own status. */
+.catalog-row-publication {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
 .catalog-name-cell {
   padding-block: var(--space-2);
 }
@@ -19928,4 +19938,22 @@ a.history-subject {
 }
 .catalog-publication-controls[hidden] {
   display: none;
+}
+/* The schedule's toggle names the field on one line and keeps the chosen time at body
+   size: the panel heading's sizes wrapped «Дата додавання посилання» onto two lines. */
+.catalog-publication-schedule .settings-collapse > span:not(.settings-summary) {
+  white-space: nowrap;
+}
+.catalog-publication-schedule .settings-summary {
+  font-size: var(--text-body);
+}
+/* «Опублікувати посилання зараз?» and its two answers, in one quiet row. */
+.catalog-publication-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.catalog-publication-confirm > p {
+  margin: 0;
 }

@@ -94,3 +94,63 @@ it('names the scheduled time in the app language, 24-hour, with a city instead o
   expect(status.textContent).toMatch(/\(Kyiv\)/);
   expect(status.textContent).not.toMatch(/Europe\/Kiev|AM|PM/);
 });
+it('stops promising the time once the canceled creation held the publication', async () => {
+  // 1.4.3 QA S6b: after «Скасувати створення відео» the card still said
+  // «заплановано на … 20:20 (Київ)» while the publication was held.
+  const read = vi.fn().mockResolvedValue({ ...snapshot, writerMode: 'video_columns' });
+  const { rerender } = render(
+    <CatalogCreatedPublicationStatus
+      teamId={actor}
+      catalogId={catalog}
+      read={read}
+      refresh="preparing:0"
+    />
+  );
+  expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  read.mockResolvedValue({
+    ...snapshot,
+    writerMode: 'video_columns',
+    mode: 'held',
+    dueAt: null,
+    timeZone: null,
+    job: { ...snapshot.job!, state: 'held' }
+  });
+  rerender(
+    <CatalogCreatedPublicationStatus
+      teamId={actor}
+      catalogId={catalog}
+      read={read}
+      refresh="canceled:0"
+      videoCanceled
+    />
+  );
+  expect(
+    await screen.findByText(/will not be published: video generation was canceled/)
+  ).toBeTruthy();
+  expect(screen.queryByText(/Video-link publication is scheduled for/)).toBeNull();
+});
+it('turns a scheduled line into waiting for videos when the time passes on screen', async () => {
+  // 1.4.3 QA S2: 19:42 passed with the dialog open and it still said «заплановано на 19:42».
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const now = Date.now();
+    const pending = {
+      ...snapshot,
+      writerMode: 'video_columns' as const,
+      dueAt: new Date(now + 5_000).toISOString(),
+      serverNow: now,
+      targetObservation: { basis: 'indexed' as const, state: 'preparing' as const }
+    };
+    const read = vi.fn().mockResolvedValue(pending);
+    render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
+    expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+    read.mockResolvedValue({ ...pending, serverNow: now + 16_000 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+    expect(await screen.findByText(/Waiting for all videos to be ready/)).toBeTruthy();
+    expect(read.mock.calls.length).toBeGreaterThan(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});

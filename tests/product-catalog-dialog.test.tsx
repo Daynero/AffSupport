@@ -623,11 +623,33 @@ describe('creating a catalog', () => {
     expect(createProductCatalogVideo).not.toHaveBeenCalled();
   });
 
-  it('labels the repeated-time choice and shows its placeholder instead of a blank select', async () => {
+  it('hides the repeated-time choice for an ordinary time (1.4.3)', async () => {
     renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
     const user = userEvent.setup();
     await user.click(await screen.findByRole('switch', { name: 'Schedule the video link' }));
-    expect(await screen.findByText('When local time repeats')).toBeTruthy();
+    expect(await screen.findByText('Link publication date')).toBeTruthy();
+    expect(screen.queryByText('When local time repeats')).toBeNull();
+  });
+
+  it('labels the repeated-time choice and shows its placeholder on the hour that repeats', async () => {
+    const { CatalogCreationVideoFields } =
+      await import('../apps/web/src/team/product-catalog/CatalogCreationVideoFields');
+    render(
+      <CatalogCreationVideoFields
+        value={{
+          variationCount: '1',
+          delayed: true,
+          date: '2026-10-25',
+          time: '03:30',
+          zone: 'Europe/Kyiv'
+        }}
+        onChange={() => undefined}
+        restitch={false}
+        productCount={10}
+        disabled={false}
+      />
+    );
+    expect(screen.getByText('When local time repeats')).toBeTruthy();
     expect(screen.getAllByText('Choose if needed').length).toBeGreaterThan(0);
   });
 
@@ -1292,6 +1314,24 @@ describe('beta durable video creation', () => {
       expect.any(String),
       expect.any(Object)
     );
+  });
+  it('reads at once when the create answers that another pass holds it, with no error (1.4.3)', async () => {
+    // QA S2: a 409 from create, then a minute of a red form before «Каталог готовий».
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('GROUP_RECONCILING', false)),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(pending)
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+    expect(client.readProductCatalogVideo).toHaveBeenCalledWith(
+      TEAM_ID,
+      client.createProductCatalogVideo.mock.calls[0][0].idempotencyKey,
+      expect.any(Object)
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
   });
   it('reopens a tracked creation with what the person submitted, not an empty form (1.4.3)', async () => {
     const client = dialogClient({

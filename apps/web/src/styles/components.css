@@ -3589,7 +3589,16 @@
   font-size: var(--text-label);
   font-weight: var(--weight-emphasis);
   text-align: center;
+  white-space: nowrap;
   cursor: pointer;
+}
+/* The month is an h2 inside the year trigger; the page's h2 made «листопад 2026 р.» a
+   headline that broke onto two lines beside the arrows (1.4.3 QA). */
+.ui-calendar-heading > * {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
 }
 .ui-calendar-nav {
   display: grid;

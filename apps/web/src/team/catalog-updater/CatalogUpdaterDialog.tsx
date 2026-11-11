@@ -52,6 +52,7 @@ import { beginCatalogUiFlow, type CatalogUiFlow, type CatalogUiFailure } from '.
 import { UpdaterRowActions } from './UpdaterRowActions';
 import { CatalogProgressRow } from './CatalogProgressRow';
 import { CatalogRowStage } from './CatalogRowStage';
+import { CatalogRowPublicationNote } from './CatalogRowPublicationNote';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
 import {
@@ -1542,6 +1543,9 @@ function CatalogUpdaterDialogScope({
                               )}
                           </small>
                         )}
+                      {row.videoPublication && (
+                        <CatalogRowPublicationNote publication={row.videoPublication} />
+                      )}
                       <span
                         // The running stage is shown, not only announced: with it hidden the row
                         // said only «Готово відео: 0 з 1» while the round stitched (1.4.3).

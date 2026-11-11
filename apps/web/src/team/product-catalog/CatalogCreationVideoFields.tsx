@@ -11,6 +11,10 @@ import {
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { CatalogTimeInput } from './CatalogTimeInput';
+import {
+  catalogPublicationFirstDay,
+  catalogPublicationTimeRepeats
+} from './catalogPublicationDraft';
 export interface CatalogCreationVideoDraft {
   variationCount: string;
   delayed: boolean;
@@ -72,7 +76,10 @@ export function CatalogCreationVideoFields({
         <Calendar
           label={t('catalogPublicationDate')}
           value={toCalendarDate(value.date)}
-          isDateUnavailable={() => disabled}
+          // Past days are shown as unavailable; a busy form freezes the calendar
+          // instead of marking every day — and the chosen one — invalid (1.4.3).
+          minValue={catalogPublicationFirstDay(value.zone)}
+          isDisabled={disabled}
           onChange={date => change({ date: fromCalendarDate(date) ?? '', occurrence: undefined })}
         />
         <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
@@ -93,26 +100,29 @@ export function CatalogCreationVideoFields({
             onChange={zone => change({ zone, occurrence: undefined })}
           />
         </FormField>
-        <FormField label={t('catalogPublicationOccurrence')}>
-          {/* An empty value renders the placeholder; listing '' as an option left
+        {(value.occurrence !== undefined ||
+          catalogPublicationTimeRepeats(`${value.date}T${value.time}`, value.zone)) && (
+          <FormField label={t('catalogPublicationOccurrence')}>
+            {/* An empty value renders the placeholder; listing '' as an option left
               the trigger blank with no label (seen on beta, 1.4.2). */}
-          <Select
-            aria-label={t('catalogPublicationOccurrence')}
-            disabled={disabled}
-            value={value.occurrence ?? ''}
-            placeholder={t('catalogPublicationChoose')}
-            onChange={occurrence =>
-              change({
-                occurrence:
-                  occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
-              })
-            }
-            options={[
-              { value: 'earlier', label: t('catalogPublicationEarlier') },
-              { value: 'later', label: t('catalogPublicationLater') }
-            ]}
-          />
-        </FormField>
+            <Select
+              aria-label={t('catalogPublicationOccurrence')}
+              disabled={disabled}
+              value={value.occurrence ?? ''}
+              placeholder={t('catalogPublicationChoose')}
+              onChange={occurrence =>
+                change({
+                  occurrence:
+                    occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
+                })
+              }
+              options={[
+                { value: 'earlier', label: t('catalogPublicationEarlier') },
+                { value: 'later', label: t('catalogPublicationLater') }
+              ]}
+            />
+          </FormField>
+        )}
       </CatalogPublicationSchedule>
     </>
   );

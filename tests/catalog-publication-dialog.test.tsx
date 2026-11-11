@@ -148,9 +148,49 @@ it('shows a dated collapsed summary and expands calendar and timezone without di
   expect(header.textContent).toMatch(/GMT/);
   await userEvent.click(header);
   expect(screen.getByLabelText('Time zone')).toBeTruthy();
+  // The repeated-hour choice is only for the hour the clocks go back (1.4.3 QA).
+  expect(screen.queryByLabelText('When local time repeats')).toBeNull();
   await userEvent.click(header);
   expect(header.textContent).toMatch(/GMT/);
   expect(m.save).not.toHaveBeenCalled();
+});
+
+it('cancels a publish-now confirmation without writing anything', async () => {
+  view();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Request publication now' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Request publication now' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByText('Publish the link in the sheet now?')).toBeNull();
+  expect(m.change).not.toHaveBeenCalled();
+});
+
+it('follows a publish-now request until the write is verified', async () => {
+  view();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Request publication now' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Request publication now' }));
+  m.change.mockResolvedValueOnce({
+    ...snapshot,
+    revision: 1,
+    job: { id: catalog, state: 'applying', revision: 1, writerFence: null }
+  });
+  m.read.mockResolvedValue({
+    ...snapshot,
+    revision: 1,
+    job: { id: catalog, state: 'published', revision: 1, writerFence: null }
+  });
+  await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+  expect(await screen.findByText('Publishing the link…')).toBeTruthy();
+  expect(await screen.findByText('The link is published.', {}, { timeout: 5_000 })).toBeTruthy();
 });
 
 it('recovers a lost baseline-check reply by exact read only after reopening', async () => {
@@ -216,7 +256,13 @@ it('requests add-now explicitly without presenting its acknowledgement as public
     )
   );
   await userEvent.click(screen.getByRole('button', { name: 'Request publication now' }));
-  expect(await screen.findByText('Publication settings saved.')).toBeTruthy();
+  // One click only asks: nothing is written until the person confirms (1.4.3 QA).
+  expect(screen.getByText('Publish the link in the sheet now?')).toBeTruthy();
+  expect(m.change).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+  // The acknowledgement is not the publication: it says the link is on its way.
+  expect(await screen.findByText('Publishing the link…')).toBeTruthy();
+  expect(screen.queryByText('The link is published.')).toBeNull();
   expect(m.change).toHaveBeenCalledWith(
     team,
     expect.objectContaining({

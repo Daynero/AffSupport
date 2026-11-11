@@ -441,8 +441,18 @@ function catalogListSnapshotFrom<T>(
 }
 
 /** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
+/** A scheduled video-link publication that has not been written yet (1.4.3). */
+export interface CatalogRowPublication {
+  dueAt: string;
+  timeZone: string;
+  /** The link's videos are still being made; it goes out once they are ready. */
+  waitingForVideos: boolean;
+}
+
 export interface CatalogRegistryRow {
   videoGeneration?: CatalogVideoRowProgress | null;
+  /** Missing on older servers; null when no scheduled publication is pending. */
+  videoPublication?: CatalogRowPublication | null;
   catalogId: string;
   name: string;
   sheetUrl: string;
@@ -677,6 +687,21 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
   };
 }
 
+/** A malformed publication note hides the note, never the row. */
+function catalogRowPublicationFrom(value: unknown): CatalogRowPublication | null {
+  const row = asRecord(value);
+  if (
+    !row ||
+    typeof row.due_at !== 'string' ||
+    !Number.isFinite(Date.parse(row.due_at)) ||
+    typeof row.time_zone !== 'string' ||
+    row.time_zone.length > 64 ||
+    typeof row.waiting_for_videos !== 'boolean'
+  )
+    return null;
+  return { dueAt: row.due_at, timeZone: row.time_zone, waitingForVideos: row.waiting_for_videos };
+}
+
 function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
   const row = asRecord(value);
   if (
@@ -750,6 +775,9 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
       : {}),
     ...(Object.prototype.hasOwnProperty.call(row, 'video_generation')
       ? { videoGeneration: parseCatalogVideoRowProgress(row.video_generation) }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(row, 'video_publication')
+      ? { videoPublication: catalogRowPublicationFrom(row.video_publication) }
       : {}),
     restitchProgress:
       typeof row.restitch_progress === 'number' &&

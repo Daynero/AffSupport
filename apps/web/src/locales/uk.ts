@@ -36,7 +36,16 @@ export const uk: Record<keyof typeof en, string> = {
   catalogPublicationWaitingForVideos:
     'Час додавання посилань ({date}) настав. Чекаємо, поки будуть готові всі відео, — посилання додамо в таблицю одразу після цього.',
   catalogPublicationTableHeld: 'Очікувану публікацію відеопосилання призупинено.',
+  catalogPublicationHeldVideoCanceled:
+    'Відеопосилання не буде опубліковано: створення відео скасовано. Каталог збережено без посилань.',
   catalogPublicationAddNow: 'Запросити публікацію зараз',
+  catalogPublicationAddNowConfirm: 'Опублікувати посилання в таблиці зараз?',
+  catalogPublicationAddNowConfirmAction: 'Опублікувати',
+  catalogPublicationPublishing: 'Публікуємо посилання…',
+  catalogPublicationPublished: 'Посилання опубліковано.',
+  catalogRowPublicationToday: 'Посилання о {time}',
+  catalogRowPublicationOn: 'Посилання {date} о {time}',
+  catalogRowPublicationWaiting: 'Посилання чекає на відео',
   catalogPublicationVerify: 'Перевірити чинні посилання',
 
   catalogPublicationSaved: 'Налаштування публікації збережено.',

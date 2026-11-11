@@ -1131,6 +1131,11 @@ describe('the worker’s address and grants', () => {
     expect(data[0]!.snapshot.profiles.some(row => row.catalog_material_id === item.sheet)).toBe(
       true
     );
+    // 399500: each row names its pending scheduled link; none is scheduled here.
+    const shown = data[0]!.snapshot.catalogs.find(row => row.catalog_id === item.sheet) as
+      { video_publication?: unknown } | undefined;
+    expect(shown && 'video_publication' in shown).toBe(true);
+    expect(shown?.video_publication).toBeNull();
     await expect(
       harness.asUser(OTHER, 'select public.list_team_catalog_manager_snapshot($1)', [teamId])
     ).rejects.toThrow('PERMISSION_DENIED');

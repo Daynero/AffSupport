@@ -4030,8 +4030,11 @@ Deno.serve(async request => {
         catalogRequest,
         userId
       );
+      // A create can race the background recovery pass for the same key, which then
+      // holds the lease: answer with its progress, as resume does, rather than a 409
+      // the dialog showed as an error for a minute while the pass built the table (1.4.3).
       value = withCatalogVideoWriter(
-        path.endsWith('/resume')
+        catalogRequest.catalogVideoProtocolVersion === 1 || path.endsWith('/resume')
           ? await resumeOrReadInitialCatalog(created, () =>
               readCatalogInitialVideoProgress(configured.service, userId, {
                 teamId: catalogRequest.teamId,

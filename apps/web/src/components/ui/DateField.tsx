@@ -59,6 +59,11 @@ interface CalendarChrome {
    * and narrowing that away here would be a lie about what it is handed.
    */
   isDateUnavailable?: (date: DateValue) => boolean;
+  /**
+   * The whole calendar is read-only for now — a save is in flight. Not the same as
+   * every day being unavailable: that marked the chosen day `aria-invalid` (1.4.3).
+   */
+  isDisabled?: boolean;
   minValue?: CalendarDate;
   maxValue?: CalendarDate;
   className?: string;
@@ -107,6 +112,7 @@ export function Calendar({
   onChange,
   label,
   isDateUnavailable,
+  isDisabled,
   minValue,
   maxValue,
   className,
@@ -118,6 +124,7 @@ export function Calendar({
       value={value}
       onChange={onChange}
       isDateUnavailable={isDateUnavailable}
+      isDisabled={isDisabled}
       minValue={minValue}
       maxValue={maxValue}
       className={uiClasses('calendar', { className })}
@@ -152,6 +159,7 @@ export function RangeCalendar({
   onChange,
   label,
   isDateUnavailable,
+  isDisabled,
   minValue,
   maxValue,
   className,
@@ -163,6 +171,7 @@ export function RangeCalendar({
       value={value}
       onChange={onChange}
       isDateUnavailable={isDateUnavailable}
+      isDisabled={isDisabled}
       minValue={minValue}
       maxValue={maxValue}
       className={uiClasses('calendar', { className })}

@@ -2981,3 +2981,11 @@ a publication became due recently), and patches `private.invoke_catalog_updater_
 per-minute pass also starts for any due publication. Rolling back means `cron.unschedule('soty-catalog-publication')`,
 dropping the trigger and restoring the previous invoker body through a reviewed forward migration;
 publications then fall back to the per-minute pass, and nothing in the jobs needs reversal.
+
+### 20261207399500 — the manager row names a scheduled video-link publication
+
+Adds `private.catalog_registry_video_publication(uuid, uuid)` and patches
+`public.list_team_catalog_manager_snapshot` so each catalog carries `video_publication` (due time,
+zone, whether its videos are still being made) while a scheduled publication is pending. Display
+only. Rolling back means restoring the previous snapshot body through a reviewed forward migration
+and dropping the helper; older clients ignore the extra key.

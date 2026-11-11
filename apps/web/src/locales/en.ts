@@ -34,7 +34,16 @@ export const en = {
   catalogPublicationWaitingForVideos:
     'The video-link time ({date}) has come. Waiting for all videos to be ready — the links go into the table right after that.',
   catalogPublicationTableHeld: 'Pending video-link publication is on hold.',
+  catalogPublicationHeldVideoCanceled:
+    'The video link will not be published: video generation was canceled. The catalog is kept without links.',
   catalogPublicationAddNow: 'Request publication now',
+  catalogPublicationAddNowConfirm: 'Publish the link in the sheet now?',
+  catalogPublicationAddNowConfirmAction: 'Publish',
+  catalogPublicationPublishing: 'Publishing the link…',
+  catalogPublicationPublished: 'The link is published.',
+  catalogRowPublicationToday: 'Link at {time}',
+  catalogRowPublicationOn: 'Link on {date} at {time}',
+  catalogRowPublicationWaiting: 'Link waits for videos',
   catalogPublicationVerify: 'Verify existing links',
 
   catalogPublicationSaved: 'Publication settings saved.',
