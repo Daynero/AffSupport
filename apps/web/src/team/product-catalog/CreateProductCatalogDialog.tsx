@@ -1229,8 +1229,11 @@ export function CreateProductCatalogDialog({
               )}
             </p>
           )}
+          {/* Only while a video is still owed by the computer: once every video
+              is registered the server assembles the catalog on its own. */}
           {(videoPending?.agentSilent || videoPending?.agentUnreachable) &&
-            (videoPending.state === 'preparing' || videoPending.state === 'unknown') && (
+            (videoPending.state === 'preparing' || videoPending.state === 'unknown') &&
+            videoPending.registeredCount < videoPending.requestedCount && (
               <p role="status">{t('catalogVideoAgentSilent')}</p>
             )}
           {showVideoUnknown && <p role="status">{t('catalogVideoCreationUnknown')}</p>}

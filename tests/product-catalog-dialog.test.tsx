@@ -1264,6 +1264,25 @@ describe('beta durable video creation', () => {
     expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });
+  it('stops naming a silent agent once every video is ready and the server assembles the catalog', async () => {
+    // 1.4.3 (beta 2026-11-11): "not responding" stayed beside "Videos ready: 1 of 1".
+    const ready = {
+      ...pending,
+      requestedCount: 1,
+      registeredCount: 1,
+      agentSilent: true,
+      agentUnreachable: true
+    };
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(ready),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(ready),
+      resumeProductCatalogVideo: vi.fn().mockResolvedValue(ready)
+    });
+    await startVideo(client);
+    expect(await screen.findByText('Videos ready: 1 of 1')).toBeTruthy();
+    expect(screen.queryByText(/is not responding/)).toBeNull();
+  });
   it('does not call a heartbeating agent silent', async () => {
     const client = dialogClient({
       getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
