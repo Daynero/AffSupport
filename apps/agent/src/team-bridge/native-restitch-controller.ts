@@ -37,8 +37,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const TOKEN = /^[A-Za-z0-9_-]{43}$/u;
 const failureCodes = new Set<string>([...TEAM_ERROR_CODES, ...STITCH_ERROR_CODES]);
 const uncertain = () => new ScreenCacheError('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
-/** Waits between repeated authorization reads after a transport failure. */
-export const AUTHORIZE_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000, 8_000];
 /** How long a closure (abandon + finish) is redelivered after a lost reply. It
  * outlasts a short gateway outage; a longer one is left to reconcileClosure. */
 export const CLOSURE_RETRY_BUDGET_MS = 5 * 60_000;
@@ -92,8 +90,6 @@ export interface NativeRestitchVault {
   write(value: unknown): Promise<void>;
 }
 export interface NativeRestitchControllerOptions {
-  /** Test seam: waits between repeated authorization reads. */
-  authorizeRetryDelaysMs?: readonly number[];
   /** Test seam: retry of idempotent selection/closure calls after a transport failure. */
   transientRetry?: {
     budgetMs?: number;
@@ -927,28 +923,14 @@ export class NativeRestitchController {
                   authorize: async () => {
                     // A read: asking again cannot spend or grant anything. One slow
                     // backend reply (15 s) used to fail a video that was already
-                    // built, and a failed variant can never be run again.
-                    const retryDelays =
-                      this.options.authorizeRetryDelaysMs ?? AUTHORIZE_RETRY_DELAYS_MS;
-                    let current: unknown;
-                    for (let attempt = 0; ; attempt += 1) {
-                      try {
-                        current = await this.#rpc(record, 'control', 'authorize', {}, scope.signal);
-                        break;
-                      } catch (error) {
-                        if (
-                          attempt >= retryDelays.length ||
-                          scope.signal.aborted ||
-                          !(error instanceof ScreenCacheError) ||
-                          error.code !== 'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
-                        )
-                          throw error;
-                        await delay(retryDelays[attempt]!, undefined, {
-                          signal: scope.signal
-                        }).catch(() => undefined);
-                        if (scope.signal.aborted) throw error;
-                      }
-                    }
+                    // built, and a failed variant can never be run again. It now
+                    // waits for the whole 90 s budget: beta 2026-11-11 (set
+                    // e1741a2a) gave up after ~65 s of a gateway outage with the
+                    // video built and nothing uploaded yet.
+                    const current: unknown = await this.#idempotent(
+                      () => this.#rpc(record, 'control', 'authorize', {}, scope.signal),
+                      scope.signal
+                    );
                     if (
                       !isRecord(current) ||
                       current.grantId !== record.enrollmentId ||

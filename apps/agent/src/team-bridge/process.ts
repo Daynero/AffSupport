@@ -333,6 +333,9 @@ export class TeamProcessBridge {
     const transfer = execution?.transfer ?? this.#transfer;
     let downloaded: DownloadedTeamSource | null = null;
     let cleanupOutput: (() => Promise<void>) | null = null;
+    // Nothing reaches Drive before the upload call: a failure while this is
+    // false is provably before any output exists (see ProcessFailure).
+    let uploadStarted = false;
     // Scaled, not fixed — the same rule the landing bridge already follows.
     // This ceiling covers a compression or transcription that runs as a managed
     // child, so at a 20% limit the work legitimately takes roughly five times as
@@ -405,6 +408,7 @@ export class TeamProcessBridge {
         stage: 'uploading',
         progress: 70
       });
+      uploadStarted = true;
       const upload = transfer.uploadResult(
         {
           operationId: request.operationId,
@@ -497,7 +501,7 @@ export class TeamProcessBridge {
         stage: canceled ? 'canceled' : 'failed',
         errorCode: code
       });
-      throw new Error(code, { cause: error });
+      throw processFailure(code, error, uploadStarted);
     } finally {
       watchdog.clear();
       // Nothing local is left to hold: transfers are not pausable, and pausing
@@ -512,6 +516,14 @@ export class TeamProcessBridge {
       await downloaded?.cleanup().catch(() => undefined);
     }
   }
+}
+
+/** A failed process run, with whether its output upload had begun. A run that
+ * never started its upload cannot have produced an output anywhere, so even an
+ * uncertain code (a lost authorization reply) is safe to report as failed. */
+export type ProcessFailure = Error & { uploadStarted: boolean };
+function processFailure(code: string, cause: unknown, uploadStarted: boolean): ProcessFailure {
+  return Object.assign(new Error(code, { cause }), { uploadStarted });
 }
 
 function compressionDelegate(queue: JobQueue, embedding: boolean): TeamProcessDelegate {
