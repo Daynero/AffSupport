@@ -11,6 +11,8 @@ export function newLaunchDraft(): LaunchDraft {
     adsCount: 3,
     budgetMode: 'auto',
     budgets: null,
+    // The usual minimum on Meta; an empty field read as a missing value nobody had chosen.
+    age: 18,
     gender: 'M',
     advantagePlus: true,
     launchDate: launchTomorrow(new Date(), timezone),

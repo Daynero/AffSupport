@@ -16,6 +16,7 @@ export const en = {
   catalogVideoCreationProgress: 'Videos ready: {ready} of {total}',
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
+  catalogServerSlow: 'The server is responding slowly. Try again.',
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
   catalogVideoAgentSilent:
     'Soty on the computer is not responding. If the app restarted, creation continues on its own; otherwise open Soty or cancel the creation.',
@@ -414,6 +415,8 @@ export const en = {
   launchesProgressCatalog: 'Catalog',
   launchesProgressResult: 'Result',
   launchesProgressRetryCancel: 'Retry cancellation',
+  launchesProgressRecovering:
+    'The run was interrupted and continues on its own in a moment. Confirmed stages are preserved.',
   launchesProgressReconciling: 'Updating generation status. Confirmed stages are preserved.',
   launchesProgressElapsed: 'Generation duration: {time}',
   launchesOriginalVideoHint:
@@ -2759,6 +2762,9 @@ export const en = {
   productCatalogErrorShare: 'Google Drive does not allow sharing this file by link.',
   productCatalogDriveUnavailable: 'Connect the space’s Google Drive to create catalogs.',
   productCatalogListTitle: 'Catalogs',
+  productCatalogCreationRunning: 'A catalog is being created',
+  productCatalogCreationRunningHint: 'It keeps going on the server while this window is closed.',
+  productCatalogCreationShow: 'Show progress',
   productCatalogListHint: 'One variation per ad account: each is its own sheet with its own link.',
   productCatalogNewVariation: 'New variation',
   productCatalogCreateVariation: 'New catalog variation',
@@ -2923,6 +2929,7 @@ export const en = {
     'Google Drive did not confirm the result. We are checking what was saved automatically; another update is blocked to avoid applying changes twice.',
   catalogRunPreparingVideo: 'Preparing replacement video…',
   catalogSpareVideoReady: 'Video ready for the next update',
+  catalogRunVideoNotPrepared: 'No video prepared yet',
   catalogRunVideoWaiting: 'Waiting for video preparation…',
   catalogRunVideoRetryWaiting: 'Video preparation failed · details',
   catalogRunFailed: 'Update failed · open details',

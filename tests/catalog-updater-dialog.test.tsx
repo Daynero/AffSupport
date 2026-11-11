@@ -788,6 +788,34 @@ it('explains a stop that arrived after the run had already ended without changin
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   expect(api.setCatalogUpdateInterval).not.toHaveBeenCalled();
 });
+it('drops the stop tooltip with the stop button once the run has ended (1.4.3)', async () => {
+  const api = client(
+    [
+      row('1', 'polo.mp4', {
+        updatePending: true,
+        activeRoundAt: '2026-11-05T10:00:00Z',
+        activeAttemptId: null
+      })
+    ],
+    running,
+    { cancelCatalogUpdate: vi.fn().mockResolvedValue(true) }
+  );
+  vi.mocked(api.cancelCatalogUpdate!).mockImplementation(async () => {
+    vi.mocked(api.listTeamProductCatalogs).mockResolvedValue([
+      row('1', 'polo.mp4', { activeRoundAt: null, activeAttemptId: null })
+    ]);
+    return true;
+  });
+  renderDialog(api);
+  const stop = await screen.findByRole('button', { name: 'Stop this update' });
+  await userEvent.click(stop);
+  const run = await screen.findByRole('button', { name: 'Update polo.mp4 catalog now' });
+  // A native tooltip already on screen keeps its text while the pointer stays: the run button is
+  // a new element, so the browser cannot go on showing "Stop this update" over it.
+  expect(run).not.toBe(stop);
+  expect(stop.isConnected).toBe(false);
+  expect(run.getAttribute('title')).toBe('Update polo.mp4 catalog now');
+});
 it('shows the server refusal from a manual run', async () => {
   const api = client([row('1', 'polo.mp4')], stopped, {
     runCatalogUpdateNow: vi.fn().mockRejectedValue(new TeamApiError('PERMISSION_DENIED', false))

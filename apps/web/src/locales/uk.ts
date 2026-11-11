@@ -18,6 +18,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationProgress: 'Готово відео: {ready} з {total}',
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
+  catalogServerSlow: 'Сервер відповідає повільно. Спробуйте ще раз.',
   catalogVideoCreationCanceled: 'Створення каталогу скасовано.',
   catalogVideoAgentSilent:
     'Soty на комп’ютері не відповідає. Якщо застосунок перезапустився, створення продовжиться саме; інакше відкрийте Soty або скасуйте створення.',
@@ -417,6 +418,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesProgressCatalog: 'Каталог',
   launchesProgressResult: 'Результат',
   launchesProgressRetryCancel: 'Повторити скасування',
+  launchesProgressRecovering:
+    'Виконання перервалося й за мить продовжиться саме. Підтверджені етапи збережено.',
   launchesProgressReconciling: 'Оновлюємо стан генерації. Підтверджені етапи збережено.',
   launchesProgressElapsed: 'Тривалість генерації: {time}',
   launchesOriginalVideoHint:
@@ -2752,6 +2755,9 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogErrorShare: 'Google Drive не дозволяє відкрити цей файл за посиланням.',
   productCatalogDriveUnavailable: 'Підключіть Google Drive простору, щоб створювати каталоги.',
   productCatalogListTitle: 'Каталоги',
+  productCatalogCreationRunning: 'Каталог створюється',
+  productCatalogCreationRunningHint: 'Створення триває на сервері, навіть коли це вікно закрите.',
+  productCatalogCreationShow: 'Показати прогрес',
   productCatalogListHint:
     'По варіації на рекламний акаунт: кожна — окрема таблиця з власним посиланням.',
   productCatalogNewVariation: 'Нова варіація',
@@ -2916,6 +2922,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Google Drive не підтвердив результат. Автоматично перевіряємо, що збережено; повторний запуск заблокований, щоб не застосувати зміни двічі.',
   catalogRunPreparingVideo: 'Готуємо відео для заміни…',
   catalogSpareVideoReady: 'Відео готове до наступного оновлення',
+  catalogRunVideoNotPrepared: 'Відео ще не підготовлене',
   catalogRunVideoWaiting: 'Очікуємо підготовку відео…',
   catalogRunVideoRetryWaiting: 'Не вдалося підготувати відео · деталі',
   catalogRunFailed: 'Помилка оновлення · відкрийте деталі',

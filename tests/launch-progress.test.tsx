@@ -985,3 +985,58 @@ it('names a confirmed canceled generation even when its final backend stage is n
   expect(screen.queryByText('Stage not identified')).toBeNull();
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
+
+it('shows an interruption the server recovers as continuing work, not a stopped generation (1.4.3)', () => {
+  const view = render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'catalog_sharing',
+        errorCode: 'LEASE_MISMATCH'
+      }}
+      method="catalog"
+      retryActions={<button type="button">Retry</button>}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText('Generation stopped')).toBeNull();
+  expect(screen.getByText(/continues on its own/)).toBeTruthy();
+  expect(screen.getByRole('progressbar')).toBeTruthy();
+  // Retry stays within reach in case the recovery never comes.
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  // A cause the server does not retry is still a stop.
+  view.rerender(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'catalog_sharing',
+        errorCode: 'PERMISSION_DENIED'
+      }}
+      method="catalog"
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(screen.getByRole('alert').textContent).toContain('Generation stopped');
+});
+
+it('keeps a non-catalog interruption a stop: nothing on the server picks it up again', () => {
+  render(
+    <LaunchGenerationProgress
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'validation',
+        errorCode: 'LEASE_MISMATCH'
+      }}
+      method="other"
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  expect(screen.getByRole('alert').textContent).toContain('Generation stopped');
+});

@@ -67,7 +67,11 @@ export function catalogTimeZoneLabel(
     new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' })
       .formatToParts(instant)
       .find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
+  return `${catalogTimeZoneCity(zone, t)} — ${offset === 'GMT' ? 'GMT+00:00' : offset}`;
+}
+
+/** A zone as a person names it — "Kyiv", not `Europe/Kiev`. */
+export function catalogTimeZoneCity(zone: string, t: (key: TranslationKey) => string): string {
   const key = cities[zone === 'Europe/Kiev' ? 'Europe/Kyiv' : zone];
-  const city = key ? t(key) : zone.split('/').slice(1).join(' / ').replaceAll('_', ' ') || zone;
-  return `${city} — ${offset === 'GMT' ? 'GMT+00:00' : offset}`;
+  return key ? t(key) : zone.split('/').slice(1).join(' / ').replaceAll('_', ' ') || zone;
 }

@@ -1597,6 +1597,7 @@ function CatalogUpdaterDialogScope({
                         <CatalogIconControls
                           profile={row.profile}
                           restitchProgress={row.restitchProgress}
+                          updatePending={row.updatePending}
                           name={row.name}
                           state={state}
                           disabledReason={disabledReason}
@@ -1646,6 +1647,13 @@ function CatalogUpdaterDialogScope({
                       <div className="catalog-row-actions">
                         {mayRun && (
                           <IconButton
+                            // Run and stop are different buttons: a native tooltip already on
+                            // screen would go on saying "Stop this update" over the run button.
+                            key={
+                              row.updatePending && !row.profile?.reconciliationRequired
+                                ? 'stop'
+                                : 'run'
+                            }
                             color={
                               row.updatePending && !row.profile?.reconciliationRequired
                                 ? 'error'
@@ -1871,6 +1879,7 @@ function CatalogUpdaterDialogScope({
                     <CatalogIconControls
                       profile={row.profile}
                       restitchProgress={row.restitchProgress}
+                      updatePending={row.updatePending}
                       name={row.name}
                       state={inline.states[row.catalogId]}
                       disabledReason={

@@ -18,6 +18,22 @@ import { restitchSettingsError, restitchMediaError } from './recovery';
 import { useLaunchElapsed } from './useLaunchElapsed';
 import { useLaunchProgressWatch } from './useLaunchProgressWatch';
 
+/**
+ * Codes with which the server's recovery pass picks an interrupted catalog launch up again by
+ * itself, thirty seconds later (service_list_launch_catalog_recovery). Such an interruption is a pause in
+ * the run, not its end: 1.4.3 said "Generation stopped" while the server went on to finish it.
+ */
+const RECOVERED_INTERRUPTIONS = new Set([
+  'DRIVE_UNAVAILABLE',
+  'RATE_LIMITED',
+  'LAUNCH_INTERNAL_ERROR',
+  'LAUNCH_RESULT_UNCERTAIN',
+  'GROUP_RECONCILING',
+  'LEASE_MISMATCH',
+  'UNKNOWN',
+  'PROCESS_RESULT_UNCERTAIN'
+]);
+
 export function LaunchGenerationProgress({
   generation,
   onCancel,
@@ -102,6 +118,13 @@ export function LaunchGenerationProgress({
       : (child.localState ?? child.operation?.state);
   const childFailed = observingRestitch && (childState === 'failed' || childState === 'canceled');
   const childSucceeded = observingRestitch && childState === 'succeeded';
+  const recovering = Boolean(
+    method === 'catalog' &&
+    current?.state === 'interrupted' &&
+    !retainedVideoInterruption &&
+    !childFailed &&
+    (!current.errorCode || RECOVERED_INTERRUPTIONS.has(current.errorCode))
+  );
   const stage = launchProgressDisplayStage({
     generation: current,
     stage: requestedStage,
@@ -145,12 +168,14 @@ export function LaunchGenerationProgress({
         child.operation?.errorCode ??
         (childState === 'canceled' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'))
       : null);
-  const needsAttention = Boolean(
-    code ||
-    (!reconciling && requestError) ||
-    childFailed ||
-    (terminal && current?.state !== 'succeeded' && current?.state !== 'canceled')
-  );
+  const needsAttention =
+    !recovering &&
+    Boolean(
+      code ||
+      (!reconciling && requestError) ||
+      childFailed ||
+      (terminal && current?.state !== 'succeeded' && current?.state !== 'canceled')
+    );
   const disconnected =
     (observingRestitch && Boolean(child.streamDisconnected || child.error)) ||
     Boolean(
@@ -174,7 +199,8 @@ export function LaunchGenerationProgress({
     child.localProgress?.progress,
     childState
   ]);
-  const watching = videoPending || (!terminal && (cancelling || !needsAttention));
+  // A recovering run is watched like a running one, so its finish shows without a reload.
+  const watching = videoPending || recovering || (!terminal && (cancelling || !needsAttention));
   const refreshChild = child.refetch;
   const refresh = useCallback(
     async (signal: AbortSignal) => {
@@ -294,7 +320,8 @@ export function LaunchGenerationProgress({
           : count
       : count;
   const failed = Boolean(
-    childFailed || (current && ['failed', 'partial', 'interrupted'].includes(current.state))
+    childFailed ||
+    (current && ['failed', 'partial', 'interrupted'].includes(current.state) && !recovering)
   );
   const showError =
     !cancelling &&
@@ -310,6 +337,7 @@ export function LaunchGenerationProgress({
     code !== 'AGENT_REQUIRED' &&
     Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
   const showNotice =
+    recovering ||
     canonicalCancellationPending ||
     cleanupPending ||
     reconciling ||
@@ -388,7 +416,9 @@ export function LaunchGenerationProgress({
       )}
       {showNotice && (
         <div className="launch-progress-notice">
-          {reconciling && !showError ? (
+          {recovering && !uncertain ? (
+            <p role="status">{t('launchesProgressRecovering')}</p>
+          ) : reconciling && !showError ? (
             <p role="status">{t('launchesProgressReconciling')}</p>
           ) : cleanupPending || canonicalCancellationPending ? (
             <p role="status">{t('launchesCleanupPending')}</p>
