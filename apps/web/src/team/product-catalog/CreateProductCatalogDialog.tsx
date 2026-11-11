@@ -546,6 +546,29 @@ export function CreateProductCatalogDialog({
     }
   };
 
+  /** Forget a pending creation this browser remembered. A canceled operation is
+   * final for this dialog: keeping its key made every reopen show the old
+   * operation and blocked a new catalog for the video (production, 1.4.2). */
+  const forgetVideo = (key: string | null) => {
+    try {
+      if (videoStorageKey && (!key || localStorage.getItem(videoStorageKey) === key))
+        localStorage.removeItem(videoStorageKey);
+    } catch {
+      /* Storage may be unavailable; the in-memory state below still resets. */
+    }
+    if (!key || videoKey.current === key) {
+      videoKey.current = null;
+      videoOwner.current = null;
+      videoCancelId.current = null;
+    }
+  };
+  const dismissVideo = () => {
+    forgetVideo(videoKey.current);
+    setVideoPending(null);
+    setVideoUnknown(false);
+    setFailure(null);
+    setPhase({ kind: 'form' });
+  };
   const checkVideo = async (cancel = false, resume = false) => {
     const key = videoKey.current;
     const originalOwner = videoOwner.current;
@@ -629,6 +652,7 @@ export function CreateProductCatalogDialog({
         videoFlow.current?.stage(
           result.state === 'canceled' ? 'command_cancelled' : 'command_accepted'
         );
+        if (result.state === 'canceled') forgetVideo(key);
         setVideoPending(result);
       } else {
         showCreated(result);
@@ -1071,8 +1095,9 @@ export function CreateProductCatalogDialog({
                   {t('productCatalogCancel')}
                 </InventoryButton>
               )}
-              {videoPending?.state === 'canceled' && (
-                <InventoryButton type="button" onClick={onClose}>
+              {(videoPending?.state === 'canceled' ||
+                videoPending?.state === 'cancel_requested') && (
+                <InventoryButton type="button" onClick={dismissVideo}>
                   {t('productCatalogDone')}
                 </InventoryButton>
               )}

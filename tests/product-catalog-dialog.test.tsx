@@ -1068,6 +1068,35 @@ describe('beta durable video creation', () => {
     serverDone = true;
     expect(await screen.findByText('The catalog is ready', {}, { timeout: 8_000 })).toBeTruthy();
   }, 15_000);
+  it.each(['canceled', 'cancel_requested'])(
+    'lets a %s creation go so the next one can start (BenGan, 1.4.2)',
+    async state => {
+      const key = 'product-catalog:47000000-0000-4000-8000-000000000011';
+      const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+      localStorage.setItem(storageKey, key);
+      const client = dialogClient({
+        getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+        createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+        readProductCatalogVideo: vi.fn().mockResolvedValue({ ...pending, state })
+      });
+      renderDialog(client);
+      const done = await screen.findByRole('button', { name: 'Done' });
+      if (state === 'canceled') expect(localStorage.getItem(storageKey)).toBeNull();
+      await userEvent.click(done);
+      expect(localStorage.getItem(storageKey)).toBeNull();
+      await userEvent.type(
+        screen.getByLabelText(/^Link(?: · Required)?$/),
+        'https://offer.example.test/'
+      );
+      await waitFor(() => expect(confirm().disabled).toBe(false));
+      const reads = vi.mocked(client.readProductCatalogVideo!).mock.calls.length;
+      cleanup();
+      renderDialog(client);
+      expect(await screen.findByRole('button', { name: 'Create' })).toBeTruthy();
+      // Reopening shows the form; the forgotten operation is never read again.
+      expect(vi.mocked(client.readProductCatalogVideo!).mock.calls.length).toBe(reads);
+    }
+  );
   it('recovers a lost reply on reopen through read only using the original key', async () => {
     const read = vi.fn().mockResolvedValue(pending);
     const client = dialogClient({
