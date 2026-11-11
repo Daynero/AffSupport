@@ -63,3 +63,9 @@ it('accepts the hosted dismissal flag only as a boolean', () => {
   expect(isBulkTrashGroup({ ...group([item()]), dismissed: false })).toBe(true);
   expect(isBulkTrashGroup({ ...group([item()]), dismissed: 'yes' })).toBe(false);
 });
+
+it('accepts an optional material name and refuses a non-string one', () => {
+  expect(isBulkTrashGroup(group([item({ name: 'catalog.csv' })]))).toBe(true);
+  expect(isBulkTrashGroup(group([item({ name: 42 })]))).toBe(false);
+  expect(isBulkTrashGroup(group([item({ name: 'x'.repeat(1025) })]))).toBe(false);
+});

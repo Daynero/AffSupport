@@ -900,11 +900,8 @@ it('renders historical catalog-state change without announcing a fresh completed
       onRetry={check}
     />
   );
-  expect(
-    screen.getByText(
-      /The earlier operation completed, but the current catalog snapshot has since changed/
-    )
-  ).toBeTruthy();
+  expect(screen.getByText(/Moved to trash · it has changed since/)).toBeTruthy();
+  expect(screen.queryByText('Awaiting confirmation')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Check status' }));
   expect(check).toHaveBeenCalledOnce();
   expect(visible).toHaveBeenCalledWith(group.id, 'unknown');
@@ -1194,4 +1191,52 @@ it('starts and works through a bulk trash even when the receipt list cannot be r
   expect(client.startBulkTrash).toHaveBeenCalledOnce();
   await waitFor(() => expect(client.prepareBulkTrashItem).toHaveBeenCalled());
   expect(view.result.current.groups.map(group => group.id)).toEqual([hosted!.id]);
+});
+
+it('reads a confirmed item with a later catalog change as done, named, and calm off-screen', () => {
+  localStorage.setItem('language', 'en');
+  const group: BulkTrashGroup = {
+    id: '37000000-0000-4000-8000-000000000096',
+    teamId: team,
+    actorId: actor,
+    items: [
+      {
+        materialId: rows[5]!.id,
+        idempotencyKey: 'legacy-key',
+        state: 'confirmed',
+        errorCode: null,
+        name: '047_share_api_20261106.csv',
+        historicalReceipt: {
+          protocolVersion: 1,
+          action: 'trash',
+          basis: 'catalog_snapshot',
+          observedAt: '2026-11-11T14:18:49.894202Z',
+          state: 'changed',
+          memberCount: 1,
+          matchingCount: 0,
+          missingCount: 0
+        }
+      }
+    ]
+  };
+  const dismiss = vi.fn();
+  render(
+    <BulkTrashPanel
+      group={group}
+      rows={rows.slice(0, 1)}
+      uncertain={false}
+      historicalReceipts={new Map([[rows[5]!.id, group.items[0]!.historicalReceipt!]])}
+      onVisible={() => {}}
+      onDismiss={dismiss}
+      onRetry={() => {}}
+    />
+  );
+  expect(screen.getByText('1 of 1 items confirmed')).toBeTruthy();
+  expect(screen.getByText('047_share_api_20261106.csv')).toBeTruthy();
+  expect(screen.getByText('Moved to trash')).toBeTruthy();
+  expect(screen.queryByText('Awaiting confirmation')).toBeNull();
+  expect(screen.queryByText(/changed since/)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Check status' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(dismiss).toHaveBeenCalledWith(group.id);
 });

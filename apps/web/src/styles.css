@@ -14738,6 +14738,20 @@ button.team-landing-tile:hover {
   display: grid;
   gap: var(--space-2);
   justify-items: end;
+  /* Three expanded panels outgrew a 1000px window and the first title went off
+     the top (1.4.3). The stack keeps a gutter at the top too and scrolls inside
+     itself; the page under it never scrolls with it. */
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The stack is a box around the panels, gaps included, and it sat over the
+     file grid: a press on a card under it went to the stack (1.4.3 QA). Only
+     the panels themselves take the pointer; a wheel over a panel still scrolls
+     the stack, its nearest scrolling ancestor. */
+  pointer-events: none;
+}
+.team-process-stack > * {
+  pointer-events: auto;
 }
 .team-process-panel {
   display: grid;

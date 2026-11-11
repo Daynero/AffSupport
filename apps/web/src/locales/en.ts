@@ -1425,12 +1425,9 @@ export const en = {
   teamTaskCleanupTrashed: 'Unused attachment file moved to the space trash.',
   teamBulkTrashFile: 'File {number}',
   teamBulkTrashHide: 'Hide this panel',
-  teamBulkTrashHistoricalMatches:
-    'The earlier operation completed. The current catalog snapshot matches; current provider state has not been verified.',
-  teamBulkTrashHistoricalChanged:
-    'The earlier operation completed, but the current catalog snapshot has since changed. Refresh the list before a new action.',
+  teamBulkTrashHistoricalChanged: 'it has changed since, refresh the list before a new action',
   teamBulkTrashHistoricalUnknown:
-    'The earlier operation completed. The current file could not be matched in the catalog snapshot; check status before a new action.',
+    'its current state is not matched yet, refresh the list before a new action',
   teamBulkTrashTitle: 'Move files to trash',
   teamBulkTrashQueued: 'Queued',
   teamBulkTrashRunning: 'In progress',
