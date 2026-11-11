@@ -728,8 +728,13 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     (config.sourceRevision === 'development'
       ? config.devOrigin
       : `http://${config.host}:${config.port}`);
-  app.get('/pair', async (_request, reply) => {
-    return reply.redirect(`${pairOrigin}/#agentToken=${token}`);
+  app.get('/pair', async (request, reply) => {
+    // 051: a page on the candidate address pairs back to itself. The origin it
+    // names is honoured only when it is one this agent already trusts for API
+    // calls -- a top-level https→http navigation carries no Referer to read.
+    const named = (request.query as { origin?: unknown }).origin;
+    const back = typeof named === 'string' && allowedOrigins.has(named) ? named : pairOrigin;
+    return reply.redirect(`${back}/#agentToken=${token}`);
   });
   /**
    * The in-page pairing handshake: a document that hands the token to the page

@@ -17,6 +17,7 @@
 ```
 
 **BuildRecord**:
+
 - `outputDigest`: sha256 бандла, 64 hex; ключ архіву;
 - `sourceSha`, `manifestSha`: 40 hex;
 - `manifestDigest`: sha256 `stable.json` у бандлі;
@@ -27,6 +28,7 @@
 - `kind`: `full` | `web-only` | `adopted`.
 
 **Правила**:
+
 - `next.build.outputDigest` мусить існувати в `bundles/`, і його `outputDigest()` збігається;
 - promote дозволено лише при `next.status === 'testing'`;
 - rollback бере `previous[0]`, а при повторному виклику — наступний;
@@ -43,11 +45,11 @@ Rollback: `production` іде в голову `rolledBack`-історії, `prod
 
 ## БД: `public.release_testers`
 
-| колонка | тип | |
-|---|---|---|
-| user_id | uuid PK → auth.users on delete cascade | |
-| added_by | uuid null → auth.users on delete set null | |
-| added_at | timestamptz not null default now() | |
+| колонка  | тип                                       |     |
+| -------- | ----------------------------------------- | --- |
+| user_id  | uuid PK → auth.users on delete cascade    |     |
+| added_by | uuid null → auth.users on delete set null |     |
+| added_at | timestamptz not null default now()        |     |
 
 - RLS увімкнено. Без політик для anon і authenticated: доступ лише через security definer функції.
 - `is_release_tester() → boolean`: `is_admin()` або є рядок для `auth.uid()`.

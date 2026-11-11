@@ -56,7 +56,7 @@
 
 - **Decision**:
   - Сайт показує статус `ahead_of_stable`, коли встановлений прод-агент (`channel:
-    'stable'`) новіший за підписаний маніфест цього origin. Пропонує інсталятор
+'stable'`) новіший за підписаний маніфест цього origin. Пропонує інсталятор
     стабільної версії з поясненням.
   - На macOS заміна застосунку на місці вже активує будь-який інший buildId: лаунчер
     (`checkInstalledBuild`) і агент (`installedReleaseTimer`) реагують на розбіжність, а
@@ -71,7 +71,7 @@
 
 - **Decision**:
   - Агент додає `PREVIEW_SITE_ORIGIN` до `allowedOrigins`, коли `publicOrigin ===
-    PRODUCTION_SITE_ORIGIN`.
+PRODUCTION_SITE_ORIGIN`.
   - `/pair` повертає на `?origin=`, якщо той є в `allowedOrigins`.
   - Edge `allowedBrowserOrigins` додає preview, коли `WISHLY_SITE_URL` — прод-адреса.
   - `drive-oauth-callback` повертає на origin, збережений у транзакції, якщо він дозволений.
@@ -103,7 +103,7 @@
 ## R9. Де живе стан
 
 - **Decision**: `SOTY_RELEASE_CHANNEL_DIR`, за замовчуванням
-  `~/Library/Application Support/Soty/release-channel`. Містить:
+  `release/automation/release-channel/` у спільному git common dir основної копії (той самий простір імен, що й web-release lock; видно з усіх воркдерев раннера). Містить:
   - `state.json` (next, production, previous[]);
   - `history.jsonl`;
   - `bundles/<digest>/`, де тримаються бандли, на які посилається стан, плюс ще 5;
@@ -112,6 +112,7 @@
   `adopt-live` один раз знаходить серед наявних архівів (основна копія, воркдерева раннера
   на LaCie) бандл, чий `index.html` і `stable.json` байт у байт збігаються з живим продом,
   і реєструє його як поточний прод. Так перший відкат має куди повертатись.
+
 - **Rationale**: раннер працює в тимчасових воркдеревах; promote і rollback мусять бачити
   кандидата незалежно від копії.
 

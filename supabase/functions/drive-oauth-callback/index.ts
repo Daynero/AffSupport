@@ -3,6 +3,7 @@ import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { completeDriveOAuthCallback } from './handler.ts';
 import { driveRedirectUri } from '../_shared/google-redirect.ts';
+import { returnSiteOrigin } from '../_shared/cors.ts';
 
 interface RpcFailure {
   code?: string;
@@ -147,14 +148,16 @@ async function verifyPrincipal(accessToken: string) {
   };
 }
 
-function redirect(code: string): Response {
+function redirect(code: string, startedFrom: string | null = null): Response {
   let configured: URL;
   try {
     configured = new URL(Deno.env.get('WISHLY_SITE_URL') ?? 'http://127.0.0.1:5173');
   } catch {
     configured = new URL('http://127.0.0.1:5173');
   }
-  const destination = new URL('/team', configured.origin);
+  // 051: a tester who connected Drive on the candidate address returns there.
+  const site = returnSiteOrigin(configured.origin, startedFrom) ?? configured.origin;
+  const destination = new URL('/team', site);
   destination.searchParams.set('drive', code);
   return new Response(null, {
     status: 303,
@@ -180,6 +183,8 @@ Deno.serve(async request => {
     return redirect('WRONG_STATE');
   }
 
+  /** Where the flow began, as recorded when it started; read once it is peeked. */
+  let startedFrom: string | null = null;
   try {
     const service = serviceClient();
     const result = await completeDriveOAuthCallback(
@@ -199,6 +204,7 @@ Deno.serve(async request => {
               p_state_hash: await stateHash(plainState)
             })
           );
+          if (row && typeof row.request_origin === 'string') startedFrom = row.request_origin;
           return row
             ? {
                 origin: requiredString(row, 'request_origin'),
@@ -263,8 +269,11 @@ Deno.serve(async request => {
         }
       }
     );
-    return redirect(result.code);
+    return redirect(result.code, startedFrom);
   } catch (error) {
-    return redirect(error instanceof TeamFunctionError ? error.code : 'DRIVE_UNAVAILABLE');
+    return redirect(
+      error instanceof TeamFunctionError ? error.code : 'DRIVE_UNAVAILABLE',
+      startedFrom
+    );
   }
 });

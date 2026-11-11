@@ -341,6 +341,21 @@ proves committed/aborted. Never replay uncertain SQL, delete evidence, run down
 migrations or automatically roll back. Critical beta checks and missing diagnostic
 coverage must be recorded; bounded local CLI reports do not prove user success.
 
+## Soty release channel: next → promote → rollback (051)
+
+Every release now lands on **https://next.soty.pp.ua** first (the `next` branch
+alias of the production Pages project, on production data). `deploy:web` and
+`release:web -- --deploy` publish there; production changes only through
+`npm run release:channel -- promote --confirm` (the exact archived bytes the
+owner tested, including the signed `stable.json`) and
+`release:channel -- rollback --confirm` (the previous promoted bytes, agent
+channel included). Never deploy to production with wrangler directly. Run
+`release:channel -- status` before and after. Migrations after the baseline in
+`scripts/check-migrations-additive.mjs` may only add (gated in `verify-all`);
+a deliberate removal starts with `-- soty:cleanup` and goes through the
+workspace cutover. Owner-facing guide: `docs/RELEASE-CHANNEL.md`; spec:
+`specs/051-release-preview-rollback/`.
+
 ## Soty production releases
 
 The deterministic runner is additive to this runbook, never a bypass. Use

@@ -55,7 +55,17 @@ const servedOnly = process.argv.includes('--served-only');
 const TIMEOUT_MS = 15_000;
 
 const binding = activeBinding();
-const origin = binding.siteOrigin;
+/**
+ * Feature 051: a release now lands on the candidate address first, so the
+ * runner asks these questions of `next` -- and, separately, of the main site,
+ * which must keep working on the database the candidate's migrations changed.
+ */
+const channel = process.argv.includes('--channel=next') ? 'next' : 'production';
+if (channel === 'next' && !binding.previewSiteOrigin) {
+  process.stderr.write(`Live smoke: ${binding.bindingId} has no preview address.\n`);
+  process.exit(1);
+}
+const origin = channel === 'next' ? binding.previewSiteOrigin : binding.siteOrigin;
 const supabaseUrl = `https://${binding.supabaseProject}.supabase.co`;
 /** How many chunks to walk before giving up on finding the deployed config. */
 const CHUNK_LIMIT = 12;

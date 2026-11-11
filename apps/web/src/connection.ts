@@ -1,4 +1,5 @@
 import {
+  PREVIEW_SITE_ORIGIN,
   MAX_SUPPORTED_AGENT_API_VERSION,
   MIN_SUPPORTED_AGENT_API_VERSION
 } from '@video-compressor/shared';
@@ -45,7 +46,12 @@ export function versionState(apiVersion: number): ConnectionState {
   return 'connected';
 }
 export function pairingPath(agentOrigin: string, pageOrigin: string) {
-  return agentOrigin === pageOrigin ? '/local' : '/pair';
+  if (agentOrigin === pageOrigin) return '/local';
+  // 051: the candidate address asks the agent to pair back to it rather than to
+  // the main site; the agent honours it only for an origin it already trusts.
+  return pageOrigin === PREVIEW_SITE_ORIGIN
+    ? `/pair?origin=${encodeURIComponent(pageOrigin)}`
+    : '/pair';
 }
 
 export async function probeAgent(

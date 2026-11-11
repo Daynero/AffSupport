@@ -33,11 +33,14 @@ async function providerClientId(): Promise<string | null> {
   return clientId;
 }
 
-function dependencies(): SignInDependencies {
+function dependencies(requestOrigin: string | null): SignInDependencies {
   return {
     clientId: Deno.env.get('GOOGLE_CLIENT_ID'),
     clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET'),
-    redirectUri: signInRedirectUri({ WISHLY_SITE_URL: Deno.env.get('WISHLY_SITE_URL') }),
+    redirectUri: signInRedirectUri(
+      { WISHLY_SITE_URL: Deno.env.get('WISHLY_SITE_URL') },
+      requestOrigin
+    ),
     providerClientId,
     exchangeCode: async body => {
       const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -72,14 +75,26 @@ Deno.serve(async request => {
     if (record.action === 'start') {
       return json(
         200,
-        { ok: true, value: await startSignIn(parseStartInput(record), dependencies()) },
+        {
+          ok: true,
+          value: await startSignIn(
+            parseStartInput(record),
+            dependencies(request.headers.get('origin'))
+          )
+        },
         cors
       );
     }
     if (record.action === 'exchange') {
       return json(
         200,
-        { ok: true, value: await exchangeSignInCode(parseExchangeInput(record), dependencies()) },
+        {
+          ok: true,
+          value: await exchangeSignInCode(
+            parseExchangeInput(record),
+            dependencies(request.headers.get('origin'))
+          )
+        },
         cors
       );
     }

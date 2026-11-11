@@ -119,6 +119,16 @@ const PHASES = {
         timeoutMs: 60_000
       },
       {
+        /*
+         * 051: a candidate's migrations reach production before it is tested
+         * and stay through a cancel or rollback, so each one may only add.
+         */
+        id: 'migrations-additive',
+        command: 'node',
+        args: [path.join(root, 'scripts/check-migrations-additive.mjs')],
+        timeoutMs: 60_000
+      },
+      {
         id: 'styles',
         command: 'node',
         args: [path.join(root, 'scripts/verify-styles.mjs')],

@@ -1,5 +1,5 @@
 ---
-description: "Tasks for 051 — next link, promote the tested build, rollback"
+description: 'Tasks for 051 — next link, promote the tested build, rollback'
 ---
 
 # Tasks: Тестова версія, розкатка перевіреного і відкат

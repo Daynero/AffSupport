@@ -19871,3 +19871,34 @@ a.history-subject {
 .catalog-publication-controls[hidden] {
   display: none;
 }
+
+/* 051 — the candidate address says what it is on every screen. */
+.next-channel-badge {
+  position: fixed;
+  z-index: var(--layer-toast);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  pointer-events: none;
+}
+
+.release-tester-gate {
+  display: grid;
+  place-items: center;
+  min-height: 70vh;
+}
+
+.release-tester-gate-card {
+  width: min(520px, 100%);
+}
+
+.release-testers-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+  margin-block: var(--space-3);
+}
+
+.release-testers-form .ui-field {
+  flex: 1 1 260px;
+}

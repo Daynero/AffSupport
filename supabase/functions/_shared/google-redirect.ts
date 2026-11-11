@@ -1,4 +1,5 @@
 import { hasProductionSignal } from './auth.ts';
+import { returnSiteOrigin } from './cors.ts';
 
 /**
  * Where Google sends people back to, on the production site's own domain.
@@ -44,8 +45,15 @@ export function driveRedirectUri(environment: GoogleRedirectEnvironment): string
   return `${environment.SUPABASE_URL.replace(/\/$/u, '')}/functions/v1/drive-oauth-callback`;
 }
 
-/** The sign-in redirect URI: the app's own callback page on the configured site. */
-export function signInRedirectUri(environment: GoogleRedirectEnvironment): string | null {
-  const site = siteOrigin(environment.WISHLY_SITE_URL);
+/**
+ * The sign-in redirect URI: the app's own callback page on the configured site,
+ * or on the candidate address when sign-in started there (051). Start and
+ * exchange are both called from the same page, so both send the same string.
+ */
+export function signInRedirectUri(
+  environment: GoogleRedirectEnvironment,
+  requestOrigin: string | null = null
+): string | null {
+  const site = returnSiteOrigin(siteOrigin(environment.WISHLY_SITE_URL), requestOrigin);
   return site ? `${site}${SIGN_IN_CALLBACK_PATH}` : null;
 }

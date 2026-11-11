@@ -13,7 +13,7 @@ import { analytics } from '../analytics/service';
 import { retireAgentActor } from '../api/entitlement-retirement';
 import { retireServerRecovery } from '../api/recovery-server-retirement';
 import { getInitialTheme, trackThemePreference } from '../lib/theme';
-import { publicConfig } from '../lib/config';
+import { configuredSiteUrl, publicConfig } from '../lib/config';
 import type { Database, Profile } from '../lib/database.types';
 import { getSupabaseClient } from '../lib/supabase';
 import { rememberReturnPath } from '../lib/redirects';
@@ -479,7 +479,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${config.siteUrl}/auth/callback`,
+            redirectTo: `${configuredSiteUrl()}/auth/callback`,
             scopes: 'openid email profile'
           }
         })

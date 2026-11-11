@@ -1215,6 +1215,31 @@ export const uk: Record<keyof typeof en, string> = {
     'Завантажте оновлення та замініть Soty у Applications після завершення поточних задач.',
   releaseNoticeDownload: 'Завантажити оновлення',
   releaseNoticeLater: 'Пізніше',
+  releaseRollbackEyebrow: 'Стабільна версія',
+  releaseRollbackTitle: 'Поверніться на Soty {version}',
+  releaseRollbackBody:
+    'На цьому комп’ютері збірка, новіша за стабільну. Soty повернули на стабільну версію — встановіть її, щоб усе працювало як слід.',
+  releaseRollbackInstruction:
+    'Завантажте її та замініть Soty у Applications після завершення поточних задач. На Windows просто запустіть інсталятор.',
+  releaseRollbackDownload: 'Завантажити стабільну версію',
+  nextChannelBadge: 'Тестова версія · збірка {build}',
+  nextChannelHint:
+    'Цю версію бачать лише тестери. Решта користується основним сайтом, доки її не випустять.',
+  releaseTesterChecking: 'Перевіряємо доступ до тестової версії',
+  releaseTesterGateTitle: 'Це тестова версія Soty',
+  releaseTesterGateBody:
+    'Тут перевіряють наступний реліз, перш ніж його отримають усі. Вашого акаунта немає в списку тестерів.',
+  releaseTesterGateAction: 'Перейти на основний сайт',
+  adminReleaseTestersTitle: 'Тестери релізів',
+  adminReleaseTestersSubtitle:
+    'Ці акаунти можуть користуватися тестовою версією на {origin}. Адміністратори — завжди.',
+  adminReleaseTestersEmail: 'Email тестера',
+  adminReleaseTestersAdd: 'Додати тестера',
+  adminReleaseTestersRemove: 'Прибрати',
+  adminReleaseTestersEmpty: 'Поки що лише адміністратори.',
+  adminReleaseTestersUnknown:
+    'Немає акаунта з таким email. Попросіть людину спершу один раз увійти в Soty.',
+  adminReleaseTestersError: 'Не вдалося зберегти. Спробуйте ще раз.',
   openSoty: 'Відкрити Soty',
   checkAgain: 'Перевірити ще раз',
   linkReconnect: 'Перепідключити',
