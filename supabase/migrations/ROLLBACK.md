@@ -2903,3 +2903,13 @@ that names an execution instance) and patches `public.service_redeem_catalog_vid
 to answer `WRONG_STATE` for a set that is no longer active. Rolling back means dropping the new
 function (drive-ops ignores its absence: the call is best effort) and restoring the 345000 body
 of the redeem through a reviewed forward migration. Releases already committed need no repair.
+
+### 20261207347000 — an uncertain catalog-variant upload is reconciled by its generated Drive id
+
+Adds `reconcile_requested_at`, `reconcile_attempts` and `reconcile_next_at` to
+`private.process_upload_ownership`, the functions `service_claim_uncertain_process_uploads`,
+`service_settle_uncertain_process_upload` and `service_request_process_upload_reconcile`, and
+extends `private.process_output_cleanup_due()`. Rolling back means dropping the three functions
+(drive-ops and the worker treat their absence as nothing due), restoring the 137000 body of the
+due function through a reviewed forward migration, and leaving the columns (nullable or
+defaulted, unread by older code). Uploads already settled keep their recorded outcome.

@@ -145,6 +145,7 @@ import {
   type ProductCatalogDeps
 } from './product-catalog.ts';
 import { SPREADSHEET_MIME_TYPE } from '../_shared/product-catalog.ts';
+import { reconcileUncertainProcessUploads } from './uncertain-upload-reconcile.ts';
 import {
   claimRestitchJob,
   completeRestitchJob,
@@ -2199,16 +2200,33 @@ async function consumeOperationGrant(service: RpcClient, ticket: unknown, purpos
   return grant;
 }
 
-async function handleProcessOutputQuiesced(body: Record<string, unknown>, service: RpcClient) {
+async function handleProcessOutputQuiesced(
+  request: Request,
+  body: Record<string, unknown>,
+  service: RpcClient
+) {
   const operationId = requireUuid(body.operationId);
   if (typeof body.ticket !== 'string' || body.ticket.length < 32 || body.ticket.length > 2048)
     throw new TeamFunctionError('PERMISSION_DENIED', { retryable: false });
+  const tokenHash = byteaHex(await sha256(body.ticket));
   const acknowledged = await rpcValue(service, 'service_ack_launch_upload_quiescence', {
     p_operation: operationId,
-    p_token_hash: byteaHex(await sha256(body.ticket))
+    p_token_hash: tokenHash
   });
-  if (acknowledged !== true) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
-  return { acknowledged: true };
+  if (acknowledged === true) return { acknowledged: true };
+  // A catalog variant: its uploader has settled without a confirmed result.
+  // Reconcile it now (the generated Drive id tells), not after silence.
+  const requested = await rpcValue(service, 'service_request_process_upload_reconcile', {
+    p_operation: operationId,
+    p_token_hash: tokenHash
+  });
+  if (requested !== true) throw new TeamFunctionError('WRONG_STATE', { retryable: false });
+  const outcome = await reconcileUncertainProcessUploads(
+    service,
+    credentialId => driveClient(service, credentialId, request),
+    { operationId, limit: 1 }
+  ).catch(() => []);
+  return { acknowledged: true, reconciled: outcome[0] ?? 'waiting' };
 }
 
 async function handleProcessOutputStart(
@@ -3548,7 +3566,7 @@ Deno.serve(async request => {
           ? await handleProcessOutputStart(request, parsed.value, configured.service)
           : path === '/process/output/finalize'
             ? await handleProcessOutputFinalize(request, parsed.value, configured.service)
-            : await handleProcessOutputQuiesced(parsed.value, configured.service);
+            : await handleProcessOutputQuiesced(request, parsed.value, configured.service);
       return successResponse(value, cors, path.endsWith('/start') ? 202 : 200);
     }
 
