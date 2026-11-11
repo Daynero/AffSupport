@@ -77,6 +77,21 @@ export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string 
     saved.current = { config: draft, sources: expectedSources };
     if (version !== undefined) setBaseVersion(version);
   };
+  /**
+   * The server's saved draft becomes both the baseline and the editor's value. Only for
+   * a draft the editor submitted unchanged: the server may spell it more fully (defaults
+   * filled in), and keeping the shorter local shape would read as an edit and be
+   * autosaved back over the fuller one.
+   */
+  const adopt = (
+    draft: LaunchDraft,
+    expectedSources: LaunchSourceSnapshot | null = sources,
+    version?: string
+  ) => {
+    acknowledge(draft, expectedSources, version);
+    setConfig(draft);
+    setSources(expectedSources);
+  };
   const resolveSources = useCallback((next: LaunchSourceSnapshot) => {
     // Filling an initially absent authoritative snapshot is not an edit.
     // A changed configuration or a previously saved snapshot still stays dirty.
@@ -96,6 +111,7 @@ export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string 
     resolveSources,
     dirty,
     acknowledge,
+    adopt,
     baseVersion,
     isDirty: () => !launchValuesEqual({ config, sources }, saved.current)
   };
