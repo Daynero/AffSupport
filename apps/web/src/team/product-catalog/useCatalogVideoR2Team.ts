@@ -67,7 +67,9 @@ export function useCatalogVideoR2Team(
   }, [client, teamId]);
 
   useEffect(() => {
-    if (!availability?.available) return;
+    // Read even while R2 is unavailable: a catalog with the option on is deleted for
+    // good by the server either way, and the delete dialogs must be able to say so.
+    if (!availability) return;
     const controller = new AbortController();
     const read = ++reads.current;
     void client
@@ -79,7 +81,7 @@ export function useCatalogVideoR2Team(
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [availability?.available, client, teamId, revision, updaterRevision]);
+  }, [availability, client, teamId, revision, updaterRevision]);
 
   const toggle = useCallback(
     async (catalogId: string, enabled: boolean) => {
