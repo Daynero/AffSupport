@@ -108,11 +108,15 @@ function BackgroundRecoveryPanel({
               ? 'tariffRecoveryRetry'
               : status.reason === 'needs_agent_setup'
                 ? 'tariffRecoverySetup'
-                : 'tariffRecoveryCheckpoint'
+                : status.reason === 'checkpoint_unavailable'
+                  ? 'tariffBackgroundPaused'
+                  : 'tariffRecoveryCheckpoint'
           )}
         </p>
       )}
-      {status?.reason === 'retry_exhausted' && (
+      {/* The agent's retry() accepts both (1.4.3): a paused worker used to offer
+          no way out but switching background work off and on. */}
+      {(status?.reason === 'retry_exhausted' || status?.reason === 'checkpoint_unavailable') && (
         <Button
           variant="soft"
           loading={busy}

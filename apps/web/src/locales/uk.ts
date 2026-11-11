@@ -2941,6 +2941,11 @@ export const uk: Record<keyof typeof en, string> = {
   catalogSpareVideoReady: 'Відео готове до наступного оновлення',
   catalogRunVideoNotPrepared: 'Відео ще не підготовлене',
   catalogRunVideoWaiting: 'Очікуємо підготовку відео…',
+  catalogBackgroundStalled:
+    ' · Фонова робота на цьому комп’ютері зупинилась, тому відео не готується.',
+  catalogBackgroundStalledRetry: 'Відновити',
+  catalogBackgroundStalledRetried: ' · Відновлюємо фонову роботу…',
+  catalogBackgroundStalledSettings: 'Відкрити налаштування',
   catalogRunVideoRetryWaiting: 'Не вдалося підготувати відео · деталі',
   catalogRunFailed: 'Помилка оновлення · відкрийте деталі',
   catalogRunPartial: 'Оновлено частково · деталі',
@@ -4481,6 +4486,8 @@ export const uk: Record<keyof typeof en, string> = {
   tariffBackgroundUpgrade: 'Під’єднайте оновлений застосунок Soty, щоб дозволити фонову роботу.',
   tariffBackgroundEnable: 'Дозволити фонову роботу',
   tariffBackgroundDisable: 'Вимкнути на цьому комп’ютері',
+  tariffBackgroundPaused:
+    'Фонова робота призупинилась через збій зв’язку. Вона відновиться сама за кілька хвилин, або спробуйте зараз.',
   tariffBackgroundFailed: 'Налаштування не підтверджено. Перевірте Soty та спробуйте ще раз.',
   tariffRecoveryRunning: 'Відновлюємо фонову роботу…',
   tariffRecoveryComplete: 'Фонову роботу відновлено.',

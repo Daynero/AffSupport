@@ -1,4 +1,5 @@
 import { CatalogProfileVideoCount } from './CatalogProfileVideoCount';
+import { CatalogBackgroundStalledNote } from './CatalogBackgroundStalledNote';
 import { CatalogVideoVariationsDialog } from './CatalogVideoVariationsDialog';
 import { CatalogPublicationDialog } from '../product-catalog/CatalogPublicationDialog';
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
@@ -1522,6 +1523,13 @@ function CatalogUpdaterDialogScope({
                                   : row.videoGeneration.waitReason
                                     ? ` · ${teamErrorMessage(row.videoGeneration.waitReason, t)}`
                                     : ''}
+                            {row.videoGeneration.state === 'accepted' &&
+                              row.videoGeneration.backgroundStalled && (
+                                <CatalogBackgroundStalledNote
+                                  teamId={teamId}
+                                  onRetried={() => registry.reload()}
+                                />
+                              )}
                           </small>
                         )}
                       <span

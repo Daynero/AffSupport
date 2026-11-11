@@ -5,6 +5,7 @@ import { TeamProcessBridge } from '../apps/agent/src/team-bridge/process';
 import { TeamOperationEvents } from '../apps/agent/src/team-bridge/events';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RECOVERY_BUDGET } from '@video-compressor/shared';
 import {
   TeamRecoveryWorker,
   recoveryEndpoint,
@@ -276,7 +277,77 @@ describe('background recovery worker', () => {
     });
     await vi.advanceTimersByTimeAsync(3600000);
     await f.worker.idle();
-    expect(f.fetcher).toHaveBeenCalledOnce();
+    // checkpoint_unavailable resumes on its own (1.4.3), but only through the
+    // settle path of the held grant and within the hourly episode budget: the
+    // process itself never runs a second time.
+    expect(f.process.process).not.toHaveBeenCalled();
+    expect(f.fetcher.mock.calls.length).toBeLessThanOrEqual(
+      1 + 2 * RECOVERY_BUDGET.episodesPerHour
+    );
+    for (const [, init] of f.fetcher.mock.calls)
+      expect(['checkpoint', 'probe', 'settle']).toContain(JSON.parse(String(init?.body)).action);
+  });
+  it('resumes a claim the server reported as pending without an explicit retry', async () => {
+    // 1.4.3: one interrupted claim parked the worker for good, and every later
+    // manager round of this computer waited in «Очікуємо підготовку відео…».
+    const f = await fixture();
+    let claims = 0;
+    f.fetcher.mockImplementation(async (_url, options) => {
+      const action = JSON.parse(String(options?.body)).action;
+      if (action === 'probe')
+        return new Response(JSON.stringify({ ok: true, value: { allowed: true } }));
+      claims += 1;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value: claims === 1 ? { pending: true } : { job: null, operationCredential: null }
+        })
+      );
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({
+      state: 'blocked',
+      reason: 'checkpoint_unavailable'
+    });
+    await vi.advanceTimersByTimeAsync(RECOVERY_BUDGET.probeMs);
+    await f.worker.idle();
+    await vi.advanceTimersByTimeAsync(RECOVERY_BUDGET.probeMs);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
+  it('keeps self-healing within the hourly episode budget', async () => {
+    const f = await fixture();
+    f.fetcher.mockImplementation(async (_url, options) => {
+      const action = JSON.parse(String(options?.body)).action;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value: action === 'probe' ? { allowed: true } : { pending: true }
+        })
+      );
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    for (let i = 0; i < 30; i += 1) {
+      await vi.advanceTimersByTimeAsync(RECOVERY_BUDGET.probeMs);
+      await f.worker.idle();
+    }
+    const claims = () =>
+      f.fetcher.mock.calls.filter(([, init]) => JSON.parse(String(init?.body)).action === 'claim')
+        .length;
+    expect(claims()).toBeLessThanOrEqual(1 + RECOVERY_BUDGET.episodesPerHour);
+    expect(f.worker.status(TEAM)).toMatchObject({
+      state: 'blocked',
+      reason: 'checkpoint_unavailable'
+    });
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    await f.worker.idle();
+    expect(claims()).toBeGreaterThan(1 + RECOVERY_BUDGET.episodesPerHour - 1);
+    expect(f.process.process).not.toHaveBeenCalled();
   });
   it('refuses production targets from a beta installation', () => {
     expect(() =>

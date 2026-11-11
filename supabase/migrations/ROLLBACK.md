@@ -2921,3 +2921,12 @@ extends `private.process_output_cleanup_due()`. Rolling back means dropping the 
 (drive-ops and the worker treat their absence as nothing due), restoring the 137000 body of the
 due function through a reviewed forward migration, and leaving the columns (nullable or
 defaulted, unread by older code). Uploads already settled keep their recorded outcome.
+
+### 20261207390000 — a manager round says when background work has not picked it up
+
+Replaces `private.catalog_registry_video_generation` with the 192000 body plus two signals on an
+accepted update-round set older than three minutes: `waitReason: AGENT_REQUIRED` when no live
+recovery delegation exists for its executor, and `backgroundStalled: true` when one exists but
+has not claimed since the set was accepted while not busy with another set. Rolling back means
+restoring the 192000 body through a reviewed forward migration; the new key is advisory and older
+clients ignore it.
