@@ -53,11 +53,15 @@ therefore works through that one writer (`20261207195000_catalog_video_r2_republ
   catalog and nobody took it within an hour. Such a copy fails as `VIDEO_R2_CANCELED` and its
   tombstone aborts the multipart upload. A ready copy that no catalog confirmed retires after the
   grace window (6 h) and is deleted after another (6 h).
-- A catalog deleted for good lets go of its copies: every sweep (5 min) releases the uses of
-  catalogs whose sheet is `missing` with reason `removed` or has been `trashed` for more than
-  30 days (Drive's own trash period); a copy no other catalog uses is deleted in the same sweep,
-  without the 6 h grace (nothing reads that sheet again and nothing can restore it). A catalog in the trash, or moved out of the watched
-  folder (`out_of_root`), keeps its copy: its sheet still points at it and a restore must work.
+- A catalog with the option on is deleted for good (owner decision 2026-11-11, so deleting old
+  catalogs frees the space limit at once): the manager and the catalogs dialog warn that it
+  cannot be restored, the Soty trash does not list it (the sheet still goes to the Google Drive
+  trash), and every sweep (5 min) releases the uses of catalogs that are `trashed` or `missing`
+  with reason `removed`. A copy no other catalog uses is deleted in the same sweep, without the
+  6 h grace. A sheet moved out of the watched folder (`out_of_root`) keeps its copy. A sheet
+  restored from the Drive trash by hand has dead R2 links: the minute reconciliation rewrites
+  them to Drive at once (no 10-minute throttle) and plans a fresh copy, which moves the cells
+  back to R2. A retiring copy under a delete lease is never revived.
 - A catalog without a policy (created before 047) keeps the whole-file path: ticking the option
   plans the copy of its current video, and the next update writes the R2 link once the copy is
   ready (`resolveVideoLink` in `catalog-updater/worker.ts`).

@@ -515,7 +515,7 @@ describe('catalog video R2 link reconciliation', () => {
     });
   });
 
-  it('lets a catalog deleted for good release its copy, but keeps it for one in the trash', async () => {
+  it('deletes a catalog with its video in R2 for good: trash or removal frees the copy at once', async () => {
     /** A catalog on R2 for its own source version; returns the catalog and its copy. */
     async function onR2(version: string) {
       const video = await material('video', 'video/mp4', 5_000_000);
@@ -536,12 +536,12 @@ describe('catalog video R2 link reconciliation', () => {
         video,
         version
       );
-      return { id, copy };
+      return { id, copy, video, version };
     }
     const copyState = async (copy: string) =>
       (
-        await db.root<{ state: string; retire_reason: string | null }>(
-          'select state,retire_reason from private.catalog_video_r2_copies where id=$1',
+        await db.root<{ state: string; retire_reason: string | null; due: boolean | null }>(
+          'select state,retire_reason,retire_after<=clock_timestamp() due from private.catalog_video_r2_copies where id=$1',
           [copy]
         )
       )[0];
@@ -556,54 +556,61 @@ describe('catalog video R2 link reconciliation', () => {
     const moved = await onR2('content-v1:' + 'de'.repeat(32));
     const trashed = await onR2('content-v1:' + 'ef'.repeat(32));
     const removed = await onR2('content-v1:' + 'fa'.repeat(32));
-    const expired = await onR2('content-v1:' + '9b'.repeat(32));
     await db.root(
       "update public.team_materials set lifecycle='missing',missing_reason='out_of_root',missing_at=clock_timestamp() where id=$1",
       [moved.id]
     );
     await db.root(
-      "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp()-interval '29 days' where id=$1",
+      "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id=$1",
       [trashed.id]
     );
     await db.root(
       "update public.team_materials set lifecycle='missing',missing_reason='removed',missing_at=clock_timestamp() where id=$1",
       [removed.id]
     );
-    await db.root(
-      "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp()-interval '31 days' where id=$1",
-      [expired.id]
+    // The Soty trash does not offer it back.
+    const listed = await db.asUser<{ id: string }>(
+      OWNER,
+      'select id from public.list_team_trashed_materials_v2($1,100)',
+      [team]
     );
+    expect(listed.map(row => row.id)).not.toContain(trashed.id);
 
     await rpc('service_catalog_video_r2_retire_orphans', []);
-    // Moved out of the watched folder or still restorable from the trash: the sheet
-    // still points at the copy, so it stays.
+    // Moved out of the watched folder: the sheet is alive and still points at the copy.
     expect(await uses(moved.id)).toBe('1');
-    expect(await copyState(moved.copy)).toEqual({ state: 'ready', retire_reason: null });
-    expect(await uses(trashed.id)).toBe('1');
-    expect(await copyState(trashed.copy)).toEqual({ state: 'ready', retire_reason: null });
-    // Deleted for good, or left in the trash past Drive's 30 days: released and retired.
-    expect(await uses(removed.id)).toBe('0');
-    expect(await copyState(removed.copy)).toEqual({
-      state: 'retiring',
-      retire_reason: 'catalog_deleted'
+    expect(await copyState(moved.copy)).toEqual({ state: 'ready', retire_reason: null, due: null });
+    // Trashed or removed: released, and due now — the same sweep deletes the object.
+    for (const gone of [trashed, removed]) {
+      expect(await uses(gone.id)).toBe('0');
+      expect(await copyState(gone.copy)).toEqual({
+        state: 'retiring',
+        retire_reason: 'catalog_deleted',
+        due: true
+      });
+    }
+
+    // Restored from the Drive trash by hand after the object was deleted: the dead R2
+    // link goes back to Drive at once and a fresh copy is prepared.
+    await db.root(
+      "update private.catalog_video_r2_copies set state='deleted',deleted_at=clock_timestamp() where id=$1",
+      [trashed.copy]
+    );
+    await db.root(
+      "update public.team_materials set lifecycle='active',trashed_at=null where id=$1",
+      [trashed.id]
+    );
+    expect(await rpc('service_catalog_video_r2_reconcile_pending', [50])).toBeGreaterThanOrEqual(1);
+    expect((await jobs(trashed.id)).at(-1)).toMatchObject({
+      revision: '3',
+      state: 'waiting',
+      origin: 'video_r2'
     });
-    // Nothing to return to: no grace window, the same sweep deletes them.
     expect(
-      await db.root<{ due: boolean }>(
-        'select retire_after<=clock_timestamp() due from private.catalog_video_r2_copies where id=any($1::uuid[]) order by id',
-        [[removed.copy, expired.copy]]
+      await db.root<{ state: string }>(
+        "select state from private.catalog_video_r2_copies where team_id=$1 and source_version=$2 and state<>'deleted'",
+        [team, trashed.version]
       )
-    ).toEqual([{ due: true }, { due: true }]);
-    expect(
-      await db.root<{ due: boolean }>(
-        'select retire_after is null due from private.catalog_video_r2_copies where id=$1',
-        [trashed.copy]
-      )
-    ).toEqual([{ due: true }]);
-    expect(await uses(expired.id)).toBe('0');
-    expect(await copyState(expired.copy)).toEqual({
-      state: 'retiring',
-      retire_reason: 'catalog_deleted'
-    });
+    ).toEqual([{ state: 'planned' }]);
   });
 });

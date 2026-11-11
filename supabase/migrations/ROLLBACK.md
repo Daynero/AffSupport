@@ -2771,16 +2771,19 @@ from `20261207193000`. Jobs already queued by the reconciliation are ordinary pu
 jobs and finish (or are superseded) through the existing publication path. No automatic
 rollback or production data repair is authorized.
 
-### 20261207195500 — R2 copies of catalogs deleted for good (050)
+### 20261207195500 — catalogs with an R2 video are deleted for good (050)
 
 Replaces `service_catalog_video_r2_retire_orphans` so that, before retiring unused copies, it
-deletes the `private.catalog_video_r2_uses` rows of catalogs whose material is `missing` with
-reason `removed`, or `trashed` for more than 30 days. The existing `catalog_video_r2_use_removed`
-trigger then retires a copy no other catalog uses (`catalog_deleted`); its grace window is
-dropped, so the same sweep deletes the object. Catalogs in the trash (under 30 days) and files moved out of the watched
-folder (`out_of_root`) keep their copies.
+deletes the `private.catalog_video_r2_uses` rows of catalogs whose material is `trashed` or
+`missing` with reason `removed`, and makes the released copies due at once (no grace window), so
+the same sweep deletes the objects. Replaces `private.catalog_video_r2_reconcile` and
+`service_catalog_video_r2_reconcile_pending` so that a catalog whose published cells hold an R2
+link without a ready copy (restored from the Drive trash by hand) is republished at once and its
+copy planned. Patches `service_catalog_video_r2_resolve` so that a retiring copy under a delete
+lease is not revived, and `list_team_trashed_materials_v2` so that the Soty trash does not list a
+catalog with the option on. Copies moved out of the watched folder (`out_of_root`) are kept.
 
-Rolling back means a reviewed forward migration that recreates the function from
-`20261207193000`. Use rows already released are not restored: a catalog that becomes active
-again plans a fresh copy through the normal reconciliation. No automatic rollback or
-production data repair is authorized.
+Rolling back means a reviewed forward migration that recreates these functions from
+`20261207193000`, `20261207195000` and `20261207150000`. Use rows already released and objects
+already deleted are not restored: a catalog that becomes active again plans a fresh copy through
+the normal reconciliation. No automatic rollback or production data repair is authorized.

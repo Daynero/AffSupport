@@ -861,6 +861,54 @@ describe('a video’s catalogs (024, US15)', () => {
     expect(await screen.findByText('clip_v2_catalog moved to the trash')).toBeTruthy();
   });
 
+  it('asks before deleting a variation whose video is in R2, since it cannot come back (050)', async () => {
+    const client = listClient();
+    const videoR2Client = {
+      availability: vi.fn().mockResolvedValue({
+        available: true,
+        reason: null,
+        canManage: true,
+        contractVersion: 1
+      }),
+      listSignals: vi.fn().mockResolvedValue([
+        {
+          catalogMaterialId: second.id,
+          enabled: true,
+          link: 'r2',
+          copyState: 'ready',
+          reason: null,
+          lastSuccessfulUpdateAt: null,
+          revision: 2
+        }
+      ]),
+      setPreference: vi.fn()
+    } as unknown as NonNullable<Parameters<typeof ProductCatalogMenuDialog>[0]['videoR2Client']>;
+    render(
+      wrap(
+        <ProductCatalogMenuDialog
+          teamId={TEAM_ID}
+          video={VIDEO}
+          client={client}
+          videoR2Client={videoR2Client}
+          onClose={vi.fn()}
+        />,
+        owned
+      )
+    );
+    await waitFor(() => expect(videoR2Client.listSignals).toHaveBeenCalled());
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for clip_v2_catalog' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove variation' }));
+    expect(await screen.findByText('Delete the catalog for good?')).toBeTruthy();
+    expect(client.trashMaterial).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Delete for good' }));
+    await waitFor(() =>
+      expect(client.trashMaterial).toHaveBeenCalledWith(
+        expect.objectContaining({ teamId: TEAM_ID, materialId: second.id })
+      )
+    );
+  });
+
   it('closes on Done after the first catalog, instead of opening the list', async () => {
     const api = listClient({
       listProductCatalogs: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([catalog])

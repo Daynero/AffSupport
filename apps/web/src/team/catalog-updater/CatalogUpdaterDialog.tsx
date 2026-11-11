@@ -2291,7 +2291,11 @@ function CatalogUpdaterDialogScope({
         <ConfirmDialog
           nested
           title={t('catalogUpdaterDeleteSelected')}
-          body={t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })}
+          body={
+            confirmDelete.some(id => videoR2.row(id).enabled)
+              ? `${t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })} ${t('catalogVideoR2DeleteWarning')}`
+              : t('catalogUpdaterDeleteConfirm', { count: confirmDelete.length })
+          }
           confirmLabel={t('catalogUpdaterDeleteSelected')}
           cancelLabel={t('teamCancel')}
           busy={busyIds.size > 0}

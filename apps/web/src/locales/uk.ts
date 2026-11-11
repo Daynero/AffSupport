@@ -308,6 +308,12 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Копія готується',
   catalogVideoR2StatusCopied: 'Копія готова, таблиця ще на Drive',
+  catalogVideoR2DeleteWarning:
+    'Каталоги з відео в R2 видаляються остаточно: відео з R2 зникає одразу, посилання на нього в таблиці перестають працювати, а в кошику Soty такого каталогу не буде.',
+  catalogVideoR2DeleteTitle: 'Видалити каталог назавжди?',
+  catalogVideoR2DeleteBody:
+    'У «{name}» відео в R2. Каталог буде видалено остаточно: відео з R2 зникне одразу, посилання на нього перестануть працювати, і відновити каталог не вийде.',
+  catalogVideoR2DeleteConfirm: 'Видалити назавжди',
   catalogVideoR2StatusFallback: 'Лишається посилання Drive',
   catalogVideoR2LastUpdate: 'Останнє успішне оновлення',
   catalogVideoR2Never: 'ще не було',
