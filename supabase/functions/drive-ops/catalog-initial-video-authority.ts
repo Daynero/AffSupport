@@ -184,7 +184,37 @@ export function catalogInitialVideoAuthority(
       const executor = descriptor
         ? (descriptor as import('../../../packages/shared/dist/team/catalog-video-foreground.js').CatalogVideoForegroundProgressExecutor)
         : undefined;
-      const children = snapshot.children;
+      let children = snapshot.children;
+      // A variant whose operation provably failed (or was abandoned) without
+      // output is requeued here, bounded in SQL, and a succeeded one whose
+      // confirmation was lost is registered, before the set is called unknown:
+      // otherwise one video out of N buries the whole set for good.
+      if (
+        children.some(
+          child => isRecord(child) && (child.state === 'unknown' || child.state === 'working')
+        )
+      ) {
+        let settled: Awaited<ReturnType<ServiceRpcClient['rpc']>> | null;
+        try {
+          settled = await service.rpc('service_retry_failed_catalog_video_variants', {
+            p_set: plan.setId,
+            p_team: identity.teamId,
+            p_actor: identity.actorId
+          });
+        } catch {
+          settled = null;
+        }
+        if (
+          settled &&
+          !settled.error &&
+          isRecord(settled.data) &&
+          isRecord(settled.data.snapshot) &&
+          settled.data.snapshot.setId === plan.setId &&
+          Array.isArray(settled.data.snapshot.children) &&
+          settled.data.snapshot.children.length === children.length
+        )
+          children = settled.data.snapshot.children;
+      }
       const registeredCount = children.filter(
         child =>
           isRecord(child) && child.state === 'registered' && typeof child.outputId === 'string'

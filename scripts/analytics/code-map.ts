@@ -1139,10 +1139,11 @@ function build(): Record<string, CodeLocation> {
     files: [
       'apps/agent/src/team-bridge/catalog-variant-executor.ts',
       'supabase/functions/drive-ops/catalog-video-set-store.ts',
-      'supabase/migrations/20261207168000_catalog_video_sets.sql'
+      'supabase/migrations/20261207168000_catalog_video_sets.sql',
+      'supabase/migrations/20261207199000_catalog_video_variant_retry.sql'
     ],
     check:
-      'Read the original video set, child identity and bounded ready count. A prepared output is not a verified catalog publication; missing admission or dispatch evidence remains unknown.'
+      'Read the original video set, child identity and bounded ready count. A prepared output is not a verified catalog publication; missing admission or dispatch evidence remains unknown. Stage retrying with retryAttempt 1 or 2 means the server proved the previous operation failed without output and requeued the variant; an unknown stage with no retrying after it is a variant that cannot be proven or has no retry left.'
   };
   map['journal:team:process_terminal'] = {
     files: [

@@ -112,6 +112,41 @@ export async function executeLaunchCatalog(
     await call(deps.service, 'service_touch_launch_generation', { ...authority, p_stage: value });
     currentStage = value;
   };
+  /** Requeues every variant whose operation provably failed without output
+   * (bounded in SQL). `terminal` counts the ones that may not be retried any
+   * more; the set then cannot move and the generation must stop for good. */
+  const settleVideoFailures = async (setId: string) => {
+    try {
+      const settled = await call(deps.service, 'service_retry_failed_catalog_video_variants', {
+        p_set: setId,
+        p_team: teamId,
+        p_actor: actorId
+      });
+      if (!isRecord(settled) || typeof settled.parentState !== 'string') return null;
+      return {
+        parentState: settled.parentState,
+        terminal: typeof settled.terminal === 'number' ? settled.terminal : 0
+      };
+    } catch {
+      return null;
+    }
+  };
+  /** A set that cannot move is not retried every few minutes: the generation
+   * stops as non-retryable and the person restarts it deliberately. */
+  const stopForVideoFailure = async (
+    cause: import('./catalog-video-failure.ts').CatalogVideoFailureCode,
+    final: boolean
+  ) => {
+    await call(
+      deps.service,
+      final ? 'service_fail_launch_catalog_video' : 'service_interrupt_launch_generation',
+      {
+        ...authority,
+        // The recovery lane retries PROCESS_RESULT_UNCERTAIN by design.
+        p_code: final && cause === 'PROCESS_RESULT_UNCERTAIN' ? 'PROCESS_FAILED' : cause
+      }
+    );
+  };
   const waitForRegisteredVideoDependency = async () => {
     if (
       !protocolVideo ||
@@ -130,23 +165,31 @@ export async function executeLaunchCatalog(
     );
     if (!progress) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
     if (progress.state === 'ready') return false;
-    if (progress.state === 'unknown' && deps.readCatalogVideoFailure) {
-      const cause = await deps.readCatalogVideoFailure({
-        teamId,
-        actorId,
-        sourceMaterialId: config.materialId,
-        setId: progress.videoSetId
-      });
-      if (cause) {
-        await call(deps.service, 'service_interrupt_launch_generation', {
-          ...authority,
-          p_code: cause
+    let stillUnknown = progress.state === 'unknown';
+    // A preparing set may hold an abandoned or confirmed-but-unrecorded video;
+    // settling is idempotent and bounded in SQL.
+    if (progress.state === 'preparing') {
+      const settled = await settleVideoFailures(progress.videoSetId);
+      if (settled?.parentState === 'ready') return false;
+    }
+    if (stillUnknown) {
+      const settled = await settleVideoFailures(progress.videoSetId);
+      if (settled && settled.parentState !== 'unknown') stillUnknown = false;
+      else if (deps.readCatalogVideoFailure) {
+        const cause = await deps.readCatalogVideoFailure({
+          teamId,
+          actorId,
+          sourceMaterialId: config.materialId,
+          setId: progress.videoSetId
         });
-        return 'failed' as const;
+        if (cause) {
+          await stopForVideoFailure(cause, Boolean(settled && settled.terminal > 0));
+          return 'failed' as const;
+        }
       }
     }
     await call(deps.service, 'service_wait_launch_catalog_video', authority);
-    return progress.state === 'unknown' ? ('failed' as const) : ('waiting' as const);
+    return stillUnknown ? ('failed' as const) : ('waiting' as const);
   };
   try {
     // A verified blank catalog may precede its N outputs. Retain that exact receipt
@@ -375,19 +418,21 @@ export async function executeLaunchCatalog(
       actorId
     );
     if ('outcome' in created && created.outcome === 'preparing_video') {
-      if (created.state === 'unknown' && deps.readCatalogVideoFailure) {
-        const cause = await deps.readCatalogVideoFailure({
-          teamId,
-          actorId,
-          sourceMaterialId: config.materialId,
-          setId: created.videoSetId
-        });
-        if (cause) {
-          await call(deps.service, 'service_interrupt_launch_generation', {
-            ...authority,
-            p_code: cause
+      if (created.state === 'unknown') {
+        // Preparation already requeued what may be retried; what is still
+        // unknown here either cannot be proven or has no retry left.
+        const settled = await settleVideoFailures(created.videoSetId);
+        if ((!settled || settled.parentState === 'unknown') && deps.readCatalogVideoFailure) {
+          const cause = await deps.readCatalogVideoFailure({
+            teamId,
+            actorId,
+            sourceMaterialId: config.materialId,
+            setId: created.videoSetId
           });
-          return { id: generationId, state: 'interrupted' };
+          if (cause) {
+            await stopForVideoFailure(cause, Boolean(settled && settled.terminal > 0));
+            return { id: generationId, state: 'interrupted' };
+          }
         }
       }
       await call(deps.service, 'service_wait_launch_catalog_video', authority);

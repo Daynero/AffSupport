@@ -86,13 +86,35 @@ export function catalogVideoSetStore(
       });
       return { setId: captured.setId, revision: value.revision, children };
     },
-    async reconcile(index: number, requestId: string) {
+    /** `retry` asks, on an unknown answer, whether the variant's operation is
+     * provably failed without output; a granted retry rides on the same
+     * `unknown` kind so an agent that predates it behaves exactly as before and
+     * simply finds the variant queued on its next run. A heartbeat never asks. */
+    async reconcile(index: number, requestId: string, options: { retry?: boolean } = {}) {
       const value = await call('service_reconcile_catalog_video_variant', {
         ...scope(),
         p_index: index,
         p_request: requestId
       });
       if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE');
+      if (value.kind === 'unknown' && options.retry) {
+        // A refused or failed retry leaves the honest answer: unknown.
+        const retried = await call('service_retry_catalog_video_variant', {
+          ...scope(),
+          p_index: index,
+          p_request: requestId
+        }).catch(() => null);
+        if (
+          isRecord(retried) &&
+          retried.kind === 'retry' &&
+          typeof retried.attempt === 'number' &&
+          Number.isSafeInteger(retried.attempt) &&
+          retried.attempt >= 1 &&
+          retried.attempt <= 2
+        )
+          return { kind: 'unknown' as const, retry: { attempt: retried.attempt } };
+        return { kind: 'unknown' as const };
+      }
       if (value.kind === 'absent' || value.kind === 'unknown') return { kind: value.kind };
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
       if (

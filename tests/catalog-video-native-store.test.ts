@@ -85,3 +85,26 @@ it('does not turn a consumed dispatch fence into another local execution permiss
     })
   ).toBe(false);
 });
+it('asks for a variant retry on reconcile but never from a heartbeat', async () => {
+  // 1.4.3: a heartbeat observes a running child; it must not requeue anything.
+  const child = { index: 0, requestId: id(10), operationId: id(50) };
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data:
+      name === 'service_authorize_catalog_video_executor'
+        ? authority
+        : name === 'service_retry_catalog_video_variant'
+          ? { kind: 'retry', requestId: id(20), attempt: 1 }
+          : name === 'service_read_catalog_video_acceptance'
+            ? {
+                parentState: 'preparing',
+                snapshot: { children: [{ ...child, state: 'working', outputId: null }] }
+              }
+            : { kind: 'unknown' }
+  }));
+  const store = catalogVideoNativeStore({ rpc }, input());
+  await store.heartbeat(child).catch(() => undefined);
+  expect(rpc.mock.calls.map(c => c[0])).not.toContain('service_retry_catalog_video_variant');
+  expect(await store.reconcile(child)).toEqual({ kind: 'unknown', retry: { attempt: 1 } });
+  expect(rpc.mock.calls.map(c => c[0])).toContain('service_retry_catalog_video_variant');
+});

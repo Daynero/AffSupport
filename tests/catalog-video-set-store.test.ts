@@ -44,3 +44,40 @@ it('does not expose a private provider error or fabricate a successful checkpoin
     'PROCESS_RESULT_UNCERTAIN'
   );
 });
+it('asks for a bounded retry only when told to, and carries it on the unknown answer', async () => {
+  // 1.4.3: the answer keeps the kind an older agent already understands.
+  const rpc = vi.fn(async (name: string) => ({
+    data:
+      name === 'service_retry_catalog_video_variant'
+        ? { kind: 'retry', requestId: id(20), attempt: 1 }
+        : { kind: 'unknown' },
+    error: null
+  }));
+  const store = catalogVideoSetStore({ rpc }, identity());
+  expect(await store.reconcile(0, id(10), { retry: true })).toEqual({
+    kind: 'unknown',
+    retry: { attempt: 1 }
+  });
+  expect(rpc).toHaveBeenLastCalledWith(
+    'service_retry_catalog_video_variant',
+    expect.objectContaining({ p_set: id(1), p_executor: id(4), p_index: 0, p_request: id(10) })
+  );
+  rpc.mockClear();
+  expect(await store.reconcile(0, id(10))).toEqual({ kind: 'unknown' });
+  expect(rpc.mock.calls.map(([name]) => name)).toEqual(['service_reconcile_catalog_video_variant']);
+});
+it.each([
+  ['a terminal answer', { data: { kind: 'terminal', attempt: 2 }, error: null }],
+  ['an unprovable operation', { data: { kind: 'unknown' }, error: null }],
+  ['a refused retry', { data: null, error: { message: 'PERMISSION_DENIED' } }],
+  ['an out-of-range attempt', { data: { kind: 'retry', attempt: 3 }, error: null }]
+])('stays plainly unknown on %s', async (_name, reply) => {
+  const rpc = vi.fn(async (name: string) =>
+    name === 'service_retry_catalog_video_variant'
+      ? reply
+      : { data: { kind: 'unknown' }, error: null }
+  );
+  expect(
+    await catalogVideoSetStore({ rpc }, identity()).reconcile(0, id(10), { retry: true })
+  ).toEqual({ kind: 'unknown' });
+});

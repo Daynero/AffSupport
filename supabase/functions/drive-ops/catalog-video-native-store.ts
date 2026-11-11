@@ -93,8 +93,8 @@ export function catalogVideoNativeStore(
     async save(revision: number, next: { setId: string; revision: number; children: unknown[] }) {
       return (await authorize()).save(revision, next);
     },
-    async reconcile(child: Child) {
-      return (await authorize()).reconcile(child.index, child.requestId);
+    async reconcile(child: Child, options: { retry?: boolean } = { retry: true }) {
+      return (await authorize()).reconcile(child.index, child.requestId, options);
     },
     async dispatch(child: Child) {
       await authorize();
@@ -110,7 +110,7 @@ export function catalogVideoNativeStore(
       return result.executionAllowed;
     },
     async heartbeat(child: Child) {
-      const observed = await this.reconcile(child);
+      const observed = await this.reconcile(child, { retry: false });
       if (observed.kind === 'registered') return { continue: true, registered: true };
       await authorize();
       const accepted = await call('service_read_catalog_video_acceptance', {
