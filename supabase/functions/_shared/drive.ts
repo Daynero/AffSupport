@@ -357,6 +357,47 @@ export class GoogleDriveClient {
     return parsed;
   }
 
+  /**
+   * Whether a generated process-output id names a file. Drive answers 404 both
+   * for an id never created and for a file the account cannot see, and
+   * `#request` folds 404 into PERMISSION_DENIED; this asks the raw status. A
+   * caller proves the account still sees the destination folder before it
+   * takes 'absent' as proof that the upload never landed.
+   */
+  async probeProcessOutput(fileId: string, signal: AbortSignal): Promise<'present' | 'absent'> {
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('fields', 'id');
+    url.searchParams.set('supportsAllDrives', 'true');
+    let response: Response;
+    try {
+      response = await this.#fetch(url, {
+        headers: { authorization: `Bearer ${this.#accessToken}` },
+        signal
+      });
+    } catch {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    }
+    if (response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return 'present';
+    }
+    if (response.status === 404) {
+      const reason = await driveErrorReason(response);
+      if (reason.reason === 'notFound') return 'absent';
+      throw new TeamFunctionError('PERMISSION_DENIED');
+    }
+    if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
+    if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    if (response.status === 403) {
+      const reason = await driveErrorReason(response);
+      if (RATE_LIMIT_REASONS.has(reason.reason))
+        throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+      throw new TeamFunctionError('PERMISSION_DENIED');
+    }
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
+  }
+
   /** v3 ignores If-Match; recovery deliberately uses the verified v2 contract. */
   async getProcessOutputRecoveryFile(
     fileId: string,

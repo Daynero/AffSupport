@@ -11,6 +11,7 @@ import { prepareCatalogClaims } from './claim-preparation.ts';
 import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
+import { reconcileUncertainProcessUploads } from '../drive-ops/uncertain-upload-reconcile.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { requireDriveOAuthGate, requireNamedWorkerSecret } from '../_shared/auth.ts';
 import {
@@ -160,6 +161,11 @@ Deno.serve(async request => {
       retained: 0,
       unavailable: true
     }));
+    // A catalog variant whose upload ended uncertain (agent silent for 2 min):
+    // looked up by its generated Drive id and settled, instead of 12 hours.
+    const uncertainUploads = reconcileUncertainProcessUploads(service, driveFor, {
+      limit: 3
+    }).catch(() => ['waiting' as const]);
     try {
       const pending = await rpcValue(service, 'service_claim_catalog_reconciliations', {
         p_limit: 3
@@ -461,10 +467,12 @@ Deno.serve(async request => {
         publications,
         launchCleanup,
         launchVideoCleanup,
-        processOutputCleanup: await processCleanup
+        processOutputCleanup: await processCleanup,
+        uncertainUploads: await uncertainUploads
       });
     } catch (cause) {
       await processCleanup;
+      await uncertainUploads;
       throw cause;
     }
   } catch (error) {

@@ -1,6 +1,7 @@
 import { diagnostics } from '../server/diagnostics-log.js';
 import { stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
   COMPRESSION_LIFECYCLE,
   COMPRESSION_ERROR_CODES,
@@ -442,13 +443,18 @@ export class TeamProcessBridge {
           request.toolId === 'restitch' &&
           transfer.ackUploadQuiescence
         ) {
-          await transfer
-            .ackUploadQuiescence({
+          // Redelivered until the server answers: for a catalog variant this
+          // ack starts the server's lookup of the generated Drive id, so a lost
+          // upload reply resolves minutes after the backend returns instead of
+          // waiting for silence (beta 2026-11-11, gateway outage mid-upload).
+          const ack = transfer.ackUploadQuiescence.bind(transfer);
+          await deliverQuiescence(() =>
+            ack({
               operationId: request.operationId,
               cloudBaseUrl: request.cloudBaseUrl,
               finalizeGrant: request.finalizeGrant
             })
-            .catch(() => undefined);
+          );
         }
       }
       // The finalize reply is authoritative. A late local abort cannot undo
@@ -514,6 +520,35 @@ export class TeamProcessBridge {
       active.watchdog = null;
       await cleanupOutput?.().catch(() => undefined);
       await downloaded?.cleanup().catch(() => undefined);
+    }
+  }
+}
+
+/** Waits between deliveries of the upload-quiescence ack (about three minutes in all). */
+export const QUIESCENCE_ACK_DELAYS_MS: readonly number[] = [
+  2_000, 5_000, 10_000, 20_000, 30_000, 30_000, 30_000, 60_000
+];
+const QUIESCENCE_ACK_FINAL = new Set([
+  'WRONG_STATE',
+  'PERMISSION_DENIED',
+  'INVALID_INPUT',
+  'NOT_FOUND',
+  'AUTH_REQUIRED'
+]);
+/** Best effort, bounded: a refusal or an exhausted budget leaves the server's
+ * silence rule (2 minutes) to start the same reconcile. */
+export async function deliverQuiescence(
+  send: () => Promise<void>,
+  delays: readonly number[] = QUIESCENCE_ACK_DELAYS_MS
+): Promise<boolean> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await send();
+      return true;
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      if (QUIESCENCE_ACK_FINAL.has(code) || attempt >= delays.length) return false;
+      await delay(delays[attempt]!).catch(() => undefined);
     }
   }
 }
