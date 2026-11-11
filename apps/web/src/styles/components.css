@@ -2980,7 +2980,8 @@
   color: var(--color-neutral-text-muted);
   transition: transform var(--motion-fast) var(--ease-out-curve);
 }
-.ui-accordion-item.is-open .ui-accordion-chevron {
+/* Only the item's own trigger: an open outer item must not flip a nested accordion's chevron. */
+.ui-accordion-item.is-open > .ui-accordion-trigger > .ui-accordion-chevron {
   transform: rotate(180deg);
 }
 .ui-accordion-chevron svg {

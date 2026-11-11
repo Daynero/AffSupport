@@ -670,6 +670,10 @@ it('shows the round stitching instead of the profile still waiting for video', a
   const tableRow = identity.closest('tr')!;
   expect(within(tableRow).getAllByText('Preparing replacement video…').length).toBeGreaterThan(0);
   expect(within(tableRow).queryByText('Waiting for video preparation…')).toBeNull();
+  // QA round 6: the stage was only announced (sr-only); it is shown in the row now.
+  const feedback = tableRow.querySelector('.catalog-row-feedback')!;
+  expect(feedback.classList.contains('sr-only')).toBe(false);
+  expect(feedback.textContent).toBe('Preparing replacement video…');
 });
 it('keeps a frozen video failure visible after restitch is disabled for future runs', async () => {
   const item = row('1', 'polo.mp4', {

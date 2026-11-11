@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isSoftReadFailure } from '../readCoordinator';
 
 export const LAUNCH_PROGRESS_QUIET_MS = 45_000;
-export const LAUNCH_STATUS_READ_MS = 15_000;
-export const LAUNCH_STATUS_POLL_MS = 15_000;
+// A read that hangs (a paused gateway answers nothing) counts as an interruption after
+// 10 s, so the calm note shows within a poll or two instead of ~24 s later (1.4.3).
+export const LAUNCH_STATUS_READ_MS = 10_000;
+export const LAUNCH_STATUS_POLL_MS = 10_000;
 export const LAUNCH_CANCEL_STATUS_POLL_MS = 2_000;
 /** After a transient read failure, read again sooner than the steady poll. */
 export const LAUNCH_STATUS_RETRY_MS = [3_000, 6_000, 12_000, 24_000, 30_000] as const;

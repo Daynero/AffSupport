@@ -3,6 +3,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchGenerationProgress } from '../apps/web/src/team/launches/LaunchGenerationProgress';
+import { LAUNCH_STATUS_POLL_MS } from '../apps/web/src/team/launches/useLaunchProgressWatch';
 import type { LaunchGeneration } from '../packages/shared/src/team/launches';
 const child = vi.hoisted(() => ({
   operation: null as { progress: number; state: string } | null,
@@ -466,7 +467,7 @@ it('keeps long processing active, displays a timer and automatically refreshes',
   await act(async () => {
     await vi.advanceTimersByTimeAsync(45_000);
   });
-  expect(refresh).toHaveBeenCalledTimes(3);
+  expect(refresh).toHaveBeenCalledTimes(Math.floor(45_000 / LAUNCH_STATUS_POLL_MS));
   expect(screen.getByText('Creating catalog')).toBeTruthy();
   expect(screen.getByLabelText('Generation duration: 00:45')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();

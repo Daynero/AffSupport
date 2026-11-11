@@ -185,3 +185,23 @@ it('any path to canceled returns an operation-less working variant to queued', a
   await db.root("update private.catalog_video_sets set state='canceled' where id=$1", [f.set]);
   expect((await variantRow(f.set)).state).toBe('queued');
 });
+
+it('5a2d8619: a canceled set leaves no variant working on an operation that already ended', async () => {
+  const f = await canceledCreation({ dispatched: false, heartbeatAgo: null });
+  const op = (
+    await db.root<{ id: string }>(
+      "insert into public.team_operations(team_id,actor_id,kind,state,source_material_id,idempotency_key,request_nonce)values($1,$2,'process','pending',$3,$4,$4) returning id",
+      [team, ACTOR, source, 'ended-op:' + f.set]
+    )
+  )[0]!.id;
+  await db.root(
+    "update public.team_operations set state='canceled',finished_at=clock_timestamp() where id=$1",
+    [op]
+  );
+  await db.root(
+    "update private.catalog_video_variants set state='working',operation_id=$2,heartbeat_at=clock_timestamp()-interval '5 hours' where video_set_id=$1",
+    [f.set, op]
+  );
+  await db.root("update private.catalog_video_sets set state='canceled' where id=$1", [f.set]);
+  expect(await variantRow(f.set)).toEqual({ state: 'unknown', heartbeat_at: null });
+});

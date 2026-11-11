@@ -2961,3 +2961,13 @@ with the 20261207395000 rule: a catalog (scope `video_r2_reconcile`) or orphan c
 off, and cleared once it passes; the orphan loop now runs each copy in its own subtransaction instead of
 aborting the pass. Rolling back means restoring the bodies left by 20261207195500 through a reviewed
 forward migration and deleting the rows of those two scopes; nothing else depends on them.
+
+### 20261207398000 — the manager row keeps its round stage after the lease is released
+
+Patches `public.list_team_product_catalogs` and `public.list_team_catalog_progress_identity` so that
+progress recorded for the current round still counts once `service_complete_catalog_update` has
+released the worker's lease (the round stays due until delivery is confirmed). It also extends
+`private.catalog_video_set_canceled_closes_variants` so a set entering 'canceled' moves a 'working'
+variant whose operation already ended (failed or canceled) to 'unknown', and repairs canceled sets
+once. Rolling back means restoring the previous bodies through a reviewed forward migration; the
+read change is display-only and the repaired variants need no reversal.

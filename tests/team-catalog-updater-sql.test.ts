@@ -1185,6 +1185,51 @@ describe('the worker’s address and grants', () => {
     );
     expect(acl[0]!.anonymous).toBe(false);
   }, 60000);
+  it('keeps the round stage after the worker released its lease and while delivery is confirmed', async () => {
+    // 1.4.3 QA: service_complete_catalog_update releases the lease and the round stays due for
+    // about two minutes; the row read 'preparing' and kept showing «Оновлюємо картинки…».
+    const item = await catalog('stage after lease');
+    const registry = async (id: string) =>
+      (
+        await harness.asUser<{ update_pending: boolean; update_stage: string | null }>(
+          OWNER,
+          'select update_pending,update_stage from public.list_team_product_catalogs($1) where catalog_id=$2',
+          [teamId, id]
+        )
+      )[0]!;
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [item.sheet]
+    ]);
+    await claim('lease-release-worker', 100);
+    await harness.root("select public.service_set_catalog_update_progress($1,$2,'finalizing')", [
+      item.sheet,
+      'lease-release-worker'
+    ]);
+    await harness.root(
+      'update public.team_catalog_updater_items set lease_owner=null,lease_expires_at=null where catalog_material_id=$1',
+      [item.sheet]
+    );
+    expect(await registry(item.sheet)).toMatchObject({
+      update_pending: true,
+      update_stage: 'finalizing'
+    });
+    const identity = (
+      await harness.asUser<{
+        data: Record<
+          string,
+          { active_attempt_id: string | null; progress_attempt_id: string | null }
+        >;
+      }>(OWNER, 'select public.list_team_catalog_progress_identity($1) as data', [teamId])
+    )[0]!.data[item.sheet]!;
+    expect(identity.progress_attempt_id).toBe(identity.active_attempt_id);
+    // Progress older than the round still never speaks for it.
+    await harness.root(
+      "update private.catalog_update_progress set updated_at='2000-01-01' where catalog_material_id=$1",
+      [item.sheet]
+    );
+    expect((await registry(item.sheet)).update_stage).toBe('preparing');
+  }, 60000);
   it('does not cancel a newer round when the stop used an older observed identity', async () => {
     const item = await catalog('cancel round fence');
     const pending = async () =>

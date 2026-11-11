@@ -1543,7 +1543,9 @@ function CatalogUpdaterDialogScope({
                           </small>
                         )}
                       <span
-                        className={`catalog-row-feedback${!requiresReview && ((row.profile?.reconciliationRequired && row.profile.lastResult === 'running') || (row.updatePending && !row.profile?.reconciliationRequired && row.profile?.restitchStatus !== 'blocked')) ? ' sr-only' : ''}`}
+                        // The running stage is shown, not only announced: with it hidden the row
+                        // said only «Готово відео: 0 з 1» while the round stitched (1.4.3).
+                        className="catalog-row-feedback"
                         role="status"
                       >
                         {requiresReview ? (

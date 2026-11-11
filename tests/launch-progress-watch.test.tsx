@@ -5,6 +5,7 @@ import {
   useLaunchProgressWatch,
   LAUNCH_PROGRESS_QUIET_MS,
   LAUNCH_STATUS_READ_MS,
+  LAUNCH_STATUS_POLL_MS,
   LAUNCH_STATUS_RETRY_MS,
   LAUNCH_CANCEL_STATUS_POLL_MS
 } from '../apps/web/src/team/launches/useLaunchProgressWatch';
@@ -25,12 +26,13 @@ it('automatically reconciles unchanged stages without inventing progress', async
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LAUNCH_PROGRESS_QUIET_MS);
   });
-  expect(read).toHaveBeenCalledTimes(3);
+  const polls = (ms: number) => Math.floor(ms / LAUNCH_STATUS_POLL_MS);
+  expect(read).toHaveBeenCalledTimes(polls(LAUNCH_PROGRESS_QUIET_MS));
   expect(result.current.quiet).toBe(true);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(LAUNCH_PROGRESS_QUIET_MS * 3);
   });
-  expect(read).toHaveBeenCalledTimes(12);
+  expect(read).toHaveBeenCalledTimes(polls(LAUNCH_PROGRESS_QUIET_MS * 4));
   rerender({ evidence: 'new-authoritative-stage' });
   expect(result.current.quiet).toBe(false);
 });

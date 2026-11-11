@@ -119,6 +119,7 @@ type Phase =
 
 const VIDEO_READBACK_INITIAL_MS = 3_000;
 const VIDEO_READBACK_MAX_MS = 30_000;
+const CATALOG_VIDEO_READ_DEADLINE_MS = 10_000;
 
 const TRANSIENT_CATALOG_CODES = new Set([
   'TEAM_TRANSPORT_UNAVAILABLE',
@@ -743,7 +744,9 @@ export function CreateProductCatalogDialog({
               (client.readProductCatalogVideo ?? teamApi.readProductCatalogVideo)(teamId, key, {
                 signal
               }),
-            new AbortController().signal
+            new AbortController().signal,
+            // A hung read becomes the calm «зв'язок перервався» note after 10 s, not 15.
+            CATALOG_VIDEO_READ_DEADLINE_MS
           );
       if (!owns()) return;
       if (!result) {
