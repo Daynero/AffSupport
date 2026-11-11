@@ -2802,3 +2802,13 @@ RPC). Rolling back the functions only stops recording heartbeats: a live run wou
 look silent, so roll back the migration through a reviewed forward migration that
 restores the 12-hour rule, the 180000 redeem branch, the 181000/182000 quiescence and
 settlement bodies and the 180000 creation read. The columns may stay.
+
+### 20261207280000 — catalog re-verification requires an active catalog
+
+Adds `private.initial_publication_catalog_active` and replaces
+`private.initial_publication_reverify_owed` (230000) so that a registered catalog whose material
+is trashed or missing is no longer owed its initial publication, and replaces
+`service_claim_initial_publication_reverify` (196000) so that a claim for such an intent closes
+its paced row as exhausted with `last_code='CATALOG_INACTIVE'`. Open rows of such intents are
+closed by the migration itself. Rolling back means a reviewed forward migration that restores
+the 230000 and 196000 bodies; closed rows stay closed (a restored catalog is not re-verified).
