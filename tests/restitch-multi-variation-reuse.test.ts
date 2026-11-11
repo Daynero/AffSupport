@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/prom
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import type { SourceProfile, StitchPlan } from '@video-compressor/shared';
 
 // The body builder's media tools are replaced: these tests are about who builds a body and
@@ -59,8 +60,7 @@ afterEach(async () => {
   tools.delayMs = 0;
   tools.failRaw = false;
   tools.args = [];
-  const { rm } = await import('node:fs/promises');
-  await Promise.all(roots.splice(0).map(dir => rm(dir, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map(dir => removeTemporaryDirectory(dir)));
 });
 
 function profile(file: string, modifiedAtMs: number): SourceProfile {

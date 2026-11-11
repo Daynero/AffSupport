@@ -94,6 +94,7 @@
     "apps/agent/src/transcription/segmentation.ts": 95,
     "apps/agent/src/transcription/diagnostics.ts": 95,
     "packages/shared/src/team/catalog-images.ts": 90,
+    "packages/shared/src/team/catalog-video-r2.ts": 90,
     "packages/shared/src/team/restitch-recovery-errors.ts": 100,
     "packages/shared/src/team/restitch-screen-policy.ts": 100,
     "packages/shared/src/team/restitch-selection.ts": 90,

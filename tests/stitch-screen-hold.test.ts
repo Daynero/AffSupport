@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import {
 import { ffmpegPath } from '../apps/agent/src/ffmpeg/tools.js';
 import { runTool, toolSucceeded } from '../apps/agent/src/stitcher/run.js';
 import { describeRequiring } from './support/requires.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { ffmpegBinaries } from './support/toolchain.js';
 
 /*
@@ -92,7 +93,7 @@ describeRequiring(ffmpegBinaries, 'a held screen fitted once', () => {
     ]);
   }, 60_000);
   afterAll(async () => {
-    await rm(directory, { recursive: true, force: true });
+    await removeTemporaryDirectory(directory);
   });
 
   for (const fitMode of ['cover', 'contain', 'stretch'] as const) {

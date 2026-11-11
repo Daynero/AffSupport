@@ -27,6 +27,12 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'catalog-image-sharing.test.ts':
     'fake provider latency proves bounded concurrency, wave duration and receipt draining',
   'catalog-sync.test.ts': 'a staggered delay that is the ordering assertion',
+  'restitch-multi-variation-reuse.test.ts':
+    'a stub tool that holds two variations in the body build at once to prove they share one',
+  'restitch-outage-converge.test.ts': 'fake-clock outage windows that are the scenario under test',
+  'restitch-outage-livelock.test.ts': 'fake-clock outage windows that are the scenario under test',
+  'restitch-outage-recovery.test.ts':
+    'a short settle proving that no further resume or redeem happens after a final answer',
   'task-filter-follows-edits.test.tsx': 'a debounce window that is the assertion',
   'compressor-activity.test.ts':
     'a stub encoder that has to hold the activity long enough to observe',
