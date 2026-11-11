@@ -2831,3 +2831,18 @@ The seven-argument call keeps its old meaning. Rolling back means a reviewed for
 that restores both 169000 bodies (dropping the nine-argument finish first) together with an edge
 function that no longer sends `p_video_set`; deliveries already adopted as `video_set` stay valid
 targets and need no repair.
+
+### 20261207320000 — a retired variant operation releases its output name
+
+Adds two triggers on `public.team_operations`: entering a terminal state stamps
+`reservation_released_at` (before update) and revokes open transfer grants (after update), the
+way `service_transition_team_operation` already did, so the direct-update failures of 199000 and
+240000 (silence takeover, abandonment) no longer keep a variant's fixed output name reserved.
+Replaces `private.team_validate_operation_transition` so a terminal operation may still be
+stamped with that release and nothing else, releases every terminal operation still holding a
+name, patches `private.retry_failed_catalog_video_variant` to requeue (same request id) a variant
+reported unknown before any operation of its request existed, counts that as `retried` in
+`service_retry_failed_catalog_video_variants`, and requeues sets already stuck that way. Rolling
+back means dropping both triggers and restoring the validator, the 240000 resolver body and the
+199000 owner retry body through a reviewed forward migration; released names and requeued
+variants stay as they are and need no repair.
