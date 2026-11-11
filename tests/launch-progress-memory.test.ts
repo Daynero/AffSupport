@@ -177,3 +177,20 @@ it('starts a catalog retry after the retained video instead of returning to prep
   });
   expect(entries.map(entry => entry.state)).toEqual(['complete', 'complete', 'active', 'pending']);
 });
+it('keeps preparation done when a lost lease puts the stage back after the video set is ready (1.4.3)', () => {
+  // Beta 2026-11-11: fence 3→5, the coordinator re-ran preflight ("preparing")
+  // while the durable video set was already ready; a reopened launch showed
+  // "Step 1 of 4" with preparation unchecked next to a checked video.
+  const entries = observe(newLaunchProgressMemory(), {
+    stage: 'preparing',
+    restitchOperationId: null,
+    steps: [step('preparing', 'running', 1)],
+    videoGeneration: {
+      setId: '11111111-1111-4111-8111-111111111111',
+      requestedCount: 1,
+      registeredCount: 1,
+      state: 'ready'
+    }
+  });
+  expect(entries.map(entry => entry.state)).toEqual(['complete', 'complete', 'active', 'pending']);
+});
