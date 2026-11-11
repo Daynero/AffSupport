@@ -7342,6 +7342,16 @@ body:has(.public-home) {
 .team-invite-form .ui-field-label {
   display: flex;
 }
+/* A switch's or checkbox's caption is a `<label>` too: as a grid it dropped
+   under its own track. Mark and caption stay on one line, as everywhere else. */
+.team-dialog-form .ui-switch-label,
+.team-dialog-form .ui-checkbox-content,
+.team-invite-form .ui-switch-label,
+.team-invite-form .ui-checkbox-content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .team-dialog-form .ui-input input,
 .team-invite-form .ui-input input {
   min-height: 0;
