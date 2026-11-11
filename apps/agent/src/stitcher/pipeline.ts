@@ -62,6 +62,8 @@ export interface PipelineContext {
   onJoinProgress?: (fraction: number) => void;
   imagePathFor: (id: string) => Promise<string | null>;
   bodies: PreparedBodyCache;
+  /** The source's verified content identity, so equal bytes share one prepared body. */
+  sourceIdentity?: string | null;
 }
 
 export type PipelineResult =
@@ -123,6 +125,7 @@ export const runStitchPipeline: StitchPipeline = async context => {
     plan,
     threads,
     runId: context.runId,
+    sourceIdentity: context.sourceIdentity ?? null,
     ...run
   });
   if (!body.ok) return { ok: false, error: body.error };
@@ -168,9 +171,13 @@ export const runStitchPipeline: StitchPipeline = async context => {
     });
   };
 
-  const intro = await screen(plan.startScreen, screens.startImageId, 'intro');
+  // The two screens are independent encodes of a still picture: build them side by side
+  // rather than one after the other. Each is a short child the power governor still sees.
+  const [intro, outro] = await Promise.all([
+    screen(plan.startScreen, screens.startImageId, 'intro'),
+    screen(plan.endScreen, screens.endImageId, 'outro')
+  ]);
   if (!intro.ok) return intro;
-  const outro = await screen(plan.endScreen, screens.endImageId, 'outro');
   if (!outro.ok) return outro;
   const segments = [intro.path, body.value.path, outro.path].filter(
     (segment): segment is string => segment !== null

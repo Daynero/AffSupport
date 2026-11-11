@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { TeamFileOperationResult, TeamTransferGrant } from '@video-compressor/shared';
+import type { TeamSourceCache } from './source-cache.js';
 
 const MAX_RANGE_BYTES = 32 * 1024 * 1024;
 const MAX_TRANSFER_BYTES = 100 * 1024 * 1024 * 1024;
@@ -65,15 +66,22 @@ export interface TeamResultUploadRequest {
 export interface TeamTransferClientOptions {
   fetchImpl?: typeof fetch;
   temporaryRoot?: string;
+  /**
+   * Sources already held on this computer, by content identity. When the first ranged read
+   * names bytes the cache holds, the rest of the download is read from disk (verified).
+   */
+  sourceCache?: Pick<TeamSourceCache, 'place' | 'keep'>;
 }
 
 export class TeamTransferClient {
   readonly #fetch: typeof fetch;
   readonly #temporaryRoot: string;
+  readonly #sourceCache: Pick<TeamSourceCache, 'place' | 'keep'> | null;
 
   constructor(options: TeamTransferClientOptions = {}) {
     this.#fetch = options.fetchImpl ?? fetch;
     this.#temporaryRoot = options.temporaryRoot ?? os.tmpdir();
+    this.#sourceCache = options.sourceCache ?? null;
   }
 
   async downloadSource(
@@ -109,6 +117,8 @@ export class TeamTransferClient {
     // Drive's binary identity is MD5. Commit only complete ranges to this hash:
     // an interrupted prefix is truncated and must not be counted twice on retry.
     let sourceDigest = createHash('md5');
+    let heldFile: string | null = null;
+    let heldLookedUp = false;
     try {
       while (totalBytes === null || offset < totalBytes) {
         throwIfAborted(signal);
@@ -185,6 +195,22 @@ export class TeamTransferClient {
             if (totalBytes !== null && totalBytes !== length) throw new Error('SOURCE_CHANGED');
             totalBytes = length;
           }
+          // The first answer names the bytes. If this computer already holds them, place the
+          // held copy (re-verified) and stop reading the network.
+          if (
+            this.#sourceCache &&
+            !heldLookedUp &&
+            offset === 0 &&
+            sourceChecksum !== null &&
+            totalBytes !== null
+          ) {
+            heldLookedUp = true;
+            const candidate = path.join(workspace, 'source-held.bin');
+            if (await this.#sourceCache.place(sourceChecksum, totalBytes, candidate, signal)) {
+              heldFile = candidate;
+              break;
+            }
+          }
           reader = response.body?.getReader();
           if (!reader || length === null || length < 1) throw new Error('INVALID_RESPONSE');
           let responseBytes = 0;
@@ -246,6 +272,23 @@ export class TeamTransferClient {
           } else await body?.cancel().catch(() => undefined);
         }
       }
+      if (heldFile !== null && totalBytes !== null) {
+        throwIfAborted(signal);
+        request.onProgress?.(totalBytes, totalBytes);
+        let cleanedHeld = false;
+        return {
+          workspace,
+          file: heldFile,
+          sizeBytes: totalBytes,
+          sourceVersion,
+          sourceChecksum,
+          cleanup: async () => {
+            if (cleanedHeld) return;
+            cleanedHeld = true;
+            await rm(workspace, { recursive: true, force: true });
+          }
+        };
+      }
       if (totalBytes === null || totalBytes < 1 || offset !== totalBytes) {
         throw new Error('INVALID_RESPONSE');
       }
@@ -254,6 +297,11 @@ export class TeamTransferClient {
         throw new TeamSourceIntegrityError('checksum_mismatch');
       if ((await handle.stat()).size !== totalBytes)
         throw new TeamSourceIntegrityError('size_mismatch');
+      if (this.#sourceCache && sourceChecksum !== null) {
+        // Closed first: Windows will not link or copy a file another handle still writes.
+        await handle.close().catch(() => undefined);
+        await this.#sourceCache.keep(sourceChecksum, totalBytes, file);
+      }
       let cleaned = false;
       return {
         workspace,

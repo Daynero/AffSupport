@@ -80,6 +80,7 @@ import { TeamScreenCache } from './team-bridge/screen-cache.js';
 import { TeamPosterBridge } from './team-bridge/poster.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
+import { TeamSourceCache } from './team-bridge/source-cache.js';
 import { defaultQualityForInstalledModels, whisperAvailable } from './whisper/tools.js';
 import { sweepAbandonedTempDirectories } from './whisper/transcriber.js';
 import { pathGrants } from './files/path-grants.js';
@@ -494,6 +495,12 @@ teamEvents.publishOn(channelHub, 'team');
 teamOperationEvents.setNotify(event => teamEvents.broadcast(event));
 const teamTransfer = new TeamTransferClient();
 /*
+ * Every variation of a catalog restitch is its own operation over the same video. The source
+ * is kept here by Drive's MD5 so variations after the first read it from disk (re-verified)
+ * instead of downloading it again.
+ */
+const teamSourceCache = new TeamSourceCache();
+/*
  * 015 — the delegate a re-stitched download runs.
  *
  * Kept beside the others rather than inside `createTeamProcessDelegates`, because it needs
@@ -568,7 +575,10 @@ const protectedCatalogVariantProcess: NonNullable<
       cancellationRequested,
       run: () =>
         teamProcessBridge.processProtected(request, {
-          transfer: new TeamTransferClient({ fetchImpl: authorizedFetch }),
+          transfer: new TeamTransferClient({
+            fetchImpl: authorizedFetch,
+            sourceCache: teamSourceCache
+          }),
           delegate: restitchDelegate,
           signal: upstreamSignal,
           authorize: authorizeParent
@@ -646,7 +656,10 @@ const protectedCatalogVariantProcess: NonNullable<
           cancellationRequested,
           run: () =>
             teamProcessBridge.processProtected(request, {
-              transfer: new TeamTransferClient({ fetchImpl: protectedFetch }),
+              transfer: new TeamTransferClient({
+                fetchImpl: protectedFetch,
+                sourceCache: teamSourceCache
+              }),
               delegate,
               signal,
               authorize

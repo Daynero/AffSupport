@@ -248,7 +248,8 @@ export function createRestitchDelegate(
         { cause: error }
       );
     }
-    const looked = await inspect(input.sourceFile, options.prepared, input.signal);
+    const sourceIdentity = contentIdentity(input.sourceChecksum, input.sourceSizeBytes);
+    const looked = await inspect(input.sourceFile, options.prepared, input.signal, sourceIdentity);
     if (!looked) throw unsupported(refusalReason(options.prepared?.unsupportedReason ?? null));
     if (!options.prepared) {
       discovery = {
@@ -398,6 +399,7 @@ export function createRestitchDelegate(
       onStage: stage =>
         input.onProgress(stage === 'verifying' ? 92 : stage === 'joining' ? 45 : 42),
       onJoinProgress: fraction => input.onProgress(45 + Math.round(fraction * 45)),
+      sourceIdentity,
       imagePathFor: async id =>
         id === automaticFrameId && automaticFramePath
           ? automaticFramePath
@@ -448,14 +450,67 @@ export function createRestitchDelegate(
  * keyframe index and a search for what is already stitched on, measured at six to fourteen
  * seconds depending on the file's length.
  */
+type Inspection = {
+  profile: SourceProfile;
+  detected: { startSeconds: number; endSeconds: number; adjustedByUser: boolean };
+};
+
+/**
+ * What an inspection found, by the source's verified content identity.
+ *
+ * Every variation of a catalog restitch inspects the same bytes, downloaded again into a
+ * workspace of its own: six to fourteen seconds of keyframe reading per variation for one
+ * answer. Kept in memory only — a restart simply looks once more — and only for identities a
+ * download verified, so a different file can never borrow another's edges.
+ */
+const inspections = new Map<string, Inspection>();
+const INSPECTIONS_KEPT = 16;
+
+/** Drive's MD5 plus the byte count; null when the download could not verify one. */
+export function contentIdentity(checksum: string | null, sizeBytes: number): string | null {
+  if (!checksum || !/^[a-f0-9]{32}$/iu.test(checksum)) return null;
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1) return null;
+  return `md5:${checksum.toLowerCase()}:${sizeBytes}`;
+}
+
+/** Test seam: forget remembered inspections. */
+export function clearRestitchInspections(): void {
+  inspections.clear();
+}
+
 async function inspect(
   file: string,
   prepared: MaterialRestitchPrep | null,
+  signal: AbortSignal,
+  sourceIdentity: string | null = null
+): Promise<Inspection | null> {
+  const key = sourceIdentity ? `${RESTITCH_DETECTOR_VERSION}|${sourceIdentity}` : null;
+  if (!prepared && key) {
+    const known = inspections.get(key);
+    if (known) {
+      // Most recently used last, so the oldest is the one forgotten.
+      inspections.delete(key);
+      inspections.set(key, known);
+      return { profile: { ...known.profile, path: file }, detected: { ...known.detected } };
+    }
+  }
+  const found = await inspectUncached(file, prepared, signal);
+  if (found && !prepared && key) {
+    inspections.set(key, { profile: { ...found.profile }, detected: { ...found.detected } });
+    while (inspections.size > INSPECTIONS_KEPT) {
+      const oldest = inspections.keys().next().value;
+      if (oldest === undefined) break;
+      inspections.delete(oldest);
+    }
+  }
+  return found;
+}
+
+async function inspectUncached(
+  file: string,
+  prepared: MaterialRestitchPrep | null,
   signal: AbortSignal
-): Promise<{
-  profile: SourceProfile;
-  detected: { startSeconds: number; endSeconds: number; adjustedByUser: boolean };
-} | null> {
+): Promise<Inspection | null> {
   if (prepared) {
     // Either the record says the fast path cannot serve this file, or it carries no profile to
     // serve it with — both mean the same thing to a delivery.

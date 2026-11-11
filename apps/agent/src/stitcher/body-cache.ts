@@ -65,19 +65,36 @@ export interface PrepareOptions {
   threads?: number | null;
   signal?: AbortSignal;
   onChild?: (child: ChildProcess) => void;
+  /**
+   * The source's content identity, when the caller has verified one (a team download checks
+   * Drive's MD5 against every byte it wrote).
+   *
+   * Every variation of a catalog restitch downloads the same video into a workspace of its
+   * own, so a key built from the path and the mtime missed on every variation and re-encoded
+   * the whole body each time — minutes per variation for identical work. With the content
+   * identity the second and later variations reuse the first one's body.
+   */
+  sourceIdentity?: string | null;
 }
 
 /**
  * Identity, not just a path: a file edited in place under the same name must miss the cache.
+ * A verified content identity replaces path, size and mtime: equal bytes are the same body
+ * wherever they were written.
  */
-export function preparedBodyKey(profile: SourceProfile, plan: StitchPlan): string {
+export function preparedBodyKey(
+  profile: SourceProfile,
+  plan: StitchPlan,
+  sourceIdentity: string | null = null
+): string {
+  const source = sourceIdentity
+    ? [`content:${sourceIdentity}`]
+    : [path.resolve(profile.path), profile.sizeBytes, Math.round(profile.modifiedAtMs)];
   return createHash('sha256')
     .update(
       [
         `v${PREPARED_BODY_FORMAT}`,
-        path.resolve(profile.path),
-        profile.sizeBytes,
-        Math.round(profile.modifiedAtMs),
+        ...source,
         profile.frameRate,
         plan.bodyStartSeconds.toFixed(6),
         plan.bodyEndSeconds.toFixed(6)
@@ -86,6 +103,14 @@ export function preparedBodyKey(profile: SourceProfile, plan: StitchPlan): strin
     .digest('hex')
     .slice(0, 32);
 }
+
+/**
+ * Preparations in flight in this process, by target path.
+ *
+ * Two variations of one set that reach the body at the same moment must not both re-encode it:
+ * the second waits for the first and then finds it in the cache.
+ */
+const inFlight = new Map<string, Promise<PrepareResult>>();
 
 export class PreparedBodyCache {
   private readonly directory: string;
@@ -96,12 +121,30 @@ export class PreparedBodyCache {
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   }
 
-  pathFor(profile: SourceProfile, plan: StitchPlan): string {
-    return path.join(this.directory, `${preparedBodyKey(profile, plan)}.mp4`);
+  pathFor(profile: SourceProfile, plan: StitchPlan, sourceIdentity: string | null = null): string {
+    return path.join(this.directory, `${preparedBodyKey(profile, plan, sourceIdentity)}.mp4`);
   }
 
   async prepare(options: PrepareOptions): Promise<PrepareResult> {
-    const target = this.pathFor(options.profile, options.plan);
+    const target = this.pathFor(options.profile, options.plan, options.sourceIdentity ?? null);
+    for (;;) {
+      const running = inFlight.get(target);
+      if (!running) break;
+      const shared = await running;
+      // Someone else's cancellation is not ours: look again, and build it ourselves if needed.
+      if (shared.ok || shared.error !== 'STITCH_CANCELLED' || options.signal?.aborted)
+        return shared.ok ? { ok: true, value: { ...shared.value, fromCache: true } } : shared;
+    }
+    const own = this.#prepareAt(target, options);
+    inFlight.set(target, own);
+    try {
+      return await own;
+    } finally {
+      if (inFlight.get(target) === own) inFlight.delete(target);
+    }
+  }
+
+  async #prepareAt(target: string, options: PrepareOptions): Promise<PrepareResult> {
     try {
       const stats = await stat(target);
       if (stats.size > 0) {
