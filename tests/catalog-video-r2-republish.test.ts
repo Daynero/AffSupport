@@ -154,7 +154,7 @@ async function finishCopy(copyId: string, size: number) {
 
 beforeAll(async () => {
   db = await createTeamTestDb({
-    throughMigration: '20261207195000_catalog_video_r2_republish.sql'
+    throughMigration: '20261207195500_catalog_video_r2_gone_catalogs.sql'
   });
   await createUser(db, { id: OWNER, email: 'video-r2-republish@example.test' });
   await db.root('insert into public.admin_users(user_id) values($1)', [OWNER]);
@@ -512,6 +512,85 @@ describe('catalog video R2 link reconciliation', () => {
       revision: '2',
       state: 'waiting',
       origin: 'video_r2'
+    });
+  });
+
+  it('lets a catalog deleted for good release its copy, but keeps it for one in the trash', async () => {
+    /** A catalog on R2 for its own source version; returns the catalog and its copy. */
+    async function onR2(version: string) {
+      const video = await material('video', 'video/mp4', 5_000_000);
+      const { id } = await publishedCatalog(video, version);
+      await rpc('service_catalog_video_r2_set_preference', [OWNER, id, true]);
+      const copy = (
+        await db.root<{ id: string }>(
+          'select id from private.catalog_video_r2_copies where team_id=$1 and source_version=$2',
+          [team, version]
+        )
+      )[0]!.id;
+      await finishCopy(copy, 5_000_000);
+      await settle(
+        id,
+        2,
+        'https://videos.test/v/' + version.slice(-32) + '.mp4',
+        'r2',
+        video,
+        version
+      );
+      return { id, copy };
+    }
+    const copyState = async (copy: string) =>
+      (
+        await db.root<{ state: string; retire_reason: string | null }>(
+          'select state,retire_reason from private.catalog_video_r2_copies where id=$1',
+          [copy]
+        )
+      )[0];
+    const uses = async (catalogId: string) =>
+      (
+        await db.root<{ n: string }>(
+          'select count(*)::text n from private.catalog_video_r2_uses where catalog_material_id=$1',
+          [catalogId]
+        )
+      )[0]!.n;
+
+    const moved = await onR2('content-v1:' + 'de'.repeat(32));
+    const trashed = await onR2('content-v1:' + 'ef'.repeat(32));
+    const removed = await onR2('content-v1:' + 'fa'.repeat(32));
+    const expired = await onR2('content-v1:' + '9b'.repeat(32));
+    await db.root(
+      "update public.team_materials set lifecycle='missing',missing_reason='out_of_root',missing_at=clock_timestamp() where id=$1",
+      [moved.id]
+    );
+    await db.root(
+      "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp()-interval '29 days' where id=$1",
+      [trashed.id]
+    );
+    await db.root(
+      "update public.team_materials set lifecycle='missing',missing_reason='removed',missing_at=clock_timestamp() where id=$1",
+      [removed.id]
+    );
+    await db.root(
+      "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp()-interval '31 days' where id=$1",
+      [expired.id]
+    );
+
+    await rpc('service_catalog_video_r2_retire_orphans', []);
+    // Moved out of the watched folder or still restorable from the trash: the sheet
+    // still points at the copy, so it stays.
+    expect(await uses(moved.id)).toBe('1');
+    expect(await copyState(moved.copy)).toEqual({ state: 'ready', retire_reason: null });
+    expect(await uses(trashed.id)).toBe('1');
+    expect(await copyState(trashed.copy)).toEqual({ state: 'ready', retire_reason: null });
+    // Deleted for good, or left in the trash past Drive's 30 days: released and retired.
+    expect(await uses(removed.id)).toBe('0');
+    expect(await copyState(removed.copy)).toEqual({
+      state: 'retiring',
+      retire_reason: 'catalog_deleted'
+    });
+    expect(await uses(expired.id)).toBe('0');
+    expect(await copyState(expired.copy)).toEqual({
+      state: 'retiring',
+      retire_reason: 'catalog_deleted'
     });
   });
 });

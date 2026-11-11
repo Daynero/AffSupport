@@ -2770,3 +2770,17 @@ triggers and the three functions, and recreates `service_catalog_video_r2_set_pr
 from `20261207193000`. Jobs already queued by the reconciliation are ordinary publication
 jobs and finish (or are superseded) through the existing publication path. No automatic
 rollback or production data repair is authorized.
+
+### 20261207195500 — R2 copies of catalogs deleted for good (050)
+
+Replaces `service_catalog_video_r2_retire_orphans` so that, before retiring unused copies, it
+deletes the `private.catalog_video_r2_uses` rows of catalogs whose material is `missing` with
+reason `removed`, or `trashed` for more than 30 days. The existing `catalog_video_r2_use_removed`
+trigger then retires a copy no other catalog uses (`catalog_deleted`, 6 h grace) and the sweep
+deletes the object. Catalogs in the trash (under 30 days) and files moved out of the watched
+folder (`out_of_root`) keep their copies.
+
+Rolling back means a reviewed forward migration that recreates the function from
+`20261207193000`. Use rows already released are not restored: a catalog that becomes active
+again plans a fresh copy through the normal reconciliation. No automatic rollback or
+production data repair is authorized.
