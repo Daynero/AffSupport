@@ -7,7 +7,11 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import type { LaunchDetail } from '../packages/shared/src/team/launches';
+import type {
+  LaunchDetail,
+  LaunchDraft,
+  LaunchSourceSnapshot
+} from '../packages/shared/src/team/launches';
 import { launchValuesEqual } from '../packages/shared/src/team/launches/revisions';
 import { useLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
 import {
@@ -31,19 +35,27 @@ const shortDraft = () =>
     }
   });
 
-const sources = { ...launchSources, schemaVersion: 1 as const, catalogSettingsVersion: null };
+const ids = launchConfig();
+const sources: LaunchSourceSnapshot = {
+  ...launchSources,
+  schemaVersion: 1,
+  agentRowId: ids.agentRowId,
+  offerId: ids.offerId,
+  buyerId: ids.buyerId,
+  materialId: ids.materialId,
+  catalogSettingsVersion: null
+};
 
-const detail = (draft: ReturnType<typeof launchConfig>, version: string): LaunchDetail =>
-  ({
-    id: 'launch',
-    version,
-    draft,
-    expectedSourceSnapshot: sources,
-    assigneeId: null,
-    workStatus: 'todo',
-    activeRevision: null,
-    generation: null
-  }) as unknown as LaunchDetail;
+const detail = (draft: LaunchDraft, version: string): LaunchDetail => ({
+  id: 'launch',
+  version,
+  draft,
+  expectedSourceSnapshot: sources,
+  assigneeId: null,
+  workStatus: 'todo',
+  activeRevision: null,
+  generation: null
+});
 
 it('fills the catalog video fields a generation sends, and leaves other launches alone', () => {
   const filled = withCatalogGenerationDefaults(shortDraft());
