@@ -2847,6 +2847,16 @@ restoring the previous settlement body through a reviewed forward migration and 
 that no longer calls the absence note, then dropping the function and the table; generations
 already settled stay canceled and need no repair.
 
+### 20261207301000 — a failed variant's ended upload cleanup no longer blocks its set
+
+Adds `private.process_upload_settled(operation)` and patches `private.catalog_video_cancel_quiescent`,
+`private.retry_failed_catalog_video_variant` and `public.service_settle_catalog_video_cancellations`:
+an upload ownership blocks only while its operation is live or its cleanup is still running; a
+cleanup that has not ended 24 hours after the operation finished is recorded as `attention`
+(nothing in Drive is touched). Rolling back means restoring the earlier bodies of the three
+functions through a reviewed forward migration; sets already canceled or variants already
+requeued stay as they are, and ownership rows moved to `attention` keep that recorded outcome.
+
 ### 20261207320000 — a retired variant operation releases its output name
 
 Adds two triggers on `public.team_operations`: entering a terminal state stamps
