@@ -317,3 +317,87 @@ it('combines parent progress and child checkpoint into one RPC while retaining b
     create.mockRestore();
   }
 });
+
+const claimedCatalog = (name: string) =>
+  name === 'service_claim_launch_generation'
+    ? {
+        state: 'running',
+        catalogImageContractVersion: 2,
+        fence: '2',
+        config: launchConfig({ method: 'catalog' }),
+        sources: launchSources,
+        advertisingUrl: 'https://example.invalid/'
+      }
+    : name === 'service_restore_registered_launch_catalog'
+      ? true
+      : null;
+const executionDeps = (rpc: LaunchCatalogExecutionDeps['service']['rpc']) => ({
+  service: { rpc },
+  catalog: {} as LaunchCatalogExecutionDeps['catalog'],
+  driveFor: vi.fn(),
+  proveSource: vi.fn(),
+  proveCatalog: vi.fn()
+});
+
+it('leaves a generation whose lease moved to another executor running instead of stopping it', async () => {
+  // Beta 2026-11-11 S9b: the losing executor stamped the winner's generation
+  // with LEASE_MISMATCH, so a launch whose catalog was committed read as stopped.
+  const rpc = vi.fn(async (name: string) =>
+    name === 'service_publish_launch_generation'
+      ? { data: null, error: { message: 'LEASE_MISMATCH' } }
+      : { data: claimedCatalog(name), error: null }
+  );
+  await expect(
+    executeLaunchCatalog(executionDeps(rpc), 'team', 'generation', 'actor')
+  ).resolves.toEqual({ id: 'generation', state: 'running' });
+  expect(rpc.mock.calls.map(([name]) => name)).not.toContain('service_interrupt_launch_generation');
+});
+
+it('still stops the generation with the real code for any other failure', async () => {
+  const rpc = vi.fn(async (name: string) =>
+    name === 'service_publish_launch_generation'
+      ? { data: null, error: { message: 'NOT_FOUND' } }
+      : { data: claimedCatalog(name), error: null }
+  );
+  await expect(
+    executeLaunchCatalog(executionDeps(rpc), 'team', 'generation', 'actor')
+  ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  expect(rpc).toHaveBeenCalledWith(
+    'service_interrupt_launch_generation',
+    expect.objectContaining({ p_code: 'NOT_FOUND' })
+  );
+});
+
+it('keeps the generation lease alive while a slow step runs and stops beating after it', async () => {
+  vi.useFakeTimers();
+  try {
+    let release!: () => void;
+    const slow = new Promise<void>(resolve => (release = resolve));
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'service_restore_registered_launch_catalog') await slow;
+      return {
+        data:
+          name === 'service_publish_launch_generation'
+            ? { state: 'succeeded' }
+            : claimedCatalog(name),
+        error: null
+      };
+    });
+    const touches = () =>
+      rpc.mock.calls.filter(([name]) => name === 'service_touch_launch_generation').length;
+    const run = executeLaunchCatalog(executionDeps(rpc), 'team', 'generation', 'actor');
+    await vi.advanceTimersByTimeAsync(130_000);
+    expect(touches()).toBe(2);
+    expect(rpc).toHaveBeenCalledWith(
+      'service_touch_launch_generation',
+      expect.objectContaining({ p_generation: 'generation', p_fence: '2', p_stage: 'preparing' })
+    );
+    release();
+    await expect(run).resolves.toEqual({ state: 'succeeded' });
+    const settled = touches();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(touches()).toBe(settled);
+  } finally {
+    vi.useRealTimers();
+  }
+});

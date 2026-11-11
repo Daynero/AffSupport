@@ -62,6 +62,9 @@ async function call(
     );
   return data;
 }
+/** Below the 180 s generation lease, with room for one missed beat. */
+export const LAUNCH_LEASE_HEARTBEAT_MS = 60_000;
+const LAUNCH_LEASE_LOST = new Set(['LEASE_MISMATCH', 'LAUNCH_BUSY', 'GROUP_RECONCILING']);
 export async function executeLaunchCatalog(
   deps: LaunchCatalogExecutionDeps,
   teamId: string,
@@ -191,6 +194,16 @@ export async function executeLaunchCatalog(
     await call(deps.service, 'service_wait_launch_catalog_video', authority);
     return stillUnknown ? ('failed' as const) : ('waiting' as const);
   };
+  // A slow catalog step (Drive upload or sharing under load) can outlast the
+  // 180 s generation lease; recovery then claims the same generation and the two
+  // executors fence each other out (LEASE_MISMATCH). Keep the lease alive while
+  // this executor is working.
+  const heartbeat = setInterval(() => {
+    void call(deps.service, 'service_touch_launch_generation', {
+      ...authority,
+      p_stage: currentStage
+    }).catch(() => undefined);
+  }, LAUNCH_LEASE_HEARTBEAT_MS);
   try {
     // A verified blank catalog may precede its N outputs. Retain that exact receipt
     // and release the parent lease instead of attempting the ready-only attach.
@@ -454,10 +467,17 @@ export async function executeLaunchCatalog(
       p_fence: fence
     });
   } catch (error) {
+    const failure = launchFailure(error);
+    // A lost lease means another executor owns this generation now: stopping it
+    // here would stamp the winner's generation with a stale LEASE_MISMATCH and
+    // show the person "Генерацію зупинено" while it is in fact continuing.
+    if (LAUNCH_LEASE_LOST.has(failure.code)) return { id: generationId, state: 'running' };
     await call(deps.service, 'service_interrupt_launch_generation', {
       ...authority,
-      p_code: launchFailure(error).code
+      p_code: failure.code
     }).catch(() => undefined);
-    throw launchFailure(error);
+    throw failure;
+  } finally {
+    clearInterval(heartbeat);
   }
 }

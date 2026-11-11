@@ -1,6 +1,7 @@
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { launchFailure, launchFailureFrames } from '../_shared/launch-failures.ts';
 import { readAcceptedInitialCatalogRequest } from './catalog-video-generation.ts';
 const uuid = (value: unknown): value is string =>
   typeof value === 'string' &&
@@ -50,8 +51,28 @@ export async function runInitialCatalogRecovery(
       )
         result.completed++;
       else result.pending++;
-    } catch {
+    } catch (error) {
       result.pending++;
+      // Never silent: name the closed code and code frames (no content), and
+      // spend a paced attempt so a failure before the claim cannot relist the
+      // same intent on every pass forever.
+      const code = launchFailure(error).code;
+      console.error(
+        '[catalog] initial recovery pass failed',
+        item.idempotencyKey,
+        code,
+        launchFailureFrames(error)
+      );
+      try {
+        await service.rpc('service_defer_initial_catalog_recovery', {
+          p_team: item.teamId,
+          p_actor: item.actorId,
+          p_key: item.idempotencyKey,
+          p_code: code
+        });
+      } catch {
+        // The next pass retries; the failure itself is already logged.
+      }
     }
   }
   return result;
