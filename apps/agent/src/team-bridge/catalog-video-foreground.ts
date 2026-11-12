@@ -45,6 +45,14 @@ export class CatalogVideoForegroundController {
   #entries = new Map<string, Entry>();
   #running = new Map<string, { abort: AbortController; task: Promise<void> }>();
   #serial: Promise<unknown> = Promise.resolve();
+  /**
+   * Prepares queue among themselves, not behind attaches. A prepare is local (an entry and a
+   * journal write); an attach waits on the network for up to 30 s per call, and a prepare
+   * queued behind one answered after the browser's command deadline: «Сервер відповідає
+   * повільно» with nothing sent (production 2026-11-12, a slow connection). Journal writes
+   * stay ordered by the vault, and each commits the whole in-memory journal.
+   */
+  #prepareSerial: Promise<unknown> = Promise.resolve();
   #faulted = false;
   /** The journal could not be read at startup: never cleared, nothing may be minted over it. */
   #loadFaulted = false;
@@ -183,7 +191,7 @@ export class CatalogVideoForegroundController {
     return actor;
   }
   prepare(raw: unknown): Promise<CatalogVideoForegroundExecutor> {
-    const work = this.#serial.then(async () => {
+    const work = this.#prepareSerial.then(async () => {
       await this.#heal();
       const binding = parseCatalogVideoForegroundBinding(raw),
         actorId = this.#actor();
@@ -236,7 +244,7 @@ export class CatalogVideoForegroundController {
       this.#arm(this.#entries.get(receipt.enrollmentId)!);
       return { ...receipt };
     });
-    this.#serial = work.catch(() => {});
+    this.#prepareSerial = work.catch(() => {});
     return work;
   }
   attach(raw: unknown) {

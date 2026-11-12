@@ -799,3 +799,46 @@ it('macOS keeps a startup read fault until restart', async () => {
   await expect(controller.load()).rejects.toThrow();
   await expect(controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
 });
+it('a prepare answers while an attach still waits on the network', async () => {
+  // Production 2026-11-12 (a slow connection): a prepare queued behind an attach's redeem
+  // answered after the browser's command deadline, «server slow» with nothing sent.
+  const f = fixture();
+  const first = await f.controller.prepare(binding);
+  let release!: () => void;
+  f.redeem.mockImplementationOnce(
+    body =>
+      new Promise(resolve => {
+        release = () =>
+          resolve({
+            ...body,
+            executorId: body.enrollmentId,
+            executionNativeInstanceId: body.executionNativeInstanceId,
+            actorId: id(4),
+            teamId: binding.teamId,
+            sourceMaterialId: binding.sourceMaterialId,
+            requestKey: binding.requestKey,
+            expectedVersion: null,
+            ticket: 't'.repeat(43)
+          });
+      })
+  );
+  const attaching = f.controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(50),
+    enrollmentId: first.enrollmentId,
+    nativeInstanceId: first.nativeInstanceId
+  });
+  await vi.waitFor(() => expect(f.redeem).toHaveBeenCalledTimes(1));
+  const other = await f.controller.prepare(second);
+  expect(other.enrollmentId).not.toBe(first.enrollmentId);
+  release();
+  await attaching;
+  // Both survive in the journal: the attach's later write carries the new entry too.
+  const saved = f.saved() as Array<{ receipt: { enrollmentId: string }; setId?: string }>;
+  expect(saved.map(e => e.receipt.enrollmentId).sort()).toEqual(
+    [first.enrollmentId, other.enrollmentId].sort()
+  );
+  expect(saved.find(e => e.receipt.enrollmentId === first.enrollmentId)?.setId).toBe(id(50));
+  await f.controller.shutdown();
+});
