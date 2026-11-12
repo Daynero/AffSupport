@@ -6,6 +6,7 @@ import {
   CatalogRowStage,
   useSteadyStage
 } from '../apps/web/src/team/catalog-updater/CatalogRowStage';
+import { catalogRowProgress } from '../apps/web/src/team/catalog-updater/CatalogProgressRow';
 import type { CatalogRegistryRow } from '../apps/web/src/api/team';
 import type { TranslationKey } from '../apps/web/src/i18n';
 
@@ -64,4 +65,19 @@ it('does not step back to «Checking the sheet» once the round has saved and re
   } as unknown as CatalogRegistryRow;
   view.rerender(<CatalogRowStage row={checking} fallback="catalogUpdaterStageVerifying" />);
   expect(view.container.textContent).toBe('Saving the completed update…');
+});
+
+it('moves past the video stage once every video of the round is made (1.4.3 next)', () => {
+  const base = {
+    catalogId: 'c',
+    updatePending: true,
+    videoGeneration: { setId: 's', requestedCount: 2, registeredCount: 2, state: 'ready' }
+  };
+  for (const updateStage of ['restitching', 'waiting_video', 'preparing', null])
+    expect(catalogRowProgress({ ...base, updateStage } as never).label).toBe(
+      'catalogUpdaterStageBuilding'
+    );
+  expect(catalogRowProgress({ ...base, updateStage: 'verifying' } as never).label).toBe(
+    'catalogUpdaterStageVerifying'
+  );
 });

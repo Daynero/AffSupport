@@ -26,7 +26,7 @@ let preferenceUserId = 'catalog-user-a';
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
-const { CreateProductCatalogDialog } =
+const { CreateProductCatalogDialog, CATALOG_VIDEO_RESUME_GRACE_MS } =
   await import('../apps/web/src/team/product-catalog/CreateProductCatalogDialog');
 const { ProductCatalogMenuDialog } =
   await import('../apps/web/src/team/product-catalog/ProductCatalogMenuDialog');
@@ -1458,6 +1458,30 @@ describe('beta durable video creation', () => {
     await startVideo(client);
     expect(await screen.findByText('Videos ready: 1 of 1')).toBeTruthy();
     expect(screen.queryByText(/is not responding/)).toBeNull();
+  });
+  it('waits out the grace period before offering to continue a catalog whose videos are ready', async () => {
+    // 1.4.3 on next: «Продовжити створення каталогу» flashed while the server was
+    // already registering the catalog on its own, 16 s after the videos were ready.
+    const ready = { ...pending, requestedCount: 2, registeredCount: 2 };
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(ready),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(ready),
+      resumeProductCatalogVideo: vi.fn().mockResolvedValue(ready)
+    });
+    // The grace timer is armed when the count first reads 2 of 2: fake the clock first.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await startVideo(client);
+      expect(await screen.findByText('Videos ready: 2 of 2')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Continue catalog creation' })).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CATALOG_VIDEO_RESUME_GRACE_MS + 100);
+      });
+      expect(screen.getByRole('button', { name: 'Continue catalog creation' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('does not call a heartbeating agent silent', async () => {
     const client = dialogClient({

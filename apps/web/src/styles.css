@@ -19939,13 +19939,27 @@ a.history-subject {
 .catalog-publication-controls[hidden] {
   display: none;
 }
-/* The schedule's toggle names the field on one line and keeps the chosen time at body
-   size: the panel heading's sizes wrapped «Дата додавання посилання» onto two lines. */
-.catalog-publication-schedule .settings-collapse > span:not(.settings-summary) {
-  white-space: nowrap;
+/* The schedule's toggle: the field name and the chosen time are two separate flex
+   items in a row that wraps. The name keeps its line; the time takes the rest of the
+   row and wraps inside its own box, or drops under the name when the row is too
+   narrow — they never share pixels (1.4.3 next: a nowrap name ran under the time). */
+.catalog-publication-schedule .settings-collapse {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
 }
-.catalog-publication-schedule .settings-summary {
+.catalog-publication-schedule .catalog-publication-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.catalog-publication-schedule .catalog-publication-when {
+  display: block;
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin-left: 0;
   font-size: var(--text-body);
+  text-align: end;
+  overflow-wrap: anywhere;
 }
 /* «Опублікувати посилання зараз?» and its two answers, in one quiet row. */
 .catalog-publication-confirm {

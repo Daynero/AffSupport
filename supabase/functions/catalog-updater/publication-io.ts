@@ -351,6 +351,7 @@ export function createTargetedCatalogPublicationIo(
         p_limit: 1
       });
       if (!Array.isArray(pending) || pending.length > 1) throw uncertain();
+      let prepared = 0;
       for (const scope of pending) {
         if (!isRecord(scope)) throw uncertain();
         const verified = {
@@ -381,7 +382,9 @@ export function createTargetedCatalogPublicationIo(
             p_error_code: failure
           });
         }
+        if (failure === null) prepared += 1;
       }
+      return prepared;
     },
     async apply(_item, fence, scope) {
       if (!scope) throw uncertain();

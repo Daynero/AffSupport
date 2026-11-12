@@ -72,8 +72,10 @@ export function CatalogPublicationSchedule({
             onClick={() => setOpen(value => !value)}
           >
             <CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            <span>{t('catalogPublicationDate')}</span>
-            <span className="settings-summary">{summary}</span>
+            <span className="catalog-publication-label">{t('catalogPublicationDate')}</span>
+            <span className="settings-summary catalog-publication-when" title={summary}>
+              {summary}
+            </span>
             <ChevronDown
               size={ICON_SIZE}
               strokeWidth={ICON_STROKE}

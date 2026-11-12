@@ -41,6 +41,19 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
     };
   }
   if (!row.updatePending) return { active: false, value: 0, label: 'catalogUpdaterUpdatingNow' };
+  // The round's videos are all made: whatever a lingering re-stitch record says, the
+  // round has moved on to the table (1.4.3 next: «Готуємо відео для заміни…» stayed
+  // from the videos being ready until success).
+  const videosMade =
+    generation?.state === 'ready' && generation.registeredCount >= generation.requestedCount;
+  if (
+    videosMade &&
+    (row.updateStage === 'waiting_video' ||
+      row.updateStage === 'restitching' ||
+      row.updateStage === 'preparing' ||
+      !row.updateStage)
+  )
+    return { active: true, value: STAGES.building[0], label: STAGES.building[1] };
   if (row.updateStage === 'waiting_video')
     return { active: true, value: 0.04, label: 'catalogUpdaterVideoWaiting' };
   if (row.updateStage === 'restitching')

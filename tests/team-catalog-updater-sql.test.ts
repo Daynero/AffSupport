@@ -1235,6 +1235,38 @@ describe('the worker’s address and grants', () => {
     );
     expect((await registry(item.sheet)).update_stage).toBe('preparing');
   }, 60000);
+  it('follows the round stage whichever worker recorded it after the round became due (1.4.3 next)', async () => {
+    // next: the row read «Готуємо відео для заміни…» until success while the round had moved on.
+    const item = await catalog('stage from another worker');
+    const stage = async () =>
+      (
+        await harness.asUser<{ update_stage: string | null }>(
+          OWNER,
+          'select update_stage from public.list_team_product_catalogs($1) where catalog_id=$2',
+          [teamId, item.sheet]
+        )
+      )[0]!.update_stage;
+    await harness.asUser(OWNER, 'select public.run_team_catalog_update_now($1,$2)', [
+      teamId,
+      [item.sheet]
+    ]);
+    await claim('stage-owner-worker', 100);
+    // A round claimed again by another worker keeps what the first one recorded for it.
+    await harness.root("select public.service_set_catalog_update_progress($1,$2,'building')", [
+      item.sheet,
+      'stage-owner-worker'
+    ]);
+    await harness.root(
+      "update public.team_catalog_updater_items set lease_owner='stage-other-worker' where catalog_material_id=$1",
+      [item.sheet]
+    );
+    expect(await stage()).toBe('building');
+    await harness.root(
+      "update private.catalog_update_progress set updated_at='2000-01-01' where catalog_material_id=$1",
+      [item.sheet]
+    );
+    expect(await stage()).toBe('preparing');
+  }, 60000);
   it('does not cancel a newer round when the stop used an older observed identity', async () => {
     const item = await catalog('cancel round fence');
     const pending = async () =>

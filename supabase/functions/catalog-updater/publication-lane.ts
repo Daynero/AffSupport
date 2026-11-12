@@ -70,9 +70,35 @@ export async function runCatalogPublicationLane(
     }
     return drive;
   };
-  return runCatalogPublicationScheduler({
-    service,
-    workerId,
-    io: createTargetedCatalogPublicationIo(service, workerId, driveFor)
-  });
+  const io = createTargetedCatalogPublicationIo(service, workerId, driveFor);
+  return runPublicationPasses(() => runCatalogPublicationScheduler({ service, workerId, io }));
+}
+
+/** How many scheduler passes one lane call may chain, and for how long. */
+export const PUBLICATION_LANE_PASSES = 3;
+export const PUBLICATION_LANE_BUDGET_MS = 8_000;
+
+type PassResult = Awaited<ReturnType<typeof runCatalogPublicationScheduler>>;
+
+/**
+ * A due link used to take three ten-second ticks: one turned the policy into a job,
+ * the next froze its payload, the third dispatched and verified it (38 s after due on
+ * next, 1.4.3). While a pass leaves work it moved but did not finish, the same call
+ * runs the next pass at once, within a small budget. Fences and leases are each
+ * pass's own; chaining only removes the wait between them.
+ */
+export async function runPublicationPasses(
+  pass: () => Promise<PassResult>,
+  clock: () => number = Date.now
+): Promise<PassResult> {
+  const started = clock();
+  let result = await pass();
+  for (let done = 1; done < PUBLICATION_LANE_PASSES; done++) {
+    if (!result.enabled) break;
+    const unsettled = result.claimed - result.verified - result.preserved - result.blocked;
+    if (result.prepared <= 0 && unsettled <= 0) break;
+    if (clock() - started >= PUBLICATION_LANE_BUDGET_MS) break;
+    result = await pass();
+  }
+  return result;
 }

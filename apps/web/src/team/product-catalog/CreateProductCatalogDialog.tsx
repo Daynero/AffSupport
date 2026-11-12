@@ -120,6 +120,12 @@ type Phase =
 
 const VIDEO_READBACK_INITIAL_MS = 3_000;
 const VIDEO_READBACK_MAX_MS = 30_000;
+/** While videos are still being made the count is what the person watches: never
+ * let the readback drift past this (1.4.3 next showed «1 з 2» for ~20 s). */
+const VIDEO_READBACK_ACTIVE_MAX_MS = 4_000;
+/** All videos ready: the server registers the catalog by itself within seconds.
+ * Offer the manual nudge only once it has visibly not happened. */
+export const CATALOG_VIDEO_RESUME_GRACE_MS = 40_000;
 const CATALOG_VIDEO_READ_DEADLINE_MS = 10_000;
 /** How long an unconfirmed creation is read calmly before it is called unconfirmed. */
 export const CREATION_UNCERTAIN_PATIENCE_MS = 20_000;
@@ -329,6 +335,8 @@ export function CreateProductCatalogDialog({
     zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Kyiv'
   });
   const [videoPending, setVideoPending] = useState<CatalogVideoPreparingResult | null>(null);
+  const videoPendingRef = useRef<CatalogVideoPreparingResult | null>(null);
+  videoPendingRef.current = videoPending;
   const [videoUnknown, setVideoUnknown] = useState(false);
   // The last progress read failed on the line, not on the work; the shown state stands.
   const [readInterrupted, setReadInterrupted] = useState(false);
@@ -917,6 +925,20 @@ export function CreateProductCatalogDialog({
   useEffect(() => {
     if (videoProtocol && videoKey.current) void checkVideoRef.current();
   }, [videoProtocol, workspaceRevision, updaterRevision]);
+  // All videos are ready and the catalog is not registered yet: normally the server
+  // does it within seconds, so the nudge waits out a grace period first.
+  const allVideosReady = Boolean(
+    videoPending?.state === 'preparing' &&
+    videoPending.registeredCount === videoPending.requestedCount
+  );
+  const [resumeOffered, setResumeOffered] = useState(false);
+  useEffect(() => {
+    setResumeOffered(false);
+    if (!allVideosReady) return;
+    readSoon.current = Date.now() + CREATION_FAST_READ_WINDOW_MS;
+    const timer = setTimeout(() => setResumeOffered(true), CATALOG_VIDEO_RESUME_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [allVideosReady]);
   const videoWatching = Boolean(
     videoProtocol &&
     (videoPending ||
@@ -932,10 +954,13 @@ export function CreateProductCatalogDialog({
     let delay = VIDEO_READBACK_INITIAL_MS;
     let timer = setTimeout(function tick() {
       if (videoKey.current) void checkVideoRef.current();
+      const pending = videoPendingRef.current;
+      const making =
+        pending?.state === 'preparing' && pending.registeredCount < pending.requestedCount;
       delay =
         Date.now() < readSoon.current
           ? VIDEO_READBACK_INITIAL_MS
-          : Math.min(delay * 2, VIDEO_READBACK_MAX_MS);
+          : Math.min(delay * 2, making ? VIDEO_READBACK_ACTIVE_MAX_MS : VIDEO_READBACK_MAX_MS);
       timer = setTimeout(tick, delay);
     }, delay);
     return () => clearTimeout(timer);
@@ -1359,9 +1384,7 @@ export function CreateProductCatalogDialog({
               <InventoryButton type="button" onClick={() => void checkVideo()}>
                 {t('catalogPublicationCheck')}
               </InventoryButton>
-              {(showVideoUnknown ||
-                (videoPending?.state === 'preparing' &&
-                  videoPending.registeredCount === videoPending.requestedCount)) && (
+              {(showVideoUnknown || (allVideosReady && resumeOffered)) && (
                 <InventoryButton type="button" onClick={() => void checkVideo(false, true)}>
                   {t('catalogVideoResume')}
                 </InventoryButton>

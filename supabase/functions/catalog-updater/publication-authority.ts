@@ -14,7 +14,8 @@ export interface CatalogPublicationIo {
   /** Explicit policy ratification is supplied by the integrating worker. This
    * adapter has no unconditional-write fallback or implicit policy default. */
   writerPolicy: 'soty_owned_video_cells' | 'immutable_new_catalog' | 'targeted_video_cells';
-  preparePending?(): Promise<void>;
+  /** Freezes at most one due job's payload; answers how many it prepared. */
+  preparePending?(): Promise<number | void>;
   availability(
     item: CatalogDuePublication,
     scope: Readonly<{ teamId: string; actorId: string; jobId: string }>
@@ -229,7 +230,7 @@ export async function runCatalogPublicationScheduler(input: {
       blockedCount: result.data
     };
   }
-  await input.io.preparePending?.();
+  const prepared = (await input.io.preparePending?.()) ?? 0;
   if (input.io.writerPolicy === 'targeted_video_cells') {
     const revived = await input.service.rpc('service_requeue_catalog_publication_cell_jobs', {});
     if (
@@ -243,6 +244,7 @@ export async function runCatalogPublicationScheduler(input: {
   }
   return {
     enabled: true as const,
+    prepared,
     ...(await runCatalogPublicationTick(
       createCatalogPublicationAuthority(input.service, input.workerId, input.io),
       3

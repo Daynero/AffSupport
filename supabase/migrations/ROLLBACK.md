@@ -3023,3 +3023,11 @@ Adds `private.catalog_ready_set_wakes_launch()` and its trigger on `private.cata
 becoming ready makes a catalog launch generation waiting on its own backoff due at once and dispatches
 the launch recovery route through pg_net (best effort). Rolling back means dropping the trigger and
 the function; launches then wait for their backoff and the per-minute recovery pass again.
+
+### 20261207399990 — the manager row follows its round's stages
+
+Patches `public.list_team_product_catalogs` (through `pg_get_functiondef`, failing if either
+text it replaces is missing): progress recorded after the round became due is read whichever
+worker wrote it, and a re-stitch record counts as 'restitching' only while its lease is live.
+Read-only change to a listing; rolling back means restoring the previous body (the one left
+by 20261207398000) through a reviewed forward migration.
