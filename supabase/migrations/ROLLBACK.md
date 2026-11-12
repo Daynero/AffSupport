@@ -3042,6 +3042,14 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207400300 — a review flag nothing backs clears itself
+
+Adds `private.clear_stale_catalog_review_flags(integer)`, runs it once and schedules it as
+`soty-catalog-stale-review-flags` every ten minutes: `CATALOG_ATTEMPT_STATE_INCONSISTENT` is
+cleared on a catalog with no item waiting for reconciliation, no reconciliation row and no
+running or unknown attempt. Rolling back means unscheduling the job and dropping the function;
+flags already cleared stay cleared (the attempts keep their history).
+
 ### 20261207400200 — trashing a catalog deletes its R2 copy at once
 
 Adds `private.catalog_video_r2_release_removed(uuid)` and the trigger
