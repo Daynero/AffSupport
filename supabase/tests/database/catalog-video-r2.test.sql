@@ -15,7 +15,7 @@ select ok(not has_table_privilege('authenticated','private.catalog_video_r2_copi
 select ok(not has_table_privilege('service_role','private.catalog_video_r2_copies','SELECT'),'service role reaches copies only through RPC');
 select ok(not has_function_privilege('authenticated','public.service_catalog_video_r2_claim(text)','EXECUTE'),'browser cannot claim worker copies');
 select ok(not has_function_privilege('anon','public.service_catalog_video_r2_set_preference(uuid,uuid,boolean)','EXECUTE'),'anonymous cannot change the option');
-select ok(not has_function_privilege('authenticated','public.service_catalog_video_r2_resolve(uuid,uuid,text,bigint,text,text)','EXECUTE'),'browser cannot resolve links');
+select ok(not has_function_privilege('authenticated','public.service_catalog_video_r2_resolve(uuid,uuid,text,bigint,text,text,uuid,uuid,boolean)','EXECUTE'),'browser cannot resolve links');
 select ok(has_function_privilege('service_role','public.service_record_catalog_publication_link(uuid,uuid,uuid,text,text,text)','EXECUTE'),'service role records receipts through the replaced RPC');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='service_record_catalog_publication_link'),1,'exactly one receipt RPC remains (no ambiguous overload)');
 select ok((select pg_get_function_arguments(p.oid) like '%p_link_kind text DEFAULT ''drive''%' from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='service_record_catalog_publication_link'),'five-argument callers keep working through the default');
