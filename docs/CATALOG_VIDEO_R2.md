@@ -58,7 +58,8 @@ therefore works through that one writer (`20261207195000_catalog_video_r2_republ
   cannot be restored, the Soty trash does not list it (the sheet still goes to the Google Drive
   trash), and every sweep (5 min) releases the uses of catalogs that are `trashed` or `missing`
   with reason `removed`. A copy no other catalog uses is deleted in the same sweep, without the
-  6 h grace. A sheet moved out of the watched folder (`out_of_root`) keeps its copy. A sheet
+  6 h grace. Since 20261207400200 the trash itself releases the catalog's uses and wakes the
+  sweep, so the copy is gone within seconds. A sheet moved out of the watched folder (`out_of_root`) keeps its copy. A sheet
   restored from the Drive trash by hand has dead R2 links: the minute reconciliation rewrites
   them to Drive at once (no 10-minute throttle) and plans a fresh copy, which moves the cells
   back to R2. A retiring copy under a delete lease is never revived.
