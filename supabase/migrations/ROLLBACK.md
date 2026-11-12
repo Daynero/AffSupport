@@ -3042,6 +3042,14 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207400400 — a publication that can no longer be verified closes
+
+Adds `private.close_unverifiable_catalog_publications(integer)`, runs it once and schedules it as
+`soty-catalog-unverifiable-publications` every ten minutes: a dispatched job still `unknown` two
+hours later whose last verification said `SOURCE_CHANGED` becomes `blocked` / `stale_job`, and the
+update reconciliation waiting on it is deleted. Rolling back means unscheduling the job and
+dropping the function; jobs already closed stay closed and the next publication rewrites the cells.
+
 ### 20261207400300 — a review flag nothing backs clears itself
 
 Adds `private.clear_stale_catalog_review_flags(integer)`, runs it once and schedules it as
