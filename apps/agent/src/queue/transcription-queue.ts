@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
   TranscriptionAttemptJournal,
-  transcriptionDiagnosticRunId
+  transcriptionDiagnosticRunId,
+  transcriptionFailureDetail,
+  type TranscriptionFailureDetail
 } from '../transcription/diagnostics.js';
 import { access, constants, readdir, rm, stat, unlink } from 'node:fs/promises';
 import { currentPlatform } from '../platform/platform.js';
@@ -1007,6 +1009,7 @@ export class TranscriptionQueue {
         transcriptionDiagnosticRunId(job.id, job.sourceKey)
       );
     journal.stage('input');
+    let failureDetail: TranscriptionFailureDetail | null = null;
     // A file the person started before its guess landed still gets it, and any other
     // file's probe steps aside for this run.
     await this.settleLanguageProbe(job.id);
@@ -1136,6 +1139,7 @@ export class TranscriptionQueue {
             ? 'The audio track could not be prepared.'
             : 'The transcription engine failed.';
         job.errorCode = transcriptionRunErrorCode(result);
+        failureDetail = transcriptionFailureDetail(result);
         job.errorDetails = result.stderr.slice(-4_000) || result.spawnErrorCode;
         job.finishedAt = Date.now();
       }
@@ -1156,7 +1160,8 @@ export class TranscriptionQueue {
           : job.status === 'cancelled'
             ? 'cancelled'
             : 'failure',
-        job.errorCode
+        job.errorCode,
+        job.status === 'failed' ? failureDetail : null
       );
       this.attemptJournals.delete(job.id);
       delete job.phase;
