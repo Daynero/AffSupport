@@ -90,6 +90,24 @@ async function collect() {
 }
 
 describe('DiagnosticsBundle', () => {
+  it('collects the newest records of a long journal, not its first page', async () => {
+    // Production 2026-11-12 (Windows support): the bundle carried the oldest 200 records,
+    // hours before the failure being reported, so it showed nothing of it.
+    fetchAgentDiagnostics.mockImplementation(async (since: number) =>
+      since > 1_000_000 ? { ...journal, log: [], nextSeq: 10_400 } : journal
+    );
+    render(<DiagnosticsBundle />);
+    await collect();
+    expect(fetchAgentDiagnostics).toHaveBeenNthCalledWith(
+      1,
+      999_999_999_999_999,
+      1,
+      undefined,
+      true
+    );
+    expect(fetchAgentDiagnostics).toHaveBeenLastCalledWith(10_200, 200, undefined, true);
+  });
+
   it('renders the collect button and asks the agent for the last 200 records', async () => {
     fetchAgentDiagnostics.mockResolvedValue(journal);
     render(<DiagnosticsBundle />);
@@ -100,8 +118,10 @@ describe('DiagnosticsBundle', () => {
     const shown = await collect();
     const bundle = JSON.parse(shown);
 
-    expect(fetchAgentDiagnostics).toHaveBeenCalledTimes(1);
-    expect(fetchAgentDiagnostics).toHaveBeenCalledWith(0, 200, undefined, true);
+    // The first call finds the end of the journal; the journal here has no nextSeq (an
+    // older agent), so the page falls back to the start exactly as before.
+    expect(fetchAgentDiagnostics).toHaveBeenCalledTimes(2);
+    expect(fetchAgentDiagnostics).toHaveBeenLastCalledWith(0, 200, undefined, true);
     expect(fetchSpy).not.toHaveBeenCalled();
 
     expect(bundle.agent.log).toHaveLength(2);
@@ -247,7 +267,7 @@ describe('DiagnosticsBundle', () => {
     expect(analyticsTrack).toHaveBeenCalledWith('diagnostics_copied', {
       action_identifier: 'copy_bundle'
     });
-    expect(fetchAgentDiagnostics).toHaveBeenCalledTimes(1);
+    expect(fetchAgentDiagnostics).toHaveBeenCalledTimes(2);
     expect(fetchSpy).not.toHaveBeenCalled();
     stubClipboard(undefined);
   });
