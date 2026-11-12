@@ -159,3 +159,19 @@ it('requests termination of an unresponsive native store at its timeout and repo
   await failure;
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it('gives the cold Windows PowerShell store 30 seconds, keeping macOS at 10', async () => {
+  vi.useFakeTimers();
+  platform('win32');
+  vi.stubEnv('APPDATA', 'C:\\Synthetic\\Roaming');
+  const process = child();
+  native.spawn.mockReturnValueOnce(process);
+  const assertion = expect(recoveryCredential('read', ACCOUNT)).rejects.toThrow('AGENT_REQUIRED');
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(process.kill).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(20_000);
+  expect(process.kill).toHaveBeenCalledOnce();
+  process.emit('close', 1);
+  await assertion;
+  expect(vi.getTimerCount()).toBe(0);
+});

@@ -951,16 +951,27 @@ try { [IO.File]::WriteAllBytes($t,$b); Move-Item -LiteralPath $t -Destination $p
       '-EncodedCommand',
       Buffer.from(script, 'utf16le').toString('base64')
     ],
-    JSON.stringify({ action, file, value })
+    JSON.stringify({ action, file, value }),
+    WINDOWS_SECRET_TIMEOUT_MS
   );
   if (result.code !== 0) throw new Error('AGENT_REQUIRED');
   return action === 'read' ? result.output || null : null;
 }
 
+/**
+ * Production 2026-11-12 (Windows, 1.4.3): every DPAPI call is a cold Windows
+ * PowerShell 5.1 start. It takes 0.7 s on an idle laptop, but a local stitch at
+ * full CPU starves it past the 10 s the macOS `security` CLI is given, the store
+ * is killed, and the catalog restitch vault stays faulted until the agent
+ * restarts — every catalog creation with restitch answered 409 for hours.
+ */
+export const WINDOWS_SECRET_TIMEOUT_MS = 30_000;
+
 function nativeSecretCommand(
   command: string,
   args: string[],
-  input?: string
+  input?: string,
+  timeoutMs = 10_000
 ): Promise<{ code: number; output: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -970,7 +981,7 @@ function nativeSecretCommand(
     });
     let output = '';
     let oversized = false;
-    const timeout = setTimeout(() => child.kill(), 10_000);
+    const timeout = setTimeout(() => child.kill(), timeoutMs);
     timeout.unref();
     child.stdout.on('data', (chunk: Buffer) => {
       if (output.length + chunk.length > 524288) {

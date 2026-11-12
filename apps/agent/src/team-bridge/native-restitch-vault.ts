@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { recoveryCredential } from '../platform/platform.js';
+import { currentPlatform, recoveryCredential } from '../platform/platform.js';
 const MAX = 256 * 1024;
 const HEADER = Buffer.from('SOTYRV01');
 const fail = () => new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
@@ -15,17 +15,56 @@ const secrets: Secrets = {
     await recoveryCredential('write', account, value);
   }
 };
+/** Windows refuses to replace a file another process (antivirus, the search
+ * indexer) holds open for a moment after it was written: EPERM/EACCES/EBUSY.
+ * Retried briefly there, as graceful-fs does; anywhere else one rename. */
+const RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400, 800] as const;
+export async function replaceFile(
+  from: string,
+  to: string,
+  retry: boolean,
+  move: (from: string, to: string) => Promise<void> = rename,
+  wait: (ms: number) => Promise<void> = ms => new Promise(done => setTimeout(done, ms))
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await move(from, to);
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      if (
+        !retry ||
+        attempt >= RENAME_RETRY_DELAYS_MS.length ||
+        !['EPERM', 'EACCES', 'EBUSY'].includes(String(code))
+      )
+        throw error;
+      await wait(RENAME_RETRY_DELAYS_MS[attempt]!);
+    }
+  }
+}
 /** Only the fixed-size encryption key enters OS secret storage. Credentials remain
  * authenticated, encrypted and atomically replaced on disk, bounded independently
  * of the macOS security CLI's interactive command buffer. */
 export class NativeRestitchVaultFile {
   #writes: Promise<void> = Promise.resolve();
+  #cachedKey: Buffer | null = null;
   constructor(
     readonly file: string,
     readonly account: string,
-    private readonly store = secrets
+    private readonly store = secrets,
+    /**
+     * Windows only (production 2026-11-12): the OS store is a cold PowerShell
+     * start per call, and every journal write used to make one. Under a busy CPU
+     * one slow start faulted the catalog restitch vault until restart. The key
+     * never changes once created, so after one verified read it is kept for the
+     * life of the process. macOS keeps asking the Keychain every time.
+     */
+    private readonly platform: { cacheKey: boolean; retryRename: boolean } = {
+      cacheKey: currentPlatform() === 'win32',
+      retryRename: currentPlatform() === 'win32'
+    }
   ) {}
   async #key(create: boolean): Promise<Buffer> {
+    if (this.#cachedKey) return this.#cachedKey;
     let raw = await this.store.read(this.account + '-key');
     if (raw === null && create) {
       raw = randomBytes(32).toString('base64url');
@@ -35,6 +74,7 @@ export class NativeRestitchVaultFile {
     if (!raw || !/^[A-Za-z0-9_-]{43}$/u.test(raw)) throw fail();
     const key = Buffer.from(raw, 'base64url');
     if (key.length !== 32) throw fail();
+    if (this.platform.cacheKey) this.#cachedKey = key;
     return key;
   }
   async read(): Promise<unknown> {
@@ -109,7 +149,7 @@ export class NativeRestitchVaultFile {
         } finally {
           await handle.close();
         }
-        await rename(temporary, this.file);
+        await replaceFile(temporary, this.file, this.platform.retryRename);
       } finally {
         await rm(temporary, { force: true });
       }
