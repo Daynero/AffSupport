@@ -1,8 +1,8 @@
-import { launchTomorrow, type LaunchDraft } from '@video-compressor/shared';
+import { launchBrowserTimezone, launchTomorrow, type LaunchDraft } from '@video-compressor/shared';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
 
 export function newLaunchDraft(): LaunchDraft {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = launchBrowserTimezone();
   return {
     schemaVersion: 1,
     campaignCount: 3,

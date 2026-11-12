@@ -30,7 +30,7 @@ import {
 } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useOptionalToasts } from '../../components/toast';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { buildTeamRoute, emptyTeamRouteQuery, parseTeamRoute } from '../routes';
 import { BEFORE_NAVIGATION_EVENT, navigateTo } from '../../lib/navigation';
@@ -57,6 +57,31 @@ import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
 import { LaunchAssignmentControls } from './LaunchAssignmentControls';
 
+/** The editor label of each field a parse or preview refusal can name. */
+const LAUNCH_FIELD_LABELS: Record<string, TranslationKey> = {
+  agentRowId: 'launchesAccount',
+  offerId: 'launchesOffer',
+  buyerId: 'launchesBuyer',
+  materialId: 'launchesCreative',
+  creativeAlias: 'launchesCreative',
+  campaignCount: 'launchesCampaignCount',
+  adsCount: 'launchesAdsCount',
+  minBudget: 'launchesMinBudget',
+  maxBudget: 'launchesMaxBudget',
+  budgets: 'launchesBudget',
+  age: 'launchesAge',
+  gender: 'launchesGender',
+  launchDate: 'launchesDate',
+  timezone: 'launchesDate',
+  method: 'launchesMethod',
+  productCount: 'launchesCatalogProductCount',
+  catalog: 'launchesCatalogProductCount',
+  originalUrl: 'launchesUrl',
+  subConfig: 'launchesSubSettings',
+  sub1: 'launchesSubSettings',
+  sub2: 'launchesSubSettings',
+  sub3: 'launchesSubSettings'
+};
 export function LaunchSession({
   teamId,
   detail,
@@ -467,9 +492,22 @@ export function LaunchSession({
     copying.busy,
     copying.hasUnresolvedRequest
   ]);
+  // The selection key whose sources this session last resolved. When unchanged ids lose
+  // their sources (a re-read of a never-generated draft, which the server holds without a
+  // snapshot), they are looked up once more; a refusal or an empty answer clears the key,
+  // so nothing loops on a selection that cannot resolve.
+  const resolvedSourceIds = useRef<string | null>(null);
   const refreshSources = useCallback(
     async (live = false) => {
       const seq = ++sourceRequest.current;
+      const key = [
+        draft.config.agentRowId,
+        draft.config.offerId,
+        draft.config.buyerId,
+        draft.config.materialId,
+        draft.config.method,
+        draft.config.catalog?.restitchEnabled
+      ].join('|');
       setSourcesPending(true);
       try {
         const sources = await (live
@@ -480,19 +518,23 @@ export function LaunchSession({
           inputAuthority.current.mounted &&
           !inputAuthority.current.locked &&
           inputAuthority.current.editable
-        )
+        ) {
+          resolvedSourceIds.current = sources ? key : null;
           draft.resolveSources(sources);
-        else if (seq === sourceRequest.current && inputAuthority.current.mounted)
+        } else if (seq === sourceRequest.current && inputAuthority.current.mounted)
           lastIds.current = null;
+        return seq === sourceRequest.current ? sources : null;
       } catch (e) {
         if (
           seq === sourceRequest.current &&
           inputAuthority.current.mounted &&
           !inputAuthority.current.locked
         ) {
+          resolvedSourceIds.current = null;
           draft.setSources(null);
           reportError(e);
         }
+        return null;
       } finally {
         if (seq === sourceRequest.current && inputAuthority.current.mounted)
           setSourcesPending(false);
@@ -518,11 +560,24 @@ export function LaunchSession({
   ].join('|');
   const lastIds = useRef<string | null>(draft.sources ? sourceIds : null);
   useEffect(() => {
-    if (!editable || locked || sourceIds === lastIds.current) return;
+    if (!editable || locked) return;
+    const idsChanged = sourceIds !== lastIds.current;
+    // Unchanged ids normally mean the sources are already resolved. If sources this
+    // session resolved for exactly these ids were wiped since, look them up again rather
+    // than leave Generate to refuse a draft that only lacks what the editor can look up.
+    const lostResolved =
+      !idsChanged &&
+      draft.sources === null &&
+      !sourcesPending &&
+      resolvedSourceIds.current === sourceIds;
+    if (!idsChanged && !lostResolved) return;
     lastIds.current = sourceIds;
-    sourceRequest.current++;
-    setSourcesPending(false);
-    draft.setSources(null);
+    resolvedSourceIds.current = null;
+    if (idsChanged) {
+      sourceRequest.current++;
+      setSourcesPending(false);
+      draft.setSources(null);
+    }
     if (
       ![
         draft.config.agentRowId,
@@ -533,7 +588,7 @@ export function LaunchSession({
     )
       return;
     void refreshSources();
-  }, [sourceIds, refreshSources, draft.sources, draft.config, editable, locked]);
+  }, [sourceIds, refreshSources, draft.sources, draft.config, editable, locked, sourcesPending]);
   const run = async (action: () => Promise<void>) => {
     if (workingRef.current) return;
     workingRef.current = true;
@@ -762,6 +817,23 @@ export function LaunchSession({
       revisionId: historical ? detail.activeRevision?.id : active?.id
     });
   };
+  /**
+   * A refusal names its fields, never a bare «Перевірте значення»: the editor marks the
+   * same keys once submitted, and the message says which ones to look at.
+   */
+  const invalidFieldsMessage = (errors: Record<string, string>) => {
+    const labels = [
+      ...new Set(
+        Object.keys(errors)
+          .map(key => LAUNCH_FIELD_LABELS[key])
+          .filter((label): label is TranslationKey => Boolean(label))
+          .map(label => t(label))
+      )
+    ];
+    return labels.length
+      ? t('launchesInvalidFields', { fields: labels.join(', ') })
+      : t('launchesInvalid');
+  };
   const generate = async () => {
     if (generationClick.current || generation.busy || offerDefaults.loading) return;
     generationClick.current = true;
@@ -830,15 +902,24 @@ export function LaunchSession({
       return;
     }
     const parsed = parseLaunchConfig(draft.config);
-    if (!parsed.ok || !draft.sources) {
+    if (!parsed.ok) {
       generation.blocked('INVALID_INPUT');
-      setError(t('launchesInvalid'));
+      setError(invalidFieldsMessage(parsed.errors));
       return;
     }
-    const preview = launchPreview(parsed.value, draft.sources);
+    // Sources are looked up, not typed: when they are missing, look them up now
+    // rather than refuse a draft whose every field is valid.
+    const sources = draft.sources ?? (await refreshSources());
+    if (signal.aborted || !inputAuthority.current.mounted) return;
+    if (!sources) {
+      generation.blocked('INVALID_INPUT');
+      setError(t('launchesSourcesUnavailable'));
+      return;
+    }
+    const preview = launchPreview(parsed.value, sources);
     if (!preview.ok) {
       generation.blocked('INVALID_INPUT');
-      setError(t('launchesInvalid'));
+      setError(invalidFieldsMessage(preview.errors));
       return;
     }
     if (parsed.value.method === 'catalog') {
@@ -869,7 +950,7 @@ export function LaunchSession({
     const request: GenerationRequest = {
       detail,
       config: parsed.value,
-      sources: draft.sources,
+      sources,
       version: draft.baseVersion,
       key,
       impact:
@@ -880,7 +961,7 @@ export function LaunchSession({
               (detail?.activeRevision ?? active)!.config,
               parsed.value,
               (detail?.activeRevision ?? active)!.sources,
-              draft.sources
+              sources
             )
           : null
     };
@@ -1314,7 +1395,7 @@ export function LaunchSession({
             className="launch-detail-close"
             disabled={locked}
             onClick={close}
-            aria-label={t('teamCancel')}
+            aria-label={t('teamClose')}
           >
             <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </Button>

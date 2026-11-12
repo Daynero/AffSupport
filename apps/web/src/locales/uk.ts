@@ -639,6 +639,9 @@ export const uk: Record<keyof typeof en, string> = {
   launchesLater: 'Перемістити {field} пізніше',
   launchesPreserve: 'Залишити оригінальний SUB',
   launchesInvalid: 'Перевірте значення',
+  launchesInvalidFields: 'Перевірте поля: {fields}.',
+  launchesSourcesUnavailable:
+    'Не вдалося отримати дані РК, офера, баєра чи креативу. Натисніть «Оновити джерела» й згенеруйте ще раз.',
   launchesCampaignCountInvalid: 'Введіть ціле число від 1 до 100.',
   launchesMaxBudgetInvalid: 'Введіть цілу суму в доларах від 1 до 999 999.',
   launchesAdsCountInvalid: 'Введіть ціле число від 1 до 1 000.',
