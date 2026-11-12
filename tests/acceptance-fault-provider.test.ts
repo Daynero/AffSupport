@@ -18,7 +18,9 @@ it('feeds the supported rejected-page-token response through the actual Drive cl
   expect(transport).not.toHaveBeenCalled();
   expect(control.mock.calls.map(call => call[0])).toEqual(['claim', 'effect-start']);
 });
-it('feeds rate limiting through the real client and lets the next one-shot retry reach its transport', async () => {
+it('feeds rate limiting through the real client: a one-shot 429 is ridden out by its own retry', async () => {
+  // Since 1.4.3 (production 2026-11-12) a Drive read asks again after «slow down», so a single
+  // injected 429 never reaches the person; the retry reaches the real transport instead.
   const control = vi
     .fn()
     .mockResolvedValueOnce({ ok: true })
@@ -27,15 +29,29 @@ it('feeds rate limiting through the real client and lets the next one-shot retry
   const transport = vi.fn(
     async () => new Response('{"files":[]}', { headers: { 'content-type': 'application/json' } })
   );
-  const drive = new GoogleDriveClient('synthetic-token-for-test-only', (input, init) =>
-    executeProviderFault({ kind: 'drive_429' }, control, input, init, transport)
+  const drive = new GoogleDriveClient(
+    'synthetic-token-for-test-only',
+    (input, init) => executeProviderFault({ kind: 'drive_429' }, control, input, init, transport),
+    async () => {}
+  );
+  expect(await drive.listChildren({ parentId: 'own-qa-folder' })).toMatchObject({ files: [] });
+  expect(transport).toHaveBeenCalledTimes(1);
+});
+it('feeds a persistent rate limit through the real client as RATE_LIMITED', async () => {
+  const control = vi.fn().mockResolvedValue({ ok: true });
+  const transport = vi.fn(
+    async () => new Response('{"files":[]}', { headers: { 'content-type': 'application/json' } })
+  );
+  const drive = new GoogleDriveClient(
+    'synthetic-token-for-test-only',
+    (input, init) => executeProviderFault({ kind: 'drive_429' }, control, input, init, transport),
+    async () => {}
   );
   await expect(drive.listChildren({ parentId: 'own-qa-folder' })).rejects.toMatchObject({
     code: 'RATE_LIMITED',
     retryable: true
   });
-  expect(await drive.listChildren({ parentId: 'own-qa-folder' })).toMatchObject({ files: [] });
-  expect(transport).toHaveBeenCalledTimes(1);
+  expect(transport).not.toHaveBeenCalled();
 });
 it.each([
   ['https://oauth2.googleapis.com/token', { method: 'POST' }],

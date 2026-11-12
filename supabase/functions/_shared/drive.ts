@@ -321,29 +321,48 @@ function parseProcessOutputRecoveryFile(value: unknown, fileId: string): Process
   };
 }
 
+/**
+ * Pauses before a read is asked again after a transient Drive failure (production
+ * 2026-11-12: one unanswered read during a launch's source check reached the person as
+ * «Google Drive не відповідає», with nothing for them to do but press Retry).
+ */
+export const DRIVE_READ_RETRY_DELAYS_MS: readonly number[] = [400, 1_200];
+const TRANSIENT_DRIVE_STATUSES: ReadonlySet<number> = new Set([500, 502, 503, 504]);
+
 export class GoogleDriveClient {
   readonly #accessToken: string;
   readonly #fetch: typeof fetch;
+  readonly #sleep: (ms: number) => Promise<void>;
 
-  constructor(accessToken: string, fetchImpl: typeof fetch = fetch) {
+  constructor(
+    accessToken: string,
+    fetchImpl: typeof fetch = fetch,
+    sleep: (ms: number) => Promise<void> = ms => new Promise(done => setTimeout(done, ms))
+  ) {
     if (accessToken.length < 16) throw new TeamFunctionError('NEEDS_REAUTH');
     this.#accessToken = accessToken;
     this.#fetch = fetchImpl;
+    this.#sleep = sleep;
   }
 
   /** A request-scoped transport budget; credentials remain private and the
    * original client is unchanged. Abort never proves a mutation did not apply. */
   withRequestDeadline(deadlineAt: number): GoogleDriveClient {
     if (!Number.isSafeInteger(deadlineAt)) throw new TeamFunctionError('INVALID_INPUT');
-    return new GoogleDriveClient(this.#accessToken, async (input, init) => {
-      const remaining = deadlineAt - Date.now();
-      if (remaining <= 0) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
-      const timeout = AbortSignal.timeout(remaining);
-      return this.#fetch(input, {
-        ...init,
-        signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
-      });
-    });
+    const sleep = this.#sleep;
+    return new GoogleDriveClient(
+      this.#accessToken,
+      async (input, init) => {
+        const remaining = deadlineAt - Date.now();
+        if (remaining <= 0) throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+        const timeout = AbortSignal.timeout(remaining);
+        return this.#fetch(input, {
+          ...init,
+          signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout
+        });
+      },
+      sleep
+    );
   }
 
   async getFile(fileId: string, resourceKey?: string | null): Promise<DriveFileMetadata> {
@@ -1757,16 +1776,48 @@ export class GoogleDriveClient {
   }
 
   async #request(url: URL, init: RequestInit = {}): Promise<Response> {
-    let response: Response;
-    try {
-      response = await this.#fetch(url, {
-        ...init,
-        headers: { authorization: `Bearer ${this.#accessToken}`, ...init.headers },
-        signal: init.signal ?? AbortSignal.timeout(15_000)
-      });
-    } catch {
-      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    // Only a read is asked again: it changes nothing, so a second answer is the same
+    // answer. A write keeps one attempt — a lost reply never proves it did not apply.
+    const read = (init.method ?? 'GET').toUpperCase() === 'GET';
+    for (let attempt = 0; ; attempt++) {
+      const retry = read && attempt < DRIVE_READ_RETRY_DELAYS_MS.length;
+      let response: Response;
+      try {
+        response = await this.#fetch(url, {
+          ...init,
+          headers: { authorization: `Bearer ${this.#accessToken}`, ...init.headers },
+          signal: init.signal ?? AbortSignal.timeout(15_000)
+        });
+      } catch (error) {
+        // A connection that failed is asked again; a request that used its whole
+        // timeout, a caller's cancellation and a spent deadline are not.
+        if (
+          retry &&
+          !(error instanceof TeamFunctionError) &&
+          !(error instanceof Error && error.name === 'TimeoutError') &&
+          !init.signal?.aborted
+        ) {
+          await this.#sleep(DRIVE_READ_RETRY_DELAYS_MS[attempt]!);
+          continue;
+        }
+        throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+      }
+      // 5xx, and Drive's «slow down» (429, or 403 with a rate-limit reason), are asked
+      // again after a pause; a 403 that means «you may not» is answered at once.
+      const slowDown =
+        response.status === 429 ||
+        (response.status === 403 &&
+          RATE_LIMIT_REASONS.has((await driveErrorReason(response.clone())).reason));
+      if (retry && (TRANSIENT_DRIVE_STATUSES.has(response.status) || slowDown)) {
+        await response.body?.cancel().catch(() => undefined);
+        await this.#sleep(DRIVE_READ_RETRY_DELAYS_MS[attempt]!);
+        continue;
+      }
+      return this.#classify(response);
     }
+  }
+
+  async #classify(response: Response): Promise<Response> {
     if (response.ok) return response;
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
     if (response.status === 412)
