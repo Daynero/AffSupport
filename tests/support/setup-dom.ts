@@ -55,6 +55,25 @@ if (typeof css.escape !== 'function') {
   css.escape = (value: string) => String(value).replace(/[^\w-]/gu, character => `\\${character}`);
 }
 
+// jsdom has no layout-driven scrolling API. Keep offset semantics available to
+// every dialog test; callers may still replace this method with a spy when the
+// scroll request itself is part of the assertion.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollTo !== 'function') {
+  Element.prototype.scrollTo = function (
+    this: Element,
+    optionsOrX?: ScrollToOptions | number,
+    y?: number
+  ) {
+    if (typeof optionsOrX === 'number') {
+      this.scrollLeft = optionsOrX;
+      if (y !== undefined) this.scrollTop = y;
+    } else {
+      if (optionsOrX?.left !== undefined) this.scrollLeft = optionsOrX.left;
+      if (optionsOrX?.top !== undefined) this.scrollTop = optionsOrX.top;
+    }
+  };
+}
+
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {

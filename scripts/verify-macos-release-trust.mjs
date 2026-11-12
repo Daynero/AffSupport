@@ -1,10 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseMacosTarget } from './lib/macos-target.mjs';
-import { verifyMacosPayload } from './lib/macos-payload.mjs';
+import { isMachOFile, verifyMacosPayload } from './lib/macos-payload.mjs';
 import { BUILD_ID } from '../packages/shared/dist/release.js';
 
 /**
@@ -20,6 +20,17 @@ export function macosTrustPolicy(value) {
   if (!MACOS_TRUST_POLICIES.includes(policy)) throw new Error('MACOS_TRUST_POLICY_INVALID');
   return policy;
 }
+
+/**
+ * Entitlements no distributed binary may carry (048 FR-002): each switches off a
+ * hardened-runtime protection, and `get-task-allow` is refused by notarization.
+ */
+export const MACOS_FORBIDDEN_ENTITLEMENTS = Object.freeze([
+  'com.apple.security.cs.disable-library-validation',
+  'com.apple.security.cs.allow-dyld-environment-variables',
+  'com.apple.security.cs.disable-executable-page-protection',
+  'com.apple.security.get-task-allow'
+]);
 
 /** The sealed release.json must name exactly this target and build. */
 export function assertMacosPackageIdentity(metadata, arch, buildId = BUILD_ID) {
@@ -42,6 +53,63 @@ export function assertMacosSigner(details, expectedTeam) {
   )
     throw new Error('MACOS_APPLE_TRUST_UNPROVEN');
 }
+
+/**
+ * One Mach-O's `codesign -dvv` details under `developer-id` (048 FR-005, SC-002): the
+ * owner's team and a Developer ID authority on every binary, not only on the bundle, and
+ * a secure timestamp on each. A nested binary left with another team's signature, or
+ * signed without `--timestamp`, is what notarization would reject later and offline
+ * Gatekeeper would distrust; the gate refuses it first.
+ */
+export function assertMacosMachOSigner(details, expectedTeam, relative) {
+  if (
+    !/^[A-Z0-9]{10}$/u.test(expectedTeam ?? '') ||
+    !details.split(/\r?\n/u).includes(`TeamIdentifier=${expectedTeam}`) ||
+    !/^Authority=Developer ID Application:/mu.test(details) ||
+    !/^Timestamp=/mu.test(details)
+  )
+    throw new Error(`MACOS_MACHO_SIGNER_MISMATCH: ${relative}`);
+}
+
+/**
+ * Every Mach-O in the bundle — the launcher, the loose runtime and engines in Resources,
+ * the Finder extension — carries the hardened runtime and none of the forbidden
+ * entitlements; with `expectedTeam` (the `developer-id` gate) also that team's Developer
+ * ID signature and a secure timestamp. Signing `--deep` leaves the loose ones out, so
+ * each is inspected. Returns the number inspected. Never executes payload.
+ * @param {string} app
+ * @param {{ expectedTeam?: string | null }} [options]
+ */
+export async function assertMacosHardenedMachOs(app, { expectedTeam = null } = {}) {
+  const files = [];
+  for (const entry of await readdir(app, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile()) continue;
+    const file = path.join(entry.parentPath, entry.name);
+    if (await isMachOFile(file)) files.push(file);
+  }
+  if (!files.length) throw new Error('MACOS_PAYLOAD_NATIVE_MISSING');
+  for (const file of files) {
+    const relative = path.relative(app, file);
+    const details = spawnSync('/usr/bin/codesign', ['-dvv', file], {
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    if (details.status !== 0 || !/\bflags=[^\n]*\bruntime\b/u.test(details.stderr))
+      throw new Error(`MACOS_HARDENED_RUNTIME_MISSING: ${relative}`);
+    if (expectedTeam !== null) assertMacosMachOSigner(details.stderr, expectedTeam, relative);
+    const entitlements = spawnSync(
+      '/usr/bin/codesign',
+      ['-d', '--entitlements', '-', '--xml', file],
+      { encoding: 'utf8', timeout: 30000 }
+    );
+    for (const key of MACOS_FORBIDDEN_ENTITLEMENTS) {
+      if (`${entitlements.stdout}${entitlements.stderr}`.includes(`<key>${key}</key>`))
+        throw new Error(`MACOS_ENTITLEMENT_FORBIDDEN: ${relative} ${key}`);
+    }
+  }
+  return files.length;
+}
+
 export async function verifyMacosReleaseTrust(dmg, arch, expectedTeam, policy = 'developer-id') {
   policy = macosTrustPolicy(policy);
   if (policy === 'developer-id' && !/^[A-Z0-9]{10}$/u.test(expectedTeam ?? ''))
@@ -80,20 +148,24 @@ export async function verifyMacosReleaseTrust(dmg, arch, expectedTeam, policy = 
         stapled: false
       };
     // codesign writes inspection details to stderr even on success.
-    const { spawnSync } = await import('node:child_process');
     const identity = spawnSync('/usr/bin/codesign', ['-dv', '--verbose=4', app], {
       encoding: 'utf8',
       timeout: 30000
     });
     if (identity.status !== 0) throw new Error('MACOS_SIGNER_INSPECTION_FAILED');
     assertMacosSigner(identity.stderr, expectedTeam);
+    const hardenedMachO = await assertMacosHardenedMachOs(app, { expectedTeam });
     run('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=2', app]);
+    // The ticket must travel with the app, not only the image: after the drag to
+    // Applications the first offline launch has nothing else to consult.
+    run('/usr/bin/xcrun', ['stapler', 'validate', app]);
     run('/usr/bin/xcrun', ['stapler', 'validate', dmg]);
     return {
       target: `macos-${arch}`,
       trustPolicy: policy,
       appleTrust: 'verified',
       developerId: true,
+      hardenedMachO,
       notarized: true,
       stapled: true
     };

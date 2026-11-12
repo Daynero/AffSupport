@@ -47,7 +47,11 @@ describe('space settings surface', () => {
     expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
 
     // The room open is in the address, so a reload comes back to it.
+    // jsdom has no Element.scrollTo; keep the real dialog's scroll request observable.
+    const scrollTo = vi.fn();
+    screen.getByRole('dialog').scrollTo = scrollTo;
     await user.click(screen.getByRole('tab', { name: 'Tags' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get('tab')).toBe('tags')
     );

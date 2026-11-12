@@ -39,9 +39,9 @@ diff -qr apps/web/dist "$app/Contents/Resources/web/dist" >/dev/null
 diff -qr packages/shared/dist "$app/Contents/Resources/agent/node_modules/@video-compressor/shared/dist" >/dev/null
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
 if [[ "$arch" == x64 ]]; then
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static --signing="$target_root/signing.json"
 else
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --signing="$target_root/signing.json"
 fi
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
   [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]

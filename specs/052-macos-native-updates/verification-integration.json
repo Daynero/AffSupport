@@ -1,0 +1,171 @@
+{
+  "source": "release/1.4.3 a7e30bca + 048 b58259d9; uncommitted integration",
+  "generated_at": "2026-11-12T14:12:15.048Z",
+  "static_gates": [
+    {
+      "id": "build:shared",
+      "ok": true,
+      "duration_ms": 1969
+    },
+    {
+      "id": "format",
+      "ok": true,
+      "duration_ms": 95685
+    },
+    {
+      "id": "lint",
+      "ok": true,
+      "duration_ms": 88930
+    },
+    {
+      "id": "typecheck:projects",
+      "ok": true,
+      "duration_ms": 88200
+    },
+    {
+      "id": "typecheck:tests",
+      "ok": true,
+      "duration_ms": 104768
+    },
+    {
+      "id": "typecheck:scripts",
+      "ok": true,
+      "duration_ms": 15195
+    },
+    {
+      "id": "design-tokens",
+      "ok": true,
+      "duration_ms": 457
+    },
+    {
+      "id": "tailwind-classes",
+      "ok": true,
+      "duration_ms": 8805
+    },
+    {
+      "id": "migrations-additive",
+      "ok": true,
+      "duration_ms": 453
+    },
+    {
+      "id": "styles",
+      "ok": true,
+      "duration_ms": 669
+    },
+    {
+      "id": "i18n",
+      "ok": true,
+      "duration_ms": 655
+    },
+    {
+      "id": "env-registry",
+      "ok": true,
+      "duration_ms": 704
+    },
+    {
+      "id": "csp",
+      "ok": true,
+      "duration_ms": 320
+    },
+    {
+      "id": "audit",
+      "ok": true,
+      "duration_ms": 10026
+    }
+  ],
+  "suite": {
+    "numTotalTests": 8182,
+    "numPassedTests": 8094,
+    "numFailedTests": 0,
+    "numPendingTests": 88,
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 6,
+      "completedShards": 6,
+      "complete": false
+    }
+  },
+  "outcome": "failed: unhandled jsdom Element.scrollTo in space-settings; partial suite, not a pass",
+  "regression": {
+    "before": "6 assertions pass, process fails with one unhandled scrollTo error",
+    "after": "same 6 tests pass with dialog scroll spy and top:0 assertion; exit 0"
+  },
+  "developer_id_tests": {
+    "passed": 47,
+    "skipped": 1,
+    "files": 7,
+    "duration_seconds": 115.82,
+    "skipped_reason": "notarization profile not yet configured",
+    "real_node_js_and_wasm": true,
+    "negative_control_without_jit": true
+  },
+  "apple_setup": {
+    "developer_id_valid_identity": true,
+    "notary_key_role": "Developer",
+    "credentials_validated": true,
+    "keychain_profile": "soty-notary",
+    "preflight_policy": "developer-id",
+    "preflight_checked": true,
+    "private_key_outside_repository": true,
+    "private_key_mode": "0600"
+  },
+  "notarized_probe": {
+    "kind": "one-Mach-O fixture; not packaged Soty",
+    "notarized": true,
+    "stapled": true,
+    "stapler_validate_exit": 0,
+    "gatekeeper_assess_exit": 0,
+    "gatekeeper_source": "Notarized Developer ID",
+    "full_soty_acceptance": false,
+    "clean_host_acceptance": false
+  },
+  "second_suite": {
+    "numTotalTests": 11030,
+    "numPassedTests": 10923,
+    "numFailedTests": 0,
+    "numPendingTests": 107,
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 8,
+      "completedShards": 8,
+      "complete": true
+    },
+    "outcome": "failed: two unhandled jsdom scrollTo errors in catalog-manager-settings-navigation; all 8 shards completed, assertions passed"
+  },
+  "dom_regression": {
+    "shared_setup": "tests/support/setup-dom.ts now supplies missing Element.scrollTo offset semantics",
+    "focused_files": 3,
+    "focused_passed": 10,
+    "focused_unhandled_errors": 0,
+    "format_check": "passed",
+    "test_typecheck": "passed",
+    "targeted_eslint": "passed",
+    "latest_suite_full_pass": false
+  },
+  "latest_suite": {
+    "numTotalTests": 2720,
+    "numPassedTests": 2693,
+    "numFailedTests": 0,
+    "numPendingTests": 27,
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 3,
+      "completedShards": 2,
+      "complete": false
+    },
+    "outcome": "interrupted by agent with SIGINT to its own Vitest only: high system load and severe compression pressure; not a pass",
+    "generated_at": "2026-11-12T15:46:15.717Z",
+    "resource_evidence": {
+      "physical_ram_gib": 16,
+      "load_1m": 20.51,
+      "free_pages_16k": 4065,
+      "compressed_pages_16k": 343867,
+      "decompressions_per_second": 14085,
+      "compressions_per_second": 17257,
+      "other_apps_stopped": false
+    },
+    "owned_process_cleanup": "orphaned Vitest worker confirmed by exact worktree cwd, resumed and terminated; other apps untouched"
+  },
+  "code_diff_sha256": "ddf45a360f51ceb8e0dd84faeeb4bd544a2957a4fb9ac9bdc2254b49b7121fc6",
+  "integration_status": "review checkpoint; full verify and actual packaged trust acceptance remain open; no production readiness claim"
+}

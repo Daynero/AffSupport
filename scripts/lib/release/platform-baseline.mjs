@@ -31,7 +31,7 @@ function assertWindowsSource(cwd, sourceSha, windows) {
       throw new Error('WINDOWS_BASELINE_SOURCE_CHANGED');
   }
 }
-export async function writePlatformBaseline(cwd, sourceSha, windows) {
+export async function writePlatformBaseline(cwd, sourceSha, windows, { macosTrust = {} } = {}) {
   assertWindowsSource(cwd, sourceSha, windows);
   const channelBytes = await readFile(path.join(cwd, manifestFile));
   const channel = JSON.parse(channelBytes.toString('utf8'));
@@ -47,7 +47,11 @@ export async function writePlatformBaseline(cwd, sourceSha, windows) {
       sourceSha,
       payloadDigest: proof.packagePayloadDigest,
       webPayloadDigest: proof.webPayloadDigest,
-      proofDigest: valueDigest(proof)
+      proofDigest: valueDigest(proof),
+      // 048 T013: how publish found the artifact signed, beside how beta found it built.
+      ...(macosTrust[target]
+        ? { trust: macosTrust[target].trust, signing: macosTrust[target].signing }
+        : {})
     };
   }
   const baseline = {
