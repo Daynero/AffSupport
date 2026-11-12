@@ -697,3 +697,59 @@ it('reconciles an original canceled unknown set after restart without redeem, bo
   expect(f.run).not.toHaveBeenCalled();
   await controller.shutdown();
 });
+function faultingFixture(healWriteFaults: boolean, initial: unknown = null) {
+  let saved: unknown = initial;
+  let failNext = 0;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => saved,
+      write: async value => {
+        if (failNext > 0) {
+          failNext -= 1;
+          throw new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+        }
+        saved = structuredClone(value);
+      }
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults
+  });
+  return { controller, failWrites: (n: number) => (failNext = n), saved: () => saved };
+}
+const second = { ...binding, requestKey: 'product-catalog:' + id(30) };
+it('Windows: one failed journal write costs one attempt, not every restitch until restart', async () => {
+  const f = faultingFixture(true);
+  f.failWrites(1);
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  const receipt = await f.controller.prepare(second);
+  expect(receipt.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
+  // The healing write committed the whole journal, the entry the failed write missed included.
+  expect(f.saved()).toHaveLength(2);
+  f.failWrites(2);
+  await expect(
+    f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(31) })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  // The healing write failed too: still refused, nothing minted over a faulted journal.
+  await expect(
+    f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(32) })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(
+    await f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(33) })
+  ).toBeTruthy();
+});
+it('macOS keeps a write fault until restart, exactly as before', async () => {
+  const f = faultingFixture(false);
+  f.failWrites(1);
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(f.controller.prepare(second)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+});
+it('a journal unreadable at startup is never healed, on any platform', async () => {
+  const f = faultingFixture(true, [{ damaged: true }]);
+  await expect(f.controller.load()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(f.saved()).toEqual([{ damaged: true }]);
+});

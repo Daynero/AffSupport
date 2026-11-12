@@ -9,6 +9,7 @@ import {
   type CatalogVideoForegroundExecutor
 } from '@video-compressor/shared';
 import type { NativeRestitchVaultFile } from './native-restitch-vault.js';
+import { currentPlatform } from '../platform/platform.js';
 /** When an interrupted creation is tried again without its dialog. The server
  * hands a restarted agent its predecessor's variant after 75 seconds of silence
  * (2 minutes for anyone else), so the early attempts are dense and a refused one
@@ -45,6 +46,8 @@ export class CatalogVideoForegroundController {
   #running = new Map<string, { abort: AbortController; task: Promise<void> }>();
   #serial: Promise<unknown> = Promise.resolve();
   #faulted = false;
+  /** The journal could not be read at startup: never cleared, nothing may be minted over it. */
+  #loadFaulted = false;
   #epoch = 0;
   #stopping = false;
   #waiting = new Map<string, AbortController>();
@@ -68,6 +71,15 @@ export class CatalogVideoForegroundController {
       redeem: (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
       /** Test seam: waits before each unattended resume attempt. */
       resumeDelaysMs?: readonly number[];
+      /**
+       * Windows only (production 2026-11-12): one failed journal write — a cold PowerShell
+       * start starved by a local stitch, an antivirus holding the file — left catalog restitch
+       * refused (409) until the agent restarted, for hours. A write fault is cleared by the
+       * next full journal write that succeeds; the in-memory journal is the complete state, so
+       * that write commits everything the failed one missed. A journal that could not be read
+       * at startup stays faulted everywhere. Defaults to Windows; macOS keeps every behaviour.
+       */
+      healWriteFaults?: boolean;
       run: (
         setId: string,
         ticket: string,
@@ -82,7 +94,24 @@ export class CatalogVideoForegroundController {
       await this.#load();
     } catch (error) {
       this.#faulted = true;
+      this.#loadFaulted = true;
       throw error;
+    }
+  }
+  /** Windows: retry the journal write that faulted this controller; see `healWriteFaults`. */
+  async #heal() {
+    if (
+      !this.#faulted ||
+      this.#loadFaulted ||
+      this.#stopping ||
+      !(this.options.healWriteFaults ?? currentPlatform() === 'win32')
+    )
+      return;
+    try {
+      await this.options.vault.write([...this.#entries.values()]);
+      this.#faulted = false;
+    } catch {
+      /* Still faulted: the caller answers PROCESS_RESULT_UNCERTAIN as before. */
     }
   }
   async #load() {
@@ -146,6 +175,7 @@ export class CatalogVideoForegroundController {
   }
   prepare(raw: unknown): Promise<CatalogVideoForegroundExecutor> {
     const work = this.#serial.then(async () => {
+      await this.#heal();
       const binding = parseCatalogVideoForegroundBinding(raw),
         actorId = this.#actor();
       if (!binding) throw new Error('INVALID_INPUT');
@@ -206,6 +236,7 @@ export class CatalogVideoForegroundController {
     return work;
   }
   async #attach(raw: unknown, boundGrant?: Record<string, unknown>) {
+    await this.#heal();
     const epoch = this.#epoch;
     if (
       !isRecord(raw) ||
