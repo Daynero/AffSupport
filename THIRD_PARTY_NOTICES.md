@@ -34,6 +34,7 @@ Video transcription runs locally through whisper.cpp 1.9.1 (which embeds ggml), 
 
 - macOS bundles a locally compiled arm64 build of that version (Metal backend), statically linked.
 - Windows bundles the official `whisper-bin-x64.zip` release build of the same version, which links `whisper.dll` and the `ggml*.dll` set; those shared libraries are installed next to `whisper-cli.exe`.
+- That build links the Microsoft Visual C++ runtime dynamically, so Windows also installs `msvcp140.dll`, `vcruntime140.dll`, `vcruntime140_1.dll` and `vcomp140.dll` next to `whisper-cli.exe`. They are taken from the Visual Studio redistributable folder and distributed as Microsoft redistributable code under the Microsoft Visual Studio license terms.
 
 Speech is segmented with the Silero VAD ggml model `ggml-silero-v5.1.2.bin` (MIT). The identical file, byte for byte, ships on both platforms. Source and license: https://github.com/snakers4/silero-vad.
 

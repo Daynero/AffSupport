@@ -44,6 +44,33 @@ export const REQUIRED_HOST_ENTRIES = [
 /** Shared libraries the DLL-linked whisper.cpp Windows build needs beside it. */
 export const WHISPER_COMPANION_DLLS = ['whisper.dll', 'ggml.dll', 'ggml-base.dll'];
 
+/**
+ * The Microsoft Visual C++ runtime the official whisper.cpp Windows build is linked
+ * against (dynamic CRT and OpenMP). Windows 10/11 ship the Universal CRT
+ * (`api-ms-win-crt-*`) but not these: on a machine where nothing installed the
+ * Visual C++ Redistributable, whisper-cli.exe exited at once and every
+ * transcription failed with TRANSCRIBE_FAILED (production 2026-11-12). They are
+ * redistributable files, deployed app-locally beside the binaries that import them.
+ */
+export const MSVC_RUNTIME_DLLS = [
+  'msvcp140.dll',
+  'vcruntime140.dll',
+  'vcruntime140_1.dll',
+  'vcomp140.dll'
+];
+
+/**
+ * Libraries a staged binary imports that are missing beside it, case-insensitively
+ * (PE import names keep whatever case the linker wrote: `VCOMP140.DLL`).
+ */
+export function missingCompanionDlls(binaryText, presentNames, candidates) {
+  const text = binaryText.toLowerCase();
+  const present = new Set([...presentNames].map(name => name.toLowerCase()));
+  return candidates.filter(
+    dll => text.includes(dll.toLowerCase()) && !present.has(dll.toLowerCase())
+  );
+}
+
 /** Release identity fields the staged release.json must reproduce exactly. */
 export const RELEASE_IDENTITY_FIELDS = [
   'productVersion',
