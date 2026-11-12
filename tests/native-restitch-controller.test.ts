@@ -799,3 +799,52 @@ it('still fails when authorization stays unreachable for the whole budget', asyn
   expect(authorizeCalls).toBe(10);
   await controller.shutdown();
 });
+function healing(healVaultFaults: boolean) {
+  const f = setup();
+  const controller = new NativeRestitchController({
+    endpoint,
+    environment: 'beta',
+    currentActorId: () => actor,
+    vault: f.store,
+    journal: f.journal,
+    cache: {} as never,
+    fetch: f.fetcher,
+    run: vi.fn(),
+    healVaultFaults
+  });
+  return { f, controller };
+}
+const otherRoot = id(40);
+it('Windows: a journal read that failed on first use is read again on the next call', async () => {
+  const { f, controller } = healing(true);
+  f.store.read.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  expect(f.store.write).not.toHaveBeenCalled();
+  const prepared = await controller.prepare({ rootOperationId: root, teamId: team });
+  expect(prepared.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
+  expect(f.store.read).toHaveBeenCalledTimes(2);
+  await controller.shutdown();
+});
+it('Windows: one failed journal write is committed by the next call instead of refusing until restart', async () => {
+  const { f, controller } = healing(true);
+  f.store.write.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  const prepared = await controller.prepare({ rootOperationId: otherRoot, teamId: team });
+  expect(prepared.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
+  await controller.shutdown();
+});
+it('macOS keeps a failed journal read or write until restart, exactly as before', async () => {
+  const read = healing(false);
+  read.f.store.read.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(read.controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  await expect(read.controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  expect(read.f.store.read).toHaveBeenCalledTimes(1);
+  await read.controller.shutdown();
+  const write = healing(false);
+  write.f.store.write.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(write.controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  await expect(
+    write.controller.prepare({ rootOperationId: otherRoot, teamId: team })
+  ).rejects.toThrow();
+  await write.controller.shutdown();
+});

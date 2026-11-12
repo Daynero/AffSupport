@@ -2,7 +2,10 @@ import { mkdtemp, readFile, writeFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { NativeRestitchVaultFile } from '../apps/agent/src/team-bridge/native-restitch-vault';
+import {
+  NativeRestitchVaultFile,
+  replaceFile
+} from '../apps/agent/src/team-bridge/native-restitch-vault';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 const roots: string[] = [];
 afterEach(async () => {
@@ -79,4 +82,85 @@ it('serializes concurrent writes and captures the original snapshot', async () =
   await Promise.all([a, b]);
   expect(await x.vault.read()).toEqual({ n: 2 });
   expect(x.store.write).toHaveBeenCalledTimes(1);
+});
+it('macOS keeps asking the OS store for the key on every journal operation', async () => {
+  const x = await setup();
+  const vault = new NativeRestitchVaultFile(x.file, x.account, x.store, {
+    cacheKey: false,
+    retryRename: false
+  });
+  await vault.write({ n: 1 });
+  await vault.write({ n: 2 });
+  await vault.read();
+  // create (read, write, verify) + one read per later write and read
+  expect(x.store.read).toHaveBeenCalledTimes(4);
+});
+it('Windows keeps the verified key for the process: one cold store start, not one per write', async () => {
+  const x = await setup();
+  const vault = new NativeRestitchVaultFile(x.file, x.account, x.store, {
+    cacheKey: true,
+    retryRename: true
+  });
+  await vault.write({ n: 1 });
+  const afterCreate = x.store.read.mock.calls.length;
+  for (let n = 2; n < 8; n++) await vault.write({ n });
+  expect(await vault.read()).toEqual({ n: 7 });
+  expect(x.store.read).toHaveBeenCalledTimes(afterCreate);
+  expect(x.store.write).toHaveBeenCalledTimes(1);
+  // A fresh process still reads the same key from the store and the journal.
+  const restarted = new NativeRestitchVaultFile(x.file, x.account, x.store, {
+    cacheKey: true,
+    retryRename: true
+  });
+  expect(await restarted.read()).toEqual({ n: 7 });
+});
+it('Windows does not cache a missing key or invent one on read', async () => {
+  const x = await setup();
+  const vault = new NativeRestitchVaultFile(x.file, x.account, x.store, {
+    cacheKey: true,
+    retryRename: true
+  });
+  await writeFile(x.file, Buffer.alloc(64));
+  await expect(vault.read()).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  await expect(vault.read()).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(x.store.write).not.toHaveBeenCalled();
+});
+it('retries a Windows file replacement refused while another process holds the file', async () => {
+  const busy = (code: string) => Object.assign(new Error(code), { code });
+  const waits: number[] = [];
+  const move = vi
+    .fn<(from: string, to: string) => Promise<void>>()
+    .mockRejectedValueOnce(busy('EPERM'))
+    .mockRejectedValueOnce(busy('EBUSY'))
+    .mockRejectedValueOnce(busy('EACCES'))
+    .mockResolvedValueOnce();
+  await replaceFile('a', 'b', true, move, async ms => {
+    waits.push(ms);
+  });
+  expect(move).toHaveBeenCalledTimes(4);
+  expect(waits).toEqual([50, 100, 200]);
+});
+it('replaces once elsewhere, never retries other errors, and gives up after a bounded wait', async () => {
+  const busy = (code: string) => Object.assign(new Error(code), { code });
+  const once = vi.fn(async () => {
+    throw busy('EPERM');
+  });
+  await expect(replaceFile('a', 'b', false, once, async () => {})).rejects.toThrow('EPERM');
+  expect(once).toHaveBeenCalledTimes(1);
+  const missing = vi.fn(async () => {
+    throw busy('ENOENT');
+  });
+  await expect(replaceFile('a', 'b', true, missing, async () => {})).rejects.toThrow('ENOENT');
+  expect(missing).toHaveBeenCalledTimes(1);
+  const stuck = vi.fn(async () => {
+    throw busy('EPERM');
+  });
+  const waits: number[] = [];
+  await expect(
+    replaceFile('a', 'b', true, stuck, async ms => {
+      waits.push(ms);
+    })
+  ).rejects.toThrow('EPERM');
+  expect(stuck).toHaveBeenCalledTimes(6);
+  expect(waits.reduce((a, b) => a + b, 0)).toBe(1550);
 });

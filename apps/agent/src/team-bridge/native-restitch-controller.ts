@@ -12,6 +12,7 @@ import { diagnostics } from '../server/diagnostics-log.js';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { NativeRestitchVaultFile } from './native-restitch-vault.js';
+import { currentPlatform } from '../platform/platform.js';
 import {
   NativeRestitchExecutor,
   type NativeRestitchCheckpoint,
@@ -103,6 +104,15 @@ export interface NativeRestitchControllerOptions {
   vault?: NativeRestitchVault;
   /** Trusted runtime boot identity shared with installed variant recovery. */
   nativeInstanceId?: string;
+  /**
+   * Windows only (production 2026-11-12): the journal sits behind a cold PowerShell DPAPI
+   * start and a file an antivirus may hold. One failed read on first use, or one failed
+   * write, used to refuse every protected restitch until the agent restarted. On Windows a
+   * failed read is simply read again on the next call (reading never mints anything), and a
+   * write fault is cleared by the next full journal write that succeeds. macOS keeps both
+   * faults until restart. Defaults to Windows.
+   */
+  healVaultFaults?: boolean;
   journal: {
     load(): Promise<readonly NativeRestitchCheckpoint[]>;
     save(value: readonly NativeRestitchCheckpoint[]): Promise<void>;
@@ -207,6 +217,8 @@ export class NativeRestitchController {
   #ready: Promise<void> | null = null;
   #writes: Promise<void> = Promise.resolve();
   #vaultFailed = false;
+  /** Windows healing (see `healVaultFaults`): which fault, if any, may be retried. */
+  #vaultFault: 'read' | 'write' | null = null;
   #closing = false;
   #identityChanges = 0;
   readonly #preparing = new Map<
@@ -276,17 +288,56 @@ export class NativeRestitchController {
   nativeInstanceId() {
     return this.#native;
   }
+  get #heals() {
+    return this.options.healVaultFaults ?? currentPlatform() === 'win32';
+  }
   async #initialize() {
     this.#ready ??= (async () => {
+      let records: Credential[];
       try {
-        this.#records = parseCredentials(await this.#vault.read());
+        records = parseCredentials(await this.#vault.read());
+      } catch {
+        this.#vaultFailed = true;
+        if (this.#heals) {
+          // Nothing was read and nothing was written: the next call reads again.
+          this.#vaultFault = 'read';
+          this.#ready = null;
+        }
+        throw uncertain();
+      }
+      try {
+        this.#records = records;
+        if (this.#vaultFault === 'read') {
+          this.#vaultFailed = false;
+          this.#vaultFault = null;
+        }
         await this.#executor.initialize();
       } catch {
         this.#vaultFailed = true;
+        this.#vaultFault = null;
         throw uncertain();
       }
     })();
     await this.#ready;
+    if (this.#vaultFault === 'write') await this.#healWrite();
+  }
+  /** Windows: commit the whole journal again after a failed write; see `healVaultFaults`. */
+  async #healWrite() {
+    const work = this.#writes.then(async () => {
+      if (this.#vaultFault !== 'write') return;
+      try {
+        await this.#vault.write(structuredClone({ schemaVersion: 1, records: this.#records }));
+        this.#vaultFailed = false;
+        this.#vaultFault = null;
+      } catch {
+        /* Still faulted: callers answer PROCESS_RESULT_UNCERTAIN as before. */
+      }
+    });
+    this.#writes = work.then(
+      () => {},
+      () => {}
+    );
+    await work;
   }
   #actor() {
     const actor = this.options.currentActorId();
@@ -295,7 +346,8 @@ export class NativeRestitchController {
   }
   #fresh() {
     if (this.#closing) throw new ScreenCacheError('WRONG_STATE');
-    if (this.#vaultFailed) throw uncertain();
+    // A Windows fault that may heal is retried by #initialize; anything else refuses here.
+    if (this.#vaultFailed && this.#vaultFault === null) throw uncertain();
     if (this.#identityChanges > 0) throw new ScreenCacheError('AUTH_REQUIRED');
   }
   #record(enrollment: string, fresh = true) {
@@ -329,6 +381,7 @@ export class NativeRestitchController {
         await this.#vault.write(structuredClone({ schemaVersion: 1, records: this.#records }));
       } catch {
         this.#vaultFailed = true;
+        if (this.#heals) this.#vaultFault = 'write';
         throw uncertain();
       }
     });

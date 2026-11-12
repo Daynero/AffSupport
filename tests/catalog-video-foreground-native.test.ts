@@ -697,3 +697,148 @@ it('reconciles an original canceled unknown set after restart without redeem, bo
   expect(f.run).not.toHaveBeenCalled();
   await controller.shutdown();
 });
+function faultingFixture(healWriteFaults: boolean, initial: unknown = null) {
+  let saved: unknown = initial;
+  let failNext = 0;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => saved,
+      write: async value => {
+        if (failNext > 0) {
+          failNext -= 1;
+          throw new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+        }
+        saved = structuredClone(value);
+      }
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults
+  });
+  return { controller, failWrites: (n: number) => (failNext = n), saved: () => saved };
+}
+const second = { ...binding, requestKey: 'product-catalog:' + id(30) };
+it('Windows: one failed journal write costs one attempt, not every restitch until restart', async () => {
+  const f = faultingFixture(true);
+  f.failWrites(1);
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  const receipt = await f.controller.prepare(second);
+  expect(receipt.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
+  // The healing write committed the whole journal, the entry the failed write missed included.
+  expect(f.saved()).toHaveLength(2);
+  f.failWrites(2);
+  await expect(
+    f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(31) })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  // The healing write failed too: still refused, nothing minted over a faulted journal.
+  await expect(
+    f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(32) })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(
+    await f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(33) })
+  ).toBeTruthy();
+});
+it('macOS keeps a write fault until restart, exactly as before', async () => {
+  const f = faultingFixture(false);
+  f.failWrites(1);
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(f.controller.prepare(second)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+});
+it('a damaged journal stays faulted even where reads are retried', async () => {
+  const f = faultingFixture(true, [{ damaged: true }]);
+  await expect(f.controller.load()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(f.saved()).toEqual([{ damaged: true }]);
+});
+it('Windows: a journal read that failed at startup is read again, never minted over', async () => {
+  const stored = faultingFixture(false);
+  await stored.controller.prepare(binding);
+  const journal = stored.saved();
+  let failRead = true;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => {
+        if (failRead) throw new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+        return structuredClone(journal);
+      },
+      write: async () => {}
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults: true
+  });
+  await expect(controller.load()).rejects.toThrow();
+  await expect(controller.prepare(second)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  failRead = false;
+  // The original enrollment is back: the same request gets the same proof, not a new one.
+  const again = await controller.prepare(binding);
+  expect(again.enrollmentId).toBe(
+    (journal as Array<{ receipt: { enrollmentId: string } }>)[0]!.receipt.enrollmentId
+  );
+  await controller.shutdown();
+});
+it('macOS keeps a startup read fault until restart', async () => {
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue(null),
+      write: async () => {}
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults: false
+  });
+  await expect(controller.load()).rejects.toThrow();
+  await expect(controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+});
+it('a prepare answers while an attach still waits on the network', async () => {
+  // Production 2026-11-12 (a slow connection): a prepare queued behind an attach's redeem
+  // answered after the browser's command deadline, «server slow» with nothing sent.
+  const f = fixture();
+  const first = await f.controller.prepare(binding);
+  let release!: () => void;
+  f.redeem.mockImplementationOnce(
+    body =>
+      new Promise(resolve => {
+        release = () =>
+          resolve({
+            ...body,
+            executorId: body.enrollmentId,
+            executionNativeInstanceId: body.executionNativeInstanceId,
+            actorId: id(4),
+            teamId: binding.teamId,
+            sourceMaterialId: binding.sourceMaterialId,
+            requestKey: binding.requestKey,
+            expectedVersion: null,
+            ticket: 't'.repeat(43)
+          });
+      })
+  );
+  const attaching = f.controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(50),
+    enrollmentId: first.enrollmentId,
+    nativeInstanceId: first.nativeInstanceId
+  });
+  await vi.waitFor(() => expect(f.redeem).toHaveBeenCalledTimes(1));
+  const other = await f.controller.prepare(second);
+  expect(other.enrollmentId).not.toBe(first.enrollmentId);
+  release();
+  await attaching;
+  // Both survive in the journal: the attach's later write carries the new entry too.
+  const saved = f.saved() as Array<{ receipt: { enrollmentId: string }; setId?: string }>;
+  expect(saved.map(e => e.receipt.enrollmentId).sort()).toEqual(
+    [first.enrollmentId, other.enrollmentId].sort()
+  );
+  expect(saved.find(e => e.receipt.enrollmentId === first.enrollmentId)?.setId).toBe(id(50));
+  await f.controller.shutdown();
+});
