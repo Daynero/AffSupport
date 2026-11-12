@@ -3136,3 +3136,13 @@ waited no longer refuses its own link as `SOURCE_CHANGED` and is no longer block
 due time. The switch to R2 stays with the reconcile job after publication. Rolling back means
 restoring the body left by 20261207193000 and its later patches through a reviewed forward
 migration; catalogs already published keep their links.
+
+### 20261207400600 — a cancellation no longer waits for good on a published output
+
+Adds `private.catalog_variant_output_settled` (a succeeded run whose output is gone, or whose
+upload was published and that finished more than five minutes ago) and patches
+`private.catalog_video_cancel_quiescent` in place to use it where 399920/399995 used
+`private.catalog_variant_output_gone` (four checks; fails if they are not all there, a no-op when
+already patched — production was patched with this body on 2026-11-13). Rolling back means
+restoring the 399995 body through a reviewed forward migration and dropping the helper; sets
+already canceled stay canceled and their outputs stay in Drive.

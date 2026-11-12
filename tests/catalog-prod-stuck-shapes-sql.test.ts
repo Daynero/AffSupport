@@ -354,8 +354,9 @@ it('52c28131 on production: a published upload whose output went missing does no
   expect(await setState(f.set)).toBe('canceled');
 });
 
-it('a published upload whose output is still active keeps the cancellation waiting', async () => {
-  const f = await succeededMissing(2);
+/** A canceled set whose variant 1 succeeded and published an output that is still active. */
+async function canceledWithActiveOutput(finished: string) {
+  const f = await succeededMissing(2, finished);
   await replica(async () => {
     await db.root(
       "update public.team_materials set lifecycle='active',missing_at=null where id=$1",
@@ -365,12 +366,45 @@ it('a published upload whose output is still active keeps the cancellation waiti
       "insert into private.process_upload_ownership(operation_id,team_id,actor_id,connection_id,credential_id,root_id,parent_id,file_id,source_file_id,expected_name,mime_type,size_bytes,checksum,handoff_expires_at,upload_state) select $1,$2,$3,c.id,c.credential_id,'root','root',$4,'source','catalog_variant_1.mp4','video/mp4',4,repeat('b',32),clock_timestamp()+interval '1 hour','published' from public.team_drive_connections c where c.id=$5",
       [f.op, team, ACTOR, `variant-${f.set}-1`, connection]
     );
+    await db.root(
+      "update private.catalog_video_variants set state='working' where video_set_id=$1 and video_variant_index=1",
+      [f.set]
+    );
     await db.root("update private.catalog_video_sets set state='cancel_requested' where id=$1", [
       f.set
     ]);
   });
+  return f;
+}
+
+it('a published output that is still active keeps a fresh cancellation waiting: its registration may be landing', async () => {
+  const f = await canceledWithActiveOutput('2 minutes');
   await settleCancellations();
   expect(await setState(f.set)).toBe('cancel_requested');
+});
+
+it('f48e7d9e: a run that finished and published after the cancel no longer holds it for good', async () => {
+  // Production 2026-11-12 (КАТАЛОГИ): canceled at 22:27:25, variant 0 succeeded and published at
+  // 22:27:27, never registered; the set stayed «Скасовуємо…» and woke the updater every minute.
+  const f = await canceledWithActiveOutput('10 minutes');
+  await settleCancellations();
+  expect(await setState(f.set)).toBe('canceled');
+  // The output stays an ordinary file of the space; the succeeded run is never rewritten.
+  expect(
+    (
+      await db.root<{ lifecycle: string }>(
+        'select lifecycle from public.team_materials where id=$1',
+        [f.output]
+      )
+    )[0]!.lifecycle
+  ).toBe('active');
+  expect(
+    (
+      await db.root<{ state: string }>('select state from public.team_operations where id=$1', [
+        f.op
+      ])
+    )[0]!.state
+  ).toBe('succeeded');
 });
 
 // --- d1da2bc7 / 53a1aede -------------------------------------------------------------
