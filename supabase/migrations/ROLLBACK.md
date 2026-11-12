@@ -3125,3 +3125,14 @@ claim would take it). Rolling back means unscheduling the cron job, restoring th
 the migrations before this one through a reviewed forward migration, and dropping the new functions
 and table. Claims already released stay released (recorded in the table), retried variants keep
 their new identity, and publication jobs closed as `blocked` stay blocked until republished.
+
+### 20261207400500 — a publication job keeps the Drive link it already recorded
+
+Patches `public.service_catalog_video_r2_resolve` in place (through `pg_get_functiondef`, failing
+if the text it extends is missing, a no-op when already patched — production was patched with this
+body on 2026-11-12): when a publication job already recorded the Drive link for the same video
+version it answers `enabled:false`, so a deferred publication whose R2 copy became ready while it
+waited no longer refuses its own link as `SOURCE_CHANGED` and is no longer blocked an hour after its
+due time. The switch to R2 stays with the reconcile job after publication. Rolling back means
+restoring the body left by 20261207193000 and its later patches through a reviewed forward
+migration; catalogs already published keep their links.
