@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
-import {
-  estimateCatalogVideoR2MonthlyUsd,
-  type CatalogVideoR2Availability,
-  type CatalogVideoR2Usage
-} from '@video-compressor/shared';
+import type { CatalogVideoR2Availability, CatalogVideoR2Usage } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import { useI18n } from '../../i18n';
@@ -24,9 +20,10 @@ function formatBytes(bytes: number, language: string): string {
 
 /**
  * «Відео в R2» beside the space tariff (050, US4): bytes against the limit, how
- * many copies are active or awaiting deletion, and a monthly estimate from the
- * public R2 prices. An estimate, never an invoice (SC-007). Drawn only when the
- * feature is available to the space or something is already stored.
+ * many copies are active or awaiting deletion. The monthly cost estimate was
+ * removed at the owner's request (2026-11-12): a fraction of a cent read as noise.
+ * Drawn only when the feature is available to the space or something is already
+ * stored.
  */
 export function CatalogVideoR2UsageSection({
   teamId,
@@ -61,11 +58,6 @@ export function CatalogVideoR2UsageSection({
 
   if (!usage || (!availability?.available && usage.usedBytes === 0 && usage.enabledCatalogs === 0))
     return null;
-  const estimate = estimateCatalogVideoR2MonthlyUsd(usage.usedBytes);
-  const money = (value: number) =>
-    new Intl.NumberFormat(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-      value
-    );
   return (
     <SettingsSection
       icon={Film}
@@ -82,16 +74,6 @@ export function CatalogVideoR2UsageSection({
         </p>
         <p className="text-ink-muted">
           {t('catalogVideoR2Copies', { ready: usage.readyCopies, retiring: usage.retiringCopies })}
-        </p>
-        <p className="text-ink-muted">
-          {!estimate
-            ? t('catalogVideoR2EstimateUnknown')
-            : estimate.high < 0.005
-              ? t('catalogVideoR2EstimateTiny')
-              : t('catalogVideoR2Estimate', {
-                  low: money(estimate.low),
-                  high: money(estimate.high)
-                })}
         </p>
       </div>
     </SettingsSection>

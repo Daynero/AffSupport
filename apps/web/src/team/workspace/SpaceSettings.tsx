@@ -1,6 +1,6 @@
 import './space-settings.css';
 import { BackgroundRecoverySettings } from '../tariffs/BackgroundRecoverySettings';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link2 } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui';
@@ -181,13 +181,18 @@ export function SpaceSettings({
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
     initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
   );
+  const sectionRef = useRef<HTMLElement>(null);
   const changed = () => {
     setRevision(value => value + 1);
     notifyStateChanged();
   };
 
   return (
-    <section className="team-space-settings" aria-labelledby="team-space-settings-title">
+    <section
+      ref={sectionRef}
+      className="team-space-settings"
+      aria-labelledby="team-space-settings-title"
+    >
       {/* Title and tab strip travel together: the strip used to scroll away on
           the first turn of the wheel, leaving a long panel with nothing saying
           which of the five rooms it belonged to. */}
@@ -223,6 +228,8 @@ export function SpaceSettings({
             if (!allowLeave()) return;
             setTab(next);
             onTabChange?.(next);
+            // A new room opens at its top, not at the depth the last one was read to.
+            sectionRef.current?.closest('.modal')?.scrollTo({ top: 0 });
           }}
           panelId={id => `team-settings-panel-${id}`}
           items={tabs.map(item => ({ id: item.id, label: item.label }))}

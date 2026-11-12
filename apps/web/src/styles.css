@@ -8063,6 +8063,13 @@ body:has(.public-home) {
    half of a 1240px box. */
 .team-settings-dialog {
   --modal-width: clamp(920px, 82vw, 1560px);
+  /* One frame for every tab (2026-11-12, owner): with only a max-height each tab
+     sized the dialog to its own content and the centred backdrop re-centred it,
+     so the title, the tab strip and the close button jumped on every switch. The
+     gutter keeps the width when one tab scrolls and the next does not. */
+  height: calc(100vh - 48px);
+  align-content: start;
+  scrollbar-gutter: stable;
 }
 .team-space-settings {
   display: grid;

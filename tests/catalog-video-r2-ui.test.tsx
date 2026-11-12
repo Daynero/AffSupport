@@ -398,7 +398,7 @@ describe('R2 icon in the catalog toolbar', () => {
 });
 
 describe('CatalogVideoR2UsageSection', () => {
-  it('shows bytes against the limit with an estimate and hides when nothing is stored and the feature is off', async () => {
+  it('shows bytes against the limit, no cost estimate, and hides when nothing is stored and the feature is off', async () => {
     const api = client({
       readUsage: vi.fn(async () => ({
         usedBytes: 10_000_000_000,
@@ -412,7 +412,7 @@ describe('CatalogVideoR2UsageSection', () => {
     const block = await screen.findByTestId('catalog-video-r2-usage');
     expect(block.textContent).toContain('10 GB of 50 GB');
     expect(block.textContent).toContain('3 active, 1 awaiting deletion');
-    expect(block.textContent).toMatch(/About 0[.,]15–0[.,]18 USD per month/u);
+    expect(block.textContent).not.toMatch(/USD/u);
     cleanup();
     const off = client({
       availability: vi.fn(async (): Promise<CatalogVideoR2Availability> => ({
