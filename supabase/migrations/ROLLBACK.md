@@ -3023,3 +3023,18 @@ Adds `private.catalog_ready_set_wakes_launch()` and its trigger on `private.cata
 becoming ready makes a catalog launch generation waiting on its own backoff due at once and dispatches
 the launch recovery route through pg_net (best effort). Rolling back means dropping the trigger and
 the function; launches then wait for their backoff and the per-minute recovery pass again.
+
+### 20261207399920 — production's last stuck catalog shapes settle, and the updater sleeps when idle
+
+Adds `private.restitch_released_executor_claims`, `private.release_silent_restitch_executor`,
+`private.catalog_variant_output_gone` and `private.settle_catalog_stuck_shapes` with the cron job
+`soty-catalog-stuck-shapes` (every ten minutes), and patches four functions in place:
+`private.catalog_video_cancel_quiescent` (quiesces an executor whose native session expired at least
+15 minutes after its operation ended; an output that is gone no longer blocks a cancellation),
+`private.retry_failed_catalog_video_variant` (a succeeded run whose output is gone is retried within
+the budget, `PROCESS_OUTPUT_MISSING` once spent), `private.launch_catalog_recovery_due` and
+`private.launch_catalog_recovery_due_before_variant_rounds` (publication work counts only when the
+claim would take it). Rolling back means unscheduling the cron job, restoring the four bodies from
+the migrations before this one through a reviewed forward migration, and dropping the new functions
+and table. Claims already released stay released (recorded in the table), retried variants keep
+their new identity, and publication jobs closed as `blocked` stay blocked until republished.
