@@ -1529,9 +1529,23 @@ it('sends a generate Google briefly refused again with the same key, and never s
     .mockResolvedValue(undefined);
   api.detail.mockResolvedValue({
     id: 'launch',
+    version: '1',
     draft: config,
-    generation: { id: 'generation', state: 'accepted', stage: 'queued', inputVersion: '1' }
-  } as LaunchDetail);
+    expectedSourceSnapshot: null,
+    assigneeId: null,
+    workStatus: 'todo',
+    activeRevision: null,
+    generation: {
+      id: 'generation',
+      state: 'accepted',
+      stage: 'accepted',
+      inputVersion: '1',
+      stateVersion: '1',
+      progress: null,
+      errorCode: null,
+      childOperationIds: []
+    }
+  } satisfies LaunchDetail);
   const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
   await act(async () => {
     await result.current.generate(null, config, null, null);

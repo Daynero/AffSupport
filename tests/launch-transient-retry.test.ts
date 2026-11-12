@@ -36,7 +36,7 @@ it('shows a refusal that persists, and anything that is not transient, at once',
     code: 'DRIVE_UNAVAILABLE'
   });
   expect(persistent).toHaveBeenCalledTimes(3);
-  for (const code of ['LAUNCH_RESULT_UNCERTAIN', 'PERMISSION_DENIED', 'AGENT_REQUIRED']) {
+  for (const code of ['LAUNCH_RESULT_UNCERTAIN', 'PERMISSION_DENIED', 'AGENT_REQUIRED'] as const) {
     const send = vi.fn().mockRejectedValue(new TeamApiError(code, false));
     await expect(withLaunchTransientRetry(send, options())).rejects.toMatchObject({ code });
     expect(send).toHaveBeenCalledOnce();
