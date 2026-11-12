@@ -3042,6 +3042,13 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207400100 — production receives the error codes the seed gained after it ran
+
+Inserts every code `public.team_error_codes` gets from the migrations (`on conflict do nothing`);
+production lacked thirty-five codes added to 20260801090000 after it had run there. Rows only
+add vocabulary that foreign keys and checks already expect; rolling back is not needed and would
+break the writers that use them.
+
 ### 20261207400000 — a catalog creation whose recovery keeps failing backs off, then parks
 
 Patches `public.service_defer_initial_catalog_recovery` (through `pg_get_functiondef`, failing if
