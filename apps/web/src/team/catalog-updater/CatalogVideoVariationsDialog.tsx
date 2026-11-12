@@ -12,7 +12,10 @@ import { useI18n } from '../../i18n';
 import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { isSoftReadFailure, withReadDeadline } from '../readCoordinator';
-import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
+import {
+  CREATION_NOT_RECEIVED_AFTER_MS,
+  withCatalogCommandDeadline
+} from './catalogCommandCoordinator';
 import { beginCatalogUiFlow } from './analytics';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -54,6 +57,12 @@ export function CatalogVideoVariationsDialog({
   const request = useRef<string | null>(null),
     flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const key = actor ? `soty:catalog-video-manager:v1:${actor}:${teamId}:${row.catalogId}` : null;
+  /** When the remembered request was sent (beside it, so a reload keeps the grace window). */
+  const sentAtKey = key ? `${key}:at` : null;
+  const forgetRequest = () => {
+    if (key) localStorage.removeItem(key);
+    if (sentAtKey) localStorage.removeItem(sentAtKey);
+  };
   const owns = () =>
     mounted.current &&
     currentScope.current === scope &&
@@ -67,7 +76,7 @@ export function CatalogVideoVariationsDialog({
       (value.state === 'ready' && value.publicationState === 'published') ||
       value.state === 'canceled'
     ) {
-      if (key) localStorage.removeItem(key);
+      forgetRequest();
       request.current = null;
       onChanged();
     }
@@ -92,7 +101,29 @@ export function CatalogVideoVariationsDialog({
       if (!owns()) return;
       setInterrupted(false);
       if (result) apply(result);
-      else if (request.current) setUnknown(request.current);
+      else if (request.current) {
+        // Production 2026-11-12: a start that never reached the server was remembered for
+        // good — every reopen said «Результат ще не підтверджено» and Cancel answered «У
+        // поточному стані це неможливо». The server is the authority for the request: once it
+        // has had time to receive it and knows nothing, nothing was started and the form is
+        // offered again. A start still on its way is left alone.
+        let sentAt = 0;
+        try {
+          sentAt = Number(sentAtKey ? localStorage.getItem(sentAtKey) : null) || 0;
+        } catch {
+          /* Unknown age: treated as old, the server has answered that it knows nothing. */
+        }
+        if (Date.now() - sentAt >= CREATION_NOT_RECEIVED_AFTER_MS) {
+          try {
+            forgetRequest();
+          } catch {
+            /* The in-memory reset below still frees the form. */
+          }
+          request.current = null;
+          setUnknown(null);
+          setError(t('catalogVideoCreationNotReceived'));
+        } else setUnknown(request.current);
+      }
     } catch (cause) {
       if (!owns()) return;
       // A loaded server failing one read says nothing about a run in progress (1.4.3).
@@ -200,6 +231,7 @@ export function CatalogVideoVariationsDialog({
     const id = crypto.randomUUID();
     try {
       localStorage.setItem(key, id);
+      if (sentAtKey) localStorage.setItem(sentAtKey, String(Date.now()));
     } catch {
       setError(t('catalogPublicationStorageError'));
       return;
@@ -250,7 +282,7 @@ export function CatalogVideoVariationsDialog({
               'AGENT_UPDATE_REQUIRED'
             ].includes(code))
         ) {
-          localStorage.removeItem(key);
+          forgetRequest();
           request.current = null;
           setUnknown(null);
           flow.current?.fail(code ?? 'PROCESS_RESULT_UNCERTAIN');

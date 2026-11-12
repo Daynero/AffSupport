@@ -7,7 +7,10 @@ import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { toolEventUrl } from '../../api/client';
 import { isSoftReadFailure, withReadDeadline } from '../readCoordinator';
-import { withCatalogCommandDeadline } from '../catalog-updater/catalogCommandCoordinator';
+import {
+  CREATION_NOT_RECEIVED_AFTER_MS,
+  withCatalogCommandDeadline
+} from '../catalog-updater/catalogCommandCoordinator';
 import { beginCatalogUiFlow } from '../catalog-updater/analytics';
 import { recoveryInstallation } from '../../api/recovery-installation';
 import {
@@ -182,6 +185,8 @@ interface PendingCreationForm {
   videoDraft: CatalogCreationVideoDraft;
   duration?: RestitchDurationValue;
   name: string | null;
+  /** When this browser sent the creation; absent on forms written before 1.4.3's fix. */
+  savedAt?: number;
 }
 const pendingFormStorageKey = (storageKey: string) => `${storageKey}:form`;
 
@@ -210,7 +215,10 @@ function readPendingCreationForm(storageKey: string, key: string): PendingCreati
       ...(typeof value.duration?.finalDurationMode === 'string'
         ? { duration: value.duration }
         : {}),
-      name: typeof value.name === 'string' ? value.name : null
+      name: typeof value.name === 'string' ? value.name : null,
+      ...(typeof value.savedAt === 'number' && Number.isFinite(value.savedAt)
+        ? { savedAt: value.savedAt }
+        : {})
     };
   } catch {
     return null;
@@ -349,6 +357,9 @@ export function CreateProductCatalogDialog({
   const readSoon = useRef(0);
   const videoFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const videoKey = useRef<string | null>(null);
+  /** When a creation under a key was sent: a read that finds nothing soon after is one still
+   * on its way, not one that never arrived (see `CREATION_NOT_RECEIVED_AFTER_MS`). */
+  const keySentAt = useRef(new Map<string, number>());
   const videoOwner = useRef<{ actor: string | null; epoch: number } | null>(null);
   const videoStorageKey = privateCacheActor()
     ? pendingCatalogCreationStorageKey(privateCacheActor()!, teamId, video.id)
@@ -373,6 +384,8 @@ export function CreateProductCatalogDialog({
     catalogKey: string;
   } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
   const [restitchOperationId, setRestitchOperationId] = useState<string | null>(null);
   const observationRun = useRef(0);
   useEffect(
@@ -591,8 +604,10 @@ export function CreateProductCatalogDialog({
         };
         if (!videoStorageKey) throw new Error('AUTH_REQUIRED');
         localStorage.setItem(videoStorageKey, input.idempotencyKey);
+        keySentAt.current.set(input.idempotencyKey, Date.now());
         try {
           const form: PendingCreationForm = {
+            savedAt: Date.now(),
             key: input.idempotencyKey,
             link,
             count,
@@ -791,6 +806,25 @@ export function CreateProductCatalogDialog({
           );
       if (!owns()) return;
       if (!result) {
+        // Production 2026-11-12: a creation whose request never reached the server (a slow
+        // network, an agent that refused first) was remembered here for good. Every reopen
+        // read nothing, showed «Результат ще не підтверджено», and Cancel answered
+        // «У поточному стані це неможливо». The server is the authority for the key: once it
+        // has had time to receive it and still knows nothing, nothing was created and the form
+        // is offered again, filled in as it was. A request still on its way is left alone.
+        const sentAt = keySentAt.current.get(key) ?? 0;
+        if (
+          phaseRef.current.kind !== 'busy' &&
+          Date.now() - sentAt >= CREATION_NOT_RECEIVED_AFTER_MS
+        ) {
+          forgetVideo(key);
+          setVideoUnknown(false);
+          setVideoPending(null);
+          setReadInterrupted(false);
+          setResumedCreation(false);
+          setFailure(t('catalogVideoCreationNotReceived'));
+          return;
+        }
         setVideoUnknown(true);
         return;
       }
@@ -901,6 +935,8 @@ export function CreateProductCatalogDialog({
         setVideoUnknown(true);
         setResumedCreation(true);
         const form = readPendingCreationForm(videoStorageKey, key);
+        if (form?.savedAt !== undefined && !keySentAt.current.has(key))
+          keySentAt.current.set(key, form.savedAt);
         if (form) {
           setLink(form.link);
           setCount(form.count);

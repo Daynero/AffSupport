@@ -1388,6 +1388,78 @@ describe('beta durable video creation', () => {
     expect(localStorage.getItem(`${storageKey}:form`)).toBeNull();
   });
 
+  it('offers the form again when the server never received the remembered creation', async () => {
+    // Production 2026-11-12 (DreamTeam, Windows): the create request never reached the server;
+    // every reopen read nothing and showed «result not confirmed», Cancel said «impossible».
+    const key = 'product-catalog:47000000-0000-4000-8000-000000000031';
+    const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+    localStorage.setItem(storageKey, key);
+    localStorage.setItem(
+      `${storageKey}:form`,
+      JSON.stringify({
+        key,
+        savedAt: Date.now() - 5 * 60_000,
+        link: 'https://offer.example.test/never',
+        count: '7',
+        restitch: false,
+        copyVideoToR2: false,
+        videoDraft: { variationCount: '1', delayed: false, date: '', time: '12:00', zone: 'UTC' },
+        name: 'clip_v9_catalog'
+      })
+    );
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(null)
+    });
+    renderDialog(client);
+    expect(
+      await screen.findByText(
+        'The previous creation never reached the server, so nothing was created. You can create it again.'
+      )
+    ).toBeTruthy();
+    expect(localStorage.getItem(storageKey)).toBeNull();
+    expect(localStorage.getItem(`${storageKey}:form`)).toBeNull();
+    // The form keeps what the person had entered.
+    expect(
+      (screen.getByDisplayValue('https://offer.example.test/never') as HTMLInputElement).value
+    ).toBe('https://offer.example.test/never');
+    expect(client.createProductCatalogVideo).not.toHaveBeenCalled();
+  });
+
+  it('keeps waiting for a creation sent moments ago that the server has not recorded yet', async () => {
+    const key = 'product-catalog:47000000-0000-4000-8000-000000000032';
+    const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+    localStorage.setItem(storageKey, key);
+    localStorage.setItem(
+      `${storageKey}:form`,
+      JSON.stringify({
+        key,
+        savedAt: Date.now(),
+        link: 'https://offer.example.test/fresh',
+        count: '7',
+        restitch: false,
+        copyVideoToR2: false,
+        videoDraft: { variationCount: '1', delayed: false, date: '', time: '12:00', zone: 'UTC' },
+        name: 'clip_v10_catalog'
+      })
+    );
+    const read = vi.fn().mockResolvedValue(null);
+    const client = dialogClient({
+      getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+      createProductCatalogVideo: vi.fn().mockResolvedValue(pending),
+      readProductCatalogVideo: read
+    });
+    renderDialog(client);
+    await vi.waitFor(() => expect(read).toHaveBeenCalled());
+    expect(localStorage.getItem(storageKey)).toBe(key);
+    expect(
+      screen.queryByText(
+        'The previous creation never reached the server, so nothing was created. You can create it again.'
+      )
+    ).toBeNull();
+  });
+
   it('lets the person close the window while the server and the agent prepare the videos', async () => {
     // 1.4.3 (beta 2026-11-11): a 40-minute re-stitch kept the window open; the ✕
     // was labelled "Cancel" and did nothing, Escape and the backdrop neither.
