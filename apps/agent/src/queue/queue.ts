@@ -622,8 +622,12 @@ export class JobQueue {
     return this.running();
   }
 
+  private nativeUpdateHold = false;
+  holdNewTasksForNativeUpdate(held: boolean) {
+    this.nativeUpdateHold = held;
+  }
   acceptingNewTasks() {
-    return this.updateState.state === 'none';
+    return !this.nativeUpdateHold && this.updateState.state === 'none';
   }
 
   requestUpdateDrain(targetBuildId: string) {

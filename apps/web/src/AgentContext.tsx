@@ -142,6 +142,7 @@ export interface AgentContextValue {
     architecture?: string | null;
     packageTarget?: string | null;
     nativeStartupId?: string | null;
+    nativeAppUpdateStatus?: 'available' | 'recovery_required' | 'unsupported';
   };
   agentBuildId: string | null;
   agentChannel: string | null;
@@ -471,6 +472,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setAgentRuntime({
           platform: result.platform,
           nativeStartupId: result.nativeStartupId,
+          nativeAppUpdateStatus: result.nativeAppUpdateStatus,
           architecture: result.architecture,
           packageTarget: result.packageTarget
         });

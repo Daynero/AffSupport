@@ -154,6 +154,7 @@ export async function connect(signal?: AbortSignal): Promise<{
   architecture: 'arm64' | 'x64' | 'unknown';
   packageTarget: NonNullable<HealthResponse['packageTarget']>;
   nativeStartupId: string | null;
+  nativeAppUpdateStatus?: HealthResponse['nativeAppUpdateStatus'];
   channel: string;
   apiVersion: number;
   capabilities: string[];
@@ -212,6 +213,11 @@ export async function connect(signal?: AbortSignal): Promise<{
       health.packageTarget === 'windows-x64'
         ? health.packageTarget
         : 'unknown',
+    nativeAppUpdateStatus:
+      health.nativeAppUpdateStatus === 'available' ||
+      health.nativeAppUpdateStatus === 'recovery_required'
+        ? health.nativeAppUpdateStatus
+        : 'unsupported',
     nativeStartupId:
       typeof health.nativeStartupId === 'string' &&
       /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(

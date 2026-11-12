@@ -183,6 +183,7 @@ export class TeamRecoveryWorker {
   #settingUp = 0;
   #identityWaits = new Set<string>();
   #closed = false;
+  #updatePaused = false;
   #loaded = false;
   #setupRequired = false;
   #installation: string = randomUUID();
@@ -571,6 +572,31 @@ export class TeamRecoveryWorker {
   async idle() {
     await Promise.allSettled(this.#running.values());
   }
+  pauseForUpdate(): () => void {
+    this.#updatePaused = true;
+    for (const timer of this.#timers.values()) clearTimeout(timer);
+    this.#timers.clear();
+    return () => {
+      this.#updatePaused = false;
+      for (const r of this.#registrations) this.#schedule(r, 0);
+    };
+  }
+  busyForUpdate() {
+    return (
+      this.#running.size > 0 ||
+      this.#settingUp > 0 ||
+      this.#redeeming.size > 0 ||
+      this.#retirements.size > 0
+    );
+  }
+  async flushForUpdate() {
+    if (!this.#loaded || this.#setupRequired) throw new Error('APP_UPDATE_BUSY');
+    await this.idle();
+    await Promise.all(this.#retirements.values());
+    if (this.#checkpoints.some(c => c.stage !== 'settled')) throw new Error('APP_UPDATE_BUSY');
+    await this.#save();
+    await this.options.journal.flushForUpdate();
+  }
   async shutdown() {
     this.#closed = true;
     for (const controller of this.#variantControllers.values())
@@ -663,11 +689,12 @@ export class TeamRecoveryWorker {
     }
   }
   #schedule(r: RecoveryRegistration, ms: number) {
-    if (this.#closed || !this.#registrations.includes(r)) return;
+    if (this.#closed || this.#updatePaused || !this.#registrations.includes(r)) return;
     const previous = this.#timers.get(r.delegationId);
     if (previous) clearTimeout(previous);
     const timer = setTimeout(() => {
       this.#timers.delete(r.delegationId);
+      if (this.#updatePaused) return;
       const task = this.#tick(r).finally(() => this.#running.delete(r.delegationId));
       this.#running.set(r.delegationId, task);
       void task.catch(() => undefined);

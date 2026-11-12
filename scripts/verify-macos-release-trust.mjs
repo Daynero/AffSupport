@@ -1,3 +1,5 @@
+import { verifyNativeUpdateEmbedding } from './lib/native-update-embedding.mjs';
+import { readSigningSummary } from './lib/macos-signing-summary.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -133,6 +135,8 @@ export async function verifyMacosReleaseTrust(dmg, arch, expectedTeam, policy = 
     run('/usr/bin/hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', mount, dmg]);
     const app = path.join(mount, 'Soty.app');
     await verifyMacosPayload(app, arch);
+    const signing = await readSigningSummary(path.join(path.dirname(dmg), 'signing.json'));
+    await verifyNativeUpdateEmbedding(app, signing.ok ? signing.value : null);
     assertMacosPackageIdentity(
       JSON.parse(await readFile(path.join(app, 'Contents/Resources/release.json'), 'utf8')),
       arch

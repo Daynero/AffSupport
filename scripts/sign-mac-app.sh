@@ -62,7 +62,7 @@ mach_o_files() {
     close $fh;
     next unless $n == 4;
     my $hex = unpack("H8", $magic);
-    print "$_\0" if $hex =~ /^(?:feedface|feedfacf|cefaedfe|cffaedfe|cafebabe|bebafeca)$/;
+    print "$_\0" if $hex =~ /^(?:feedface|feedfacf|cefaedfe|cffaedfe|cafebabe|bebafeca|cafebabf|bfbafeca)$/;
   '
 }
 
@@ -90,7 +90,10 @@ profile_for() {
 loose=()
 while IFS= read -r -d '' file; do
   [[ "$file" == "$main_executable" ]] && continue
-  inside_nested "$file" && continue
+  # Sparkle's loose Autoupdate and every helper Mach-O must be attested too.
+  if [[ "$file" != "$app/Contents/Frameworks/Sparkle.framework/"* ]]; then
+    inside_nested "$file" && continue
+  fi
   loose+=("$file")
 done < <(mach_o_files "$app")
 
@@ -130,6 +133,9 @@ for bundle in "${nested_bundles[@]}"; do
   codesign "${args[@]}" --sign "$identity" "$bundle" 2>/dev/null || fail SIGN_FAILED "$bundle"
 done
 
+# Sealing nested bundles may rewrite their main Mach-O signature. Attest the
+# FINAL bytes, not the intermediate loose signature.
+for file in "${loose[@]}"; do after_of[$file]=$(digest_of "$file"); done
 before_of[$main_executable]=$(digest_of "$main_executable")
 codesign "${sign_args[@]}" --entitlements "$entitlements_dir/launcher.plist" --sign "$identity" "$app" 2>/dev/null \
   || fail SIGN_FAILED "$app"

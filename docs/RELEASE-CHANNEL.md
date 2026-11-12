@@ -33,3 +33,9 @@ npm run release:channel -- adopt-live --confirm   # один раз: запис�
 - `deploy:web` (раннер повного релізу) і `release:web -- --deploy` публікують **на next**, а не на прод.
 - Прод змінює лише `promote` / `rollback`, завжди з `--confirm` і лише за командою власника.
 - Стан і архів бандлів лежать у спільному `release/automation/release-channel/` основної копії репозиторію (видно з усіх воркдерев раннера). Історія операцій: `history.jsonl` поруч.
+
+## Native macOS update archives
+
+Native archive metadata travels inside the same signed `stable.json` archived with the site. `next` can display the candidate installer, while the installed native host checks the promoted production origin. Promote and rollback move those exact archived signed bytes; snapshot validation rejects native target/build mismatches. ZIP assets are immutable and published/read back by the full release runner.
+
+Rollback does not authorize automatic native downgrade after the new target has started. An uncertain replacement blocks replay and presents recovery; manual recovery uses the signed installer. See [052 implementation and qualification](../specs/052-macos-native-updates/implementation.md). No native acceptance or production authorization is implied by source implementation.

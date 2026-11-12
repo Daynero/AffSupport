@@ -1,3 +1,4 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -149,6 +150,10 @@ export class RecoveryJournal {
       registrations,
       checkpoints: checkpoints.filter((item): item is RecoveryCheckpoint => item !== null)
     };
+  }
+  async flushForUpdate(): Promise<void> {
+    await this.#chain;
+    await syncUpdateStateFiles([path.join(this.root, 'recovery.json')]);
   }
   async quarantine(): Promise<void> {
     // Fixed destination bounds damaged metadata to one copy; never replay guessed state.

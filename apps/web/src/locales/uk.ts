@@ -1,6 +1,33 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  appUpdateBootstrap:
+    'Установіть цю версію один раз. Наступні оновлення можна буде встановлювати в Soty після збереження задач.',
+  appUpdatePrepare: 'Завантаження',
+  appUpdateWait: 'Завершення задач',
+  appUpdateInstall: 'Встановлення',
+  appUpdateAttentionTitle: 'Оновлення Soty потребує уваги',
+  appUpdateReadyTitle: 'Soty {version} готовий',
+  appUpdateReconnecting: 'Відновлюємо зв’язок із Soty. Показано останній підтверджений етап.',
+  appUpdateRecovery:
+    'Результат оновлення ще не підтверджений. Оновіть статус або перевстановіть Soty з підписаного інсталятора. Оригінальні файли збережені.',
+  appUpdateDownloading: 'Завантажуємо й перевіряємо оновлення. Можна продовжувати роботу.',
+  appUpdateWaiting:
+    'Завершуємо поточні задачі та зберігаємо результати. Нові задачі будуть доступні після оновлення.',
+  appUpdateInstalling:
+    'Завершуємо завантаження й встановлюємо Soty. Застосунок відкриється автоматично.',
+  appUpdateReady: 'Оновлений застосунок та локальні інструменти готові.',
+  appUpdateConsent:
+    'Встановити після завершення поточних задач. Soty збереже роботу, оновиться та відкриється знову. macOS може попросити пароль.',
+  appUpdateSteps: 'Етапи оновлення',
+  appUpdateRequestFailed: 'Не вдалося підтвердити дію. Оновіть статус перед повторною спробою.',
+  appUpdateAutoDownload: 'Завантажувати оновлення автоматично',
+  appUpdateDownload: 'Завантажити оновлення',
+  appUpdateAccept: 'Оновити після завершення задач',
+  appUpdateCancel: 'Скасувати оновлення',
+  appUpdateReinstall: 'Завантажити інсталятор',
+  appUpdateRefresh: 'Оновити статус оновлення',
+
   catalogWriteUnsupported:
     'Публікацію відеопосилання заблоковано: сховище не підтримує безпечне оновлення клітинок каталогу. Наявні посилання збережено.',
   catalogVideoDeferredTableReady:

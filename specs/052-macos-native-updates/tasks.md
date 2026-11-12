@@ -2,7 +2,7 @@
 
 **Input:** spec.md, plan.md, research.md, data-model.md, contracts/native-updates.md, quickstart.md.
 **Branch:** `feature/macos-trusted-updates`.
-**Tests:** required by spec FR-010/031, regression first. Checked setup tasks reflect evidence only; native updater remains unimplemented. No task authorizes production.
+**Tests:** required by spec FR-010/031. Checkboxes reflect verified scope; packaged acceptance remains separate from unit and compile evidence. No task authorizes production, and the owner excluded this feature from the next release.
 
 ## Phase 1 — Restored foundation and design
 
@@ -13,12 +13,16 @@
 - [x] T005 Research pinned Sparkle 2.10.1 source/archive/public APIs and rejected auto-install alternatives in `research.md` D1–D5; distinguish source proof from runtime acceptance.
 - [x] T006 Inventory canonical workload/persistence gaps and generate `plan.md`, `data-model.md`, `contracts/native-updates.md`, `quickstart.md`; complete speckit-plan Phase 0/1, no extension hooks present.
 
+## Current execution status
+
+The owner authorized bounded independent testing after implementation, without disturbing parallel agents. Code is mapped in [implementation.md](implementation.md), and executed checks are recorded in [validation.md](validation.md). Tasks requiring broader coverage or packaged acceptance remain unchecked; earlier integration verification is not proof for the new implementation.
+
 ## Phase 2 — Blocking infrastructure
 
 Before user-story capability can ship: complete 048 actual packaged trust acceptance, strict shared boundaries, native authority and signing helper qualification. Internal disabled prototypes may be exercised before final package acceptance.
 
-- [ ] T007 Add failing boundary tests in `tests/native-app-update-contract.test.ts` and implement `packages/shared/src/native-app-updates.ts` exported from `packages/shared/src/index.ts`: closed stage/outcome/command unions, unknown-first validators, candidate/installation/attempt identity, body/frame/cache/history bounds and stable error codes. Fix concrete bounded policy constants here, not per caller; no unsafe default on unknown schema.
-- [ ] T008 Add signed-descriptor compatibility/tampering tests in `tests/native-app-update-manifest.test.ts`, extend `packages/shared/src/release.ts`, `scripts/sign-release-manifest.mjs`, `apps/web/src/release-manifest.ts` for target/build/source/archive URL/length/SHA/Sparkle EdDSA signature covered by canonical manifest signature. Missing descriptor means legacy fallback; no existing stable asset/version mutation.
+- [x] T007 Add failing boundary tests in `tests/native-app-update-contract.test.ts` and implement `packages/shared/src/native-app-updates.ts` exported from `packages/shared/src/index.ts`: closed stage/outcome/command unions, unknown-first validators, candidate/installation/attempt identity, body/frame/cache/history bounds and stable error codes. Fix concrete bounded policy constants here, not per caller; no unsafe default on unknown schema.
+- [x] T008 Add signed-descriptor compatibility/tampering tests in `tests/native-app-update-manifest.test.ts`, extend `packages/shared/src/release.ts`, `scripts/sign-release-manifest.mjs`, `apps/web/src/release-manifest.ts` for target/build/source/archive URL/length/SHA/Sparkle EdDSA signature covered by canonical manifest signature. Missing descriptor means legacy fallback; no existing stable asset/version mutation.
 - [ ] T009 Add native/helper fixture tests in `tests/native-app-update-signing.test.ts`; pin official Sparkle tar/version/hash/license in `scripts/lib/macos-updater-inputs.mjs` and stage through `scripts/stage-macos-inputs.mjs`. Extend `scripts/sign-mac-app.sh`, `scripts/verify-macos-release-trust.mjs`, packaging scripts and `THIRD_PARTY_NOTICES.md` to sign/attest every nested loose Mach-O, app/XPC/framework then host, with exact entitlements. Fail before embedding on wrong bytes/target/profile.
 - [ ] T010 Add store/lock/corrupt/truncated/disk-full/flush-failure tests in `tests/native-app-update-store.test.ts`, implement single native writer and separate workload receipt schema in `packaging/NativeUpdates/ReceiptStore.swift` and `apps/agent/src/update/receipt.ts`. Prove fsync/atomic rename/parent durability, owner-only/no-symlink paths, bounded retention that preserves active/unknown evidence.
 - [ ] T011 Add native-bridge auth/frame/boot/ownership tests in `tests/native-app-update-bridge.test.ts`; implement `packaging/NativeUpdates/Bridge.swift`, `apps/agent/src/update/native-bridge.ts`, generated shared key/identity inputs and socket path mechanism in `apps/agent/src/platform/platform.ts`. Native derives candidate only from signature-verified canonical payload bytes; browser never gets native secret or executable commands.
@@ -67,7 +71,7 @@ Before user-story capability can ship: complete 048 actual packaged trust accept
 ## Phase 7 — Coverage, verification and handoff
 
 - [ ] T033 Run full appropriate static/unit/release/native acceptance checks and cross-artifact consistency for the final source; record exact results/remaining blind spots in `specs/052-macos-native-updates/verification-integration.json` and acceptance files. Missing critical journey proof prevents capability/release readiness.
-- [ ] T034 Update `docs/PRODUCTION.md`, `docs/RELEASE-CHANNEL.md`, `specs/049-macos-intel-support/trust-integration.md` and owner/tester instructions with implemented bootstrap/update/recovery behavior. Remove quarantine bypass advice only after actual first notarized release, not from probe evidence. No publication or tag manipulation.
+- [x] T034 Update `docs/PRODUCTION.md`, `docs/RELEASE-CHANNEL.md`, `specs/049-macos-intel-support/trust-integration.md` and owner/tester instructions with implemented bootstrap/update/recovery behavior. Remove quarantine bypass advice only after actual first notarized release, not from probe evidence. No publication or tag manipulation.
 
 ## Dependencies and execution
 

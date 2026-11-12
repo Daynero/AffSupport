@@ -64,3 +64,9 @@ Dependency helpers also need a power-budget proof: Sparkle spawning them does no
 `update.run` capability inventory прямо має producer gap; `updates` counts не доводять A→B. Receipt-based diagnosis розширює read-only CLI, closed codes/code map і producer→transport→CLI tests. Offline local receipts не залежать від analytics delivery.
 
 Технічні рішення Phase 0 визначено; native bridge, signing, consent/quit та fault spikes лишаються обов'язковими доказами реалізації, а не заявленими runtime pass.
+
+## Implementation references
+
+The pinned official [2.10.1 sign_update source](https://github.com/sparkle-project/Sparkle/blob/2.10.1/sign_update/main.swift) provides file-based signing and self-verification; [generate_keys](https://github.com/sparkle-project/Sparkle/blob/2.10.1/generate_keys/main.swift) documents the separate seed format. The local provisioning script stores 32-byte Ed25519 seeds outside the repository and pins their public halves. Sparkle’s complete upstream license is retained with the framework.
+
+Apple’s [NSAllowsLocalNetworking documentation](https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowslocalnetworking) covers loopback/IP ATS behavior across supported OS versions. Packaging permits local networking for the fixed read-only appcast, with ATS retained for remote origins. No private native credential is attached to Sparkle requests because SDK headers can follow archive requests to remote hosts.

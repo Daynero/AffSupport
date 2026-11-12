@@ -68,11 +68,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "RELEASE_CHANNEL=$release_channel" \
   "SOURCE_REVISION=$source_revision" \
   "AGENT_ENTITLEMENT_PUBLIC_KEY=$AGENT_ENTITLEMENT_PUBLIC_KEY"
-swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/SotyAgent" \
-  -target "$swift_target" \
-  -framework AppKit \
-  -framework FinderSync
+zsh scripts/compile-native-launcher.sh "$root/Launcher.generated.swift" "$app/Contents/MacOS/SotyAgent" "$swift_target" "$app" "$arch"
 cp "$node_binary" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
@@ -83,6 +79,7 @@ node scripts/stage-agent-runtime.mjs "$app/Contents/Resources/agent" --arch="$ar
 mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources"; cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp "$FFMPEG_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"; cp "$X264_SOURCE_ARCHIVE" "$app/Contents/Resources/licenses/sources/"
 cp packaging/Info.plist "$app/Contents/Info.plist"; cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
+node scripts/configure-native-updates.mjs "$app" production
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $bundle_version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$app/Contents/Info.plist"
 zsh scripts/build-finder-extension.sh \
@@ -115,3 +112,7 @@ if [[ "${SOTY_SIGNING_IDENTITY:--}" == "-" ]]; then
 fi
 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
 ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
+
+if [[ "${SOTY_SIGNING_IDENTITY:--}" != "-" ]]; then
+  node scripts/sign-native-update.mjs "$archive" "$app" "macos-$arch" stable
+fi

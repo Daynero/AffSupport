@@ -167,5 +167,19 @@
     "owned_process_cleanup": "orphaned Vitest worker confirmed by exact worktree cwd, resumed and terminated; other apps untouched"
   },
   "code_diff_sha256": "ddf45a360f51ceb8e0dd84faeeb4bd544a2957a4fb9ac9bdc2254b49b7121fc6",
-  "integration_status": "review checkpoint; full verify and actual packaged trust acceptance remain open; no production readiness claim"
+  "integration_status": "review checkpoint; full verify and actual packaged trust acceptance remain open; no production readiness claim",
+  "nativeUpdateImplementation": {
+    "status": "partially-verified-development-only",
+    "ownerInstruction": "Implement first; subsequently test independently without disturbing parallel agents; excluded from next release.",
+    "branch": "feature/macos-trusted-updates",
+    "implementationRecord": "specs/052-macos-native-updates/implementation.md",
+    "testsRun": true,
+    "buildsRun": true,
+    "packagesRun": false,
+    "productionActions": false,
+    "validationRecord": "specs/052-macos-native-updates/validation.json",
+    "sourceCodeTreeSha256": "dcb5eedadf3d2ad974fba6ab840aba9368632d20a7e015c4038e967e85878d20",
+    "overallVerifyPassed": false,
+    "packagedUpgradeVerified": false
+  }
 }

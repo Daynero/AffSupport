@@ -44,8 +44,12 @@ import { LandingOptimizer } from './landing/optimizer.js';
 import { LandingPreviewCatalog } from './landing-preview/catalog.js';
 import { MediaActionQueue } from './media-actions/queue.js';
 import { JobQueue } from './queue/queue.js';
-import { loadState, saveState } from './queue/store.js';
-import { loadTranscriptionState, saveTranscriptionState } from './queue/transcription-store.js';
+import { defaultStatePath, loadState, saveState } from './queue/store.js';
+import {
+  defaultTranscriptionStatePath,
+  loadTranscriptionState,
+  saveTranscriptionState
+} from './queue/transcription-store.js';
 import { TranscriptionQueue } from './queue/transcription-queue.js';
 import {
   packagedAgentLostLauncher,
@@ -53,7 +57,7 @@ import {
   processIsAlive
 } from './runtime/launcher-watchdog.js';
 import { PowerGovernor } from './power/governor.js';
-import { loadPowerState, savePowerLimit } from './power/store.js';
+import { loadPowerState, savePowerLimit, powerStatePath } from './power/store.js';
 import { PowerSampler } from './power/sampler.js';
 import { activeThreadBudget, setActiveGovernor } from './power/spawn.js';
 import { buildServer } from './server/app.js';
@@ -63,12 +67,12 @@ import {
   DiagnosticsLog,
   setActiveDiagnosticsLog
 } from './server/diagnostics-log.js';
-import { currentPlatform } from './platform/platform.js';
+import { currentPlatform, nativeUpdateHostConfiguration } from './platform/platform.js';
 import { resolveSessionToken } from './server/session-token.js';
 import { ChannelHub, EventChannel, type ShutdownReason } from './server/sse.js';
 import { createToolModules } from './server/tools.js';
 import { StitchQueue } from './stitcher/queue.js';
-import { loadStitcherState, saveStitcherState } from './stitcher/store.js';
+import { loadStitcherState, saveStitcherState, stitcherStatePath } from './stitcher/store.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
 import { RestitchPrepareBridge } from './team-bridge/restitch-prepare.js';
@@ -84,11 +88,17 @@ import { TeamSourceCache } from './team-bridge/source-cache.js';
 import { defaultQualityForInstalledModels, whisperAvailable } from './whisper/tools.js';
 import { sweepAbandonedTempDirectories } from './whisper/transcriber.js';
 import { pathGrants } from './files/path-grants.js';
+import { AgentUpdateCoordinator } from './update/coordinator.js';
+import { NativeAppUpdateService } from './update/service.js';
+import { syncUpdateStateFiles } from './update/receipt.js';
 
 // Persisted across restarts on purpose: a per-boot token silently unpairs
 // every browser that already holds one (see server/session-token.ts).
 const token = await resolveSessionToken();
 const nativeToken = process.env.AGENT_NATIVE_TOKEN?.trim() || null;
+const nativeHost = nativeUpdateHostConfiguration();
+// Keep updater authority only in this process, never inherited by media/browser children.
+delete process.env.AGENT_NATIVE_UPDATE_TOKEN;
 const updateHandoffToken = process.env.AGENT_UPDATE_HANDOFF_TOKEN?.trim() || null;
 // Distinguishes an intentional update handoff from an unexpected clean exit
 // in the native launcher. The launcher then either opens the installed build
@@ -157,7 +167,6 @@ let runtimeRestartRequested = false;
 let mediaToolsCheckInFlight = false;
 let mediaToolsTimer: ReturnType<typeof setInterval> | null = null;
 let installedReleaseTimer: ReturnType<typeof setInterval> | null = null;
-let updateDrainTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * The one live-update fan-out, alongside the seven per-tool endpoints.
@@ -269,13 +278,18 @@ const screenImagePath = async (id: string): Promise<string | null> => {
     return null;
   }
 };
+let stitcherSaveChain = Promise.resolve();
 const stitchQueue = new StitchQueue({
   imagePathFor: screenImagePath,
   onChange: () => stitcherEvents.broadcast({ type: 'stitcher:state', state: stitchQueue.state() }),
   settings: restoredStitcher.settings,
   jobs: restoredStitcher.jobs,
   threads: () => activeThreadBudget(),
-  save: state => void saveStitcherState(state)
+  save: state => {
+    stitcherSaveChain = stitcherSaveChain
+      .then(() => saveStitcherState(state, undefined, true))
+      .catch(error => logError(error, 'Could not save stitcher state'));
+  }
 });
 stitcherEvents.publishOn(channelHub, 'stitcher');
 
@@ -416,10 +430,14 @@ restorePathGrants();
  * down; without it a job that is preparing images (no child process yet) would
  * report as idle while the UI shows it running.
  */
+let powerSaveChain = Promise.resolve();
 const powerGovernor = new PowerGovernor({
   busy: () => modules.some(module => module.busy()),
   onError: (error, message) => logError(error, message),
-  persist: limitPercent => savePowerLimit(limitPercent)
+  persist: limitPercent => {
+    powerSaveChain = powerSaveChain.catch(() => {}).then(() => savePowerLimit(limitPercent));
+    return powerSaveChain;
+  }
 });
 const restoredPower = await loadPowerState();
 if (restoredPower)
@@ -925,16 +943,6 @@ const callCatalogForeground = (
   signal?: AbortSignal
 ) => callCatalogVideoForegroundHttp(config.backendOrigin, action, body, ticket, signal);
 
-if (catalogForeground) {
-  await catalogForeground
-    .load()
-    .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
-  entitlementGate.onBeforeActorChange(actor => catalogForeground.prepareActorChange(actor));
-}
-await teamRecoveryWorker
-  .load()
-  .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
-
 const teamLandingRenderBridge = new TeamLandingRenderBridge({
   preview: teamPreviewBridge,
   events: teamOperationEvents
@@ -968,32 +976,126 @@ const modules = createToolModules({
   }
 });
 
+// Every background producer is paused through its own admission seam. Existing
+// claims continue; the final flush proves their results reached durable storage.
+async function flushUpdateWorkload() {
+  saveChain = saveChain.then(() => saveState(queue.persisted()));
+  await saveChain;
+  if (transcriptionPersistTimer) {
+    clearTimeout(transcriptionPersistTimer);
+    transcriptionPersistTimer = null;
+  }
+  transcriptionSaveChain = transcriptionSaveChain.then(() =>
+    saveTranscriptionState(transcriptionQueue.persisted())
+  );
+  await transcriptionSaveChain;
+  stitcherSaveChain = stitcherSaveChain.then(() =>
+    saveStitcherState(stitchQueue.state(), undefined, true)
+  );
+  await stitcherSaveChain;
+  await teamRecoveryWorker.flushForUpdate();
+  await catalogForeground?.flushForUpdate();
+  await nativeRestitchController?.flushForUpdate();
+  for (const module of modules) await module.flushForUpdate?.();
+  await powerSaveChain;
+  await savePowerLimit(powerGovernor.limitPercent());
+  await diagnosticsLog.flushForUpdate();
+  await syncUpdateStateFiles([
+    defaultStatePath(),
+    defaultTranscriptionStatePath(),
+    stitcherStatePath(),
+    powerStatePath(),
+    path.join(applicationSupportRoot(), DIAGNOSTICS_FILE_NAME)
+  ]);
+}
+const updateBarrier = new AgentUpdateCoordinator(
+  {
+    busy: () => modules.some(module => module.busy()),
+    pauseAdmission: () => {
+      queue.holdNewTasksForNativeUpdate(true);
+      const resumeRecovery = teamRecoveryWorker.pauseForUpdate();
+      const resumeForeground = catalogForeground?.pauseForUpdate();
+      return () => {
+        queue.holdNewTasksForNativeUpdate(false);
+        resumeRecovery();
+        resumeForeground?.();
+      };
+    },
+    flush: flushUpdateWorkload
+  },
+  ms => powerGovernor.scaleTimeout(ms)
+);
+const nativeUpdates = nativeHost
+  ? new NativeAppUpdateService({
+      host: nativeHost,
+      barrier: updateBarrier,
+      power: powerGovernor,
+      origins: allowedOrigins,
+      hub: channelHub,
+      bootId: instanceId,
+      buildId: config.buildId,
+      sourceRevision: config.sourceRevision,
+      toolsReady: () => tools.ffmpeg && tools.ffprobe,
+      diagnostics: diagnosticsLog,
+      exitForUpdate: () => shutdown(UPDATE_HANDOFF_EXIT_CODE, 'update')
+    })
+  : undefined;
+// Reconcile native receipts BEFORE restored background enrollments can run.
+// A promised native host that cannot handshake must keep admission closed.
+if (nativeUpdates) {
+  try {
+    await nativeUpdates.start();
+  } catch {
+    if (updateBarrier.accepting()) updateBarrier.acquire(instanceId);
+    diagnosticsLog.record('update', 'native_update_stage', {
+      stage: 'unknown',
+      error_code: 'APP_UPDATE_NATIVE_UNAVAILABLE'
+    });
+  }
+} else if (
+  process.env.AGENT_NATIVE_UPDATE_STARTUP_FAILED === '1' ||
+  process.env.AGENT_NATIVE_UPDATES === '1'
+) {
+  updateBarrier.acquire(instanceId);
+  diagnosticsLog.record('update', 'native_update_stage', {
+    stage: 'unknown',
+    error_code: 'APP_UPDATE_REPLACEMENT_UNKNOWN'
+  });
+}
+
+if (catalogForeground) {
+  await catalogForeground
+    .load()
+    .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
+  entitlementGate.onBeforeActorChange(actor => catalogForeground.prepareActorChange(actor));
+}
+await teamRecoveryWorker
+  .load()
+  .catch(() => diagnosticsLog.record('team', 'recovery_unavailable', {}));
+
 /**
  * Stops accepting new work across every tool, then exits only after the
  * canonical module list reports that all current work has settled. This lets a
  * replacement launcher take over without interrupting a user's active task.
  */
 function requestUpdateDrain(targetBuildId: string) {
+  if (shuttingDown || !updateBarrier.accepting()) return;
   queue.requestUpdateDrain(targetBuildId);
-  if (shuttingDown || updateDrainTimer) return;
-
-  const finishWhenIdle = () => {
-    if (shuttingDown) {
-      if (updateDrainTimer) clearInterval(updateDrainTimer);
-      updateDrainTimer = null;
-      return;
-    }
-    if (modules.some(module => module.busy())) return;
-    if (updateDrainTimer) clearInterval(updateDrainTimer);
-    updateDrainTimer = null;
-    // Preserve the latest queue state before the native host releases its
-    // lock. The next Agent can then restore exactly the same durable queue.
-    void saveChain.finally(() => shutdown(UPDATE_HANDOFF_EXIT_CODE, 'update'));
-  };
-
-  updateDrainTimer = setInterval(finishWhenIdle, 250);
-  updateDrainTimer.unref();
-  finishWhenIdle();
+  const attempt = randomUUID();
+  const epoch = updateBarrier.acquire(attempt);
+  void updateBarrier
+    .drain(attempt, epoch, new AbortController().signal)
+    .then(async () => {
+      updateBarrier.commit(attempt, epoch);
+      await shutdown(UPDATE_HANDOFF_EXIT_CODE, 'update');
+    })
+    .catch(() => {
+      diagnosticsLog.record('update', 'native_update_stage', {
+        stage: 'failed',
+        error_code: 'APP_UPDATE_FLUSH_FAILED'
+      });
+      // Legacy queue remains visibly pending. A failed flush never becomes exit 76.
+    });
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -1002,6 +1104,8 @@ const app = await buildServer({
   nativeToken,
   updateHandoffToken,
   requestUpdateDrain,
+  nativeUpdates,
+  updateBarrier,
   allowedOrigins,
   entitlementGate,
   recoveryInstallationId: () => teamRecoveryWorker.installationId,
@@ -1057,7 +1161,6 @@ async function shutdown(code: number, reason: ShutdownReason) {
   diagnosticsLog.record('shutdown', 'requested', { reason, code });
   if (mediaToolsTimer) clearInterval(mediaToolsTimer);
   if (installedReleaseTimer) clearInterval(installedReleaseTimer);
-  if (updateDrainTimer) clearInterval(updateDrainTimer);
   try {
     await shutdownNativePickers();
     await saveChain;
@@ -1066,6 +1169,7 @@ async function shutdown(code: number, reason: ShutdownReason) {
     for (const module of modules) await module.shutdown();
     // Resume anything the duty cycler left stopped before the process exits: a
     // suspended child would outlive the agent and never make progress again.
+    await nativeUpdates?.close();
     await powerGovernor.shutdown();
     // The same code whether close returns or not. `unref` so the timer itself never
     // holds a process open that would otherwise have finished.
@@ -1081,6 +1185,7 @@ async function shutdown(code: number, reason: ShutdownReason) {
   } catch (error) {
     logError(error, 'Shutdown failed');
     diagnosticsLog.record('shutdown', 'failed', { reason, code });
+    if (reason === 'update') code = 1;
   }
   // The last thing before exit, so the reason is on disk for the next boot to serve.
   await diagnosticsLog.close();
@@ -1091,6 +1196,7 @@ try {
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Soty Agent: http://${config.host}:${config.port}`);
   diagnosticsLog.record('boot', 'listening');
+  nativeUpdates?.afterListening();
 } catch (error) {
   app.log.error(error);
   // The port is the usual reason, and it is a category, not a secret.

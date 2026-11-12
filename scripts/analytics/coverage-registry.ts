@@ -1613,6 +1613,35 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'The browser emits available/prompt/started/dismissed; every stage after update_started has no producer. A later agent_connected with a newer local_app_version is the only evidence of completion.'
   },
   {
+    id: 'update.native_app',
+    tool: 'update',
+    title: 'macOS native update · durable receipts',
+    stages: [
+      'offered',
+      'prepared',
+      'consented',
+      'draining',
+      'drained',
+      'install_committed',
+      'replacement_started',
+      'relaunch_requested',
+      'target_started',
+      'native_ready',
+      'ui_visible'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: ['macos'],
+    unobservable: [
+      'Offline native receipts are bounded and require later browser journal forwarding; missing/late/retained-away stages stay unknown.',
+      'Physical hardware, OS authorization content and SDK internals are not collected.'
+    ],
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    note: 'updates.native_app_updates and inspect/investigate read update/native_update_stage journal projections. Native-ready and UI-visible are distinct. Implementation is awaiting packaged fault, workload and producer-to-CLI qualification; this inventory does not claim acceptance.'
+  },
+  {
     id: 'update.web_release',
     tool: 'update',
     title: 'Web-only release · local operator evidence',

@@ -6,3 +6,4 @@ export * from './release-runner.js';
 export * from './stitcher.js';
 export * from './totp.js';
 export * from './types.js';
+export * from './native-app-updates.js';

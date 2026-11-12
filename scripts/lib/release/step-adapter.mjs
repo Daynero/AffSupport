@@ -1,3 +1,4 @@
+import { nativeUpdateInputsPreflight } from '../native-update-inputs.mjs';
 import { writePlatformBaseline } from './platform-baseline.mjs';
 import { macosTrustPreflight } from './macos-trust-preflight.mjs';
 import {
@@ -490,6 +491,7 @@ export async function createStepAdapter({
     [dmg, 'macos-arm64'],
     [intelDmg, 'macos-x64']
   ];
+  const macUpdateArtifacts = macArtifacts.map(([file, target]) => [file.replace(/\.dmg$/u, '.zip'), target]);
   let windowsPublishedEvidence;
   const exe = path.join(
     'release',
@@ -722,6 +724,8 @@ export async function createStepAdapter({
       // before the first build, not discovered after forty minutes of packaging.
       try {
         const inputs = await macosTrustPreflight(trustEnv);
+        const updaterInputs = await nativeUpdateInputsPreflight(cwd, sourceSha, trustEnv);
+        if (journal) await journal.append('native_update_preflight', updaterInputs);
         if (journal) await journal.append('macos_trust_preflight', inputs);
       } catch (error) {
         return fail('GATE_FAILED', messageOf(error));
@@ -836,7 +840,7 @@ export async function createStepAdapter({
         const names = new Set(existing.assets?.map(asset => asset.name));
         const inspection = await mkdtemp(path.join(cwd, 'release', '.published-readback-'));
         try {
-          for (const [file] of macArtifacts) {
+          for (const [file] of [...macArtifacts, ...macUpdateArtifacts]) {
             const name = path.basename(file);
             if (names.has(name)) {
               const downloaded = await run(
@@ -865,7 +869,7 @@ export async function createStepAdapter({
                 );
             }
           }
-          for (const [file] of macArtifacts)
+          for (const [file] of [...macArtifacts, ...macUpdateArtifacts])
             if (!names.has(path.basename(file))) {
               const uploaded = await run(
                 'publish',
@@ -901,7 +905,7 @@ export async function createStepAdapter({
               'release',
               'create',
               `v${version}`,
-              ...macArtifacts.map(([file]) => file),
+              ...[...macArtifacts, ...macUpdateArtifacts].map(([file]) => file),
               '--target',
               sourceSha,
               '--title',
@@ -989,6 +993,8 @@ export async function createStepAdapter({
         return fail('GATE_FAILED', messageOf(error));
       }
       for (const [file, platform] of [...macArtifacts, [exe, 'windows-x64']]) {
+        if (platform.startsWith('macos-') && macosTrustPolicy(trustEnv.SOTY_MACOS_TRUST_POLICY) === 'developer-id' &&
+            !existsSync(path.join(cwd, `${file.replace(/\.dmg$/u, '.zip')}.native-update.json`))) return fail('GATE_FAILED', 'NATIVE_UPDATE_DESCRIPTOR_MISSING');
         const signed = await run(
           'manifest',
           [
@@ -997,7 +1003,8 @@ export async function createStepAdapter({
             '--dmg',
             file,
             '--platform',
-            platform
+            platform,
+            ...(platform.startsWith('macos-') && existsSync(path.join(cwd, `${file.replace(/\.dmg$/u, '.zip')}.native-update.json`)) ? ['--native-update', `${file.replace(/\.dmg$/u, '.zip')}.native-update.json`] : [])
           ],
           { cwd, env: childEnv, admission }
         );

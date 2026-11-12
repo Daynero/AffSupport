@@ -93,7 +93,8 @@ export async function loadStitcherState(
  */
 export async function saveStitcherState(
   state: StitcherPersistedState,
-  root = applicationSupportRoot()
+  root = applicationSupportRoot(),
+  strict = false
 ): Promise<void> {
   const target = stitcherStatePath(root);
   const staging = `${target}.tmp`;
@@ -106,7 +107,8 @@ export async function saveStitcherState(
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(staging, payload, 'utf8');
     await rename(staging, target);
-  } catch {
+  } catch (error) {
     // Losing the history is not worth failing a run over.
+    if (strict) throw error;
   }
 }

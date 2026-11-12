@@ -155,11 +155,7 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "RELEASE_CHANNEL=beta" \
   "SOURCE_REVISION=$source_revision" \
   "AGENT_ENTITLEMENT_PUBLIC_KEY=$beta_key"
-swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/SotyBetaAgent" \
-  -target "$swift_target" \
-  -framework AppKit \
-  -framework FinderSync
+zsh scripts/compile-native-launcher.sh "$root/Launcher.generated.swift" "$app/Contents/MacOS/SotyBetaAgent" "$swift_target" "$app" "$arch"
 
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
@@ -176,6 +172,7 @@ mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp -R "$source_app/Contents/Resources/licenses/." "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
+node scripts/configure-native-updates.mjs "$app" beta
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyBetaAgent" "$app/Contents/Info.plist"
@@ -205,7 +202,11 @@ xattr -cr "$app"
 # chain's summary stays beside the package for the beta proof. The release-manifest key
 # signs stable.json and nothing else; beta never writes that file, so a beta artifact is
 # not merely unsigned by it — it is unreachable by it.
-SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
+if [[ -n "${SOTY_UPDATE_FIXTURE_ORIGIN:-}" ]]; then
+  zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
+else
+  SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
+fi
 archive="$root/$archive_name"
 rm -f "$root"/Soty-Beta-*-macOS-$arch.zip(N) "$root"/Soty-Beta-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"
@@ -225,3 +226,7 @@ after_tags=$(git tag --list | sort)
 
 print "Built $archive"
 print "Beta build $build_id from $short_revision$dirty — production release identity untouched."
+
+if [[ -n "${SOTY_UPDATE_FIXTURE_ORIGIN:-}" ]]; then
+  node scripts/sign-native-update.mjs "$archive" "$app" "macos-$arch" beta
+fi

@@ -1099,3 +1099,18 @@ describe('background recovery worker', () => {
     expect(f.fetcher).toHaveBeenCalledTimes(count);
   });
 });
+
+describe('native app update scheduler quiescence', () => {
+  it('does not start a restored recovery tick until its owning update hold resumes', async () => {
+    const f = await fixture();
+    const resume = f.worker.pauseForUpdate();
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.worker.busyForUpdate()).toBe(false);
+    resume();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalled();
+  });
+});
