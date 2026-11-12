@@ -77,7 +77,8 @@ export class CatalogVideoForegroundController {
        * refused (409) until the agent restarted, for hours. A write fault is cleared by the
        * next full journal write that succeeds; the in-memory journal is the complete state, so
        * that write commits everything the failed one missed. A journal that could not be read
-       * at startup stays faulted everywhere. Defaults to Windows; macOS keeps every behaviour.
+       * at startup is read again; a damaged one keeps failing. Defaults to Windows; macOS keeps
+       * every behaviour.
        */
       healWriteFaults?: boolean;
       run: (
@@ -98,17 +99,25 @@ export class CatalogVideoForegroundController {
       throw error;
     }
   }
-  /** Windows: retry the journal write that faulted this controller; see `healWriteFaults`. */
+  /**
+   * Windows: retry what faulted this controller; see `healWriteFaults`. A journal that
+   * could not be read at startup (the agent starts with Windows, when a cold PowerShell
+   * start is slowest) is read again — reading never mints anything, and a journal that is
+   * really damaged fails the same way and stays faulted. A failed write is committed again.
+   */
   async #heal() {
     if (
       !this.#faulted ||
-      this.#loadFaulted ||
       this.#stopping ||
       !(this.options.healWriteFaults ?? currentPlatform() === 'win32')
     )
       return;
     try {
-      await this.options.vault.write([...this.#entries.values()]);
+      if (this.#loadFaulted) {
+        this.#entries.clear();
+        await this.#load();
+        this.#loadFaulted = false;
+      } else await this.options.vault.write([...this.#entries.values()]);
       this.#faulted = false;
     } catch {
       /* Still faulted: the caller answers PROCESS_RESULT_UNCERTAIN as before. */

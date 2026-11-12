@@ -747,9 +747,55 @@ it('macOS keeps a write fault until restart, exactly as before', async () => {
   await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
   await expect(f.controller.prepare(second)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
 });
-it('a journal unreadable at startup is never healed, on any platform', async () => {
+it('a damaged journal stays faulted even where reads are retried', async () => {
   const f = faultingFixture(true, [{ damaged: true }]);
   await expect(f.controller.load()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
   await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
   expect(f.saved()).toEqual([{ damaged: true }]);
+});
+it('Windows: a journal read that failed at startup is read again, never minted over', async () => {
+  const stored = faultingFixture(false);
+  await stored.controller.prepare(binding);
+  const journal = stored.saved();
+  let failRead = true;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => {
+        if (failRead) throw new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+        return structuredClone(journal);
+      },
+      write: async () => {}
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults: true
+  });
+  await expect(controller.load()).rejects.toThrow();
+  await expect(controller.prepare(second)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  failRead = false;
+  // The original enrollment is back: the same request gets the same proof, not a new one.
+  const again = await controller.prepare(binding);
+  expect(again.enrollmentId).toBe(
+    (journal as Array<{ receipt: { enrollmentId: string } }>)[0]!.receipt.enrollmentId
+  );
+  await controller.shutdown();
+});
+it('macOS keeps a startup read fault until restart', async () => {
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue(null),
+      write: async () => {}
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {}),
+    healWriteFaults: false
+  });
+  await expect(controller.load()).rejects.toThrow();
+  await expect(controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
 });
