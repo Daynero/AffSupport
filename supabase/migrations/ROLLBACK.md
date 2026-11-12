@@ -3042,6 +3042,16 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207400200 — trashing a catalog deletes its R2 copy at once
+
+Adds `private.catalog_video_r2_release_removed(uuid)` and the trigger
+`catalog_video_r2_after_catalog_removed` on `public.team_materials` (a catalog becoming trashed,
+or missing as removed, drops its R2 uses, makes the copies nobody else uses due now and wakes the
+worker's sweep), and patches `private.catalog_video_r2_has_work` (through `pg_get_functiondef`,
+failing if the text it replaces is missing) so uses of removed catalogs count as sweep work.
+Rolling back means dropping the trigger and the two functions and restoring the previous
+`has_work` body through a reviewed forward migration; copies already deleted stay deleted.
+
 ### 20261207400100 — production receives the error codes the seed gained after it ran
 
 Inserts every code `public.team_error_codes` gets from the migrations (`on conflict do nothing`);

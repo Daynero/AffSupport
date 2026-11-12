@@ -4,6 +4,7 @@ import type { TeamAnalyticsStorage, TeamPermissions } from '@video-compressor/sh
 import {
   Button,
   Checkbox,
+  ConfirmDialog,
   ErrorState,
   FormField,
   Input,
@@ -150,6 +151,31 @@ export function useMaterialActionHost({
     }
   };
 
+  const [confirmR2Trash, setConfirmR2Trash] = useState(false);
+  const trashNow = () =>
+    actions.trash().then(code => {
+      if (!code) onTrashed?.();
+    });
+  /**
+   * A catalog with its video in R2 is deleted for good (owner decision 2026-11-11): the
+   * copy is removed at once and the catalog cannot be restored. The manager's bulk delete
+   * and the catalogs dialog said so; this menu, shared by the explorer and every manager
+   * row, sent it to the trash without a word (found 2026-11-12). Asked only for files that
+   * can be catalogs, and only when the space reports the option on for this one.
+   */
+  const trashWithR2Warning = async () => {
+    if (material.kind === 'file' && material.category !== 'video') {
+      const signals = await teamApi.catalogVideoR2
+        .listSignals(teamId, { signal: AbortSignal.timeout(5000) })
+        .catch(() => []);
+      if (signals.some(signal => signal.catalogMaterialId === material.id && signal.enabled)) {
+        setConfirmR2Trash(true);
+        return;
+      }
+    }
+    await trashNow();
+  };
+
   const handlers: ActionHandlers = {
     copyLink: () => void link.open('get_link'),
     copyText: () => void copyText(),
@@ -162,10 +188,7 @@ export function useMaterialActionHost({
     move: () => setPrompt('move'),
     note: () => setPrompt('note'),
     uploadInto: () => uploadInput.current?.click(),
-    trash: () =>
-      void actions.trash().then(code => {
-        if (!code) onTrashed?.();
-      }),
+    trash: () => void trashWithR2Warning(),
     restore: () => void actions.restore()
   };
 
@@ -288,6 +311,20 @@ export function useMaterialActionHost({
             {t('materialLinkCheck')}
           </Button>
         </Modal>
+      )}
+      {confirmR2Trash && (
+        <ConfirmDialog
+          nested
+          title={t('catalogVideoR2DeleteTitle')}
+          body={t('catalogVideoR2DeleteBody', { name: material.name })}
+          confirmLabel={t('catalogVideoR2DeleteConfirm')}
+          cancelLabel={t('teamCancel')}
+          onCancel={() => setConfirmR2Trash(false)}
+          onConfirm={() => {
+            setConfirmR2Trash(false);
+            void trashNow();
+          }}
+        />
       )}
       {prompt === 'rename' && (
         <Modal
