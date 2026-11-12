@@ -109,6 +109,39 @@ it('pushes a due unfinished intent five minutes out but never one with a live le
   expect((await defer(leased.key))[0]!.value).toBe('unchanged');
 });
 
+it('production loop: a just-failed intent is pushed out, and one failing for a day is parked', async () => {
+  // A failed resume leaves next_attempt_at thirty seconds ahead; the deferral used to answer
+  // 'unchanged' and the pass retried the intent every minute, 1200 times (2026-11-12).
+  const fresh = await intent(await video(), 'interrupted', {
+    next: "clock_timestamp()+interval '30 seconds'"
+  });
+  expect((await defer(fresh.key, 'WRONG_STATE'))[0]!.value).toBe('deferred');
+  expect(
+    (
+      await db.root<{ later: boolean }>(
+        "select next_attempt_at>clock_timestamp()+interval '4 minutes' later from private.catalog_generation_intents where id=$1",
+        [fresh.id]
+      )
+    )[0]!.later
+  ).toBe(true);
+  const old = await intent(await video(), 'interrupted', {
+    next: "clock_timestamp()+interval '30 seconds'"
+  });
+  await db.root(
+    "update private.catalog_generation_intents set created_at=clock_timestamp()-interval '2 days' where id=$1",
+    [old.id]
+  );
+  expect((await defer(old.key, 'WRONG_STATE'))[0]!.value).toBe('parked');
+  expect(
+    (
+      await db.root<{ parked: boolean }>(
+        "select next_attempt_at='infinity'::timestamptz parked from private.catalog_generation_intents where id=$1",
+        [old.id]
+      )
+    )[0]!.parked
+  ).toBe(true);
+});
+
 it('accepts a restitch source version drift only when the bytes are unchanged', async () => {
   const source = await video();
   const fileId = (

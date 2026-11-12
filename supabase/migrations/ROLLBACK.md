@@ -3042,6 +3042,16 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207400000 — a catalog creation whose recovery keeps failing backs off, then parks
+
+Patches `public.service_defer_initial_catalog_recovery` (through `pg_get_functiondef`, failing if
+the text it replaces is missing): after a failed recovery pass an unfinished intent is always
+pushed at least five minutes out, and one created more than a day ago gets
+`next_attempt_at='infinity'` (answer 'parked') so the automatic pass stops taking it. Rolling
+back means restoring the body left by 20261207260000 through a reviewed forward migration;
+parked intents stay parked until resumed from the browser or released by hand
+(`update ... set next_attempt_at=now()`).
+
 ### 20261207399999 — an update round survives an R2 republish of its catalog
 
 Adds `private.catalog_variant_publication_revision(uuid)` and patches
