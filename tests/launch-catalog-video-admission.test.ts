@@ -3,7 +3,9 @@ import { generateLaunch } from '../supabase/functions/drive-ops/launches';
 import { parseTeamRestitchDefaults } from '../packages/shared/src/team/restitch';
 import { launchConfig, launchSources } from './fixtures/launches';
 const id = (n: number) => 'c1711000-0000-4000-8000-' + String(n).padStart(12, '0');
-function fixture(options: { reuse?: boolean; sourceOnly?: boolean; contextError?: boolean } = {}) {
+function fixture(
+  options: { reuse?: boolean; sourceOnly?: boolean; contextError?: boolean; r2?: boolean } = {}
+) {
   const config = launchConfig({
     method: 'catalog',
     catalog: {
@@ -13,7 +15,8 @@ function fixture(options: { reuse?: boolean; sourceOnly?: boolean; contextError?
       customFinalDurationSeconds: 60,
       catalogVideoProtocolVersion: 1,
       videoVariationCount: 1,
-      videoPublication: { mode: 'immediate' }
+      videoPublication: { mode: 'immediate' },
+      ...(options.r2 ? { copyVideoToR2: true } : {})
     }
   });
   const source = {
@@ -124,4 +127,20 @@ it('retains actual context transport failures as transport errors instead of cla
   expect(f.rpc.mock.calls.map(([name]) => name)).not.toContain(
     'service_accept_launch_catalog_video_generation'
   );
+});
+it('carries the R2 copy option into the preferences SQL freezes as the catalog request', async () => {
+  // Production 2026-11-12: a launch with "copy video to R2" ticked created its catalog with
+  // Drive links only, because the frozen request was built without the option.
+  const ticked = fixture({ reuse: true, r2: true });
+  await ticked.run();
+  const admission = ticked.rpc.mock.calls.find(
+    ([name]) => name === 'service_accept_launch_catalog_video_generation'
+  )![1] as { p_video: { plan: { preferences: Record<string, unknown> } } };
+  expect(admission.p_video.plan.preferences.copyVideoToR2).toBe(true);
+  const plain = fixture({ reuse: true });
+  await plain.run();
+  const without = plain.rpc.mock.calls.find(
+    ([name]) => name === 'service_accept_launch_catalog_video_generation'
+  )![1] as { p_video: { plan: { preferences: Record<string, unknown> } } };
+  expect(without.p_video.plan.preferences).not.toHaveProperty('copyVideoToR2');
 });

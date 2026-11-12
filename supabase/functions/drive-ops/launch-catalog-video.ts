@@ -59,7 +59,10 @@ export async function prepareLaunchCatalogVideoAdmission(
     videoPublication: config.catalog.videoPublication ?? { mode: 'immediate' as const },
     ...(config.catalog.restitchEnabled
       ? { restitchDuration: duration, expectedExecutorId: executorId! }
-      : {})
+      : {}),
+    // The accepted request payload is these preferences over the base fields, frozen in SQL
+    // and replayed verbatim by the catalog step: an option left out here never reaches it.
+    ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true as const } : {})
   };
   let plan = createCatalogInitialVideoPlan(preferences, config.catalog.productCount, read.data);
   let settings: TeamRestitchDefaults | null = null;
