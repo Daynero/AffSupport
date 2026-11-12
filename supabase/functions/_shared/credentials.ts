@@ -72,6 +72,11 @@ function parseTokenResponse(value: unknown): GoogleTokenResponse | null {
   return { accessToken: value.access_token, expiresIn: Math.max(1, Math.floor(value.expires_in)) };
 }
 
+/** Pauses before Google's token endpoint is asked again; see `refreshGoogleAccessToken`. */
+export const TOKEN_REFRESH_RETRY_DELAYS_MS: readonly number[] = [400, 1_200];
+/** Past this, no further attempt starts: a person is waiting on the answer. */
+const TOKEN_REFRESH_BUDGET_MS = 20_000;
+
 export async function refreshGoogleAccessToken(input: {
   credential: DriveCredential;
   clientId: string;
@@ -79,54 +84,79 @@ export async function refreshGoogleAccessToken(input: {
   oauthMode: unknown;
   productionSignals: OAuthProductionSignals;
   fetchImpl?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 }): Promise<GoogleTokenResponse> {
   requireDriveOAuthGate(input.productionSignals, input.oauthMode);
   const fetchImpl = input.fetchImpl ?? fetch;
+  const sleep = input.sleep ?? (ms => new Promise<void>(done => setTimeout(done, ms)));
+  const now = input.now ?? Date.now;
+  const startedAt = now();
   const body = new URLSearchParams({
     client_id: input.clientId,
     client_secret: input.clientSecret,
     refresh_token: input.credential.refreshToken,
     grant_type: 'refresh_token'
   });
-  let response: Response;
-  try {
-    response = await fetchImpl('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-      signal: AbortSignal.timeout(10_000)
-    });
-  } catch (failure) {
-    /*
-     * The token endpoint could not be reached at all — DNS, the network, or the
-     * ten-second timeout above. Unlogged, this reached the person as "Google
-     * Drive is not responding" and reached us as nothing whatsoever, which is
-     * the same sentence a real Drive outage produces. The reason is the whole
-     * difference between "wait" and "fix something".
-     */
-    console.error(
-      'token-refresh-unreachable',
-      JSON.stringify(
-        redactForLog(
-          failure instanceof Error
-            ? { name: failure.name, message: failure.message }
-            : { value: failure }
+  /*
+   * A refresh changes nothing that a second one would not, so an unreachable endpoint, a 5xx
+   * or a 429 is asked again after a pause (production 2026-11-12: one unanswered refresh during
+   * a launch's source check reached the person as «Google Drive не відповідає»). A refused
+   * grant is final at once, and no attempt starts past the budget.
+   */
+  let payload: unknown;
+  for (let attempt = 0; ; attempt++) {
+    const another =
+      attempt < TOKEN_REFRESH_RETRY_DELAYS_MS.length &&
+      now() - startedAt + TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]! < TOKEN_REFRESH_BUDGET_MS;
+    let response: Response;
+    try {
+      response = await fetchImpl('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(10_000)
+      });
+    } catch (failure) {
+      /*
+       * The token endpoint could not be reached at all — DNS, the network, or the
+       * ten-second timeout above. Unlogged, this reached the person as "Google
+       * Drive is not responding" and reached us as nothing whatsoever, which is
+       * the same sentence a real Drive outage produces. The reason is the whole
+       * difference between "wait" and "fix something".
+       */
+      console.error(
+        'token-refresh-unreachable',
+        JSON.stringify(
+          redactForLog(
+            failure instanceof Error
+              ? { name: failure.name, message: failure.message, attempt }
+              : { value: failure, attempt }
+          )
         )
-      )
-    );
-    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
-  }
-  const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+      );
+      if (another) {
+        await sleep(TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]!);
+        continue;
+      }
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+    }
+    payload = await response.json().catch(() => null);
+    if (response.ok) break;
     if (isRecord(payload) && payload.error === 'invalid_grant') {
       throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
     }
     console.error(
       'token-refresh-refused',
-      JSON.stringify(redactForLog({ status: response.status, payload }))
+      JSON.stringify(redactForLog({ status: response.status, payload, attempt }))
     );
+    const transient = response.status === 429 || response.status >= 500;
+    if (transient && another) {
+      await sleep(TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]!);
+      continue;
+    }
     throw new TeamFunctionError(response.status === 429 ? 'RATE_LIMITED' : 'DRIVE_UNAVAILABLE', {
-      retryable: response.status === 429 || response.status >= 500
+      retryable: transient
     });
   }
   const parsed = parseTokenResponse(payload);

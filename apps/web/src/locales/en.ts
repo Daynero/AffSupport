@@ -450,6 +450,9 @@ export const en = {
   launchesCatalogExecutorRequired:
     'To restitch catalog videos, open the latest Soty app and connect it to this browser. The new generation has not started.',
   launchesProgressActionRequired: 'Action required',
+  launchesProgressGoogleBusy: 'Google is not responding right now',
+  launchesProgressRetrySafe:
+    'We already tried a few times. Press Repeat in a moment — nothing will be duplicated.',
   launchesProgressUnconfirmed: 'Status not confirmed',
   launchesProgressUnconfirmedHint:
     'The operation may still be running. Check its status before continuing.',

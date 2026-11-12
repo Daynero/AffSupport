@@ -35,3 +35,52 @@ export async function whileLaunchActive<T>(work: Promise<T>, signal: AbortSignal
     signal.removeEventListener('abort', stop);
   }
 }
+
+/**
+ * A generate the server refused only because Google was briefly unavailable is sent again
+ * with the same request key (the server admits a key once, so a repeat never duplicates):
+ * production 2026-11-12, a launch's source check met one unanswered Drive call and the person
+ * saw «Помилка — перевірте стан… Операція може ще виконуватися» for a launch nothing had
+ * started. Only these proved, transient refusals are repeated; anything else is shown.
+ */
+export const LAUNCH_TRANSIENT_RETRY_DELAYS_MS: readonly number[] = [1_500, 4_000];
+const LAUNCH_TRANSIENT_CODES: ReadonlySet<string> = new Set(['DRIVE_UNAVAILABLE', 'RATE_LIMITED']);
+
+export async function withLaunchTransientRetry<T>(
+  send: () => Promise<T>,
+  options: {
+    /** Throws when the person canceled or the request is no longer theirs. */
+    stillWanted: () => void;
+    signal: AbortSignal;
+    sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  }
+): Promise<T> {
+  const sleep =
+    options.sleep ??
+    ((ms: number, signal: AbortSignal) =>
+      new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, ms);
+        signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new Error('superseded-launch-wait'));
+          },
+          { once: true }
+        );
+      }));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send();
+    } catch (error) {
+      if (
+        attempt >= LAUNCH_TRANSIENT_RETRY_DELAYS_MS.length ||
+        !(error instanceof TeamApiError) ||
+        !LAUNCH_TRANSIENT_CODES.has(error.code)
+      )
+        throw error;
+      await sleep(LAUNCH_TRANSIENT_RETRY_DELAYS_MS[attempt]!, options.signal);
+      options.stillWanted();
+    }
+  }
+}

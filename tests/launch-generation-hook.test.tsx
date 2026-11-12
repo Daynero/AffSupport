@@ -536,13 +536,13 @@ it('turns Repeat after a lost acceptance reply into retry of the failed generati
   const config = launchConfig({ method: 'catalog' });
   api.save.mockResolvedValue({ id: 'launch', version: '1' });
   api.generate
-    .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+    .mockRejectedValueOnce(new TeamApiError('LAUNCH_RESULT_UNCERTAIN', true))
     .mockResolvedValue(undefined);
   api.retryGeneration.mockResolvedValue(undefined);
   const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
   await act(async () => {
     await expect(result.current.generate(null, config, null, null)).rejects.toMatchObject({
-      code: 'DRIVE_UNAVAILABLE'
+      code: 'LAUNCH_RESULT_UNCERTAIN'
     });
   });
   const key = api.generate.mock.calls[0][3];
@@ -574,13 +574,14 @@ it('turns Repeat after a lost acceptance reply into retry of the failed generati
 it('keeps the original request when Repeat cannot reconcile, and fences duplicate clicks', async () => {
   const config = launchConfig();
   api.save.mockResolvedValue({ id: 'retry-launch', version: '1' });
+  // An uncertain (lost) reply, not a transient refusal: that one is now sent again by itself.
   api.generate
-    .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+    .mockRejectedValueOnce(new TeamApiError('LAUNCH_RESULT_UNCERTAIN', true))
     .mockResolvedValue(undefined);
   const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
   await act(async () => {
     await expect(result.current.generate(null, config, null, null)).rejects.toMatchObject({
-      code: 'DRIVE_UNAVAILABLE'
+      code: 'LAUNCH_RESULT_UNCERTAIN'
     });
   });
   const original = api.generate.mock.calls[0];
@@ -1517,3 +1518,25 @@ it('replays an unknown canonical POST with the same omitted proof after optional
   expect(foreground.prepare).toHaveBeenCalledOnce();
   expect(result.current.hasUnresolvedRequest).toBe(true);
 });
+
+it('sends a generate Google briefly refused again with the same key, and never shows the refusal', async () => {
+  // Production 2026-11-12: one unanswered Drive call during the source check reached the owner
+  // as «Помилка — перевірте стан… Операція може ще виконуватися»; nothing had been started.
+  const config = launchConfig({ method: 'catalog' });
+  api.save.mockResolvedValue({ id: 'launch', version: '1' });
+  api.generate
+    .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+    .mockResolvedValue(undefined);
+  api.detail.mockResolvedValue({
+    id: 'launch',
+    draft: config,
+    generation: { id: 'generation', state: 'accepted', stage: 'queued', inputVersion: '1' }
+  } as LaunchDetail);
+  const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
+  await act(async () => {
+    await result.current.generate(null, config, null, null);
+  });
+  expect(api.generate).toHaveBeenCalledTimes(2);
+  expect(api.generate.mock.calls[1][3]).toBe(api.generate.mock.calls[0][3]);
+  expect(api.save).toHaveBeenCalledOnce();
+}, 15_000);
