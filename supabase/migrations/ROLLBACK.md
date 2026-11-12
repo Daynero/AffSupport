@@ -3042,6 +3042,15 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207399999 — an update round survives an R2 republish of its catalog
+
+Adds `private.catalog_variant_publication_revision(uuid)` and patches
+`public.service_attach_catalog_updater_variant_target` (through `pg_get_functiondef`, failing if
+the text it replaces is missing): attaching a round's variants expects the current publication
+revision when every revision after the one the round froze was written by the R2 reconciliation.
+Rolling back means restoring the previous body through a reviewed forward migration and dropping
+the function; rounds already attached stay attached.
+
 ### 20261207399998 — the minute R2 sweep plans a copy nothing ever attempted
 
 Adds `private.catalog_video_r2_cells_unplanned(uuid)` and patches
