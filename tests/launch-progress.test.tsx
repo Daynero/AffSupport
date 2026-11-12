@@ -634,6 +634,26 @@ it('makes an uncertain request error explicit without claiming the server stoppe
   expect(screen.getAllByRole('listitem').some(item => item.dataset.state === 'active')).toBe(false);
 });
 
+it('says Google is busy and Repeat is safe when Google refused even after the automatic repeats', () => {
+  // Production 2026-11-12: «Помилка — перевірте стан… Операція може ще виконуватися» for a launch
+  // nothing had started; Repeat sends the same key and can never duplicate.
+  render(
+    <LaunchGenerationProgress
+      generation={null}
+      pendingStage="preparing"
+      requestError="Google Drive is not responding. Try again later."
+      requestErrorCode="DRIVE_UNAVAILABLE"
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toContain('Google is not responding right now');
+  expect(alert.textContent).toContain('nothing will be duplicated');
+  expect(alert.textContent).not.toContain('may still be running');
+  expect(alert.textContent).not.toContain('check the status');
+});
+
 it('says plainly that a refused launch did not start, without a running clock or "may still be running"', () => {
   // Beta 2026-11-09: a 409 before admission showed "check the status", "may still be running"
   // and a frozen 00:02 timer, so it looked hung.

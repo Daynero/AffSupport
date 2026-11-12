@@ -453,6 +453,9 @@ export const uk: Record<keyof typeof en, string> = {
   launchesCatalogExecutorRequired:
     'Щоб перезашивати відео каталогу, відкрийте актуальний застосунок Soty та під’єднайте його до цього браузера. Нову генерацію ще не запущено.',
   launchesProgressActionRequired: 'Потрібна дія',
+  launchesProgressGoogleBusy: 'Google зараз не відповідає',
+  launchesProgressRetrySafe:
+    'Ми вже спробували кілька разів. Натисніть «Повторити» трохи згодом — дубля не буде.',
   launchesProgressUnconfirmed: 'Статус не підтверджено',
   launchesProgressUnconfirmedHint:
     'Операція може ще виконуватися. Перевірте стан, перш ніж продовжити.',

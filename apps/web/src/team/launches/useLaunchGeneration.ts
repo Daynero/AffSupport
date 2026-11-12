@@ -5,7 +5,7 @@ import { catalogForeground } from '../../api/catalog-video-foreground-client';
 import type { CatalogForegroundExecutor } from '../../api/catalog-video-foreground';
 import { recoveryInstallation } from '../../api/recovery-installation';
 import { privateCacheActor, privateCacheActorEpoch } from '../private-cache-scope';
-import { launchReply, whileLaunchActive } from './reply';
+import { launchReply, whileLaunchActive, withLaunchTransientRetry } from './reply';
 import { launchIntent, launchAction, launchLocalStage } from './analytics';
 import { useEffect, useRef, useState } from 'react';
 import { parseLaunchConfig } from '@video-compressor/shared';
@@ -344,17 +344,27 @@ export function useLaunchGeneration(
         setPendingStage('preparing');
         launchLocalStage({ flowId, launchId: pending.id }, 'preparing');
         pending.admissionDispatched = true;
-        return launchReply(
-          pending.expectedExecutorId || foregroundExecutor
-            ? launchApi.generate(
-                teamId,
-                pending.id,
-                pending.version,
-                pending.key,
-                foregroundExecutor ? undefined : pending.expectedExecutorId,
-                foregroundExecutor
-              )
-            : launchApi.generate(teamId, pending.id, pending.version, pending.key)
+        return withLaunchTransientRetry(
+          () =>
+            launchReply(
+              pending.expectedExecutorId || foregroundExecutor
+                ? launchApi.generate(
+                    teamId,
+                    pending.id,
+                    pending.version,
+                    pending.key,
+                    foregroundExecutor ? undefined : pending.expectedExecutorId,
+                    foregroundExecutor
+                  )
+                : launchApi.generate(teamId, pending.id, pending.version, pending.key)
+            ),
+          {
+            signal: controller.signal,
+            stillWanted: () => {
+              requireRequestOwner();
+              if (cancelRequested.current) throw new TeamApiError('PROCESS_CANCELED', false);
+            }
+          }
         );
       };
       await active(

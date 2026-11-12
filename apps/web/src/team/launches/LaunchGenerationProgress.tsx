@@ -352,6 +352,9 @@ export function LaunchGenerationProgress({
     !notStarted &&
     code !== 'AGENT_REQUIRED' &&
     Boolean(requestError || code === 'LAUNCH_RESULT_UNCERTAIN');
+  // Google refused even after the automatic repeats (production 2026-11-12). Repeat sends the
+  // same request key, so it can never duplicate: say that, not «may still be running».
+  const googleBusy = unconfirmed && (code === 'DRIVE_UNAVAILABLE' || code === 'RATE_LIMITED');
   const showNotice =
     recovering ||
     canonicalCancellationPending ||
@@ -387,16 +390,18 @@ export function LaunchGenerationProgress({
               ? 'launchesProgressStopped'
               : notStarted
                 ? 'launchesProgressNotStarted'
-                : unconfirmed
-                  ? 'launchesProgressErrorUnconfirmed'
-                  : 'launchesProgressActionRequired'
+                : googleBusy
+                  ? 'launchesProgressGoogleBusy'
+                  : unconfirmed
+                    ? 'launchesProgressErrorUnconfirmed'
+                    : 'launchesProgressActionRequired'
           )}
         >
           {(!canonicalTerminalCause && !reconciling && requestError) ||
             (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
           {unconfirmed && (
             <span className="launch-progress-error-hint">
-              {t('launchesProgressUnconfirmedHint')}
+              {t(googleBusy ? 'launchesProgressRetrySafe' : 'launchesProgressUnconfirmedHint')}
             </span>
           )}
         </Alert>
