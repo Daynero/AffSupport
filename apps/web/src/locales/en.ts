@@ -17,6 +17,8 @@ export const en = {
   catalogVideoCreationUnknown:
     'The result is not confirmed. Check the original operation before retrying.',
   catalogVideoCheckingResult: 'checking the result',
+  catalogVideoCreationNotReceived:
+    'The previous creation never reached the server, so nothing was created. You can create it again.',
   catalogVideoCheckingCreation: 'Checking the result of the creation…',
   catalogServerSlow: 'The server is responding slowly. Try again.',
   catalogVideoReadInterrupted:
@@ -4329,6 +4331,8 @@ export const en = {
   teamSpaceNoAccessAction: 'Go to my spaces',
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
   teamErrorProcessFailed: 'This file could not be processed on this computer.',
+  teamErrorAgentUpdatePending:
+    'Soty on this computer is waiting to restart after an update. Quit Soty and open it again, then try once more.',
   teamErrorProcessResultUncertain:
     'The result could not be confirmed. Check the file state before retrying.',
   teamTranscribeFailedFile:

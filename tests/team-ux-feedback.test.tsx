@@ -172,6 +172,16 @@ describe('the code→copy mapper', () => {
     expect(teamErrorMessageFor(new Error('ECONNRESET at 0x1f'), t)).toBe(generic);
     expect(teamErrorMessageFor(Object.assign(new Error('x'), { code: 'NOPE' }), t)).toBe(generic);
   });
+
+  it('tells the person to restart Soty when the local app waits for an installed update', () => {
+    // Production 2026-11-12 (Windows): a catalog restitch refused with UPDATE_PENDING said only
+    // «something went wrong»; nothing told the person the app waited for a restart.
+    const t = (key: (typeof translationKeys)[number]) => translate('en', key);
+    expect(teamErrorMessageFor(new Error('UPDATE_PENDING'), t)).toBe(
+      t('teamErrorAgentUpdatePending')
+    );
+    expect(t('teamErrorAgentUpdatePending')).toMatch(/restart/u);
+  });
 });
 
 describe('provenance', () => {

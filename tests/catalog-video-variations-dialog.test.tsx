@@ -213,3 +213,42 @@ it('still shows a final refusal as an error during a run', async () => {
   expect(await screen.findByRole('alert')).toBeTruthy();
   expect(screen.queryByText(/connection to the server dropped/)).toBeNull();
 });
+const storedKey = `soty:catalog-video-manager:v1:${actor}:${team}:${catalog}`;
+const NOT_RECEIVED =
+  'The previous creation never reached the server, so nothing was created. You can create it again.';
+it('offers the form again when the server never received the remembered start', async () => {
+  // Production 2026-11-12: a start lost on the way was remembered for good; Cancel said «impossible».
+  localStorage.setItem(storedKey, '47000000-0000-4000-8000-000000000044');
+  localStorage.setItem(`${storedKey}:at`, String(Date.now() - 5 * 60_000));
+  show();
+  expect(await screen.findByText(NOT_RECEIVED)).toBeTruthy();
+  expect(localStorage.getItem(storedKey)).toBeNull();
+  expect(localStorage.getItem(`${storedKey}:at`)).toBeNull();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Create video variations' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+});
+it('keeps waiting for a start sent moments ago that the server has not recorded yet', async () => {
+  localStorage.setItem(storedKey, '47000000-0000-4000-8000-000000000045');
+  localStorage.setItem(`${storedKey}:at`, String(Date.now()));
+  show();
+  await waitFor(() => expect(m.read).toHaveBeenCalled());
+  expect(localStorage.getItem(storedKey)).toBe('47000000-0000-4000-8000-000000000045');
+  expect(screen.queryByText(NOT_RECEIVED)).toBeNull();
+});
+it('remembers when a start was sent, beside the request', async () => {
+  m.start.mockImplementation(async input => ({ ...state, requestId: input.requestId }));
+  show();
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Create video variations' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Create video variations' }));
+  await waitFor(() => expect(m.start).toHaveBeenCalled());
+  expect(Number(localStorage.getItem(`${storedKey}:at`))).toBeGreaterThan(Date.now() - 60_000);
+});

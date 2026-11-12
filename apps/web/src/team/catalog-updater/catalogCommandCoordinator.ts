@@ -163,6 +163,13 @@ export class CatalogCommandCoordinator {
 }
 
 /** End local waiting without claiming that a server mutation was cancelled. */
+/**
+ * How long after sending a catalog creation a read that finds nothing still means "on its
+ * way". Well past the command deadline and a retried edge call; after it, the server's empty
+ * answer means nothing was created (production 2026-11-12).
+ */
+export const CREATION_NOT_RECEIVED_AFTER_MS = 90_000;
+
 export function withCatalogCommandDeadline<T>(
   work: (signal: AbortSignal) => Promise<T>,
   parent: AbortSignal,

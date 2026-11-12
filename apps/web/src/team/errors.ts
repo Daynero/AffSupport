@@ -252,6 +252,9 @@ export function teamErrorMessageFor(error: unknown, t: (key: TranslationKey) => 
 const LOCAL_RUN: Record<string, TranslationKey> = {
   PROCESS_FAILED: 'teamErrorProcessFailed',
   PROCESS_CANCELED: 'teamErrorProcessCanceled',
+  // The local app refuses new work while an installed update waits for its restart
+  // (production 2026-11-12, Windows): «something went wrong» told nobody to restart it.
+  UPDATE_PENDING: 'teamErrorAgentUpdatePending',
   // Stitching was asked for and the compressor's library has no pictures (013 B5).
   EMBED_IMAGES_REQUIRED: 'embeddingNeedsImage'
 };

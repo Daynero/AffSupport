@@ -19,6 +19,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoCreationUnknown:
     'Результат ще не підтверджено. Перевірте початкову операцію перед повтором.',
   catalogVideoCheckingResult: 'перевіряємо результат',
+  catalogVideoCreationNotReceived:
+    'Попереднє створення до сервера не дійшло, тож нічого не створено. Можна створити ще раз.',
   catalogVideoCheckingCreation: 'Перевіряємо результат створення…',
   catalogServerSlow: 'Сервер відповідає повільно. Спробуйте ще раз.',
   catalogVideoReadInterrupted:
@@ -4311,6 +4313,8 @@ export const uk: Record<keyof typeof en, string> = {
   teamSpaceNoAccessAction: 'До моїх просторів',
   teamErrorUnknown: 'Щось пішло не так. Спробуйте ще раз за мить.',
   teamErrorProcessFailed: 'Цей файл не вдалося обробити на цьому комп’ютері.',
+  teamErrorAgentUpdatePending:
+    'Soty на комп’ютері чекає на перезапуск після оновлення. Закрийте Soty й відкрийте знову, тоді спробуйте ще раз.',
   teamErrorProcessResultUncertain:
     'Не вдалося підтвердити результат. Перевірте стан файла перед повтором.',
   teamTranscribeFailedFile:
