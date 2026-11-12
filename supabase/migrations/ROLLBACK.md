@@ -3032,6 +3032,14 @@ worker wrote it, and a re-stitch record counts as 'restitching' only while its l
 Read-only change to a listing; rolling back means restoring the previous body (the one left
 by 20261207398000) through a reviewed forward migration.
 
+### 20261207399995 — a canceled set whose published variant output went missing settles
+
+Patches `private.catalog_video_cancel_quiescent` (through `pg_get_functiondef`, failing if the text
+it replaces is missing): the upload settlement check no longer blocks an operation whose output is
+gone (`private.catalog_variant_output_gone`), the rule 20261207399920 already applies to its result.
+Rolling back means restoring the body left by 20261207399920 through a reviewed forward migration;
+sets already canceled stay canceled.
+
 ### 20261207399920 — production's last stuck catalog shapes settle, and the updater sleeps when idle
 
 Adds `private.restitch_released_executor_claims`, `private.release_silent_restitch_executor`,

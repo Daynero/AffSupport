@@ -339,6 +339,40 @@ it('with the retry budget spent, the creation is canceled and its cancellation s
   expect(await setState(f.set)).toBe('canceled');
 });
 
+it('52c28131 on production: a published upload whose output went missing does not hold the cancellation', async () => {
+  const f = await succeededMissing(2);
+  // Production's run published its output through upload ownership before the file went missing.
+  await replica(async () => {
+    await db.root(
+      "insert into private.process_upload_ownership(operation_id,team_id,actor_id,connection_id,credential_id,root_id,parent_id,file_id,source_file_id,expected_name,mime_type,size_bytes,checksum,handoff_expires_at,upload_state) select $1,$2,$3,c.id,c.credential_id,'root','root',$4,'source','catalog_variant_1.mp4','video/mp4',4,repeat('b',32),clock_timestamp()+interval '1 hour','published' from public.team_drive_connections c where c.id=$5",
+      [f.op, team, ACTOR, `variant-${f.set}-1`, connection]
+    );
+  });
+  await settleShapes();
+  expect(await setState(f.set)).toBe('cancel_requested');
+  await settleCancellations();
+  expect(await setState(f.set)).toBe('canceled');
+});
+
+it('a published upload whose output is still active keeps the cancellation waiting', async () => {
+  const f = await succeededMissing(2);
+  await replica(async () => {
+    await db.root(
+      "update public.team_materials set lifecycle='active',missing_at=null where id=$1",
+      [f.output]
+    );
+    await db.root(
+      "insert into private.process_upload_ownership(operation_id,team_id,actor_id,connection_id,credential_id,root_id,parent_id,file_id,source_file_id,expected_name,mime_type,size_bytes,checksum,handoff_expires_at,upload_state) select $1,$2,$3,c.id,c.credential_id,'root','root',$4,'source','catalog_variant_1.mp4','video/mp4',4,repeat('b',32),clock_timestamp()+interval '1 hour','published' from public.team_drive_connections c where c.id=$5",
+      [f.op, team, ACTOR, `variant-${f.set}-1`, connection]
+    );
+    await db.root("update private.catalog_video_sets set state='cancel_requested' where id=$1", [
+      f.set
+    ]);
+  });
+  await settleCancellations();
+  expect(await setState(f.set)).toBe('cancel_requested');
+});
+
 it('an update round stalled for a day is closed and frees its catalog', async () => {
   const f = await succeededMissing(0, '2 minutes');
   const catalog = (
