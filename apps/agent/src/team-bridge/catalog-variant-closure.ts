@@ -98,7 +98,7 @@ export async function settleCatalogVariantProcess(input: {
         reported
       );
     } catch (cause) {
-      throw new Error('PROCESS_RESULT_UNCERTAIN', { cause: cause ?? error });
+      throw new Error('PROCESS_RESULT_UNCERTAIN', { cause });
     }
     if (settled.operationId !== input.operationId)
       throw new Error('PROCESS_RESULT_UNCERTAIN', { cause: error });
