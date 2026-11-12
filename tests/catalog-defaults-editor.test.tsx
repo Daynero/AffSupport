@@ -14,7 +14,8 @@ vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track } }));
 
 const permissions = vi.hoisted(() => ({ editable: true }));
 vi.mock('../apps/web/src/team/TeamContext', () => ({
-  useTeam: () => ({ can: () => permissions.editable })
+  useTeam: () => ({ can: () => permissions.editable }),
+  useLegacyCatalogImageSettings: () => true
 }));
 beforeEach(() => {
   setPrivateCacheScope('47000000-0000-4000-8000-000000000001', 'owner');

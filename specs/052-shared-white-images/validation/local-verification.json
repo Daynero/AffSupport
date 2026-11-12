@@ -1,0 +1,288 @@
+{
+  "schema": 1,
+  "kind": "local_implementation_validation",
+  "generated_at": "2026-11-12T21:11:21.423821+00:00",
+  "branch": "feature/052-shared-white-images",
+  "base_sha": "a7e30bcab44af177467c8875463db33b8e6c20eb",
+  "all_required_checks_passed": false,
+  "production_permit": false,
+  "activation_performed": false,
+  "passing_unique_canonical_gates": 23,
+  "groups": {
+    "static": {
+      "ok": true,
+      "command": "verify",
+      "generated_at": "2026-11-12T21:07:45.520Z",
+      "form": "release",
+      "data": {
+        "duration_ms": 44907,
+        "totals": {
+          "gates": 15,
+          "passed": 15,
+          "failed": 0,
+          "tests": 0,
+          "skipped_tests": 0,
+          "skip_reasons": {},
+          "coverage_lines": null
+        },
+        "gates": [
+          {
+            "id": "build:shared",
+            "ok": true,
+            "duration_ms": 1478
+          },
+          {
+            "id": "format",
+            "ok": true,
+            "duration_ms": 40773
+          },
+          {
+            "id": "lint",
+            "ok": true,
+            "duration_ms": 35795
+          },
+          {
+            "id": "typecheck:projects",
+            "ok": true,
+            "duration_ms": 33253
+          },
+          {
+            "id": "build:catalog-image-delivery",
+            "ok": true,
+            "duration_ms": 950
+          },
+          {
+            "id": "typecheck:tests",
+            "ok": true,
+            "duration_ms": 43423
+          },
+          {
+            "id": "typecheck:scripts",
+            "ok": true,
+            "duration_ms": 7118
+          },
+          {
+            "id": "design-tokens",
+            "ok": true,
+            "duration_ms": 357
+          },
+          {
+            "id": "tailwind-classes",
+            "ok": true,
+            "duration_ms": 5499
+          },
+          {
+            "id": "migrations-additive",
+            "ok": true,
+            "duration_ms": 377
+          },
+          {
+            "id": "styles",
+            "ok": true,
+            "duration_ms": 416
+          },
+          {
+            "id": "i18n",
+            "ok": true,
+            "duration_ms": 403
+          },
+          {
+            "id": "env-registry",
+            "ok": true,
+            "duration_ms": 407
+          },
+          {
+            "id": "csp",
+            "ok": true,
+            "duration_ms": 235
+          },
+          {
+            "id": "audit",
+            "ok": true,
+            "duration_ms": 5160
+          }
+        ]
+      }
+    },
+    "build": {
+      "ok": true,
+      "command": "verify",
+      "generated_at": "2026-11-12T21:08:29.188Z",
+      "form": "release",
+      "data": {
+        "duration_ms": 24102,
+        "totals": {
+          "gates": 5,
+          "passed": 5,
+          "failed": 0,
+          "tests": 0,
+          "skipped_tests": 0,
+          "skip_reasons": {},
+          "coverage_lines": null
+        },
+        "gates": [
+          {
+            "id": "build:shared",
+            "ok": true,
+            "duration_ms": 1579
+          },
+          {
+            "id": "build:web",
+            "ok": true,
+            "duration_ms": 17444
+          },
+          {
+            "id": "build:agent",
+            "ok": true,
+            "duration_ms": 2773
+          },
+          {
+            "id": "contract:release",
+            "ok": true,
+            "duration_ms": 510
+          },
+          {
+            "id": "contract:team",
+            "ok": true,
+            "duration_ms": 1795
+          }
+        ]
+      }
+    },
+    "e2e": {
+      "ok": true,
+      "command": "verify",
+      "generated_at": "2026-11-12T20:23:29.137Z",
+      "form": "release",
+      "data": {
+        "duration_ms": 343099,
+        "totals": {
+          "gates": 8,
+          "passed": 8,
+          "failed": 0,
+          "tests": 0,
+          "skipped_tests": 0,
+          "skip_reasons": {},
+          "coverage_lines": null
+        },
+        "gates": [
+          {
+            "id": "build:shared",
+            "ok": true,
+            "duration_ms": 1539
+          },
+          {
+            "id": "build:web",
+            "ok": true,
+            "duration_ms": 19164
+          },
+          {
+            "id": "build:agent",
+            "ok": true,
+            "duration_ms": 2887
+          },
+          {
+            "id": "contract:release",
+            "ok": true,
+            "duration_ms": 558
+          },
+          {
+            "id": "contract:team",
+            "ok": true,
+            "duration_ms": 1807
+          },
+          {
+            "id": "database",
+            "ok": true,
+            "duration_ms": 298168
+          },
+          {
+            "id": "a11y",
+            "ok": true,
+            "duration_ms": 16641
+          },
+          {
+            "id": "csp:browser",
+            "ok": true,
+            "duration_ms": 2333
+          }
+        ]
+      }
+    },
+    "environment": {
+      "ok": true,
+      "command": "verify",
+      "generated_at": "2026-11-12T20:26:28.780Z",
+      "form": "release",
+      "data": {
+        "duration_ms": 1630,
+        "totals": {
+          "gates": 2,
+          "passed": 2,
+          "failed": 0,
+          "tests": 0,
+          "skipped_tests": 0,
+          "skip_reasons": {},
+          "coverage_lines": null
+        },
+        "gates": [
+          {
+            "id": "build:shared",
+            "ok": true,
+            "duration_ms": 1468
+          },
+          {
+            "id": "contract:web-env",
+            "ok": true,
+            "duration_ms": 161
+          }
+        ]
+      }
+    }
+  },
+  "final_focused": {
+    "numPassedTests": 170,
+    "numFailedTests": 0,
+    "numPendingTests": 2
+  },
+  "canonical_suite_attempt": {
+    "sotySuite": {
+      "plannedShards": 8,
+      "executedShards": 6,
+      "completedShards": 6,
+      "complete": false
+    },
+    "numTotalTests": 8225,
+    "numPassedTests": 8147,
+    "numFailedTests": 1,
+    "numPendingTests": 77,
+    "failure": "AssertionError: expected 54079 to be less than or equal to 54000"
+  },
+  "official_budget_regression": {
+    "baseline": {
+      "passed": 3,
+      "failed": 1,
+      "failure": "AssertionError: expected 54086 to be less than or equal to 54000"
+    },
+    "feature": {
+      "passed": 3,
+      "failed": 1,
+      "failure": "AssertionError: expected 54079 to be less than or equal to 54000"
+    }
+  },
+  "benchmark_source_digest": "25cd2343388409aaeb5703040a1b02a4158caa4c732ce2a582a82f8d9ecf5bc6",
+  "supplemental_coverage": "supplemental-coverage.json; not a successful final canonical suite",
+  "outstanding": "Inherited budget gate T065/T066, final sign-off T068/T069 and future external acceptance T067 before a separately planned release",
+  "final_browser_checks": {
+    "a11y": {
+      "routes": 10,
+      "themes": 2,
+      "violations": 0,
+      "page_errors": 0
+    },
+    "csp": {
+      "passed": 3,
+      "failed": 0
+    }
+  }
+}

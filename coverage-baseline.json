@@ -529,7 +529,6 @@
     "apps/web/src/team/launches/SubBuilder.tsx": 98.34,
     "apps/web/src/team/launches/analytics.ts": 92.91,
     "apps/web/src/team/launches/campaignCountLabel.ts": 100,
-    "apps/web/src/team/launches/catalogVideoProtocol.ts": 100,
     "apps/web/src/team/launches/launchCatalogDefaults.ts": 100,
     "apps/web/src/team/launches/launchDraftDefaults.ts": 100,
     "apps/web/src/team/launches/launchPublicationTiming.ts": 100,
@@ -809,5 +808,6 @@
     "apps/web/src/transcription/useScrollSync.ts",
     "apps/web/src/transcription/useSemanticSelection.ts",
     "apps/web/src/transcription/useTranslationFollow.ts"
-  ]
+  ],
+  "retired_files_052": ["apps/web/src/team/launches/catalogVideoProtocol.ts"]
 }

@@ -30,7 +30,7 @@ import {
   pendingTariffGrant,
   TariffGrantIntentError
 } from '../pages/admin/tariffGrantIntent';
-import { catalogImageClient } from './team-catalog-images';
+import { catalogImageClient, getGlobalCatalogImageReadiness } from './team-catalog-images';
 import { catalogVideoR2Client } from './team-catalog-video-r2';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
@@ -2123,6 +2123,7 @@ export type RestitchDefaultsInput = Pick<
 
 export const teamApi = {
   catalogImages: catalogImageClient,
+  getGlobalCatalogImageReadiness,
   catalogVideoR2: catalogVideoR2Client,
   async listTeams(options: { signal?: AbortSignal } = {}): Promise<TeamContextSnapshot[]> {
     const data = (await invokeTeamRpc('list_my_teams', {}, options)) ?? [];
@@ -3178,7 +3179,7 @@ export const teamApi = {
 
   async getProductCatalogSettings(teamId: string): Promise<ProductCatalogSettings | null> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_team_product_catalog_settings', { p_team: teamId })
+      requireSupabaseClient().rpc('get_team_product_catalog_settings_v3', { p_team: teamId })
     );
     throwRpc(error);
     const first = Array.isArray(data) ? data[0] : null;
@@ -3195,9 +3196,10 @@ export const teamApi = {
       description: string | null;
       priceMin: number;
       priceMax: number;
-      imageLink: string | null;
+      imageLink?: string | null;
     }
   ): Promise<ProductCatalogSettings> {
+    const policy = await getGlobalCatalogImageReadiness(teamId);
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('set_team_product_catalog_settings', {
         p_team: teamId,
@@ -3206,7 +3208,7 @@ export const teamApi = {
           description: input.description,
           priceMin: input.priceMin,
           priceMax: input.priceMax,
-          imageLink: input.imageLink
+          ...(policy.state === 'prepared' ? { imageLink: input.imageLink } : {})
         }
       })
     );
@@ -3708,7 +3710,7 @@ export const teamApi = {
         {
           ...input,
           ...(foregroundExecutor ? { foregroundExecutor, expectedExecutorId: undefined } : {}),
-          catalogImageContractVersion: 2,
+          catalogImageContractVersion: 3,
           expectedActorId: catalogMutationActor()
         },
         (value): value is ProductCatalogCreateResult | CatalogVideoPreparingResult =>
@@ -3734,7 +3736,7 @@ export const teamApi = {
   },
 
   async createProductCatalog(input: {
-    catalogImageContractVersion?: 2;
+    catalogImageContractVersion?: 2 | 3;
     teamId: string;
     videoMaterialId: string;
     sourceLink: string;
@@ -3748,7 +3750,7 @@ export const teamApi = {
   }): Promise<ProductCatalogCreateResult> {
     return invokeTeamFunction(
       'drive-ops/product-catalog/create',
-      { ...input, catalogImageContractVersion: 2 },
+      { ...input, catalogImageContractVersion: 3 },
       productCatalogCreateGuard
     );
   },

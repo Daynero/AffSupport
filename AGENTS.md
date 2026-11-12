@@ -59,6 +59,7 @@ npm run analytics -- cohorts [--cohort-by local-app-version|platform|web-build|a
 npm run analytics -- retention  [--period ...] [--json]
 npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
+npm run analytics -- global-images [--image <uuid>] [--at-least 5000] [--sort id|uses] [--cleanup] [--json]
 npm run analytics -- catalog-trends [user-email|user-id] [--period ...] [--as-of <iso>] [--limit N] [--html <path>] [--json]
 npm run analytics -- connection [--period ...] [--json]
 npm run analytics -- audit      [--period ...] [--as-of <iso>] [--write] [--json]
@@ -102,6 +103,10 @@ means no client emits that event today — treat it as unknown, never as zero.
 | Why does a user's Soty link drop / not reconnect?         | `connection` (losses, recovery p50/p95, reasons, coverage), then `journey <email>`                  |
 | Що не так у user@x? / What is wrong for this user?        | `investigate <email> --json` → `data.findings` (fact / hypothesis / insufficient, `code_locations`) |
 | Що записав агент на комп'ютері користувача?               | `journal <email\|installation_id\|agent_instance_id> --json` → `data.records`                       |
+
+### Global white-image pool
+
+Use `npm run analytics -- global-images --json` for confirmed catalog+image uses, issued URL slots and the informational5000 threshold. Use `--cleanup` for the immutable T0/deadline and retained/deleted/unknown/external-untouched status. Counters are exact decimal strings; they are not ad impressions. `--as-of` cannot reconstruct historical mutable counters. No reporting command activates or cleans the pool.
 
 ### Catalog schedule trends
 

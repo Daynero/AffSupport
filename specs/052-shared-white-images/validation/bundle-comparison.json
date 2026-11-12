@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "kind": "inherited_budget_failure_comparison",
+  "base_sha": "a7e30bcab44af177467c8875463db33b8e6c20eb",
+  "configuration": "same five public production web build values; private clean installations",
+  "ceilings": {
+    "launch_exclusive_gzip_bytes": 54000,
+    "shared_existing_growth_gzip_bytes": 67000
+  },
+  "baseline": {
+    "total_gzip_bytes": 1191688,
+    "launch_exclusive_gzip_bytes": 54086,
+    "accounts_exclusive_gzip_bytes": 79968,
+    "shared_existing_growth_gzip_bytes": 84013
+  },
+  "feature": {
+    "total_gzip_bytes": 1192840,
+    "launch_exclusive_gzip_bytes": 54079,
+    "accounts_exclusive_gzip_bytes": 79963,
+    "shared_existing_growth_gzip_bytes": 85177
+  },
+  "feature_delta_gzip_bytes": 1152,
+  "limits_changed": false
+}

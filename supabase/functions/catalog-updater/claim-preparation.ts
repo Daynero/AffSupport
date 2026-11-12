@@ -31,7 +31,7 @@ export async function prepareCatalogClaims(
       )
         return row;
       const mode = await call('service_catalog_image_mode_v2', { p_team: row.team_id });
-      if (mode !== 'v2') return row;
+      if (mode !== 'v2' && mode !== 'global') return row;
       const attempt = await call('service_catalog_image_update_attempt_v2', {
         p_catalog: row.catalog_material_id,
         p_worker: workerId
@@ -49,7 +49,11 @@ export async function prepareCatalogClaims(
         return null;
       }
       if (typeof attempt !== 'string') throw new TeamFunctionError('INVALID_RESPONSE');
-      return { ...row, image_attempt_id: attempt };
+      return {
+        ...row,
+        image_attempt_id: attempt,
+        ...(mode === 'global' ? { global_images: true, refresh_images: true } : {})
+      };
     })
   );
   return { rows: prepared.filter(row => row !== null), quarantined, stale };

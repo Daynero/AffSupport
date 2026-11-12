@@ -13,7 +13,8 @@ import { CatalogVideoR2Toggle } from '../apps/web/src/team/product-catalog/Catal
 import {
   CatalogIconControls,
   CatalogIconLegend,
-  catalogVideoR2Sentence
+  catalogVideoR2Sentence,
+  catalogVideoR2Status
 } from '../apps/web/src/team/catalog-updater/CatalogIconControls';
 import type { CatalogVideoR2Row } from '../apps/web/src/team/product-catalog/useCatalogVideoR2Team';
 import { CatalogVideoR2UsageSection } from '../apps/web/src/team/tariffs/CatalogVideoR2UsageSection';
@@ -394,6 +395,47 @@ describe('R2 icon in the catalog toolbar', () => {
     expect(screen.queryByText('Copy the video to R2')).toBeNull();
     view.rerender(<CatalogIconLegend teamId={TEAM} onOpenSettings={vi.fn()} videoR2 />);
     expect(screen.getByText('Copy the video to R2')).toBeTruthy();
+  });
+  it('keeps a pending video save locked while global image controls change', () => {
+    const onToggle = vi.fn();
+    render(
+      <CatalogIconControls
+        profile={profile}
+        name="Catalog"
+        onChange={vi.fn()}
+        videoR2={{ row: row({ pending: true, enabled: true }), onToggle }}
+      />
+    );
+    const toggle = screen.getAllByRole('button').at(-1)!;
+    expect(toggle.getAttribute('aria-busy')).toBe('true');
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(toggle);
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(catalogVideoR2Sentence(row({ enabled: true }), key => key)).toBe(
+      'catalogVideoR2PanelPending'
+    );
+    expect(catalogVideoR2Status(row({ link: 'r2' }), key => key)).toBe(
+      'catalogVideoR2StatusReturning'
+    );
+  });
+  it('opens ordinary settings links in the panel and preserves modified browser navigation', () => {
+    const open = vi.fn();
+    render(<CatalogIconLegend teamId={TEAM} onOpenSettings={open} />);
+    const links = screen.getAllByRole('link');
+    for (const link of links) fireEvent.click(link);
+    expect(open.mock.calls.map(([href]) => href)).toEqual(
+      links.map(link => link.getAttribute('href'))
+    );
+    open.mockClear();
+    const preventNavigation = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener('click', preventNavigation);
+    try {
+      for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey'])
+        fireEvent.click(links[0]!, { [modifier]: true });
+    } finally {
+      document.removeEventListener('click', preventNavigation);
+    }
+    expect(open).not.toHaveBeenCalled();
   });
 });
 

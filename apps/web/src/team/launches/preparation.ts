@@ -13,6 +13,7 @@ export interface LaunchCatalogPreparationClient {
   listProductCatalogTexts(teamId: string): Promise<readonly unknown[]>;
   listProductCatalogImageSources(teamId: string): Promise<{ poolSize: number }>;
   catalogImages: {
+    globalReadiness?: (teamId: string) => Promise<{ state: string; usable: boolean }>;
     capabilities(teamId: string): Promise<{ mode: 'legacy' | 'v2' }>;
     inventory(teamId: string): Promise<{ total: number; unclassified: number }>;
   };
@@ -23,6 +24,10 @@ export async function isLaunchCatalogReady(
   client: LaunchCatalogPreparationClient,
   teamId: string
 ): Promise<boolean> {
+  if (client.catalogImages.globalReadiness) {
+    const policy = await client.catalogImages.globalReadiness(teamId);
+    if (policy.state !== 'prepared') return policy.usable;
+  }
   const [settings, texts, capabilities] = await Promise.all([
     client.getProductCatalogSettings(teamId),
     client.listProductCatalogTexts(teamId),

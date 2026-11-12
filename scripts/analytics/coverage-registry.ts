@@ -121,6 +121,36 @@ const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
   {
+    id: 'team.catalog_global_images',
+    tool: 'team',
+    title: 'Global catalog image pool',
+    stages: [
+      'import_collecting',
+      'import_sealed',
+      'validating',
+      'publishing',
+      'serving_probe',
+      'allocated',
+      'confirmed',
+      'activated',
+      'retirement_pending',
+      'retirement_verified',
+      'external_untouched'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    unobservable: [
+      'HTTP proof does not establish browser delivery, provider cache fanout or Meta ingestion.',
+      'Missing, delayed or expired journal stages remain unknown. Counters are current confirmed catalog+image pairs, never ad impressions.',
+      'Activation, compatible rollback builds, exact-source installed platform acceptance and provider retirement remain release prerequisites.'
+    ],
+    note: '052 global-images reads narrowly granted policy/image/cleanup projections in one SQL snapshot. Immutable flow/attempt journal and exact pair receipts are independent of client telemetry. Legacy private settings become retired at the global policy epoch; absence after activation is expected. External originals and permissions are never deleted.'
+  },
+  {
     id: 'team.restitch_selection',
     tool: 'team',
     title: 'Restitch · bounded selection storage',

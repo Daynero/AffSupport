@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TeamAuditEventSummary } from '../apps/web/src/api/team';
 import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
@@ -55,6 +55,66 @@ function renderHistory(events: TeamAuditEventSummary[]) {
 }
 
 describe('the space history', () => {
+  it('keeps older work readable across people, catalog and task events', async () => {
+    renderHistory([
+      event({ action: 'membership.updated', result: 'denied', subjectLabel: null }),
+      event({ action: 'drive.resynced', result: 'failed', actorLabel: null, occurredAt: at(1441) }),
+      event({ action: 'material.upload', subjectLabel: 'offer_v2_catalog', occurredAt: at(2881) }),
+      event({ action: 'task.assigned', target: { to: 'Buyer' }, occurredAt: at(2882) }),
+      event({ action: 'task.assigned', target: {}, occurredAt: at(2883) }),
+      event({
+        action: 'task.file_attached',
+        subjectLabel: 'Brief.pdf',
+        target: {},
+        occurredAt: at(2884)
+      }),
+      event({
+        action: 'future.safe_action',
+        subjectLabel: null,
+        occurredAt: '2025-11-01T12:00:00Z'
+      })
+    ]);
+    expect(await screen.findByRole('region', { name: 'Yesterday' })).toBeTruthy();
+    expect(screen.getByText('future.safe_action')).toBeTruthy();
+    expect(screen.getByText('Brief.pdf')).toBeTruthy();
+    expect(screen.getByText('Denied')).toBeTruthy();
+    expect(screen.getByText('Failed')).toBeTruthy();
+    expect(screen.getByText('Former member')).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: 'People' }));
+    expect(screen.queryByText('Brief.pdf')).toBeNull();
+  });
+  it('pages earlier events with the oldest cursor and retains loaded events after a read failure', async () => {
+    const first = Array.from({ length: 50 }, (_, n) =>
+      event({ subjectLabel: `Creative ${n}`, occurredAt: at(n) })
+    );
+    const client = {
+      listAuditEvents: vi
+        .fn()
+        .mockResolvedValueOnce(first)
+        .mockRejectedValueOnce(new Error('unavailable'))
+        .mockResolvedValueOnce([event({ subjectLabel: 'Older', occurredAt: at(80) })])
+    };
+    render(
+      <AuthContextOverride value={adminAuthStub()}>
+        <HistoryDialog teamId={TEAM} client={client} onClose={vi.fn()} />
+      </AuthContextOverride>
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Show earlier' }));
+    await waitFor(() => expect(client.listAuditEvents).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Show earlier' }).getAttribute('aria-busy')
+      ).not.toBe('true')
+    );
+    expect(screen.getByText('Creative 0')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show earlier' }));
+    expect(await screen.findByText('Older')).toBeTruthy();
+    expect(client.listAuditEvents.mock.calls[2]).toEqual([
+      TEAM,
+      { limit: 50, before: first.at(-1)!.occurredAt }
+    ]);
+    expect(screen.queryByRole('button', { name: 'Show earlier' })).toBeNull();
+  });
   it('says the work as lines under the day, folds repeats and badges only problems', async () => {
     renderHistory([
       event({

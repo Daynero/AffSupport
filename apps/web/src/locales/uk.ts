@@ -302,6 +302,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesErrorUncertain:
     'Немає підтвердження, що завантаження завершилося. Натисніть «Перевірити стан»; це не завантажує файли повторно.',
   catalogImagesErrorDisabled: 'Нові завантаження картинок поки вимкнені для цього простору.',
+  catalogGlobalSettingsRetired:
+    'Зображення каталогу тепер видаються автоматично. Оновіть сторінку Soty, щоб продовжити.',
   catalogImagesErrorUpgrade: 'Оновіть сторінку: цей простір використовує новий механізм картинок.',
   catalogImagesErrorVerification:
     'Картинку ще не підтверджено за публічним посиланням. Оновіть стан перед повтором.',
@@ -2744,6 +2746,8 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogTextsBrowseTitle: 'Назви й описи',
   productCatalogTextsSearch: 'Пошук за назвою або описом',
   productCatalogTextsFound: 'Знайдено: {count}',
+  productCatalogTextFallbackTitle: 'Якщо немає назв',
+  productCatalogTextFallbackHint: 'Ця назва й опис використовуються, коли пул текстів порожній.',
   productCatalogFallbackTitle: 'Якщо немає назв чи зображень',
   productCatalogFallbackInUse: 'Використовуються',
   productCatalogFallbackUnused: 'Про запас',

@@ -1,3 +1,4 @@
+import type { GlobalCatalogImage } from './catalog-global-images.js';
 // @ts-self-types="./catalog-images.d.ts"
 import { isRecord } from './contract.js';
 
@@ -166,7 +167,7 @@ export interface LegacyCatalogImage {
   resourceKey: string | null;
   name?: string | null;
 }
-export type CatalogImage = R2CatalogImage | LegacyCatalogImage;
+export type CatalogImage = R2CatalogImage | LegacyCatalogImage | GlobalCatalogImage;
 export type CatalogImageImportState =
   | 'collecting'
   | 'enumerating'

@@ -107,6 +107,8 @@
     "packages/shared/src/team/catalog-video-foreground.ts": 90,
     "packages/shared/src/team/catalog-video-progress.ts": 90,
     "packages/shared/src/team/catalog-video-set.ts": 90,
-    "packages/shared/src/team/launches/catalog-video.ts": 90
+    "packages/shared/src/team/launches/catalog-video.ts": 90,
+    "packages/shared/src/team/catalog-global-images.ts": 90,
+    "packages/shared/src/team/catalog-global-alias.ts": 90
   }
 }

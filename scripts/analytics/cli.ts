@@ -1,3 +1,4 @@
+import { getGlobalImageStatus, getGlobalImageEvidence } from './global-images.js';
 import { lookupCodeLocations } from './code-map.js';
 import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidence.js';
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
@@ -88,6 +89,10 @@ import {
 } from './types.js';
 
 export interface ParsedArgs {
+  image?: string;
+  atLeast?: string;
+  sort?: 'id' | 'uses';
+  cleanup?: boolean;
   command: string;
   positional: string[];
   period?: string;
@@ -133,6 +138,7 @@ Commands:
   team-workspace      SC-001/SC-005 cohorts + four independent SC-009 weeks
   sync <team-id|owner-email>  Catalog sync jobs of one space: state, waits, errors
   catalog-texts <team-id|run-id>     Weekly text replacement settings, runs and failures
+  global-images [--image UUID] [--at-least N] [--sort id|uses] [--cleanup]  Global image status
   catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
   catalog-video-r2 <team-id|catalog-id|copy-id>  Catalog video copies to R2: stages, proof limits, reasons, cleanup
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
@@ -185,6 +191,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
   while (rest.length) {
     const token = rest.shift() as string;
     switch (token) {
+      case '--image':
+        parsed.image = rest.shift();
+        break;
+      case '--at-least':
+        parsed.atLeast = rest.shift();
+        break;
+      case '--sort':
+        parsed.sort = rest.shift() as 'id' | 'uses';
+        break;
+      case '--cleanup':
+        parsed.cleanup = true;
+        break;
       case '--html':
         parsed.html = rest.shift();
         if (!parsed.html || parsed.html.startsWith('--'))
@@ -290,7 +308,12 @@ export async function executeCommand(
     throw new CommandError(
       '--as-of is unavailable for current database snapshots; historical database state is not recorded by these commands.'
     );
-  if (args.cursor && command !== 'catalog-images' && command !== 'catalog-video-r2')
+  if (
+    args.cursor &&
+    command !== 'catalog-images' &&
+    command !== 'catalog-video-r2' &&
+    command !== 'global-images'
+  )
     throw new CommandError('--cursor is supported only by catalog-images and catalog-video-r2.');
   if (args.html && command !== 'catalog-trends')
     throw new CommandError('--html is supported only by catalog-trends.');
@@ -514,13 +537,25 @@ export async function executeCommand(
       });
       return done(data, JSON.stringify(data, null, 2));
     }
+    case 'global-images': {
+      const data = await getGlobalImageStatus(period, {
+        image: args.image,
+        atLeast: args.atLeast,
+        sort: args.sort,
+        limit: args.limit,
+        cursor: args.cursor,
+        cleanup: args.cleanup
+      });
+      return done(data, JSON.stringify(data, null, 2));
+    }
     case 'catalog-images': {
       const id = requireArg(args, 0, 'catalog-images <team-id|import-id|entry-id>');
       const data = await getCatalogImageDiagnosis(id, period, {
         limit: args.limit,
         cursor: args.cursor
       });
-      return done(data, JSON.stringify(data, null, 2));
+      const result = { ...data, global_pool: await getGlobalImageEvidence(id, period) };
+      return done(result, JSON.stringify(result, null, 2));
     }
     case 'catalog': {
       const id = requireArg(args, 0, 'catalog <catalog-id | attempt-id>');

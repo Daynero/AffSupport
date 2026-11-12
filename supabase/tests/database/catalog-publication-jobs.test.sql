@@ -14,7 +14,7 @@ create temporary table publication_test as select public.service_save_catalog_pu
 select ok(not has_table_privilege('service_role','private.catalog_video_publication_jobs','select,insert,update,delete'),'job rows have no direct service/browser grants');
 select ok((select bool_and(relrowsecurity and relforcerowsecurity) from pg_class where oid in('private.catalog_video_publication_jobs'::regclass,'private.catalog_publication_targets'::regclass,'private.catalog_publication_baseline_checks'::regclass)),'publication and baseline RLS forced');
 select ok(not has_function_privilege('authenticated','public.service_save_catalog_publication(uuid,uuid,uuid,uuid,bigint,text,timestamptz,text,jsonb)','execute'),'browser cannot call trusted policy authority');
-select ok(not has_function_privilege('authenticated','public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text)','execute'),'browser cannot forge provider baseline proof');
+select ok(not has_function_privilege('authenticated','public.service_finish_catalog_baseline_check(uuid,uuid,uuid,uuid,text,text,text,uuid,bigint)','execute'),'browser cannot forge provider baseline proof');
 select is((select receipt->>'mode' from publication_test),'held','held policy persisted');
 select is((select receipt->'active' from publication_test),'null'::jsonb,'metadata is not active delivery proof');
 create temporary table publication_baseline as select public.service_begin_catalog_baseline_check('b1770000-0000-4000-8000-000000000061','b1770000-0000-4000-8000-000000000011','b1770000-0000-4000-8000-000000000001','b1770000-0000-4000-8000-000000000042',1) context;

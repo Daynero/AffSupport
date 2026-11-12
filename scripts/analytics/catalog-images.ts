@@ -1,3 +1,4 @@
+import { getGlobalImageAudit } from './global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
@@ -351,7 +352,7 @@ export async function getCatalogImageDiagnosis(
   };
 }
 
-export async function getCatalogImageAudit(period: ResolvedPeriod) {
+async function getLegacyCatalogImageAudit(period: ResolvedPeriod) {
   const schema = await getSchema();
   if (!schema.tables.analytics_catalog_image_journal)
     return { supported: false, samples: 0, missing: ['catalog_image_projection_unavailable'] };
@@ -423,4 +424,12 @@ export async function getCatalogImageUserDiagnosis(
     [email]
   );
   return getCatalogImageDiagnosis(null, period, { userId: rows[0]?.id ?? null, limit });
+}
+
+export async function getCatalogImageAudit(period: ResolvedPeriod) {
+  const [legacy, global] = await Promise.all([
+    getLegacyCatalogImageAudit(period),
+    getGlobalImageAudit(period)
+  ]);
+  return { ...legacy, global };
 }

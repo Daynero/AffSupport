@@ -47,10 +47,14 @@ describe('space settings surface', () => {
     expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
 
     // The room open is in the address, so a reload comes back to it.
-    await user.click(screen.getByRole('tab', { name: 'Tags' }));
+    const tags = screen.getByRole('tab', { name: 'Tags' });
+    const scroller = tags.closest('.modal') as HTMLElement;
+    scroller.scrollTop = 120;
+    await user.click(tags);
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get('tab')).toBe('tags')
     );
+    expect(scroller.scrollTop).toBe(0);
   });
 
   it('hides owner-only controls from a viewer', async () => {

@@ -55,6 +55,11 @@ const TABLES = [
   'analytics_catalog_text_schedule_journal',
   'analytics_catalog_text_schedule_coverage',
   'analytics_catalog_image_storage',
+  'analytics_catalog_global_coverage',
+  'analytics_catalog_global_images',
+  'analytics_catalog_global_policy',
+  'analytics_catalog_global_cleanup',
+  'analytics_catalog_global_journal',
   'analytics_catalog_image_optimization'
 ] as const;
 
@@ -81,6 +86,17 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...Object.fromEntries(
+        [
+          'analytics_catalog_global_coverage',
+          'analytics_catalog_global_images',
+          'analytics_catalog_global_policy',
+          'analytics_catalog_global_cleanup',
+          'analytics_catalog_global_journal'
+        ]
+          .filter(name => has('table', name))
+          .map(name => [name, true])
+      ),
       ...(has('table', 'analytics_catalog_video_session_authorities')
         ? { analytics_catalog_video_session_authorities: true }
         : {}),
@@ -232,6 +248,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_text_schedule_journal' &&
         table !== 'analytics_catalog_text_schedule_coverage' &&
         table !== 'analytics_catalog_image_storage' &&
+        !table.startsWith('analytics_catalog_global_') &&
         table !== 'analytics_catalog_image_optimization' &&
         table !== 'analytics_process_output_cleanup' &&
         // 047 projections: their readers report their own blind spots when absent.

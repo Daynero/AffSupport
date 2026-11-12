@@ -55,6 +55,24 @@ if (typeof css.escape !== 'function') {
   css.escape = (value: string) => String(value).replace(/[^\w-]/gu, character => `\\${character}`);
 }
 
+// CSSOM scrolling is available in the browser but absent from jsdom. Preserve
+// its final position so navigation tests exercise their scroll reset as well.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollTo !== 'function') {
+  Object.defineProperty(Element.prototype, 'scrollTo', {
+    configurable: true,
+    writable: true,
+    value(this: Element, options?: ScrollToOptions | number, y?: number) {
+      if (typeof options === 'number') {
+        this.scrollLeft = options;
+        if (typeof y === 'number') this.scrollTop = y;
+      } else {
+        if (typeof options?.left === 'number') this.scrollLeft = options.left;
+        if (typeof options?.top === 'number') this.scrollTop = options.top;
+      }
+    }
+  });
+}
+
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {

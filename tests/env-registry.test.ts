@@ -125,7 +125,12 @@ describe('the tracked registry', () => {
   const registry = loadRegistry(process.cwd());
 
   it('declares every surface the deployment has', () => {
-    expect(Object.keys(registry.surfaces).sort()).toEqual(['agent', 'functions', 'web']);
+    expect(Object.keys(registry.surfaces).sort()).toEqual([
+      'agent',
+      'catalog-image-delivery',
+      'functions',
+      'web'
+    ]);
   });
 
   it('requires the secret whose absence stops every desktop pairing', () => {
@@ -151,4 +156,10 @@ describe('the tracked registry', () => {
       .map(entry => entry.name);
     expect(unexplained).toEqual([]);
   });
+});
+
+it('discovers runtime Worker bindings independently of browser and Deno secrets', () => {
+  expect([
+    ...scanUsage('worker', 'env.CATALOG_GLOBAL_ALIAS_KEYS; env.R2_CATALOG_PUBLIC_ORIGIN')
+  ]).toEqual(['CATALOG_GLOBAL_ALIAS_KEYS', 'R2_CATALOG_PUBLIC_ORIGIN']);
 });

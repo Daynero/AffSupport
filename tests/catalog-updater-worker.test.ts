@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
+import { globalImageFixture } from './fixtures/catalog-global.js';
 import { describe, expect, it, vi } from 'vitest';
 import yauzl from 'yauzl';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors.js';
@@ -1056,4 +1057,68 @@ it('waits for a frozen row recipe before growth rather than silently dropping th
   expect(result.updated).toBe(0);
   expect(h.deps.retry).toHaveBeenCalledWith('a', 'CATALOG_PUBLICATION_PENDING', expect.any(Date));
   expect(h.deps.beginWrite).not.toHaveBeenCalled();
+});
+
+describe('052 global update output', () => {
+  for (const count of [100, 200])
+    it(`refreshes all${count} rows despite a historical false image flag`, async () => {
+      const { deps, drive } = setup({
+        batches: [
+          [
+            claimedRow('global', {
+              global_images: true,
+              refresh_images: false,
+              refresh_texts: false,
+              product_count: count,
+              image_attempt_id: '52000000-0000-4000-8000-000000001111'
+            })
+          ]
+        ]
+      });
+      const image = {
+        ...globalImageFixture(),
+        classification: {
+          mode: 'unclassified',
+          garment: null,
+          color: null,
+          vocabularyVersion: 'catalog-clothing-v1',
+          reason: 'unknown'
+        }
+      };
+      deps.drawImages = vi.fn(async () => Array(count).fill(image));
+      deps.readImageLink = vi.fn();
+      deps.finalizeImageUses = vi.fn();
+      deps.validateImageRows = vi.fn();
+      const result = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+      expect(result.updated).toBe(1);
+      expect(deps.drawImages).toHaveBeenCalledTimes(1);
+      expect(deps.drawImages).toHaveBeenCalledWith(
+        'team',
+        count,
+        expect.objectContaining({ contractVersion: 3, catalogId: 'global', scope: 'refresh' })
+      );
+      expect(deps.readImageLink).not.toHaveBeenCalled();
+      expect(drive.listAnyonePermissions).toBeUndefined();
+      const rows = deps.complete.mock.calls[0][3].snapshot.rows;
+      expect(rows).toHaveLength(count);
+      expect(
+        rows.every(row => row.imageLink === image.publicUrl && row.pictureImage.kind === 'global')
+      ).toBe(true);
+      expect(deps.finalizeImageUses).toHaveBeenCalledWith(
+        'team',
+        '52000000-0000-4000-8000-000000001111',
+        true
+      );
+    });
+  it('does not publish a partial outgoing global recipe', async () => {
+    const { deps, drive } = setup({
+      batches: [
+        [claimedRow('global', { global_images: true, refresh_images: false, product_count: 200 })]
+      ]
+    });
+    deps.drawImages = vi.fn(async () => [globalImageFixture()]);
+    const result = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(result.updated).toBe(0);
+    expect(drive.updateConvertedFile).not.toHaveBeenCalled();
+  });
 });

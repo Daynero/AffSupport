@@ -1,3 +1,4 @@
+import { getGlobalImageEvidence } from './global-images.js';
 import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
 import { getCatalogGrowthEvidence } from './catalog-growth.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -1884,6 +1885,7 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     'team.launches': 'launchAudit',
     'team.catalog_settings': 'catalogSettingsAudit',
     'team.catalog_images': 'catalogImageAudit',
+    'team.catalog_global_images': 'catalogImageAudit',
     'team.catalog_text_schedule': 'textScheduleAudit',
     'team.tariff_recovery': 'recoveryAudit',
     'team.recovery_retirement': 'retirementAudit',
@@ -2006,9 +2008,37 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (
+    ['team.catalog_image_pool', 'team.catalog_image_prompt', 'team.catalog_images'].includes(
+      capability.id
+    ) &&
+    catalogImageAudit?.global.retiredEpoch
+  ) {
+    return {
+      ...base,
+      status: 'covered',
+      missing: [],
+      samples: null,
+      current_lifecycle: {
+        retired_since_policy_epoch: catalogImageAudit.global.retiredEpoch,
+        historical_coverage: 'unknown'
+      },
+      note: 'Private image setup is retired under the global policy. Current absence is expected; historical coverage remains unknown.'
+    };
+  }
   if (capability.id === 'team.catalog_text_schedule') {
     const missing = textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'];
     const samples = textScheduleAudit?.evidence.length ?? 0;
+    return {
+      ...base,
+      status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
+      missing,
+      samples
+    };
+  }
+  if (capability.id === 'team.catalog_global_images') {
+    const missing = catalogImageAudit?.global.missing ?? ['global_image_projection_unavailable'];
+    const samples = catalogImageAudit?.global.samples ?? 0;
     return {
       ...base,
       status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
@@ -2361,6 +2391,49 @@ const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
   const original = await getInspectWithoutPublication(id, asOf, limit);
+  const globalImages = /^[0-9a-f-]{36}$/iu.test(id)
+    ? await getGlobalImageEvidence(id, {
+        token: 'all',
+        start: null,
+        end: asOf ?? new Date().toISOString(),
+        label: 'all',
+        ...(asOf ? { as_of: asOf } : {})
+      })
+    : null;
+  if (globalImages?.evidence.length && !original.found) {
+    const stages = globalImages.evidence.map(row => String(row.stage)),
+      last = globalImages.evidence[0]!;
+    return {
+      found: true,
+      id,
+      matched_by: ['authoritative_table'],
+      capability: 'team.catalog_global_images',
+      tool: 'team',
+      global_images: globalImages,
+      stages: {
+        expected: ['allocated', 'confirmed'],
+        observed: [...new Set(stages)],
+        missing: ['allocated', 'confirmed'].filter(stage => !stages.includes(stage))
+      },
+      terminal: null,
+      last_proven_stage: String(last.stage),
+      first_seen_at: String(globalImages.evidence.at(-1)!.occurred_at),
+      last_seen_at: String(last.occurred_at),
+      delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'Global image receipts are server evidence; browser and advertising-platform delivery remain separate.'
+      },
+      events: []
+    };
+  }
   const growthEvidence =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&
     (await getSchema()).tables.analytics_catalog_growth_video_recipes

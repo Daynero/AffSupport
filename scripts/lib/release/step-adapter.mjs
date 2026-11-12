@@ -1,3 +1,4 @@
+import { inspectCatalogGlobalRelease } from './catalog-global-cutover.mjs';
 import { writePlatformBaseline } from './platform-baseline.mjs';
 import { releaseArtifactName } from '../../../packages/shared/dist/release.js';
 import { macosPaths } from '../macos-target.mjs';
@@ -584,6 +585,8 @@ export async function createStepAdapter({
      * release that intends to apply them is not mistaken for drift.
      */
     preflight: async () => {
+      const globalImages=inspectCatalogGlobalRelease(binding,sourceSha);
+      if(!globalImages.ok)return fail('GATE_FAILED',`Global image cutover evidence is incomplete: ${globalImages.failures.join(', ')}`);
       const webEnv = await run('preflight', [process.execPath, 'scripts/verify-web-env.mjs'], {
         cwd,
         env: childEnv,

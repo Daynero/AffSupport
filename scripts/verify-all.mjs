@@ -93,6 +93,13 @@ const PHASES = {
       script('format', 'format:check', 300_000),
       script('lint', 'lint', 300_000),
       script('typecheck:projects', 'typecheck:projects', 600_000),
+      {
+        id: 'build:catalog-image-delivery',
+        command: npm,
+        args: ['run', '--silent', 'build', '-w', '@video-compressor/catalog-image-delivery'],
+        shell: process.platform === 'win32',
+        timeoutMs: 180_000
+      },
       script('typecheck:tests', 'typecheck:tests', 600_000),
       script('typecheck:scripts', 'typecheck:scripts', 300_000),
       {

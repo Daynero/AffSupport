@@ -2911,7 +2911,7 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       requestOrigin: request.headers.get('origin')
     }),
     validateImageUses: async (team, attempt) => {
-      await imageRpc('service_catalog_image_validate_uses_v2', {
+      await imageRpc('service_catalog_image_validate_uses_v3', {
         p_team: team,
         p_attempt: attempt
       });
@@ -2949,8 +2949,15 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
         () => undefined
       );
     },
+    bindGlobalImageCatalog: async (team, intent, material) => {
+      await imageRpc('service_catalog_global_bind_existing', {
+        p_team: team,
+        p_intent: intent,
+        p_material: material
+      });
+    },
     finalizeImageUses: async (team, attempt, delivered) => {
-      await imageRpc('service_catalog_image_finalize_uses_v2', {
+      await imageRpc('service_catalog_image_finalize_uses_v3', {
         p_team: team,
         p_attempt: attempt,
         p_delivered: delivered

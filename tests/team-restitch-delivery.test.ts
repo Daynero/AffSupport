@@ -10,7 +10,10 @@ import type {
   ScreenRecoveryProvider,
   ScreenRecoveryCandidate
 } from '../apps/agent/src/team-bridge/screen-recovery.js';
-import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
+import {
+  clearRestitchInspections,
+  createRestitchDelegate
+} from '../apps/agent/src/team-bridge/restitch.js';
 import type { ToolResult, runTool as runToolType } from '../apps/agent/src/stitcher/run.js';
 import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
@@ -136,7 +139,12 @@ async function sha256(file: string): Promise<string> {
     .digest('hex');
 }
 
-function run(input: string, options: unknown, signal = new AbortController().signal) {
+function run(
+  input: string,
+  options: unknown,
+  signal = new AbortController().signal,
+  checksum: string | null = null
+) {
   const delegate = createRestitchDelegate({
     embedding: () => library,
     imagePathFor: async () => path.join(workspace, 'photo.png'),
@@ -148,7 +156,7 @@ function run(input: string, options: unknown, signal = new AbortController().sig
     sourceFile: input,
     sourceSizeBytes: 1_000,
     sourceVersion: '7',
-    sourceChecksum: null,
+    sourceChecksum: checksum,
     options,
     signal,
     onProgress: () => {},
@@ -157,6 +165,7 @@ function run(input: string, options: unknown, signal = new AbortController().sig
 }
 
 beforeEach(async () => {
+  clearRestitchInspections();
   workspace = await mkdtemp(path.join(os.tmpdir(), 'restitch-delivery-'));
   runTool.mockReset();
   probeSource.mockReset();
@@ -176,6 +185,25 @@ afterEach(async () => {
 });
 
 describe('a re-stitched delivery', () => {
+  it('reuses verified inspection across workspaces, rebinds its path and evicts old identities', async () => {
+    const first = await source();
+    const second = await source('second.mp4');
+    const checksum = (n: number) => n.toString(16).padStart(32, '0');
+    await run(first, { defaults, prepared: null }, undefined, checksum(1));
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(1);
+    expect(staging.mock.calls.at(-1)?.[0]).toMatchObject({
+      request: { profile: { path: second } }
+    });
+    for (let n = 2; n <= 17; n += 1)
+      await run(first, { defaults, prepared: null }, undefined, checksum(n));
+    expect(probeSource).toHaveBeenCalledTimes(17);
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(18);
+    clearRestitchInspections();
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(19);
+  });
   it.each([
     ['BODY_HEAD_FAILED', 'BODY_HEAD_FAILED'],
     ['/private/media/source.mp4 provider detail', 'PROCESS_FAILED']

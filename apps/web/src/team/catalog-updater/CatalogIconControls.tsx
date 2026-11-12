@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { useRef, useState, type CSSProperties } from 'react';
 import {
   Clapperboard,
@@ -108,10 +109,13 @@ export function CatalogIconControls({
   /** 050: the catalog's R2 option, saved on its own; absent while R2 is unavailable. */
   videoR2?: { row: CatalogVideoR2Row; disabledReason?: string; onToggle: (next: boolean) => void };
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
+  const fields = CATALOG_FIELDS.filter(({ field }) => legacyImages || field !== 'refreshImages');
   const { t } = useI18n();
-  const count = CATALOG_FIELDS.length + (videoR2 ? 1 : 0);
+  const count = fields.length + (videoR2 ? 1 : 0);
   const group = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const activeIndex = Math.min(active, count - 1);
   const pending = state?.phase === 'pending';
   const reported = !profile.restitch ? 'off' : (profile.restitchStatus ?? 'waiting');
   const videoState = reported === 'waiting' && restitching ? 'preparing' : reported;
@@ -151,12 +155,12 @@ export function CatalogIconControls({
               ? 0
               : event.key === 'End'
                 ? count - 1
-                : (active + delta + count) % count;
+                : (activeIndex + delta + count) % count;
           setActive(next);
           group.current?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus();
         }}
       >
-        {CATALOG_FIELDS.map(({ field, icon: Icon, label }, index) => {
+        {fields.map(({ field, icon: Icon, label }, index) => {
           const selected = profile[field];
           const waiting = pending && state.field === field;
           const description = `${t(label)} · ${t(selected ? 'catalogUpdaterBulkOn' : 'catalogUpdaterBulkOff')}${field === 'restitch' && selected ? ` · ${videoLabel}` : ''}${disabledReason ? ` · ${disabledReason}` : ''}`;
@@ -175,7 +179,7 @@ export function CatalogIconControls({
                       ? ({ '--catalog-video-fill': percent / 100 } as CSSProperties)
                       : undefined
                   }
-                  tabIndex={active === index ? 0 : -1}
+                  tabIndex={activeIndex === index ? 0 : -1}
                   aria-pressed={selected}
                   aria-disabled={Boolean(disabledReason)}
                   aria-busy={waiting}
@@ -218,7 +222,7 @@ export function CatalogIconControls({
         {videoR2 &&
           (() => {
             const { row, disabledReason: r2Disabled, onToggle } = videoR2;
-            const index = CATALOG_FIELDS.length;
+            const index = fields.length;
             const error = row.error ? teamErrorMessageFor(row.error, t) : null;
             const description = [
               t('catalogVideoR2Toggle'),
@@ -242,7 +246,7 @@ export function CatalogIconControls({
                             ? 'blocked'
                             : 'preparing'
                     }
-                    tabIndex={active === index ? 0 : -1}
+                    tabIndex={activeIndex === index ? 0 : -1}
                     aria-pressed={row.enabled}
                     aria-disabled={Boolean(r2Disabled) || row.pending}
                     aria-busy={row.pending}
@@ -286,6 +290,8 @@ export function CatalogIconLegend({
   /** 050: list the R2 icon only where the option is offered. */
   videoR2?: boolean;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
+  const fields = CATALOG_FIELDS.filter(({ field }) => legacyImages || field !== 'refreshImages');
   const { t } = useI18n();
   const linkedEffect = (field: CatalogField, effect: Parameters<typeof t>[0]) => {
     const key =
@@ -329,7 +335,7 @@ export function CatalogIconLegend({
   };
   return (
     <div className="catalog-icon-legend">
-      {CATALOG_FIELDS.map(({ field, icon: Icon, label, effect }) => (
+      {fields.map(({ field, icon: Icon, label, effect }) => (
         <div key={field}>
           <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           <span>
