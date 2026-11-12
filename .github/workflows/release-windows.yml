@@ -301,6 +301,36 @@ jobs:
           x264_source=$(ls "$out"/x264-*.tar.gz)
           echo "X264_SOURCE_ARCHIVE_WIN=$(cygpath -w "$x264_source")" >> "$GITHUB_ENV"
 
+      # The official whisper.cpp Windows build links the Visual C++ runtime
+      # dynamically (MSVCP140, VCRUNTIME140, VCRUNTIME140_1, VCOMP140). Windows
+      # does not ship it, so a machine without the Visual C++ Redistributable
+      # failed every transcription at once (production 2026-11-12). These are
+      # Microsoft redistributable files, taken from the runner's own Visual Studio
+      # redistributable folder and deployed app-locally beside whisper-cli.exe.
+      - name: Export the Visual C++ runtime whisper links against
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual Studio with the C++ tools is not on this runner' }
+          $redist = Get-ChildItem (Join-Path $vs 'VC\Redist\MSVC') -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+$' } |
+            Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (-not $redist) { throw 'No Visual C++ redistributable folder on this runner' }
+          $x64 = Join-Path $redist.FullName 'x64'
+          $crt = Get-ChildItem $x64 -Directory -Filter 'Microsoft.VC*.CRT' | Select-Object -First 1
+          $omp = Get-ChildItem $x64 -Directory -Filter 'Microsoft.VC*.OpenMP' | Select-Object -First 1
+          if (-not $crt -or -not $omp) { throw "CRT or OpenMP redistributable missing under $x64" }
+          $out = Join-Path $PWD 'release\windows\msvc-runtime'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          foreach ($file in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item (Join-Path $crt.FullName $file) $out
+          }
+          Copy-Item (Join-Path $omp.FullName 'vcomp140.dll') $out
+          Get-ChildItem $out | ForEach-Object { '{0} {1} bytes {2}' -f $_.Name, $_.Length, $_.VersionInfo.FileVersion }
+          "MSVC_RUNTIME_WIN=$out" >> $env:GITHUB_ENV
+
       - name: Run the runtime stager
         run: node scripts/stage-windows-runtime.mjs release/windows/stage
 

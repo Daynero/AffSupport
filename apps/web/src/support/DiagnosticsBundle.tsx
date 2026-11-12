@@ -15,6 +15,9 @@ import {
   type DiagnosticsBundle as Bundle
 } from './diagnostics-bundle';
 
+/** Past any journal (the agent accepts a cursor of up to 15 digits). */
+const LAST_CURSOR = 999_999_999_999_999;
+
 /**
  * The support bundle (031 T015, FR-045/FR-054).
  *
@@ -47,8 +50,14 @@ export function DiagnosticsBundle() {
     setCopied(false);
     // Not paired, not running, or refused: the bundle says `unavailable` and
     // still carries everything the page itself knows.
+    // The newest records, not the oldest: `since` is a cursor from the start of the
+    // journal, so `since=0` returned its first page — on a busy agent hours before the
+    // failure being reported (production 2026-11-12, Windows support). An empty page past
+    // the end answers with the latest sequence; an older agent without it falls back to 0.
+    const end = await fetchAgentDiagnostics(LAST_CURSOR, 1, undefined, true).catch(() => null);
+    const latest = typeof end?.nextSeq === 'number' && end.nextSeq > 0 ? end.nextSeq : 0;
     const response: AgentDiagnosticsResponse | null = await fetchAgentDiagnostics(
-      0,
+      Math.max(0, latest - DIAGNOSTICS_BUNDLE_RECORDS),
       DIAGNOSTICS_BUNDLE_RECORDS,
       undefined,
       true

@@ -6,6 +6,7 @@
 //     runtime/bin/ffmpeg.exe                  FFMPEG_BINARY_WIN
 //     runtime/bin/ffprobe.exe                 FFPROBE_BINARY_WIN
 //     runtime/bin/whisper-cli.exe             WHISPER_BINARY_WIN
+//     runtime/bin/{msvcp140,vcruntime140,vcruntime140_1,vcomp140}.dll  MSVC_RUNTIME_WIN
 //     runtime/models/ggml-silero-v5.1.2.bin   WHISPER_VAD_MODEL
 //     runtime/models/ggml-large-v3.bin        WHISPER_MODEL (optional)
 //     agent/{dist,package.json,node_modules}  stageAgentRuntime (lockfile-exact)
@@ -37,6 +38,7 @@ const DRY_RUN_DEFAULTS = {
   FFPROBE_BINARY_WIN: 'C:\\wishly-deps\\ffprobe.exe',
   WHISPER_BINARY_WIN: 'C:\\wishly-deps\\whisper-cli.exe',
   WHISPER_LIBS_WIN: 'C:\\wishly-deps\\whisper-libs',
+  MSVC_RUNTIME_WIN: 'C:\\wishly-deps\\msvc-runtime',
   WHISPER_VAD_MODEL: 'C:\\wishly-deps\\ggml-silero-v5.1.2.bin'
 };
 
@@ -56,6 +58,12 @@ const inputs = [
     optional: true,
     directory: true
   },
+  // The Visual C++ runtime whisper.dll/ggml*.dll and whisper-cli.exe link against
+  // (MSVCP140, VCRUNTIME140, VCRUNTIME140_1, VCOMP140). Windows does not ship it; a
+  // machine without the Visual C++ Redistributable failed every transcription at
+  // once (production 2026-11-12). Required: CI copies the files from the runner's
+  // Visual Studio redistributable folder (.github/workflows/release-windows.yml).
+  { env: 'MSVC_RUNTIME_WIN', target: 'runtime/bin', mustBeExe: false, directory: true },
   { env: 'WHISPER_VAD_MODEL', target: 'runtime/models/ggml-silero-v5.1.2.bin', mustBeExe: false },
   // Optional exactly like the mac pipeline: omit to ship a small installer and
   // let the agent download ggml-large-v3 on first use.

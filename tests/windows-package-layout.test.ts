@@ -6,7 +6,9 @@ import {
   PE_MACHINE_AMD64,
   REQUIRED_HOST_ENTRIES,
   REQUIRED_STAGE_ENTRIES,
-  WHISPER_COMPANION_DLLS
+  MSVC_RUNTIME_DLLS,
+  WHISPER_COMPANION_DLLS,
+  missingCompanionDlls
 } from '../scripts/lib/windows-package-layout.mjs';
 
 /** Minimal PE image: DOS "MZ" stub, offset at 0x3c, "PE\0\0" and a machine word. */
@@ -152,6 +154,39 @@ describe('required stage layout', () => {
     expect(publishStep).toContain('--self-contained true');
     expect(publishStep).toContain('/p:PublishSingleFile=true');
     expect(publishStep).not.toContain('--self-contained false');
+  });
+
+  it('ships the Visual C++ runtime the official whisper build links against', () => {
+    // Production 2026-11-12: on a Windows without the Visual C++ Redistributable,
+    // whisper-cli.exe exited at once and every transcription failed (TRANSCRIBE_FAILED).
+    // The official v1.9.1 binaries import MSVCP140, VCRUNTIME140(_1) and VCOMP140.
+    expect(MSVC_RUNTIME_DLLS).toEqual([
+      'msvcp140.dll',
+      'vcruntime140.dll',
+      'vcruntime140_1.dll',
+      'vcomp140.dll'
+    ]);
+    expect(stagerSource).toContain("env: 'MSVC_RUNTIME_WIN', target: 'runtime/bin'");
+    expect(stagerSource).not.toMatch(/MSVC_RUNTIME_WIN[^\n]*optional/u);
+    expect(workflow).toContain('Microsoft.VC*.CRT');
+    expect(workflow).toContain('Microsoft.VC*.OpenMP');
+    expect(workflow).toContain('MSVC_RUNTIME_WIN=');
+    // The runtime is exported before the stager reads it.
+    expect(workflow.indexOf('MSVC_RUNTIME_WIN=')).toBeLessThan(
+      workflow.indexOf('node scripts/stage-windows-runtime.mjs')
+    );
+  });
+
+  it('finds a missing companion library whatever case the import table uses', () => {
+    const imports = 'KERNEL32.dll\0MSVCP140.dll\0VCOMP140.DLL\0whisper.dll\0';
+    expect(
+      missingCompanionDlls(
+        imports,
+        ['whisper.dll', 'MSVCP140.DLL'],
+        [...WHISPER_COMPANION_DLLS, ...MSVC_RUNTIME_DLLS]
+      )
+    ).toEqual(['vcomp140.dll']);
+    expect(missingCompanionDlls('KERNEL32.dll', [], MSVC_RUNTIME_DLLS)).toEqual([]);
   });
 
   it('knows whisper needs its shared libraries staged beside it', () => {

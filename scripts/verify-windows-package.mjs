@@ -17,7 +17,9 @@ import {
   RELEASE_IDENTITY_FIELDS,
   REQUIRED_HOST_ENTRIES,
   REQUIRED_STAGE_ENTRIES,
-  WHISPER_COMPANION_DLLS
+  MSVC_RUNTIME_DLLS,
+  WHISPER_COMPANION_DLLS,
+  missingCompanionDlls
 } from './lib/windows-package-layout.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -115,12 +117,18 @@ if (hostDir) {
 // The official whisper.cpp Windows build is DLL-linked (unlike the statically
 // linked macOS binary), so shipping the .exe alone produces a package that
 // fails on first use with a missing-DLL dialog.
-const whisperCli = path.join(stageDir, 'runtime', 'bin', 'whisper-cli.exe');
-if (existsSync(whisperCli)) {
-  const imports = readFileSync(whisperCli).toString('latin1');
-  for (const dll of WHISPER_COMPANION_DLLS) {
-    if (imports.includes(dll) && !existsSync(path.join(stageDir, 'runtime', 'bin', dll))) {
-      problems.push(`whisper-cli.exe imports ${dll} but it was not staged next to it`);
+// Every staged binary is checked, not only whisper-cli.exe: whisper.dll and the
+// ggml*.dll set import the Visual C++ runtime too (production 2026-11-12).
+const runtimeBin = path.join(stageDir, 'runtime', 'bin');
+if (existsSync(runtimeBin)) {
+  const present = readdirSync(runtimeBin);
+  for (const name of present.filter(file => /\.(exe|dll)$/iu.test(file))) {
+    const text = readFileSync(path.join(runtimeBin, name)).toString('latin1');
+    for (const dll of missingCompanionDlls(text, present, [
+      ...WHISPER_COMPANION_DLLS,
+      ...MSVC_RUNTIME_DLLS
+    ])) {
+      problems.push(`${name} imports ${dll} but it was not staged next to it`);
     }
   }
 }
