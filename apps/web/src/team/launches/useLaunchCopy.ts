@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { launchBrowserTimezone, type LaunchDetail } from '@video-compressor/shared';
+import { type LaunchDetail } from '@video-compressor/shared';
 import { launchApi, TeamApiError } from '../../api/team';
 import { launchMutation } from './analytics';
 import { useOptionalToasts } from '../../components/toast';
@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { buildTeamRoute, emptyTeamRouteQuery } from '../routes';
 import { formatDayValue } from '../../format';
+import { launchBrowserTimezone } from './launchTimezone';
 
 /** One config-only copy seam for both the list and an open Launch. */
 export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) => void) {

@@ -1,9 +1,5 @@
 import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
-import {
-  launchBrowserTimezone,
-  parseLaunchCatalogVideoConfig,
-  type LaunchCatalogConfig
-} from '@video-compressor/shared';
+import { parseLaunchCatalogVideoConfig, type LaunchCatalogConfig } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import {
   CatalogCreationVideoFields,
@@ -11,6 +7,7 @@ import {
 } from '../product-catalog/CatalogCreationVideoFields';
 import { resolveCatalogPublicationDraft } from '../product-catalog/catalogPublicationDraft';
 import { launchPublicationTimePassed } from './launchPublicationTiming';
+import { launchBrowserTimezone } from './launchTimezone';
 export function LaunchCatalogVideoFields({
   value,
   onChange,

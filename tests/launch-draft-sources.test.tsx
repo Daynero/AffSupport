@@ -11,7 +11,7 @@ import type { LaunchDetail, LaunchSourceSnapshot } from '../packages/shared/src/
 import {
   canonicalLaunchTimezone,
   launchBrowserTimezone
-} from '../packages/shared/src/team/launches/naming';
+} from '../apps/web/src/team/launches/launchTimezone';
 import { useLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
 import { launchConfig, launchSources } from './fixtures/launches';
 

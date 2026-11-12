@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
-import { isLaunchTimezone, launchBrowserTimezone, launchTomorrow } from '@video-compressor/shared';
+import { isLaunchTimezone, launchTomorrow } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   toCalendarDate
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { launchBrowserTimezone } from './launchTimezone';
 
 export function launchShortcutDate(offset: 0 | 1, timezone: string, now = new Date()): string {
   // Calendar arithmetic, rather than 24 hours, also works across DST changes.

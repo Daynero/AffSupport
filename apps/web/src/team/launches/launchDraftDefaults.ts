@@ -1,5 +1,6 @@
-import { launchBrowserTimezone, launchTomorrow, type LaunchDraft } from '@video-compressor/shared';
+import { launchTomorrow, type LaunchDraft } from '@video-compressor/shared';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
+import { launchBrowserTimezone } from './launchTimezone';
 
 export function newLaunchDraft(): LaunchDraft {
   const timezone = launchBrowserTimezone();
