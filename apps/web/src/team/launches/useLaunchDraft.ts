@@ -41,12 +41,19 @@ export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string 
       }
     } else if (detail && !dirty) {
       setBaseVersion(detail.version);
-      saved.current = {
-        config: detail.draft,
-        sources: detail.expectedSourceSnapshot
-      };
+      // A Launch that was never generated (and every fresh copy of one) has no saved
+      // source snapshot: the editor resolves it live. A re-read of the same, unchanged
+      // draft must not wipe that resolution back to null, or Generate is refused with
+      // nothing to point at and nothing re-resolves it (1.4.3, found on next).
+      const sources =
+        detail.expectedSourceSnapshot === null &&
+        current.current.sources !== null &&
+        launchValuesEqual(current.current.config, detail.draft)
+          ? current.current.sources
+          : detail.expectedSourceSnapshot;
+      saved.current = { config: detail.draft, sources };
       setConfig(detail.draft);
-      setSources(detail.expectedSourceSnapshot);
+      setSources(sources);
     } else if (
       detail &&
       detail.version !== baseVersion &&

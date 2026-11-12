@@ -329,8 +329,8 @@ it('closes a clean new draft without an unsaved-change prompt', async () => {
     await screen.findByRole('dialog', { name: 'Launches' });
     expect(document.querySelector('.team-panel.team-launch-space')).toBeTruthy();
     expect(document.querySelector('.ui-overlay .team-launch-modal')).toBeTruthy();
-    await screen.findByRole('button', { name: 'Cancel' });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await screen.findByRole('button', { name: 'Close' });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(window.location.search).not.toContain('launch=new');
     expect(confirm).not.toHaveBeenCalled();
   } finally {
@@ -991,7 +991,12 @@ it('stages an old date and budget in the draft while keeping the current result 
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
   });
-  expect(screen.getByText('Check the value')).toBeTruthy();
+  // The harness resolves no sources: the refusal says so instead of a bare «check the value».
+  expect(
+    screen.getByText(
+      'The ad account, offer, buyer or creative could not be looked up. Choose «Refresh sources» and generate again.'
+    )
+  ).toBeTruthy();
   expect(seams.save).not.toHaveBeenCalled();
   expect(seams.generate).not.toHaveBeenCalled();
   vi.useRealTimers();
@@ -2168,4 +2173,98 @@ it('keeps the date filter and reports where to find a scheduled copy', async () 
   expect(window.location.search).toContain(copyId);
   expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true');
   expect(seams.copy).toHaveBeenCalledOnce();
+});
+
+// 1.4.3, found on next: a Launch that was never generated (and every copy of one) has
+// no saved source snapshot. Its sources were resolved live, then a re-read of the same
+// draft wiped them back to null, nothing resolved them again, and Generate was refused
+// with a bare «Перевірте значення» that pointed at no field.
+it('keeps or re-resolves the sources of a never-generated launch and generates it', async () => {
+  seams.edit = true;
+  seams.realGeneration = true;
+  const config = launchConfig();
+  const sources = {
+    ...launchSources,
+    schemaVersion: 1 as const,
+    agentRowId: config.agentRowId,
+    offerId: config.offerId,
+    buyerId: config.buyerId,
+    materialId: config.materialId,
+    catalogSettingsVersion: null
+  };
+  seams.accounts = [
+    {
+      id: sources.accountId,
+      name: sources.social,
+      agents: [{ id: config.agentRowId, agentId: sources.agentId }]
+    }
+  ];
+  seams.offers = [{ id: config.offerId, value: sources.offer }];
+  seams.buyers = [{ id: config.buyerId, value: sources.buyer }];
+  const current: LaunchDetail = {
+    ...detail(config.originalUrl),
+    workStatus: 'todo',
+    draft: config,
+    expectedSourceSnapshot: null
+  };
+  seams.detail.mockImplementation(async () => current);
+  seams.selection.mockResolvedValue(sources);
+  seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
+  seams.generate.mockResolvedValue({});
+  const view = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.selection).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Generate launch' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  // A re-read of the same draft at a newer version (an assignment or a status write):
+  // the server still has no snapshot for it.
+  seams.detail.mockImplementation(async () => ({ ...current, version: '2' }));
+  const reads = seams.detail.mock.calls.length;
+  seams.revision++;
+  view.rerender(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.detail.mock.calls.length).toBeGreaterThan(reads));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Generate launch' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
+  await waitFor(() => expect(seams.generate).toHaveBeenCalledOnce());
+  expect(screen.queryByText('Check the value')).toBeNull();
+});
+
+it('names what is missing instead of a bare «check the value» when sources cannot be looked up', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  seams.edit = true;
+  seams.realGeneration = true;
+  const config = launchConfig();
+  seams.detail.mockResolvedValue({
+    ...detail(config.originalUrl),
+    draft: config,
+    expectedSourceSnapshot: null
+  });
+  seams.selection.mockRejectedValue(new TeamApiError('NOT_FOUND', false));
+  render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.selection).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Generate launch' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
+  expect(
+    await screen.findByText(
+      'The ad account, offer, buyer or creative could not be looked up. Choose «Refresh sources» and generate again.'
+    )
+  ).toBeTruthy();
+  expect(seams.generate).not.toHaveBeenCalled();
+  expect(screen.queryByText('Check the value')).toBeNull();
 });

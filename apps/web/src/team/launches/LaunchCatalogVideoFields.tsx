@@ -1,5 +1,9 @@
 import { CATALOG_DEFERRED_PUBLICATION_AVAILABLE } from '../product-catalog/CatalogPublicationSchedule';
-import { parseLaunchCatalogVideoConfig, type LaunchCatalogConfig } from '@video-compressor/shared';
+import {
+  launchBrowserTimezone,
+  parseLaunchCatalogVideoConfig,
+  type LaunchCatalogConfig
+} from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
 import {
   CatalogCreationVideoFields,
@@ -25,7 +29,7 @@ export function LaunchCatalogVideoFields({
     delayed: Boolean(scheduled),
     date: local.split('T')[0] ?? '',
     time: local.split('T')[1] ?? '12:00',
-    zone: scheduled?.timeZone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Kyiv')
+    zone: scheduled?.timeZone ?? (launchBrowserTimezone() || 'Europe/Kyiv')
   };
   // A stored proof determines the fold occurrence; never silently switch offsets.
   if (scheduled?.resolvedOffset) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LaunchDetail } from '@video-compressor/shared';
+import { launchBrowserTimezone, type LaunchDetail } from '@video-compressor/shared';
 import { launchApi, TeamApiError } from '../../api/team';
 import { launchMutation } from './analytics';
 import { useOptionalToasts } from '../../components/toast';
@@ -39,7 +39,7 @@ export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) =>
         source.id,
         source.version,
         crypto.randomUUID(),
-        Intl.DateTimeFormat().resolvedOptions().timeZone,
+        launchBrowserTimezone(),
         source.revisionId ?? null
       ],
       receipt: null,

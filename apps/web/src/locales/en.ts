@@ -637,6 +637,9 @@ export const en = {
   launchesLater: 'Move {field} later',
   launchesPreserve: 'Keep original SUB',
   launchesInvalid: 'Check the value',
+  launchesInvalidFields: 'Check these fields: {fields}.',
+  launchesSourcesUnavailable:
+    'The ad account, offer, buyer or creative could not be looked up. Choose «Refresh sources» and generate again.',
   launchesCampaignCountInvalid: 'Enter a whole number from 1 to 100.',
   launchesMaxBudgetInvalid: 'Enter a whole dollar amount from 1 to 999,999.',
   launchesAdsCountInvalid: 'Enter a whole number from 1 to 1,000.',

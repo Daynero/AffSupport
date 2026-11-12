@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
-import { isLaunchTimezone, launchTomorrow } from '@video-compressor/shared';
+import { isLaunchTimezone, launchBrowserTimezone, launchTomorrow } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   Button,
@@ -35,9 +35,7 @@ export function LaunchDateField({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const zone = isLaunchTimezone(timezone)
-    ? timezone
-    : Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const zone = isLaunchTimezone(timezone) ? timezone : launchBrowserTimezone();
   const selected = toCalendarDate(value);
   const displayed = selected
     ? `${String(selected.day).padStart(2, '0')}.${String(selected.month).padStart(2, '0')}.${String(selected.year).slice(-2)}`
