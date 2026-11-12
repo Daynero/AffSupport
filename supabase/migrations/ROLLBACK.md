@@ -3032,6 +3032,16 @@ worker wrote it, and a re-stitch record counts as 'restitching' only while its l
 Read-only change to a listing; rolling back means restoring the previous body (the one left
 by 20261207398000) through a reviewed forward migration.
 
+### 20261207399997 — a set whose variant failed for good, and that nothing drives, cancels
+
+Patches `private.settle_catalog_stuck_shapes` (through `pg_get_functiondef`, failing if either text
+it replaces is missing) with a fourth step: a variant whose run failed with a code the retry refuses
+(or with its budget spent), when neither the run nor its set moved for twelve hours and no variant of
+the set has a live heartbeat, is handed to `private.retry_failed_catalog_video_variant`; its terminal
+answer cancels the open update round or asks the set to cancel, as the missing-output step does. The
+result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
+20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
+
 ### 20261207399995 — a canceled set whose published variant output went missing settles
 
 Patches `private.catalog_video_cancel_quiescent` (through `pg_get_functiondef`, failing if the text

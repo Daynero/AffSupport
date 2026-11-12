@@ -373,6 +373,54 @@ it('a published upload whose output is still active keeps the cancellation waiti
   expect(await setState(f.set)).toBe('cancel_requested');
 });
 
+// --- d1da2bc7 / 53a1aede -------------------------------------------------------------
+
+/** Variant 1's run failed with `code`; the creation that drove the set stopped long ago. */
+async function failedIdle(code: string, idle = '13 hours') {
+  const f = await creation();
+  await replica(async () => {
+    await db.root(
+      "update public.team_operations set state='failed',error_code=$2,finished_at=clock_timestamp() where id=$1",
+      [f.op, code]
+    );
+    await db.root(
+      "update private.catalog_video_variants set state='unknown' where video_set_id=$1 and video_variant_index=1",
+      [f.set]
+    );
+  });
+  await finishedAgo(f.op, idle);
+  await replica(() =>
+    db.root(
+      "update private.catalog_video_sets set state='unknown',updated_at=clock_timestamp()-$2::interval where id=$1",
+      [f.set, idle]
+    )
+  );
+  return f;
+}
+
+it('d1da2bc7: a set whose variant failed for good and that nothing drives any more is canceled', async () => {
+  for (const code of ['PERMISSION_DENIED', 'SOURCE_CHANGED']) {
+    const f = await failedIdle(code);
+    await settleShapes();
+    expect(await setState(f.set)).toBe('cancel_requested');
+    await settleCancellations();
+    expect(await setState(f.set)).toBe('canceled');
+  }
+});
+
+it('a failure the retry would take is not requeued by the pass', async () => {
+  const f = await failedIdle('DRIVE_UNAVAILABLE');
+  await settleShapes();
+  expect(await setState(f.set)).toBe('unknown');
+  expect(await variant(f.set, 1)).toMatchObject({ state: 'unknown', retry_count: 0 });
+});
+
+it('a set that moved within twelve hours is left to whatever drives it', async () => {
+  const f = await failedIdle('PERMISSION_DENIED', '2 hours');
+  await settleShapes();
+  expect(await setState(f.set)).toBe('unknown');
+});
+
 it('an update round stalled for a day is closed and frees its catalog', async () => {
   const f = await succeededMissing(0, '2 minutes');
   const catalog = (
