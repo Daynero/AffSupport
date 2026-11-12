@@ -3042,6 +3042,15 @@ answer cancels the open update round or asks the set to cancel, as the missing-o
 result gains `failedSets`. Runs the pass once on apply. Rolling back means restoring the body left by
 20261207399920 through a reviewed forward migration; sets already canceled stay canceled.
 
+### 20261207399998 — the minute R2 sweep plans a copy nothing ever attempted
+
+Adds `private.catalog_video_r2_cells_unplanned(uuid)` and patches
+`public.service_catalog_video_r2_reconcile_pending` (through `pg_get_functiondef`, failing if
+the text it replaces is missing): a catalog with the option on whose published cells hold a
+video with no copy row (other than deleted) and no recorded refusal gets that copy planned.
+Rolling back means restoring the body left by 20261207396000 through a reviewed forward
+migration and dropping the function; copies already planned finish or are retired as usual.
+
 ### 20261207399995 — a canceled set whose published variant output went missing settles
 
 Patches `private.catalog_video_cancel_quiescent` (through `pg_get_functiondef`, failing if the text
