@@ -42,6 +42,52 @@ afterAll(async () => {
   await db.close();
 });
 
+it('delivers a pre-submit restitch settings failure and its successful retry to read-only diagnosis', async () => {
+  const accepted: boolean[] = [];
+  const service = new ProductAnalytics(async events => {
+    const rows = await db.asUser<{ event_id: string; accepted: boolean }>(
+      USER,
+      'select * from public.ingest_analytics_events($1::jsonb)',
+      [JSON.stringify(events)]
+    );
+    accepted.push(...rows.map(row => row.accepted));
+    return { acceptedEventIds: rows.filter(row => row.accepted).map(row => row.event_id) };
+  }, null);
+  service.setUser(USER);
+  const failed = beginCatalogUiFlow('template', { field: 'restitch' }, service);
+  failed.stage('readback_requested');
+  failed.fail('PERMISSION_DENIED', 'readback_requested');
+  const retry = beginCatalogUiFlow(
+    'template',
+    { field: 'restitch', parentFlowId: failed.id },
+    service
+  );
+  retry.stage('readback_requested');
+  retry.complete();
+  await service.flush();
+  expect(accepted).toHaveLength(6);
+  expect(accepted.every(Boolean)).toBe(true);
+  const details = await getInspect(failed.id, new Date(Date.now() + 1000).toISOString());
+  expect(details.found).toBe(true);
+  if (!details.found) throw new Error('Expected settings-read evidence');
+  expect(details.capability).toBe('team.catalog_manager_template');
+  expect(
+    details.events.some(
+      event =>
+        event.event_name === 'operation_failed' &&
+        event.properties.setting_name === 'restitch' &&
+        event.properties.error_code === 'PERMISSION_DENIED' &&
+        event.properties.action_identifier === 'readback_requested'
+    )
+  ).toBe(true);
+  const retryDetails = await getInspect(retry.id, new Date(Date.now() + 1000).toISOString());
+  expect(retryDetails.found).toBe(true);
+  if (!retryDetails.found) throw new Error('Expected retry attempt evidence');
+  expect(retryDetails.matched_by).toContain('attempt_id');
+  expect(retryDetails.terminal?.event).toBe('operation_completed');
+  expect(details.events.every(event => event.run_id === null)).toBe(true);
+});
+
 it('delivers typed file production, browser handoff and exact export cause through real ingestion to read-only inspect', async () => {
   const ingestions: Array<{ event_id: string; accepted: boolean; reason: string }> = [];
   const service = new ProductAnalytics(async events => {

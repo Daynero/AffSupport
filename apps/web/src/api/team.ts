@@ -6291,11 +6291,19 @@ export const teamApi = {
    * to everyone who asks, so both arrive here as `null` and the interface has one condition
    * to branch on rather than two.
    */
-  async getRestitchDefaults(teamId: string): Promise<TeamRestitchDefaults | null> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('get_effective_restitch_defaults', {
-        p_team: teamId
-      })
+  async getRestitchDefaults(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<TeamRestitchDefaults | null> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('get_effective_restitch_defaults', {
+            p_team: teamId
+          }),
+          options
+        ),
+      options
     );
     throwRpc(error);
     if (data === null || data === undefined) return null;

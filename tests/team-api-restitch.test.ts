@@ -31,6 +31,17 @@ afterEach(() => {
 });
 
 describe('the pools over the wire', () => {
+  it('forwards cancellation to the settings RPC so a deadline cannot leave a late transport running', async () => {
+    const abortSignal = vi.fn();
+    const request = Object.assign(Promise.resolve({ data: null, error: null }), { abortSignal });
+    abortSignal.mockReturnValue(request);
+    rpc.mockReturnValue(request);
+    const controller = new AbortController();
+    await expect(
+      teamApi.getRestitchDefaults(TEAM, { signal: controller.signal })
+    ).resolves.toBeNull();
+    expect(abortSignal).toHaveBeenCalledWith(controller.signal);
+  });
   it('lists the space pool or the caller’s own, as asked', async () => {
     rpc.mockResolvedValue({ data: listing, error: null });
     const result = await teamApi.listRestitchSources(TEAM, 'self');

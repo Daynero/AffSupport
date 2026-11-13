@@ -954,11 +954,12 @@ function build(): Record<string, CodeLocation> {
   map['team:library:TEAM_TRANSPORT_UNAVAILABLE'] = {
     files: [
       'apps/web/src/api/team.ts',
+      'apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx',
       'apps/web/src/team/catalog-updater/useCatalogCommands.ts',
       'apps/web/src/team/materials/useMaterialLink.ts'
     ],
     check:
-      'The browser fetch failed without a server response. Reconcile the retained command identity; connectivity failure does not prove an in-flight mutation was absent.'
+      'The browser fetch failed without a server response. A catalog_manager_template readback with setting_name restitch is a pre-submit settings read, before native work; check its bounded retry and next attempt. Reconcile retained command identities separately; connectivity failure does not prove an in-flight mutation was absent.'
   };
   const claimQuarantine = {
     files: [
@@ -1874,6 +1875,7 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
     WORKSPACE_READ_CODES.flatMap(code =>
       [
         'team:read',
+        'team:library',
         'members:members_list',
         'members:assignees_list',
         'members:member_access_refresh',
@@ -1884,6 +1886,7 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
         {
           files: [
             'apps/web/src/team/readCoordinator.ts',
+            'apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx',
             'apps/web/src/team/useScopedRefresh.ts',
             'apps/web/src/team/catalog/useVisibleSerialRead.ts',
             'apps/web/src/team/members/diagnostics.ts',

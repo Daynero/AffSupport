@@ -30,6 +30,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   CatalogPublicationValidationError,
   restitchDefaultsSaveable,
+  type TeamErrorCode,
   type TeamRestitchDefaults
 } from '@video-compressor/shared';
 import type {
@@ -84,7 +85,7 @@ export interface CreateProductCatalogClient {
   resumeProductCatalogVideo?: typeof teamApi.resumeProductCatalogVideo;
   getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
   setProductCatalogSettings?: typeof teamApi.setProductCatalogSettings;
-  getRestitchDefaults?: (teamId: string) => Promise<TeamRestitchDefaults | null>;
+  getRestitchDefaults?: typeof teamApi.getRestitchDefaults;
   startProcess?: typeof teamApi.startProcess;
   runAgentProcess?: typeof startTeamAgentProcess;
   canRestitch?: typeof agentCanRestitch;
@@ -369,7 +370,13 @@ export function CreateProductCatalogDialog({
   // Once requested, a read belongs to this dialog, not to the checkbox's visibility.
   const [restitchRequested, setRestitchRequested] = useState(false);
   const [restitchLoadError, setRestitchLoadError] = useState(false);
+  const [restitchLoadCode, setRestitchLoadCode] = useState<TeamErrorCode | null>(null);
   const [restitchReadRevision, setRestitchReadRevision] = useState(0);
+  const restitchReadFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
+  const [restitchReadCommit, setRestitchReadCommit] = useState<ReturnType<
+    typeof beginCatalogUiFlow
+  > | null>(null);
+  const restitchReadIdentity = useRef<{ scope: string; id: string } | null>(null);
   const getRestitchDefaults = client.getRestitchDefaults ?? teamApi.getRestitchDefaults;
   const [restitchDefaults, setRestitchDefaults] = useState<TeamRestitchDefaults | null | undefined>(
     undefined
@@ -442,12 +449,45 @@ export function CreateProductCatalogDialog({
     }
     if (!restitchRequested || settingsOpen) return;
     let active = true;
+    const controller = new AbortController();
+    const scope = `${teamId}:${video.id}:${preferenceKey}`;
+    const flow = beginCatalogUiFlow('template', {
+      field: 'restitch',
+      ...(restitchReadIdentity.current?.scope === scope
+        ? { parentFlowId: restitchReadIdentity.current.id }
+        : {})
+    });
+    restitchReadIdentity.current = {
+      scope,
+      id: restitchReadIdentity.current?.scope === scope ? restitchReadIdentity.current.id : flow.id
+    };
+    restitchReadFlow.current = flow;
     setRestitchLoadError(false);
+    setRestitchLoadCode(null);
     setRestitchDefaults(undefined);
-    void getRestitchDefaults(teamId)
+    const read = () => {
+      flow.stage('readback_requested');
+      return withReadDeadline(
+        signal => getRestitchDefaults(teamId, { signal }),
+        controller.signal,
+        CATALOG_VIDEO_READ_DEADLINE_MS
+      );
+    };
+    // This is a read, before any catalog/native command. One transport failure
+    // must not strand Create until somebody discovers Repeat (DreamTeam Windows).
+    void (async () => {
+      try {
+        return await read();
+      } catch (cause) {
+        if (!active || !isTransientCatalogFailure(cause)) throw cause;
+        flow.stage('readback_requested', teamErrorCodeOf(cause) ?? 'TEAM_TRANSPORT_UNAVAILABLE');
+        return read();
+      }
+    })()
       .then(found => {
         if (!active) return;
         setRestitchDefaults(found);
+        setRestitchReadCommit(flow);
         if (found) {
           setDuration(
             durationPreference.current?.value ?? {
@@ -458,20 +498,41 @@ export function CreateProductCatalogDialog({
           );
         }
       })
-      .catch(() => {
-        if (active) setRestitchLoadError(true);
+      .catch(cause => {
+        if (!active) return;
+        const code =
+          teamErrorCodeOf(cause) ??
+          (cause instanceof TypeError ? 'TEAM_TRANSPORT_UNAVAILABLE' : null);
+        flow.fail(code ?? 'READ_FAILED', 'readback_requested');
+        setRestitchLoadCode(code);
+        setRestitchLoadError(true);
       });
     return () => {
       active = false;
+      controller.abort();
+      flow.cancel();
+      if (restitchReadFlow.current === flow) restitchReadFlow.current = null;
     };
   }, [
     getRestitchDefaults,
     restitchRequested,
     teamId,
+    video.id,
     preferenceKey,
     settingsOpen,
     restitchReadRevision
   ]);
+  useEffect(() => {
+    if (
+      restitch &&
+      restitchDefaults !== undefined &&
+      !restitchLoadError &&
+      restitchReadCommit === restitchReadFlow.current
+    ) {
+      restitchReadFlow.current?.complete();
+      restitchReadFlow.current = null;
+    }
+  }, [restitch, restitchDefaults, restitchLoadError, restitchReadCommit]);
 
   const linkCheck = validateWebLink(link, SOURCE_LINK_MAX);
   const countCheck = validateProductCount(count);
@@ -1315,7 +1376,11 @@ export function CreateProductCatalogDialog({
             )}
             {restitch && restitchLoadError && (
               <div className="product-catalog-dialog-missing" role="alert">
-                <p className="team-inline-note">{t('productCatalogRestitchLoadFailed')}</p>
+                <p className="team-inline-note">
+                  {restitchLoadCode
+                    ? teamErrorMessageFor({ code: restitchLoadCode }, t)
+                    : t('productCatalogRestitchLoadFailed')}
+                </p>
                 <InventoryButton
                   size="sm"
                   variant="outline"

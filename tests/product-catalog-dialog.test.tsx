@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
+import { analytics } from '../apps/web/src/analytics/service';
 import type {
   ProductCatalogCreateResult,
   ProductCatalogSettings,
@@ -413,6 +414,120 @@ describe('creating a catalog', () => {
     expect(await screen.findAllByRole('slider')).toHaveLength(2);
     expect(client.getRestitchDefaults).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('recovers one temporary settings failure without leaving Create disabled (DreamTeam Windows)', async () => {
+    const track = vi.spyOn(analytics, 'track');
+    const client = dialogClient({
+      getRestitchDefaults: vi
+        .fn()
+        .mockRejectedValueOnce(new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true))
+        .mockResolvedValue(restitchDefaults)
+    });
+    renderDialog(client);
+    await userEvent.type(
+      screen.getByLabelText(/^Link(?: · Required)?$/),
+      'https://offer.example.test/'
+    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await waitFor(() => expect(confirm().disabled).toBe(false));
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    expect(
+      track.mock.calls.some(
+        ([event, p]) =>
+          event === 'operation_completed' &&
+          p.flow_step === 'catalog_manager_template' &&
+          p.setting_name === 'restitch'
+      )
+    ).toBe(true);
+  });
+
+  it('records the precise settings refusal before any native catalog operation and lets Repeat recover', async () => {
+    const track = vi.spyOn(analytics, 'track');
+    const client = dialogClient({
+      getRestitchDefaults: vi
+        .fn()
+        .mockRejectedValueOnce(new TeamApiError('PERMISSION_DENIED', false))
+        .mockResolvedValue(restitchDefaults)
+    });
+    renderDialog(client);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    await screen.findByRole('alert');
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(1);
+    const failure = track.mock.calls.find(
+      ([event, p]) =>
+        event === 'operation_failed' &&
+        p.flow_step === 'catalog_manager_template' &&
+        p.setting_name === 'restitch'
+    );
+    expect(failure?.[1]).toMatchObject({
+      error_code: 'PERMISSION_DENIED',
+      action_identifier: 'readback_requested'
+    });
+    expect(confirm().disabled).toBe(true);
+    expect(client.createProductCatalog).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+    expect(await screen.findAllByRole('slider')).toHaveLength(2);
+    const success = track.mock.calls.find(
+      ([event, p]) =>
+        event === 'operation_completed' &&
+        p.flow_step === 'catalog_manager_template' &&
+        p.setting_name === 'restitch'
+    );
+    expect(success?.[1].flow_id).toBe(failure?.[1].flow_id);
+    expect(success?.[1].attempt_id).not.toBe(failure?.[1].attempt_id);
+  });
+
+  it('bounds a hung settings read, aborts both attempts and ignores a late answer', async () => {
+    let finish;
+    const pending = new Promise(resolve => {
+      finish = resolve;
+    });
+    const client = dialogClient({ getRestitchDefaults: vi.fn().mockReturnValue(pending) });
+    renderDialog(client);
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+      expect(screen.getByRole('alert')).toBeTruthy();
+      expect(client.getRestitchDefaults).toHaveBeenCalledTimes(2);
+      for (const [, options] of client.getRestitchDefaults.mock.calls)
+        expect(options.signal.aborted).toBe(true);
+      await act(async () => {
+        finish(restitchDefaults);
+      });
+      expect(screen.getByRole('alert')).toBeTruthy();
+      expect(confirm().disabled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels the pre-submit settings read on close without retrying or accepting its late result', async () => {
+    const track = vi.spyOn(analytics, 'track');
+    let finish;
+    const pending = new Promise(resolve => {
+      finish = resolve;
+    });
+    const client = dialogClient({ getRestitchDefaults: vi.fn().mockReturnValue(pending) });
+    renderDialog(client);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
+    const signal = client.getRestitchDefaults.mock.calls[0][1].signal;
+    cleanup();
+    expect(signal.aborted).toBe(true);
+    await act(async () => {
+      finish(restitchDefaults);
+    });
+    expect(client.getRestitchDefaults).toHaveBeenCalledTimes(1);
+    const events = track.mock.calls.filter(
+      ([, p]) => p.flow_step === 'catalog_manager_template' && p.setting_name === 'restitch'
+    );
+    expect(events.some(([event]) => event === 'operation_cancelled')).toBe(true);
+    expect(events.some(([event]) => event === 'operation_completed')).toBe(false);
   });
 
   it('remembers exact time immediately across toggles and reopening, isolated by user', async () => {
