@@ -638,6 +638,16 @@ function progressLine(state: RestitchPreparationState, t: ReturnType<typeof useI
     return t('teamRestitchPrepareFailed', { reason: state.errorCode ?? '' });
   }
   if (state.phase === 'running') {
+    if (state.mediaPhase === 'converting' || state.mediaPhase === 'verifying') {
+      return t(
+        state.mediaPhase === 'converting' ? 'teamRestitchConverting' : 'teamRestitchVerifying',
+        {
+          done: state.done,
+          total: state.total,
+          progress: Math.round((state.mediaProgress ?? 0) * 100)
+        }
+      );
+    }
     return t('teamRestitchPreparing', { done: state.done, total: state.total });
   }
   /*

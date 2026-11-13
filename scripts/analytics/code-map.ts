@@ -617,6 +617,38 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_SPAWN, AGENT_FFMPEG_TOOLS],
     check: 'The outcome prop: nonzero or spawn_error means the media tool itself failed to run.'
   },
+  'stitcher:hevc_normalization_started': {
+    files: [
+      'apps/agent/src/stitcher/hevc-normalize.ts',
+      'apps/agent/src/stitcher/verified-source-cache.ts'
+    ],
+    check:
+      'Inspect the operation and shared normalizationId. A cancelled consumer does not stop peers; ready proves a verified local H.264 copy only. Missing journal delivery remains unknown. Read the closed reason, then the parent catalog and publication outcome.'
+  },
+  'stitcher:hevc_normalization_stage': {
+    files: [
+      'apps/agent/src/stitcher/hevc-normalize.ts',
+      'apps/agent/src/stitcher/verified-source-cache.ts'
+    ],
+    check:
+      'Inspect the operation and shared normalizationId. A cancelled consumer does not stop peers; ready proves a verified local H.264 copy only. Missing journal delivery remains unknown. Read the closed reason, then the parent catalog and publication outcome.'
+  },
+  'stitcher:hevc_normalization_completed': {
+    files: [
+      'apps/agent/src/stitcher/hevc-normalize.ts',
+      'apps/agent/src/stitcher/verified-source-cache.ts'
+    ],
+    check:
+      'Inspect the operation and shared normalizationId. A cancelled consumer does not stop peers; ready proves a verified local H.264 copy only. Missing journal delivery remains unknown. Read the closed reason, then the parent catalog and publication outcome.'
+  },
+  'stitcher:hevc_normalization_failed': {
+    files: [
+      'apps/agent/src/stitcher/hevc-normalize.ts',
+      'apps/agent/src/stitcher/verified-source-cache.ts'
+    ],
+    check:
+      'Inspect the operation and shared normalizationId. A cancelled consumer does not stop peers; ready proves a verified local H.264 copy only. Missing journal delivery remains unknown. Read the closed reason, then the parent catalog and publication outcome.'
+  },
   'stitcher:body_recovery_started': {
     files: [AGENT_STITCH_BODY],
     check: 'The reason prop identifies the copied body defect that triggered a full re-encode.'

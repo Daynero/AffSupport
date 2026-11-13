@@ -62,3 +62,23 @@ it('preserves the provider Retry-After floor without issuing an early read retry
   ).rejects.toMatchObject({ code: 'RATE_LIMITED', details: { retryAfterMs: 3_600_000 } });
   expect(fetcher).toHaveBeenCalledOnce();
 });
+
+it('conditionally moves only the catalog document without changing its name or contents', async () => {
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+    const target = new URL(String(url));
+    expect(target.pathname).toBe('/drive/v2/files/sheet-id');
+    expect(target.searchParams.get('addParents')).toBe('destination');
+    expect(target.searchParams.get('removeParents')).toBe('root');
+    expect(new Headers(init?.headers).get('if-match')).toBe('"v1"');
+    expect(JSON.parse(String(init?.body))).toEqual({});
+    return Response.json({ id: 'sheet-id' });
+  });
+  await new GoogleDriveClient('synthetic-access-token', fetcher).moveCatalogConditionally(
+    'sheet-id',
+    '"v1"',
+    'root',
+    'destination',
+    AbortSignal.timeout(1000)
+  );
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

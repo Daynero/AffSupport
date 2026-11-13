@@ -252,3 +252,26 @@ The transfer is the only line that is not under this feature's control; it is al
 SC-002 is written as "does not grow with duration **beyond the transfer of its own bytes**".
 The measurable claim to test in `quickstart.md` is the local half: **under 5 s** from source in
 hand to finished file, for any length, once prepared.
+
+## Native HEVC compatibility path (2026-11-14)
+
+Implemented and locally qualified in [feature056](../056-hevc-catalog-compatibility/plan.md).
+The team restitch delegate automatically creates a verified H.264 compatibility copy before
+screen detection/planning. Common Main8/Main10 SDR, PQ/HLG HDR, VFR, rotation and audio use
+one governed software path, without editing the original. HDR is rendered as SDR BT.709.
+The existing compatible H.264 fast path retains its stream-copy behaviour; HEVC requires a
+full encode and may grow in size. Its first local conversion has no five-second guarantee.
+
+The atomic bounded source cache keys verified original revision and recipe, and gives each
+consumer independent lifetime and output ownership. Body-cache identity is the normalized
+output SHA256 and recipe, distinct from the original Drive MD5. Last cancellation joins
+child exit, stream closure and cleanup. Corrupt, interrupted and stale-policy work is not
+reused. Detector generation4 invalidates earlier cached HEVC refusals.
+
+The exact shipped ARM FFmpeg passed synthetic Main8/Main10/PQ/HLG/VFR/rotation/audio,
+real-pixel HDR references, full delegate/output verification and ten-consumer single flight.
+Focused failure/recovery and producer-to-ingestion-to-SELECT-only CLI checks cover missing
+signals and independent cancellation. Local readiness never establishes catalog delivery.
+Windows/Intel execution, packaged beta and live provider acceptance remain release evidence;
+ARM execution is not relabeled as proof for another platform. See feature056's verification
+record for commands, engine hashes and declared limits.

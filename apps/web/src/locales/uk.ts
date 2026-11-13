@@ -2932,6 +2932,25 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogRemove: 'Видалити варіацію',
   productCatalogRemoved: '{name} переміщено в кошик',
   productCatalogBack: 'До каталогів',
+  catalogReplaceVideoTitle: 'Змінити відео',
+  catalogReplaceVideoDescription:
+    'Замінюємо лише відеопосилання та прив’язку. Товари, ID, тексти, зображення, назва й посилання каталогу зберігаються.',
+  catalogReplaceVideoCurrent: 'Поточне відео',
+  catalogReplaceVideoChoose: 'Вибрати нове відео',
+  catalogReplaceVideoMove: 'Перемістити каталог у папку нового відео',
+  catalogReplaceVideoShare:
+    'Нове відео стане доступним за посиланням для читачів каталогу. Обидва відеофайли залишаються без змін.',
+  catalogReplaceVideoPending:
+    'Заміну прийнято. Перевіряємо нові відеопосилання; стара прив’язка зберігається до підтвердження. Закриття вікна не скасовує роботу.',
+  catalogReplaceVideoMoving:
+    'Відеопосилання готові. Перевіряємо розташування та прив’язку каталогу.',
+  catalogReplaceVideoDone: 'Відео замінено. Каталог і його розташування перевірено.',
+  catalogReplaceVideoCheck: 'Перевірити стан',
+  catalogReplaceVideoNotSubmitted: 'Цей запит не було прийнято. Можна повторити заміну.',
+  catalogReplaceVideoBusy:
+    'Спершу завершіть поточне оновлення або підготовку відеоваріацій. Заміна не перериває інші операції.',
+  catalogReplaceVideoNeedsPublication:
+    'Спершу потрібна перевірена негайна публікація каталогу. Відкладену, утриману або неперевірену публікацію зараз замінювати не можна.',
   catalogUpdaterEntry: 'Менеджер каталогів',
   catalogScheduleCustom: 'Свій інтервал',
   catalogScheduleSave: 'Зберегти',
@@ -3345,6 +3364,8 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchFolder: 'Куди зберігати',
   teamRestitchFolderChange: 'Змінити',
   teamRestitchPrepare: 'Підготувати відео простору',
+  teamRestitchConverting: 'Готуємо сумісне відео · {progress}% · {done} із {total} готово',
+  teamRestitchVerifying: 'Перевіряємо сумісне відео · {done} із {total} готово',
   teamRestitchPreparing: 'Готуємо {done} з {total}…',
   teamRestitchPrepareStop: 'Зупинити',
   teamRestitchPrepared: '{ready} готово, {failed} не вдалося підготувати',
@@ -4258,8 +4279,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamAgentLabelsNoneYet: 'У просторі ще немає тегів РК — створіть їх у налаштуваннях простору.',
   teamAgentLabelsUntagged: 'Без тега',
   teamAgentTagsTitle: 'Теги РК',
-  teamAgentTagsDescription:
-    'Теги для рекламних кабінетів у «Акаунтах». «Скопіювати з ID» групує поповнення за ними: тег стає заголовком групи платежів.',
+  teamAgentTagsDescription: 'Теги РК для групування акаунтів і повідомлень про платежі.',
   teamAgentTagNamePlaceholder: '#2, #5, Visa…',
   teamAgentTagsEmpty: 'Тегів РК ще немає. Для першого вкажіть назву і колір.',
   teamAccountsCopied: 'Скопійовано — РК: {count}',
@@ -4346,13 +4366,13 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskAccountFilterAll: 'Усі акаунти',
   teamTaskAccountFilterClear: 'Показати всі акаунти',
   // Теги завдань (018): власний словник простору.
-  teamPreferencesTitle: 'Завдання і транскрипції',
-  teamPreferencesDescription:
-    'Максимум повзунка, з яким стартує нове завдання, — для всіх у просторі. І що робити з транскрипцією, коли ви видаляєте її відео, — це ваш особистий вибір.',
+  teamTranscriptPreferencesTitle: 'Транскрипції',
+  teamTranscriptPreferencesDescription: 'Ваш особистий вибір.',
+  teamTaskPreferencesTitle: 'Завдання',
+  teamTaskPreferencesDescription: 'Для всіх у просторі.',
   teamSettingsTabTags: 'Теги',
   teamTaskTagsTitle: 'Теги',
-  teamTaskTagsDescription:
-    'Теги, які цей простір вішає на завдання. Створюються тут, вішаються в самому завданні, а дошка фільтрує і сортує за ними.',
+  teamTaskTagsDescription: 'Теги для завдань, фільтрів і сортування дошки.',
   teamTaskTagName: 'Назва',
   teamTaskTagNamePlaceholder: 'UGC, Гарячі, На перевірку…',
   teamTaskTagNameInvalid: 'Тегу потрібна назва до 24 символів.',

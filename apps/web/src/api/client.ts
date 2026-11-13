@@ -756,6 +756,8 @@ export interface TeamRestitchPreparationReport {
   done: number;
   total: number;
   current: string | null;
+  phase?: 'inspecting' | 'converting' | 'verifying' | null;
+  currentProgress?: number;
   findings: {
     materialId: string;
     state: 'inspecting' | 'prepared' | 'unsupported' | 'failed';
@@ -817,6 +819,14 @@ export async function readTeamRestitchPreparation(
     done: value.done,
     total: value.total,
     current: typeof value.current === 'string' ? value.current : null,
+    phase:
+      value.phase === 'converting' || value.phase === 'verifying' || value.phase === 'inspecting'
+        ? value.phase
+        : null,
+    currentProgress:
+      typeof value.currentProgress === 'number' && Number.isFinite(value.currentProgress)
+        ? Math.max(0, Math.min(1, value.currentProgress))
+        : 0,
     findings
   };
 }

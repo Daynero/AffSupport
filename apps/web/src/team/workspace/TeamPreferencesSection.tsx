@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useId, useState } from 'react';
-import { ListChecks } from 'lucide-react';
+import { FileText, ListChecks } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { SettingsSection } from './SettingsSection';
@@ -32,7 +32,8 @@ export function TeamPreferencesSection({
   const { t } = useI18n();
   const { can } = useTeam();
   const canManage = can('manage_metadata');
-  const titleId = useId();
+  const transcriptTitleId = useId();
+  const tasksTitleId = useId();
   const transcriptId = useId();
   const progressId = useId();
   const [transcript, setTranscript] = useState<'ask' | 'delete' | 'keep' | null>(null);
@@ -63,17 +64,13 @@ export function TeamPreferencesSection({
   }, [client, teamId]);
 
   return (
-    <SettingsSection
-      icon={ListChecks}
-      titleId={titleId}
-      title={t('teamPreferencesTitle')}
-      description={t('teamPreferencesDescription')}
-      className="team-preferences"
-    >
-      {/* Two short choices side by side rather than two full-width fields stacked: neither
-          needs the dialog's whole width, and at full width the label above each one read as
-          a heading of its own. */}
-      <div className="settings-field-grid">
+    <div className="settings-field-grid team-preferences">
+      <SettingsSection
+        icon={FileText}
+        titleId={transcriptTitleId}
+        title={t('teamTranscriptPreferencesTitle')}
+        description={t('teamTranscriptPreferencesDescription')}
+      >
         {transcript !== null && (
           <div className="field-group">
             <label className="field-label" htmlFor={transcriptId}>
@@ -94,7 +91,13 @@ export function TeamPreferencesSection({
             </select>
           </div>
         )}
-
+      </SettingsSection>
+      <SettingsSection
+        icon={ListChecks}
+        titleId={tasksTitleId}
+        title={t('teamTaskPreferencesTitle')}
+        description={t('teamTaskPreferencesDescription')}
+      >
         {progressMax !== null && (
           <div className="field-group">
             <label className="field-label" htmlFor={progressId}>
@@ -124,7 +127,7 @@ export function TeamPreferencesSection({
             />
           </div>
         )}
-      </div>
-    </SettingsSection>
+      </SettingsSection>
+    </div>
   );
 }

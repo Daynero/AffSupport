@@ -1,3 +1,4 @@
+import { CreativeLibraryProcessBridge } from '../apps/agent/src/team-bridge/library.js';
 import { createHash } from 'node:crypto';
 import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { mkdtemp, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
@@ -1327,3 +1328,112 @@ it('reports a dismissed destination picker as a canceled local operation', async
   ]);
   expect(transfer.downloadSource).not.toHaveBeenCalled();
 });
+
+it.each([
+  ['single', false],
+  ['single', true],
+  ['workspace', false],
+  ['workspace', true]
+] as const)(
+  'keeps %s transcription alive when a separate download finishes (cancel=%s)',
+  async (scope, cancel) => {
+    const root = await temporaryRoot();
+    const source = path.join(root, 'source.bin');
+    const output = path.join(root, 'transcript.txt');
+    await writeFile(source, 'synthetic video');
+    await writeFile(output, 'synthetic transcript');
+    let entered!: () => void;
+    const processing = new Promise<void>(resolve => {
+      entered = resolve;
+    });
+    let release!: () => void;
+    const held = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    let processSignal: AbortSignal | undefined;
+    const cleanup = vi.fn(async () => {});
+    const transfer: TeamProcessTransfer = {
+      downloadSource: vi.fn(async () => ({
+        workspace: root,
+        file: source,
+        sizeBytes: 15,
+        sourceVersion: '1',
+        sourceChecksum: null,
+        cleanup
+      })),
+      uploadResult: vi.fn(async () => ({
+        operationId: 'transcription',
+        state: 'succeeded' as const,
+        materialId: 'transcript',
+        reused: false
+      }))
+    };
+    const process = new TeamProcessBridge({
+      transfer,
+      events: new TeamOperationEvents(),
+      delegates: {
+        transcription: async input => {
+          processSignal = input.signal;
+          entered();
+          await held;
+          return { file: output, mimeType: 'text/plain', sizeBytes: 20 };
+        }
+      }
+    });
+    const request = {
+      operationId: 'transcription',
+      toolId: 'transcription',
+      options: {},
+      sourceGrant: grant(),
+      finalizeGrant: grant('finalize'),
+      transferUrl: 'https://project.supabase.co/range',
+      cloudBaseUrl: 'https://project.supabase.co/ops'
+    };
+    const library = new CreativeLibraryProcessBridge({ process });
+    const run =
+      scope === 'single'
+        ? process.process(request)
+        : library.process({
+            ...request,
+            teamId: 'team',
+            requirementId: 'requirement',
+            attemptId: 'attempt',
+            agentInstanceId: 'instance',
+            kind: 'transcription',
+            variant: 'original',
+            sourceVersion: '1',
+            leaseToken: 'lease'
+          });
+    await processing;
+    const downloadEvents = new TeamOperationEvents();
+    const download = new TeamDownloadBridge({
+      transfer,
+      events: downloadEvents,
+      reveal: () => {},
+      chooseDestination: async () => null,
+      beforeSave: async () => {
+        if (cancel) download.cancel('separate-download');
+      }
+    });
+    try {
+      const saved = download.download({
+        operationId: 'separate-download',
+        fileName: 'source.mp4',
+        destination: root,
+        transferUrl: request.transferUrl,
+        transferGrant: grant('download_range')
+      });
+      if (cancel) await expect(saved).rejects.toThrow('DOWNLOAD_CANCELED');
+      else await expect(saved).resolves.toMatchObject({ saved: true });
+      expect(processSignal?.aborted).toBe(false);
+      expect(process.busy()).toBe(true);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    } finally {
+      release();
+    }
+    await expect(run).resolves.toMatchObject({ state: 'succeeded' });
+    expect(transfer.uploadResult).toHaveBeenCalledTimes(1);
+    expect(await readFile(source, 'utf8')).toBe('synthetic video');
+    expect(cleanup).toHaveBeenCalledTimes(2);
+  }
+);

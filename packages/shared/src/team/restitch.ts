@@ -85,8 +85,24 @@ export interface TeamRestitchDefaults {
  *    refused on the next pass — and the refusal was cached, so it stayed refused.
  * 3: edge timing and body frame limits use the nominal cadence rather than an average
  *    diluted by sparse end screens. Re-read cached boundaries and source profiles.
+ * 4: native HEVC compatibility precedes detection; invalidate old codec refusals.
  */
-export const RESTITCH_DETECTOR_VERSION = 3;
+export const RESTITCH_DETECTOR_VERSION = 4;
+
+/** HEVC is prepared by the native compatibility path before the H.264 planner. */
+export function hevcRestitchSource(profile: SourceProfile): boolean {
+  return (
+    profile.videoCodec === 'hevc' &&
+    Number.isFinite(profile.width) &&
+    Number.isFinite(profile.height) &&
+    profile.width > 0 &&
+    profile.height > 0 &&
+    Number.isFinite(profile.frameRate) &&
+    profile.frameRate > 0 &&
+    Number.isFinite(profile.durationSeconds) &&
+    profile.durationSeconds > 0
+  );
+}
 
 export interface MaterialRestitchPrep {
   materialId: string;

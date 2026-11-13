@@ -539,6 +539,32 @@ export class GoogleDriveClient {
       throw new TeamFunctionError('INVALID_RESPONSE');
   }
 
+  /** Catalog-only parent change under the same strong-ETag authority as rename. */
+  async moveCatalogConditionally(
+    fileId: string,
+    etag: string,
+    oldParentId: string,
+    newParentId: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!isStrongDriveEtag(etag) || !oldParentId || !newParentId || oldParentId === newParentId)
+      throw new TeamFunctionError('INVALID_INPUT');
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v2/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('addParents', newParentId);
+    url.searchParams.set('removeParents', oldParentId);
+    url.searchParams.set('fields', 'id');
+    const response = await this.#request(url, {
+      method: 'PATCH',
+      signal,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'if-match': etag },
+      body: '{}'
+    });
+    const value: unknown = await response.json().catch(() => null);
+    if (!isRecord(value) || value.id !== fileId) throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+
   async listFolders(input: {
     parentId: string;
     pageToken?: string | null;

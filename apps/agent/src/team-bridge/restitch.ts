@@ -3,8 +3,8 @@
  *
  * This is a delegate in the same sense as `compressor` and `imageEmbedding`: the bridge has
  * already fetched the source, hands it over with a workspace, and takes back a finished file.
- * What it does with it is feature 014's pipeline, unchanged — the body is copied, never
- * re-encoded, and only the screens are made.
+ * HEVC first gets a verified H.264 compatibility copy. Feature014 then copies
+ * that body and makes the screens; an existing H.264 source keeps its fast path.
  *
  * It drives the pipeline directly rather than through `StitchQueue`, and that is deliberate: a
  * delivery is not a row in anybody's list. Putting it in the queue would leave a stranger's
@@ -37,6 +37,8 @@ import {
   RESTITCH_DETECTOR_VERSION,
   STITCH_ERROR_CODES
 } from '@video-compressor/shared';
+import { hevcRestitchSource } from '@video-compressor/shared';
+import { HevcCompatibility } from '../stitcher/hevc-normalize.js';
 import { ScreenCacheError, type ResolvedScreen, type TeamScreenCache } from './screen-cache.js';
 import { resolveScreensWithRecovery, type ScreenRecoveryProvider } from './screen-recovery.js';
 import { runStitchPipeline, type StitchPipeline } from '../stitcher/pipeline.js';
@@ -77,6 +79,7 @@ export interface RestitchDelegateDeps {
   bodies?: PreparedBodyCache;
   pipeline?: StitchPipeline;
   threads?: () => number | null;
+  compatibility?: Pick<HevcCompatibility, 'prepare'>;
 }
 
 /**
@@ -111,7 +114,10 @@ export function parseRestitchOptions(value: unknown): RestitchDelegateOptions | 
     defaults: defaults.value,
     // An unreadable record is treated as absent: the run then looks for itself, which is
     // slower and always correct.
-    prepared: prepared && prepared.ok ? prepared.value : null,
+    prepared:
+      prepared && prepared.ok && prepared.value.detectorVersion === RESTITCH_DETECTOR_VERSION
+        ? prepared.value
+        : null,
     screens: defaults.value.operation === 'unstitch' ? null : screens.value,
     teamId: typeof record.teamId === 'string' && record.teamId ? record.teamId : null
   };
@@ -227,6 +233,7 @@ export function createRestitchDelegate(
 ): TeamProcessDelegate & { lastDiscovery: () => RestitchDelegateDiscovery | null } {
   const bodies = deps.bodies ?? new PreparedBodyCache();
   const pipeline = deps.pipeline ?? runStitchPipeline;
+  const compatibility = deps.compatibility ?? new HevcCompatibility();
   let discovery: RestitchDelegateDiscovery | null = null;
 
   const delegate = async (input: TeamProcessDelegateInput) => {
@@ -249,18 +256,39 @@ export function createRestitchDelegate(
         { cause: error }
       );
     }
-    const sourceIdentity = contentIdentity(input.sourceChecksum, input.sourceSizeBytes);
-    const looked = await inspect(input.sourceFile, options.prepared, input.signal, sourceIdentity);
+    let sourceIdentity = contentIdentity(input.sourceChecksum, input.sourceSizeBytes);
+    let looked = await inspect(input.sourceFile, options.prepared, input.signal, sourceIdentity);
     if (!looked) throw unsupported(refusalReason(options.prepared?.unsupportedReason ?? null));
+    const originalProfile = looked.profile;
+    let compatible = false;
+    if (hevcRestitchSource(originalProfile)) {
+      const normalized = await compatibility.prepare({
+        sourceFile: input.sourceFile,
+        workspace: input.workspace,
+        sourceIdentity,
+        signal: input.signal,
+        runId: input.operationId,
+        threads: deps.threads?.() ?? null,
+        onProgress: fraction => input.onProgress(35 + Math.round(fraction * 35))
+      });
+      sourceIdentity = normalized.sourceIdentity;
+      // Version4 preparation edges were measured on this same compatibility recipe.
+      const prepared = options.prepared
+        ? { ...options.prepared, profile: normalized.profile }
+        : null;
+      looked = await inspect(normalized.file, prepared, input.signal, sourceIdentity);
+      if (!looked) throw new Error('STITCH_VERIFICATION_FAILED');
+      compatible = true;
+    }
     if (!options.prepared) {
       discovery = {
         detectorVersion: RESTITCH_DETECTOR_VERSION,
         detectedStartSeconds: looked.detected.startSeconds,
         detectedEndSeconds: looked.detected.endSeconds,
-        profile: looked.profile
+        profile: originalProfile
       };
     }
-    input.onProgress(40);
+    input.onProgress(compatible ? 72 : 40);
 
     // Drive pools (030) or the compressor's library (legacy): one of the two, never both.
     let resolved: ResolvedScreen[] | null = null;
@@ -315,7 +343,7 @@ export function createRestitchDelegate(
           '-ss',
           String(seek),
           '-i',
-          input.sourceFile,
+          looked.profile.path,
           '-an',
           '-sn',
           '-fps_mode',
@@ -398,8 +426,21 @@ export function createRestitchDelegate(
        * one number for minutes, which reads as a hang rather than as work.
        */
       onStage: stage =>
-        input.onProgress(stage === 'verifying' ? 92 : stage === 'joining' ? 45 : 42),
-      onJoinProgress: fraction => input.onProgress(45 + Math.round(fraction * 45)),
+        input.onProgress(
+          stage === 'verifying'
+            ? 92
+            : stage === 'joining'
+              ? compatible
+                ? 75
+                : 45
+              : compatible
+                ? 74
+                : 42
+        ),
+      onJoinProgress: fraction =>
+        input.onProgress(
+          compatible ? 75 + Math.round(fraction * 15) : 45 + Math.round(fraction * 45)
+        ),
       sourceIdentity,
       imagePathFor: async id =>
         id === automaticFrameId && automaticFramePath
@@ -551,6 +592,11 @@ async function inspectUncached(
   }
   const probed = await probeSource(file, { signal });
   if (!probed.ok) return null;
+  if (hevcRestitchSource(probed.value))
+    return {
+      profile: probed.value,
+      detected: { startSeconds: 0, endSeconds: 0, adjustedByUser: false }
+    };
   const detected = await detectStitching(probed.value, signal);
   return { profile: probed.value, detected };
 }

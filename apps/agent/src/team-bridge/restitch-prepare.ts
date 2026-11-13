@@ -24,6 +24,7 @@
 
 import {
   RESTITCH_DETECTOR_VERSION,
+  hevcRestitchSource,
   stitchUnsupportedReason,
   type MaterialRestitchPrep
 } from '@video-compressor/shared';
@@ -33,6 +34,7 @@ import { ensureSilenceBank } from '../stitcher/silence.js';
 import type { TeamOperationEvents } from './events.js';
 import type { DownloadedTeamSource, TeamSourceDownloadRequest } from './transfer.js';
 import type { TeamTransferGrant } from '@video-compressor/shared';
+import { HevcCompatibility } from '../stitcher/hevc-normalize.js';
 
 /** How many finished runs stay readable, so a reload can still collect the tail. */
 const REMEMBERED_RUNS = 4;
@@ -68,6 +70,8 @@ export interface RestitchPrepareReport {
   total: number;
   /** What is being looked at right now, so a row can say so rather than a page-wide spinner. */
   current: string | null;
+  phase: 'inspecting' | 'converting' | 'verifying' | null;
+  currentProgress: number;
   findings: RestitchPrepareFinding[];
 }
 
@@ -82,6 +86,7 @@ export interface RestitchPrepareBridgeOptions {
   transfer: RestitchPrepareTransfer;
   /** The same coarse progress every other team operation publishes. */
   events?: Pick<TeamOperationEvents, 'update'>;
+  compatibility?: Pick<HevcCompatibility, 'prepare'>;
 }
 
 interface PrepareRun {
@@ -93,6 +98,8 @@ interface PrepareRun {
   current: string | null;
   state: RestitchPrepareReport['state'];
   findings: Map<string, RestitchPrepareFinding>;
+  currentProgress: number;
+  phase: RestitchPrepareReport['phase'];
 }
 
 export class RestitchPrepareBridge {
@@ -100,10 +107,12 @@ export class RestitchPrepareBridge {
   readonly #events: RestitchPrepareBridgeOptions['events'];
   readonly #runs = new Map<string, PrepareRun>();
   #closing = false;
+  readonly #compatibility: Pick<HevcCompatibility, 'prepare'>;
 
   constructor(options: RestitchPrepareBridgeOptions) {
     this.#transfer = options.transfer;
     this.#events = options.events;
+    this.#compatibility = options.compatibility ?? new HevcCompatibility();
   }
 
   /**
@@ -123,7 +132,9 @@ export class RestitchPrepareBridge {
       done: 0,
       current: null,
       state: 'running',
-      findings: new Map()
+      findings: new Map(),
+      currentProgress: 0,
+      phase: null
     };
     this.#remember(request.operationId, run);
     // Own completion before publishing or starting I/O. Abort requests and UI
@@ -134,6 +145,8 @@ export class RestitchPrepareBridge {
         if (run.state === 'running') run.state = 'finished';
         run.active = false;
         run.current = null;
+        run.phase = null;
+        run.currentProgress = 0;
         this.#publish(request.operationId, run);
         this.#prune();
       });
@@ -150,6 +163,8 @@ export class RestitchPrepareBridge {
       done: run.done,
       total: run.total,
       current: run.current,
+      phase: run.phase,
+      currentProgress: run.currentProgress,
       findings: [...run.findings.values()]
     };
   }
@@ -202,7 +217,8 @@ export class RestitchPrepareBridge {
       this.#events?.update(operationId, {
         state: run.active ? 'running' : run.state === 'canceled' ? 'canceled' : 'succeeded',
         stage: run.active ? 'processing' : run.state === 'canceled' ? 'canceled' : 'completed',
-        progress: run.total > 0 ? Math.round((run.done / run.total) * 100) : 100
+        progress:
+          run.total > 0 ? Math.round(((run.done + run.currentProgress) / run.total) * 100) : 100
       });
     } catch {
       // A diagnostic sink failure cannot strand work or prevent quiescence.
@@ -227,6 +243,8 @@ export class RestitchPrepareBridge {
     for (const material of request.materials) {
       if (signal.aborted) return;
       run.current = material.materialId;
+      run.currentProgress = 0;
+      run.phase = 'inspecting';
       run.findings.set(material.materialId, {
         materialId: material.materialId,
         state: 'inspecting',
@@ -235,8 +253,21 @@ export class RestitchPrepareBridge {
       });
       this.#publish(request.operationId, run);
 
-      const finding = await this.#inspect(request, material, signal);
+      const finding = await this.#inspect(
+        request,
+        material,
+        signal,
+        fraction => {
+          run.currentProgress = Math.max(run.currentProgress, Math.min(0.95, fraction));
+          this.#publish(request.operationId, run);
+        },
+        phase => {
+          run.phase = phase;
+          this.#publish(request.operationId, run);
+        }
+      );
       run.done += 1;
+      run.currentProgress = 0;
       run.findings.set(material.materialId, finding);
       // Whatever finished stays found: a stop keeps what it has rather than discarding a run's
       // worth of work because the last material was interrupted.
@@ -248,7 +279,9 @@ export class RestitchPrepareBridge {
   async #inspect(
     request: RestitchPrepareRequest,
     material: RestitchPrepareMaterial,
-    signal: AbortSignal
+    signal: AbortSignal,
+    progress: (fraction: number) => void,
+    phase: (value: RestitchPrepareReport['phase']) => void
   ): Promise<RestitchPrepareFinding> {
     let source: DownloadedTeamSource | null = null;
     try {
@@ -262,12 +295,27 @@ export class RestitchPrepareBridge {
       );
       const probed = await probeSource(source.file, { signal });
       if (!probed.ok) return unsupported(material, 'unreadable');
-      const refusal = stitchUnsupportedReason(probed.value);
+      const hevc = hevcRestitchSource(probed.value);
+      const refusal = hevc ? null : stitchUnsupportedReason(probed.value);
       // A refusal is recorded rather than dropped: knowing a file cannot be served is worth as
       // much as knowing where its screens are, and it stops the answer being recomputed.
       if (refusal) return unsupported(material, refusal);
 
-      const detected = await detectStitching(probed.value, signal);
+      const normalized = hevc
+        ? await this.#compatibility.prepare({
+            sourceFile: source.file,
+            workspace: source.workspace,
+            sourceIdentity: source.sourceChecksum
+              ? `md5:${source.sourceChecksum}:${source.sizeBytes}`
+              : null,
+            signal,
+            runId: request.operationId,
+            onProgress: fraction => progress(fraction * 0.85),
+            onStage: phase
+          })
+        : null;
+      phase('inspecting');
+      const detected = await detectStitching(normalized?.profile ?? probed.value, signal);
       return {
         materialId: material.materialId,
         state: 'prepared',

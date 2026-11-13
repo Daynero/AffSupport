@@ -1,3 +1,4 @@
+import { handoffBrowserDownload } from '../materials/browser-download';
 import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
 import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
 import { WorkspaceMutationJournal } from '../workspace/mutationJournal';
@@ -295,11 +296,7 @@ export function useMaterialActions(input: {
             });
             return 'agent_saved';
           }
-          const anchor = document.createElement('a');
-          anchor.href = grant.rangeUrl;
-          anchor.download = grant.fileName ?? material.name;
-          anchor.rel = 'noreferrer';
-          anchor.click();
+          handoffBrowserDownload(grant.rangeUrl, grant.fileName ?? material.name);
           return 'browser_handoff';
         } catch (caught) {
           // A browser grant can be refused for a file only the local agent can

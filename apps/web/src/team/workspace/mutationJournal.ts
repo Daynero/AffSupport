@@ -5,7 +5,7 @@ export interface WorkspaceMutationIntent {
   materialIds: string[];
   createdAt: number;
 }
-type Action = 'bulk-trash' | 'restore' | 'catalog-rename';
+type Action = 'bulk-trash' | 'restore' | 'catalog-rename' | 'catalog-video-replacement';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const unavailable = () => new TeamApiError('CATALOG_COMMAND_STORAGE_UNAVAILABLE', false);
 const canonicalIds = (ids: readonly string[]) =>
@@ -22,6 +22,9 @@ export class WorkspaceMutationJournal {
   ) {
     if (!UUID.test(actorId) || !UUID.test(teamId)) throw new TeamApiError('AUTH_REQUIRED', false);
     this.prefix = `soty.workspace-mutation.v1:${actorId.toLowerCase()}:${teamId.toLowerCase()}:${action}:`;
+  }
+  ownsStorageKey(key: string | null): boolean {
+    return key === null || key.startsWith(this.prefix);
   }
   list(): WorkspaceMutationIntent[] {
     try {
@@ -59,7 +62,7 @@ export class WorkspaceMutationJournal {
       throw unavailable();
     }
   }
-  acquire(materialIds: readonly string[]): WorkspaceMutationIntent {
+  acquire(materialIds: readonly string[], options?: { fresh?: boolean }): WorkspaceMutationIntent {
     if (
       materialIds.length < 1 ||
       materialIds.length > 500 ||
@@ -71,7 +74,10 @@ export class WorkspaceMutationJournal {
     const match = pending.find(
       intent => JSON.stringify(intent.materialIds) === JSON.stringify(ids)
     );
-    if (match) return match;
+    if (match) {
+      if (options?.fresh) throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+      return match;
+    }
     if (pending.some(intent => intent.materialIds.some(id => ids.includes(id))))
       throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
     if (pending.length >= 50) throw unavailable();

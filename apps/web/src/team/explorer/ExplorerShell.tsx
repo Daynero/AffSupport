@@ -1,3 +1,4 @@
+import { handoffBrowserDownload } from '../materials/browser-download';
 import { createRestoreBatch } from '../materials/restore-batch';
 import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
 import {
@@ -1340,11 +1341,7 @@ function ExplorerBody({
           push({ tone: 'success', text: t('teamRestitchDelivered', { name: row.name }) });
           return;
         }
-        const anchor = document.createElement('a');
-        anchor.href = grant.rangeUrl;
-        anchor.download = row.name;
-        anchor.rel = 'noreferrer';
-        anchor.click();
+        handoffBrowserDownload(grant.rangeUrl, row.name);
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       }

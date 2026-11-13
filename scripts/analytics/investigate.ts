@@ -1,3 +1,5 @@
+import { diagnoseHevcJournal } from './hevc-journal.js';
+import { getCatalogVideoReplacementEvidence } from './catalog-video-replacements.js';
 import { getOwnedGlobalImageEvidence } from './global-images.js';
 import { diagnoseNativeUpdates } from './native-app-updates.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -2404,6 +2406,10 @@ export async function getInvestigation(
         'Read updates and inspect for this attempt. Reconcile native receipts before retrying; missing browser delivery is not installation failure.'
     });
   }
+  const catalog_video_replacements = await getCatalogVideoReplacementEvidence(
+    scope.userId ?? scope.id ?? '',
+    period.as_of
+  );
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -2428,6 +2434,7 @@ export async function getInvestigation(
     material_sharing,
     catalog_claims,
     catalog_stops,
+    catalog_video_replacements,
     environment,
     sessions: sessionsOf(rows, sessionLimit),
     operations,
@@ -2436,6 +2443,7 @@ export async function getInvestigation(
     journal_around_failures: journalAroundFailures,
     sync,
     native_app_updates,
+    hevc_compatibility: diagnoseHevcJournal(journal, Boolean(schema.tables.agent_journal_records)),
     coverage: { events: rows.length, journal_records: journal.length, blind_spots: blindSpots },
     findings,
     schema: schemaSummary(schema)

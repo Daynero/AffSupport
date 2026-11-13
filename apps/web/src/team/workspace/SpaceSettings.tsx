@@ -201,7 +201,7 @@ export function SpaceSettings({
         /* Two columns only where two panels genuinely balance. General is three
            short cards and history and re-stitch are one panel each; side by side
            they left half the dialog's width empty. */
-        className="team-space-settings-grid is-single"
+        className={`team-space-settings-grid is-single${tab === 'tags' ? ' is-tags' : ''}`}
         role="tabpanel"
         id={`team-settings-panel-${tab}`}
         aria-labelledby={`tab-${tab}`}

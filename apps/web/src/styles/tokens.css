@@ -712,6 +712,8 @@
   /* Type: seventeen steps collapse onto seven. The mapping rounds to the
      nearest role rather than preserving every intermediate size — that
      proliferation is the thing this feature exists to end. */
+  --tag-manager-list-height: 22rem;
+
   --text-2xs: var(--text-micro);
   --text-xs: var(--text-micro);
   --text-sm: var(--text-caption);

@@ -1,3 +1,5 @@
+import { handleCatalogVideoReplacement } from './catalog-video-replacement.ts';
+import { commitRenameWithPreview } from './rename-preview.ts';
 import { readCatalogVideoFailure } from './catalog-video-failure.ts';
 import { handleCatalogVideoForeground } from './catalog-video-foreground.ts';
 import {
@@ -1340,10 +1342,33 @@ async function handleRename(
       name: plan.name
     });
     postconditionForMutation('rename', liveTarget(updated), { name: plan.name });
-    return rpcValue(service, 'service_commit_team_material_mutation', {
-      p_operation: authority.operationId,
-      p_actor: actorId,
-      p_drive: mutationResult(updated)
+    return commitRenameWithPreview({
+      before: { checksum: source.checksum, size: source.sizeBytes, mimeType: source.mimeType },
+      after: updated,
+      commit: () =>
+        rpcValue(service, 'service_commit_team_material_mutation', {
+          p_operation: authority.operationId,
+          p_actor: actorId,
+          p_drive: mutationResult(updated)
+        }),
+      preserve: () =>
+        copyCachedThumbnail({
+          service,
+          sourceCache: new DriveThumbnailCache(client, common.teamId, source.rootFolderId),
+          destinationCache: new DriveThumbnailCache(client, common.teamId, source.rootFolderId),
+          teamId: common.teamId,
+          source: {
+            materialId: common.materialId,
+            identity: source.driveVersion ?? source.checksum,
+            mimeType: source.mimeType
+          },
+          copy: {
+            materialId: common.materialId,
+            identity: updated.version ?? updated.checksum,
+            mimeType: updated.mimeType,
+            driveVersion: updated.version
+          }
+        })
     });
   });
 }
@@ -3993,6 +4018,23 @@ Deno.serve(async request => {
         body,
         userId,
         catalogRenameDeps(request, configured.service)
+      );
+    } else if (
+      [
+        '/catalogs/video-replacement-context',
+        '/catalogs/replace-video',
+        '/catalogs/video-replacement-status'
+      ].includes(path)
+    ) {
+      value = await handleCatalogVideoReplacement(
+        configured.service,
+        userId,
+        path === '/catalogs/replace-video'
+          ? 'submit'
+          : path.endsWith('-context')
+            ? 'context'
+            : 'status',
+        body
       );
     } else if (path === '/rename') {
       value = await handleRename(request, body, configured.service, userId);
