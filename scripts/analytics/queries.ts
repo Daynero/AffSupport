@@ -1,7 +1,12 @@
+import { getHevcJournalEvidence, mergeHevcInspection } from './hevc-journal.js';
 import {
   getCatalogGenerationEvidence,
   mergeCatalogGenerationInspection
 } from './catalog-generations.js';
+import {
+  getCatalogVideoReplacementEvidence,
+  mergeCatalogVideoReplacementInspection
+} from './catalog-video-replacements.js';
 import { getCatalogRenameEvidence, mergeCatalogRenameInspection } from './catalog-renames.js';
 import {
   getDurableLaunchBatchEvidence,
@@ -2478,10 +2483,14 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
     label: 'all',
     ...(asOf ? { as_of: asOf } : {})
   });
+  const replacements = await getCatalogVideoReplacementEvidence(id, asOf);
   return inspectBackgroundSetup(
-    mergeCatalogGenerationInspection(
-      mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames),
-      catalogs
+    mergeCatalogVideoReplacementInspection(
+      mergeCatalogGenerationInspection(
+        mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames),
+        catalogs
+      ),
+      replacements
     )
   );
 }
@@ -2807,14 +2816,22 @@ async function getInspectWithCommands(
 }
 
 async function getInspectComposite(id: string, asOf?: string, limit = 500): Promise<InspectData> {
-  const [initialCore, retirement, translation, initialOriginal, nativeTeam] = await Promise.all([
-    getInspectCore(id, asOf, limit),
-    getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z'),
-    getTranslationRetirementEvidence(id, null, asOf ?? new Date().toISOString(), 'identity', limit),
-    getOriginalJournalEvidence(id, asOf ?? new Date().toISOString()),
-    getTeamProcessJournalEvidence(id, asOf ?? new Date().toISOString())
-  ]);
-  const core = mergeTeamProcessJournal(initialCore, nativeTeam);
+  const [initialCore, retirement, translation, initialOriginal, nativeTeam, hevc] =
+    await Promise.all([
+      getInspectCore(id, asOf, limit),
+      getRecoveryRetirementEvidence(id, null, asOf ?? '9999-12-31T23:59:59Z'),
+      getTranslationRetirementEvidence(
+        id,
+        null,
+        asOf ?? new Date().toISOString(),
+        'identity',
+        limit
+      ),
+      getOriginalJournalEvidence(id, asOf ?? new Date().toISOString()),
+      getTeamProcessJournalEvidence(id, asOf ?? new Date().toISOString()),
+      getHevcJournalEvidence(id, asOf ?? new Date().toISOString())
+    ]);
+  const core = mergeHevcInspection(mergeTeamProcessJournal(initialCore, nativeTeam), hevc);
   let original = initialOriginal;
   if (core.found && original.attempts.length === 0 && original.supported) {
     const bindings = [

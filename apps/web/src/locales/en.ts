@@ -2937,6 +2937,26 @@ export const en = {
   productCatalogRemove: 'Remove variation',
   productCatalogRemoved: '{name} moved to the trash',
   productCatalogBack: 'Back to catalogs',
+  catalogReplaceVideoTitle: 'Change video',
+  catalogReplaceVideoDescription:
+    'Only video links and the video association change. Products, IDs, text, images, catalog name and catalog URL stay the same.',
+  catalogReplaceVideoCurrent: 'Current video',
+  catalogReplaceVideoChoose: 'Choose a new video',
+  catalogReplaceVideoMove: 'Move the catalog to the new video’s folder',
+  catalogReplaceVideoShare:
+    'The new video will be accessible by link to catalog readers. Both video files remain unchanged.',
+  catalogReplaceVideoPending:
+    'Replacement accepted. Verifying the new video links; the old association stays until confirmation. Closing this dialog does not cancel the operation.',
+  catalogReplaceVideoMoving:
+    'Video links are ready. Verifying the catalog’s location and video association.',
+  catalogReplaceVideoDone: 'Video replaced. The catalog and its location have been verified.',
+  catalogReplaceVideoCheck: 'Check status',
+  catalogReplaceVideoNotSubmitted:
+    'This request was not accepted. You can try the replacement again.',
+  catalogReplaceVideoBusy:
+    'Finish the current update or video variation preparation first. Replacement does not interrupt other operations.',
+  catalogReplaceVideoNeedsPublication:
+    'The catalog needs a verified immediate publication first. Scheduled, held or unverified publications cannot be replaced yet.',
   catalogUpdaterEntry: 'Catalog Manager',
   catalogScheduleCustom: 'Custom',
   catalogScheduleSave: 'Save',
@@ -3351,6 +3371,8 @@ export const en = {
   teamRestitchFolder: 'Where downloads go',
   teamRestitchFolderChange: 'Change',
   teamRestitchPrepare: 'Prepare the space’s videos',
+  teamRestitchConverting: 'Preparing compatible video · {progress}% · {done} of {total} ready',
+  teamRestitchVerifying: 'Checking compatible video · {done} of {total} ready',
   teamRestitchPreparing: 'Preparing {done} of {total}…',
   teamRestitchPrepareStop: 'Stop',
   teamRestitchPrepared: '{ready} ready, {failed} could not be prepared',
@@ -4276,8 +4298,7 @@ export const en = {
     'This space has no ad account tags yet — make them in the space settings.',
   teamAgentLabelsUntagged: 'No tag',
   teamAgentTagsTitle: 'Ad account tags',
-  teamAgentTagsDescription:
-    'Tags for advertising accounts in Accounts. “Copy with IDs” groups top-ups by these tags, using each as the heading of a payment batch.',
+  teamAgentTagsDescription: 'Ad account tags for grouping accounts and payment messages.',
   teamAgentTagNamePlaceholder: '#2, #5, Visa…',
   teamAgentTagsEmpty: 'No ad account tags yet. The first one takes a name and a colour.',
   teamAccountsCopied: 'Copied — {count} ad accounts',
@@ -4363,13 +4384,13 @@ export const en = {
   teamTaskAccountFilterAll: 'Every account',
   teamTaskAccountFilterClear: 'Show every account',
   // Task tags (018): the space's own dictionary, hung on tasks.
-  teamPreferencesTitle: 'Tasks and transcripts',
-  teamPreferencesDescription:
-    'The slider maximum a new task starts with, for everyone in the space; and what happens to a transcript when you delete its video — your own choice.',
+  teamTranscriptPreferencesTitle: 'Transcripts',
+  teamTranscriptPreferencesDescription: 'Your personal preference.',
+  teamTaskPreferencesTitle: 'Tasks',
+  teamTaskPreferencesDescription: 'For everyone in the space.',
   teamSettingsTabTags: 'Tags',
   teamTaskTagsTitle: 'Tags',
-  teamTaskTagsDescription:
-    'Tags this space hangs on its tasks. Made here, put on a task from the task itself, and the board filters and sorts by them.',
+  teamTaskTagsDescription: 'Tags for tasks, board filters and sorting.',
   teamTaskTagName: 'Name',
   teamTaskTagNamePlaceholder: 'UGC, Hot, Needs review…',
   teamTaskTagNameInvalid: 'A tag needs a name of up to 24 characters.',

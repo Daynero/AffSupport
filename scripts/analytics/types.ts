@@ -35,6 +35,7 @@ export interface AnalyticsSchema {
     analytics_launch_generations?: boolean;
     analytics_launch_batches?: boolean;
     analytics_catalog_renames?: boolean;
+    analytics_catalog_video_replacements?: boolean;
     analytics_launch_cleanup?: boolean;
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
@@ -302,6 +303,7 @@ export interface InspectFound {
   catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
+  catalog_video_replacements?: import('./catalog-video-replacements.js').CatalogVideoReplacementEvidence;
   global_images?: Awaited<ReturnType<typeof import('./global-images.js').getGlobalImageEvidence>>;
   native_app_update?: import('./native-app-updates.js').NativeUpdateEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
@@ -312,6 +314,7 @@ export interface InspectFound {
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
+  hevc_compatibility?: import('./hevc-journal.js').HevcJournalEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   /** Requested installer only; not evidence of an installed native package. */
   requested_installer_targets?: string[];
@@ -356,6 +359,7 @@ export interface InspectNotFound {
   catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
+  catalog_video_replacements?: import('./catalog-video-replacements.js').CatalogVideoReplacementEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -364,6 +368,7 @@ export interface InspectNotFound {
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   catalog_commands?: import('./catalog-commands.js').CatalogCommandEvidence;
   material_sharing?: import('./material-sharing.js').MaterialSharingEvidence;
+  hevc_compatibility?: import('./hevc-journal.js').HevcJournalEvidence;
   team_native?: import('./team-process-journal.js').TeamProcessJournalEvidence;
   transcription_original?: import('./transcription-journal.js').OriginalJournalEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
@@ -1010,9 +1015,11 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  hevc_compatibility?: import('./hevc-journal.js').HevcJournalEvidence;
   native_app_updates?: import('./native-app-updates.js').NativeUpdateEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
+  catalog_video_replacements?: import('./catalog-video-replacements.js').CatalogVideoReplacementEvidence;
   material_sharing?: Awaited<
     ReturnType<typeof import('./material-sharing.js').getOwnedMaterialSharingEvidence>
   >;

@@ -14,7 +14,8 @@ export type CatalogUiAction =
   | 'stop'
   | 'restitch_claim'
   | 'publication'
-  | 'video_create';
+  | 'video_create'
+  | 'replace_video';
 export type CatalogUiStage =
   | 'baseline_check_requested'
   | 'baseline_confirmed'

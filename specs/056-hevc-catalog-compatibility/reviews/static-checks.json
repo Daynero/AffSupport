@@ -1,0 +1,95 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-13T23:52:51.795Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 107362,
+    "totals": {
+      "gates": 15,
+      "passed": 15,
+      "failed": 0,
+      "tests": 0,
+      "skipped_tests": 0,
+      "skip_reasons": {},
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1550
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 23413
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 21140
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 19232
+      },
+      {
+        "id": "build:catalog-image-delivery",
+        "ok": true,
+        "duration_ms": 511
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 28530
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 3125
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 113
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2174
+      },
+      {
+        "id": "migrations-additive",
+        "ok": true,
+        "duration_ms": 231
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 101
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 97
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 137
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 66
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 6940
+      }
+    ]
+  }
+}

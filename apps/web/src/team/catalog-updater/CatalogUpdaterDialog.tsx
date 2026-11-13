@@ -1,3 +1,4 @@
+import { LazyCatalogVideoReplacementDialog } from '../product-catalog/LazyCatalogVideoReplacementDialog';
 import { CatalogProfileVideoCount } from './CatalogProfileVideoCount';
 import { CatalogBackgroundStalledNote } from './CatalogBackgroundStalledNote';
 import { CatalogVideoVariationsDialog } from './CatalogVideoVariationsDialog';
@@ -246,6 +247,7 @@ function CatalogUpdaterDialogScope({
 
   const updater = useCatalogUpdater(teamId, client);
   const registry = useCatalogRegistry(teamId, true, client);
+  const [replaceVideoCatalogId, setReplaceVideoCatalogId] = useState<string | null>(null);
   const inline = useCatalogInlineChanges({
     teamId,
     client,
@@ -1819,6 +1821,20 @@ function CatalogUpdaterDialogScope({
         )}
       </div>
 
+      {replaceVideoCatalogId && (
+        <LazyCatalogVideoReplacementDialog
+          teamId={teamId}
+          catalogId={replaceVideoCatalogId}
+          open={Boolean(replaceVideoCatalogId)}
+          revision={registry.lastLoadedAt}
+          disabled={!permissions?.edit || !mayRun}
+          onClose={() => setReplaceVideoCatalogId(null)}
+          onChanged={() => {
+            registry.reload();
+            onChanged?.();
+          }}
+        />
+      )}
       {renameRow && (
         <LazyCatalogRenameDialog
           teamId={teamId}
@@ -1925,6 +1941,16 @@ function CatalogUpdaterDialogScope({
                 >
                   <h2 id={`${titleId}-profile`}>{row.name}</h2>
                   <div className="team-updater-profile">
+                    {permissions?.edit && mayRun && (
+                      <Button
+                        variant="outline"
+                        disabled={editorPending}
+                        onClick={() => setReplaceVideoCatalogId(row.catalogId)}
+                      >
+                        {t('catalogReplaceVideoTitle')}
+                      </Button>
+                    )}
+
                     {row.updatePending && (
                       <div>
                         <p role="status">{t('catalogUpdaterProfileActiveAttempt')}</p>

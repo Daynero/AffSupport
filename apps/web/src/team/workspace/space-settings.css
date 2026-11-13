@@ -136,3 +136,104 @@
     flex-basis: 100%;
   }
 }
+
+/* Independent choices stay compact instead of sharing a full-width slab. */
+.team-space-settings .team-preferences {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+.team-space-settings .team-preferences .ui-card-title {
+  font-size: var(--text-section);
+}
+.team-space-settings .team-preferences .ui-card-description {
+  font-size: var(--text-caption);
+}
+
+/* Two bounded dictionaries; the form and heading stay outside their scrolling lists. */
+.team-space-settings .team-space-settings-grid.is-tags {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  align-items: start;
+}
+.team-space-settings .team-task-labels {
+  min-width: 0;
+}
+.team-space-settings .team-task-labels .ui-card-title {
+  font-size: var(--text-section);
+}
+.team-space-settings .team-task-labels .ui-card-description {
+  font-size: var(--text-caption);
+}
+.team-space-settings .team-task-labels-total {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+.team-space-settings .team-task-labels-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.team-space-settings .team-task-labels-name {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.team-space-settings .team-task-labels-scroll {
+  max-height: min(var(--tag-manager-list-height), 45dvh);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  border-top: 1px solid var(--color-neutral-border);
+  padding-top: var(--space-2);
+}
+.team-space-settings .team-task-labels-scroll:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+.team-space-settings .team-task-labels-list {
+  gap: var(--space-1);
+  align-items: stretch;
+}
+.team-space-settings .team-task-labels-row {
+  flex: none;
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  padding: var(--space-1) var(--space-2);
+  gap: var(--space-2);
+}
+.team-space-settings .team-task-labels-tag {
+  min-width: 0;
+  max-width: 50%;
+}
+.team-space-settings .team-task-labels-tag .team-task-label-chip {
+  max-width: 100%;
+}
+.team-space-settings .team-task-labels-count {
+  flex: none;
+  white-space: nowrap;
+  min-width: 0;
+  margin: 0;
+}
+.team-space-settings .team-task-labels-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.team-space-settings .team-task-labels-action {
+  opacity: 1;
+  min-width: var(--control-height-lg);
+  min-height: var(--control-height-md);
+}
+.team-space-settings .team-task-labels-row.is-editing {
+  padding: var(--space-3);
+}
+.team-space-settings .team-task-labels-row.is-editing input {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.team-space-settings .team-task-labels-row.is-editing .team-task-label-colors {
+  flex-basis: 100%;
+}

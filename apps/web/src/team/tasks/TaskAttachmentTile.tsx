@@ -1,3 +1,4 @@
+import { handoffBrowserDownload } from '../materials/browser-download';
 import { useEffect, useRef, useState } from 'react';
 import type {
   LibraryShareCopyRequest,
@@ -429,11 +430,7 @@ export function TaskAttachmentTile({
         }
         throw new Error('AGENT_REQUIRED');
       }
-      const anchor = document.createElement('a');
-      anchor.href = grant.rangeUrl;
-      anchor.download = attachment.name;
-      anchor.rel = 'noreferrer';
-      anchor.click();
+      handoffBrowserDownload(grant.rangeUrl, attachment.name);
     } catch {
       setActionFailed(true);
     } finally {

@@ -113,6 +113,7 @@
     "packages/shared/src/team/catalog-global-images.ts": 90,
     "packages/shared/src/team/catalog-global-alias.ts": 90,
     "packages/shared/src/native-app-updates.ts": 99,
-    "packages/shared/src/team/catalog-content.ts": 99
+    "packages/shared/src/team/catalog-content.ts": 99,
+    "packages/shared/src/team/catalog-video-replacement.ts": 95
   }
 }

@@ -125,6 +125,91 @@ afterEach(async () => {
 });
 
 describe('preparing a space', () => {
+  it('normalizes HEVC before detecting edges, retains the original profile and reports live phases', async () => {
+    probeSource.mockImplementation(async (file: string) => ({
+      ok: true,
+      value: { ...profile(file), videoCodec: 'hevc' }
+    }));
+    let release!: () => void;
+    let entered!: () => void;
+    const ready = new Promise<void>(r => {
+      entered = r;
+    });
+    const continueWork = new Promise<void>(r => {
+      release = r;
+    });
+    const prepare = vi.fn(
+      async (input: import('../apps/agent/src/stitcher/hevc-normalize').HevcCompatibilityInput) => {
+        input.onStage?.('converting');
+        input.onProgress?.(0.5);
+        entered();
+        await continueWork;
+        input.onStage?.('verifying');
+        return {
+          file: '/normalized.mp4',
+          profile: profile('/normalized.mp4'),
+          sourceIdentity: 'verified-output',
+          fromCache: false
+        };
+      }
+    );
+    const bridge = new RestitchPrepareBridge({
+      transfer: transfer([]),
+      compatibility: { prepare }
+    });
+    bridge.start({
+      operationId: 'hevc-prepare',
+      teamId: 'team',
+      transferUrl: 'https://transfer.example',
+      materials: [material('a')],
+      audio: null
+    });
+    await ready;
+    expect(bridge.report('hevc-prepare')).toMatchObject({
+      state: 'running',
+      phase: 'converting',
+      currentProgress: 0.425,
+      done: 0
+    });
+    release();
+    const report = await settle(bridge, 'hevc-prepare');
+    expect(report).toMatchObject({ state: 'finished', phase: null, currentProgress: 0, done: 1 });
+    expect(report.findings[0]?.prep).toMatchObject({
+      profile: { videoCodec: 'hevc' },
+      unsupportedReason: null,
+      detectorVersion: RESTITCH_DETECTOR_VERSION
+    });
+    expect(detectStitching).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/normalized.mp4', videoCodec: 'h264' }),
+      expect.any(AbortSignal)
+    );
+  });
+  it('keeps the H.264 fast path and continues a workspace after one HEVC conversion fails', async () => {
+    probeSource.mockImplementation(async (file: string) => ({
+      ok: true,
+      value: { ...profile(file), videoCodec: file.includes('_a.') ? 'hevc' : 'h264' }
+    }));
+    const prepare = vi.fn(async () => {
+      throw Error('STITCH_VERIFICATION_FAILED');
+    });
+    const cleaned: string[] = [];
+    const bridge = new RestitchPrepareBridge({
+      transfer: transfer(cleaned),
+      compatibility: { prepare }
+    });
+    bridge.start({
+      operationId: 'hevc-one-failure',
+      teamId: 'team',
+      transferUrl: 'https://transfer.example',
+      materials: [material('a'), material('b')],
+      audio: null
+    });
+    const report = await settle(bridge, 'hevc-one-failure');
+    expect(report.findings.map(f => f.state)).toEqual(['failed', 'prepared']);
+    expect(report.findings[0]?.reason).toBe('STITCH_VERIFICATION_FAILED');
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(cleaned).toHaveLength(2);
+  });
   it('looks at every material once and hands back what it found', async () => {
     const cleaned: string[] = [];
     const bridge = new RestitchPrepareBridge({ transfer: transfer(cleaned) });
@@ -191,7 +276,7 @@ describe('preparing a space', () => {
   it('records that a material cannot be served, rather than dropping it', async () => {
     probeSource.mockImplementation(async (input: string) => ({
       ok: true,
-      value: { ...profile(input), videoCodec: 'hevc' }
+      value: { ...profile(input), videoCodec: 'vp9' }
     }));
     const bridge = new RestitchPrepareBridge({ transfer: transfer([]) });
     bridge.start({

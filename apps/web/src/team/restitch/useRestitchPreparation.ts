@@ -6,10 +6,9 @@
  * once so that no later download has to. What is found is written back to the space, so the
  * member who prepares is not the only one who benefits.
  *
- * **Why it feeds the agent in small batches.** A transfer grant lives twenty minutes and each
- * material costs a transfer plus six to fourteen seconds of reading. Handing over fifty grants
- * at once would mean the last of them expired long before their turn; a handful at a time keeps
- * every grant well inside its life, and costs one extra local round trip per batch.
+ * Each grant is issued immediately before its material. A HEVC conversion can take
+ * much longer than header inspection; pre-issuing grants for later videos would age
+ * them in the queue. One material per request keeps later grants fresh.
  *
  * **Already-prepared materials are skipped**, so pressing the button again after adding two
  * videos costs two inspections rather than fifty.
@@ -26,8 +25,8 @@ import {
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
 
-/** Grants stay comfortably inside their twenty minutes at this size. */
-const BATCH = 5;
+/** Issue each grant just before its work: a long HEVC conversion must not age the next grant. */
+const BATCH = 1;
 const POLL_MS = 700;
 
 export type RestitchPreparationPhase =
@@ -49,6 +48,8 @@ export interface RestitchPreparationState {
    * tells a member nothing they can act on.
    */
   errorCode: string | null;
+  mediaPhase?: 'inspecting' | 'converting' | 'verifying' | null;
+  mediaProgress?: number;
 }
 
 const IDLE: RestitchPreparationState = {
@@ -229,6 +230,11 @@ async function follow(
     // An agent that has forgotten the run — restarted, or the run aged out — is not a failure
     // of the materials: what was stored stays stored, and the next press picks up the rest.
     if (!report) return;
+    setState(current => ({
+      ...current,
+      mediaPhase: report.phase,
+      mediaProgress: report.currentProgress
+    }));
 
     for (const finding of report.findings) {
       if (finding.state === 'inspecting' || stored.has(finding.materialId)) continue;

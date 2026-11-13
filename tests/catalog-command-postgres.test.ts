@@ -525,6 +525,62 @@ async function foregroundWorkingChildren(f: Awaited<ReturnType<typeof foreground
 describe.skipIf(!container)(
   '047 command acceptance [needs: disposable PostgreSQL container]',
   () => {
+    it('serializes video replacement acceptance and an absent-command check on real connections', async () => {
+      const sheet = await fixture(),
+        video = randomUUID(),
+        key = randomUUID(),
+        secondKey = randomUUID();
+      const old = await sql(
+        `select video_material_id from public.team_product_catalogs where material_id='${sheet}'`
+      );
+      await sql(`begin;
+       update public.team_materials set drive_version='1',checksum=repeat('a',32),size_bytes=4 where id in('${old}','${sheet}');
+       insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,drive_version,checksum,size_bytes)values('${video}','${team}','${connection}','${video}','root','Replacement video','file','video','video/mp4','1',repeat('b',32),4);
+       select public.service_save_catalog_publication('${team}','${owner}','${randomUUID()}','${sheet}',0,'immediate',null,null,jsonb_build_object('kind','source','materialId','${old}','sourceVersion',private.catalog_publication_source_version('${old}','${team}')));
+       update private.catalog_video_publication_policies set legacy_delivery_unverified=false where catalog_material_id='${sheet}';
+       update private.catalog_video_publication_jobs set state='published',provider_revision='1',verified_at=now()where catalog_material_id='${sheet}';
+       insert into private.catalog_video_deliveries(catalog_material_id,team_id,target_id,provider_revision,verified_at)select catalog_material_id,team_id,target_id,'1',now()from private.catalog_video_publication_policies where catalog_material_id='${sheet}';commit;`);
+      const context = JSON.parse(
+        await sql(
+          `select public.service_catalog_video_replacement_context('${team}','${sheet}','${owner}')`
+        )
+      );
+      const payload = (request: string) =>
+        JSON.stringify({
+          teamId: team,
+          catalogId: sheet,
+          expectedActorId: owner,
+          requestId: request,
+          newVideoId: video,
+          expectedVersion: context.version,
+          moveToVideoFolder: true
+        });
+      const command = (request: string) =>
+        `select public.service_accept_catalog_video_replacement('${team}','${sheet}','${owner}','${payload(request)}'::jsonb)`;
+      const marker = 'replace_' + randomUUID().replaceAll('-', '');
+      const first = holdSql(command(key) + `;select 1 /*${marker}*/`);
+      await held(marker, 'Idle');
+      const second = sql(command(secondKey)).catch(e => e as Error);
+      const check = sql(
+        `select public.service_catalog_video_replacement_status('${team}','${sheet}','${owner}','${key}')`
+      );
+      await first.commit();
+      expect(await second).toBeInstanceOf(Error);
+      expect(
+        String((await second) instanceof Error ? await second : 'unexpected success')
+      ).toContain('CATALOG_PUBLICATION_PENDING');
+      expect(JSON.parse(await check).state).toBe('publishing');
+      expect(
+        await sql(
+          `select count(*)from private.catalog_video_replacements where catalog_material_id='${sheet}'`
+        )
+      ).toBe('1');
+      expect(
+        await sql(
+          `select count(*)from private.catalog_video_replacement_absences where request_id='${key}'`
+        )
+      ).toBe('0');
+    }, 15000);
     beforeAll(async () => {
       const credential = randomUUID();
       await sql(`begin;

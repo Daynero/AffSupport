@@ -1,3 +1,4 @@
+import { recoverCatalogVideoReplacements } from '../drive-ops/catalog-video-replacement.ts';
 import { requireDriveOAuthGate } from '../_shared/auth.ts';
 import {
   readDriveCredential,
@@ -71,7 +72,15 @@ export async function runCatalogPublicationLane(
     return drive;
   };
   const io = createTargetedCatalogPublicationIo(service, workerId, driveFor);
-  return runPublicationPasses(() => runCatalogPublicationScheduler({ service, workerId, io }));
+  const result = await runPublicationPasses(() =>
+    runCatalogPublicationScheduler({ service, workerId, io })
+  );
+  await recoverCatalogVideoReplacements({
+    service,
+    driveFor: async credential =>
+      (await driveFor(credential)).withRequestDeadline(Date.now() + 7000)
+  });
+  return result;
 }
 
 /** How many scheduler passes one lane call may chain, and for how long. */

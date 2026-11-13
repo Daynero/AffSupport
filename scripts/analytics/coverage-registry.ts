@@ -84,7 +84,7 @@ export interface CapabilitySignal {
     | 'member_permissions_save'
     | 'member_remove'
     | 'member_access_refresh'
-    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop' | 'restitch_claim' | 'publication' | 'video_create'}`
+    | `catalog_manager_${'list' | 'filter' | 'profile' | 'bulk' | 'template' | 'run' | 'retry' | 'stop' | 'restitch_claim' | 'publication' | 'video_create' | 'replace_video'}`
     | `material_link_${'get_link' | 'share' | 'confirm' | 'readback' | 'clipboard'}`;
 }
 
@@ -129,6 +129,31 @@ const BOTH: CapabilityPlatform[] = ['macos', 'windows'];
 const LINK_SINCE_WEB_BUILD = '1.2.5';
 
 export const COVERAGE_REGISTRY: readonly Capability[] = [
+  {
+    id: 'team.hevc_compatibility',
+    tool: 'team',
+    title: 'Native HEVC catalog compatibility',
+    stages: [
+      'started',
+      'cache_check',
+      'converting',
+      'verifying',
+      'compatible_source_ready',
+      'catalog_published',
+      'result_visible'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    source: 'authoritative_table',
+    producerStatus: 'emitted',
+    unobservable: [
+      'Local preparation does not prove catalog publication or visible browser delivery. Missing, delayed or retained-away native journals leave interruption and recovery unknown.'
+    ],
+    note: 'inspect reads bounded operation/shared normalization IDs from forwarded stitcher/hevc_normalization_* journal records; investigate diagnoses the subject-scoped journal. Independent consumers retain their own outcome when a shared conversion continues. A digest/policy-verified cache hit is local readiness, never delivery. Only opaque IDs, closed stages/causes, recipe version and duration buckets are forwarded, without names, paths, hashes, media or provider payloads. Real SDR/Main10/PQ/HLG/VFR/rotation/native-delegate tests, concurrent consumer cancellation and producer-to-ingest-to-SELECT-only diagnosis qualify this path; platform hardware playback is separate.'
+  },
+
   {
     id: 'team.background_setup',
     tool: 'team',
@@ -500,7 +525,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'stop',
       'restitch_claim',
       'publication',
-      'video_create'
+      'video_create',
+      'replace_video'
     ] as const
   ).map(action => ({
     id: `team.catalog_manager_${action}`,
@@ -542,6 +568,11 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       ...(action === 'stop'
         ? [
             'Stop has its own flow_id, an observed target in parent_flow_id and an optional original request in workflow_id for read-only Check. catalog_stops keeps browser replies, readback and visible feedback separate from current target state; no causal server Stop receipt, native child termination or provider quiescence is inferred.'
+          ]
+        : []),
+      ...(action === 'replace_video'
+        ? [
+            'The safe catalog_video_replacements projection correlates request, publication and conditional move outcomes through inspect/investigate. Confirmed means verified cells, placement and binding; it does not prove browser delivery. UI completion requires the confirmed receipt rendered in an open dialog. Reopened checks create separate correlated attempts. Provider changes outside Soty between observations, missing browser signals, beta-disabled collection and mutable state after an as-of boundary remain unknown. Names, provider IDs, links, parent paths and source content are excluded.'
           ]
         : [])
     ],
@@ -1362,7 +1393,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery. Canonical catalog rename correlates a stable opaque UUID request flow across distinct observation attempts. inspect reads bounded analytics_catalog_renames receipts, including provider reconciliation and absence tombstones; browser absence, missing signals and historical --as-of state remain unknown. tests/catalog-rename-analytics verifies producer, ingestion, SELECT-only diagnosis and privacy.'
+    note: 'Ordinary file rename rebinds cached thumbnails only after its committed result and equal checksum, size and MIME; thumbnail_ready remains version-fenced evidence, not proof the browser displayed it. Browser downloads use a separate browsing context; handoff still proves neither disk delivery nor a concurrent transcription outcome. Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery. Canonical catalog rename correlates a stable opaque UUID request flow across distinct observation attempts. inspect reads bounded analytics_catalog_renames receipts, including provider reconciliation and absence tombstones; browser absence, missing signals and historical --as-of state remain unknown. tests/catalog-rename-analytics verifies producer, ingestion, SELECT-only diagnosis and privacy.'
   },
   {
     id: 'team.browser_folder_upload',

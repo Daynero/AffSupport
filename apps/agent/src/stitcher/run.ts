@@ -23,6 +23,10 @@ export interface ToolResult {
 }
 
 export interface RunOptions {
+  /** Operation-owned working directory; fixed relative filter assets need no path quoting. */
+  cwd?: string;
+  /** Progress-only tools do not need an ever-growing copy of their stdout. */
+  captureStdout?: boolean;
   /** Called with the live child so a caller can stop it. */
   onChild?: (child: ChildProcess) => void;
   signal?: AbortSignal;
@@ -52,7 +56,10 @@ export function runTool(
     let terminationRequested = false;
     let spawnErrorCode: string | null = null;
 
-    const child = spawnTracked(command, args, { toolId: 'stitcher' });
+    const child = spawnTracked(command, args, {
+      toolId: 'stitcher',
+      ...(options.cwd ? { cwd: options.cwd } : {})
+    });
 
     const finish = (result: ToolResult) => {
       if (settled) return;
@@ -86,7 +93,7 @@ export function runTool(
 
     let pending = '';
     child.stdout?.on('data', chunk => {
-      stdout += chunk;
+      if (options.captureStdout !== false) stdout += chunk;
       if (!options.onLine) return;
       pending += chunk;
       const lines = pending.split('\n');

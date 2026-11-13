@@ -28,6 +28,25 @@ it('isolates actors, teams and action identities without deleting another scope'
     expect(journal.acquire([material]).id).not.toBe(first.id);
   expect(original.acquire([material]).id).toBe(first.id);
 });
+it('never lends another draft a pending command identity when a fresh intent is required', () => {
+  const firstTab = new WorkspaceMutationJournal(
+    'catalog-video-replacement',
+    actor,
+    team,
+    localStorage
+  );
+  const original = firstTab.acquire([material], { fresh: true });
+  const secondTab = new WorkspaceMutationJournal(
+    'catalog-video-replacement',
+    actor,
+    team,
+    localStorage
+  );
+  expect(() => secondTab.acquire([material], { fresh: true })).toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(secondTab.list()).toEqual([original]);
+  firstTab.confirmed(original.id);
+  expect(secondTab.acquire([material], { fresh: true }).id).not.toBe(original.id);
+});
 it('refuses malformed persisted identities instead of silently replacing uncertain requests', () => {
   const journal = new WorkspaceMutationJournal('restore', actor, team, localStorage);
   journal.acquire([material]);

@@ -8,7 +8,7 @@
  *
  * The panel is a list to be scanned, like the accounts table: one row per tag,
  * its colour carried by the chip itself, how many tasks carry it beside it,
- * and the two row actions quiet until the row is reached.
+ * and both row actions remain visible with comfortable targets.
  */
 
 import { useEffect, useId, useState, type FormEvent } from 'react';
@@ -22,8 +22,8 @@ import {
   type TeamTaskLabel,
   type TeamTaskLabelColor
 } from '@video-compressor/shared';
-import { Button, IconButton, Input } from '../../components/ui';
-import { ICON_STROKE } from '../../components/icons';
+import { Button, IconButton, Input, EmptyState } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -33,7 +33,6 @@ import { agentCountKey, taskCountKey } from '../accounts/plural';
 import { TaskLabelChip, TaskLabelColorPicker } from './TaskLabelChip';
 import { useTaskLabels, type TaskLabelsClient } from './useTaskLabels';
 import { SettingsSection } from '../workspace/SettingsSection';
-import { EmptyState } from '../../components/ui/index';
 
 export type TaskLabelsSectionClient = TaskLabelsClient;
 
@@ -151,6 +150,13 @@ export function TaskLabelsSection({
       title={t(agents ? 'teamAgentTagsTitle' : 'teamTaskTagsTitle')}
       description={t(agents ? 'teamAgentTagsDescription' : 'teamTaskTagsDescription')}
       className="team-task-labels"
+      aside={
+        !labels.loading || labels.labels.length > 0 ? (
+          <span className="team-task-labels-total">
+            {labels.labels.length} / {TEAM_TASK_LABEL_MAX}
+          </span>
+        ) : undefined
+      }
     >
       {canEdit && (
         <form className="team-task-labels-create" onSubmit={event => void create(event)}>
@@ -172,10 +178,16 @@ export function TaskLabelsSection({
               setColorChosen(true);
             }}
           />
-          <Button type="submit" variant="primary" loading={busy} disabled={full}>
-            <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('teamTaskTagAdd')}
-          </Button>
+          <IconButton
+            type="submit"
+            color="success"
+            variant="soft"
+            label={t('teamTaskTagAdd')}
+            loading={busy}
+            disabled={full}
+          >
+            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
         </form>
       )}
       {/* Said where it becomes true, not as a warning nobody near the limit
@@ -208,90 +220,102 @@ export function TaskLabelsSection({
       )}
 
       {labels.labels.length > 0 && (
-        <ul className="team-task-labels-list">
-          {labels.labels.map(label =>
-            editing?.id === label.id ? (
-              <li key={label.id} className="team-task-labels-row is-editing">
-                <input
-                  autoFocus
-                  value={editing.name}
-                  maxLength={TEAM_TASK_LABEL_NAME_MAX}
-                  /* Named for the row it edits: eight fields all called
+        <div
+          className="team-task-labels-scroll"
+          role="region"
+          aria-labelledby={titleId}
+          tabIndex={0}
+        >
+          <ul className="team-task-labels-list">
+            {labels.labels.map(label =>
+              editing?.id === label.id ? (
+                <li key={label.id} className="team-task-labels-row is-editing">
+                  <input
+                    autoFocus
+                    value={editing.name}
+                    maxLength={TEAM_TASK_LABEL_NAME_MAX}
+                    /* Named for the row it edits: eight fields all called
                      "Name" are eight identical announcements. */
-                  aria-label={`${t('teamTaskTagName')}: ${label.name}`}
-                  disabled={busy}
-                  onChange={event => setEditing({ ...editing, name: event.target.value })}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void saveEdit();
-                    }
-                    if (event.key === 'Escape') {
-                      // Ours, not the dialog's: the field closes, settings stay.
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setEditing(null);
-                    }
-                  }}
-                />
-                <TaskLabelColorPicker
-                  value={editing.color}
-                  disabled={busy}
-                  onChange={next => setEditing({ ...editing, color: next })}
-                />
-                <Button
-                  type="button"
-                  color="success"
-                  loading={busy}
-                  onClick={() => void saveEdit()}
-                >
-                  {t('teamAccountsSave')}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
-                  {t('teamCancel')}
-                </Button>
-              </li>
-            ) : (
-              <li key={label.id} className="team-task-labels-row">
-                <TaskLabelChip label={label} />
-                {/* The count says what it counts: tasks in one set, agents in
-                    the other. */}
-                <span className="team-task-labels-count">
-                  {t(
-                    agents
-                      ? agentCountKey(language, label.taskCount)
-                      : taskCountKey(language, label.taskCount),
-                    { count: label.taskCount }
-                  )}
-                </span>
-                {canEdit && (
-                  <>
-                    <IconButton
-                      type="button"
-                      label={`${t('teamTaskTagRename')}: ${label.name}`}
-                      className="team-task-labels-action"
-                      disabled={busy}
-                      onClick={() =>
-                        setEditing({ id: label.id, name: label.name, color: label.color })
+                    aria-label={`${t('teamTaskTagName')}: ${label.name}`}
+                    disabled={busy}
+                    onChange={event => setEditing({ ...editing, name: event.target.value })}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void saveEdit();
                       }
-                    >
-                      <Pencil size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    </IconButton>
-                    <IconButton
-                      type="button"
-                      label={`${t('teamTaskTagDelete')}: ${label.name}`}
-                      className="team-task-labels-action is-danger"
-                      disabled={busy}
-                      onClick={() => setConfirming(label)}
-                    >
-                      <Trash2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    </IconButton>
-                  </>
-                )}
-              </li>
-            )
-          )}
-        </ul>
+                      if (event.key === 'Escape') {
+                        // Ours, not the dialog's: the field closes, settings stay.
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setEditing(null);
+                      }
+                    }}
+                  />
+                  <TaskLabelColorPicker
+                    value={editing.color}
+                    disabled={busy}
+                    onChange={next => setEditing({ ...editing, color: next })}
+                  />
+                  <Button
+                    type="button"
+                    color="success"
+                    loading={busy}
+                    onClick={() => void saveEdit()}
+                  >
+                    {t('teamAccountsSave')}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+                    {t('teamCancel')}
+                  </Button>
+                </li>
+              ) : (
+                <li key={label.id} className="team-task-labels-row">
+                  <span className="team-task-labels-tag" title={label.name}>
+                    <TaskLabelChip label={label} />
+                  </span>
+                  {/* The count says what it counts: tasks in one set, agents in
+                    the other. */}
+                  <span className="team-task-labels-count">
+                    {t(
+                      agents
+                        ? agentCountKey(language, label.taskCount)
+                        : taskCountKey(language, label.taskCount),
+                      { count: label.taskCount }
+                    )}
+                  </span>
+                  {canEdit && (
+                    <div className="team-task-labels-actions">
+                      <IconButton
+                        type="button"
+                        label={`${t('teamTaskTagRename')}: ${label.name}`}
+                        className="team-task-labels-action"
+                        variant="soft"
+                        disabled={busy}
+                        onClick={() =>
+                          setEditing({ id: label.id, name: label.name, color: label.color })
+                        }
+                      >
+                        <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      </IconButton>
+                      <IconButton
+                        type="button"
+                        label={`${t('teamTaskTagDelete')}: ${label.name}`}
+                        className="team-task-labels-action is-danger"
+                        color="error"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setConfirming(label)}
+                      >
+                        <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      </IconButton>
+                    </div>
+                  )}
+                </li>
+              )
+            )}
+          </ul>
+        </div>
       )}
 
       {confirming && (

@@ -1,5 +1,19 @@
 # Rollback notes
 
+## 054 — Replace a catalog video
+
+Disable new Change video admission through a compatible forward release. Keep
+`catalog_video_replacements`, absence tombstones, publication receipts and all
+pending-writer fences until every accepted request is authoritatively reconciled.
+An expired lease or missing browser response is not proof that Sheets or Drive
+was unchanged. Do not restore the old association, move the document back, replay
+an uncertain move, delete either video, or clear reconciliation flags as rollback.
+The existing publication lane verifies only video cells; placement recovery reads
+the actual parent and exact ETag before committing the association. Preserve the
+safe diagnostic view and SELECT-only consumer until those requests settle.
+Local fixture rollback may discard its disposable database; this does not
+authorize a production migration, provider write or destructive cleanup.
+
 ## 045 — R2 catalog images
 
 This is a forward-only metadata feature; rollback must retain issued public image URLs and their
