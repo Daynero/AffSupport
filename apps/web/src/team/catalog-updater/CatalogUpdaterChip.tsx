@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { CalendarClock, TriangleAlert } from 'lucide-react';
+import { CalendarClock, RefreshCw, TriangleAlert } from 'lucide-react';
 import { catalogCountKey, useI18n } from '../../i18n';
 import type { CatalogUpdaterState } from '../../api/team';
 import { useRemaining } from './UpdaterCountdown';
@@ -22,7 +22,18 @@ export function CatalogUpdaterChip({
 }) {
   const { t, language } = useI18n();
   const remaining = useRemaining(state?.nextRunAt ?? null, offsetMs);
-  if (!state || (state.state !== 'running' && !state.activeCount)) return null;
+  if (!state || (state.state !== 'running' && !state.activeCount)) {
+    return (
+      <a
+        className="team-space-shell-utility-link inline-flex items-center gap-1"
+        href={href}
+        onClick={onNavigate}
+      >
+        <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t('catalogUpdaterEntry')}
+      </a>
+    );
+  }
 
   const attention = state.failingCount > 0 || Boolean(state.restitchBlockedCode);
   const oneOff = state.state === 'stopped' || state.nextRunAt === null;

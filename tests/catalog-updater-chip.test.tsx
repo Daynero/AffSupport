@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogUpdaterState } from '../apps/web/src/api/team';
 
@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 function renderChip(state: CatalogUpdaterState | null, offsetMs = 0) {
-  const onNavigate = vi.fn();
+  const onNavigate = vi.fn((event: React.MouseEvent<HTMLAnchorElement>) => event.preventDefault());
   render(
     <CatalogUpdaterChip
       state={state}
@@ -75,13 +75,18 @@ describe('the updater chip', () => {
     renderChip({ ...running, nextRunAt: new Date(NOW + 3_900_000).toISOString() });
     expect(screen.getByRole('link').textContent).toContain('1 hr 5 min');
   });
-  it('says nothing while the updater is stopped', () => {
-    // Idle, the updater is a line in the space's menu; the header speaks only
-    // when there is news (024, FR-094).
-    renderChip(null);
-    expect(screen.queryByRole('link')).toBeNull();
-    expect(document.querySelector('.team-updater-chip')).toBeNull();
-  });
+  it.each([null, { ...running, state: 'stopped' as const, activeCount: 0 }])(
+    'keeps the manager accessible without scheduled or active work (%j)',
+    state => {
+      const { onNavigate } = renderChip(state);
+      const link = screen.getByRole('link', { name: 'Catalog Manager' });
+      expect(link.getAttribute('href')).toBe('/team/s?updater=1');
+      expect(link.textContent).not.toContain('Updating');
+      expect(link.querySelector('.ui-chip-spinner')).toBeNull();
+      fireEvent.click(link);
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('shows the countdown and the number of catalogs while running', () => {
     renderChip(running);

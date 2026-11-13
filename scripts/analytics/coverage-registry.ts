@@ -526,7 +526,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ),
     platforms: BOTH,
     unobservable: [
-      'Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
+      'The persistent header entry opens the same catalog manager list flow with or without scheduled work; list completion proves rendered delivery, not that the entry was noticed. Missing browser completion means visible delivery is unknown, even when the authoritative mutation succeeded.',
       'Unsaved field values, search text and visual comprehension are intentionally unobserved. Beta disables analytics. Catalog settings editors reuse template flows. The catalog creation restitch-defaults read uses setting_name=restitch, readback_requested, a closed cause, one automatic transient retry and distinct manual retry attempt IDs within the same flow. Each read is bounded and aborted on scope exit; late answers cannot enable Create. Completion follows the rendered settings state and proves neither catalog admission nor native video execution. Other template signals do not identify which content field changed. Server settings journal remains separate evidence.',
       ...(action === 'restitch_claim'
         ? [

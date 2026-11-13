@@ -20,7 +20,6 @@ import {
   ChevronRight,
   History as HistoryIcon,
   Keyboard,
-  RefreshCw,
   Search,
   Settings,
   Sparkles,
@@ -768,12 +767,8 @@ export function WorkspaceShell({
                         {t('teamSpaceFind')}
                         <kbd>{formatShortcut(shortcutOf('palette')!.keys)}</kbd>
                       </button>
-                      {/* The space's own surfaces, in one menu (024, FR-094). Three
-                    links and a chip were the header's loudest row, and each of
-                    them is visited rarely. Trash, the updater and the settings
-                    still have addresses, so Back closes them and a pasted link
-                    opens them (011); they ride over whatever section is open
-                    (FR-045). */}
+                      {/* Space settings and secondary actions share this menu.
+                          The catalog manager remains directly accessible in the header. */}
                       <button
                         ref={spaceMenuTrigger}
                         type="button"
@@ -807,18 +802,6 @@ export function WorkspaceShell({
                            runs, its record and its bin, then help. Six rows in one run read as
                            one block. */
                           'separator',
-                          {
-                            id: 'updater',
-                            label: t('catalogUpdaterEntry'),
-                            icon: (
-                              <RefreshCw
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () => navigateTo(explorerRoute({ updater: true }))
-                          },
                           /* The whole space at once, in the space's menu (024): at the root it
                            was a bare "Process everything" beside "Add files" — rare, heavy,
                            and it looked like the next step. A folder's own "Process" menu
