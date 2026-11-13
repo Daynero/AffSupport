@@ -397,6 +397,9 @@ export function createTargetedCatalogPublicationIo(
         if ((await prepare(scope, false)) !== 'ready') return { outcome: 'unknown' };
         const { drive, frozen } = await load(scope.jobId);
         const verified = await verifyPublicationCells(drive, { ...frozen, markerValue: fence });
+        // Recorded like any other changed source, so a job that can never verify is closed.
+        if (verified.outcome === 'unknown' && verified.reason === 'SOURCE_CHANGED')
+          throw new TeamFunctionError('SOURCE_CHANGED');
         if (verified.outcome === 'verified') {
           // A verified write with an unconfirmed R2 use would let the copy retire under the
           // catalog; report unknown so the next verification confirms it (FR-010).

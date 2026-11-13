@@ -196,3 +196,75 @@ it('verifies a frozen write in the same pass even after the tick preparation bud
     vi.useRealTimers();
   }
 });
+it('records SOURCE_CHANGED when the sheet the write went into was changed by hand', async () => {
+  // Production 2026-11-13 (DreamTeam, TR 82_v2): the id column was refilled a minute after
+  // dispatch. Verification kept returning a bare unknown, the job never carried the code the
+  // stale-job close needs, and the row said «ще не підтверджено» for good.
+  const fence = uuid(9);
+  const frozen = {
+    fileId: 'file',
+    rootFolderId: 'root',
+    sheetName: 'catalog_products',
+    sheetId: 7,
+    idColumn: 0,
+    videoColumn: 25,
+    idHeaders: ['description', 'id'],
+    videoHeaders: ['description', 'video[0].url'],
+    products: [{ id: 'one', url: 'https://example.test/one' }],
+    markerKey: 'soty_video_publication',
+    markerValue: uuid(3)
+  };
+  const sources = [{ materialId: uuid(10), sourceVersion: 'immutable-0' }];
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data:
+      name === 'service_release_catalog_publication_preparation'
+        ? true
+        : {
+            state: 'ready',
+            phase: 'due',
+            sources,
+            links: [{ ...sources[0], url: 'https://example.test/one', dueVerified: true }],
+            productCount: 1,
+            credentialId: uuid(11),
+            prepared: frozen
+          }
+  }));
+  const drive = {
+    getFile: vi.fn(async (id: string) => ({
+      id,
+      version: '1',
+      parents: id === 'file' ? ['root'] : [],
+      mimeType:
+        id === 'root'
+          ? 'application/vnd.google-apps.folder'
+          : 'application/vnd.google-apps.spreadsheet',
+      trashed: false,
+      capabilities: { canModifyContent: true }
+    })),
+    getNativeSpreadsheetSheets: vi.fn(async () => [
+      { sheetId: 7, title: 'catalog_products', rowCount: 1000, columnCount: 30 }
+    ]),
+    readNativeCatalogColumns: vi.fn(async () => [
+      ['description', 'id', 'one12'],
+      ['description', 'video[0].url', 'https://example.test/one']
+    ]),
+    readNativeSpreadsheetMarkers: vi.fn(async () => [fence])
+  };
+  const io = createTargetedCatalogPublicationIo(
+    { rpc } as never,
+    uuid(7),
+    async () => drive as never
+  );
+  const result = await io.verify({} as never, fence, {
+    teamId: uuid(1),
+    actorId: uuid(2),
+    jobId: uuid(3)
+  });
+  expect(result).toEqual({ outcome: 'unknown' });
+  expect(rpc).toHaveBeenLastCalledWith('service_release_catalog_publication_preparation', {
+    p_job: uuid(3),
+    p_worker: uuid(7),
+    p_error_code: 'SOURCE_CHANGED'
+  });
+});
