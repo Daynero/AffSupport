@@ -463,6 +463,7 @@ export function reportFileAttemptError(attempt: TeamFileAttemptFlow, error: unkn
           : 'library',
     code: errorCodeOf(error),
     attemptId: attempt.attemptId,
+    ...(attempt.flowId ? { flowId: attempt.flowId } : {}),
     retryable: retryableError(error)
   });
 }

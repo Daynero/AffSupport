@@ -26,6 +26,8 @@ export interface AnalyticsSchema {
     analytics_catalog_sync_jobs: boolean;
     analytics_catalog_generations?: boolean;
     analytics_launch_generations?: boolean;
+    analytics_launch_batches?: boolean;
+    analytics_catalog_renames?: boolean;
     analytics_launch_cleanup?: boolean;
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
@@ -279,6 +281,8 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
+  catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -328,6 +332,8 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
+  catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;

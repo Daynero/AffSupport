@@ -8,6 +8,8 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { quickRangeValue } from '../apps/web/src/team/tasks/useTasks';
 import { launchConfig, launchSources } from './fixtures/launches';
 import { launchPreview, type LaunchDetail } from '../packages/shared/src/team/launches';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope.js';
+import { batchReceipt, batchUuid } from './fixtures/launch-batches.js';
 import { launchAction } from '../apps/web/src/team/launches/analytics';
 const TEAM = '79999999-0000-4000-8000-000000000001';
 const LAUNCH = '79999999-0000-4000-8000-000000000002';
@@ -17,6 +19,10 @@ function mockClipboard(writeText: (value: string) => Promise<void>) {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
 }
 const seams = vi.hoisted(() => ({
+  batchRead: vi.fn(),
+  batchSubmit: vi.fn(),
+  batchList: vi.fn(),
+  batchCancel: vi.fn(),
   actor: 'actor-a',
   revision: 0,
   view: true,
@@ -45,6 +51,15 @@ const seams = vi.hoisted(() => ({
   accounts: [] as unknown[],
   offers: [] as unknown[],
   buyers: [] as unknown[]
+}));
+vi.mock('../apps/web/src/api/launch-batches.js', async original => ({
+  ...(await original<typeof import('../apps/web/src/api/launch-batches.js')>()),
+  launchBatchApi: {
+    read: seams.batchRead,
+    submit: seams.batchSubmit,
+    list: seams.batchList,
+    cancel: seams.batchCancel
+  }
 }));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: seams.actor } })
@@ -224,6 +239,11 @@ function resetSeams() {
   }));
   seams.setAssignment.mockReset();
   seams.actor = 'actor-a';
+  setPrivateCacheScope(seams.actor, 'team');
+  seams.batchRead.mockReset().mockResolvedValue(null);
+  seams.batchSubmit.mockReset().mockImplementation(async command => batchReceipt(command));
+  seams.batchList.mockReset().mockResolvedValue({ items: [], hasMore: false, nextCursor: null });
+  seams.batchCancel.mockReset();
   seams.revision = 0;
   seams.view = true;
   seams.edit = false;
@@ -2370,93 +2390,69 @@ it('correlates a copied regeneration preview with its new request, not the previ
   );
 });
 
-it('shows preparing on the card during batch preflight before any server list update', async () => {
+it('shows the accepted batch generation on a stale draft card without starting a browser media worker', async () => {
   seams.edit = true;
-  seams.realGeneration = true;
+  seams.actor = batchUuid(2);
+  setPrivateCacheScope(seams.actor, 'team');
   seams.list.mockResolvedValue({
     items: [{ ...listLaunch(), hasResult: false }],
     nextCursor: null
   });
-  seams.detail.mockImplementation(() => new Promise(() => {}));
   render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Select launch' }));
   fireEvent.click(screen.getByRole('button', { name: 'Generate selected (1)' }));
-  await waitFor(() => expect(seams.detail).toHaveBeenCalledOnce());
-  const card = document.querySelector('.launch-card');
-  await waitFor(() => expect(card?.textContent).toContain('Preparing launch'));
-  expect(card?.textContent).not.toContain('Draft');
+  await waitFor(() => expect(seams.batchSubmit).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(document.querySelector('.launch-card')?.textContent).toContain('Preparing launch')
+  );
+  expect(seams.detail).not.toHaveBeenCalled();
   expect(seams.generate).not.toHaveBeenCalled();
 });
-
-it('finishes an unattended batch in a hidden tab even when every subsequent list read fails', async () => {
+it('observes an accepted ten-item batch in a hidden tab when both list endpoints fail', async () => {
   seams.edit = true;
-  seams.realGeneration = true;
-  const saved = new Map<string, LaunchDetail>();
+  seams.actor = batchUuid(2);
+  setPrivateCacheScope(seams.actor, 'team');
   const selected = Array.from({ length: 10 }, (_, n) => ({
-    ...listLaunch(`79999999-0000-4000-8000-${String(n + 2).padStart(12, '0')}`),
-    version: '1',
+    ...listLaunch(batchUuid(100 + n)),
     hasResult: false
   }));
-  for (const row of selected)
-    saved.set(row.id, { ...detail('https://example.invalid'), id: row.id, workStatus: 'todo' });
   seams.list.mockResolvedValue({ items: selected, nextCursor: null });
-  seams.refreshSources.mockResolvedValue({
-    ...launchSources,
-    ...launchConfig(),
-    catalogSettingsVersion: null
+  let accepted: ReturnType<typeof batchReceipt> | null = null;
+  seams.batchSubmit.mockImplementation(async command => {
+    accepted = batchReceipt(command);
+    return accepted;
   });
-  seams.detail.mockImplementation(async (_team, id) => saved.get(id));
-  seams.save.mockImplementation(async input => ({ id: input.id, version: '2' }));
-  seams.generate.mockImplementation(async (_team, id, inputVersion, requestKey) => {
-    saved.set(id, {
-      ...saved.get(id)!,
-      version: '3',
-      generation: {
-        id: `generation-${id}`,
-        inputVersion,
-        requestKey,
-        state: 'running',
-        stage: 'catalog_creating',
-        stateVersion: '1',
-        errorCode: null,
-        progress: null,
-        childOperationIds: []
-      }
-    });
-    return {};
-  });
+  seams.batchRead.mockImplementation(async () => accepted);
   render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
-  await screen.findAllByRole('checkbox', { name: 'Select launch' });
-  for (const box of screen.getAllByRole('checkbox', { name: 'Select launch' }))
+  for (const box of await screen.findAllByRole('checkbox', { name: 'Select launch' }))
     fireEvent.click(box);
   fireEvent.click(screen.getByRole('button', { name: 'Generate selected (10)' }));
-  await waitFor(() => expect(seams.generate).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(seams.batchSubmit).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByText('Batch · 0 of 10 finished')).toBeTruthy());
   const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-  seams.list.mockRejectedValue(new TypeError('list transport unavailable'));
+  seams.list.mockRejectedValue(new TypeError('offline'));
+  seams.batchList.mockRejectedValue(new TypeError('offline'));
+  accepted = {
+    ...accepted!,
+    items: accepted!.items.map(item => ({
+      ...item,
+      generation: {
+        ...item.generation!,
+        state: 'succeeded',
+        stage: 'result_committed',
+        stateVersion: '2'
+      }
+    }))
+  };
   vi.useFakeTimers();
   try {
-    for (let turn = 0; turn < 8; turn++) {
-      for (const [id, row] of saved)
-        if (row.generation)
-          saved.set(id, {
-            ...row,
-            generation: {
-              ...row.generation,
-              state: 'succeeded',
-              stage: 'result_committed',
-              stateVersion: '2'
-            }
-          });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
-      });
-      // visibilitychange is the same global reconciliation seam after timer throttling/sleep.
-      await act(async () => {
-        document.dispatchEvent(new Event('visibilitychange'));
-      });
-    }
-    expect(seams.generate).toHaveBeenCalledTimes(10);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
     expect(screen.getByText('Batch · 10 of 10 finished')).toBeTruthy();
+    expect(seams.batchSubmit).toHaveBeenCalledOnce();
+    expect(seams.generate).not.toHaveBeenCalled();
   } finally {
     visibility.mockRestore();
   }
@@ -2476,6 +2472,7 @@ it('does not dispatch a batch when permission disappears while its module is loa
   await act(async () => {});
   expect(seams.detail).not.toHaveBeenCalled();
   expect(seams.generate).not.toHaveBeenCalled();
+  expect(seams.batchSubmit).not.toHaveBeenCalled();
 });
 
 it('does not carry a pending batch import across sign-out and sign-in of the same actor', async () => {
@@ -2495,6 +2492,7 @@ it('does not carry a pending batch import across sign-out and sign-in of the sam
     await act(async () => {});
     expect(seams.detail).not.toHaveBeenCalled();
     expect(seams.generate).not.toHaveBeenCalled();
+    expect(seams.batchSubmit).not.toHaveBeenCalled();
   } finally {
     setPrivateCacheScope(null, '');
   }

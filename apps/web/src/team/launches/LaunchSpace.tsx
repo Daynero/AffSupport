@@ -1,12 +1,11 @@
 import { privateCacheActorEpoch } from '../private-cache-scope.js';
 import type { LaunchBatch } from './LaunchBatch.js';
 import { launchCardState } from './launchPresentation.js';
-import {
-  batchCardState,
-  batchEligible,
-  planLaunchBatch,
-  type LaunchBatchItem
-} from './batchModel.js';
+import { batchEligible } from './batchModel.js';
+import { durableCardValue, durableItemState } from './durableBatchModel.js';
+import { ensureBackgroundRecovery } from '../../api/recovery.js';
+import { observeBackgroundSetup } from '../catalog-updater/backgroundSetupAnalytics.js';
+import { recoveryInstallation } from '../../api/recovery-installation.js';
 import { useLaunchListSelection } from './useLaunchListSelection.js';
 import { useOptionalToasts } from '../../components/toast';
 import { launchBatchLoading, launchMutation } from './analytics';
@@ -16,6 +15,8 @@ import {
   LAUNCH_BATCH_MAX_ITEMS,
   launchInputsLocked,
   type LaunchDetail,
+  type DurableLaunchBatch,
+  type LaunchBatchCommand,
   type TeamAccountSummary
 } from '@video-compressor/shared';
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
@@ -93,8 +94,10 @@ function LaunchSpaceContent({
   const { t } = useI18n();
   const { revision, can } = useTeam();
   const toasts = useOptionalToasts();
-  const [batch, setBatch] = useState<{ id: string; items: LaunchBatchItem[] } | null>(null);
-  const [batchStates, setBatchStates] = useState<LaunchBatchItem[]>([]);
+  const [batch, setBatch] = useState<LaunchBatchCommand | null>(null);
+  const [batches, setBatches] = useState<DurableLaunchBatch[]>([]);
+  const [batchPending, setBatchPending] = useState(false);
+  const [batchSubmissionPending, setBatchSubmissionPending] = useState(false);
   const [batchPulse, setBatchPulse] = useState(0);
   const batchRunning = useRef(false);
   const [BatchComponent, setBatchComponent] = useState<typeof LaunchBatch | null>(null);
@@ -275,12 +278,11 @@ function LaunchSpaceContent({
     void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
   }, [refresh, revision, t]);
   const hasRunningLaunch =
-    batchStates.some(i => ['dispatching', 'accepted', 'uncertain', 'deferred'].includes(i.state)) ||
-    items.some(item => ['running', 'queued'].includes(launchCardState(item)));
+    batchPending || items.some(item => ['running', 'queued'].includes(launchCardState(item)));
   useEffect(() => {
     if (!hasRunningLaunch) return;
     const reconcile = () => {
-      // An unattended batch must advance even when the list is hidden or its read fails.
+      // Observe durable work with the existing workspace cadence, independent of list filters.
       setBatchPulse(value => value + 1);
       if (document.visibilityState === 'visible') void refresh().catch(() => undefined);
     };
@@ -422,46 +424,84 @@ function LaunchSpaceContent({
     onCopied: () => toasts?.push({ tone: 'success', text: t('launchesBulkSelectedCopied') })
   });
   const eligible = items.filter(i => selectedIds.has(i.id) && batchEligible(i));
+  // Restore server-owned batches on re-entry, even before the next Generate click.
+  useEffect(() => {
+    if (!actorId) return;
+    let live = true;
+    const epoch = privateCacheActorEpoch();
+    void import('./LaunchBatch.js')
+      .then(module => {
+        if (live && scope.current.mounted && epoch === privateCacheActorEpoch())
+          setBatchComponent(() => module.LaunchBatch);
+      })
+      .catch(() => {
+        if (live) setError(t('genericError'));
+      });
+    return () => {
+      live = false;
+    };
+  }, [actorId, t]);
   const startBatch = async () => {
-    if (batchRunning.current || !can('edit')) return;
+    if (batchRunning.current || batchSubmissionPending || !can('edit') || !actorId) return;
     if (eligible.length > LAUNCH_BATCH_MAX_ITEMS) {
       setError(t('launchesBulkLimit'));
       return;
     }
-    const planned = planLaunchBatch(eligible);
-    if (!planned.length) return;
-    batchRunning.current = true;
-    setBatchStates(planned);
+    if (!eligible.length) return;
+    const selected = [...eligible].sort((a, b) =>
+      (a.sourceMaterialId ?? a.id).localeCompare(b.sourceMaterialId ?? b.id)
+    );
     const id = crypto.randomUUID();
     const ownerEpoch = privateCacheActorEpoch();
+    const current = () =>
+      scope.current.mounted && scope.current.canEdit && ownerEpoch === privateCacheActorEpoch();
+    batchRunning.current = true;
     setBatchLoading(true);
     launchBatchLoading(id, 'started');
     try {
+      let executorId = recoveryInstallation();
+      if (selected.some(row => row.method === 'catalog')) {
+        try {
+          const status = await ensureBackgroundRecovery(teamId, {
+            actorId,
+            isCurrent: current,
+            onSetupStage: observeBackgroundSetup
+          });
+          if (status.enabled) executorId = status.installationId;
+        } catch {
+          // Existing authorized background ownership may outlive this connection.
+          // The server validates it independently and retains affected items for recovery.
+        }
+      }
       const module = await import('./LaunchBatch.js');
-      if (
-        !scope.current.mounted ||
-        !scope.current.canEdit ||
-        ownerEpoch !== privateCacheActorEpoch()
-      ) {
+      if (!current()) {
         launchBatchLoading(id, 'cancelled');
         batchRunning.current = false;
-        if (scope.current.mounted) setBatchStates([]);
         return;
       }
       setBatchComponent(() => module.LaunchBatch);
-      setBatch({ id, items: planned });
+      setBatch({
+        teamId,
+        expectedActorId: actorId,
+        requestKey: id,
+        items: selected.map(row => ({
+          launchId: row.id,
+          expectedVersion: row.version,
+          childRequestKey: crypto.randomUUID()
+        })),
+        ...(executorId ? { expectedExecutorId: executorId } : {})
+      });
       launchBatchLoading(id, 'loaded');
     } catch {
       launchBatchLoading(id, 'failed');
       batchRunning.current = false;
-      if (scope.current.mounted) {
-        setBatchStates([]);
-        setError(t('genericError'));
-      }
+      if (current()) setError(t('genericError'));
     } finally {
       if (scope.current.mounted) setBatchLoading(false);
     }
   };
+  const batchItemFor = (id: string) =>
+    batches.flatMap(value => value.items).find(item => item.launchId === id);
   const visibleDetail =
     detail?.id === open &&
     detailRead.current?.id === open &&
@@ -613,23 +653,28 @@ function LaunchSpaceContent({
               disabled={selection.busy}
               onClick={() => void selection.paste()}
             >
-              {t('launchesBulkPaste')}
+              {t('launchesBulkPaste', { count: selection.pasteCount })}
             </Button>
           )}
         </div>
       </div>
       {batchLoading && <LoadingState shape="block" count={1} label={t('launchesBusy')} />}
-      {batch && BatchComponent && (
+      {actorId && BatchComponent && (
         <BatchComponent
-          key={batch.id}
-          batchId={batch.id}
+          key={`${teamId}:${actorId}:${privateCacheActorEpoch()}`}
           teamId={teamId}
-          initial={batch.items}
-          summaries={items}
-          reconcileEpoch={batchPulse}
+          actorId={actorId}
+          command={batch}
+          reconcileEpoch={batchPulse + revision}
           enabled={can('edit')}
-          onStates={setBatchStates}
-          onFinished={() => {
+          onBatches={setBatches}
+          onPendingChange={setBatchPending}
+          onSubmissionPendingChange={pending => {
+            setBatchSubmissionPending(pending);
+            batchRunning.current = pending;
+          }}
+          onSubmitted={key => {
+            setBatch(current => (current?.requestKey === key ? null : current));
             batchRunning.current = false;
           }}
           onChange={() => {
@@ -649,7 +694,7 @@ function LaunchSpaceContent({
               <Button
                 size="sm"
                 variant="primary"
-                disabled={!eligible.length || batchRunning.current}
+                disabled={!eligible.length || batchSubmissionPending || batchLoading}
                 title={!eligible.length ? t('launchesBulkDraftsOnly') : undefined}
                 loading={batchLoading}
                 onClick={() => void startBatch()}
@@ -665,7 +710,7 @@ function LaunchSpaceContent({
               onClick={selection.copySelected}
             >
               <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {t('launchesBulkCopy')}
+              {t('launchesBulkCopy', { count: selectedIds.size })}
             </Button>
             {can('delete') && (
               <Button
@@ -760,20 +805,29 @@ function LaunchSpaceContent({
           </div>
         }
       />
-      <div className="team-task-grid" onPointerDown={launchMarquee.onPointerDown}>
+      <div className="team-task-grid launch-grid" onPointerDown={launchMarquee.onPointerDown}>
         {items.map(value => (
           <LaunchCard
             key={value.id}
-            value={value}
+            value={durableCardValue(value, batchItemFor(value.id))}
             onOpen={() => route(value.id)}
             selected={selectedIds.has(value.id)}
             onSelectedChange={(selected, modifiers) =>
               selection.select(value.id, selected, modifiers?.shiftKey)
             }
-            queueState={batchCardState(
-              value,
-              batchStates.find(i => i.source.id === value.id)
-            )}
+            queueState={(() => {
+              const item = batchItemFor(value.id);
+              if (!item || (value.generation && value.generation.id !== item.generationId))
+                return undefined;
+              if (
+                value.generation &&
+                item.generation &&
+                BigInt(value.generation.stateVersion) > BigInt(item.generation.stateVersion)
+              )
+                return undefined;
+              if (!value.generation && value.version !== item.expectedVersion) return undefined;
+              return durableItemState(item);
+            })()}
             onCopyLink={() => {
               const path = buildTeamRoute({
                 spaceId: teamId,

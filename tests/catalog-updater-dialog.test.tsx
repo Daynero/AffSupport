@@ -371,7 +371,7 @@ it('says the restitch round is waiting for the agent instead of a bare 0 of N', 
   const status = screen.getByText(/Videos ready: 0 of 1/);
   expect(status.textContent).toContain('Waiting for the computer agent');
 });
-it('says background work stopped and resumes it from the row (1.4.3)', async () => {
+it('waits for automatic background recovery without a manual resume/settings action', async () => {
   retryBackgroundRecovery.mockClear();
   const item = row('1', 'polo.mp4', {
     videoGeneration: {
@@ -385,11 +385,10 @@ it('says background work stopped and resumes it from the row (1.4.3)', async () 
   renderDialog(client([item], running));
   await screen.findByLabelText('polo.mp4 catalog');
   const status = screen.getByText(/Videos ready: 0 of 1/);
-  expect(status.textContent).toContain('Background work on this computer has stopped');
-  await userEvent.click(within(status).getByRole('button', { name: 'Resume' }));
-  await waitFor(() => expect(retryBackgroundRecovery).toHaveBeenCalledOnce());
-  expect(retryBackgroundRecovery.mock.calls[0]![0]).toBeTruthy();
-  await waitFor(() => expect(status.textContent).toContain('Resuming background work'));
+  expect(status.textContent).toContain('Waiting for the computer agent');
+  expect(within(status).queryByRole('button', { name: 'Resume' })).toBeNull();
+  expect(within(status).queryByRole('button', { name: 'Open settings' })).toBeNull();
+  expect(retryBackgroundRecovery).not.toHaveBeenCalled();
 });
 it('points an unconfirmed restitch round at Stop instead of an endless wait', async () => {
   const item = row('1', 'polo.mp4', {
@@ -1275,7 +1274,10 @@ it('rediscovers an unfinished hosted catalog batch after reopening without unrel
   // One panel, in the corner stack above the dialog, and the Files corner is told to leave it.
   expect(screen.getByText('Move files to trash').closest('.team-updater-dialog')).toBeNull();
   expect(screen.getByText('Move files to trash').closest('.team-process-stack')).toBeTruthy();
-  expect(hostedWorkspace.value?.bulkTrash?.claim).toHaveBeenCalledWith([group.id]);
+  // The panel commits before its passive ownership effect has to run.
+  await waitFor(() =>
+    expect(hostedWorkspace.value?.bulkTrash?.claim).toHaveBeenCalledWith([group.id])
+  );
   expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
   expect(hostedWorkspace.value?.bulkTrash?.start).not.toHaveBeenCalled();
 });

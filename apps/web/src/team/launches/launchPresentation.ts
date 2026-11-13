@@ -2,7 +2,9 @@ import type { LaunchSummary } from '@video-compressor/shared';
 import type { TranslationKey } from '../../i18n.js';
 export type LaunchCardState =
   'draft' | 'queued' | 'running' | 'ready' | 'failed' | 'partial' | 'canceled' | 'unknown';
-export function launchCardState(value: LaunchSummary): LaunchCardState {
+export function launchCardState(
+  value: Pick<LaunchSummary, 'generation' | 'generationState' | 'hasResult'>
+): LaunchCardState {
   const state = value.generation?.state ?? value.generationState;
   const video = value.generation?.videoGeneration;
   if (state === 'failed' || state === 'interrupted') return 'failed';

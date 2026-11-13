@@ -45,14 +45,36 @@ export function useLaunchElapsed(
 ) {
   const key = `${PREFIX}${privateCacheActor() ?? ''}:${scope}`;
   const clock = useRef<Clock | null>(null);
+  const clockKey = useRef(key);
   const wasPending = useRef(false);
+  const retryStarted = useRef<number | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const id = generation?.id ?? null;
   const attempt = generation?.attemptNo ?? 1;
+  const state = generation?.state;
   const parsedStart = generation?.startedAt ? Date.parse(generation.startedAt) : NaN;
   const serverStart = Number.isFinite(parsedStart) ? parsedStart : null;
   useEffect(() => {
-    if (!clock.current) {
+    if (clockKey.current !== key) {
+      // Saving a new draft replaces its temporary route with the assigned ID.
+      // Only that same actor/team transition may carry the provisional clock.
+      const adoptingDraft =
+        clock.current?.id === null &&
+        id !== null &&
+        clockKey.current.endsWith(':new') &&
+        clockKey.current.slice(0, -3) === key.slice(0, key.lastIndexOf(':') + 1);
+      if (!adoptingDraft) clock.current = null;
+      clockKey.current = key;
+      wasPending.current = false;
+      retryStarted.current = null;
+    }
+    // A reconnect can briefly remove the generation projection. Do not replace
+    // its durable local clock with an anonymous 00:00 while waiting for the read.
+    if (!id && !pending) {
+      if (!clock.current) setElapsed(null);
+      return;
+    }
+    const savedClock = () => {
       try {
         const saved = readClock(key);
         if (
@@ -64,32 +86,46 @@ export function useLaunchElapsed(
           (saved.stopped === null ||
             (Number.isFinite(saved.stopped) && saved.stopped >= saved.started))
         )
-          clock.current = saved;
+          return saved;
       } catch {
-        /* Storage is optional; the live clock still works. */
+        /* Storage is optional; the authoritative attempt start still works. */
       }
-    }
-    let current = clock.current;
-    const starting = pending && !wasPending.current;
-    const replaced =
-      current &&
-      id &&
-      current.id &&
-      (id !== current.id || attempt !== current.attempt) &&
-      !wasPending.current;
-    if (starting || replaced || (!current && active))
-      current = { id, attempt, started: Date.now(), stopped: null };
+      return null;
+    };
+    let current = clock.current ?? savedClock();
+    if (pending && !wasPending.current && current?.stopped !== null && current)
+      retryStarted.current = Date.now();
     wasPending.current = pending;
-    if (!current) return;
+    const replaced =
+      current && id && current.id && (current.id !== id || current.attempt !== attempt);
+    if (replaced)
+      current = savedClock() ?? {
+        id,
+        attempt,
+        started: retryStarted.current ?? Date.now(),
+        stopped: null
+      };
+    if (!current && active) current = { id, attempt, started: Date.now(), stopped: null };
+    if (!current) {
+      setElapsed(null);
+      return;
+    }
     if (id) {
       current.id = id;
       current.attempt = attempt;
     }
-    // The server knows when this attempt really began: a reopened launch showed
-    // 00:31 for a generation that had run for seven minutes (1.4.3 QA).
-    if (serverStart !== null && id && current.id === id)
-      current.started = Math.min(serverStart, current.stopped ?? Date.now());
-    if (!active && current.stopped === null) current.stopped = Date.now();
+    if (replaced || !pending) retryStarted.current = null;
+    // Acceptance may arrive after a long preparation. A later server timestamp
+    // must not erase that time; an earlier one restores time missed by this tab.
+    if (serverStart !== null && id)
+      current.started = Math.min(current.started, serverStart, Date.now());
+    const terminal = Boolean(
+      state && ['failed', 'partial', 'interrupted', 'succeeded', 'canceled'].includes(state)
+    );
+    // Loss of observation is not the end of work. Freeze only a confirmed
+    // terminal attempt; automatic recovery of that attempt resumes its clock.
+    if (!active && terminal && current.stopped === null) current.stopped = Date.now();
+    if (active && (!terminal || !pending)) current.stopped = null;
     clock.current = current;
     try {
       writeClock(key, current);
@@ -101,10 +137,10 @@ export function useLaunchElapsed(
         Math.max(0, Math.floor(((current.stopped ?? Date.now()) - current.started) / 1000))
       );
     update();
-    if (!active) return;
+    if (!active || current.stopped !== null) return;
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [key, id, attempt, pending, active, serverStart]);
+  }, [key, id, attempt, state, pending, active, serverStart]);
   if (elapsed === null) return null;
   const hours = Math.floor(elapsed / 3600);
   const minutes = Math.floor((elapsed % 3600) / 60)

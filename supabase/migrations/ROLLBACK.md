@@ -3161,3 +3161,30 @@ new fields and continue using legacy date pagination when `sort=created` is abse
 generation receipts, copied marks or catalog resources need reversal. Do not run a down
 migration, remove the index or replay uncertain writes. A defect in this projection is repaired
 with a new forward migration after checking the original wrapper chain and its ACL tests.
+
+### 20261207401000–20261207401300 — durable launches, automatic background and catalog names
+
+These migrations add durable batch receipts and pending admission, automatic recovery setup,
+fair background claims, canonical catalog rename intents and searchable prior names. Existing
+launch generations, native ownership grants and material operation identities remain authoritative.
+The new worker paths retry only retained identities and respect leases, cancellation, source
+versions and conditional provider writes. The analytics views expose metadata only.
+
+A product rollback uses the previous verified release snapshot. Keep the additive tables,
+receipts, aliases and indexes: deleting them could lose accepted work or permit a repeated
+provider write. Inspect pending batches, recovery grants and rename operations before changing
+worker behavior. An unknown rename is reconciled against its original provider ETag; do not
+issue a fresh rename merely to repair the UI, revoke an unrelated native owner or replay a
+consumed upload grant. A fenced absent rename request must remain fenced.
+
+Any correction uses a reviewed forward migration preserving the public wrapper chain and ACLs.
+Do not remove old-name aliases, rewrite immutable launch URLs/name snapshots or revert names
+as a rollback action. Confirmed names and outputs are user data. These source migrations have
+not been applied to production by this feature task.
+
+The durable batch, background claim schedule and canonical rename tables retain
+`task_cleanup_reference_fence` while they exist. It guards late material references
+and keeps global cleanup coverage verified. Disabling it intentionally fails
+closed and retains files as `cleanup_unverified`; never exempt these consumers or
+bypass the coverage check to restore cleanup. An application rollback requires no
+trigger removal.

@@ -1,6 +1,6 @@
 {
   "base_source": "2d616995",
-  "measured_at": "2026-11-13T08:07:18.165Z",
+  "measured_at": "2026-11-13T12:08:42.055Z",
   "command": "npm ci --ignore-scripts; npm run build",
   "node": "v22.23.2",
   "baseline": {
@@ -57,91 +57,97 @@
     ]
   },
   "feature": {
-    "total_gzip": 1202225,
-    "launch_root_gzip": 10633,
-    "launch_initial_exclusive_gzip": 12748,
-    "launch_exclusive_gzip": 62768,
-    "accounts_exclusive_gzip": 79965,
-    "shared_existing_gzip": 1083905,
+    "total_gzip": 1212662,
+    "launch_root_gzip": 10933,
+    "launch_initial_exclusive_gzip": 13265,
+    "launch_exclusive_gzip": 65893,
+    "accounts_exclusive_gzip": 79940,
+    "shared_existing_gzip": 1091242,
     "batch_lazy": true,
     "batch_in_static_graph": false,
     "lockfile_sha256": "67ad598c05ffe1b43e11fe68fe7f23e7fa3e5aafeb999ed4d0fded7dfa3e4403",
     "launch_files": [
       {
-        "file": "assets/BLeE6ukU.js",
-        "gzip_bytes": 4870,
-        "sha256": "cb117623db8f012c76f980f147ff10b9c19a52ff9e1da12fb091f7361f795d91"
+        "file": "assets/BWIbm3_b.js",
+        "gzip_bytes": 302,
+        "sha256": "1a9c2d8cb50db15f212d3e0ca4d6e49a0304e5692d44cb92048eb93c6db4d6d4"
       },
       {
-        "file": "assets/BWGfBvJT.js",
-        "gzip_bytes": 787,
-        "sha256": "009dd69b0995bcd8d523b142f76dc3667a663849bf92077f3216233fdeeabd04"
-      },
-      {
-        "file": "assets/CYAbkXME.js",
-        "gzip_bytes": 264,
-        "sha256": "490edd58e833b5b1ce2262a1c607557a85efdd9d89ffe3459af686a924fafb41"
-      },
-      {
-        "file": "assets/DLNPUcGK.js",
-        "gzip_bytes": 315,
-        "sha256": "9fd0eb3401bda6685a4e1d75b15aff2653a0ed36d0dc94317c490bf208b85285"
-      },
-      {
-        "file": "assets/D_U-6mSn.js",
+        "file": "assets/CY9SFEC3.js",
         "gzip_bytes": 185,
-        "sha256": "6b49fdc86234636eea388d11d4721114e9a9c7ec1f968ae68d1a86e90e9448dc"
+        "sha256": "9f8dbdfc8d303c39a56c208b1a9c7bb3d4b08dec71739773714f72f111b8ef51"
       },
       {
-        "file": "assets/D_ba22K3.js",
-        "gzip_bytes": 4657,
-        "sha256": "72c848b045f515697e918a7be3fca91b5610bb7852867208ce6f64adde6f0cd2"
+        "file": "assets/D3aLCujq.js",
+        "gzip_bytes": 878,
+        "sha256": "5a654240924f3e1b81ad5c49ee4d8b7361d9618c45be5cdb3afae2dd622d1e1a"
       },
       {
-        "file": "assets/Dud4lbgG.js",
-        "gzip_bytes": 879,
-        "sha256": "7cf5e12e9bafebbd882751977a162ce64b981d87594cafb4aa36d86b1ee6f866"
+        "file": "assets/D537WuQk.js",
+        "gzip_bytes": 262,
+        "sha256": "85631b3569d54ebcfa9723febc1830ec33232b9e3ddb5c7b9e44b273e6d4d675"
       },
       {
-        "file": "assets/LaunchBatch-DdB3fTxn.js",
-        "gzip_bytes": 3176,
-        "sha256": "464dfa8764cee12c4cfd0b70e622c3069333953376d111dd37f8a3b39d6ac4ff"
+        "file": "assets/D64ylloY.js",
+        "gzip_bytes": 1007,
+        "sha256": "3ac572cea52c8dbccf5be188b594244430f4c6858e85e35152299a4a882fa823"
       },
       {
-        "file": "assets/LaunchCatalogVideoFields-DZ891M3x.js",
-        "gzip_bytes": 857,
-        "sha256": "4b0c2a9e14ebb11294d6077aa032c82b16c4138c247dd3f1e0434a35c96e7967"
+        "file": "assets/DwEzzX93.js",
+        "gzip_bytes": 4580,
+        "sha256": "c8b911559e3a2a41b3f01a63cdb754c3c9ede33aef5a6120bf87e8c459baecb3"
       },
       {
-        "file": "assets/LaunchEditor-BKNwEKtB.js",
-        "gzip_bytes": 9668,
-        "sha256": "4bfd89757b178db327e1e2c90260544883744d96f186c6762431102a4b537867"
+        "file": "assets/LaunchBatch-B8c_PzEm.js",
+        "gzip_bytes": 5121,
+        "sha256": "b047c962b493070309e3fe84a40310d9f3bd8a31da32613bb095a5d049b4f490"
       },
       {
-        "file": "assets/LaunchSession-kB1LDiQQ.js",
-        "gzip_bytes": 26477,
-        "sha256": "114828e97f9d20b667537a739cf7fee374c719258729c8ecc6f6e71988a59d6c"
+        "file": "assets/LaunchCatalogVideoFields-DloM8E8D.js",
+        "gzip_bytes": 907,
+        "sha256": "4417116b5dfa566f9d31523ca7d6dd39fcf715968e1f3e9e409197ea9afc29c8"
       },
       {
-        "file": "assets/LaunchSpace-BMdusrVS.js",
-        "gzip_bytes": 10633,
-        "sha256": "143aa7c0951505c30ffcd29936c1633a5ab44b745dee3a1e9bfe23fa57cff300"
+        "file": "assets/LaunchEditor-Cqdb423X.js",
+        "gzip_bytes": 10958,
+        "sha256": "bffe6bc25e9424a403b1ee76b2864e5a7ce1d53b1bc0af3d3d3b4a078eb1a1c9"
+      },
+      {
+        "file": "assets/LaunchSession-C7gfrtkh.js",
+        "gzip_bytes": 30760,
+        "sha256": "e41f64b41594f6b56fd78504ee10e76013b7098c6d1492ae0644ed1edd508afa"
+      },
+      {
+        "file": "assets/LaunchSpace-gDjiDKbD.js",
+        "gzip_bytes": 10933,
+        "sha256": "81e0a96d3a432d4a6e869099d99a32a4350f87b4af6065ab1ead44653a74cf05"
       }
     ]
   },
   "increase": {
-    "total_gzip": 10527,
-    "launch_exclusive_gzip": 8477,
-    "shared_existing_gzip": 2045,
-    "launch_initial_exclusive_gzip": 4178
+    "total_gzip": 20964,
+    "launch_exclusive_gzip": 11602,
+    "shared_existing_gzip": 9382,
+    "launch_initial_exclusive_gzip": 4695
   },
   "limits": {
-    "launch_exclusive_gzip": 63000,
-    "feature_launch_increment": 8500,
-    "feature_shared_increment": 3000,
+    "launch_exclusive_gzip": 66500,
+    "feature_launch_increment": 12000,
+    "feature_shared_increment": 10000,
     "launch_root_gzip": 20000
   },
   "scope": "Exact detached release source versus isolated feature checkout, identical lockfiles/configuration. Includes descendant lazy chunks. Existing base exceeds the older 1.4.1 shared budget; no baseline file or entry/largest/Accounts caps are changed. Implementation evidence, not release qualification.",
+  "owner_follow_up": {
+    "scope": "Durable server-owned batches and automatic background, compact settings and canonical catalog rename",
+    "pre_follow_up": {
+      "source": "58172104",
+      "launch_exclusive_gzip": 62768,
+      "shared_existing_gzip": 1083905,
+      "total_gzip": 1202225
+    },
+    "additional_launch_allocation": 3500,
+    "additional_shared_allocation": 7000
+  },
   "hardening": {
     "base_source": "49ade050",
     "previous_feature": {
@@ -218,10 +224,10 @@
       ]
     },
     "increase": {
-      "total_gzip": 1371,
-      "launch_exclusive_gzip": 1100,
-      "shared_existing_gzip": 270,
-      "launch_initial_exclusive_gzip": 106
+      "total_gzip": 11808,
+      "launch_exclusive_gzip": 4225,
+      "shared_existing_gzip": 7607,
+      "launch_initial_exclusive_gzip": 623
     },
     "additional_launch_allocation": 1000
   }

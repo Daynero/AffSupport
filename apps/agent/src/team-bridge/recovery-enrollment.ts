@@ -14,10 +14,22 @@ export function registerRecoveryRoutes(
     const body = request.body;
     if (!record(body) || typeof body.teamId !== 'string' || typeof body.endpoint !== 'string')
       return reply.code(400).send({ error: 'INVALID_INPUT' });
+    if (
+      body.automatic !== undefined &&
+      (body.automatic !== true || typeof body.actorId !== 'string')
+    )
+      return reply.code(400).send({ error: 'INVALID_INPUT' });
     try {
-      return worker.begin(body.teamId, body.endpoint);
-    } catch {
-      return reply.code(409).send({ error: 'WRONG_STATE' });
+      return body.automatic === true
+        ? await worker.beginAutomatic(body.teamId, body.endpoint, body.actorId as string)
+        : worker.begin(body.teamId, body.endpoint);
+    } catch (error) {
+      return reply.code(409).send({
+        error:
+          error instanceof Error && error.message === 'PERMISSION_DENIED'
+            ? 'PERMISSION_DENIED'
+            : 'WRONG_STATE'
+      });
     }
   });
   app.post<{ Body?: unknown }>('/api/team/recovery/confirm', async (request, reply) => {
@@ -33,9 +45,18 @@ export function registerRecoveryRoutes(
     } catch (error) {
       const code =
         error instanceof Error &&
-        ['AGENT_UPDATE_REQUIRED', 'PERMISSION_DENIED', 'INVALID_RESPONSE'].includes(error.message)
+        [
+          'AGENT_UPDATE_REQUIRED',
+          'PERMISSION_DENIED',
+          'INVALID_RESPONSE',
+          'AUTH_REQUIRED',
+          'DRIVE_UNAVAILABLE',
+          'RATE_LIMITED',
+          'UPDATE_PENDING',
+          'EXPIRED'
+        ].includes(error.message)
           ? error.message
-          : 'AUTH_REQUIRED';
+          : 'DRIVE_UNAVAILABLE';
       return reply.code(409).send({ error: code });
     }
   });

@@ -59,3 +59,36 @@ uses 1,100 B with 23 B still below the stricter relative ceiling.
 The shared allowance remains 3,000 B and the entry, root, largest, Accounts and
 original baseline gates are unchanged. This is an explicit functionality
 allocation backed by before/after evidence, not a size reduction or a skipped gate.
+
+## Durable ownership, automatic background and canonical rename
+
+The follow-up changes the feature scope: server-owned batches/re-entry replace the
+browser queue, all eligible users receive automatic background setup, and canonical
+catalog rename adds shared manager/result UI and reconciliation. The first build
+measures 65,736 B complete Launch (+11,445 B against the same exact base),
+1,091,156 B shared/existing (+9,296 B), and 1,212,420 B total (+20,722 B, 1.74%).
+The initial exclusive Launch graph is 13,268 B; root is 10,934 B. The rename dialog
+loads on first activation and remains mounted for pending observation after closing.
+
+The earlier allocation for a browser-local queue no longer covers this scope.
+An explicit additional 3,500 B Launch and 7,000 B shared allocation bounds the full
+feature at +12,000 B Launch and +10,000 B shared against the unchanged release base;
+the absolute Launch ceiling is 66,500 B. All lazy descendants and shared rename
+code count. No dependencies were added and no code was moved to an unrelated route.
+Entry/root/largest-chunk/Accounts ratchets and original baseline remain unchanged.
+The first build failed the old allowance; that failure is retained in the local
+log. Final slider/R2/wording refinements require one subsequent exact measurement.
+
+The final build after those refinements measures 65,686 B complete Launch
+(+11,395 B), 1,090,979 B shared/existing (+9,119 B) and 1,212,184 B total
+(+20,486 B, 1.72%). Initial exclusive Launch imports are 13,253 B; its root is
+10,925 B. All four built-asset budget tests pass. This is 605 B below the stricter
+relative Launch ceiling and 881 B below the shared growth allocation. The final
+build retains the repository's existing large-chunk advisory.
+
+
+The subsequent desktop-layout polish and manual-budget recovery fix measure
+65,893 B complete Launch (+11,602 B), 1,091,242 B shared/existing (+9,382 B),
+and 1,212,662 B total (+20,964 B, 1.76%). Initial exclusive Launch is 13,265 B;
+root is 10,933 B. All four budget tests pass under the same unchanged allocation
+(398 B relative Launch headroom and 618 B shared headroom).

@@ -129,6 +129,10 @@ export function parseLaunchPreview(value: unknown): LaunchPreview | null {
       typeof c.adStart !== 'number' ||
       typeof c.adEnd !== 'number' ||
       typeof c.name !== 'string' ||
+      (c.currentName !== undefined && typeof c.currentName !== 'string') ||
+      (c.boundNames !== undefined &&
+        (!Array.isArray(c.boundNames) ||
+          !c.boundNames.every((name: unknown) => typeof name === 'string'))) ||
       ![c.ordinal, c.budget, c.adStart, c.adEnd].every(n => Number.isSafeInteger(n) && n > 0)
     )
       return null;
@@ -170,6 +174,10 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       typeof c.materialId !== 'string' ||
       typeof c.variant !== 'number' ||
       typeof c.name !== 'string' ||
+      (c.currentName !== undefined && typeof c.currentName !== 'string') ||
+      (c.boundNames !== undefined &&
+        (!Array.isArray(c.boundNames) ||
+          !c.boundNames.every((name: unknown) => typeof name === 'string'))) ||
       typeof c.url !== 'string' ||
       (c.available !== undefined && typeof c.available !== 'boolean') ||
       (c.restitchMaterialId !== null && typeof c.restitchMaterialId !== 'string')
@@ -180,6 +188,8 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       materialId: c.materialId,
       variant: c.variant,
       name: c.name,
+      ...(typeof c.currentName === 'string' ? { currentName: c.currentName } : {}),
+      ...(Array.isArray(c.boundNames) ? { boundNames: [...c.boundNames] as string[] } : {}),
       url: c.url,
       available: typeof c.available === 'boolean' ? c.available : true,
       restitchMaterialId: c.restitchMaterialId

@@ -7311,6 +7311,18 @@ export type GeneratedDatabase = {
         Args: { p_team: string };
         Returns: Json;
       };
+      get_launch_batch: {
+        Args: { p_team: string; p_key: string };
+        Returns: Json;
+      };
+      list_launch_batches: {
+        Args: { p_team: string; p_limit?: number; p_before?: string; p_before_id?: string };
+        Returns: Json;
+      };
+      cancel_launch_batch: {
+        Args: { p_team: string; p_key: string; p_cancel_key: string; p_expected_actor: string };
+        Returns: Json;
+      };
       get_launch: {
         Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;

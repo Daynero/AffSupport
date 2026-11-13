@@ -24,6 +24,7 @@ async function call(action: string, hash: string | null, input: object = {}) {
 }
 async function enroll() {
   await db.root('delete from private.team_recovery_delegations');
+  await db.root('delete from private.team_recovery_enrollments');
   const challenge = await call('delegate', H(1), {
     actorId: OWNER,
     teamId: team,
@@ -96,6 +97,125 @@ beforeEach(async () => {
   await db.root('delete from private.team_recovery_rate_buckets');
 });
 describe('scoped background delegation', () => {
+  it('recovers an unacknowledged native crash after receipt cleanup only with the same durable ticket', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
+    const first = await call('delegate', H(61), input);
+    const redeemed = await call('redeem', H(61), {
+      challengeId: first.challengeId,
+      refresh: 'x'.repeat(43),
+      refreshHash: H(62)
+    });
+    await db.root('delete from private.team_recovery_enrollments where id=$1', [first.challengeId]);
+    await expect(call('delegate', H(63), input)).rejects.toThrow(/AUTH_REQUIRED/u);
+    const restored = await call('delegate', H(61), input);
+    expect(restored.challengeId).not.toBe(first.challengeId);
+    expect(
+      await db.root(
+        'select revoked_at is not null retired from private.team_recovery_delegations where id=$1',
+        [redeemed.delegationId]
+      )
+    ).toEqual([{ retired: true }]);
+    await call('redeem', H(61), {
+      challengeId: restored.challengeId,
+      refresh: 'y'.repeat(43),
+      refreshHash: H(64)
+    });
+    expect(
+      await db.root(
+        'select count(*)::integer count from private.team_recovery_delegations where revoked_at is null'
+      )
+    ).toEqual([{ count: 1 }]);
+  });
+
+  it('does not renew a revoked, live, wrong-actor or missing delegation as an expired credential', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
+    const first = await call('delegate', H(65), input);
+    const redeemed = await call('redeem', H(65), {
+      challengeId: first.challengeId,
+      refresh: 'x'.repeat(43),
+      refreshHash: H(66)
+    });
+    const renewal = { ...input, renewalDelegationId: redeemed.delegationId };
+    await expect(call('delegate', H(67), renewal)).rejects.toThrow(/PERMISSION_DENIED/u);
+    await db.root(
+      "update private.team_recovery_delegations set expires_at=clock_timestamp()-interval '1 second',revoked_at=clock_timestamp() where id=$1",
+      [redeemed.delegationId]
+    );
+    await expect(call('delegate', H(67), renewal)).rejects.toThrow(/PERMISSION_DENIED/u);
+    await db.root('update private.team_recovery_delegations set revoked_at=null where id=$1', [
+      redeemed.delegationId
+    ]);
+    await expect(call('delegate', H(67), { ...renewal, actorId: ADMIN })).rejects.toThrow(
+      /PERMISSION_DENIED/u
+    );
+    const renewed = await call('delegate', H(67), renewal);
+    expect(renewed.challengeId).toBeTruthy();
+  });
+  it('replays one setup ticket and its exact Vault redemption without revoking live work', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
+    const challenge = await call('delegate', H(51), input);
+    expect(await call('delegate', H(51), input)).toEqual(challenge);
+    const redeemed = await call('redeem', H(51), {
+      challengeId: challenge.challengeId,
+      refresh: 'z'.repeat(43),
+      refreshHash: H(52)
+    });
+    expect(await call('delegate', H(51), input)).toEqual(challenge);
+    expect(
+      await call('redeem', H(51), {
+        challengeId: challenge.challengeId,
+        refresh: 'x'.repeat(43),
+        refreshHash: H(53)
+      })
+    ).toEqual(redeemed);
+    await expect(call('delegate', H(54), input)).rejects.toThrow(/AUTH_REQUIRED/u);
+    expect(
+      await db.root(
+        'select count(*)::integer count from private.team_recovery_delegations where revoked_at is null'
+      )
+    ).toEqual([{ count: 1 }]);
+    const receipts = await db.root<{ response_secret_id: string }>(
+      'select response_secret_id from private.team_recovery_enrollments where id=$1',
+      [challenge.challengeId]
+    );
+    expect(receipts[0].response_secret_id).toBeTruthy();
+    await db.root('delete from private.team_recovery_enrollments where id=$1', [
+      challenge.challengeId
+    ]);
+    expect(
+      await db.root('select id from vault.secrets where id=$1', [receipts[0].response_secret_id])
+    ).toEqual([]);
+  });
+  it('never replays a redeemed setup after expiry, a wrong ticket or security revocation', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
+    const challenge = await call('delegate', H(55), input);
+    const redeem = {
+      challengeId: challenge.challengeId,
+      refresh: 'z'.repeat(43),
+      refreshHash: H(56)
+    };
+    await call('redeem', H(55), redeem);
+    await expect(call('redeem', H(57), redeem)).rejects.toThrow(/AUTH_REQUIRED/u);
+    await db.root(
+      "update private.team_recovery_enrollments set expires_at=clock_timestamp()-interval '1 second' where id=$1",
+      [challenge.challengeId]
+    );
+    await expect(call('redeem', H(55), redeem)).rejects.toThrow(/AUTH_REQUIRED/u);
+    await db.root(
+      "update private.team_recovery_enrollments set expires_at=clock_timestamp()+interval '1 minute' where id=$1",
+      [challenge.challengeId]
+    );
+    await db.root(
+      'update private.team_recovery_delegations set revoked_at=clock_timestamp() where installation_id=$1',
+      [INSTALL]
+    );
+    await expect(call('redeem', H(55), redeem)).rejects.toThrow(/AUTH_REQUIRED/u);
+    await expect(call('delegate', H(55), input)).rejects.toThrow(/AUTH_REQUIRED/u);
+  });
   describe('actor-bound retirement', () => {
     it.each(['redeem', 'claim', 'checkpoint'])(
       'fences an older Edge RPC %s without relying on its handler',
@@ -226,6 +346,7 @@ describe('scoped background delegation', () => {
 
     it('returns the authoritative actor on desktop redeem instead of a supplied actor hint', async () => {
       await db.root('delete from private.team_recovery_delegations');
+      await db.root('delete from private.team_recovery_enrollments');
       const challenge = await call('delegate', H(1), {
         actorId: OWNER,
         teamId: team,
@@ -453,7 +574,7 @@ describe('scoped background delegation', () => {
     )[0]!;
     expect(p).toEqual({ anon: false, authenticated: false, core: false });
   });
-  it('consumes enrollment once and rejects a wrong ticket', async () => {
+  it('replays the same consumed enrollment and rejects a wrong ticket', async () => {
     const challenge = await enroll();
     await expect(
       call('redeem', H(1), {
@@ -461,7 +582,7 @@ describe('scoped background delegation', () => {
         refresh: 'a'.repeat(43),
         refreshHash: H(2)
       })
-    ).rejects.toThrow(/AUTH_REQUIRED/);
+    ).resolves.toMatchObject({ actorId: OWNER, refresh: 'a'.repeat(43) });
     const next = await call('delegate', H(1), {
       actorId: OWNER,
       teamId: team,

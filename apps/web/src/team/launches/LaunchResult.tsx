@@ -2,7 +2,7 @@ import { LaunchCopyHistory } from './LaunchCopyHistory';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchNotesResult } from './LaunchNotes';
 import type { LaunchNote } from '@video-compressor/shared';
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   isLaunchUrl,
   parseLaunchOverrides,
@@ -11,13 +11,14 @@ import {
   type LaunchOverrides,
   type LaunchAnalyticsField
 } from '@video-compressor/shared';
-import { ArrowRight, CalendarDays, Info } from 'lucide-react';
-import { Button, Card } from '../../components/ui/index';
+import { ArrowRight, CalendarDays, Info, Pencil } from 'lucide-react';
+import { Button, Card, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { CopyResultField } from './CopyResultField';
 import { launchAction } from './analytics';
 import { campaignCountLabel } from './campaignCountLabel';
+import { LazyCatalogRenameDialog } from '../product-catalog/LazyCatalogRenameDialog.js';
 
 const CatalogCreatedPublicationStatus = lazy(() =>
   import('../product-catalog/CatalogCreatedPublicationStatus').then(module => ({
@@ -55,6 +56,20 @@ export function LaunchResult({
   const { t, language } = useI18n();
   const auth = useOptionalAuth();
   const actorId = auth?.user?.id;
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renamed, setRenamed] = useState<{
+    materialId: string;
+    revision: LaunchRevision;
+    name: string;
+  } | null>(null);
+  const canonicalName = revision.catalog?.currentName ?? revision.catalog?.name ?? '';
+  const catalogName =
+    renamed && renamed.materialId === revision.catalog?.materialId && renamed.revision === revision
+      ? renamed.name
+      : canonicalName;
+  const legacyCatalogName =
+    overrides.catalogName && overrides.catalogName !== catalogName ? overrides.catalogName : null;
+
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
   const copyScope =
     actorId &&
@@ -76,7 +91,7 @@ export function LaunchResult({
     ),
     ...(revision.catalog
       ? {
-          catalog_name: overrides.catalogName ?? revision.catalog.name,
+          catalog_name: catalogName,
           ...(revision.catalog.available === false
             ? {}
             : { catalog_url: overrides.catalogUrl ?? revision.catalog.url })
@@ -106,11 +121,7 @@ export function LaunchResult({
   }).format(launchDate);
   const copied = (field: LaunchAnalyticsField) => (outcome: 'success' | 'failure') =>
     launchAction({ launchId, revisionId: revision.id }, 'copy_field', outcome, undefined, field);
-  const update = (
-    key: 'advertisingUrl' | 'catalogName' | 'catalogUrl',
-    value: string,
-    baseline: string
-  ) => {
+  const update = (key: 'advertisingUrl' | 'catalogUrl', value: string, baseline: string) => {
     const next = { ...overrides };
     if (value === baseline) delete next[key];
     else next[key] = value;
@@ -177,12 +188,59 @@ export function LaunchResult({
                   copyKey="catalog_name"
                   onCopyOutcome={copied('catalog_name')}
                   label={t('launchesCatalogName')}
-                  baseline={revision.catalog.name}
-                  value={overrides.catalogName ?? revision.catalog.name}
-                  editable={editable}
+                  baseline={catalogName}
+                  value={catalogName}
                   disabled={disabled}
-                  onChange={value => update('catalogName', value, revision.catalog!.name)}
+                  onChange={() => {}}
+                  action={
+                    teamId && editable && revision.catalog.available !== false ? (
+                      <IconButton
+                        label={t('launchCatalogRenameTitle')}
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={() => setRenameOpen(true)}
+                      >
+                        <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      </IconButton>
+                    ) : undefined
+                  }
                 />
+                {[...new Set(revision.catalog.boundNames ?? [])]
+                  .filter(name => name !== catalogName)
+                  .map(name => (
+                    <p key={name} className="launch-result-hint">
+                      {t('launchCatalogRenameBoundName', { name })}
+                    </p>
+                  ))}
+                {revision.catalog.name !== catalogName &&
+                  !(revision.catalog.boundNames ?? []).includes(revision.catalog.name) && (
+                    <p className="launch-result-hint">
+                      {t('launchCatalogRenameOriginalName', { name: revision.catalog.name })}
+                    </p>
+                  )}
+                {legacyCatalogName && (
+                  <p className="launch-result-hint">
+                    {t('launchCatalogRenameLegacyName', { name: legacyCatalogName })}
+                  </p>
+                )}
+                {teamId && (
+                  <LazyCatalogRenameDialog
+                    teamId={teamId}
+                    materialId={revision.catalog.materialId}
+                    currentName={catalogName}
+                    open={renameOpen}
+                    disabled={disabled || !editable}
+                    onClose={() => setRenameOpen(false)}
+                    onRenamed={name =>
+                      setRenamed({
+                        materialId: revision.catalog!.materialId,
+                        revision,
+                        name
+                      })
+                    }
+                  />
+                )}
                 {revision.catalog.available === false && (
                   <span className="launch-result-hint">{t('launchesCatalogDeleted')}</span>
                 )}

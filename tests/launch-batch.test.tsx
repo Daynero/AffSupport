@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import type { LaunchSummary } from '@video-compressor/shared';
+import { batchEligible } from '../apps/web/src/team/launches/batchModel.js';
 import {
-  admitBatchItems,
-  batchCardState,
-  planLaunchBatch
-} from '../apps/web/src/team/launches/batchModel.js';
+  durableCardValue,
+  durableItemState,
+  mergeDurableBatch
+} from '../apps/web/src/team/launches/durableBatchModel.js';
+import { batchReceipt } from './fixtures/launch-batches.js';
 import {
   launchCardState,
   launchCardProgress
@@ -25,48 +27,7 @@ const draft = (id: string, sourceMaterialId = 'video'): LaunchSummary => ({
   budgets: [],
   generationState: null
 });
-describe('bounded source-grouped batch scheduling', () => {
-  it('groups source locality, excludes generated/unknown drafts and deduplicates selection', () => {
-    const jobs = planLaunchBatch([
-      draft('1', 'b'),
-      draft('2', 'a'),
-      draft('3', 'b'),
-      draft('4', 'a'),
-      draft('1', 'b'),
-      { ...draft('5'), hasResult: true },
-      { ...draft('6'), hasResult: undefined }
-    ]);
-    expect(jobs.map(j => j.source.id)).toEqual(['2', '4', '1', '3']);
-    expect(new Set(jobs.map(j => j.flowId)).size).toBe(4);
-    expect(admitBatchItems(jobs, false).filter(j => j.state === 'dispatching')).toHaveLength(2);
-  });
-  it('retains accepted and uncertain slots; stop never cancels accepted work', () => {
-    const jobs = admitBatchItems(
-      planLaunchBatch([draft('1'), draft('2'), draft('3'), draft('4')]),
-      false
-    );
-    jobs[0].state = 'accepted';
-    jobs[1].state = 'uncertain';
-    expect(admitBatchItems(jobs, false).map(j => j.state)).toEqual([
-      'accepted',
-      'uncertain',
-      'queued',
-      'queued'
-    ]);
-    expect(admitBatchItems(jobs, true).map(j => j.state)).toEqual([
-      'accepted',
-      'uncertain',
-      'stopped',
-      'stopped'
-    ]);
-    jobs[1].state = 'blocked';
-    expect(admitBatchItems(jobs, false).map(j => j.state)).toEqual([
-      'accepted',
-      'blocked',
-      'dispatching',
-      'queued'
-    ]);
-  });
+describe('durable batch card presentation', () => {
   it('separates drafts, stopped, failed, ready and pending video receipts', () => {
     expect(launchCardState(draft('1'))).toBe('draft');
     expect(launchCardState({ ...draft('1'), hasResult: undefined })).toBe('unknown');
@@ -94,44 +55,72 @@ describe('bounded source-grouped batch scheduling', () => {
   });
 });
 
-it('shows local admission and receipts immediately while the server list is still a draft', () => {
-  const value = draft('pending');
-  const item = planLaunchBatch([value])[0];
-  for (const [state, expected] of [
-    ['queued', 'queued'],
-    ['dispatching', 'running'],
-    ['accepted', 'running'],
-    ['completed', 'ready'],
-    ['blocked', 'failed'],
-    ['uncertain', 'unknown'],
-    ['deferred', 'unknown'],
-    ['partial', 'partial'],
-    ['canceled', 'canceled'],
-    ['stopped', undefined]
-  ] as const)
-    expect(batchCardState(value, { ...item, state })).toBe(expected);
-  expect(batchCardState(value, undefined)).toBeUndefined();
+it('allows only confirmed saved drafts, excluding existing, unknown and running results', () => {
+  expect(batchEligible(draft('1'))).toBe(true);
+  expect(batchEligible({ ...draft('1'), hasResult: undefined })).toBe(false);
+  expect(batchEligible({ ...draft('1'), hasResult: true })).toBe(false);
+  expect(batchEligible({ ...draft('1'), generationState: 'running' })).toBe(false);
 });
-it('does not cover a different authoritative generation with an old uncertain batch label', () => {
-  const value = {
-    ...draft('pending'),
-    generation: {
-      id: 'new-generation',
-      requestKey: 'new-key',
-      state: 'succeeded' as const,
-      stage: 'result_committed' as const,
-      stateVersion: '1',
-      progress: null,
-      errorCode: null,
-      childOperationIds: []
-    }
+it('shows the canonical batch progress before the list catches up, without covering later generations', () => {
+  const item = batchReceipt().items[0];
+  const value = { ...draft(item.launchId), version: item.expectedVersion };
+  item.generation!.videoGeneration = {
+    setId: 'set',
+    state: 'preparing',
+    registeredCount: 2,
+    requestedCount: 5
   };
-  const item = planLaunchBatch([draft('pending')])[0]!;
-  expect(batchCardState(value, { ...item, state: 'deferred' })).toBeUndefined();
+  expect(launchCardProgress(durableCardValue(value, item))).toBe(40);
+  expect(durableItemState(item)).toBe('running');
+  const later = { ...value, generation: { ...item.generation!, id: 'different' } };
+  expect(durableCardValue(later, item)).toBe(later);
+  const newer = { ...value, generation: { ...item.generation!, stateVersion: '99' } };
+  expect(durableCardValue(newer, item)).toBe(newer);
 });
-it('lets the authoritative generation replace local admission and earlier completed receipts', () => {
-  const value = { ...draft('pending'), generationState: 'running' as const };
-  const item = planLaunchBatch([draft('pending')])[0];
-  for (const state of ['accepted', 'completed', 'blocked'] as const)
-    expect(batchCardState(value, { ...item, state })).toBeUndefined();
+
+it('does not return settled admission to preparation when a slower history read arrives', () => {
+  for (const admission of ['accepted', 'refused'] as const) {
+    const confirmed = batchReceipt();
+    if (admission === 'refused')
+      confirmed.items[0] = {
+        ...confirmed.items[0],
+        admission,
+        generation: null,
+        generationId: null,
+        errorCode: 'SOURCE_CHANGED'
+      };
+    const older = batchReceipt();
+    older.items[0] = {
+      ...older.items[0],
+      admission: 'pending',
+      generation: null,
+      generationId: null,
+      errorCode: 'DRIVE_UNAVAILABLE'
+    };
+    expect(mergeDurableBatch(confirmed, older).items[0]).toEqual(confirmed.items[0]);
+  }
+});
+
+it('preserves registered videos and terminal sets even when the parent state version did not change', () => {
+  const confirmed = batchReceipt();
+  confirmed.items[0].generation!.videoGeneration = {
+    setId: 'set',
+    state: 'ready',
+    registeredCount: 5,
+    requestedCount: 5
+  };
+  const older = batchReceipt();
+  older.items[0].generation!.videoGeneration = {
+    setId: 'set',
+    state: 'preparing',
+    registeredCount: 2,
+    requestedCount: 5
+  };
+  expect(mergeDurableBatch(confirmed, older).items[0].generation?.videoGeneration).toEqual(
+    confirmed.items[0].generation?.videoGeneration
+  );
+  older.items[0].generation!.videoGeneration!.setId = 'another-set';
+  expect(
+    mergeDurableBatch(confirmed, older).items[0].generation?.videoGeneration?.registeredCount
+  ).toBe(2);
 });

@@ -1,0 +1,109 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-11-13T13:38:49.541Z",
+  "form": "fast",
+  "error": "suite",
+  "data": {
+    "duration_ms": 717685,
+    "totals": {
+      "gates": 15,
+      "passed": 14,
+      "failed": 1,
+      "tests": 4113,
+      "skipped_tests": 24,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 6,
+        "disposable PostgreSQL container": 8,
+        "platform:darwin": 2,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "disposable PostgreSQL": 1
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1597
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 22138
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 20802
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 17959
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 27461
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 3135
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 109
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2067
+      },
+      {
+        "id": "migrations-additive",
+        "ok": true,
+        "duration_ms": 196
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 97
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 96
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 138
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 66
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 6277
+      },
+      {
+        "id": "suite",
+        "ok": false,
+        "duration_ms": 615536
+      }
+    ],
+    "failure": {
+      "gate": "suite",
+      "subject": "tests/catalog-updater-dialog.test.tsx > rediscovers an unfinished hosted catalog batch after reopening without unrelated file batches — AssertionError: expected \"spy\" to be called with arguments: [ Array(1) ]",
+      "excerpt": [
+        "tests/catalog-updater-dialog.test.tsx > rediscovers an unfinished hosted catalog batch after reopening without unrelated file batches — AssertionError: expected \"spy\" to be called with arguments: [ Array(1) ]"
+      ]
+    }
+  }
+}

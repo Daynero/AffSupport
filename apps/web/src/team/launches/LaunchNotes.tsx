@@ -11,7 +11,6 @@ import { Accordion, Button, IconButton, Input, Textarea } from '../../components
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { analytics } from '../../analytics/service';
-import { TagDot } from '../explorer/TagDot';
 
 export function LaunchNotesEditor({
   notes,
@@ -39,11 +38,7 @@ export function LaunchNotesEditor({
           content: (
             <div className="launch-notes-grid">
               {notes.map((note, index) => (
-                <div
-                  key={note.id}
-                  className="launch-note-editor"
-                  data-color={note.color ?? undefined}
-                >
+                <div key={note.id} className="launch-note-editor">
                   <div className="flex min-w-0 items-center gap-2">
                     <Input
                       aria-label={t('launchesNoteTitleOf', { number: index + 1 })}
@@ -53,13 +48,6 @@ export function LaunchNotesEditor({
                       disabled={disabled}
                       autoFocus={note.id === newId}
                       onChange={e => patch(note.id, { title: e.target.value })}
-                    />
-                    <TagDot
-                      appearance="palette"
-                      color={note.color ?? null}
-                      name={t('launchesNoteTitleOf', { number: index + 1 })}
-                      canTag={!disabled}
-                      onChange={color => patch(note.id, { color })}
                     />
                     <IconButton
                       label={t('launchesNoteDeleteOf', { number: index + 1 })}
@@ -166,7 +154,6 @@ function NoteCopy({ note, disabled }: { note: LaunchNote; disabled: boolean }) {
       <Button
         type="button"
         className={`launch-note-copy${alreadyCopied ? ' launch-note-already-copied' : ''}`}
-        data-color={note.color ?? undefined}
         aria-describedby={alreadyCopied ? copiedDescriptionId : undefined}
         color={copied ? 'success' : 'secondary'}
         variant="soft"

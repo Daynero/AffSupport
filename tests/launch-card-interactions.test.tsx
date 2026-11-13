@@ -58,7 +58,9 @@ it.each([
   );
   expect(screen.getByText(`${expected} 45+`)).toBeTruthy();
   expect(screen.getByText('Advantage+')).toBeTruthy();
-  expect(screen.getByText('g1-926').title).toContain('1926');
+  expect(screen.getByText('g1-926').closest<HTMLElement>('.team-task-agent-chip')!.title).toContain(
+    '1926'
+  );
   expect(document.querySelector('time')?.dateTime).toBe('2026-10-13');
 });
 it('keeps selection, copy and delete separate from opening the launch', () => {
@@ -133,7 +135,7 @@ it('uses available identity for unnamed launches and omits an orphan separator',
 
 it('does not show a missing availability observation as a green Free source chip', () => {
   render(<LaunchCard value={summary({ agentId: '1234567892' })} onOpen={vi.fn()} />);
-  const chip = screen.getByText('g1-892');
+  const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.classList.contains('is-free')).toBe(false);
   expect(chip.classList.contains('is-neutral')).toBe(true);
   expect(chip.dataset.availability).toBe('unknown');
@@ -159,7 +161,7 @@ it.each(['unassigned', 'released', 'reassigned'] as const)(
         onOpen={vi.fn()}
       />
     );
-    const chip = screen.getByText('g1-892');
+    const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
     expect(chip.dataset.availability).toBe('historical');
     expect(chip.classList.contains('is-free')).toBe(false);
     expect(chip.classList.contains('is-neutral')).toBe(true);
@@ -185,7 +187,7 @@ it('shows legacy unconfirmed assignment as unknown rather than busy or free', ()
       onOpen={vi.fn()}
     />
   );
-  const chip = screen.getByText('g1-892');
+  const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.dataset.availability).toBe('unknown');
   expect(chip.title).toContain('Historical link · current assignment unconfirmed');
   expect(chip.title).not.toContain('Busy');
@@ -208,7 +210,7 @@ it('shows a confirmed assignment on its original source RK as busy', () => {
       onOpen={vi.fn()}
     />
   );
-  const chip = screen.getByText('g1-892');
+  const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.dataset.availability).toBe('busy');
   expect(chip.title).toContain('Current assignment confirmed for this ad account');
   expect(chip.title).toContain('Busy');
@@ -231,7 +233,7 @@ it('does not label contradictory assigned-and-free observations as known Free', 
       onOpen={vi.fn()}
     />
   );
-  const chip = screen.getByText('g1-892');
+  const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.dataset.availability).toBe('unknown');
   expect(chip.classList.contains('is-free')).toBe(false);
 });
@@ -240,7 +242,7 @@ it('retains an explicit legacy boolean observation without manufacturing an assi
   render(
     <LaunchCard value={summary({ agentId: '1234567892', agentFree: true })} onOpen={vi.fn()} />
   );
-  const chip = screen.getByText('g1-892');
+  const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.dataset.availability).toBe('free');
   expect(chip.classList.contains('is-free')).toBe(true);
 });

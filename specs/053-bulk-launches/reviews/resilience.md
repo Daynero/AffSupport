@@ -1,5 +1,11 @@
 # Unattended batch fault review
 
+Historical evidence for `58172104`. The browser-local coordinator and unload
+warning described here were subsequently replaced by durable server admission.
+Current behavior and acceptance are recorded in
+[owner-follow-up-validation.md](owner-follow-up-validation.md); this report keeps
+the earlier failure reproductions and verification results without relabeling them.
+
 Owner follow-up: ten requested launches should do all independently possible work even if one is deleted, canceled, loses its video, or Google/server stops responding. No production calls or real provider writes are used in fault injection.
 
 ## Reproduced defects

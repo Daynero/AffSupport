@@ -1,0 +1,244 @@
+/* Compact launch shelves. Controls keep their shared sizes and their own focus/error states. */
+.launch-editor-compact .launch-editor-section {
+  gap: var(--space-2);
+}
+.launch-editor-compact .launch-editor-section + .launch-editor-section {
+  padding-top: var(--space-3);
+}
+.launch-editor-compact .launch-editor-section-heading h3 {
+  font-size: var(--text-label);
+  color: var(--color-neutral-text-muted);
+}
+.launch-editor-compact .launch-editor-creative {
+  max-width: none;
+}
+.launch-editor-compact .launch-editor-source-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+}
+.launch-editor-compact .ui-field-label {
+  min-height: var(--space-6);
+}
+/* Legacy role=button sizing must not lift an inline help glyph above its label. */
+.launch-editor-compact .ui-field-hint [role='button'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-6);
+  min-height: var(--space-6);
+}
+.launch-editor-refresh {
+  margin-top: calc(var(--space-6) + var(--space-1));
+}
+.launch-editor-input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+.launch-editor-link-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.launch-editor-link-field .ui-field-control {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--space-6) * 3);
+}
+.launch-editor-compact .launch-editor-budget-values {
+  max-height: calc(var(--space-6) * 6);
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+.launch-editor-compact .launch-editor-fields-row {
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+.launch-editor-compact .launch-editor-fields-row > .ui-field {
+  min-width: 0;
+}
+.launch-editor-compact .launch-editor-budget {
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  flex: 1 1 auto;
+}
+.launch-editor-compact .launch-editor-budget > .ui-field-label {
+  display: none;
+}
+.launch-editor-compact .launch-editor-campaigns .launch-editor-fields-row,
+.launch-editor-compact .launch-editor-budget-row {
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.launch-editor-compact .launch-editor-budget-preview {
+  gap: var(--space-1);
+}
+.launch-editor-compact .launch-editor-budget-preview > span {
+  border: 0;
+  padding-inline: var(--space-1);
+  background: transparent;
+}
+.launch-editor-compact .launch-editor-method {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: var(--space-4);
+}
+.launch-editor-compact .launch-editor-method > .launch-editor-section-heading {
+  flex-basis: 100%;
+}
+.launch-editor-compact .launch-editor-catalog-options {
+  display: contents;
+}
+.launch-editor-compact .launch-editor-restitch {
+  min-width: 0;
+  flex: 0 0 auto;
+  min-height: var(--control-height-md);
+  justify-content: center;
+}
+.launch-editor-catalog-advanced {
+  flex-basis: 100%;
+}
+.launch-editor-advanced-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+}
+.launch-editor-compact .launch-editor-audience-row > .ui-field:last-child {
+  margin-inline-start: 0;
+}
+.launch-creative-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 32rem;
+  min-height: calc(var(--space-6) * 3);
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px dashed var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+}
+.launch-creative-field[data-dragging] {
+  border-color: var(--color-secondary-border);
+  background: var(--color-secondary-soft);
+}
+.ui-button.launch-creative-empty {
+  width: 100%;
+  min-height: calc(var(--space-6) * 2);
+  justify-content: flex-start;
+  color: var(--color-neutral-text-muted);
+}
+.launch-creative-empty > .ui-button-label {
+  width: 100%;
+}
+.launch-creative-empty .ui-button-label > svg:last-child {
+  margin-inline-start: auto;
+}
+.ui-button.launch-creative-thumbnail {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(var(--space-5) * 4);
+  height: calc(var(--space-5) * 2.5);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+}
+.launch-creative-thumbnail > .ui-button-label {
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+}
+.launch-creative-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.launch-creative-play {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset-inline-end: var(--space-1);
+  inset-block-end: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-surface);
+}
+.launch-creative-name {
+  display: flex;
+  min-width: 0;
+  max-width: 16rem;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.launch-creative-replace {
+  flex-shrink: 0;
+}
+.launch-duration-disclosure {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.launch-duration-disclosure .restitch-duration-control {
+  max-width: 40rem;
+  padding-block: var(--space-3);
+}
+
+.catalog-rename-warning {
+  font-size: var(--text-label);
+  line-height: var(--leading-body);
+  padding: var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+.catalog-rename-warning p {
+  margin: 0;
+}
+.catalog-rename-warning ul {
+  margin-block: var(--space-2) 0;
+  padding-inline-start: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.launch-editor-compact .ui-accordion-title {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.launch-editor-compact .ui-accordion-trigger {
+  min-height: var(--control-height-md);
+  padding-block: var(--space-1);
+}
+.launch-defaults-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-4);
+  padding-inline: var(--space-4);
+}
+.launch-defaults-heading {
+  min-height: var(--control-height-md);
+}
+.launch-defaults-heading h3 {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  color: var(--color-neutral-text-muted);
+}
+.launch-defaults-scopes {
+  flex: 1 1 auto;
+}
+.launch-defaults-error,
+.launch-defaults-feedback,
+.launch-defaults-actions > [role='status'] {
+  flex-basis: 100%;
+}

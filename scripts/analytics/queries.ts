@@ -1,3 +1,9 @@
+import { getCatalogRenameEvidence, mergeCatalogRenameInspection } from './catalog-renames.js';
+import {
+  getDurableLaunchBatchEvidence,
+  mergeDurableLaunchBatchInspection
+} from './launch-batches.js';
+import { inspectBackgroundSetup } from './background-setup.js';
 import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
 import { getCatalogGrowthEvidence } from './catalog-growth.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -2360,6 +2366,18 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const core = await getInspectBeforeDurableBatch(id, asOf, limit);
+  const batches = await getDurableLaunchBatchEvidence(id, asOf);
+  const renames = await getCatalogRenameEvidence(id, asOf);
+  return inspectBackgroundSetup(
+    mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames)
+  );
+}
+async function getInspectBeforeDurableBatch(
+  id: string,
+  asOf?: string,
+  limit = 500
+): Promise<InspectData> {
   const original = await getInspectWithoutPublication(id, asOf, limit);
   const growthEvidence =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&

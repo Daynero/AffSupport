@@ -145,7 +145,7 @@ it('does not show a manual save button or autosave while result edits are locked
   expect(save).not.toHaveBeenCalled();
 });
 
-it('edits and copies every result field, saves the current override map and reopens it without mutating generated values', async () => {
+it('edits and copies output overrides, preserves the canonical catalog name and reopens without mutating generated values', async () => {
   const revision = fixture();
   const original = JSON.stringify(revision);
   const write = vi.fn().mockResolvedValue(undefined);
@@ -173,7 +173,6 @@ it('edits and copies every result field, saves the current override map and reop
   vi.useFakeTimers();
   const changes = [
     ['URL', 'https://example.com/landing?sub1=manual'],
-    ['Catalog name', 'Manual catalog'],
     ['Catalog URL', 'https://docs.google.com/spreadsheets/d/manual'],
     ['Campaign name #1', 'Manual campaign']
   ];
@@ -195,16 +194,18 @@ it('edits and copies every result field, saves the current override map and reop
     expect(write).toHaveBeenLastCalledWith(value);
   }
   expect(JSON.stringify(revision)).toBe(original);
+  expect(screen.queryByRole('button', { name: 'Edit Catalog name' })).toBeNull();
+  expect(copyValue('Catalog name')).toBe(revision.catalog.name);
   expect(screen.getAllByText('Changed manually')).toHaveLength(changes.length);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(700);
   });
   expect(saved).toMatchObject({
     advertisingUrl: changes[0][1],
-    catalogName: changes[1][1],
-    catalogUrl: changes[2][1],
-    campaigns: { '1': { name: changes[3][1] } }
+    catalogUrl: changes[1][1],
+    campaigns: { '1': { name: changes[2][1] } }
   });
+  expect(saved.catalogName).toBeUndefined();
   view.unmount();
   render(<Harness initial={saved} />);
   expect(screen.getAllByText('Changed manually')).toHaveLength(changes.length);
@@ -212,12 +213,13 @@ it('edits and copies every result field, saves the current override map and reop
   expect(screen.queryByRole('button', { name: 'Copy Ad numbers' })).toBeNull();
   for (const [label, value] of changes) expect(copyValue(label)).toBe(value);
   fireEvent.click(
-    within(screen.getByText('Catalog name').closest('.launch-result-row') as HTMLElement).getByRole(
+    within(screen.getByText('Catalog URL').closest('.launch-result-row') as HTMLElement).getByRole(
       'button',
       { name: 'Restore generated' }
     )
   );
   expect(copyValue('Catalog name')).toBe(revision.catalog?.name);
+  expect(copyValue('Catalog URL')).toBe(revision.catalog.url);
   expect(copyValue('URL')).toBe(changes[0][1]);
 });
 

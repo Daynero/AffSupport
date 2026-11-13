@@ -6,6 +6,19 @@ import { launchPublicationTimePassed } from '../apps/web/src/team/launches/launc
 
 afterEach(() => vi.restoreAllMocks());
 
+it('retains only a bounded provider retry floor through nested catalog failures', () => {
+  const original = new TeamFunctionError('RATE_LIMITED', {
+    retryable: true,
+    details: { retryAfterMs: 3_600_000, providerPayload: 'private catalog and token' }
+  });
+  expect(launchFailure(launchFailure(original)).details).toEqual({ retryAfterMs: 3_600_000 });
+  for (const invalid of [-1, NaN, Infinity, '3600000', 1.5])
+    expect(
+      launchFailure(new TeamFunctionError('RATE_LIMITED', { details: { retryAfterMs: invalid } }))
+        .details
+    ).toBeUndefined();
+});
+
 it('turns a shared publication validation failure into a non-retryable INVALID_INPUT, not a 500', () => {
   // Beta 2026-11-09: a reopened launch kept a past deferred-link time; generate answered 500
   // LAUNCH_INTERNAL_ERROR and the UI claimed the operation might still be running.

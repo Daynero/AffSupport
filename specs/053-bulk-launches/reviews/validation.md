@@ -128,3 +128,9 @@ release limitations above remain explicit and are not relabeled as completed tes
 The owner-requested expanded fault matrix, third review, new regressions and final
 verification for the follow-up are recorded in [resilience.md](resilience.md).
 The counts above describe the original feature commit `49ade050`.
+
+## Durable operation and owner UI follow-up
+
+The later server-owned batch, automatic background, compact settings and canonical
+catalog rename scope is recorded in [owner-follow-up-validation.md](owner-follow-up-validation.md).
+That evidence supersedes the earlier browser-local lifetime limitation above.

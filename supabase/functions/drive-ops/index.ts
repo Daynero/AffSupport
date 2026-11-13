@@ -65,6 +65,12 @@ import {
   resumeOrReadInitialCatalog
 } from './catalog-durable.ts';
 import { generateLaunch } from './launches.ts';
+import { acceptLaunchBatch, recoverLaunchBatchOther } from './launch-batch.ts';
+import {
+  handleCatalogRename,
+  recoverCatalogRenames,
+  type CatalogRenameDeps
+} from './catalog-rename.ts';
 import { executeLaunchCatalog } from './launch-catalog.ts';
 import { runLaunchCatalogRecovery } from './launch-recovery.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -1340,6 +1346,29 @@ async function handleRename(
       p_drive: mutationResult(updated)
     });
   });
+}
+
+function catalogRenameDeps(request: Request, service: RpcClient): CatalogRenameDeps {
+  return {
+    service,
+    prove: async (scope, signal) => {
+      signal.throwIfAborted();
+      const context = await loadContext({ service, ...scope, permission: 'edit' });
+      signal.throwIfAborted();
+      const drive = (await driveClient(service, context.credentialId, request)).withRequestDeadline(
+        Date.now() + 7000
+      );
+      const live = await proveContext(context, drive);
+      signal.throwIfAborted();
+      validateLiveMutationTarget({
+        action: 'rename',
+        target: liveTarget(live),
+        rootFolderId: context.rootFolderId,
+        ancestryProven: true
+      });
+      return { drive, live };
+    }
+  };
 }
 
 async function destinationWithClient(input: {
@@ -3443,6 +3472,18 @@ Deno.serve(async request => {
     }
     if (path === '/launches/recover') {
       await requireNamedWorkerSecret(request);
+      const batchOther = await recoverLaunchBatchOther(
+        configured.service,
+        (teamId, actorId, config, sources) =>
+          proveLaunchSource(
+            request,
+            configured.service,
+            teamId,
+            actorId,
+            config.materialId,
+            sources
+          )
+      ).catch(error => ({ pending: true, errorCode: launchFailure(error).code }));
       const recovered = await runLaunchCatalogRecovery(
         configured.service,
         async (teamId, generationId, actorId) => {
@@ -3551,7 +3592,10 @@ Deno.serve(async request => {
           );
         }
       });
-      return successResponse({ ...recovered, initialCatalogs }, cors);
+      const catalogRenames = await recoverCatalogRenames(
+        catalogRenameDeps(request, configured.service)
+      ).catch(error => ({ pending: true, errorCode: mapUnknownError(error).code }));
+      return successResponse({ ...recovered, initialCatalogs, batchOther, catalogRenames }, cors);
     }
 
     if (
@@ -3662,6 +3706,8 @@ Deno.serve(async request => {
     const parsed = await parseJsonBody(request);
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     const body = parsed.value;
+    if (path === '/launches/batch')
+      return successResponse(await acceptLaunchBatch(configured.service, userId, body), cors);
     if (
       path === '/catalog-publication/action' ||
       path === '/catalog-publication/read' ||
@@ -3926,6 +3972,21 @@ Deno.serve(async request => {
         browserBody,
         configured.service,
         userId
+      );
+    } else if (
+      path === '/catalogs/rename-context' ||
+      path === '/catalogs/rename' ||
+      path === '/catalogs/rename-status'
+    ) {
+      value = await handleCatalogRename(
+        path === '/catalogs/rename-context'
+          ? 'context'
+          : path === '/catalogs/rename'
+            ? 'apply'
+            : 'status',
+        body,
+        userId,
+        catalogRenameDeps(request, configured.service)
       );
     } else if (path === '/rename') {
       value = await handleRename(request, body, configured.service, userId);

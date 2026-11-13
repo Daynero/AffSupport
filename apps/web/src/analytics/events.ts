@@ -363,6 +363,7 @@ export type AnalyticsProperties = {
 
 export interface TeamFileAttemptStartedProperties {
   attempt_id: string;
+  flow_id?: string;
   action: TeamAnalyticsAction;
   file_surface?: TeamAnalyticsProperties['file_surface'];
   storage_kind: TeamAnalyticsStorage;

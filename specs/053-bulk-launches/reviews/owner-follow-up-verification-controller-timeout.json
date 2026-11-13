@@ -1,0 +1,52 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-11-13T13:22:24.558Z",
+  "form": "fast",
+  "error": "suite",
+  "data": {
+    "duration_ms": 1508204,
+    "totals": {
+      "gates": 2,
+      "passed": 1,
+      "failed": 1,
+      "tests": 6767,
+      "skipped_tests": 75,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 6,
+        "disposable PostgreSQL container": 46,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "disposable PostgreSQL": 1,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 7,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 2314
+      },
+      {
+        "id": "suite",
+        "ok": false,
+        "duration_ms": 1505876
+      }
+    ],
+    "failure": {
+      "gate": "suite",
+      "subject": "tests/release-controller.test.ts > deterministic release lifecycle [needs: platform:darwin,platform:linux] > does not call models or restart workers during 5 and 60 minute waits — Error: STACK_TRACE_ERROR",
+      "excerpt": [
+        "tests/release-controller.test.ts > deterministic release lifecycle [needs: platform:darwin,platform:linux] > does not call models or restart workers during 5 and 60 minute waits — Error: STACK_TRACE_ERROR"
+      ]
+    }
+  }
+}

@@ -69,6 +69,40 @@ describe('Drive reads ride out a transient failure', () => {
     expect(a.fetchImpl).toHaveBeenCalledTimes(3);
   });
 
+  it.each([403, 429, 503])('honors a short Retry-After before retrying a %s read', async status => {
+    const response = json(status, { error: { errors: [{ reason: 'userRateLimitExceeded' }] } });
+    response.headers.set('retry-after', '1');
+    const a = drive(response, json(200, FILE));
+    expect((await a.client.getFile('file-1')).id).toBe('file-1');
+    expect(a.waits).toEqual([1000]);
+    expect(a.fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([1, 60])('honors an HTTP-date Retry-After %s seconds in the future', async seconds => {
+    const now = Date.parse('2026-11-13T10:00:00Z');
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const response = json(429, {});
+      response.headers.set('retry-after', new Date(now + seconds * 1000).toUTCString());
+      const a = drive(response, json(200, FILE));
+      if (seconds === 1) {
+        expect((await a.client.getFile('file-1')).id).toBe('file-1');
+        expect(a.waits).toEqual([1000]);
+        expect(a.fetchImpl).toHaveBeenCalledTimes(2);
+      } else {
+        await expect(a.client.getFile('file-1')).rejects.toMatchObject({
+          code: 'RATE_LIMITED',
+          retryable: true,
+          details: { retryAfterMs: 60_000 }
+        });
+        expect(a.waits).toEqual([]);
+        expect(a.fetchImpl).toHaveBeenCalledOnce();
+      }
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('answers «you may not», a timeout and a cancellation at once', async () => {
     const a = drive(denied());
     expect(await code(() => a.client.getFile('file-1'))).toBe('PERMISSION_DENIED');

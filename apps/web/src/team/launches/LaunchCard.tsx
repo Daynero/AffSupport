@@ -185,7 +185,7 @@ export function LaunchCard({
             title={accountTooltip}
           >
             <span className="team-task-agent-chip-dot" aria-hidden="true" />
-            {accountChipLabel}
+            <span className="launch-card-account-label">{accountChipLabel}</span>
           </span>
         )}
         {(onCopyLink || onDelete) && (
@@ -238,11 +238,14 @@ export function LaunchCard({
       </div>
       <div className="launch-card-body">
         <span className="launch-card-content">
-          <Badge color={color}>
+          <Badge color={color} className="launch-card-state">
             <StateIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t(launchCardLabels[state])}
           </Badge>
-          <span className="launch-card-context">
+          <span
+            className="launch-card-context"
+            title={[value.creativeAlias.trim(), methodLabel].filter(Boolean).join(' · ')}
+          >
             {value.creativeAlias.trim() && value.creativeAlias.trim() !== heading && (
               <strong>{value.creativeAlias} · </strong>
             )}
@@ -265,44 +268,48 @@ export function LaunchCard({
           </span>
         </span>
       </div>
-      {(state === 'running' || state === 'queued' || state === 'partial') && (
-        <Progress
-          size="xs"
-          color={color}
-          label={t(launchCardLabels[state])}
-          value={queueState ? undefined : launchCardProgress(value)}
-        />
-      )}
-      {shownOn && (
-        <div className="team-task-card-footer">
-          <time
-            className="team-task-card-date"
-            dateTime={shownOn}
-            title={
-              value.launchDate
-                ? t('launchesCardDateTitle', {
-                    date: formatTaskDate(language, value.launchDate, true),
-                    created: createdOn ? formatTaskDate(language, createdOn, true) : '—'
-                  })
-                : t('teamTaskCreatedAt', { date: formatTaskDate(language, shownOn, true) })
-            }
-          >
-            {formatTaskDate(language, shownOn)}
-          </time>
-          {value.createdAt && Number.isFinite(Date.parse(value.createdAt)) && (
-            <span className="text-micro text-ink-muted">
-              {t('launchesBulkCreated', {
-                date: new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
-                  day: '2-digit',
-                  month: 'short',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }).format(new Date(value.createdAt))
-              })}
-            </span>
-          )}
-        </div>
-      )}
+      <div className="launch-card-progress">
+        {(state === 'running' || state === 'queued' || state === 'partial') && (
+          <Progress
+            size="xs"
+            color={color}
+            label={t(launchCardLabels[state])}
+            value={queueState ? undefined : launchCardProgress(value)}
+          />
+        )}
+      </div>
+      <div className="team-task-card-footer">
+        {shownOn && (
+          <>
+            <time
+              className="team-task-card-date"
+              dateTime={shownOn}
+              title={
+                value.launchDate
+                  ? t('launchesCardDateTitle', {
+                      date: formatTaskDate(language, value.launchDate, true),
+                      created: createdOn ? formatTaskDate(language, createdOn, true) : '—'
+                    })
+                  : t('teamTaskCreatedAt', { date: formatTaskDate(language, shownOn, true) })
+              }
+            >
+              {formatTaskDate(language, shownOn)}
+            </time>
+            {value.createdAt && Number.isFinite(Date.parse(value.createdAt)) && (
+              <span className="text-micro text-ink-muted">
+                {t('launchesBulkCreated', {
+                  date: new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }).format(new Date(value.createdAt))
+                })}
+              </span>
+            )}
+          </>
+        )}
+      </div>
     </Card>
   );
 }

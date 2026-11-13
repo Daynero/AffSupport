@@ -170,6 +170,9 @@ export function useLaunchListSelection({
     copySelected,
     paste,
     canPaste: clipboard.length > 0 || pending.current !== null,
+    pasteCount: pending.current
+      ? pending.current.rows.length - pending.current.index
+      : clipboard.length,
     busy
   };
 }

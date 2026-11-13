@@ -11,11 +11,15 @@ import { launchBrowserTimezone } from './launchTimezone';
 export function LaunchCatalogVideoFields({
   value,
   onChange,
-  disabled
+  disabled,
+  part = 'all',
+  submitted = false
 }: {
   value: LaunchCatalogConfig;
   onChange(value: LaunchCatalogConfig): void;
   disabled: boolean;
+  part?: 'all' | 'variations' | 'publication';
+  submitted?: boolean;
 }) {
   const { t } = useI18n();
   const publication = value.videoPublication;
@@ -87,6 +91,8 @@ export function LaunchCatalogVideoFields({
   return (
     <>
       <CatalogCreationVideoFields
+        part={part}
+        revealPublicationErrors={submitted && (invalid || launchPublicationTimePassed(value))}
         value={draft}
         onChange={update}
         restitch={value.restitchEnabled}
@@ -94,7 +100,7 @@ export function LaunchCatalogVideoFields({
         disabled={disabled}
       />
       {(() => {
-        if (!CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return null;
+        if (part === 'variations' || !CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return null;
         const passed = launchPublicationTimePassed(value);
         if (!passed && !(invalid && scheduled && local !== 'T12:00')) return null;
         // A real field error: Generate scrolls to the first `.ui-field-error`, so the person

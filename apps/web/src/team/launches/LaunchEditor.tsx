@@ -1,5 +1,5 @@
 import { LaunchNotesEditor } from './LaunchNotes';
-import { CircleHelp } from 'lucide-react';
+import { CircleHelp, RefreshCw } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
@@ -17,21 +17,21 @@ import {
 } from '@video-compressor/shared';
 import type { LaunchDictionaryItem } from '../../api/launches';
 import {
-  Button,
   Card,
   Accordion,
   FormField,
+  IconButton,
   Tooltip,
   Input,
   Switch,
-  SegmentedControl,
-  RestitchDurationControl
+  SegmentedControl
 } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LaunchDictionaryManager } from './LaunchDictionaryManager';
 import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
+import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
@@ -84,6 +84,7 @@ export function LaunchEditor({
   const prefix = useId();
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
+  const [catalogAdvancedOpen, setCatalogAdvancedOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -111,6 +112,11 @@ export function LaunchEditor({
   useEffect(() => {
     if (submitted && invalidSubSettings) setSubSettingsOpen(true);
   }, [submitted, invalidSubSettings]);
+  const scheduledPublication = config.catalog?.videoPublication?.mode === 'scheduled';
+  const invalidCatalog = Boolean(errors.catalog);
+  useEffect(() => {
+    if (scheduledPublication || (submitted && invalidCatalog)) setCatalogAdvancedOpen(true);
+  }, [scheduledPublication, submitted, invalidCatalog]);
   const account = accounts.find(account =>
     account.agents.some(agent => agent.id === config.agentRowId)
   );
@@ -148,6 +154,14 @@ export function LaunchEditor({
       </span>
     </Tooltip>
   );
+  const shortLabels: Record<string, TranslationKey> = {
+    campaignCount: 'launchSettingsCampaignCount',
+    adsCount: 'launchSettingsAdsCount',
+    minBudget: 'launchSettingsBudgetFrom',
+    maxBudget: 'launchSettingsBudgetTo',
+    age: 'launchSettingsAge',
+    productCount: 'launchSettingsProducts'
+  };
   const budgetKeys = ['minBudget', 'maxBudget', 'budgets'];
   const budgetError =
     !editingBudget &&
@@ -170,7 +184,7 @@ export function LaunchEditor({
           touched.has('catalog')));
     return (
       <FormField
-        label={t(label)}
+        label={t(shortLabels[key] ?? label)}
         htmlFor={`${prefix}-${key}`}
         hint={help ? helpHint(t(help)) : undefined}
         required={false}
@@ -218,6 +232,7 @@ export function LaunchEditor({
     const input = (
       <Input
         id={`${prefix}-${key}`}
+        aria-label={t(label)}
         type="number"
         inputMode="numeric"
         invalid={budgetKeys.includes(key) && budgetError}
@@ -323,20 +338,13 @@ export function LaunchEditor({
       ? new Set(['launch-sub-settings'])
       : new Set<string>();
   return (
-    <div ref={editorRef} className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-3">
+    <div
+      ref={editorRef}
+      className="launch-editor-compact mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-3"
+    >
       <Card role="panel">
         <fieldset disabled={disabled} className="m-0 flex flex-col gap-4 border-0 p-0">
-          <section className="launch-editor-section" aria-labelledby={`${prefix}-sources-heading`}>
-            <div className="launch-editor-section-heading">
-              <div>
-                <h3 id={`${prefix}-sources-heading`} className="flex items-center gap-2">
-                  {t('launchesSectionSources')}
-                </h3>
-              </div>
-              <Button variant="ghost" size="sm" disabled={disabled} onClick={onRefreshSources}>
-                {t('launchesRefreshSources')}
-              </Button>
-            </div>
+          <section className="launch-editor-section" aria-label={t('launchesSectionSources')}>
             <div className="launch-editor-source-grid">
               <div className="flex min-w-0 flex-col gap-3">
                 {field(
@@ -412,22 +420,129 @@ export function LaunchEditor({
                   </div>
                 )}
               </div>
-            </div>
-            <div className="launch-editor-creative">
-              <LaunchCreativePicker
-                teamId={teamId}
-                sources={sources}
-                config={config}
-                onChange={changed}
-                onBusyChange={onUploadBusyChange}
-                submitted={submitted}
+              <IconButton
+                className="launch-editor-refresh"
+                label={t('launchesRefreshSources')}
+                variant="ghost"
                 disabled={disabled}
-              />
+                onClick={onRefreshSources}
+              >
+                <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </IconButton>
             </div>
+            <div className="launch-editor-input-grid">
+              <div className="launch-editor-creative">
+                <LaunchCreativePicker
+                  teamId={teamId}
+                  sources={sources}
+                  config={config}
+                  onChange={changed}
+                  onBusyChange={onUploadBusyChange}
+                  submitted={submitted}
+                  disabled={disabled}
+                />
+              </div>
+              <div className="launch-editor-link-field">
+                {field(
+                  'originalUrl',
+                  'launchesSectionLinks',
+                  <Input
+                    id={`${prefix}-originalUrl`}
+                    aria-label={t('launchesUrl')}
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={config.originalUrl ?? ''}
+                    disabled={disabled}
+                    onPaste={e => {
+                      if (disabled) return;
+                      const raw = e.clipboardData.getData('text/plain');
+                      if (!raw) return;
+                      e.preventDefault();
+                      const original = config.originalUrl ?? '';
+                      const start = e.currentTarget.selectionStart ?? original.length;
+                      const end = e.currentTarget.selectionEnd ?? start;
+                      changed({
+                        originalUrl: original.slice(0, start) + raw + original.slice(end)
+                      });
+                    }}
+                    onChange={e => changed({ originalUrl: e.target.value })}
+                  />,
+                  true,
+                  'launchesUrlHelp'
+                )}
+                <p
+                  className="launch-editor-url-warning"
+                  role="status"
+                  aria-live="polite"
+                  data-reserve={t('launchesSubNotFound', { slots: 'SUB1, SUB2, SUB3' })}
+                >
+                  <span>
+                    {missingSubSlots.length > 0
+                      ? t('launchesSubNotFound', {
+                          slots: missingSubSlots.map(slot => slot.toUpperCase()).join(', ')
+                        })
+                      : null}
+                  </span>
+                </p>
+              </div>
+            </div>
+            {config.subConfig && (
+              <Accordion
+                className="launch-editor-sub-accordion"
+                items={[
+                  {
+                    id: 'launch-sub-settings',
+                    title: t('launchesSubSettings'),
+                    content: (
+                      <div className="launch-editor-sub-content">
+                        <p>{t('launchesSubSettingsHelp')}</p>
+                        <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+                          {(['sub1', 'sub2', 'sub3'] as const).map(slot => (
+                            <SubBuilder
+                              catalogEnabled={config.method === 'catalog'}
+                              catalogPending={
+                                config.subConfig![slot].filter(key => key !== 'catalogName')
+                                  .length === 0 ||
+                                launchSubPreview(
+                                  {
+                                    ...config.subConfig!,
+                                    [slot]: config.subConfig![slot].filter(
+                                      key => key !== 'catalogName'
+                                    )
+                                  },
+                                  config.creativeAlias,
+                                  localSources
+                                )[slot] !== null
+                              }
+                              key={slot}
+                              slot={slot}
+                              selected={config.subConfig![slot]}
+                              disabled={disabled}
+                              onChange={selected =>
+                                changed({ subConfig: { ...config.subConfig!, [slot]: selected } })
+                              }
+                              preview={subPreview?.[slot] ?? null}
+                              submitted={submitted}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  }
+                ]}
+                openIds={subOpenIds}
+                onToggle={id =>
+                  setSubSettingsOpen(open => (id === 'launch-sub-settings' ? !open : open))
+                }
+              />
+            )}
           </section>
 
           <section
-            className="launch-editor-section"
+            className="launch-editor-section launch-editor-campaigns"
             aria-labelledby={`${prefix}-campaigns-heading`}
           >
             <div className="launch-editor-section-heading">
@@ -438,109 +553,139 @@ export function LaunchEditor({
             <div className="launch-editor-fields-row">
               {number('campaignCount', 'launchesCampaignCount')}
               {number('adsCount', 'launchesAdsCount')}
-            </div>
-            <div className="launch-editor-budget">
-              <span className="ui-field-label">
-                {t(config.campaignCount === 1 ? 'launchesBudgetSingle' : 'launchesBudgetMultiple')}
-              </span>
-              <div className="launch-editor-budget-row">
-                <SegmentedControl
-                  label={t('launchesBudgetMode')}
-                  size="sm"
-                  value={config.budgetMode ?? 'auto'}
-                  disabled={disabled}
-                  options={[
-                    { value: 'auto', label: t('launchesAutomatic') },
-                    { value: 'manual', label: t('launchesCustomBudgets') }
-                  ]}
-                  onChange={mode => {
-                    if (mode === 'auto' || mode === 'manual')
-                      if (mode === 'auto') changed({ budgetMode: 'auto', budgets: null });
-                      else {
-                        const manual =
-                          manualBudgetDraft.length === (config.campaignCount ?? 0)
-                            ? manualBudgetDraft
-                            : budgets;
-                        setManualBudgetDraft(manual);
-                        changed({
-                          budgetMode: 'manual',
-                          budgets: manual,
-                          ...(manual.length ? { maxBudget: Math.max(...manual) } : {})
-                        });
-                      }
-                  }}
-                />
-                {config.budgetMode !== 'manual' ? (
-                  <>
-                    {number('minBudget', 'launchesMinBudget')}
-                    {number(
-                      'maxBudget',
-                      'launchesBudgetMaximum',
-                      undefined,
-                      undefined,
-                      budgets.length > 0 ? (
-                        <output
-                          className="launch-editor-budget-preview"
-                          aria-label={t('launchesBudget')}
-                        >
-                          {budgets.map((budget, index) => (
-                            <span key={index}>
-                              {budget} <span className="launch-editor-budget-currency">$</span>
-                            </span>
-                          ))}
-                        </output>
-                      ) : undefined
-                    )}
-                  </>
-                ) : (
-                  field(
-                    'budgets',
-                    'launchesBudget',
-                    <div className="launch-editor-budget-values">
-                      {budgets.map((v, i) => (
-                        <Input
-                          key={i}
-                          type="number"
-                          width="narrow"
-                          suffix="$"
-                          value={v === 0 ? '' : v}
-                          disabled={disabled}
-                          aria-label={`${t('launchesBudget')} ${i + 1}`}
-                          invalid={budgetError}
-                          aria-describedby={budgetError ? `${prefix}-budget-error` : undefined}
-                          onChange={e => {
-                            const manual = [...budgets];
-                            manual[i] = Number(e.target.value);
+              <div className="launch-editor-budget">
+                <span className="ui-field-label">
+                  {t(
+                    config.campaignCount === 1 ? 'launchesBudgetSingle' : 'launchesBudgetMultiple'
+                  )}
+                </span>
+                <div className="launch-editor-budget-row">
+                  <FormField label={t('launchSettingsBudget')}>
+                    <SegmentedControl
+                      label={t('launchesBudgetMode')}
+                      size="sm"
+                      value={config.budgetMode ?? 'auto'}
+                      disabled={disabled}
+                      options={[
+                        { value: 'auto', label: t('launchesAutomatic') },
+                        { value: 'manual', label: t('launchesCustomBudgets') }
+                      ]}
+                      onChange={mode => {
+                        if (mode === 'auto' || mode === 'manual')
+                          if (mode === 'auto') changed({ budgetMode: 'auto', budgets: null });
+                          else {
+                            const manual =
+                              manualBudgetDraft.length === (config.campaignCount ?? 0)
+                                ? manualBudgetDraft
+                                : budgets.length
+                                  ? budgets
+                                  : Array.from(
+                                      {
+                                        length:
+                                          Number.isInteger(config.campaignCount) &&
+                                          config.campaignCount! >= 1 &&
+                                          config.campaignCount! <= 100
+                                            ? config.campaignCount!
+                                            : 0
+                                      },
+                                      () => 0
+                                    );
                             setManualBudgetDraft(manual);
                             changed({
                               budgetMode: 'manual',
                               budgets: manual,
-                              maxBudget: Math.max(...manual)
+                              minBudget: manual[0] > 0 ? manual[0] : undefined,
+                              ...(manual.length ? { maxBudget: Math.max(...manual) } : {})
                             });
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )
+                          }
+                      }}
+                    />
+                  </FormField>
+                  {config.budgetMode !== 'manual' ? (
+                    <>
+                      {number('minBudget', 'launchesMinBudget', '$')}
+                      {number(
+                        'maxBudget',
+                        'launchesBudgetMaximum',
+                        '$',
+                        undefined,
+                        budgets.length > 0 ? (
+                          <output
+                            className="launch-editor-budget-preview"
+                            aria-label={t('launchesBudget')}
+                          >
+                            {budgets.slice(0, 4).map((budget, index) => (
+                              <span key={index}>
+                                {budget} <span className="launch-editor-budget-currency">$</span>
+                              </span>
+                            ))}
+                            {budgets.length > 4 && (
+                              <span
+                                aria-label={t('launchSettingsMoreBudgets', {
+                                  count: budgets.length - 4
+                                })}
+                              >
+                                +{budgets.length - 4}
+                              </span>
+                            )}
+                          </output>
+                        ) : undefined
+                      )}
+                    </>
+                  ) : (
+                    field(
+                      'budgets',
+                      'launchesBudget',
+                      <div className="launch-editor-budget-values">
+                        {budgets.map((v, i) => (
+                          <Input
+                            key={i}
+                            type="number"
+                            width="narrow"
+                            suffix="$"
+                            value={v === 0 ? '' : v}
+                            disabled={disabled}
+                            aria-label={`${t('launchesBudget')} ${i + 1}`}
+                            invalid={budgetError}
+                            aria-describedby={budgetError ? `${prefix}-budget-error` : undefined}
+                            onChange={e => {
+                              const manual = [...budgets];
+                              manual[i] = Number(e.target.value);
+                              setManualBudgetDraft(manual);
+                              changed({
+                                budgetMode: 'manual',
+                                budgets: manual,
+                                minBudget: manual[0] > 0 ? manual[0] : undefined,
+                                maxBudget: Math.max(...manual)
+                              });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+                {budgetError && (
+                  <p
+                    id={`${prefix}-budget-error`}
+                    className="ui-field-error launch-editor-budget-error"
+                    role="alert"
+                  >
+                    {t(
+                      config.budgetMode === 'manual'
+                        ? 'launchesBudgetInvalid'
+                        : 'launchesBudgetRangeInvalid'
+                    )}
+                  </p>
                 )}
               </div>
-              {budgetError && (
-                <p
-                  id={`${prefix}-budget-error`}
-                  className="ui-field-error launch-editor-budget-error"
-                  role="alert"
-                >
-                  {t(
-                    config.budgetMode === 'manual'
-                      ? 'launchesBudgetInvalid'
-                      : 'launchesBudgetRangeInvalid'
-                  )}
-                </p>
-              )}
             </div>
           </section>
 
-          <section className="launch-editor-section" aria-labelledby={`${prefix}-method-heading`}>
+          <section
+            className="launch-editor-section launch-editor-method"
+            aria-labelledby={`${prefix}-method-heading`}
+          >
             <div className="launch-editor-section-heading">
               <div>
                 <h3 id={`${prefix}-method-heading`}>{t('launchesSectionMethod')}</h3>
@@ -604,47 +749,65 @@ export function LaunchEditor({
                       })
                     }
                   />
-                  {config.catalog.restitchEnabled && (
-                    <RestitchDurationControl
-                      value={config.catalog}
-                      disabled={disabled}
-                      labels={{
-                        duration: t('launchesDuration'),
-                        range: t('launchesDurationRange'),
-                        exact: t('launchesDurationExact'),
-                        unit: t('launchesMinutesShort')
-                      }}
-                      onChange={duration =>
-                        changed({ catalog: { ...config.catalog!, ...duration } })
-                      }
-                    />
-                  )}
-                  {/* 050: after every re-stitch setting, so it never splits them. */}
-                  <CatalogVideoR2Toggle
-                    mode="create"
-                    teamId={teamId}
-                    control="switch"
-                    checked={config.catalog.copyVideoToR2 === true}
-                    disabled={disabled}
-                    onChange={copyVideoToR2 =>
-                      changed({
-                        catalog: {
-                          ...config.catalog!,
-                          ...(copyVideoToR2 ? { copyVideoToR2: true } : { copyVideoToR2: false })
-                        }
-                      })
-                    }
-                  />
                 </div>
-                {
-                  <Suspense fallback={null}>
-                    <LaunchCatalogVideoFields
-                      value={config.catalog}
-                      disabled={disabled}
-                      onChange={catalog => changed({ catalog })}
-                    />
-                  </Suspense>
-                }
+                <Suspense fallback={null}>
+                  <LaunchCatalogVideoFields
+                    part="variations"
+                    value={config.catalog}
+                    disabled={disabled}
+                    onChange={catalog => changed({ catalog })}
+                  />
+                </Suspense>
+                <CatalogVideoR2Toggle
+                  mode="create"
+                  teamId={teamId}
+                  control="switch"
+                  checked={config.catalog!.copyVideoToR2 === true}
+                  disabled={disabled}
+                  onChange={copyVideoToR2 =>
+                    changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
+                  }
+                />
+                {config.catalog.restitchEnabled && (
+                  <LaunchRestitchDurationField
+                    value={config.catalog}
+                    disabled={disabled}
+                    error={
+                      errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
+                        ? t('launchesDurationInvalid')
+                        : undefined
+                    }
+                    onChange={duration => changed({ catalog: { ...config.catalog!, ...duration } })}
+                  />
+                )}
+                <Accordion
+                  className="launch-editor-catalog-advanced"
+                  openIds={
+                    catalogAdvancedOpen || (submitted && invalidCatalog)
+                      ? new Set(['catalog-advanced'])
+                      : new Set()
+                  }
+                  onToggle={() => setCatalogAdvancedOpen(open => !open)}
+                  items={[
+                    {
+                      id: 'catalog-advanced',
+                      title: t('launchSettingsAdvancedCatalog'),
+                      content: (
+                        <div className="launch-editor-advanced-content">
+                          <Suspense fallback={null}>
+                            <LaunchCatalogVideoFields
+                              part="publication"
+                              submitted={submitted}
+                              value={config.catalog!}
+                              disabled={disabled}
+                              onChange={catalog => changed({ catalog })}
+                            />
+                          </Suspense>
+                        </div>
+                      )
+                    }
+                  ]}
+                />
               </div>
             )}
           </section>
@@ -690,106 +853,6 @@ export function LaunchEditor({
             </div>
           </section>
 
-          <section className="launch-editor-section" aria-labelledby={`${prefix}-links-heading`}>
-            <div className="launch-editor-section-heading">
-              <div>
-                <h3 id={`${prefix}-links-heading`}>{t('launchesSectionLinks')}</h3>
-              </div>
-            </div>
-            {field(
-              'originalUrl',
-              'launchesUrl',
-              <Input
-                id={`${prefix}-originalUrl`}
-                aria-label={t('launchesUrl')}
-                type="text"
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={config.originalUrl ?? ''}
-                disabled={disabled}
-                onPaste={e => {
-                  if (disabled) return;
-                  const raw = e.clipboardData.getData('text/plain');
-                  if (!raw) return;
-                  e.preventDefault();
-                  const original = config.originalUrl ?? '';
-                  const start = e.currentTarget.selectionStart ?? original.length;
-                  const end = e.currentTarget.selectionEnd ?? start;
-                  changed({ originalUrl: original.slice(0, start) + raw + original.slice(end) });
-                }}
-                onChange={e => changed({ originalUrl: e.target.value })}
-              />,
-              true,
-              'launchesUrlHelp'
-            )}
-            <p
-              className="launch-editor-url-warning"
-              role="status"
-              aria-live="polite"
-              data-reserve={t('launchesSubNotFound', { slots: 'SUB1, SUB2, SUB3' })}
-            >
-              <span>
-                {missingSubSlots.length > 0
-                  ? t('launchesSubNotFound', {
-                      slots: missingSubSlots.map(slot => slot.toUpperCase()).join(', ')
-                    })
-                  : null}
-              </span>
-            </p>
-            {config.subConfig && (
-              <Accordion
-                className="launch-editor-sub-accordion"
-                items={[
-                  {
-                    id: 'launch-sub-settings',
-                    title: t('launchesSubSettings'),
-                    aside: t('launchesAdditional'),
-                    content: (
-                      <div className="launch-editor-sub-content">
-                        <p>{t('launchesSubSettingsHelp')}</p>
-                        <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-                          {(['sub1', 'sub2', 'sub3'] as const).map(slot => (
-                            <SubBuilder
-                              catalogEnabled={config.method === 'catalog'}
-                              catalogPending={
-                                config.subConfig![slot].filter(key => key !== 'catalogName')
-                                  .length === 0 ||
-                                launchSubPreview(
-                                  {
-                                    ...config.subConfig!,
-                                    [slot]: config.subConfig![slot].filter(
-                                      key => key !== 'catalogName'
-                                    )
-                                  },
-                                  config.creativeAlias,
-                                  localSources
-                                )[slot] !== null
-                              }
-                              key={slot}
-                              slot={slot}
-                              selected={config.subConfig![slot]}
-                              disabled={disabled}
-                              onChange={selected =>
-                                changed({ subConfig: { ...config.subConfig!, [slot]: selected } })
-                              }
-                              preview={subPreview?.[slot] ?? null}
-                              submitted={submitted}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  }
-                ]}
-                openIds={subOpenIds}
-                onToggle={id =>
-                  setSubSettingsOpen(open => (id === 'launch-sub-settings' ? !open : open))
-                }
-              />
-            )}
-          </section>
           <LaunchNotesEditor
             notes={config.notes ?? []}
             disabled={disabled}

@@ -1,5 +1,5 @@
 import { useLaunchCopyMark } from './LaunchCopyHistory';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, ExternalLink, Pencil } from 'lucide-react';
 import { Button, Input, Textarea } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -19,8 +19,10 @@ export function CopyResultField({
   hideLabel = false,
   openExternal = false,
   validate,
-  onCopyOutcome
+  onCopyOutcome,
+  action
 }: {
+  action?: ReactNode;
   copyKey?: string;
   label: string;
   displayLabel?: string;
@@ -124,6 +126,7 @@ export function CopyResultField({
       <div className="flex items-center justify-between gap-2">
         {!campaignOrdinal && <span className="min-w-0 font-medium">{displayLabel ?? label}</span>}
         <div className="flex shrink-0 items-center gap-1">
+          {action}
           {changed && <span className="text-label text-warning-text">{t('launchesManual')}</span>}
           {editable && !inlineEdit && (
             <Button

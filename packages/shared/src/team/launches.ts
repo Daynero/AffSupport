@@ -204,6 +204,9 @@ export interface LaunchRevision {
     materialId: string;
     variant: number;
     name: string;
+    /** Live material name; the original name above remains immutable. */
+    currentName?: string;
+    boundNames?: string[];
     url: string;
     available?: boolean;
     restitchMaterialId: string | null;

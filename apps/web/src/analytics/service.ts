@@ -1,6 +1,7 @@
 import { captureAnalyticsActor, type AnalyticsActorSource } from './actorScope';
 import {
   PRODUCT_VERSION,
+  isLaunchUuid,
   type MaterialCategory,
   type TeamAnalyticsAction,
   type TeamAnalyticsCacheState,
@@ -873,6 +874,8 @@ export function isTeamFileAttemptCurrent(flow: TeamFileAttemptFlow): boolean {
 
 export interface TeamFileAttemptFlow {
   attemptId: string;
+  /** Stable opaque command identity; each observation still has its own attempt. */
+  flowId?: string;
   action: TeamAnalyticsAction;
   surface?: 'material' | 'catalog_manager';
   storageKind: TeamAnalyticsStorage;
@@ -910,6 +913,7 @@ export function teamAnalyticsSizeBucket(
 
 export function startTeamFileAttempt(
   input: {
+    flowId?: string;
     action: TeamAnalyticsAction;
     surface?: 'material' | 'catalog_manager';
     storageKind: TeamAnalyticsStorage;
@@ -922,6 +926,7 @@ export function startTeamFileAttempt(
 ): TeamFileAttemptFlow {
   const flow: TeamFileAttemptFlow = {
     attemptId: uuid(),
+    ...(isLaunchUuid(input.flowId) ? { flowId: input.flowId } : {}),
     action: input.action,
     surface: input.surface ?? 'material',
     storageKind: input.storageKind,
@@ -935,6 +940,7 @@ export function startTeamFileAttempt(
   try {
     (options.tracker ?? analytics).track('team_file_attempt_started', {
       attempt_id: flow.attemptId,
+      ...(flow.flowId ? { flow_id: flow.flowId } : {}),
       action: flow.action,
       file_surface: flow.surface ?? 'material',
       storage_kind: flow.storageKind,
@@ -965,6 +971,7 @@ export function completeTeamFileAttempt(
   try {
     (options.tracker ?? analytics).track('team_file_attempt_completed', {
       attempt_id: flow.attemptId,
+      ...(flow.flowId ? { flow_id: flow.flowId } : {}),
       action: flow.action,
       file_surface: flow.surface ?? 'material',
       storage_kind: flow.storageKind,
