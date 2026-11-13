@@ -1,3 +1,4 @@
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../catalog-global-images.js';
 import { STITCH_ERROR_CODES } from '../../stitch-errors.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../catalog-images.js';
 /** Closed diagnostic vocabulary: user configuration and output never enter telemetry. */
@@ -58,6 +59,7 @@ export const LAUNCH_ANALYTICS_CODES = [
   ...STITCH_ERROR_CODES,
   'PROCESS_RESULT_UNCERTAIN',
   ...CATALOG_IMAGE_ERROR_CODES,
+  ...GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   'INVALID_INPUT',
   'INVALID_RESPONSE',
   'SOURCE_CHANGED',

@@ -20,7 +20,12 @@ function fixture(mode: 'legacy' | 'v2' = 'v2') {
   };
 }
 
-describe('Launch catalog readiness uses the admitted image source', () => {
+describe('Launch catalog readiness uses the admitted image source without setup', () => {
+  const expectNoLegacyReads = (client: ReturnType<typeof fixture>) => {
+    expect(client.getProductCatalogSettings).not.toHaveBeenCalled();
+    expect(client.listProductCatalogTexts).not.toHaveBeenCalled();
+    expect(client.listProductCatalogImageSources).not.toHaveBeenCalled();
+  };
   it.each([true, false])(
     'uses global readiness %s without reading retired private settings',
     async usable => {
@@ -34,17 +39,12 @@ describe('Launch catalog readiness uses the admitted image source', () => {
       };
       expect(await isLaunchCatalogReady(client, 'team')).toBe(usable);
       expect(client.catalogImages.globalReadiness).toHaveBeenCalledWith('team');
-      for (const read of [
-        client.getProductCatalogSettings,
-        client.listProductCatalogTexts,
-        client.listProductCatalogImageSources,
-        client.catalogImages.capabilities,
-        client.catalogImages.inventory
-      ])
-        expect(read).not.toHaveBeenCalled();
+      expectNoLegacyReads(client);
+      expect(client.catalogImages.capabilities).not.toHaveBeenCalled();
+      expect(client.catalogImages.inventory).not.toHaveBeenCalled();
     }
   );
-  it('continues using the admitted private source before cutover', async () => {
+  it('checks the admitted R2 source before shared-pool cutover', async () => {
     const legacy = fixture();
     const client = {
       ...legacy,
@@ -55,22 +55,15 @@ describe('Launch catalog readiness uses the admitted image source', () => {
     };
     expect(await isLaunchCatalogReady(client, 'team')).toBe(true);
     expect(client.catalogImages.inventory).toHaveBeenCalledOnce();
+    expectNoLegacyReads(client);
   });
-  it('accepts an R2-only matched pool without legacy pictures or fallback text', async () => {
+  it.each([0, 1, 3])('accepts %s unclassified images without a private text pool', async count => {
     const client = fixture();
+    client.catalogImages.inventory.mockResolvedValue({ total: 3, unclassified: count });
+    client.getProductCatalogSettings.mockRejectedValue(new Error('retired settings unavailable'));
+    client.listProductCatalogTexts.mockRejectedValue(new Error('retired texts unavailable'));
     expect(await isLaunchCatalogReady(client, 'team')).toBe(true);
-    expect(client.listProductCatalogImageSources).not.toHaveBeenCalled();
-  });
-  it('keeps ordinary random pictures usable with generic texts', async () => {
-    const client = fixture();
-    client.catalogImages.inventory.mockResolvedValue({ total: 3, unclassified: 3 });
-    client.listProductCatalogTexts.mockResolvedValue([{ title: 'Item', description: 'Details' }]);
-    expect(await isLaunchCatalogReady(client, 'team')).toBe(true);
-  });
-  it('does not invent factual text for random pictures', async () => {
-    const client = fixture();
-    client.catalogImages.inventory.mockResolvedValue({ total: 3, unclassified: 1 });
-    expect(await isLaunchCatalogReady(client, 'team')).toBe(false);
+    expectNoLegacyReads(client);
   });
   it('never repairs an empty admitted R2 pool with a stale legacy URL', async () => {
     const client = fixture();
@@ -81,19 +74,20 @@ describe('Launch catalog readiness uses the admitted image source', () => {
       imageLink: 'https://example.invalid/old.jpg'
     });
     expect(await isLaunchCatalogReady(client, 'team')).toBe(false);
-    expect(client.listProductCatalogImageSources).not.toHaveBeenCalled();
+    expectNoLegacyReads(client);
   });
-  it('preserves legacy fallback settings without requiring R2 inventory', async () => {
+  it('defers legacy source and fallback admission to the server without reading settings', async () => {
     const client = fixture('legacy');
-    client.getProductCatalogSettings.mockResolvedValue({
-      title: 'Item',
-      description: 'Details',
-      imageLink: 'https://example.invalid/old.jpg'
-    });
+    client.getProductCatalogSettings.mockRejectedValue(new Error('not configured'));
     expect(await isLaunchCatalogReady(client, 'team')).toBe(true);
+    expectNoLegacyReads(client);
     expect(client.catalogImages.inventory).not.toHaveBeenCalled();
   });
-  it('propagates an unavailable dictionary instead of presenting a false ready state', async () => {
+  it('works with no legacy settings client at all', async () => {
+    const { catalogImages } = fixture();
+    expect(await isLaunchCatalogReady({ catalogImages }, 'team')).toBe(true);
+  });
+  it('propagates unavailable image inventory instead of reporting ready', async () => {
     const client = fixture();
     client.catalogImages.inventory.mockRejectedValue(new Error('IMAGE_STORAGE_UNAVAILABLE'));
     await expect(isLaunchCatalogReady(client, 'team')).rejects.toThrow('IMAGE_STORAGE_UNAVAILABLE');

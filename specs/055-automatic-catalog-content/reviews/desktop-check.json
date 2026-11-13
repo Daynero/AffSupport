@@ -1,0 +1,24 @@
+{
+  "syntheticData": true,
+  "actualSettingsComponent": true,
+  "examplesAreGeneratedData": true,
+  "sourceBranch": "055-automatic-catalog-content",
+  "errors": [],
+  "views": [
+    {
+      "file": "01-settings-dark",
+      "width": 1280,
+      "scrollWidth": 1280
+    },
+    {
+      "file": "02-settings-light",
+      "width": 1280,
+      "scrollWidth": 1280
+    },
+    {
+      "file": "03-generated-examples",
+      "width": 1280,
+      "scrollWidth": 1280
+    }
+  ]
+}

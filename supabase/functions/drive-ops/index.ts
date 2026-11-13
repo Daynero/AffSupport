@@ -3955,8 +3955,7 @@ Deno.serve(async request => {
                 actorId: actor,
                 permission: 'view'
               });
-              if (video.category !== 'video' || !(await catalog.readSettings(teamId)))
-                throw new TeamFunctionError('WRONG_STATE');
+              if (video.category !== 'video') throw new TeamFunctionError('WRONG_STATE');
               // Launch preparation freezes saved defaults or derives its own end
               // frame. Selecting restitch does not require saving workspace settings.
               await catalog.destination({ teamId, actorId: actor, folderId: video.parentFolderId });

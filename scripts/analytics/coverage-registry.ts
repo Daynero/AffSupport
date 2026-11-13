@@ -89,7 +89,13 @@ export interface CapabilitySignal {
 }
 
 export interface Capability {
-  currentLifecycle?: { retiredSinceApiVersion: 6; historicalCoverage: 'unknown' };
+  currentLifecycle?:
+    | { retiredSinceApiVersion: 6; historicalCoverage: 'unknown' }
+    | {
+        retiredSinceContentPolicyVersion: 1;
+        basis: 'source_policy';
+        historicalCoverage: 'unknown';
+      };
   /** `tool.operation`, e.g. `compressor.run`. */
   id: string;
   tool: CapabilityTool;
@@ -584,7 +590,12 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
   {
     id: 'team.catalog_text_schedule',
     tool: 'team',
-    title: 'Team · weekly catalog text replacement',
+    title: 'Team · historical catalog text replacement',
+    currentLifecycle: {
+      retiredSinceContentPolicyVersion: 1,
+      basis: 'source_policy',
+      historicalCoverage: 'unknown'
+    },
     stages: ['configured', 'claimed', 'committed'],
     stageEvents: {},
     start: [],
@@ -596,7 +607,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Database commit does not prove browser visibility or updating existing catalogs.',
       'An active cron entry does not prove worker transport or deployment; before a claim receipt, dispatch failure remains unobserved.'
     ],
-    note: 'Content-free schedule and immutable run journal explain enabled state, next due time, claims, lease recovery, fenced atomic commit, failure and cancellation. catalog-texts reads this evidence with bounded period/as-of queries; missing capture is explicit.'
+    note: 'Current source policy retires weekly replacement in favor of per-image automatic content. This does not prove the deployed worker version or historical success. Retained failures stay queryable. Content-free schedule and immutable run journal explain enabled state, next due time, claims, lease recovery, fenced atomic commit, failure and cancellation. catalog-texts reads this evidence with bounded period/as-of queries; missing capture is explicit.'
   },
   {
     id: 'team.catalog_images',
@@ -1382,7 +1393,8 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     platforms: BOTH,
     unobservable: [
       'Standalone catalog creation exposes current durable intent snapshots through investigate.catalog_generations when its restricted analytics view is installed. Intermediate transition timings, full attempt history and browser delivery remain unobserved. Scheduled updater lifecycle remains separate.',
-      'Catalog defaults-read pending/success/failure/retry remains UI-only: toggles reuse the dialog read; failed reads are retryable, not missing settings. Safe fallback is the rendered state and tests/product-catalog-dialog.test.tsx call-count/recovery regressions; remote diagnosis cannot infer the result.',
+      'Creation has no saved title, description or price prerequisite under content policy 1. Historical settings reads are not inferred from a current automatic-content receipt.',
+      'Per-attempt restricted scalar receipts expose policy selection versus frozen recipes and planned, newly automatic and retained row counts. Legacy or missing columns remain unavailable; invalid receipts affect evidence quality only. Exact intent or operation inspection preserves browser delivery as unknown. No text, prices, image facts, URLs or frozen recipes enter diagnostics.',
       'Accepted durable catalog attempts expose bounded per-boundary duration aggregates via investigate.catalog_generations.performance after the performance migration. Missing receipts, pre-acceptance time, the final checkpoint acknowledgement, full transition history and browser delivery remain unobserved; nested durations must not be summed.',
       'Personal catalog duration preferences are device-local and not emitted: remote diagnosis cannot prove storage writes or restoration. Safe fallback is the rendered control after reopening; tests/catalog-duration-preference.test.ts and tests/product-catalog-dialog.test.tsx cover corruption, blocked storage, isolation and exact/range restoration without exposing stored values.'
     ],

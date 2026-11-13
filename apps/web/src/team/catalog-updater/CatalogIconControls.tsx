@@ -294,20 +294,11 @@ export function CatalogIconLegend({
   const fields = CATALOG_FIELDS.filter(({ field }) => legacyImages || field !== 'refreshImages');
   const { t } = useI18n();
   const linkedEffect = (field: CatalogField, effect: Parameters<typeof t>[0]) => {
-    const key =
-      field === 'restitch'
-        ? 'catalogLegendRestitch'
-        : field === 'refreshImages'
-          ? 'catalogLegendImages'
-          : field === 'refreshTexts'
-            ? 'catalogLegendTexts'
-            : null;
-    if (!key) return t(effect);
-    const [before, after] = t(key, { settings: '[[settings]]' }).split('[[settings]]');
-    const href = spaceRouteFor(teamId, {
-      kind: 'settings',
-      tab: field === 'restitch' ? 'restitch' : 'product-catalog'
-    });
+    if (field !== 'restitch') return t(effect);
+    const [before, after] = t('catalogLegendRestitch', { settings: '[[settings]]' }).split(
+      '[[settings]]'
+    );
+    const href = spaceRouteFor(teamId, { kind: 'settings', tab: 'restitch' });
     return (
       <>
         {before}

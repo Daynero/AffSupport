@@ -1,3 +1,4 @@
+import { createCatalogContentDraw } from '../../../packages/shared/dist/team/catalog-content.js';
 import {
   isPublishedCatalogImage,
   isGlobalCatalogImage,
@@ -5,6 +6,8 @@ import {
 } from '../../../packages/shared/dist/team/catalog-global-images.js';
 import {
   catalogImageUrl,
+  catalogImageName,
+  automaticCatalogImageFacts,
   catalogImageFacts,
   catalogImageRequirements,
   rowImageFacts,
@@ -24,6 +27,8 @@ import {
   SPREADSHEET_MIME_TYPE,
   PRODUCT_COUNT_MAX,
   randomPrice,
+  automaticCatalogRow,
+  parseCatalogRowRecipe,
   takeMatchingText,
   type Cell,
   type ProductCatalogRowDetails,
@@ -117,7 +122,66 @@ export interface CatalogNonVideoUpdate {
   verify(marker: string): Promise<void>;
 }
 
+export interface CatalogUpdateContentRecipe {
+  contentPolicyVersion: 1;
+  productCount: number;
+  automaticRowCount: number;
+  retainedRowCount: number;
+  rows: ProductCatalogRowValues[];
+}
+export interface CatalogUpdateContentContext {
+  attemptId: string;
+  baseSignature: string;
+  recipe: CatalogUpdateContentRecipe | null;
+}
+export function parseCatalogUpdateContentContext(value: unknown): CatalogUpdateContentContext {
+  if (
+    !isRecord(value) ||
+    typeof value.attemptId !== 'string' ||
+    !value.attemptId ||
+    typeof value.baseSignature !== 'string' ||
+    !value.baseSignature
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  if (value.recipe === null)
+    return { attemptId: value.attemptId, baseSignature: value.baseSignature, recipe: null };
+  const r = value.recipe;
+  const rows = isRecord(r) ? parseCatalogRowRecipe(r.rows) : null;
+  if (
+    !isRecord(r) ||
+    !rows ||
+    r.contentPolicyVersion !== 1 ||
+    r.productCount !== rows.length ||
+    typeof r.automaticRowCount !== 'number' ||
+    !Number.isSafeInteger(r.automaticRowCount) ||
+    r.automaticRowCount < 0 ||
+    typeof r.retainedRowCount !== 'number' ||
+    !Number.isSafeInteger(r.retainedRowCount) ||
+    r.retainedRowCount < 0 ||
+    r.automaticRowCount + r.retainedRowCount !== rows.length
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  return {
+    attemptId: value.attemptId,
+    baseSignature: value.baseSignature,
+    recipe: {
+      contentPolicyVersion: 1,
+      productCount: rows.length,
+      automaticRowCount: r.automaticRowCount,
+      retainedRowCount: r.retainedRowCount,
+      rows
+    }
+  };
+}
+
 export interface CatalogUpdaterDeps {
+  readContentRecipe?(catalogId: string): Promise<CatalogUpdateContentContext>;
+  freezeContentRecipe?(
+    catalogId: string,
+    baseSignature: string,
+    recipe: CatalogUpdateContentRecipe
+  ): Promise<CatalogUpdateContentContext>;
+
   workerId: string;
   /** New publication policies cannot be interpreted by a legacy video writer.
    * False is a known hold, never permission to substitute a metadata URL. */
@@ -336,7 +400,17 @@ function parseSnapshotRows(value: unknown, count: number): ProductCatalogRowValu
       description: entry.description,
       imageLink: entry.imageLink,
       price: entry.price,
-      ...snapshotDetails(entry)
+      ...snapshotDetails(entry),
+      ...(entry.contentPolicyVersion !== undefined || entry.contentVariantId !== undefined
+        ? (() => {
+            const parsed = parseCatalogRowRecipe([entry]);
+            if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
+            return {
+              contentPolicyVersion: parsed[0]!.contentPolicyVersion,
+              contentVariantId: parsed[0]!.contentVariantId
+            };
+          })()
+        : {})
     });
   }
   return rows;
@@ -619,6 +693,91 @@ function codeOf(error: unknown): string {
   return error instanceof TeamFunctionError ? error.code : 'DRIVE_UNAVAILABLE';
 }
 
+/** Select the final images first; only new/refreshed rows consume automatic variants. */
+export async function planAutomaticUpdateRows(
+  deps: CatalogUpdaterDeps,
+  item: ClaimedCatalog,
+  shareImages: ShareImages,
+  count: number,
+  fallbackImageLink?: string | null
+): Promise<CatalogUpdateContentRecipe> {
+  const base = rowsOf(item, count);
+  const retained = item.refreshTexts === false ? item.productCount : 0;
+  const refreshImages = item.globalImages || item.refreshImages;
+  const imageCount = refreshImages ? count : count - item.productCount;
+  const images =
+    imageCount > 0 && item.teamId && deps.drawImages
+      ? await deps.drawImages(item.teamId, imageCount, {
+          contractVersion: item.globalImages ? 3 : 2,
+          catalogId: item.catalogId,
+          attemptId: item.imageAttemptId,
+          scope: refreshImages ? 'refresh' : 'growth',
+          ...(item.globalImages
+            ? { pairs: base.map((row, i) => (i < retained ? catalogImageRequirements(row) : null)) }
+            : {})
+        })
+      : [];
+  if (item.globalImages && (images.length !== count || !images.every(isGlobalCatalogImage)))
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  await shareImages(images.filter(legacyImage));
+  const draw = createCatalogContentDraw();
+  const brand = base[0]?.brand ?? inventedBrand();
+  const spare = [...images];
+  const rows = base.map((row, index) => {
+    const keep = index < retained;
+    let image: CatalogDrawnImage | undefined;
+    if (refreshImages || index >= item.productCount) {
+      if (keep && !item.globalImages) {
+        const wanted = catalogImageRequirements(row);
+        const at = spare.findIndex(candidate => {
+          const facts = automaticCatalogImageFacts({
+            pictureImage: isPublishedCatalogImage(candidate) ? candidate : undefined,
+            pictureName: catalogImageName(candidate)
+          });
+          return facts.garment === wanted.garment && facts.color === wanted.color;
+        });
+        if (at >= 0) image = spare.splice(at, 1)[0];
+      } else image = spare.shift();
+    }
+    const selected: ProductCatalogRowValues = image
+      ? {
+          ...row,
+          imageLink: catalogImageUrl(image),
+          pictureName: catalogImageName(image),
+          pictureImage: isPublishedCatalogImage(image) ? image : undefined
+        }
+      : !keep && (refreshImages || index >= item.productCount) && fallbackImageLink
+        ? { ...row, imageLink: fallbackImageLink, pictureName: null, pictureImage: undefined }
+        : row;
+    // Retained rows preserve every textual/detail/price field. A new global image must
+    // satisfy the allocator's exact factual constraint, never rewrite custom text.
+    if (keep) {
+      if (image && isPublishedCatalogImage(image) && image.classification.mode === 'matched') {
+        const wanted = catalogImageRequirements(row),
+          facts = image.classification;
+        if (wanted.garment !== facts.garment || wanted.color !== facts.color)
+          throw new TeamFunctionError('IMAGE_TEXT_PAIRING_CONFLICT');
+      }
+      return selected;
+    }
+    if (!selected.imageLink) throw new TeamFunctionError('INVALID_RESPONSE');
+    return automaticCatalogRow({
+      imageLink: selected.imageLink,
+      pictureImage: selected.pictureImage,
+      pictureName: selected.pictureName,
+      brand,
+      draw
+    });
+  });
+  return {
+    contentPolicyVersion: 1,
+    productCount: count,
+    automaticRowCount: count - retained,
+    retainedRowCount: retained,
+    rows
+  };
+}
+
 async function updateOne(
   deps: CatalogUpdaterDeps,
   item: ClaimedCatalog,
@@ -627,6 +786,9 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   let writeStarted = false;
   try {
+    // Restore before native growth preparation, image allocation, sharing or random draws.
+    const content = await deps.readContentRecipe?.(item.catalogId);
+    if (content) item.imageAttemptId = content.attemptId;
     let nonVideo: CatalogNonVideoUpdate | undefined;
     if (deps.authorizeLegacyVideoWrite && !(await deps.authorizeLegacyVideoWrite(item.catalogId))) {
       if (!deps.prepareNonVideoUpdate)
@@ -652,23 +814,56 @@ async function updateOne(
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
     const shareImages = createCatalogImageSharer(drive);
-    const count =
-      nonVideo?.productCount ?? grownCount(item.productCount, item.growProducts === true);
+    let count =
+      content?.recipe?.productCount ??
+      nonVideo?.productCount ??
+      grownCount(item.productCount, item.growProducts === true);
+    if (nonVideo && nonVideo.productCount !== count) throw new TeamFunctionError('SOURCE_CHANGED');
     await deps.progress(item.catalogId, 'refreshing').catch(() => false);
-    const fallbackImageLink =
-      item.teamId && !item.globalImages && (item.refreshImages || item.growProducts)
-        ? await deps.readImageLink?.(item.teamId)
-        : undefined;
-    const grown = await addedRows(deps, item, shareImages, count, fallbackImageLink);
-    // Draw independent pools together, but match words only after the pictures are known.
-    // Wait for both even on failure: pool draws must not outlive this attempt's retry.
-    const [pictures, texts] = await Promise.allSettled([
-      refreshedRows(deps, item, shareImages, grown, count, fallbackImageLink),
-      drawRefreshedTexts(deps, item, count)
-    ]);
-    if (pictures.status === 'rejected') throw pictures.reason;
-    if (texts.status === 'rejected') throw texts.reason;
-    const rows = refreshedTexts(item, pictures.value, count, texts.value);
+    let rows: ProductCatalogRowValues[] | undefined;
+    let textsChanged = false;
+    if (content) {
+      let recipe = content.recipe;
+      if (!recipe) {
+        if (!deps.freezeContentRecipe) throw new TeamFunctionError('INVALID_RESPONSE');
+        const fallback =
+          item.teamId && !item.globalImages && (item.refreshImages || item.growProducts)
+            ? await deps.readImageLink?.(item.teamId)
+            : undefined;
+        const planned = await planAutomaticUpdateRows(deps, item, shareImages, count, fallback);
+        const frozen = await deps.freezeContentRecipe(
+          item.catalogId,
+          content.baseSignature,
+          planned
+        );
+        if (
+          frozen.attemptId !== content.attemptId ||
+          frozen.baseSignature !== content.baseSignature ||
+          !frozen.recipe
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        recipe = frozen.recipe;
+      }
+      rows = recipe.rows;
+      count = recipe.productCount;
+      if (nonVideo && nonVideo.productCount !== count)
+        throw new TeamFunctionError('SOURCE_CHANGED');
+      textsChanged = recipe.automaticRowCount > 0;
+    } else {
+      const fallbackImageLink =
+        item.teamId && !item.globalImages && (item.refreshImages || item.growProducts)
+          ? await deps.readImageLink?.(item.teamId)
+          : undefined;
+      const grown = await addedRows(deps, item, shareImages, count, fallbackImageLink);
+      const [pictures, texts] = await Promise.allSettled([
+        refreshedRows(deps, item, shareImages, grown, count, fallbackImageLink),
+        drawRefreshedTexts(deps, item, count)
+      ]);
+      if (pictures.status === 'rejected') throw pictures.reason;
+      if (texts.status === 'rejected') throw texts.reason;
+      rows = refreshedTexts(item, pictures.value, count, texts.value);
+      textsChanged = texts.value.length > 0;
+    }
     // 050: an R2 copy of the in-use video replaces the stored Drive link in the cells only;
     // current_video_link and the spare's shared_link stay Drive identities.
     const videoR2 = nonVideo
@@ -704,7 +899,8 @@ async function updateOne(
             price: first.price,
             imageLink: first.imageLink,
             randomLinkVariation: item.randomLinkVariation !== false,
-            rows
+            rows,
+            ...(content ? { contentPolicyVersion: 1 } : {})
           }
         }
       : {
@@ -771,15 +967,12 @@ async function updateOne(
         productIds: true,
         linksVaried: !nonVideo && item.randomLinkVariation !== false,
         imagesRefreshed: Boolean(
-          pictures.value?.some(
+          rows?.some(
             (row, index) =>
-              row.imageLink !==
-              (grown?.[index]?.imageLink ??
-                item.rows?.[index]?.imageLink ??
-                item.settings.imageLink)
+              row.imageLink !== (item.rows?.[index]?.imageLink ?? item.settings.imageLink)
           )
         ),
-        textsRefreshed: texts.value.length > 0,
+        textsRefreshed: textsChanged,
         productsAdded: count > item.productCount
       })
       .catch(() => false);

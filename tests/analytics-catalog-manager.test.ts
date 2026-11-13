@@ -161,6 +161,11 @@ it('pins attempt discovery and never presents a later receipt as as-of success',
         result: 'success',
         delivery_verified_at: '2026-11-05T13:00:00Z',
         current_profile_version: 5,
+        content_receipt_status: 'frozen',
+        content_policy_version: 1,
+        planned_row_count: 2,
+        automatic_row_count: 1,
+        retained_row_count: 1,
         stage_history: [
           { stage: 'queued', at: '2026-11-05T11:00:00Z' },
           { stage: 'complete', at: '2026-11-05T13:00:00Z' }
@@ -175,8 +180,62 @@ it('pins attempt discovery and never presents a later receipt as as-of success',
     delivery_verified_at: null,
     delivery_proven: false,
     actual_changes: null,
+    content_receipt_status: 'unavailable',
+    content_policy_version: null,
+    planned_row_count: null,
     stages: [{ stage: 'queued', at: '2026-11-05T11:00:00Z' }]
   });
   expect(data.temporal_scope.current_fields_basis).toBe('current_snapshot_only');
   expect(data.claim_eligibility.status).toBe('unavailable');
+});
+
+it('keeps unknown delivery and actual terminal outcomes independent of content receipt quality', async () => {
+  setQueryExecutor(async sql =>
+    sql.includes('information_schema.views')
+      ? [{ present: false }]
+      : [
+          {
+            attempt_id: ATTEMPT,
+            catalog_material_id: CATALOG,
+            team_id: CATALOG,
+            result: 'unknown',
+            started_at: '2026-11-13T10:00:00Z',
+            ended_at: null,
+            content_receipt_status: 'frozen',
+            content_policy_version: 1,
+            planned_row_count: 200,
+            automatic_row_count: 20,
+            retained_row_count: 180
+          },
+          {
+            attempt_id: CATALOG,
+            catalog_material_id: CATALOG,
+            team_id: CATALOG,
+            result: 'success',
+            started_at: '2026-11-13T09:00:00Z',
+            ended_at: '2026-11-13T09:01:00Z',
+            delivery_verified_at: '2026-11-13T09:01:00Z',
+            content_receipt_status: 'frozen',
+            content_policy_version: 1,
+            planned_row_count: 200,
+            automatic_row_count: 200,
+            retained_row_count: 20
+          }
+        ]
+  );
+  const result = await getCatalogUpdateDiagnosis(CATALOG);
+  expect(result.attempts[0]).toMatchObject({
+    result: 'unknown',
+    delivery_proven: false,
+    content_receipt_status: 'frozen',
+    automatic_row_count: 20,
+    retained_row_count: 180
+  });
+  expect(result.attempts[1]).toMatchObject({
+    result: 'success',
+    delivery_proven: true,
+    content_receipt_status: 'invalid',
+    planned_row_count: null
+  });
+  expect(result.blind_spots.join(' ')).toContain('invalid');
 });

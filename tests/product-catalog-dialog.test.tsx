@@ -17,7 +17,7 @@ import type {
 
 /**
  * Feature 022, US1 and US5: the dialog behind "Create catalog" — what it refuses before sending,
- * what it says when the space is not set up, and what it shows once there is a sheet.
+ * preparation failures, automatic content without setup, and the finished sheet.
  */
 
 const { AuthContextOverride } = await import('../apps/web/src/auth/AuthContext');
@@ -823,7 +823,7 @@ describe('creating a catalog', () => {
     expect(confirm().disabled).toBe(false);
   });
 
-  it('offers the way to the catalog settings when the server says there are none', async () => {
+  it('keeps a legacy preparation refusal actionable without a removed settings link', async () => {
     renderDialog(
       dialogClient({
         createProductCatalog: vi
@@ -837,35 +837,47 @@ describe('creating a catalog', () => {
     await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
     await waitFor(() => expect(confirm().disabled).toBe(false));
     await user.click(confirm());
-    expect(await screen.findByText('This space has no catalog settings yet.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Open catalog settings' })).toBeTruthy();
+    expect(
+      await screen.findByText('The catalog could not be prepared. Try creating it again.')
+    ).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Open catalog settings' })).toBeNull();
+    expect(confirm().disabled).toBe(false);
   });
 });
 
-describe('a space without catalog settings', () => {
-  it('saves default price settings when a manager creates the first catalog', async () => {
-    const setProductCatalogSettings = vi.fn().mockResolvedValue(settings);
-    const client = dialogClient({
-      getProductCatalogSettings: vi.fn().mockResolvedValue(null),
-      setProductCatalogSettings
-    });
-    renderDialog(client);
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Link(?: · Required)?$/), 'https://offer.example.test/');
-    await waitFor(() => expect(confirm().disabled).toBe(false));
-    await user.click(confirm());
-    await waitFor(() => expect(setProductCatalogSettings).toHaveBeenCalledOnce());
-    expect(await screen.findByText('The catalog is ready')).toBeTruthy();
-  });
-
-  it('tells a member who cannot fix it who can', async () => {
-    renderDialog(dialogClient({ getProductCatalogSettings: vi.fn().mockResolvedValue(null) }), {
-      team: viewing
-    });
-    expect(
-      await screen.findByText('A space manager needs to fill in the catalog settings first.')
-    ).toBeTruthy();
-  });
+describe('creating without catalog setup', () => {
+  it.each(['missing', 'unavailable', 'absent'] as const)(
+    'creates for a member without metadata permission when legacy settings are %s',
+    async state => {
+      const getProductCatalogSettings = vi
+        .fn()
+        .mockImplementation(() =>
+          state === 'unavailable' ? Promise.reject(new Error('unavailable')) : Promise.resolve(null)
+        );
+      const setProductCatalogSettings = vi.fn().mockRejectedValue(new Error('must not write'));
+      const client = dialogClient({
+        getProductCatalogSettings: state === 'absent' ? undefined : getProductCatalogSettings,
+        setProductCatalogSettings
+      });
+      const member = {
+        ...owned,
+        role: 'editor' as const,
+        permissions: { ...DEFAULT_ROLE_PERMISSIONS.editor, manage_metadata: false }
+      };
+      renderDialog(client, { team: member });
+      await userEvent.type(
+        screen.getByLabelText(/^Link(?: · Required)?$/),
+        'https://offer.example.test/'
+      );
+      expect(confirm().disabled).toBe(false);
+      await userEvent.click(confirm());
+      expect(await screen.findByText('The catalog is ready')).toBeTruthy();
+      expect(client.createProductCatalog).toHaveBeenCalledOnce();
+      expect(getProductCatalogSettings).not.toHaveBeenCalled();
+      expect(setProductCatalogSettings).not.toHaveBeenCalled();
+      expect(screen.queryByRole('link', { name: 'Open catalog settings' })).toBeNull();
+    }
+  );
 });
 
 describe('re-creating a catalog', () => {

@@ -2,7 +2,16 @@ import {
   isPublishedCatalogImage,
   type PublishedCatalogImage
 } from '../../../packages/shared/dist/team/catalog-global-images.js';
-import { pairCatalogImageRow, catalogImageFacts } from './catalog-image-rows.ts';
+import {
+  pairCatalogImageRow,
+  catalogImageFacts,
+  automaticCatalogImageFacts
+} from './catalog-image-rows.ts';
+import {
+  createCatalogContentDraw,
+  AUTOMATIC_CATALOG_CONTENT_VERSION,
+  CATALOG_CONTENT_VARIANT_COUNT
+} from '../../../packages/shared/dist/team/catalog-content.js';
 import { isRecord } from './validation.ts';
 /**
  * A video's product catalog sheet (feature 022) — everything about it that is not I/O.
@@ -95,6 +104,8 @@ export interface ProductCatalogRowDetails {
  * example values, which is what `PRODUCT_CATALOG_TEMPLATE` falls back to.
  */
 export interface ProductCatalogRowValues extends Partial<ProductCatalogRowDetails> {
+  contentPolicyVersion?: 1;
+  contentVariantId?: number;
   title: string;
   description: string;
   price: number;
@@ -103,6 +114,7 @@ export interface ProductCatalogRowValues extends Partial<ProductCatalogRowDetail
 
 /** A space's settings as stored now: single values are fallbacks, price is a range. */
 export interface ProductCatalogSpaceSettings {
+  contentPolicyVersion?: 1;
   title: string | null;
   description: string | null;
   imageLink: string | null;
@@ -124,6 +136,50 @@ export function randomPrice(min: number, max: number, random: () => number = Mat
   const low = Math.min(min, max);
   const high = Math.max(min, max);
   return low + Math.floor(random() * (high - low + 1));
+}
+
+/** A single automatic row, after the final image has been selected. */
+export function automaticCatalogRow(input: {
+  imageLink: string;
+  pictureImage?: PublishedCatalogImage;
+  pictureName?: string | null;
+  draw: ReturnType<typeof createCatalogContentDraw>;
+  brand: string;
+  random?: () => number;
+  now?: number;
+}): ProductCatalogRowValues {
+  const facts = automaticCatalogImageFacts(input);
+  const selected = input.draw(facts);
+  const details = drawProductDetails({
+    title: selected.title,
+    price: selected.price,
+    brand: input.brand,
+    random: input.random,
+    now: input.now,
+    pictureColor: facts.color
+  });
+  return {
+    ...details,
+    title: selected.title,
+    description: selected.description,
+    price: selected.price,
+    imageLink: input.imageLink,
+    pictureName: input.pictureName ?? null,
+    ...(input.pictureImage ? { pictureImage: input.pictureImage } : {}),
+    contentPolicyVersion: selected.policyVersion,
+    contentVariantId: selected.variantId,
+    material: '',
+    size: '',
+    pattern: '',
+    style: '',
+    gender: '',
+    shippingWeight: '',
+    shipping: '',
+    color: facts.color ?? '',
+    ...(!facts.garment
+      ? { googleCategory: '', fbCategory: '', tags: ['clothing', ''] as [string, string] }
+      : {})
+  };
 }
 
 /**
@@ -152,6 +208,26 @@ export function planCatalogRows(input: {
   const random = input.random ?? Math.random;
   const brand = input.brand ?? inventedBrand(random);
   const rows: ProductCatalogRowValues[] = [];
+  if (input.settings.contentPolicyVersion === AUTOMATIC_CATALOG_CONTENT_VERSION) {
+    const draw = createCatalogContentDraw(random);
+    for (let index = 0; index < input.count; index += 1) {
+      const image = input.images[index % input.images.length];
+      const imageLink = image?.link || input.settings.imageLink;
+      if (!imageLink) return null;
+      rows.push(
+        automaticCatalogRow({
+          imageLink,
+          pictureImage: image?.image,
+          pictureName: image?.name,
+          draw,
+          brand,
+          random,
+          now: input.now
+        })
+      );
+    }
+    return rows;
+  }
   const spare = [...input.texts];
   const factsCache = new Map<string, ReturnType<typeof pictureFacts>>();
   const readTextFacts = (title: string) => {
@@ -684,6 +760,18 @@ export function parseCatalogRowRecipe(value: unknown): ProductCatalogRowValues[]
       price: r.price,
       imageLink: r.imageLink
     };
+    if (r.contentPolicyVersion !== undefined || r.contentVariantId !== undefined) {
+      if (
+        r.contentPolicyVersion !== AUTOMATIC_CATALOG_CONTENT_VERSION ||
+        typeof r.contentVariantId !== 'number' ||
+        !Number.isInteger(r.contentVariantId) ||
+        r.contentVariantId < 0 ||
+        r.contentVariantId >= CATALOG_CONTENT_VARIANT_COUNT
+      )
+        return null;
+      row.contentPolicyVersion = AUTOMATIC_CATALOG_CONTENT_VERSION;
+      row.contentVariantId = r.contentVariantId;
+    }
     for (const key of [
       'saleWindow',
       'color',

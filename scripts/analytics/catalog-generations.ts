@@ -1,3 +1,6 @@
+import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
+import { parseCatalogContentEvidence, type CatalogContentEvidence } from './catalog-content.js';
 import {
   getCatalogVideoSessionEvidence,
   type CatalogVideoSessionEvidence
@@ -10,9 +13,9 @@ import {
 } from '../../supabase/functions/_shared/catalog-timings.js';
 import { query } from './db.js';
 import { getSchema } from './schema.js';
-import type { ResolvedPeriod } from './types.js';
+import { INSPECT_AGENT_NOTE, type InspectData, type ResolvedPeriod } from './types.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const STATES = new Set([
   'reserved',
   'planning',
@@ -26,6 +29,8 @@ const STATES = new Set([
   'canceled'
 ]);
 const CODES = new Set([
+  ...CATALOG_IMAGE_ERROR_CODES,
+  ...GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   'NEEDS_REAUTH',
   'PERMISSION_DENIED',
   'SOURCE_CHANGED',
@@ -70,7 +75,7 @@ const FLAGS = [
   'provider_result_observed',
   'result_registered'
 ] as const;
-export interface CatalogGenerationSnapshot {
+export interface CatalogGenerationSnapshot extends CatalogContentEvidence {
   intent_id: string;
   operation_id: string | null;
   attempt: number;
@@ -142,7 +147,12 @@ export async function getCatalogGenerationEvidence(
       to_jsonb(g)->'performance' performance,
       to_jsonb(g)->'native_sheet_mode' native_sheet_mode,
       to_jsonb(g)->'native_sheet_bound' native_sheet_bound,
-      to_jsonb(g)->'native_write_acknowledged' native_write_acknowledged
+      to_jsonb(g)->'native_write_acknowledged' native_write_acknowledged,
+      to_jsonb(g)->'content_receipt_status' content_receipt_status,
+      to_jsonb(g)->'content_policy_version' content_policy_version,
+      to_jsonb(g)->'planned_row_count' planned_row_count,
+      to_jsonb(g)->'automatic_row_count' automatic_row_count,
+      to_jsonb(g)->'retained_row_count' retained_row_count
      from public.analytics_catalog_generations g
      where (actor_id=$1::uuid or team_id=$1::uuid or intent_id=$1::uuid or operation_id=$1::uuid)
        and ($2::timestamptz is null or updated_at >= $2) and created_at <= $3::timestamptz
@@ -184,7 +194,10 @@ export async function getCatalogGenerationEvidence(
       FLAGS.some(flag => typeof row[flag] !== 'boolean')
     )
       result.unknown_projection = true;
+    const content = parseCatalogContentEvidence(row);
+    if (content.content_receipt_status === 'invalid') result.unknown_projection = true;
     result.records.push({
+      ...content,
       intent_id: row.intent_id,
       operation_id: row.operation_id as string | null,
       attempt: Number(row.attempt),
@@ -207,6 +220,13 @@ export async function getCatalogGenerationEvidence(
       result_registered: typeof row.result_registered === 'boolean' ? row.result_registered : null
     });
   }
+  if (result.records.some(record => record.content_receipt_status === 'unavailable'))
+    result.blind_spots.push(
+      'Frozen automatic-content receipts are unavailable for some attempts; legacy versus automatic content is unknown.'
+    );
+  result.blind_spots.push(
+    'Policy selection is not a frozen recipe. Frozen row counts prove planning only, never provider delivery or browser visibility.'
+  );
   if (result.records.some(record => !record.performance))
     result.blind_spots.push('Per-stage duration aggregates are unavailable for some attempts.');
   result.blind_spots.push(
@@ -255,4 +275,69 @@ export function parseCatalogPerformance(
     steps[stage] = { calls: Number(metric.calls), total_ms: Number(metric.total_ms) };
   }
   return Object.keys(steps).length ? { attempt, steps } : null;
+}
+
+/** Only a catalog intent or its operation ID can establish one inspected creation. */
+export function mergeCatalogGenerationInspection(
+  core: InspectData,
+  evidence: CatalogGenerationEvidence
+): InspectData {
+  const records = evidence.records.filter(
+    row => row.intent_id === core.id.toLowerCase() || row.operation_id === core.id.toLowerCase()
+  );
+  const exact = { ...evidence, records };
+  if (core.found)
+    return records.length || core.capability === 'team.product_catalog'
+      ? { ...core, catalog_generations: exact }
+      : core;
+  if (!records.length) return core;
+  const row = records[0]!;
+  const expected = [
+    'accepted',
+    'rows_planned',
+    'provider_result_observed',
+    'result_registered',
+    'result_visible'
+  ];
+  const observed = ['accepted'];
+  if (row.content_receipt_status === 'policy_selected' || row.content_receipt_status === 'frozen')
+    observed.push('content_policy_selected');
+  if (row.content_receipt_status === 'frozen') observed.push('content_recipe_frozen');
+  if (row.rows_planned === true) observed.push('rows_planned');
+  if (row.provider_result_observed === true) observed.push('provider_result_observed');
+  if (row.result_registered === true) observed.push('result_registered');
+  if (row.state === 'interrupted' || row.state === 'cleanup_pending' || row.state === 'canceled')
+    observed.push(row.state);
+  return {
+    ...core,
+    found: true,
+    matched_by: ['authoritative_table'],
+    capability: 'team.product_catalog',
+    tool: 'team',
+    catalog_generations: exact,
+    stages: { expected, observed, missing: expected.filter(stage => !observed.includes(stage)) },
+    // A current interrupted state can recover; it is not an irreversible failure terminal.
+    terminal:
+      row.state === 'registered' && row.result_registered === true
+        ? { event: 'catalog_registered', outcome: 'success', occurred_at: row.updated_at }
+        : row.state === 'canceled'
+          ? { event: 'catalog_canceled', outcome: 'cancelled', occurred_at: row.updated_at }
+          : null,
+    last_proven_stage: observed.at(-1)!,
+    first_seen_at: row.created_at,
+    last_seen_at: row.updated_at,
+    delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+    agent: {
+      local_app_versions: [],
+      local_app_builds: [],
+      web_build_ids: [],
+      platforms: [],
+      architectures: [],
+      agent_instance_id: null,
+      agent_instance_ids: [],
+      agent_platforms: [],
+      note: INSPECT_AGENT_NOTE
+    },
+    events: []
+  };
 }

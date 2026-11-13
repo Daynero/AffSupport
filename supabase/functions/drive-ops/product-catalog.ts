@@ -153,6 +153,8 @@ export interface ProductCatalogDeps {
   bindGlobalImageCatalog?(teamId: string, intentId: string, materialId: string): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
+  /** Restores already frozen choices before any fresh pool draws. */
+  readRowRecipe?(): ProductCatalogRowValues[] | null;
   /** A completed re-stitch of this video by this member, verified before the sheet is made. */
   resolveRestitchedVideo(input: {
     teamId: string;
@@ -599,8 +601,15 @@ export async function createProductCatalog(
   });
   const [planned, plan] = await alongside(
     (async () => {
+      const frozen = deps.readRowRecipe?.();
+      if (frozen) {
+        if (frozen.length !== request.productCount) throw new TeamFunctionError('INVALID_RESPONSE');
+        return frozen;
+      }
       const [texts, images] = await alongside(
-        deps.drawTexts(teamId, request.productCount),
+        settings.contentPolicyVersion === 1
+          ? Promise.resolve([])
+          : deps.drawTexts(teamId, request.productCount),
         deps.drawImages(teamId, request.productCount, {
           contractVersion: request.catalogImageContractVersion
         })
@@ -630,7 +639,8 @@ export async function createProductCatalog(
     price: first.price,
     imageLink: first.imageLink,
     randomLinkVariation: request.randomLinkVariation !== false,
-    rows: planned
+    rows: planned,
+    ...(settings.contentPolicyVersion === 1 ? { contentPolicyVersion: 1 } : {})
   };
   if (deps.resolveSourceLink) {
     const link = parseWebLink(await deps.resolveSourceLink(plan.name), SOURCE_LINK_MAX);

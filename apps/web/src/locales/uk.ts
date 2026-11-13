@@ -390,8 +390,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2PanelCopied:
     'Копія відео готова; посилання в таблиці зміниться з наступним записом каталогу, доти працює посилання Drive.',
   catalogVideoR2NextUpdate: 'Посилання зміниться, щойно копія буде готова.',
-  catalogVideoR2NoPermission:
-    'Увімкнути може лише учасник із правом змінювати налаштування каталогу.',
+  catalogVideoR2NoPermission: 'Для ввімкнення потрібне право керувати даними каталогу.',
   catalogVideoR2StatusR2: 'R2',
   catalogVideoR2StatusReturning: 'Повертається на Drive',
   catalogVideoR2StatusDrive: 'Drive',
@@ -705,8 +704,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesGenderAll: 'Усі',
   launchesDate: 'Дата запуску',
   launchesCatalog: 'Каталог',
-  launchesCatalogSetupMissing:
-    'Заповніть налаштування каталогу: збережіть діапазон цін, назви й описи та картинки або запасні значення.',
+  launchesCatalogImagesUnavailable:
+    'Зображення для каталогу зараз недоступні. Спробуйте ще раз, коли джерело зображень буде готове.',
   launchesOpenRestitchSettings: 'Обрати зображення для перезашивки',
   launchesOpenCatalogSettings: 'Відкрити налаштування каталогу',
   launchesOther: 'Без каталогу',
@@ -2897,7 +2896,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Поточний каталог піде в кошик, і за його посиланням не буде нових товарів.',
   productCatalogProducts: 'Товарів: {count}',
   productCatalogErrorNotVideo: 'Каталог можна створити лише з відео.',
-  productCatalogErrorSettingsMissing: 'У цьому просторі ще немає налаштувань каталогу.',
+  productCatalogErrorSettingsMissing:
+    'Не вдалося підготувати каталог. Спробуйте створити його ще раз.',
   productCatalogErrorShare: 'Google Drive не дозволяє відкрити цей файл за посиланням.',
   productCatalogDriveUnavailable: 'Підключіть Google Drive простору, щоб створювати каталоги.',
   productCatalogListTitle: 'Каталоги',
@@ -3182,9 +3182,9 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterLinkVariationEffect:
     'Додає випадкову варіацію до посилань товарів. Кожне оновлення також замінює ID товарів.',
   catalogUpdaterImagesEffect:
-    'Обирає зображення з підготовлених у просторі; якщо їх немає, залишає поточні.',
+    'Обирає доступні зображення. Якщо оновлення текстів вимкнене, картинки мають відповідати збереженим назвам і описам.',
   catalogUpdaterTextsEffect:
-    'Обирає назви й описи з підготовлених у просторі; ціни змінюються в заданому діапазоні.',
+    'Генерує назви й описи для кожної картинки та ціну в межах її категорії. Коли вимкнено, наявні тексти й ціни зберігаються.',
   catalogUpdaterGrowEffect: 'Додає 1–5 товарів за оновлення, максимум до 400.',
   catalogUpdaterRestitchEffect:
     'Готує нову копію відео з налаштуваннями простору й замінює її в каталозі. Ручне оновлення чекає завершення підготовки.',

@@ -9,7 +9,6 @@ import {
 import { runCatalogPublicationScheduler } from './publication-authority.ts';
 import { isPublicationLaneRequest, runCatalogPublicationLane } from './publication-lane.ts';
 import { prepareCatalogClaims } from './claim-preparation.ts';
-import { runCatalogTextScheduleTickSafely } from './text-schedule.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
 import { reconcileUncertainProcessUploads } from '../drive-ops/uncertain-upload-reconcile.ts';
@@ -27,7 +26,11 @@ import {
   successResponse,
   TeamFunctionError
 } from '../_shared/errors.ts';
-import { classifyCatalogReadback, runCatalogUpdaterTick } from './worker.ts';
+import {
+  classifyCatalogReadback,
+  runCatalogUpdaterTick,
+  parseCatalogUpdateContentContext
+} from './worker.ts';
 import { runTaskCleanupTick } from '../drive-ops/task-cleanup.ts';
 import { runLaunchCleanupTick, runLaunchVideoCleanupTick } from '../drive-ops/launch-recovery.ts';
 
@@ -83,10 +86,6 @@ Deno.serve(async request => {
       );
       return successResponse({ publications });
     }
-    // Text schedules must run even when no catalog is due or Drive OAuth is unavailable.
-    await runCatalogTextScheduleTickSafely((name, parameters) =>
-      rpcValue(service, name, parameters)
-    );
     // Recover already completed Launch children and provider-free cancellations even
     // when there are no updater rounds and no browser is connected. Unknown provider
     // outcomes remain unsettled for the ownership-aware recovery path. Each
@@ -263,6 +262,22 @@ Deno.serve(async request => {
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
+          readContentRecipe: async catalogId =>
+            parseCatalogUpdateContentContext(
+              await rpcValue(service, 'service_catalog_update_content_recipe', {
+                p_catalog: catalogId,
+                p_worker: workerId
+              })
+            ),
+          freezeContentRecipe: async (catalogId, baseSignature, recipe) =>
+            parseCatalogUpdateContentContext(
+              await rpcValue(service, 'service_catalog_update_content_recipe', {
+                p_catalog: catalogId,
+                p_worker: workerId,
+                p_expected_base: baseSignature,
+                p_recipe: recipe
+              })
+            ),
           ...(targetedNativeSheets
             ? { prepareNonVideoUpdate: createCatalogNonVideoUpdater(service, workerId, driveFor) }
             : {}),

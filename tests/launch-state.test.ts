@@ -281,7 +281,7 @@ it('uses the space image pool when its owner creates a Launch and records an emp
   }
 });
 
-it('freezes catalog settings before video work and rejects changes before the first resource plan', async () => {
+it('freezes automatic catalog policy before video work and rejects image changes before the first resource plan', async () => {
   const p = await prepare({ method: 'catalog' });
   const g = await accept(p.args);
   const frozen = (
@@ -290,7 +290,8 @@ it('freezes catalog settings before video work and rejects changes before the fi
       [team, g.id, ACTOR]
     )
   )[0].v;
-  expect(frozen.settings.title).toBe('Launch product');
+  expect(frozen.settings.title).toBeNull();
+  expect(frozen.settingsVersion).toMatch(/^automatic-v1:/u);
   await db.root(
     "update public.team_launch_generations set safe_error_code='AGENT_REQUIRED' where id=$1",
     [g.id]
@@ -319,7 +320,7 @@ it('freezes catalog settings before video work and rejects changes before the fi
   const next = await prepare({ method: 'catalog' });
   const nextGeneration = await accept(next.args);
   await db.root(
-    "update public.team_product_catalog_settings set title='Changed before freeze' where team_id=$1",
+    "update public.team_product_catalog_settings set image_link='https://example.invalid/changed-before-freeze.jpg' where team_id=$1",
     [team]
   );
   await expect(
@@ -338,7 +339,7 @@ it('freezes catalog settings before video work and rejects changes before the fi
     )[0].n
   ).toBe(0);
   await db.root(
-    "update public.team_product_catalog_settings set title='Launch product' where team_id=$1",
+    "update public.team_product_catalog_settings set title='Launch product', image_link='https://example.invalid/image.jpg' where team_id=$1",
     [team]
   );
   for (const [launch, generation] of [
@@ -2253,10 +2254,10 @@ it('settles a completed restitch receipt once and never advances a canceled pare
         ])
     },
     {
-      name: 'catalog price',
+      name: 'retired catalog price',
       config: p.config,
       video: true,
-      catalog: false,
+      catalog: true,
       mutate: () =>
         db.root('update public.team_product_catalog_settings set price=20 where team_id=$1', [team])
     },
@@ -2272,10 +2273,10 @@ it('settles a completed restitch receipt once and never advances a canceled pare
         )
     },
     {
-      name: 'catalog title',
+      name: 'retired catalog title',
       config: p.config,
       video: true,
-      catalog: false,
+      catalog: true,
       mutate: () =>
         db.root(
           "update public.team_product_catalog_settings set title='Changed title' where team_id=$1",

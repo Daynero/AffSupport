@@ -30,6 +30,11 @@ describe('weekly text schedule agent diagnostics', () => {
     schema(false);
     const result = await getCatalogTextScheduleDiagnosis(id, period);
     expect(result.supported).toBe(false);
+    expect(result.current_lifecycle).toEqual({
+      retired_since_content_policy_version: 1,
+      basis: 'source_policy',
+      historical_coverage: 'unknown'
+    });
     expect(result.missing).toContain('analytics_catalog_text_schedule_journal');
     expect(query).not.toHaveBeenCalled();
   });
@@ -68,6 +73,8 @@ describe('weekly text schedule agent diagnostics', () => {
     const result = await getCatalogTextScheduleDiagnosis(id, period);
     expect(result.missing).toContain('catalog_text_schedule_capture_unconfirmed');
     expect(result.last_proven_stage).toBe('failed');
+    expect(result.findings.join(' ')).toContain('not proof of the deployed worker version');
+    expect(result.findings.join(' ')).toContain('automatic replacement failed');
     expect(vi.mocked(query).mock.calls.every(([sql]) => !sql.includes('description'))).toBe(true);
   });
 });

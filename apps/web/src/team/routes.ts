@@ -17,7 +17,7 @@ import {
 export const TEAM_SECTIONS = ['explorer', 'tasks', 'launches', 'accounts', 'members'] as const;
 
 /** The settings dialog's tabs, named in the address as they are in the dialog. */
-export const TEAM_SETTINGS_TABS = ['general', 'tags', 'restitch', 'product-catalog'] as const;
+export const TEAM_SETTINGS_TABS = ['general', 'tags', 'restitch'] as const;
 export type TeamSettingsTab = (typeof TEAM_SETTINGS_TABS)[number];
 export type TeamSection = (typeof TEAM_SECTIONS)[number];
 
@@ -332,6 +332,15 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     back: trimmedParam(params, 'back')
   };
   const { section, query } = aliasSection(rawSection, base);
+  // Old catalog setup bookmarks open the surviving manager over the same workspace.
+  if (query.settings && params.get('tab')?.trim() === 'product-catalog') {
+    return {
+      kind: 'space',
+      spaceId,
+      section,
+      query: { ...query, settings: false, settingsTab: null, updater: true }
+    };
+  }
   /*
    * Members exist once (024, FR-047). The settings dialog used to have a
    * "People" tab that was the Members section again, so links to it are out

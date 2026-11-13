@@ -73,7 +73,6 @@ import {
 } from './duration-preference';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
 import { CatalogRestitchProgress } from './CatalogRestitchProgress';
-import { PRICE_RANGE_DEFAULT } from './ProductCatalogSettingsSection';
 import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
 
@@ -83,7 +82,8 @@ export interface CreateProductCatalogClient {
   readProductCatalogVideo?: typeof teamApi.readProductCatalogVideo;
   cancelProductCatalogVideo?: typeof teamApi.cancelProductCatalogVideo;
   resumeProductCatalogVideo?: typeof teamApi.resumeProductCatalogVideo;
-  getProductCatalogSettings: (teamId: string) => Promise<ProductCatalogSettings | null>;
+  /** Retained for legacy client compatibility; creation does not read or write these settings. */
+  getProductCatalogSettings?: (teamId: string) => Promise<ProductCatalogSettings | null>;
   setProductCatalogSettings?: typeof teamApi.setProductCatalogSettings;
   getRestitchDefaults?: typeof teamApi.getRestitchDefaults;
   startProcess?: typeof teamApi.startProcess;
@@ -312,7 +312,7 @@ export function CreateProductCatalogDialog({
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const { can, revision: workspaceRevision, updaterRevision } = useTeam();
+  const { revision: workspaceRevision, updaterRevision } = useTeam();
   const agent = useOptionalAgent();
   const nativeTerminals = useRef('');
   const preferenceKey = catalogDurationPreferenceKey(useOptionalAuth()?.user?.id ?? null, teamId);
@@ -331,7 +331,6 @@ export function CreateProductCatalogDialog({
     String(replaces?.productCount ?? initialCount ?? PRODUCT_COUNT_DEFAULT)
   );
   const [touched, setTouched] = useState({ link: false, count: false });
-  const [settings, setSettings] = useState<ProductCatalogSettings | null | undefined>(undefined);
   const [restitch, setRestitch] = useState(false);
   // 050: copy the catalog video to R2; off unless ticked, applied from the next update on.
   const [copyVideoToR2, setCopyVideoToR2] = useState(false);
@@ -402,8 +401,6 @@ export function CreateProductCatalogDialog({
     [teamId, video.id]
   );
   const [failure, setFailure] = useState<string | null>(null);
-  /** The refusal was "no catalog settings yet": the way to fix it goes right under it. */
-  const [failureNeedsSettings, setFailureNeedsSettings] = useState(false);
   /*
    * The name the sheet will have, up front (024): it is what the owner types on Meta, and the
    * form used to show it only after the catalog existed. Re-creating keeps its number.
@@ -423,22 +420,6 @@ export function CreateProductCatalogDialog({
     };
   }, [client, replaces, teamId, video.id]);
   const plannedName = plannedVariant ? productCatalogNameFor(video.name, plannedVariant) : null;
-
-  useEffect(() => {
-    let active = true;
-    void client
-      .getProductCatalogSettings(teamId)
-      .then(found => {
-        if (active) setSettings(found);
-      })
-      .catch(() => {
-        // Unknown is not "missing": the server still refuses a space without settings.
-        if (active) setSettings(undefined);
-      });
-    return () => {
-      active = false;
-    };
-  }, [client, teamId, settingsOpen]);
 
   useEffect(() => {
     if (!durationPreference.current || durationPreference.current.key !== preferenceKey) {
@@ -547,8 +528,6 @@ export function CreateProductCatalogDialog({
   const canConfirm =
     linkCheck.ok &&
     countCheck.ok &&
-    settings !== undefined &&
-    (settings !== null || can('manage_metadata')) &&
     (!restitch ||
       (restitchDefaults !== undefined &&
         restitchDefaults !== null &&
@@ -597,24 +576,8 @@ export function CreateProductCatalogDialog({
     setRestitchOperationId(null);
     setPhase({ kind: 'busy', step: restitch ? 'restitch' : 'catalog' });
     setFailure(null);
-    setFailureNeedsSettings(false);
     let submittedVideoKey: string | null = null;
     try {
-      // The displayed price range is a usable default even before anyone has saved settings.
-      if (settings === null) {
-        const saved = await (client.setProductCatalogSettings ?? teamApi.setProductCatalogSettings)(
-          teamId,
-          {
-            title: null,
-            description: null,
-            imageLink: null,
-            priceMin: PRICE_RANGE_DEFAULT.min,
-            priceMax: PRICE_RANGE_DEFAULT.max
-          }
-        );
-        if (!submitOwns()) return;
-        setSettings(saved);
-      }
       if (!submitOwns()) return;
       if (videoProtocol && client.createProductCatalogVideo) {
         const owner = submitOwner;
@@ -791,7 +754,6 @@ export function CreateProductCatalogDialog({
             ? t(key)
             : teamErrorMessageFor(error, t)
       );
-      setFailureNeedsSettings(key === 'productCatalogErrorSettingsMissing');
       setPhase({ kind: 'form' });
     }
   };
@@ -1282,10 +1244,6 @@ export function CreateProductCatalogDialog({
         <div className="product-catalog-create-body">
           {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
-          {settings === null && !can('manage_metadata') && (
-            <p className="team-inline-note">{t('productCatalogMissingSettingsNoAccess')}</p>
-          )}
-
           <div className="product-catalog-create-fields">
             <div className="product-catalog-link-field">
               <label htmlFor={linkId}>
@@ -1398,7 +1356,7 @@ export function CreateProductCatalogDialog({
                   <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
                   <SpaceSettingsLink
                     target={{ kind: 'settings', tab: 'restitch' }}
-                    label={t('productCatalogOpenSettings')}
+                    label={t('launchesOpenRestitchSettings')}
                   />
                 </div>
               )}
@@ -1511,12 +1469,6 @@ export function CreateProductCatalogDialog({
             <p className="team-inline-error" role="alert">
               {failure}
             </p>
-          )}
-          {failure && failureNeedsSettings && can('manage_metadata') && (
-            <SpaceSettingsLink
-              target={{ kind: 'settings', tab: 'product-catalog' }}
-              label={t('productCatalogOpenSettings')}
-            />
           )}
         </div>
         {!videoTracked && (

@@ -30,6 +30,36 @@ function renderEnteredSpace(
 }
 
 describe('space settings surface', () => {
+  it.each(['owner', 'viewer'] as const)(
+    'omits catalog setup and its draft guards for a %s',
+    async role => {
+      const team = makeTeam({ role, permissions: DEFAULT_ROLE_PERMISSIONS[role] });
+      const client = Object.assign(makeClient({ listTeams: vi.fn().mockResolvedValue([team]) }), {
+        getProductCatalogSettings: vi
+          .fn()
+          .mockRejectedValue(new Error('retired settings unavailable')),
+        setProductCatalogSettings: vi
+          .fn()
+          .mockRejectedValue(new Error('retired settings unavailable'))
+      });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      window.history.replaceState(null, '', `/team/${team.id}?settings=1`);
+      const user = userEvent.setup();
+      renderEnteredSpace(client, team.id);
+      const dialog = await screen.findByRole('dialog', { name: 'Space settings' });
+      expect(within(dialog).queryByRole('tab', { name: 'Catalog' })).toBeNull();
+      expect(within(dialog).getAllByRole('tab')).toHaveLength(3);
+      await user.click(within(dialog).getByRole('tab', { name: 'Tags' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Back to space' }));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull()
+      );
+      expect(confirm).not.toHaveBeenCalled();
+      expect(client.getProductCatalogSettings).not.toHaveBeenCalled();
+      expect(client.setProductCatalogSettings).not.toHaveBeenCalled();
+    }
+  );
+
   it('exposes every 001 capability behind settings for an owner (<= 2 actions)', async () => {
     const team = makeTeam();
     const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });

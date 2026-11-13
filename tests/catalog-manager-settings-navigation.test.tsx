@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import React, { useState } from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
-import { spaceRouteFor } from '../apps/web/src/team/SpaceSettingsLink';
+import { parseTeamRoute } from '../apps/web/src/team/routes';
 import { navigateTo } from '../apps/web/src/lib/navigation';
 import { makeClient, makeTeam } from './team-space-fixtures';
-import type { ProductCatalogSettings } from '../apps/web/src/api/team';
 
 vi.mock('../apps/web/src/team/catalog-updater/CatalogUpdaterDialog', () => ({
   CatalogUpdaterDialog: ({ teamId }: { teamId: string }) => {
@@ -22,10 +21,12 @@ vi.mock('../apps/web/src/team/catalog-updater/CatalogUpdaterDialog', () => ({
         />
         <button
           onClick={() =>
-            navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'product-catalog' }))
+            navigateTo(
+              `/team/${teamId}?folder=original-folder&updater=1&settings=1&tab=product-catalog`
+            )
           }
         >
-          Open catalog defaults
+          Open old catalog bookmark
         </button>
       </div>
     );
@@ -39,78 +40,42 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const savedSettings: ProductCatalogSettings = {
-  title: null,
-  description: null,
-  price: 9,
-  priceMin: 9,
-  priceMax: 30,
-  imageLink: null,
-  updatedAt: '2026-10-28T00:00:00.000Z'
-};
-
-it.each([
-  { state: 'saved defaults', settings: savedSettings, confirmations: 0 },
-  { state: 'unpersisted defaults', settings: null, confirmations: 2 }
-])(
-  'layers catalog settings over the retained manager with $state and restores its context on return',
-  async ({ settings: persisted, confirmations }) => {
+it.each(['updater=1', 'settings=1&tab=product-catalog'])(
+  'opens and retains the manager for %s without catalog settings reads or drafts',
+  async query => {
     const team = makeTeam();
-    const api = makeClient({
-      listTeams: vi.fn().mockResolvedValue([team]),
-      getProductCatalogSettings: vi.fn().mockResolvedValue(persisted)
+    const api = Object.assign(makeClient({ listTeams: vi.fn().mockResolvedValue([team]) }), {
+      getProductCatalogSettings: vi
+        .fn()
+        .mockRejectedValue(new Error('retired settings unavailable')),
+      setProductCatalogSettings: vi
+        .fn()
+        .mockRejectedValue(new Error('retired settings unavailable'))
     });
-    // A missing settings row offers an unsaved initial price range. Leaving it
-    // requires the same explicit discard decision as any other draft.
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     localStorage.setItem('wishly.active-team.v1', team.id);
     localStorage.setItem('language', 'en');
-    window.history.replaceState(null, '', `/team/${team.id}?folder=original-folder&updater=1`);
+    window.history.replaceState(null, '', `/team/${team.id}?folder=original-folder&${query}`);
     const user = userEvent.setup();
     render(
       <TeamProvider realtime={false}>
         <TeamSpace client={api} directAddMode="disabled" />
       </TeamProvider>
     );
-    const waitForPrice = async (dialog: HTMLElement, summary: string) => {
-      // Other catalog sections can say "Not saved yet" before the price read
-      // completes. Inspect the price itself before exercising its leave guard.
-      await user.click(
-        await within(dialog).findByRole('button', {
-          name: name => name.startsWith('Price') && name.endsWith(summary)
-        })
-      );
-      await waitFor(() =>
-        expect(within(dialog).getByLabelText('From')).toHaveProperty('readOnly', false)
-      );
-    };
     const search = await screen.findByRole('textbox', { name: 'Manager search' });
     await user.type(search, 'EG 75');
-    await user.click(screen.getByRole('button', { name: 'Open catalog defaults' }));
-    const settings = await screen.findByRole('dialog', { name: 'Space settings' });
-    const priceSummary = persisted ? '9–30 USD' : 'Not saved yet';
-    await waitForPrice(settings, priceSummary);
-    expect(settings.closest('.modal-backdrop-nested')).toBeTruthy();
-    expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
-    await user.click(within(settings).getByRole('tab', { name: 'General' }));
-    expect(new URLSearchParams(window.location.search).get('updater')).toBe('1');
-    await user.click(within(settings).getByRole('button', { name: 'Back to space' }));
+    await user.click(screen.getByRole('button', { name: 'Open old catalog bookmark' }));
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull()
+      expect(parseTeamRoute(window.location.pathname + window.location.search)).toMatchObject({
+        kind: 'space',
+        query: { folderId: 'original-folder', updater: true, settings: false, settingsTab: null }
+      })
     );
+    expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
     expect((search as HTMLInputElement).value).toBe('EG 75');
-    expect(new URLSearchParams(window.location.search).get('folder')).toBe('original-folder');
-    expect(new URLSearchParams(window.location.search).get('updater')).toBe('1');
-    await user.click(screen.getByRole('button', { name: 'Open catalog defaults' }));
-    const reopened = await screen.findByRole('dialog', { name: 'Space settings' });
-    await waitForPrice(reopened, priceSummary);
-    await user.keyboard('{Escape}');
-    await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull()
-    );
-    expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
-    expect(confirm).toHaveBeenCalledTimes(confirmations);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(api.getProductCatalogSettings).not.toHaveBeenCalled();
     expect(api.setProductCatalogSettings).not.toHaveBeenCalled();
   }
 );

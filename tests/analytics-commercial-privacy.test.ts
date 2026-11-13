@@ -91,9 +91,9 @@ it('returns only closed privacy failure categories and continues rejecting secre
 
 it('allows known native Mac source files without allowing arbitrary packaging paths', () => {
   expect(investigateOutputIsPrivate({ files: ['packaging/Launcher.swift'] })).toBe(true);
-  expect(
-    investigateOutputIsPrivate({ files: ['packaging/NativeUpdates/Coordinator.swift'] })
-  ).toBe(true);
+  expect(investigateOutputIsPrivate({ files: ['packaging/NativeUpdates/Coordinator.swift'] })).toBe(
+    true
+  );
   for (const file of [
     'packaging/../private.swift',
     '/private/Launcher.swift',

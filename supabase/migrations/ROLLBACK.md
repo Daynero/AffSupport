@@ -3190,4 +3190,31 @@ bypass the coverage check to restore cleanup. An application rollback requires n
 trigger removal.
 
 ### 20261207401400 — single launch budget
+
 Additive enum admission in the existing profile validator; no data rewrite. Forward-fix only. Older clients do not understand single mode, so retain the updated shared/web/Edge code together; never restore the old validator while single profiles exist. Existing automatic/manual rules and ACLs are unchanged.
+
+### 20261208120000–20261208121000 — automatic catalog content
+
+Add an immutable INSERT-only policy discriminator for catalog generation intents,
+policy-aware source hashes/resource freezing, one latest content recipe per catalog
+and bounded historical attempt receipts. Diagnostic views append only validated
+scalar policy/count/quality fields; their existing ACLs and column order remain.
+No legacy text, settings, catalog rows or historical attempts are rewritten.
+
+A rollback must retain a worker that understands policy1 frozen recipes and updater
+receipt authority. Replaying old creation code against newly admitted policy1 work
+can demand retired settings or reroll choices. Keep the additive schema, triggers,
+source-version helper and recipe data; reconcile uncertain provider writes before
+changing workers. Do not remove a recipe, clear a marker, run a down migration or
+restart an old text-schedule tick merely to restore the old UI. Correct defects
+through reviewed forward migrations and the normal release channel. Existing
+legacy admissions retain their previous source hash and checkpoint interpretation.
+
+These migrations do not activate the global image pool or authorize production.
+Public generated DB types must reflect the new receipt columns and service RPC;
+JSON-only diagnostic additions retain their existing return types.
+
+The latest content recipe is a registered material-reference consumer and keeps
+`task_cleanup_reference_fence`. Removing or disabling that trigger intentionally
+closes automatic cleanup as unverified; never exempt the recipe table to bypass
+coverage. Existing recipes may retain images needed by an unresolved catalog write.

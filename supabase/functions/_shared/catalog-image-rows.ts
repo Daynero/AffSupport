@@ -3,6 +3,7 @@ import {
   type PublishedCatalogImage
 } from '../../../packages/shared/dist/team/catalog-global-images.js';
 import {
+  classifyCatalogImageName,
   CATALOG_IMAGE_GARMENTS,
   CATALOG_IMAGE_COLORS,
   type CatalogImageClassification
@@ -42,6 +43,17 @@ export function catalogImageFacts(image: CatalogDrawnImage) {
   if (!publishedImage(image)) return pictureFacts(image.name ?? '');
   return image.classification.mode === 'matched'
     ? { garment: garmentOf(image.classification.garment), color: image.classification.color }
+    : { garment: null, color: null };
+}
+/** Automatic wording accepts only complete, unambiguous image facts. */
+export function automaticCatalogImageFacts(image: {
+  pictureImage?: PublishedCatalogImage;
+  pictureName?: string | null;
+}) {
+  const facts =
+    image.pictureImage?.classification ?? classifyCatalogImageName(image.pictureName ?? '');
+  return facts.mode === 'matched'
+    ? { garment: facts.garment, color: facts.color }
     : { garment: null, color: null };
 }
 export function rowImageFacts(row: ProductCatalogRowValues) {
