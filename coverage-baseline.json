@@ -529,7 +529,6 @@
     "apps/web/src/team/launches/SubBuilder.tsx": 98.34,
     "apps/web/src/team/launches/analytics.ts": 92.91,
     "apps/web/src/team/launches/campaignCountLabel.ts": 100,
-    "apps/web/src/team/launches/catalogVideoProtocol.ts": 100,
     "apps/web/src/team/launches/launchCatalogDefaults.ts": 100,
     "apps/web/src/team/launches/launchDraftDefaults.ts": 100,
     "apps/web/src/team/launches/launchPublicationTiming.ts": 100,
@@ -809,5 +808,12 @@
     "apps/web/src/transcription/useScrollSync.ts",
     "apps/web/src/transcription/useSemanticSelection.ts",
     "apps/web/src/transcription/useTranslationFollow.ts"
-  ]
+  ],
+  "retired_files": {
+    "apps/web/src/team/launches/catalogVideoProtocol.ts": {
+      "coverage": 100,
+      "removed_in": "00c82e493b4d3a83ce6a22d903ef9b17130dc73a",
+      "reason": "Three-line beta-only feature gate deleted when catalog video shipped to production; no executable successor. Global and all remaining numeric coverage floors are unchanged."
+    }
+  }
 }

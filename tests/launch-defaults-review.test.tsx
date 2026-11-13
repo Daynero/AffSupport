@@ -109,3 +109,47 @@ it('shows the exact manual budgets and offer scope before acknowledging a confli
   expect(screen.getByText('Manual')).toBeTruthy();
   expect(screen.getByText('10 · 25 · 30')).toBeTruthy();
 });
+
+it.each([true, false])(
+  'reviews video variants and deferred publication with restitch %s',
+  restitch => {
+    const config = launchConfig({ method: 'catalog' });
+    config.catalog = {
+      ...config.catalog!,
+      restitchEnabled: restitch,
+      copyVideoToR2: true,
+      catalogVideoProtocolVersion: 1,
+      videoVariationCount: 4,
+      videoPublication: {
+        mode: 'scheduled',
+        localDateTime: '2026-11-20T12:30',
+        timeZone: 'Europe/Kyiv',
+        resolvedOffset: '+02:00',
+        dueAt: '2026-11-20T10:30:00.000Z'
+      }
+    };
+    const view = render(
+      <LaunchDefaultsReview
+        current={{ config, subConfig: config.subConfig }}
+        buyer=""
+        disabled={false}
+        onReview={vi.fn()}
+      />
+    );
+    const value = (label: string) =>
+      screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
+    expect(value('Copy the video to R2')).toBe('On');
+    expect(value('Video variations')).toBe(restitch ? '4' : '1');
+    expect(value('Schedule the video link')).toBe('2026-11-20 12:30 · Europe/Kyiv');
+    config.catalog.videoPublication = { mode: 'immediate' };
+    view.rerender(
+      <LaunchDefaultsReview
+        current={{ config, subConfig: config.subConfig }}
+        buyer=""
+        disabled={false}
+        onReview={vi.fn()}
+      />
+    );
+    expect(value('Schedule the video link')).toBe('—');
+  }
+);

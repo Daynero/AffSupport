@@ -66,3 +66,17 @@ it('flags a scheduled link time that is not at least a minute ahead', () => {
   expect(launchPublicationTimePassed(unresolved('2026-11-09T05:00'), now)).toBe(false);
   expect(launchPublicationTimePassed(unresolved('not-a-time'), now)).toBe(false);
 });
+
+it('keeps an unresolved repeated hour available until its later occurrence approaches', () => {
+  const catalog = {
+    videoPublication: {
+      mode: 'scheduled' as const,
+      localDateTime: '2026-10-25T03:30',
+      timeZone: 'Europe/Kyiv',
+      resolvedOffset: '',
+      dueAt: ''
+    }
+  };
+  expect(launchPublicationTimePassed(catalog, Date.parse('2026-10-25T00:45:00Z'))).toBe(false);
+  expect(launchPublicationTimePassed(catalog, Date.parse('2026-10-25T01:29:00Z'))).toBe(true);
+});

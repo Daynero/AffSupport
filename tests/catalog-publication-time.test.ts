@@ -94,6 +94,24 @@ it('starts the publication calendar today in the publication zone', () => {
   expect(catalogPublicationFirstDay('Europe/Kyiv').toString()).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
   expect(catalogPublicationFirstDay('Not/AZone').toString()).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
 });
+it('handles a browser timezone formatter failure without breaking the date controls', () => {
+  const parts = vi.spyOn(Intl.DateTimeFormat.prototype, 'formatToParts');
+  try {
+    parts.mockImplementationOnce(() => {
+      throw new Error('timezone data unavailable');
+    });
+    expect(catalogPublicationTimeRepeats('2026-10-25T01:30', 'America/New_York')).toBe(false);
+    expect(parts).toHaveBeenCalled();
+    parts.mockImplementationOnce(() => {
+      throw new Error('timezone data unavailable');
+    });
+    expect(catalogPublicationFirstDay('Pacific/Kiritimati').toString()).toBe(
+      new Date().toISOString().slice(0, 10)
+    );
+  } finally {
+    parts.mockRestore();
+  }
+});
 it('keeps an elapsed fold choice distinct from the still available later occurrence', () => {
   const result = resolveCatalogPublicationDraft(
     { localDateTime: '2026-10-25T03:30', timeZone: 'Europe/Kyiv' },

@@ -10,7 +10,11 @@ import type {
   ScreenRecoveryProvider,
   ScreenRecoveryCandidate
 } from '../apps/agent/src/team-bridge/screen-recovery.js';
-import { createRestitchDelegate } from '../apps/agent/src/team-bridge/restitch.js';
+import {
+  clearRestitchInspections,
+  createRestitchDelegate,
+  type RestitchDelegateDiscovery
+} from '../apps/agent/src/team-bridge/restitch.js';
 import type { ToolResult, runTool as runToolType } from '../apps/agent/src/stitcher/run.js';
 import { diagnostics } from '../apps/agent/src/server/diagnostics-log.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
@@ -136,7 +140,12 @@ async function sha256(file: string): Promise<string> {
     .digest('hex');
 }
 
-function run(input: string, options: unknown, signal = new AbortController().signal) {
+function run(
+  input: string,
+  options: unknown,
+  signal = new AbortController().signal,
+  checksum: string | null = null
+) {
   const delegate = createRestitchDelegate({
     embedding: () => library,
     imagePathFor: async () => path.join(workspace, 'photo.png'),
@@ -148,7 +157,7 @@ function run(input: string, options: unknown, signal = new AbortController().sig
     sourceFile: input,
     sourceSizeBytes: 1_000,
     sourceVersion: '7',
-    sourceChecksum: null,
+    sourceChecksum: checksum,
     options,
     signal,
     onProgress: () => {},
@@ -157,6 +166,7 @@ function run(input: string, options: unknown, signal = new AbortController().sig
 }
 
 beforeEach(async () => {
+  clearRestitchInspections();
   workspace = await mkdtemp(path.join(os.tmpdir(), 'restitch-delivery-'));
   runTool.mockReset();
   probeSource.mockReset();
@@ -227,6 +237,58 @@ describe('a re-stitched delivery', () => {
       detectedStartSeconds: 0.033333,
       detectedEndSeconds: 1800
     });
+  });
+
+  it('reuses verified content inspection across workspaces without reusing their file paths', async () => {
+    const first = await source('first-copy.mp4');
+    const second = await source('second-copy.mp4');
+    const checksum = 'a'.repeat(32);
+    const result = await run(first, { defaults, prepared: null }, undefined, checksum);
+    (result.discovered as RestitchDelegateDiscovery).profile.width = 1;
+    const reused = await run(second, { defaults, prepared: null }, undefined, checksum);
+    expect(probeSource).toHaveBeenCalledTimes(1);
+    expect(detectStitching).toHaveBeenCalledTimes(1);
+    expect(reused.discovered).toMatchObject({ profile: { path: second, width: 1080 } });
+  });
+
+  it('bounds the inspection cache and keeps a recently used source when older entries expire', async () => {
+    const input = await source();
+    const key = (n: number) => n.toString(16).padStart(32, '0');
+    const inspect = (n: number) => run(input, { defaults, prepared: null }, undefined, key(n));
+    for (let n = 0; n < 16; n++) await inspect(n);
+    await inspect(0);
+    expect(probeSource).toHaveBeenCalledTimes(16);
+    await inspect(16);
+    await inspect(0);
+    expect(probeSource).toHaveBeenCalledTimes(17);
+    await inspect(1);
+    expect(probeSource).toHaveBeenCalledTimes(18);
+    clearRestitchInspections();
+    await inspect(0);
+    expect(probeSource).toHaveBeenCalledTimes(19);
+  });
+
+  it('keeps a missing screen selection distinct from an unsupported source', async () => {
+    const input = await source();
+    await expect(
+      run(input, {
+        defaults: {
+          ...defaults,
+          startImageIds: ['missing-start'],
+          endImageIds: ['missing-end']
+        },
+        prepared: null
+      })
+    ).rejects.toMatchObject({ message: 'INVALID_INPUT', reason: 'no-screens' });
+    probeSource.mockResolvedValueOnce({
+      ok: true,
+      value: { ...profile(input), variableFrameRate: true }
+    });
+    await expect(run(input, { defaults, prepared: null })).rejects.toMatchObject({
+      message: 'UNSUPPORTED_MEDIA',
+      reason: 'variable-frame-rate'
+    });
+    expect(staging).not.toHaveBeenCalled();
   });
 
   it('treats a record it cannot trust as no record at all', async () => {

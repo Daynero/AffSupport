@@ -395,6 +395,19 @@ describe('R2 icon in the catalog toolbar', () => {
     view.rerender(<CatalogIconLegend teamId={TEAM} onOpenSettings={vi.fn()} videoR2 />);
     expect(screen.getByText('Copy the video to R2')).toBeTruthy();
   });
+  it('opens settings inside the retained manager only for an ordinary settings-link click', () => {
+    const open = vi.fn();
+    render(<CatalogIconLegend teamId={TEAM} onOpenSettings={open} />);
+    const link = screen.getAllByRole('link', { name: 'space settings' })[0]!;
+    // Keep jsdom from executing the browser's native new-tab action.
+    link.addEventListener('click', event => {
+      if (event.ctrlKey) event.preventDefault();
+    });
+    fireEvent.click(link, { ctrlKey: true });
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(link);
+    expect(open).toHaveBeenCalledWith(link.getAttribute('href'));
+  });
 });
 
 describe('CatalogVideoR2UsageSection', () => {

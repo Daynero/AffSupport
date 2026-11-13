@@ -7,6 +7,7 @@ import {
   replaceFile
 } from '../apps/agent/src/team-bridge/native-restitch-vault';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { itRequiring, requirePlatform } from './support/requires.js';
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await removeTemporaryDirectory(root);
@@ -39,8 +40,16 @@ it('round-trips a large retained journal while OS secret writes stay 43 bytes', 
   expect(x.store.write).toHaveBeenCalledTimes(1);
   expect(x.store.write.mock.calls[0]![1]).toHaveLength(43);
   expect((await readFile(x.file)).includes(Buffer.from('private-token'))).toBe(false);
-  expect((await stat(x.file)).mode & 0o777).toBe(0o600);
 });
+itRequiring(
+  requirePlatform('darwin', 'linux'),
+  'writes the encrypted vault with private POSIX permissions',
+  async () => {
+    const x = await setup();
+    await x.vault.write({ secret: 'retained' });
+    expect((await stat(x.file)).mode & 0o777).toBe(0o600);
+  }
+);
 it('reads intact legacy credentials and migrates without rewriting their Keychain entry', async () => {
   const x = await setup(),
     old = { records: [{ secret: 'retained' }] };
