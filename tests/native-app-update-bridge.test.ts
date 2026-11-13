@@ -1,5 +1,6 @@
+import { removeTemporaryDirectory } from './support/temp-dir';
 import net from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -33,7 +34,7 @@ describe.runIf(process.platform !== 'win32')('private native updater frames', ()
       );
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
-      await rm(directory, { recursive: true, force: true });
+      await removeTemporaryDirectory(directory);
     }
   });
 });

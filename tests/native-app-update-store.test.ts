@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, lstat, rm, symlink } from 'node:fs/promises';
+import { removeTemporaryDirectory } from './support/temp-dir';
+import { mkdtemp, readFile, lstat, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -23,7 +24,7 @@ describe('durable workload receipt', () => {
       await syncUpdateStateFiles([file]);
       await expect(readFile(path.join(root, 'native.json'))).rejects.toThrow();
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTemporaryDirectory(root);
     }
   });
   it('refuses symlink storage and fails a missing final state file', async () => {
@@ -43,7 +44,7 @@ describe('durable workload receipt', () => {
       ).rejects.toThrow('APP_UPDATE_UNSAFE_INSTALLATION');
       await expect(syncUpdateStateFiles([path.join(root, 'missing')])).rejects.toThrow();
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTemporaryDirectory(root);
     }
   });
 });

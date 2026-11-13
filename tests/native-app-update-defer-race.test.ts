@@ -1,5 +1,6 @@
+import { removeTemporaryDirectory } from './support/temp-dir';
 import { createHash, generateKeyPairSync, sign, randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -146,7 +147,7 @@ describe('defer at the final candidate freshness boundary', () => {
     } finally {
       await service.close();
       await power.shutdown();
-      await rm(directory, { recursive: true, force: true });
+      await removeTemporaryDirectory(directory);
     }
   });
 });

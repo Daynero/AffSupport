@@ -1,5 +1,6 @@
+import { removeTemporaryDirectory } from './support/temp-dir';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, readFile, writeFile, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,7 +30,7 @@ describe('bounded native update preparation', () => {
       await prepareNativeArchive(candidate, root, new AbortController().signal, () => {});
       expect(fetcher).toHaveBeenCalledTimes(2);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTemporaryDirectory(root);
     }
   });
   it('rejects a foreign redirect and never writes it as prepared', async () => {
@@ -49,7 +50,7 @@ describe('bounded native update preparation', () => {
         prepareNativeArchive(nativeCandidate(), root, new AbortController().signal, () => {})
       ).rejects.toThrow('APP_UPDATE_DOWNLOAD_FAILED');
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTemporaryDirectory(root);
     }
   });
   it.each(['oversized', 'truncated'] as const)(
@@ -76,7 +77,7 @@ describe('bounded native update preparation', () => {
         if (kind === 'oversized') expect(cancel).toHaveBeenCalledOnce();
         expect(await readdir(root)).toEqual([]);
       } finally {
-        await rm(root, { recursive: true, force: true });
+        await removeTemporaryDirectory(root);
       }
     }
   );

@@ -76,3 +76,19 @@ Catalog settings panel. Its wording expectation was updated. No other old string
 from this translation change remain in tests. Remaining shards are being run as a
 diagnostic pass before the final complete canonical run; partial evidence is not
 reported as a green full suite.
+
+The diagnostic-only pass over remaining shards 4–8 on `d0d193e9` finished with
+7,224 passing checks, 2 failures and 71 named skips. The failures were the derived
+critical-module inventory missing the new content/native-update modules, and four
+native-update test files bypassing the standard retrying temporary-directory cleanup.
+The helper is now used consistently. The corrected six-file infrastructure check
+passes all 16 tests.
+
+Focused V8 coverage of the content generator and native-update contract passes all
+59 tests and measures 100% of lines, branches and functions in both modules. Native
+contract regressions now also cover beta loopback-only URLs, archive target identity,
+malformed metadata, impossible snapshots and bounded command authority. Both modules
+are registered with a 99% absolute line floor; no existing floor was lowered.
+The owner subsequently asked the coordinator to include the parallel worktree's
+completed fixes before final combined verification. That work remains independent
+until its exact completed source is handed over.

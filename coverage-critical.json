@@ -111,6 +111,8 @@
     "packages/shared/src/team/catalog-rename.ts": 90,
     "packages/shared/src/team/launch-batch.ts": 90,
     "packages/shared/src/team/catalog-global-images.ts": 90,
-    "packages/shared/src/team/catalog-global-alias.ts": 90
+    "packages/shared/src/team/catalog-global-alias.ts": 90,
+    "packages/shared/src/native-app-updates.ts": 99,
+    "packages/shared/src/team/catalog-content.ts": 99
   }
 }
