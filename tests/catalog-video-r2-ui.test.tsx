@@ -140,7 +140,7 @@ describe('CatalogVideoR2Toggle', () => {
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
 
-  it('is disabled without the catalog settings permission and says why', async () => {
+  it('is disabled without catalog management permission and says why', async () => {
     mount(
       <CatalogVideoR2Toggle
         mode="create"
@@ -154,7 +154,7 @@ describe('CatalogVideoR2Toggle', () => {
     const box = await screen.findByRole('checkbox');
     expect((box as HTMLInputElement).disabled).toBe(true);
     expect(
-      screen.getByText('Only a member who can change the catalog settings can turn this on.')
+      screen.getByText('Turning this on requires permission to manage catalog details.')
     ).toBeTruthy();
   });
 

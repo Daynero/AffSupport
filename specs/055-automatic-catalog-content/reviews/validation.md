@@ -68,3 +68,11 @@ also revokes inherited access during its fault injection. The 13-file focused pa
 then had 217 passes and that one revoke-fixture failure. After correction, all 42
 analytics/Stop test files passed: 379 checks, no failures or skips. These overlapping
 focused results are not a complete-suite total. No production ACL was changed.
+
+The integrated run on `31bd7872` passed all 15 static gates and reached 3 of 8
+shards: 4,294 passing checks, one stale R2 permission-copy expectation and 27
+named skips. The permission behavior was correct; the test still named the removed
+Catalog settings panel. Its wording expectation was updated. No other old strings
+from this translation change remain in tests. Remaining shards are being run as a
+diagnostic pass before the final complete canonical run; partial evidence is not
+reported as a green full suite.
