@@ -86,6 +86,7 @@ export interface NativeRestitchEnrollment {
   proofDigest: string;
 }
 export interface NativeRestitchVault {
+  flushForUpdate?(): Promise<void>;
   read(): Promise<unknown>;
   write(value: unknown): Promise<void>;
 }
@@ -114,6 +115,7 @@ export interface NativeRestitchControllerOptions {
    */
   healVaultFaults?: boolean;
   journal: {
+    flushForUpdate?(): Promise<void>;
     load(): Promise<readonly NativeRestitchCheckpoint[]>;
     save(value: readonly NativeRestitchCheckpoint[]): Promise<void>;
   };
@@ -1182,6 +1184,13 @@ export class NativeRestitchController {
   }
   busy() {
     return this.#active.size > 0 || this.#redeeming.size > 0 || this.#preparing.size > 0;
+  }
+  async flushForUpdate() {
+    await this.#ready;
+    await this.#writes;
+    if (this.#vaultFailed || this.busy()) throw new Error('APP_UPDATE_BUSY');
+    await this.#vault.flushForUpdate?.();
+    await this.options.journal.flushForUpdate?.();
   }
   async shutdown() {
     this.#closing = true;

@@ -1,5 +1,6 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, open, rename, rm } from 'node:fs/promises';
+import { mkdir, open, rename, rm, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { currentPlatform, recoveryCredential } from '../platform/platform.js';
 const MAX = 256 * 1024;
@@ -63,6 +64,16 @@ export class NativeRestitchVaultFile {
       retryRename: currentPlatform() === 'win32'
     }
   ) {}
+  async flushForUpdate(): Promise<void> {
+    await this.#writes;
+    try {
+      await lstat(this.file);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return;
+      throw error;
+    }
+    await syncUpdateStateFiles([this.file]);
+  }
   async #key(create: boolean): Promise<Buffer> {
     if (this.#cachedKey) return this.#cachedKey;
     let raw = await this.store.read(this.account + '-key');

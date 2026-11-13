@@ -1,0 +1,29 @@
+{
+  "completed_at": "2026-11-13T15:53:29.744354+00:00",
+  "source_manifest": "single-budget-source.json",
+  "static_gates_passed": 14,
+  "full_suite": {
+    "command": "TMPDIR=<owned external scratch> SOTY_VERIFY_SERIAL=1 nice -n 15 npm run verify -- --gates=suite",
+    "canonical_gates_passed": 2,
+    "passed_tests": 11175,
+    "skipped_tests": 95,
+    "failed_tests": 0,
+    "shards": {
+      "plannedShards": 8,
+      "executedShards": 8,
+      "completedShards": 8,
+      "complete": true
+    },
+    "duration_ms": 1777933,
+    "log_sha256": "e28328389a2a84e7d1b52bcea91bbdc2a476e770e632c9b90527bd23c03250a7"
+  },
+  "database": {
+    "sql_files": 75,
+    "sql_assertions": 1490,
+    "auth_tests": 3,
+    "native_tests": 81
+  },
+  "browser": "single-budget-browser.json",
+  "bundle": "single-budget-bundle.json",
+  "scope": "All required gates covered by canonical static/full invocation and the successful affected-suite retry on identical source. Initial suite had no failed test assertions, but ENOSPC in the progress reporter; the complete retry redirected ignored reports and scratch to the external drive without code or gate changes. No production or release changes."
+}

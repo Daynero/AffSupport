@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "fixture_images": 2000,
+  "source_digest": "25cd2343388409aaeb5703040a1b02a4158caa4c732ce2a582a82f8d9ecf5bc6",
+  "reports": [
+    {
+      "rows": 100,
+      "concurrency": 1,
+      "samples": 100,
+      "failures": 0,
+      "failure_codes": [],
+      "p50_ms": 30.403,
+      "p95_ms": 32.737,
+      "p99_ms": 58.067,
+      "maximum_ms": 60.118,
+      "calls_per_catalog": 1,
+      "scope": "database_fresh_atomic_recipe"
+    },
+    {
+      "rows": 100,
+      "concurrency": 10,
+      "samples": 100,
+      "failures": 0,
+      "failure_codes": [],
+      "p50_ms": 66.173,
+      "p95_ms": 89.429,
+      "p99_ms": 91.908,
+      "maximum_ms": 92.964,
+      "calls_per_catalog": 1,
+      "scope": "database_fresh_atomic_recipe"
+    },
+    {
+      "rows": 200,
+      "concurrency": 1,
+      "samples": 100,
+      "failures": 0,
+      "failure_codes": [],
+      "p50_ms": 34.002,
+      "p95_ms": 35.596,
+      "p99_ms": 39.545,
+      "maximum_ms": 50.301,
+      "calls_per_catalog": 1,
+      "scope": "database_fresh_atomic_recipe"
+    },
+    {
+      "rows": 200,
+      "concurrency": 10,
+      "samples": 100,
+      "failures": 0,
+      "failure_codes": [],
+      "p50_ms": 95.392,
+      "p95_ms": 130.599,
+      "p99_ms": 148.2,
+      "maximum_ms": 161.043,
+      "calls_per_catalog": 1,
+      "scope": "database_fresh_atomic_recipe"
+    }
+  ],
+  "network_latency": "unmeasured",
+  "end_to_end_catalog_creation": "unmeasured"
+}

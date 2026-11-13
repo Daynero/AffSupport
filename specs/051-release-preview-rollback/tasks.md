@@ -63,7 +63,7 @@ description: 'Tasks for 051 — next link, promote the tested build, rollback'
 - [x] T027 Документація: `docs/RELEASE-CHANNEL.md` (для власника), `docs/PRODUCTION.md`, `AGENTS.md`
 - [~] T028 Аналітика: history.jsonl і `status --json` — доказ операцій для агентів; окреме поле каналу в подіях — не додано (див. нотатки)
 - [x] T029 Cloudflare: custom domain `next.soty.pp.ua` у `wishly-app` + CNAME на `next.wishly-app.pages.dev` (проксований)
-- [x] T030 Supabase Auth: redirect URL `https://next.soty.pp.ua/**`; Google Cloud: referrer ключа Picker
+- [x] T030 Supabase Auth: redirect URL `https://next.soty.pp.ua/auth/callback` (точний; шаблон `/**` звужено 2026-11-12, бо його відмовляє release preflight); Google Cloud: referrer ключа Picker
 - [ ] T031 Наживо: деплой збірки гілки на next, перевірка в Chrome (вхід, позначка, гейт), прод не змінився; `cancel` повертає next на прод
 - [x] T032 `adopt-live --confirm` реєструє нинішній прод як ціль відкату
 - [x] T034 [P] FR-020: перевірити, що наявне відновлення завантаження (`apps/web/index.html` boot recovery, `vite:preloadError` у `main.tsx`) покриває зміну бандла на тій самій адресі; тест або нотатка
@@ -79,7 +79,7 @@ T001 → усе. T003/T004 → T006, T015, T018, T024. T006 → T031. T029/T030 
 - `adopt-live --confirm` виконано: прод 1.4.2 (бандл `001258f1925a`) записано як ціль відкату.
 - **Не зроблено, бо заблоковано auto-режимом (зміни DNS, доменів і автентифікації), лишилось власнику:**
   - T029: custom domain `next.soty.pp.ua` у Pages-проєкті `wishly-app` + CNAME `next` → `next.wishly-app.pages.dev` (проксований);
-  - T030: Supabase Auth Redirect URL `https://next.soty.pp.ua/**`; Google OAuth client — redirect URI `https://next.soty.pp.ua/auth/callback`; Picker API key — referrer `https://next.soty.pp.ua/*`.
+  - T030: Supabase Auth Redirect URL `https://next.soty.pp.ua/auth/callback` (точний, без шаблону); Google OAuth client — redirect URI `https://next.soty.pp.ua/auth/callback`; Picker API key — referrer `https://next.soty.pp.ua/*`.
 - T031 (наживо) — після T029/T030 і першого релізу з цією фічею. Міграція, функції й агент приходять у прод разом із ним.
 - FR-020: наявне відновлення (`vite:preloadError` у `main.tsx`, boot recovery в `index.html`) покриває зміну бандла на тій самій адресі. Розкатка, крім того, віддає вже завантажені на `next` ассети.
 - Аналітика (частково): окремого поля «канал сайту» в подіях немає. Сесії кандидата відрізняються за `web_build_id` лише тоді, коли кандидат змінює версію (повний реліз). Веб-лише кандидата за подіями від проду не відрізнити. Додати поле — окрема зміна контракту подій, бо `events` валідує конверт.

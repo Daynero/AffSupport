@@ -52,14 +52,17 @@ export function LaunchDefaultsActions({
   if (!manage && !proposal && !loading && !loadError && !buyerMissing && !primaryAction)
     return null;
   return (
-    <section className="launch-defaults-actions" aria-label={t('launchesDefaultsTitle')}>
+    <section
+      className="launch-defaults-actions mx-auto w-full max-w-5xl"
+      aria-label={t('launchesDefaultsTitle')}
+    >
       {loading && (
         <p className="m-0 text-caption text-muted" role="status">
           {t('launchesDefaultsLoading')}
         </p>
       )}
       {loadError && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="launch-defaults-error flex flex-wrap items-center gap-2">
           <p role="alert" className="m-0 text-caption">
             {t('launchesDefaultsLoadFailed')}
           </p>
@@ -97,7 +100,7 @@ export function LaunchDefaultsActions({
         />
       )}
       {manage && (
-        <div className="flex items-center gap-2">
+        <div className="launch-defaults-heading flex items-center gap-2">
           <h3 className="m-0 text-label font-medium">{t('launchesDefaultsSaveHeading')}</h3>
           <IconButton
             ref={info}
@@ -127,8 +130,7 @@ export function LaunchDefaultsActions({
           (['offer', 'workspace'] as const).map(scope => (
             <div key={scope} className="launch-defaults-scope">
               <Button
-                color={scope === 'offer' ? 'success' : 'neutral'}
-                variant={scope === 'offer' ? 'solid' : 'outline'}
+                variant="outline"
                 leading={
                   scope === 'offer' ? (
                     <Save size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -160,7 +162,7 @@ export function LaunchDefaultsActions({
           ))}
         {primaryAction && <div className="launch-detail-actions">{primaryAction}</div>}
       </div>
-      {manage && feedback}
+      {manage && feedback && <div className="launch-defaults-feedback">{feedback}</div>}
     </section>
   );
 }

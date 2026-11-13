@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "stable": {
+    "publicKey": "/EPXDXLb4NU4BI01PNQUUKjhL8+8cqVO8RzjYItyo2E="
+  },
+  "beta": {
+    "publicKey": "QT0oRLy5O6a+aXvjtZ2T8ATL3Mfpivp+8C4h3Dvsbyk=",
+    "manifestPublicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8Hb5/PSWKEHxboBlNxEOtL75Ja48F22z3eG6NW1OysoBCuKaRHy5VRh4WCcA4vwBvM/AUe78TJ3dMbNVF87ekQ=="
+  }
+}

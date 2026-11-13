@@ -1,3 +1,4 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -26,6 +27,15 @@ export interface RecoveryRegistration {
   endpoint: string;
   delegationId: string;
   account: string;
+}
+export interface RecoveryEnrollmentMetadata {
+  id: string;
+  actorId: string;
+  teamId: string;
+  installationId: string;
+  endpoint: string;
+  account: string;
+  renewalDelegationId?: string;
 }
 const UUID = /^[0-9a-f-]{36}$/iu;
 export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | null {
@@ -90,6 +100,7 @@ export class RecoveryJournal {
   async load(): Promise<{
     registrations: RecoveryRegistration[];
     checkpoints: RecoveryCheckpoint[];
+    enrollments?: RecoveryEnrollmentMetadata[];
   }> {
     const file = path.join(this.root, 'recovery.json');
     let value: unknown;
@@ -106,7 +117,9 @@ export class RecoveryJournal {
       !Array.isArray(value.registrations) ||
       !Array.isArray(value.checkpoints) ||
       value.registrations.length > 6 ||
-      value.checkpoints.length > 6
+      value.checkpoints.length > 6 ||
+      (value.enrollments !== undefined &&
+        (!Array.isArray(value.enrollments) || value.enrollments.length > 6))
     )
       throw new Error('INVALID_RESPONSE');
     const registrations: RecoveryRegistration[] = [];
@@ -145,10 +158,42 @@ export class RecoveryJournal {
     }
     const checkpoints = value.checkpoints.map(parseRecoveryCheckpoint);
     if (checkpoints.some(item => !item)) throw new Error('INVALID_RESPONSE');
+    const enrollments: RecoveryEnrollmentMetadata[] = [];
+    for (const item of (value.enrollments ?? []) as unknown[]) {
+      if (
+        !isRecord(item) ||
+        !['id', 'actorId', 'teamId', 'installationId'].every(
+          key => typeof item[key] === 'string' && UUID.test(item[key])
+        ) ||
+        typeof item.endpoint !== 'string' ||
+        item.endpoint.length > 2048 ||
+        typeof item.account !== 'string' ||
+        !/^soty-recovery-enrollment-[a-f0-9]{64}$/u.test(item.account) ||
+        (item.renewalDelegationId !== undefined &&
+          (typeof item.renewalDelegationId !== 'string' || !UUID.test(item.renewalDelegationId)))
+      )
+        throw new Error('INVALID_RESPONSE');
+      enrollments.push({
+        id: item.id as string,
+        actorId: item.actorId as string,
+        teamId: item.teamId as string,
+        installationId: item.installationId as string,
+        endpoint: item.endpoint,
+        account: item.account,
+        ...(typeof item.renewalDelegationId === 'string'
+          ? { renewalDelegationId: item.renewalDelegationId }
+          : {})
+      });
+    }
     return {
       registrations,
-      checkpoints: checkpoints.filter((item): item is RecoveryCheckpoint => item !== null)
+      checkpoints: checkpoints.filter((item): item is RecoveryCheckpoint => item !== null),
+      ...(enrollments.length ? { enrollments } : {})
     };
+  }
+  async flushForUpdate(): Promise<void> {
+    await this.#chain;
+    await syncUpdateStateFiles([path.join(this.root, 'recovery.json')]);
   }
   async quarantine(): Promise<void> {
     // Fixed destination bounds damaged metadata to one copy; never replay guessed state.
@@ -160,9 +205,15 @@ export class RecoveryJournal {
   save(value: {
     registrations: RecoveryRegistration[];
     checkpoints: RecoveryCheckpoint[];
+    enrollments?: RecoveryEnrollmentMetadata[];
   }): Promise<void> {
     const data = JSON.stringify(value);
-    if (data.length > 256 * 1024 || value.registrations.length > 6 || value.checkpoints.length > 6)
+    if (
+      data.length > 256 * 1024 ||
+      value.registrations.length > 6 ||
+      value.checkpoints.length > 6 ||
+      (value.enrollments?.length ?? 0) > 6
+    )
       return Promise.reject(new Error('TOO_LARGE'));
     const task = this.#chain
       .catch(() => undefined)

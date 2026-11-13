@@ -6,6 +6,9 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   compareProductVersions,
   isPinnedReleaseArtifact,
+  isNativeUpdateDescriptor,
+  nativeUpdateMatchesManifest,
+  updateRecord,
   isSotySiteOrigin,
   releaseManifestSigningPayload,
   releaseArtifactName,
@@ -258,6 +261,23 @@ function validManifest(value: unknown): value is StableReleaseManifest {
     typeof source.publishedAt === 'string' &&
     validSummary(source.summary) &&
     validArtifacts(source.artifacts) &&
+    (source.nativeUpdates === undefined ||
+      (updateRecord(source.nativeUpdates) &&
+        Object.entries(source.nativeUpdates).every(
+          ([target, candidate]) =>
+            isNativeUpdateDescriptor(candidate) &&
+            candidate.channel === 'stable' &&
+            candidate.target === target &&
+            typeof source.version === 'string' &&
+            typeof source.buildId === 'string' &&
+            typeof source.buildNumber === 'string' &&
+            nativeUpdateMatchesManifest(candidate, {
+              version: source.version,
+              buildId: source.buildId,
+              buildNumber: source.buildNumber,
+              channel: 'stable'
+            })
+        ))) &&
     Boolean(source.toolRequirements && typeof source.toolRequirements === 'object')
   );
 }

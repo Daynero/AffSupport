@@ -24,6 +24,7 @@ import {
 import {
   RecoveryJournal,
   type RecoveryCheckpoint,
+  type RecoveryEnrollmentMetadata,
   type RecoveryRegistration
 } from './recovery-journal.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
@@ -35,6 +36,21 @@ import {
 
 const UUID = /^[0-9a-f-]{36}$/iu;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/u;
+interface RecoveryEnrollment {
+  ticket: string;
+  teamId: string;
+  endpoint: string;
+  installationId: string;
+  until: number;
+  actorId: string;
+  cancelled?: boolean;
+  challengeId?: string;
+  confirmation?: Promise<{ enabled: true; installationId: string }>;
+  confirmedDelegationId?: string;
+  account?: string;
+  renewalDelegationId?: string;
+  persistence?: Promise<void>;
+}
 class RecoveryRequestError extends Error {
   constructor(
     code: string,
@@ -159,18 +175,8 @@ export class TeamRecoveryWorker {
   >();
   #registrations: RecoveryRegistration[] = [];
   #checkpoints: RecoveryCheckpoint[] = [];
-  #enrollments = new Map<
-    string,
-    {
-      ticket: string;
-      teamId: string;
-      endpoint: string;
-      installationId: string;
-      until: number;
-      actorId: string;
-      cancelled?: boolean;
-    }
-  >();
+  #enrollments = new Map<string, RecoveryEnrollment>();
+  #expiredCredentials = new Set<string>();
   #redeeming = new Set<{ teamId: string; cancelled?: boolean }>();
   #timers = new Map<string, ReturnType<typeof setTimeout>>();
   #running = new Map<string, Promise<void>>();
@@ -183,6 +189,7 @@ export class TeamRecoveryWorker {
   #settingUp = 0;
   #identityWaits = new Set<string>();
   #closed = false;
+  #updatePaused = false;
   #loaded = false;
   #setupRequired = false;
   #installation: string = randomUUID();
@@ -229,7 +236,36 @@ export class TeamRecoveryWorker {
       if (checkpoint.serverRetryNotBefore !== undefined)
         this.#serverRetryNotBefore.set(checkpoint.delegationId, checkpoint.serverRetryNotBefore);
     }
-    this.#installation = this.#registrations[0]?.installationId ?? this.#installation;
+    for (const metadata of saved.enrollments ?? []) {
+      const endpoint = recoveryEndpoint(metadata.endpoint, this.options.environment);
+      if (metadata.account !== this.#enrollmentAccount(metadata.id, endpoint))
+        throw new Error('INVALID_RESPONSE');
+      const secret = await this.#secrets.read(metadata.account);
+      if (!secret) {
+        this.#setupRequired = true;
+        continue;
+      }
+      if (
+        secret.rotationId !== metadata.id ||
+        secret.claim !== null ||
+        secret.claimExpiresAt !== null
+      )
+        throw new Error('INVALID_RESPONSE');
+      const challengeId = secret.active?.challengeId;
+      if (challengeId !== undefined && (typeof challengeId !== 'string' || !UUID.test(challengeId)))
+        throw new Error('INVALID_RESPONSE');
+      this.#enrollments.set(metadata.id, {
+        ...metadata,
+        endpoint,
+        ticket: secret.refresh,
+        until: Date.parse(secret.expiresAt),
+        ...(typeof challengeId === 'string' ? { challengeId } : {})
+      });
+    }
+    this.#installation =
+      this.#registrations[0]?.installationId ??
+      saved.enrollments?.[0]?.installationId ??
+      this.#installation;
     this.#loaded = true;
     for (const registration of this.#registrations) this.#schedule(registration, 0);
   }
@@ -240,7 +276,26 @@ export class TeamRecoveryWorker {
     const actorId = this.options.currentActorId();
     const now = this.#now();
     for (const [key, item] of this.#enrollments)
-      if (item.until <= now) this.#enrollments.delete(key);
+      if (item.until <= now && (!item.account || item.confirmedDelegationId))
+        this.#enrollments.delete(key);
+    const normalizedEndpoint = recoveryEndpoint(endpoint, this.options.environment);
+    // The native app owns setup across browser tabs. All callers receive the
+    // same ticket until it expires; a second delegate cannot retire the first.
+    const pending = [...this.#enrollments].find(
+      ([, item]) =>
+        !item.cancelled &&
+        item.actorId === actorId &&
+        item.teamId === teamId &&
+        item.endpoint === normalizedEndpoint
+    );
+    if (pending) {
+      if (pending[1].until <= now) {
+        pending[1].until = now + RECOVERY_BUDGET.enrollmentMs;
+        pending[1].challengeId = undefined;
+        pending[1].confirmation = undefined;
+      }
+      return this.#enrollmentReceipt(pending[0], pending[1]);
+    }
     if (
       !this.#loaded ||
       !UUID.test(teamId) ||
@@ -256,24 +311,103 @@ export class TeamRecoveryWorker {
       ticket,
       actorId,
       teamId,
-      endpoint: recoveryEndpoint(endpoint, this.options.environment),
+      endpoint: normalizedEndpoint,
       installationId: this.#installation,
       until: now + RECOVERY_BUDGET.enrollmentMs
     });
+    return this.#enrollmentReceipt(id, this.#enrollments.get(id)!);
+  }
+  #enrollmentReceipt(id: string, enrollment: RecoveryEnrollment) {
     return {
       enrollmentId: id,
-      installationId: this.#installation,
-      ticketDigest: createHash('sha256').update(ticket).digest('hex')
+      installationId: enrollment.installationId,
+      ticketDigest: createHash('sha256').update(enrollment.ticket).digest('hex'),
+      ...(enrollment.renewalDelegationId
+        ? { renewalDelegationId: enrollment.renewalDelegationId }
+        : {})
     };
+  }
+  async beginAutomatic(teamId: string, endpoint: string, actorId: string) {
+    if (!UUID.test(actorId) || actorId !== this.options.currentActorId())
+      throw new Error('PERMISSION_DENIED');
+    const status = this.status(teamId);
+    if (status.automaticSetup === 'ready')
+      return { enabled: true as const, installationId: status.installationId };
+    if (!['eligible', 'pending'].includes(status.automaticSetup))
+      throw new Error('PERMISSION_DENIED');
+    const receipt = this.begin(teamId, endpoint);
+    const enrollment = this.#enrollments.get(receipt.enrollmentId)!;
+    enrollment.renewalDelegationId ??= this.#registrations.find(
+      r => r.teamId === teamId && this.#isCurrent(r) && this.#expiredCredentials.has(r.delegationId)
+    )?.delegationId;
+    enrollment.account ??= this.#enrollmentAccount(receipt.enrollmentId, enrollment.endpoint);
+    enrollment.persistence ??= this.#persistEnrollment(receipt.enrollmentId, enrollment).finally(
+      () => {
+        enrollment.persistence = undefined;
+      }
+    );
+    await enrollment.persistence;
+    if (enrollment.cancelled || actorId !== this.options.currentActorId())
+      throw new Error('PERMISSION_DENIED');
+    return this.#enrollmentReceipt(receipt.enrollmentId, enrollment);
+  }
+  #enrollmentAccount(id: string, endpoint: string) {
+    return (
+      'soty-recovery-enrollment-' +
+      createHash('sha256')
+        .update(this.options.environment + '|' + endpoint + '|' + id)
+        .digest('hex')
+    );
+  }
+  async #persistEnrollment(id: string, enrollment: RecoveryEnrollment) {
+    if (!enrollment.account) return;
+    await this.#secrets.write(enrollment.account, {
+      refresh: enrollment.ticket,
+      expiresAt: new Date(enrollment.until).toISOString(),
+      rotationId: id,
+      claim: null,
+      claimExpiresAt: null,
+      active: enrollment.challengeId ? { challengeId: enrollment.challengeId } : null
+    });
+    await this.#save();
   }
   async enroll(enrollmentId: string, challengeId: string) {
     const enrollment = this.#enrollments.get(enrollmentId);
-    this.#enrollments.delete(enrollmentId);
     if (!enrollment || enrollment.until <= this.#now() || !UUID.test(challengeId))
       throw new Error('EXPIRED');
+    if (enrollment.cancelled || enrollment.actorId !== this.options.currentActorId())
+      throw new Error('PERMISSION_DENIED');
+    if (enrollment.challengeId && enrollment.challengeId !== challengeId)
+      throw new Error('INVALID_INPUT');
+    enrollment.challengeId = challengeId;
+    enrollment.confirmation ??= this.#confirmEnrollment(enrollment, challengeId).catch(error => {
+      // A lost transport reply reuses this ticket/challenge. The server stores
+      // the exact redeemed response; no new credentials or job are guessed.
+      enrollment.confirmation = undefined;
+      throw error;
+    });
+    const result = await enrollment.confirmation;
+    if (
+      enrollment.cancelled ||
+      enrollment.actorId !== this.options.currentActorId() ||
+      !this.#registrations.some(
+        row => row.delegationId === enrollment.confirmedDelegationId && this.#isCurrent(row)
+      )
+    )
+      throw new Error('PERMISSION_DENIED');
+    return result;
+  }
+  async #confirmEnrollment(
+    enrollment: RecoveryEnrollment,
+    challengeId: string
+  ): Promise<{ enabled: true; installationId: string }> {
     this.#settingUp += 1;
     this.#redeeming.add(enrollment);
     try {
+      const id = [...this.#enrollments].find(([, item]) => item === enrollment)?.[0];
+      if (id && enrollment.account) await this.#persistEnrollment(id, enrollment);
+      if (enrollment.cancelled || enrollment.actorId !== this.options.currentActorId())
+        throw new Error('PERMISSION_DENIED');
       const response = await this.#call(enrollment.endpoint, 'redeem', enrollment.ticket, {
         challengeId
       });
@@ -309,7 +443,9 @@ export class TeamRecoveryWorker {
         UUID.test(actorId) &&
         actorId === enrollment.actorId &&
         actorId === this.options.currentActorId();
-      const registration: RecoveryRegistration = {
+      const registration: RecoveryRegistration = this.#registrations.find(
+        row => row.delegationId === delegationId
+      ) ?? {
         ...(UUID.test(actorId) ? { actorId } : {}),
         ...(!matches() ? { revoking: true } : {}),
         teamId: enrollment.teamId,
@@ -318,19 +454,25 @@ export class TeamRecoveryWorker {
         delegationId,
         account
       };
-      if (matches() && this.#registrations.some(r => r.teamId === enrollment.teamId))
-        await this.#removeRegistrations(enrollment.teamId);
-      // Secret durability precedes successful enrollment and the metadata index.
-      await this.#secrets.write(account, {
-        refresh,
-        expiresAt,
-        rotationId: randomUUID(),
-        claim: null,
-        claimExpiresAt: null,
-        active: null
-      });
+      if (
+        matches() &&
+        this.#registrations.some(r => r.teamId === enrollment.teamId && r !== registration)
+      )
+        await this.#removeRegistrations(enrollment.teamId, registration);
+      // A lost metadata save/redeem reply can replay the original refresh after
+      // rotation. Never replace a durable claim or refresh with that old receipt.
+      const existingSecrets = await this.#secrets.read(account);
+      if (!existingSecrets)
+        await this.#secrets.write(account, {
+          refresh,
+          expiresAt,
+          rotationId: randomUUID(),
+          claim: null,
+          claimExpiresAt: null,
+          active: null
+        });
       if (!matches()) registration.revoking = true;
-      this.#registrations.push(registration);
+      if (!this.#registrations.includes(registration)) this.#registrations.push(registration);
       this.#setupRequired = false;
       await this.#save();
       if (!matches() || !this.#isCurrent(registration)) {
@@ -342,7 +484,13 @@ export class TeamRecoveryWorker {
             : 'PERMISSION_DENIED';
         throw new Error(failure);
       }
-      this.#schedule(registration, 0);
+      enrollment.confirmedDelegationId = registration.delegationId;
+      if (!this.#running.has(registration.delegationId)) this.#schedule(registration, 0);
+      await this.#save();
+      if (enrollment.account) {
+        await this.#secrets.delete(enrollment.account);
+        enrollment.account = undefined;
+      }
       return { enabled: true, installationId: registration.installationId };
     } finally {
       this.#settingUp -= 1;
@@ -354,7 +502,33 @@ export class TeamRecoveryWorker {
       this.#registrations.find(r => r.teamId === teamId && this.#isCurrent(r)) ??
       this.#registrations.find(r => r.teamId === teamId);
     const checkpoint = this.#checkpoints.find(c => c.delegationId === registration?.delegationId);
+    const pending = [...this.#enrollments.values()].some(
+      item =>
+        item.teamId === teamId &&
+        item.actorId === this.options.currentActorId() &&
+        !item.cancelled &&
+        !item.confirmedDelegationId &&
+        (item.until > this.#now() || !!item.account)
+    );
+    const automaticSetup =
+      registration && !this.#isCurrent(registration)
+        ? 'retiring'
+        : !this.#loaded ||
+            this.#closed ||
+            !this.options.currentActorId() ||
+            (this.options.allowed && !this.options.allowed()) ||
+            checkpoint?.reason === 'permission_revoked' ||
+            (checkpoint?.reason === 'needs_agent_setup' &&
+              !this.#expiredCredentials.has(registration?.delegationId ?? '')) ||
+            this.#setupRequired
+          ? 'blocked'
+          : pending
+            ? 'pending'
+            : registration && !this.#expiredCredentials.has(registration.delegationId)
+              ? 'ready'
+              : 'eligible';
     return {
+      automaticSetup,
       enabled:
         !!registration &&
         !registration.revoking &&
@@ -412,21 +586,28 @@ export class TeamRecoveryWorker {
     return { retrying: true };
   }
   async remove(teamId: string) {
-    this.#cancelSetups(teamId);
+    await this.#cancelSetups(teamId);
     return this.#removeRegistrations(teamId);
   }
-  #cancelSetups(teamId?: string) {
+  async #cancelSetups(teamId?: string) {
+    const canceled: RecoveryEnrollment[] = [];
     for (const [id, setup] of this.#enrollments) {
       if (teamId === undefined || setup.teamId === teamId) {
         setup.cancelled = true;
+        canceled.push(setup);
         this.#enrollments.delete(id);
       }
     }
     for (const setup of this.#redeeming)
       if (teamId === undefined || setup.teamId === teamId) setup.cancelled = true;
+    await this.#save();
+    for (const setup of canceled) {
+      await setup.persistence?.catch(() => undefined);
+      if (setup.account) await this.#secrets.delete(setup.account);
+    }
   }
-  async #removeRegistrations(teamId: string) {
-    const registrations = this.#registrations.filter(r => r.teamId === teamId);
+  async #removeRegistrations(teamId: string, except?: RecoveryRegistration) {
+    const registrations = this.#registrations.filter(r => r.teamId === teamId && r !== except);
     for (const r of registrations) await this.#markRetiring(r);
     for (const r of registrations) {
       await this.#running.get(r.delegationId);
@@ -436,7 +617,7 @@ export class TeamRecoveryWorker {
   }
   /** Stop old ownership durably before the next native account becomes current. */
   async prepareActorChange(actorId: string | null) {
-    this.#cancelSetups();
+    await this.#cancelSetups();
     for (const r of this.#registrations.filter(r => r.actorId !== actorId || !r.actorId)) {
       await this.#markRetiring(r);
       const running = this.#running.get(r.delegationId);
@@ -571,6 +752,31 @@ export class TeamRecoveryWorker {
   async idle() {
     await Promise.allSettled(this.#running.values());
   }
+  pauseForUpdate(): () => void {
+    this.#updatePaused = true;
+    for (const timer of this.#timers.values()) clearTimeout(timer);
+    this.#timers.clear();
+    return () => {
+      this.#updatePaused = false;
+      for (const r of this.#registrations) this.#schedule(r, 0);
+    };
+  }
+  busyForUpdate() {
+    return (
+      this.#running.size > 0 ||
+      this.#settingUp > 0 ||
+      this.#redeeming.size > 0 ||
+      this.#retirements.size > 0
+    );
+  }
+  async flushForUpdate() {
+    if (!this.#loaded || this.#setupRequired) throw new Error('APP_UPDATE_BUSY');
+    await this.idle();
+    await Promise.all(this.#retirements.values());
+    if (this.#checkpoints.some(c => c.stage !== 'settled')) throw new Error('APP_UPDATE_BUSY');
+    await this.#save();
+    await this.options.journal.flushForUpdate();
+  }
   async shutdown() {
     this.#closed = true;
     for (const controller of this.#variantControllers.values())
@@ -608,7 +814,25 @@ export class TeamRecoveryWorker {
     });
     return this.options.journal.save({
       registrations: this.#registrations,
-      checkpoints: this.#checkpoints
+      checkpoints: this.#checkpoints,
+      enrollments: [...this.#enrollments].flatMap(
+        ([id, enrollment]): RecoveryEnrollmentMetadata[] =>
+          enrollment.account && !enrollment.cancelled && !enrollment.confirmedDelegationId
+            ? [
+                {
+                  id,
+                  actorId: enrollment.actorId,
+                  teamId: enrollment.teamId,
+                  installationId: enrollment.installationId,
+                  endpoint: enrollment.endpoint,
+                  account: enrollment.account,
+                  ...(enrollment.renewalDelegationId
+                    ? { renewalDelegationId: enrollment.renewalDelegationId }
+                    : {})
+                }
+              ]
+            : []
+      )
     });
   }
   async #checkpoint(
@@ -663,11 +887,12 @@ export class TeamRecoveryWorker {
     }
   }
   #schedule(r: RecoveryRegistration, ms: number) {
-    if (this.#closed || !this.#registrations.includes(r)) return;
+    if (this.#closed || this.#updatePaused || !this.#registrations.includes(r)) return;
     const previous = this.#timers.get(r.delegationId);
     if (previous) clearTimeout(previous);
     const timer = setTimeout(() => {
       this.#timers.delete(r.delegationId);
+      if (this.#updatePaused) return;
       const task = this.#tick(r).finally(() => this.#running.delete(r.delegationId));
       this.#running.set(r.delegationId, task);
       void task.catch(() => undefined);
@@ -676,14 +901,20 @@ export class TeamRecoveryWorker {
     this.#timers.set(r.delegationId, timer);
   }
   async #call(endpoint: string, action: string, credential: string, body: Record<string, unknown>) {
-    const response = await this.#fetch(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-team-recovery-credential': credential },
-      body: JSON.stringify({ action, ...body, protocolVersion: TEAM_RECOVERY_PROTOCOL_VERSION }),
-      redirect: 'error',
-      signal: AbortSignal.timeout(RECOVERY_BUDGET.requestMs)
-    });
-    const value: unknown = await response.json();
+    let response: Response;
+    let value: unknown;
+    try {
+      response = await this.#fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-team-recovery-credential': credential },
+        body: JSON.stringify({ action, ...body, protocolVersion: TEAM_RECOVERY_PROTOCOL_VERSION }),
+        redirect: 'error',
+        signal: AbortSignal.timeout(RECOVERY_BUDGET.requestMs)
+      });
+      value = await response.json();
+    } catch {
+      throw new RecoveryRequestError('DRIVE_UNAVAILABLE', 0);
+    }
     if (!response.ok || !isRecord(value) || value.ok !== true || !isRecord(value.value)) {
       const code =
         isRecord(value) && isRecord(value.error) && typeof value.error.code === 'string'
@@ -741,8 +972,11 @@ export class TeamRecoveryWorker {
       }
       const secrets = await this.#secrets.read(r.account);
       if (!(await this.#checkIdentity(r))) return;
-      if (!secrets || Date.parse(secrets.expiresAt) <= this.#now())
+      if (!secrets) throw new Error('AUTH_REQUIRED');
+      if (Date.parse(secrets.expiresAt) <= this.#now()) {
+        this.#expiredCredentials.add(r.delegationId);
         throw new Error('AUTH_REQUIRED');
+      }
       if (this.#paused.has(r.delegationId)) {
         this.#retryNotBefore.set(r.delegationId, this.#now() + RECOVERY_BUDGET.probeMs);
         await this.#save();
@@ -765,10 +999,9 @@ export class TeamRecoveryWorker {
         // retry_exhausted resumes the same way once its hourly budget allows: a
         // lost network or a sleeping laptop used to park background work for
         // good, until someone pressed «Відновити» (1.4.3). Old journals without
-        // episode history still wait for an explicit retry.
+        // episode history start one bounded episode after the retained cooldown.
         const selfResumes =
-          saved.reason === 'checkpoint_unavailable' ||
-          (saved.reason === 'retry_exhausted' && !!history?.length);
+          saved.reason === 'checkpoint_unavailable' || saved.reason === 'retry_exhausted';
         if (!selfResumes) return;
         const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
         if (recent.length >= RECOVERY_BUDGET.episodesPerHour) {
@@ -861,6 +1094,7 @@ export class TeamRecoveryWorker {
             body.nativeInstanceId,
             body.variantProtocolVersion
           ]);
+        let claimedSetId: string | null = null;
         try {
           const setId = await runCatalogVariantRecovery({
             // r.endpoint passed recoveryEndpoint(): https in production, loopback in beta.
@@ -883,7 +1117,14 @@ export class TeamRecoveryWorker {
               const credential = secrets.claim;
               if (action === 'variant_dispatch' && typeof body.operationId === 'string')
                 closures.set(body.operationId, { credential, scope: closureScope(body) });
-              return this.#call(r.endpoint, action, credential, body);
+              const value = await this.#call(r.endpoint, action, credential, body);
+              if (
+                action === 'variant_claim' &&
+                typeof value.setId === 'string' &&
+                UUID.test(value.setId)
+              )
+                claimedSetId = value.setId;
+              return value;
             },
             closureCall: async (action, body) => {
               const original =
@@ -925,6 +1166,28 @@ export class TeamRecoveryWorker {
           }
           const state = this.#variantStates.get(r.delegationId);
           if (state) this.#variantStates.set(r.delegationId, { ...state, state: 'unknown' });
+          const code = cause instanceof Error ? cause.message : '';
+          if (
+            claimedSetId &&
+            ['INVALID_INPUT', 'INVALID_RESPONSE', 'AGENT_UPDATE_REQUIRED'].includes(code) &&
+            !this.#closed &&
+            this.#isCurrent(r) &&
+            (!this.options.allowed || this.options.allowed())
+          ) {
+            // A malformed/unsupported set does not revoke the delegation for
+            // healthy siblings. Its canonical children retain every execution
+            // and unknown-output fence; only the next fair claim is scheduled.
+            await this.#checkpoint(
+              r,
+              requestId,
+              claimedSetId,
+              'settled',
+              null,
+              code as TeamErrorCode
+            );
+            this.#schedule(r, RECOVERY_BUDGET.claimMs);
+            return;
+          }
           throw cause;
         } finally {
           this.#variantControllers.delete(r.delegationId);
@@ -1105,6 +1368,10 @@ export class TeamRecoveryWorker {
         );
         if (history.length >= RECOVERY_BUDGET.episodesPerHour) {
           await this.#checkpoint(r, requestId, null, 'blocked', 'retry_exhausted');
+          this.#schedule(
+            r,
+            Math.max(RECOVERY_BUDGET.probeMs, Math.min(...history) + 3_600_000 - this.#now())
+          );
           return;
         }
         this.#episodes.set(r.delegationId, [...history, this.#now()]);
@@ -1134,8 +1401,19 @@ export class TeamRecoveryWorker {
           )
         );
         await this.#checkpoint(r, requestId, null, 'blocked', 'retry_exhausted');
-        if ((this.#episodes.get(r.delegationId)?.length ?? 3) < RECOVERY_BUDGET.episodesPerHour)
-          this.#schedule(r, Math.max(RECOVERY_BUDGET.probeMs, retryAfter));
+        const history = (this.#episodes.get(r.delegationId) ?? []).filter(
+          time => time > this.#now() - 3_600_000
+        );
+        this.#schedule(
+          r,
+          Math.max(
+            RECOVERY_BUDGET.probeMs,
+            retryAfter,
+            history.length >= RECOVERY_BUDGET.episodesPerHour
+              ? Math.min(...history) + 3_600_000 - this.#now()
+              : 0
+          )
+        );
         return;
       }
       this.#retryNotBefore.set(r.delegationId, this.#now() + delay);

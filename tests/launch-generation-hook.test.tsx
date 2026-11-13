@@ -604,7 +604,17 @@ it('keeps the original request when Repeat cannot reconcile, and fences duplicat
     await expect(pending).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
   });
   expect(result.current.hasUnresolvedRequest).toBe(true);
-  api.detail.mockResolvedValue({ id: 'retry-launch', draft: config, generation: null });
+  api.detail
+    .mockResolvedValueOnce({ id: 'retry-launch', draft: config, generation: null })
+    .mockResolvedValue({
+      id: 'retry-launch',
+      draft: config,
+      generation: {
+        id: 'generation',
+        state: 'succeeded',
+        requestKey: original[3]
+      }
+    });
   await act(async () => {
     await result.current.retry(null, config, null, null);
   });
@@ -756,7 +766,10 @@ it('releases a refused request when re-stitch settings are missing, preserving t
   api.generate
     .mockRejectedValueOnce(new TeamApiError('RESTITCH_INVALID', false))
     .mockResolvedValueOnce({});
-  api.detail.mockResolvedValueOnce({ id: 'settings-launch', generation: null });
+  api.detail.mockResolvedValueOnce({
+    id: 'settings-launch',
+    generation: { id: 'generation', state: 'succeeded' }
+  });
   const { result } = renderHook(() => useLaunchGeneration('team', vi.fn()));
   await act(async () => {
     await expect(result.current.generate(null, launchConfig(), null, null)).rejects.toMatchObject({
@@ -827,7 +840,10 @@ it('releases a hung save reply as uncertain and replays the same saved intent wi
       )
       .mockResolvedValueOnce({ id: 'late-save', version: '1' });
     api.generate.mockResolvedValueOnce({});
-    api.detail.mockResolvedValueOnce({ id: 'late-save', generation: null });
+    api.detail.mockResolvedValueOnce({
+      id: 'late-save',
+      generation: { id: 'generation', state: 'succeeded' }
+    });
     const notify = vi.fn();
     const { result } = renderHook(() => useLaunchGeneration('team', notify));
     let pending: Promise<void> = Promise.resolve();

@@ -43,9 +43,9 @@ done
 [[ -s "$app/Contents/Resources/runtime/models/ggml-silero-v5.1.2.bin" ]]
 [[ -s "$app/Contents/Resources/agent/production-dependencies.json" ]]
 if [[ "$(node -p process.arch)" == "$arch" ]]; then
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent"
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --signing="$target_root/signing.json"
 else
-  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static
+  node scripts/verify-staged-dependencies.mjs "$app/Contents/Resources/agent" --static --signing="$target_root/signing.json"
 fi
 for unwanted in @electric-sql @testing-library eslint jsdom prettier react react-dom tsx typescript vite vitest; do
   [[ ! -e "$app/Contents/Resources/agent/node_modules/$unwanted" ]]

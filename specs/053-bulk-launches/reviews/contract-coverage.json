@@ -1,0 +1,65 @@
+{
+  "measured_at": "2026-11-13T12:39:06.228655+00:00",
+  "scope": "Focused V8 source coverage of the two added critical contract modules; existing absolute floors unchanged.",
+  "tests": 62,
+  "files": 5,
+  "modules": {
+    "packages/shared/src/team/catalog-rename.ts": {
+      "lines": {
+        "total": 85,
+        "covered": 85,
+        "skipped": 0,
+        "pct": 100
+      },
+      "functions": {
+        "total": 5,
+        "covered": 5,
+        "skipped": 0,
+        "pct": 100
+      },
+      "statements": {
+        "total": 85,
+        "covered": 85,
+        "skipped": 0,
+        "pct": 100
+      },
+      "branches": {
+        "total": 50,
+        "covered": 50,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "packages/shared/src/team/launch-batch.ts": {
+      "lines": {
+        "total": 163,
+        "covered": 156,
+        "skipped": 0,
+        "pct": 95.7
+      },
+      "functions": {
+        "total": 4,
+        "covered": 4,
+        "skipped": 0,
+        "pct": 100
+      },
+      "statements": {
+        "total": 163,
+        "covered": 156,
+        "skipped": 0,
+        "pct": 95.7
+      },
+      "branches": {
+        "total": 70,
+        "covered": 49,
+        "skipped": 0,
+        "pct": 70
+      }
+    }
+  },
+  "absolute_floors": {
+    "packages/shared/src/team/catalog-rename.ts": 90,
+    "packages/shared/src/team/launch-batch.ts": 90
+  },
+  "log_sha256": "5e76baf212a5e181288e9630c5ceb7e6210404b862bc6b79757cf1f53d82dc4a"
+}

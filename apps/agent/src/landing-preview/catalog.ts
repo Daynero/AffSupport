@@ -1,3 +1,4 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   access,
@@ -500,6 +501,12 @@ export class LandingPreviewCatalog {
     await this.persist();
     this.notify();
     return true;
+  }
+
+  async flushForUpdate() {
+    await this.saveChain;
+    await this.persist();
+    await syncUpdateStateFiles([this.statePath]);
   }
 
   async shutdown() {

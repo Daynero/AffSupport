@@ -1,10 +1,12 @@
 import {
-  isR2CatalogImage,
-  type R2CatalogImage
-} from '../../../packages/shared/dist/team/catalog-images.js';
+  isPublishedCatalogImage,
+  isGlobalCatalogImage,
+  type PublishedCatalogImage
+} from '../../../packages/shared/dist/team/catalog-global-images.js';
 import {
   catalogImageUrl,
   catalogImageFacts,
+  catalogImageRequirements,
   rowImageFacts,
   catalogImagesInRows,
   pairCatalogImageRow,
@@ -82,6 +84,7 @@ export interface ClaimedCatalog {
   teamId?: string | null;
   /** Draw the rows' pictures afresh at this update (024, on unless turned off). */
   refreshImages?: boolean;
+  globalImages?: boolean;
   /** Draw fresh names, texts and prices at this update (024 US21, on unless turned off). */
   refreshTexts?: boolean;
   /** The space's price range, for a row whose price is drawn again. */
@@ -149,7 +152,7 @@ export interface CatalogUpdaterDeps {
   claim(limit: number, leaseSeconds: number): Promise<unknown[]>;
   driveFor(credentialId: string): Promise<UpdaterDrive>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
-  validateImageRows?(teamId: string, images: R2CatalogImage[]): Promise<void>;
+  validateImageRows?(teamId: string, images: PublishedCatalogImage[]): Promise<void>;
   validateImageUses?(teamId: string, attemptId: string): Promise<void>;
   progress(catalogId: string, stage: CatalogUpdateStage): Promise<boolean>;
   beginWrite(
@@ -276,6 +279,7 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   return {
     catalogId,
     imageAttemptId: text(row.image_attempt_id) ?? undefined,
+    globalImages: row.global_images === true,
     attempts,
     updateCount,
     productCount,
@@ -350,7 +354,8 @@ function snapshotDetails(entry: Record<string, unknown>): Partial<ProductCatalog
     }
   }
   if (entry.pictureImage !== undefined) {
-    if (!isR2CatalogImage(entry.pictureImage)) throw new TeamFunctionError('INVALID_RESPONSE');
+    if (!isPublishedCatalogImage(entry.pictureImage))
+      throw new TeamFunctionError('INVALID_RESPONSE');
     details.pictureImage = entry.pictureImage;
   }
   const tags = entry.tags;
@@ -397,12 +402,18 @@ async function refreshedRows(
   count: number,
   fallbackImageLink?: string | null
 ): Promise<ProductCatalogRowValues[] | undefined> {
-  if (!item.refreshImages || !item.teamId || !deps.drawImages) return rows;
+  if ((!item.globalImages && !item.refreshImages) || !item.teamId || !deps.drawImages) return rows;
   const drawn = await deps.drawImages(item.teamId, count, {
-    contractVersion: 2,
+    contractVersion: item.globalImages ? 3 : 2,
+    catalogId: item.catalogId,
     attemptId: item.imageAttemptId,
-    scope: 'refresh'
+    scope: 'refresh',
+    ...(item.globalImages && item.refreshTexts === false
+      ? { pairs: (rows ?? rowsOf(item, count)).map(catalogImageRequirements) }
+      : {})
   });
+  if (item.globalImages && (drawn.length !== count || !drawn.every(isGlobalCatalogImage)))
+    throw new TeamFunctionError('INVALID_RESPONSE');
   if (drawn.length === 0)
     return fallbackImageLink
       ? (rows ?? rowsOf(item, count)).map(row => ({
@@ -415,6 +426,10 @@ async function refreshedRows(
   /* A picture for the words this row already has (024, US27): a row named for a hoodie keeps
      being a hoodie when its picture is drawn afresh. */
   const base = rows ?? rowsOf(item, count);
+  if (item.globalImages)
+    return base.map((row, index) =>
+      pairCatalogImageRow(row, drawn[index]!, { allowTextGeneration: item.refreshTexts !== false })
+    );
   const spare = drawn.map((image, index) => ({ image, index }));
   return base.map((row, index) => {
     const wanted = garmentOf(row.title)?.name.toLowerCase() ?? null;
@@ -463,7 +478,7 @@ async function addedRows(
   const teamId = item.teamId;
   const [texts, images] = await Promise.all([
     teamId && deps.drawTexts ? deps.drawTexts(teamId, added) : [],
-    teamId && deps.drawImages
+    teamId && deps.drawImages && !item.globalImages
       ? deps.drawImages(teamId, added, {
           contractVersion: 2,
           attemptId: item.imageAttemptId,
@@ -641,7 +656,7 @@ async function updateOne(
       nonVideo?.productCount ?? grownCount(item.productCount, item.growProducts === true);
     await deps.progress(item.catalogId, 'refreshing').catch(() => false);
     const fallbackImageLink =
-      item.teamId && (item.refreshImages || item.growProducts)
+      item.teamId && !item.globalImages && (item.refreshImages || item.growProducts)
         ? await deps.readImageLink?.(item.teamId)
         : undefined;
     const grown = await addedRows(deps, item, shareImages, count, fallbackImageLink);

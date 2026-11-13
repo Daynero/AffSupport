@@ -18,6 +18,10 @@ import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   releaseManifestSigningPayload
 } from '../../../packages/shared/dist/release.js';
+import {
+  isNativeUpdateDescriptor,
+  nativeUpdateMatchesManifest
+} from '../../../packages/shared/dist/native-app-updates.js';
 import { outputDigest, readWebFile } from '../../release-web-meta.mjs';
 import { webReleaseStateFile } from '../web-only-lock.mjs';
 
@@ -194,6 +198,24 @@ export function verifiedManifest(bytes, publicKeySpki = RELEASE_MANIFEST_PUBLIC_
     );
   if (!ok)
     throw new ChannelError('CHANNEL_MANIFEST_INVALID', 'stable.json signature does not verify');
+  if (manifest.nativeUpdates !== undefined) {
+    if (
+      !manifest.nativeUpdates ||
+      typeof manifest.nativeUpdates !== 'object' ||
+      Array.isArray(manifest.nativeUpdates) ||
+      !Object.entries(manifest.nativeUpdates).every(
+        ([target, candidate]) =>
+          isNativeUpdateDescriptor(candidate) &&
+          candidate.target === target &&
+          candidate.channel === 'stable' &&
+          nativeUpdateMatchesManifest(candidate, manifest)
+      )
+    )
+      throw new ChannelError(
+        'CHANNEL_NATIVE_UPDATE_INVALID',
+        'native update metadata differs from the signed release identity'
+      );
+  }
   return manifest;
 }
 

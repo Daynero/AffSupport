@@ -37,6 +37,39 @@ function request(body: unknown, origin = false) {
   });
 }
 describe('native recovery protocol', () => {
+  it('fences automatic delegation against a browser actor change before cloud authorization', async () => {
+    const d = deps();
+    await expect(
+      handleRecovery(
+        request({
+          action: 'delegate',
+          teamId: ID,
+          installationId: ID,
+          automatic: true,
+          expectedActorId: '22222222-2222-4222-8222-222222222222',
+          ticketDigest: 'a'.repeat(64)
+        }),
+        d
+      )
+    ).rejects.toThrow('PERMISSION_DENIED');
+    expect(d.rpc).not.toHaveBeenCalled();
+    await handleRecovery(
+      request({
+        action: 'delegate',
+        teamId: ID,
+        installationId: ID,
+        automatic: true,
+        expectedActorId: ID,
+        ticketDigest: 'a'.repeat(64)
+      }),
+      d
+    );
+    expect(d.rpc).toHaveBeenCalledWith(
+      'delegate',
+      expect.any(String),
+      expect.objectContaining({ actorId: ID, automatic: true })
+    );
+  });
   it('reports the exact native pre-upload failure before returning the job to the queue', async () => {
     const d = deps();
     vi.mocked(d.rpc).mockImplementation(async action => ({

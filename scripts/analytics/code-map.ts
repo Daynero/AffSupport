@@ -1,5 +1,7 @@
+import { NATIVE_UPDATE_CODES } from '../../packages/shared/src/native-app-updates.js';
 import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
 import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import { CATALOG_VIDEO_R2_REASONS } from '../../packages/shared/src/team/catalog-video-r2.js';
 import {
@@ -689,6 +691,15 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_SSE],
     check: 'A stream was evicted for capacity, a failed write or a stall.'
   },
+  'update:native_update_stage': {
+    files: [
+      'apps/agent/src/update/service.ts',
+      'packaging/NativeUpdates/Coordinator.swift',
+      WEB_FORWARDER
+    ],
+    check:
+      'Read the correlated attempt and native receipt revision. Native readiness and browser visibility are separate; missing or delayed receipts remain unknown.'
+  },
   'update:drain_requested': {
     files: [AGENT_QUEUE],
     check: 'An update asked the queues to drain; new work is refused until restart.'
@@ -1320,6 +1331,18 @@ function build(): Record<string, CodeLocation> {
     check: 'Whether the update prompt was shown and why the local app was not updated.'
   };
 
+  for (const code of NATIVE_UPDATE_CODES)
+    map[`update:native:${code}`] = {
+      files: [
+        'apps/agent/src/update/service.ts',
+        'apps/agent/src/update/coordinator.ts',
+        'packaging/NativeUpdates/Coordinator.swift',
+        'apps/web/src/components/NativeAppUpdateNotice.tsx',
+        WEB_FORWARDER
+      ],
+      check:
+        'Inspect native receipt stage, attempt, last proven revision and delivery coverage before retrying. Never infer replacement or user-visible success from a restarted process.'
+    };
   for (const [key, spec] of Object.entries(JOURNAL_CODES)) {
     map[`journal:${key}`] = { files: unique(spec.files), check: spec.check };
   }
@@ -1625,6 +1648,25 @@ function build(): Record<string, CodeLocation> {
       check:
         'Inspect this exact correlated attempt. API completion validates the server response only; visible editor refresh is separate. Implicit preserve-draft keeps local typing and its original conflict version. An explicit Keep mine retries only unacknowledged fields against the reviewed version; a further peer change must conflict again. Take their version clears pending typing and renders the newest confirmed snapshot for that same task. For missing terminals read the protected current task before retrying; do not infer rollback or delivery from missing events.'
     };
+  }
+  for (const code of GLOBAL_CATALOG_IMAGE_ERROR_CODES) {
+    for (const prefix of [
+      'catalog:global',
+      'catalog:update',
+      'launches:generation',
+      'team:library'
+    ]) {
+      map[`${prefix}:${code}`] = {
+        files: [
+          'supabase/functions/_shared/catalog-global-images.ts',
+          'supabase/functions/catalog-global-images/worker.ts',
+          'supabase/migrations/20261208100000_catalog_global_pool.sql',
+          'apps/web/src/team/errors.ts'
+        ],
+        check:
+          'Check the global policy epoch, issued assignment and ready proof before retrying this same intent.'
+      };
+    }
   }
   for (const code of CATALOG_IMAGE_ERROR_CODES) {
     map[`catalog:update:${code}`] = {

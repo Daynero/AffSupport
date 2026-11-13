@@ -176,6 +176,63 @@ describe('team membership management', () => {
     expect(screen.getByText('Succeeded')).toBeTruthy();
     expect(screen.queryByText(/41000000-/)).toBeNull();
   });
+  it('distinguishes audit outcomes, unknown actions and safe warning details', async () => {
+    const events: TeamAuditEventSummary[] = [
+      {
+        id: 'denied',
+        action: 'material.download',
+        result: 'denied',
+        target: { state: 'failed' },
+        actorLabel: null,
+        subjectLabel: 'Creative.mp4',
+        errorCode: 'PERMISSION_DENIED',
+        occurredAt: '2026-08-01T12:00:00Z'
+      },
+      {
+        id: 'canceled',
+        action: 'operation.canceled',
+        result: 'canceled',
+        target: { state: 'canceled' },
+        actorLabel: 'Buyer',
+        subjectLabel: null,
+        errorCode: null,
+        occurredAt: '2026-08-01T12:01:00Z'
+      },
+      {
+        id: 'failed',
+        action: 'future.safe_action',
+        result: 'failed',
+        target: { warning_code: 'SOURCE_CHANGED' },
+        actorLabel: 'Buyer',
+        subjectLabel: null,
+        errorCode: null,
+        occurredAt: '2026-08-01T12:02:00Z'
+      }
+    ];
+    render(
+      <TeamAuditPanel
+        teamId={TEAM_ID}
+        client={{ listAuditEvents: vi.fn().mockResolvedValue(events) }}
+      />
+    );
+    expect(await screen.findByText('Creative.mp4')).toBeTruthy();
+    expect(screen.getByText('Denied')).toBeTruthy();
+    expect(screen.getByText('Canceled')).toBeTruthy();
+    expect(screen.getByText('future.safe_action')).toBeTruthy();
+    expect(screen.getByText('SOURCE_CHANGED')).toBeTruthy();
+    expect(screen.getByText('PERMISSION_DENIED')).toBeTruthy();
+    expect(screen.getByText('Former member')).toBeTruthy();
+  });
+  it('shows an audit read failure and recovers on a new revision', async () => {
+    const client = {
+      listAuditEvents: vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue([])
+    };
+    const view = render(<TeamAuditPanel teamId={TEAM_ID} client={client} />);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    view.rerender(<TeamAuditPanel teamId={TEAM_ID} client={client} revision={1} />);
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(client.listAuditEvents).toHaveBeenCalledTimes(2);
+  });
 });
 
 it('never reports zero members while loading and offers retry after a failed read', async () => {

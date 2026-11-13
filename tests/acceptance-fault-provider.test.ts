@@ -29,13 +29,15 @@ it('feeds rate limiting through the real client: a one-shot 429 is ridden out by
   const transport = vi.fn(
     async () => new Response('{"files":[]}', { headers: { 'content-type': 'application/json' } })
   );
+  const sleep = vi.fn(async (_ms: number) => {});
   const drive = new GoogleDriveClient(
     'synthetic-token-for-test-only',
     (input, init) => executeProviderFault({ kind: 'drive_429' }, control, input, init, transport),
-    async () => {}
+    sleep
   );
   expect(await drive.listChildren({ parentId: 'own-qa-folder' })).toMatchObject({ files: [] });
   expect(transport).toHaveBeenCalledTimes(1);
+  expect(sleep).toHaveBeenCalledExactlyOnceWith(1000);
 });
 it('feeds a persistent rate limit through the real client as RATE_LIMITED', async () => {
   const control = vi.fn().mockResolvedValue({ ok: true });

@@ -1,3 +1,4 @@
+import type { GlobalImageReadiness } from '@video-compressor/shared';
 import {
   createContext,
   useCallback,
@@ -27,6 +28,7 @@ import { useWakeCatalogSync } from './useWakeCatalogSync';
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
 
 export interface TeamContextValue {
+  globalImagePolicy?: GlobalImageReadiness | null;
   teams: TeamContextSnapshot[];
   activeTeamId: string | null;
   activeTeam: TeamContextSnapshot | null;
@@ -93,6 +95,7 @@ export function TeamProvider({
   initialTeams?: TeamContextSnapshot[];
   loading?: boolean;
   client?: {
+    getGlobalCatalogImageReadiness?: (teamId: string) => Promise<GlobalImageReadiness>;
     listTeams: (options?: { signal?: AbortSignal }) => Promise<TeamContextSnapshot[]>;
     /**
      * 034 — whether a space that just left the list is paused rather than
@@ -328,8 +331,61 @@ export function TeamProvider({
     [activeTeam]
   );
 
+  const [globalPolicy, setGlobalPolicy] = useState<{
+    teamId: string;
+    value: GlobalImageReadiness;
+  } | null>(null);
+  // The policy is global: retain its proven epoch even across failed reads or space changes.
+  const globalPolicyWatermark = useRef({ epoch: 0, observedAt: 0 });
+  useEffect(() => {
+    if (!activeTeam || !client?.getGlobalCatalogImageReadiness) return;
+    let current = true;
+    let readGeneration = 0;
+    const controller = new AbortController();
+    const revalidate = () => {
+      const generation = ++readGeneration;
+      void withReadDeadline(
+        () => client.getGlobalCatalogImageReadiness!(activeTeam.id),
+        controller.signal
+      )
+        .then(value => {
+          if (current && generation === readGeneration) {
+            const observedAt = Date.parse(value.observedAt);
+            const previous = globalPolicyWatermark.current;
+            if (
+              value.policyEpoch < previous.epoch ||
+              (value.policyEpoch === previous.epoch && observedAt < previous.observedAt)
+            )
+              return;
+            globalPolicyWatermark.current = { epoch: value.policyEpoch, observedAt };
+            setGlobalPolicy({ teamId: activeTeam.id, value });
+          }
+        })
+        .catch(() => {
+          if (current && generation === readGeneration) setGlobalPolicy(null);
+        });
+    };
+    const foreground = () => {
+      if (document.visibilityState === 'visible') revalidate();
+    };
+    revalidate();
+    window.addEventListener('focus', foreground);
+    document.addEventListener('visibilitychange', foreground);
+    return () => {
+      current = false;
+      controller.abort();
+      window.removeEventListener('focus', foreground);
+      document.removeEventListener('visibilitychange', foreground);
+    };
+  }, [activeTeam?.id, client, revision, storageRevision]);
+  const globalImagePolicy = client?.getGlobalCatalogImageReadiness
+    ? globalPolicy?.teamId === activeTeam?.id
+      ? globalPolicy?.value
+      : null
+    : undefined;
   const value = useMemo<TeamContextValue>(
     () => ({
+      globalImagePolicy,
       teams,
       activeTeamId: activeTeam?.id ?? null,
       activeTeam,
@@ -358,6 +414,7 @@ export function TeamProvider({
       can
     }),
     [
+      globalImagePolicy,
       acknowledgeMembershipLoss,
       activeTeam,
       can,
@@ -418,4 +475,10 @@ export function selectEffectivePermissions(value: TeamContextValue): TeamPermiss
 
 export function selectCan(value: TeamContextValue, permission: TeamPermissionFlag): boolean {
   return value.activeTeam?.permissions[permission] === true;
+}
+
+/** Unknown current policy hides legacy controls until the authoritative read completes. */
+export function useLegacyCatalogImageSettings(): boolean {
+  const policy = useOptionalTeam()?.globalImagePolicy;
+  return policy === undefined || policy?.state === 'prepared';
 }

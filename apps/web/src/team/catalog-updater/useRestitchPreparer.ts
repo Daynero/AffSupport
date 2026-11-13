@@ -10,7 +10,14 @@ import { useAgentEventStream } from '../../api/useAgentEventStream';
 import { useOptionalAgent } from '../../AgentContext';
 import { teamApi, type RestitchClaim } from '../../api/team';
 import { ensureRestitchImages } from '../restitch/images';
-import { backgroundRecoveryStatus, RECOVERY_CHANGED } from '../../api/recovery';
+import { withReadDeadline } from '../readCoordinator';
+import {
+  backgroundRecoveryStatus,
+  ensureBackgroundRecovery,
+  RECOVERY_CHANGED,
+  type BackgroundRecoveryStatus,
+  type RecoverySetupObservation
+} from '../../api/recovery';
 
 /**
  * This tab as a preparer of the catalog updater's spare copies (023).
@@ -160,7 +167,14 @@ export function useRestitchPreparer(input: {
   /** Told once when the server says this page is too old to claim (030); claiming then stops. */
   onOutdated?: () => void;
   onAgentOutdated?: () => void;
-}): { preparing: boolean } {
+  /** Current authorized workspace session; absence keeps the legacy read-only owner. */
+  automatic?: { actorId: string; sessionKey: string };
+  onSetupStage?: (event: RecoverySetupObservation) => void;
+}): {
+  preparing: boolean;
+  backgroundStatus: BackgroundRecoveryStatus | null;
+  setupErrorCode: string | null;
+} {
   const { teamId, enabled } = input;
   const agentOutdatedRef = useRef(input.onAgentOutdated);
   agentOutdatedRef.current = input.onAgentOutdated;
@@ -172,6 +186,12 @@ export function useRestitchPreparer(input: {
   const [watching, setWatching] = useState<string | null>(null);
   const progressRef = useRef<RestitchProgress | null>(null);
   const agent = useOptionalAgent();
+  const [backgroundStatus, setBackgroundStatus] = useState<BackgroundRecoveryStatus | null>(null);
+  const [setupErrorCode, setSetupErrorCode] = useState<string | null>(null);
+  const automaticActor = input.automatic?.actorId;
+  const automaticSession = input.automatic?.sessionKey;
+  const setupStageRef = useRef(input.onSetupStage);
+  setupStageRef.current = input.onSetupStage;
 
   useAgentEventStream<{
     type: 'team:operations';
@@ -198,11 +218,14 @@ export function useRestitchPreparer(input: {
   });
 
   const nativeSupported = agent?.capabilities?.includes('team-background-recovery') === true;
+  const actorBound = agent?.capabilities?.includes('team-background-recovery-actor-bound') === true;
   const agentConnected = agent?.connection === 'connected';
   const nativeInstanceId = agent?.lastKnownAgent?.instanceId;
   // Unknown native status must not start a competing browser executor.
   const [nativeOwner, setNativeOwner] = useState<boolean | null>(null);
   useEffect(() => {
+    setBackgroundStatus(null);
+    setSetupErrorCode(null);
     if (!nativeSupported) {
       setNativeOwner(false);
       return;
@@ -214,22 +237,67 @@ export function useRestitchPreparer(input: {
     let live = true;
     let revision = 0;
     let retry: number | null = null;
+    let requestController: AbortController | null = null;
+    let failures = 0;
     setNativeOwner(null);
     const refresh = () => {
       if (retry !== null) window.clearTimeout(retry);
       retry = null;
       const requestedRevision = ++revision;
+      requestController?.abort();
+      const controller = new AbortController();
+      requestController = controller;
       setNativeOwner(null);
-      void backgroundRecoveryStatus(teamId)
-        .then(value => {
-          if (live && requestedRevision === revision) setNativeOwner(value.enabled);
+      const isCurrent = () => live && requestedRevision === revision && !controller.signal.aborted;
+      void withReadDeadline(signal => backgroundRecoveryStatus(teamId, signal), controller.signal)
+        .then(async value => {
+          if (!isCurrent()) return;
+          setBackgroundStatus(value);
+          if (automaticActor && actorBound) {
+            // Native ownership is the only executor in the automatic mode.
+            // A disabled/unknown response must not open a browser claim race.
+            if (['eligible', 'pending'].includes(value.automaticSetup ?? '')) {
+              value = await ensureBackgroundRecovery(teamId, {
+                actorId: automaticActor,
+                isCurrent,
+                signal: controller.signal,
+                onSetupStage: event => setupStageRef.current?.(event)
+              });
+            } else if (!value.enabled && !value.automaticSetup) {
+              throw new Error('AGENT_UPDATE_REQUIRED');
+            }
+          }
+          if (!isCurrent()) return;
+          failures = 0;
+          setBackgroundStatus(value);
+          setSetupErrorCode(null);
+          setNativeOwner(automaticActor && actorBound ? true : value.enabled);
+          // The native credential can expire while this tab stays open. Re-read
+          // ownership without making the browser a second worker.
+          if (automaticActor && actorBound) retry = window.setTimeout(refresh, MAX_BACKOFF_MS);
         })
-        .catch(() => {
-          if (live && requestedRevision === revision) {
+        .catch(error => {
+          if (isCurrent()) {
             setNativeOwner(null);
+            const code = errorCode(error);
+            setSetupErrorCode(code);
+            if (
+              [
+                'AGENT_UPDATE_REQUIRED',
+                'PERMISSION_DENIED',
+                'ENTITLEMENT_BLOCKED',
+                'ENTITLEMENT_SIGNIN_REQUIRED',
+                'AUTH_REQUIRED'
+              ].includes(code)
+            )
+              return;
             // A transient loopback failure must not disable preparation until
             // the next focus/reconnect. Keep ownership unknown until a fresh read.
-            retry = window.setTimeout(refresh, POLL_MS);
+            failures += 1;
+            retry = window.setTimeout(
+              refresh,
+              Math.min(MAX_BACKOFF_MS, POLL_MS * 2 ** Math.min(failures - 1, 4))
+            );
           }
         });
     };
@@ -242,12 +310,21 @@ export function useRestitchPreparer(input: {
     window.addEventListener('focus', refresh);
     return () => {
       live = false;
+      requestController?.abort();
       if (retry !== null) window.clearTimeout(retry);
       window.removeEventListener(RECOVERY_CHANGED, refresh);
       window.removeEventListener('storage', changedInAnotherTab);
       window.removeEventListener('focus', refresh);
     };
-  }, [teamId, nativeSupported, agentConnected, nativeInstanceId]);
+  }, [
+    teamId,
+    nativeSupported,
+    actorBound,
+    agentConnected,
+    nativeInstanceId,
+    automaticActor,
+    automaticSession
+  ]);
 
   useEffect(() => {
     if (!enabled || (nativeSupported && (!agentConnected || nativeOwner !== false))) return;
@@ -332,5 +409,5 @@ export function useRestitchPreparer(input: {
     };
   }, [enabled, teamId, nativeSupported, nativeOwner, agentConnected, nativeInstanceId]);
 
-  return { preparing };
+  return { preparing, backgroundStatus, setupErrorCode };
 }

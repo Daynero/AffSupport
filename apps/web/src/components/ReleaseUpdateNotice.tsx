@@ -1,3 +1,4 @@
+import { NativeAppUpdateNotice } from './NativeAppUpdateNotice';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useAgent } from '../AgentContext';
 import { analytics } from '../analytics/service';
@@ -10,8 +11,28 @@ import { useReleaseTester } from '../lib/release-tester';
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
 export default function ReleaseUpdateNotice() {
-  const { agentVersion, agentChannel, connection, releaseManifest, state, toolAvailable } =
-    useAgent();
+  const agent = useAgent();
+  const native =
+    agent.capabilities.includes('native-app-updates-v1') ||
+    agent.lastKnownAgent?.capabilities.includes('native-app-updates-v1') ||
+    agent.agentRuntime?.nativeAppUpdateStatus === 'recovery_required';
+  return native ? (
+    <NativeAppUpdateNotice fallback={<LegacyReleaseUpdateNotice />} />
+  ) : (
+    <LegacyReleaseUpdateNotice />
+  );
+}
+
+function LegacyReleaseUpdateNotice() {
+  const {
+    agentVersion,
+    agentChannel,
+    connection,
+    releaseManifest,
+    state,
+    toolAvailable,
+    agentRuntime
+  } = useAgent();
   const { language, t } = useI18n();
   const titleId = useId();
   const promptedBuild = useRef<string | null>(null);
@@ -25,6 +46,10 @@ export default function ReleaseUpdateNotice() {
     installedChannel: agentChannel,
     compatible: toolAvailable('compressor')
   });
+  const bootstrapTarget = agentRuntime?.packageTarget;
+  const nativeBootstrap =
+    (bootstrapTarget === 'macos-arm64' || bootstrapTarget === 'macos-x64') &&
+    Boolean(manifest?.nativeUpdates?.[bootstrapTarget]);
   const updateAlreadyInstalled =
     state.update?.state === 'pending' || state.update?.state === 'draining';
   // 051: on the main site, a production agent newer than the signed channel
@@ -96,7 +121,13 @@ export default function ReleaseUpdateNotice() {
         </h2>
         <p className="prose">{summary}</p>
         <small>
-          {t(returnToStable ? 'releaseRollbackInstruction' : 'releaseNoticeInstruction')}
+          {t(
+            returnToStable
+              ? 'releaseRollbackInstruction'
+              : nativeBootstrap
+                ? 'appUpdateBootstrap'
+                : 'releaseNoticeInstruction'
+          )}
         </small>
       </div>
       <div className="release-update-actions">

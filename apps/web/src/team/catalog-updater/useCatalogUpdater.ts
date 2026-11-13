@@ -192,6 +192,7 @@ export function filterCatalogRows(
   return rows.filter(
     row =>
       row.videoName.toLocaleLowerCase().includes(needle) ||
-      row.name.toLocaleLowerCase().includes(needle)
+      row.name.toLocaleLowerCase().includes(needle) ||
+      (row.nameAliases ?? []).some(name => name.toLocaleLowerCase().includes(needle))
   );
 }

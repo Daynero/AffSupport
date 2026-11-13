@@ -1,3 +1,5 @@
+import type { NativeAppUpdateService } from '../update/service.js';
+import type { AgentUpdateCoordinator } from '../update/coordinator.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -109,6 +111,8 @@ export interface ServerDeps {
   /** The compressor queue also carries the agent-wide update/warning state. */
   queue: JobQueue;
   modules: ToolModule[];
+  nativeUpdates?: NativeAppUpdateService;
+  updateBarrier?: AgentUpdateCoordinator;
   /**
    * The multiplexed live-update fan-out, when one is wired.
    *
@@ -137,7 +141,11 @@ const ENTITLEMENT_EXEMPT_ROUTES = new Set([
   '/api/health',
   '/api/diagnostics',
   '/api/entitlement',
-  '/api/entitlement/logout'
+  '/api/entitlement/logout',
+  '/api/app-update',
+  ...['check', 'prepare', 'accept', 'defer', 'cancel', 'ack-visible', 'set-auto-download'].map(
+    action => `/api/app-update/${action}`
+  )
 ]);
 
 /**
@@ -578,6 +586,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const runtimeCapabilities = () =>
     advertisedCapabilities().filter(
       capability =>
+        (capability !== 'native-app-updates-v1' || deps.nativeUpdates?.available() === true) &&
         (capability !== 'directory-intake' || modules.some(module => module.id === 'files')) &&
         (capability !== 'team-background-recovery-actor-bound' ||
           (entitlementGate.enforced &&
@@ -587,6 +596,11 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/api/health', async () => ({
     ok: tools.ffmpeg && tools.ffprobe,
     tools,
+    nativeAppUpdateStatus: deps.nativeUpdates?.available()
+      ? 'available'
+      : deps.updateBarrier && !deps.updateBarrier.accepting()
+        ? 'recovery_required'
+        : 'unsupported',
     environment: config.environment,
     version: config.version,
     buildNumber: config.buildNumber,
@@ -693,6 +707,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   // The power throttle is server-wide infrastructure, not a tool: it is passed
   // through ToolContext rather than added to the module list, so it never shows
   // up in the /health busy flag.
+  if (deps.nativeUpdates) deps.nativeUpdates.register(app);
+  else {
+    deps.updateBarrier?.registerAdmission(app);
+    app.get('/api/app-update', async (_request, reply) =>
+      reply.code(501).send({ error: 'APP_UPDATE_UNSUPPORTED' })
+    );
+    app.post('/api/app-update/:action', async (_request, reply) =>
+      reply.code(501).send({ error: 'APP_UPDATE_UNSUPPORTED' })
+    );
+  }
   registerPowerRoutes(app, {
     governor: deps.power,
     allowedOrigins,

@@ -1,4 +1,5 @@
 // @ts-self-types="./transport.d.ts"
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from './catalog-global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from './catalog-images.js';
 import { CATALOG_VIDEO_R2_ERROR_CODES } from './catalog-video-r2.js';
 import { RESTITCH_RECOVERY_ERROR_CODES } from './restitch-recovery-errors.js';
@@ -82,6 +83,7 @@ export const TEAM_ERROR_CODES = [
   ...TEAM_CATALOG_MANAGER_ERROR_CODES,
   ...TEAM_CATALOG_RELIABILITY_ERROR_CODES,
   ...CATALOG_IMAGE_ERROR_CODES,
+  ...GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   ...CATALOG_VIDEO_R2_ERROR_CODES,
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,

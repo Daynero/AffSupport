@@ -745,3 +745,18 @@ confirmed`, далі `retiring → deleted` і `purged`; `failed` з закри�
 доступність у точці перевірки, а не прийняття зовнішньою платформою; вартість —
 лише оцінка з публічного прайсу. `investigate` додає ці знахідки під правилом
 `catalog_video_r2_copy` з fingerprint `catalog:video_r2:<code>`.
+
+## Global white-image status052
+
+`global-images [--image UUID] [--at-least N] [--sort id|uses] [--limit1..100]
+[--cursor CURSOR] [--cleanup] --json` reads only narrowly granted global
+projections. Default50 rows. All use/slot totals are exact decimal strings.
+5000 is informational;200 controls URL-issued bindings, never ad impressions.
+
+Summary and page share one SQL snapshot. The cursor binds a SHA256 fingerprint
+of status-visible tuples, environment, policy epoch, filter and sort, with60-second
+TTL. `cursor_stale` requires a new first-page observation; never silently combine
+snapshots. `--as-of` reports historical_unknown for mutable counters. Cleanup is a
+current observation with explicit unknown/overdue/external_untouched work. Missing
+projections or capture remain unknown. `catalog-images`, `inspect`, `investigate`
+and `audit` retain their historical contracts and include global server evidence.

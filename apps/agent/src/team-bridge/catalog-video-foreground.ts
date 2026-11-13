@@ -58,6 +58,7 @@ export class CatalogVideoForegroundController {
   #loadFaulted = false;
   #epoch = 0;
   #stopping = false;
+  #updatePaused = false;
   #waiting = new Map<string, AbortController>();
   #waitingTasks = new Set<Promise<void>>();
   constructor(
@@ -65,7 +66,8 @@ export class CatalogVideoForegroundController {
       nativeInstanceId: string;
       currentActorId: () => string | null;
       allowed: () => boolean;
-      vault: Pick<NativeRestitchVaultFile, 'read' | 'write'>;
+      vault: Pick<NativeRestitchVaultFile, 'read' | 'write'> &
+        Partial<Pick<NativeRestitchVaultFile, 'flushForUpdate'>>;
       awaitBinding?: (
         body: Record<string, unknown>,
         signal: AbortSignal
@@ -192,7 +194,9 @@ export class CatalogVideoForegroundController {
   }
   prepare(raw: unknown): Promise<CatalogVideoForegroundExecutor> {
     const work = this.#prepareSerial.then(async () => {
+      if (this.#updatePaused) throw new Error('UPDATE_PENDING');
       await this.#heal();
+      if (this.#updatePaused) throw new Error('UPDATE_PENDING');
       const binding = parseCatalogVideoForegroundBinding(raw),
         actorId = this.#actor();
       if (!binding) throw new Error('INVALID_INPUT');
@@ -254,6 +258,7 @@ export class CatalogVideoForegroundController {
   }
   async #attach(raw: unknown, boundGrant?: Record<string, unknown>) {
     await this.#heal();
+    if (this.#updatePaused) throw new Error('UPDATE_PENDING');
     const epoch = this.#epoch;
     if (
       !isRecord(raw) ||
@@ -336,10 +341,15 @@ export class CatalogVideoForegroundController {
           }
         )
         .finally(async () => {
-          this.#running.delete(entry.receipt.enrollmentId);
+          // Stay canonically busy through the last durable write. A completed
+          // media promise alone does not prove its outcome reached the vault.
+          try {
+            await this.#persist();
+          } finally {
+            this.#running.delete(entry.receipt.enrollmentId);
+          }
           // Stopped by this agent (shutdown, account change): never resumed here.
           if (!abort.signal.aborted) this.#resume(entry);
-          await this.#persist();
         })
         .catch(() => {
           this.#faulted = true;
@@ -390,6 +400,7 @@ export class CatalogVideoForegroundController {
     }
   }
   #recoverCanceled(entry: Entry) {
+    if (this.#updatePaused) return;
     if (
       !this.options.reconcileCanceled ||
       !entry.setId ||
@@ -429,6 +440,7 @@ export class CatalogVideoForegroundController {
    * variant may still be running anywhere, so an attempt here is never a second
    * writer. A run that ends unknown again is tried on the next delay. */
   #resume(entry: Entry) {
+    if (this.#updatePaused) return;
     const id = entry.receipt.enrollmentId;
     if (
       !entry.setId ||
@@ -479,6 +491,7 @@ export class CatalogVideoForegroundController {
     this.#waitingTasks.add(task);
   }
   #arm(entry: Entry) {
+    if (this.#updatePaused) return;
     if (
       !this.options.awaitBinding ||
       this.#waiting.has(entry.receipt.enrollmentId) ||
@@ -564,6 +577,35 @@ export class CatalogVideoForegroundController {
   }
   busy() {
     return this.#running.size > 0;
+  }
+  pauseForUpdate(): () => void {
+    this.#updatePaused = true;
+    // Stop only enrollment/binding waits, not accepted media operations.
+    // The vault retains those intents and resumption revalidates server ownership.
+    for (const controller of this.#waiting.values()) controller.abort();
+    return () => {
+      this.#updatePaused = false;
+      for (const entry of this.#entries.values()) {
+        if (entry.state === 'unknown') this.#resume(entry);
+        else this.#arm(entry);
+      }
+    };
+  }
+  async flushForUpdate() {
+    if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
+    // Prepares no longer queue behind network attaches. Drain both before replacement.
+    await this.#prepareSerial;
+    await this.#serial;
+    await Promise.all([...this.#waitingTasks, ...[...this.#running.values()].map(run => run.task)]);
+    if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
+    if (
+      [...this.#entries.values()].some(
+        entry => entry.state === 'unknown' || entry.state === 'running'
+      )
+    )
+      throw new Error('APP_UPDATE_BUSY');
+    if (this.#entries.size) await this.#persist();
+    await this.options.vault.flushForUpdate?.();
   }
   async prepareActorChange(actor: string | null) {
     this.#epoch++;

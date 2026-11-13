@@ -33,6 +33,9 @@ export async function catalogImageRpc(
       retryable:
         !code ||
         [
+          'GLOBAL_IMAGE_POOL_UNAVAILABLE',
+          'GLOBAL_IMAGE_READINESS_UNKNOWN',
+          'GLOBAL_IMAGE_ALLOCATION_UNKNOWN',
           'IMAGE_PROVIDER_UNAVAILABLE',
           'IMAGE_PROVIDER_RATE_LIMITED',
           'IMAGE_UPLOAD_CAPACITY_BUSY',

@@ -85,16 +85,11 @@ node scripts/render-launcher.mjs packaging/Launcher.swift "$root/Launcher.genera
   "RELEASE_CHANNEL=development" \
   "SOURCE_REVISION=$source_revision" \
   "AGENT_ENTITLEMENT_PUBLIC_KEY="
-swiftc "$root/Launcher.generated.swift" \
-  -o "$app/Contents/MacOS/SotyDevAgent" \
-  -target "$swift_target" \
-  -framework AppKit \
-  -framework FinderSync
+zsh scripts/compile-native-launcher.sh "$root/Launcher.generated.swift" "$app/Contents/MacOS/SotyDevAgent" "$swift_target" "$app" "$arch"
 
 cp "$source_app/Contents/Resources/runtime/node" "$app/Contents/Resources/runtime/node"
 codesign --remove-signature "$app/Contents/Resources/runtime/node" 2>/dev/null || true
 /usr/bin/strip -x "$app/Contents/Resources/runtime/node"
-codesign --force --sign - "$app/Contents/Resources/runtime/node"
 cp "$source_app/Contents/Resources/runtime/bin/ffmpeg" "$app/Contents/Resources/runtime/bin/ffmpeg"
 cp "$source_app/Contents/Resources/runtime/bin/ffprobe" "$app/Contents/Resources/runtime/bin/ffprobe"
 cp "$source_app/Contents/Resources/runtime/bin/whisper-cli" "$app/Contents/Resources/runtime/bin/whisper-cli"
@@ -107,6 +102,7 @@ mkdir -p "$app/Contents/Resources/web" "$app/Contents/Resources/licenses/sources
 cp -R apps/web/dist "$app/Contents/Resources/web/dist"
 cp -R "$source_app/Contents/Resources/licenses/." "$app/Contents/Resources/licenses/"
 cp packaging/Info.plist "$app/Contents/Info.plist"
+node scripts/configure-native-updates.mjs "$app" dev
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable SotyDevAgent" "$app/Contents/Info.plist"
@@ -130,7 +126,8 @@ node scripts/dev-release-meta.mjs "$version" "$bundle_version" "$build_number" "
 node scripts/verify-macos-payload.mjs "$app" --arch="$arch"
 zsh scripts/make-icns.sh assets/AppIcon.png "$app/Contents/Resources/AppIcon.icns"
 xattr -cr "$app"
-codesign --force --deep --preserve-metadata=entitlements --sign - "$app"
+# 048: the dev build is signed the way production is, through the chain, ad-hoc.
+SOTY_SIGNING_IDENTITY=- SOTY_SKIP_NOTARIZATION=1 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
 archive="$root/$archive_name"
 rm -f "$root"/Soty-Dev-*-macOS-$arch.zip(N) "$root"/Soty-Dev-*-macOS-$arch.zip.sha256(N)
 ditto -c -k --keepParent "$app" "$archive"

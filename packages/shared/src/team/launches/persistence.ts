@@ -46,7 +46,8 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
     else if (k === 'gender' && (v === 'M' || v === 'W' || v === 'ALL')) result.gender = v;
     else if (k === 'method' && (v === 'other' || v === 'catalog')) result.method = v;
     else if (k === 'advantagePlus' && typeof v === 'boolean') result.advantagePlus = v;
-    else if (k === 'budgetMode' && (v === 'auto' || v === 'manual')) result.budgetMode = v;
+    else if (k === 'budgetMode' && (v === 'auto' || v === 'manual' || v === 'single'))
+      result.budgetMode = v;
     else if (
       k === 'budgets' &&
       (v === null ||
@@ -120,7 +121,7 @@ export function parseLaunchPreview(value: unknown): LaunchPreview | null {
     (sub3 !== null && typeof sub3 !== 'string')
   )
     return null;
-  const campaigns = [];
+  const campaigns: LaunchPreview['campaigns'] = [];
   for (const c of value.campaigns) {
     if (
       !isRecord(c) ||
@@ -129,6 +130,10 @@ export function parseLaunchPreview(value: unknown): LaunchPreview | null {
       typeof c.adStart !== 'number' ||
       typeof c.adEnd !== 'number' ||
       typeof c.name !== 'string' ||
+      (c.currentName !== undefined && typeof c.currentName !== 'string') ||
+      (c.boundNames !== undefined &&
+        (!Array.isArray(c.boundNames) ||
+          !c.boundNames.every((name: unknown) => typeof name === 'string'))) ||
       ![c.ordinal, c.budget, c.adStart, c.adEnd].every(n => Number.isSafeInteger(n) && n > 0)
     )
       return null;
@@ -170,6 +175,10 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       typeof c.materialId !== 'string' ||
       typeof c.variant !== 'number' ||
       typeof c.name !== 'string' ||
+      (c.currentName !== undefined && typeof c.currentName !== 'string') ||
+      (c.boundNames !== undefined &&
+        (!Array.isArray(c.boundNames) ||
+          !c.boundNames.every((name: unknown) => typeof name === 'string'))) ||
       typeof c.url !== 'string' ||
       (c.available !== undefined && typeof c.available !== 'boolean') ||
       (c.restitchMaterialId !== null && typeof c.restitchMaterialId !== 'string')
@@ -180,6 +189,8 @@ export function parseLaunchRevision(value: unknown): LaunchRevision | null {
       materialId: c.materialId,
       variant: c.variant,
       name: c.name,
+      ...(typeof c.currentName === 'string' ? { currentName: c.currentName } : {}),
+      ...(Array.isArray(c.boundNames) ? { boundNames: [...c.boundNames] as string[] } : {}),
       url: c.url,
       available: typeof c.available === 'boolean' ? c.available : true,
       restitchMaterialId: c.restitchMaterialId
@@ -305,6 +316,15 @@ export function parseLaunchDetail(value: unknown): LaunchDetail | null {
       value.workStatus !== 'done')
   )
     return null;
+  if (
+    value.pendingCatalogName !== undefined &&
+    value.pendingCatalogName !== null &&
+    (typeof value.pendingCatalogName !== 'string' ||
+      !value.pendingCatalogName.trim() ||
+      value.pendingCatalogName.length > 1024 ||
+      /\p{Cc}/u.test(value.pendingCatalogName))
+  )
+    return null;
   const draft = parseLaunchDraft(value.draft);
   const sources =
     value.expectedSourceSnapshot === null ? null : parseLaunchSources(value.expectedSourceSnapshot);
@@ -322,6 +342,9 @@ export function parseLaunchDetail(value: unknown): LaunchDetail | null {
     version: value.version,
     draft,
     expectedSourceSnapshot: sources,
+    ...(typeof value.pendingCatalogName === 'string' || value.pendingCatalogName === null
+      ? { pendingCatalogName: value.pendingCatalogName }
+      : {}),
     assigneeId: value.assigneeId,
     workStatus: value.workStatus,
     activeRevision: active,
@@ -357,6 +380,8 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
       ? null
       : LAUNCH_GENERATION_STATES.find(s => s === value.generationState);
   if (generationState === undefined) return null;
+  const generation = value.generation == null ? null : parseLaunchGeneration(value.generation);
+  if (value.generation != null && !generation) return null;
   return {
     id: value.id,
     ...(assignment ? { assignment } : {}),
@@ -395,6 +420,10 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
       ? { campaignCount: value.campaignCount }
       : {}),
     ...(typeof value.advantagePlus === 'boolean' ? { advantagePlus: value.advantagePlus } : {}),
-    generationState
+    ...(typeof value.sourceMaterialId === 'string'
+      ? { sourceMaterialId: value.sourceMaterialId }
+      : {}),
+    generationState,
+    ...(value.generation !== undefined ? { generation } : {})
   };
 }

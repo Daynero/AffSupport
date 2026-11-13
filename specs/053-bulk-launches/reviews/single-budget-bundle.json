@@ -1,0 +1,151 @@
+{
+  "base_source": "2d616995",
+  "measured_at": "2026-11-13T14:53:30.642Z",
+  "command": "nice -n 15 npm run build:web",
+  "node": "v22.23.2",
+  "baseline": {
+    "total_gzip": 1191698,
+    "launch_root_gzip": 8385,
+    "launch_initial_exclusive_gzip": 8570,
+    "launch_exclusive_gzip": 54291,
+    "accounts_exclusive_gzip": 79960,
+    "shared_existing_gzip": 1081860,
+    "batch_lazy": false,
+    "batch_in_static_graph": false,
+    "lockfile_sha256": "67ad598c05ffe1b43e11fe68fe7f23e7fa3e5aafeb999ed4d0fded7dfa3e4403",
+    "launch_files": [
+      {
+        "file": "assets/BN4EYiDx.js",
+        "gzip_bytes": 4594,
+        "sha256": "0fcab2750250f615527056f9e6e08d2c5c7cf1727f7c6c1586ef953d794e4c6f"
+      },
+      {
+        "file": "assets/CYAbkXME.js",
+        "gzip_bytes": 264,
+        "sha256": "490edd58e833b5b1ce2262a1c607557a85efdd9d89ffe3459af686a924fafb41"
+      },
+      {
+        "file": "assets/DqpWkSke.js",
+        "gzip_bytes": 185,
+        "sha256": "8a16a0aa5e389b4cbe30a1061e4850448e945516506bf6609b9358e8a5f71ca5"
+      },
+      {
+        "file": "assets/LaunchCatalogVideoFields-DA95UbaM.js",
+        "gzip_bytes": 848,
+        "sha256": "1781bd83f5dce14da45d430c7872b622dd4714980e61bb47e3c30151822b8306"
+      },
+      {
+        "file": "assets/LaunchEditor-CXdxWjzE.js",
+        "gzip_bytes": 9649,
+        "sha256": "632011b57fdb96ffafe408c372e7faa3aca82bb30d40d07d66675e27d8a55529"
+      },
+      {
+        "file": "assets/LaunchSession-VgmtJZeY.js",
+        "gzip_bytes": 30065,
+        "sha256": "57a739303684dbebb8310f2ab0884110e1434953ecd431f4f4f3607e14162591"
+      },
+      {
+        "file": "assets/LaunchSpace-ByBFAC46.js",
+        "gzip_bytes": 8385,
+        "sha256": "1c9cc68d7ea4a1ff50770a733539dfcb3d974082cb62c00281c486a397222921"
+      },
+      {
+        "file": "assets/j8JUyUMl.js",
+        "gzip_bytes": 301,
+        "sha256": "d540d1e542f854b49b41377d04f225c015add965e09dc2a17a69823d92d79f07"
+      }
+    ]
+  },
+  "feature": {
+    "total_gzip": 1212822,
+    "launch_root_gzip": 10928,
+    "launch_initial_exclusive_gzip": 13258,
+    "launch_exclusive_gzip": 66058,
+    "accounts_exclusive_gzip": 79940,
+    "shared_existing_gzip": 1091237,
+    "batch_lazy": true,
+    "batch_in_static_graph": false,
+    "lockfile_sha256": "67ad598c05ffe1b43e11fe68fe7f23e7fa3e5aafeb999ed4d0fded7dfa3e4403",
+    "launch_files": [
+      {
+        "file": "assets/BvuLCURN.js",
+        "gzip_bytes": 183,
+        "sha256": "d091d56588f1d82b15d91c62e8ec9fdc5a9007d9726201b608072c79481ad551"
+      },
+      {
+        "file": "assets/D2jepAjL.js",
+        "gzip_bytes": 305,
+        "sha256": "6f23d40b9ee1b7c4b1c66ff5ba4a8698ed8be05e8d9f7ea694cd41d8477b3bf2"
+      },
+      {
+        "file": "assets/D64ylloY.js",
+        "gzip_bytes": 1007,
+        "sha256": "3ac572cea52c8dbccf5be188b594244430f4c6858e85e35152299a4a882fa823"
+      },
+      {
+        "file": "assets/DDHM0JGC.js",
+        "gzip_bytes": 264,
+        "sha256": "0fb35cd807c379029ded6983f060a330f2c190b8962084e0c93fe53ab81aa2d1"
+      },
+      {
+        "file": "assets/LaunchBatch-BX3GVFV8.js",
+        "gzip_bytes": 5120,
+        "sha256": "d48da26897fcfae4212af4d95ebdede331a6919bc6a4521a695d44217162f22e"
+      },
+      {
+        "file": "assets/LaunchCatalogVideoFields-BDNlMXAu.js",
+        "gzip_bytes": 904,
+        "sha256": "d0bb335674f76bb22144130a1fd1ff95dc42f1860df33d36aa2aebe793827b72"
+      },
+      {
+        "file": "assets/LaunchEditor-DXlJ7Txl.js",
+        "gzip_bytes": 11111,
+        "sha256": "4dbdd79f3e5a89d151c6a380128f36d5feaeae2789266fac047c08a0f9a07a3d"
+      },
+      {
+        "file": "assets/LaunchSession-CmxDTzlM.js",
+        "gzip_bytes": 30781,
+        "sha256": "3cbb0b33604cdbcc695bb04b019d3bf26aec2c321a42cb19f658ce42297b6ba4"
+      },
+      {
+        "file": "assets/LaunchSpace-8Fckk8lh.js",
+        "gzip_bytes": 10928,
+        "sha256": "72e151a8f79f6d41adef0c812a726fc8a526cd9e7d937238f5dd6d3454a6361f"
+      },
+      {
+        "file": "assets/QiweanOh.js",
+        "gzip_bytes": 4579,
+        "sha256": "7aed52fcd65cf55a83640543bbc2a756b80529180142162ab36178db806dcd4c"
+      },
+      {
+        "file": "assets/xVL5M-u5.js",
+        "gzip_bytes": 876,
+        "sha256": "1917c0c785d3bc193ce0c80e5e629df7ef85213e8613de9c71931ccb40878468"
+      }
+    ]
+  },
+  "increase": {
+    "total_gzip": 21124,
+    "launch_exclusive_gzip": 11767,
+    "shared_existing_gzip": 9377,
+    "launch_initial_exclusive_gzip": 4688
+  },
+  "limits": {
+    "launch_exclusive_gzip": 66500,
+    "feature_launch_increment": 12000,
+    "feature_shared_increment": 10000,
+    "launch_root_gzip": 20000
+  },
+  "scope": "Exact detached release source versus isolated feature checkout, identical lockfiles/configuration. Includes descendant lazy chunks. Existing base exceeds the older 1.4.1 shared budget; no baseline file or entry/largest/Accounts caps are changed. Implementation evidence, not release qualification.",
+  "previous_feature": {
+    "source": "d4c05130",
+    "launch_exclusive_gzip": 65893,
+    "shared_existing_gzip": 1091242,
+    "total_gzip": 1212662
+  },
+  "follow_up_delta": {
+    "total_gzip": 160,
+    "launch_exclusive_gzip": 165,
+    "shared_existing_gzip": -5
+  }
+}

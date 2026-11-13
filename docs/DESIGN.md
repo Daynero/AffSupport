@@ -259,3 +259,10 @@ Use `ConfirmDialog` with `holdHint` for irreversible account deletion. Its share
 `HoldToConfirmButton` requires a continuous three-second press (pointer or keyboard),
 shows a red progress fill and a caption hint, and cancels on release or focus loss.
 Use the dialog's alternative action for Archive when the entity is active.
+
+## Загальний пул зображень052
+
+Після активної global policy приватна галерея, імпорт, джерела, prompt, fallback
+URL і refreshImages не монтуються. Їх не замінює новий екран налаштувань.
+Summary/Create/Launch використовують global readiness; невідомий стан спершу
+перевіряється. Ціни, тексти, відео й початкові/кінцеві кадри restitch зберігаються.

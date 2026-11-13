@@ -486,11 +486,6 @@ export function LaunchGenerationProgress({
               {t(current?.state === 'succeeded' ? 'catalogVideoCancel' : 'launchesCancel')}
             </Button>
           )}
-        {canonicalCancellationPending && onRefresh && (
-          <Button disabled={watch.checking} onClick={() => void watch.refresh()}>
-            {t(watch.checking ? 'launchesProgressChecking' : 'launchesProgressRefresh')}
-          </Button>
-        )}
         {!canonicalCancellationPending &&
           (!recovering || recoveryStalled) &&
           (needsAttention || uncertain || terminal) &&

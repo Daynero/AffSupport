@@ -9,6 +9,7 @@ import { navigateTo } from '../../lib/navigation';
 import { useTeam } from '../TeamContext';
 import { buildTeamRoute } from '../routes';
 import { useOptionalSpaceAccess } from './useSpaceAccess';
+import { ReconnectAction } from '../../components/ReconnectAction.js';
 
 const REASON_TEXT: Record<RecoveryReason, TranslationKey> = {
   waiting_agent: 'tariffRecoveryAgent',
@@ -59,9 +60,10 @@ export function UpdaterResumeNotice({
       : recovery.state === 'partial' || recovery.state === 'waiting_dependency'
         ? 'tariffRecoveryPartial'
         : 'tariffRecoveryRunning';
-  const manageable =
-    recovery?.canManageRecovery &&
-    recovery.reasons.some(reason => reason.action === 'agent' || reason.action === 'drive');
+  const needsDrive =
+    recovery?.canManageRecovery && recovery.reasons.some(reason => reason.action === 'drive');
+  const needsAgent =
+    recovery?.canManageRecovery && recovery.reasons.some(reason => reason.action === 'agent');
   const retryable =
     recovery?.canManageRecovery && recovery.reasons.some(reason => reason.action === 'retry');
   const retry = async () => {
@@ -84,7 +86,7 @@ export function UpdaterResumeNotice({
       variant={compact ? 'subtle' : 'soft'}
       icon={<RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
       action={
-        manageable ? (
+        needsDrive ? (
           <Button
             size="sm"
             variant="soft"
@@ -96,6 +98,8 @@ export function UpdaterResumeNotice({
           >
             {t('tariffRecoverySettings')}
           </Button>
+        ) : needsAgent ? (
+          <ReconnectAction surface="team_shell" />
         ) : retryable ? (
           <Button size="sm" variant="soft" loading={retrying} onClick={() => void retry()}>
             {t('tryAgain')}

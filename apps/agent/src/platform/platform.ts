@@ -21,6 +21,7 @@ import { WindowsSuspendHelper } from './windows-suspend.js';
 
 /** Feature switches for behavior that only some platforms can offer. */
 export interface PlatformCapabilities {
+  nativeAppUpdates?: boolean;
   recoveryCredentials?: boolean;
   /** Native OS file/folder pickers (osascript on macOS). */
   nativeFilePicker: boolean;
@@ -49,6 +50,8 @@ export function capabilities(): PlatformCapabilities {
   switch (process.platform) {
     case 'darwin':
       return {
+        nativeAppUpdates:
+          process.env.PACKAGED_APP === '1' && process.env.AGENT_NATIVE_UPDATES === '1',
         recoveryCredentials: true,
         nativeFilePicker: true,
         directoryIntake: true,
@@ -83,6 +86,81 @@ export function capabilities(): PlatformCapabilities {
         processPause: true
       };
   }
+}
+
+export interface NativeUpdateHostConfiguration {
+  socketPath: string;
+  receiptDirectory: string;
+  token: string;
+  launcherPid: number;
+  bundleRoot: string;
+}
+/** Only a packaged macOS host can provide the private updater endpoint. */
+export function nativeUpdateHostConfiguration(): NativeUpdateHostConfiguration | null {
+  if (
+    process.platform !== 'darwin' ||
+    process.env.PACKAGED_APP !== '1' ||
+    process.env.AGENT_NATIVE_UPDATES !== '1'
+  )
+    return null;
+  const socketPath = process.env.AGENT_NATIVE_UPDATE_SOCKET ?? '';
+  const receiptDirectory = process.env.AGENT_NATIVE_UPDATE_STATE ?? '';
+  const token = process.env.AGENT_NATIVE_UPDATE_TOKEN ?? '';
+  const bundleRoot = process.env.AGENT_NATIVE_UPDATE_BUNDLE ?? '';
+  const launcherPid = Number(process.env.AGENT_LAUNCHER_PID);
+  if (
+    !path.isAbsolute(receiptDirectory) ||
+    !path.isAbsolute(socketPath) ||
+    Buffer.byteLength(socketPath) > 103 ||
+    !/^[A-Za-z0-9-]{64,160}$/.test(token) ||
+    !bundleRoot.endsWith('.app') ||
+    !path.isAbsolute(bundleRoot) ||
+    !Number.isSafeInteger(launcherPid) ||
+    launcherPid <= 0
+  )
+    return null;
+  return { socketPath, receiptDirectory, token, bundleRoot, launcherPid };
+}
+
+/** Discover only helper descendants of this installation's locked native host.
+ * This is platform mechanism, not a second process suspender. The governor owns signals.
+ */
+export async function nativeUpdateHelperPids(
+  host: NativeUpdateHostConfiguration
+): Promise<number[]> {
+  if (process.platform !== 'darwin') return [];
+  const { stdout } = await promisify(execFile)('/bin/ps', ['-axo', 'pid=,ppid=,uid=,comm='], {
+    maxBuffer: 8 * 1024 * 1024
+  });
+  const rows = stdout.split('\n').flatMap(line => {
+    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/.exec(line);
+    return m ? [{ pid: Number(m[1]), ppid: Number(m[2]), uid: Number(m[3]), command: m[4] }] : [];
+  });
+  const framework =
+    path.join(realpathSync(host.bundleRoot), 'Contents/Frameworks/Sparkle.framework') + path.sep;
+  const owned = new Set<number>();
+  for (const row of rows) {
+    if (
+      row.uid !== process.getuid?.() ||
+      !['Autoupdate', 'Updater', 'Installer', 'Downloader'].includes(path.basename(row.command))
+    )
+      continue;
+    try {
+      if (realpathSync(row.command).startsWith(framework)) owned.add(row.pid);
+    } catch {
+      /* exited */
+    }
+  }
+  for (let i = 0; i < rows.length; i++) {
+    let changed = false;
+    for (const row of rows)
+      if (row.uid === process.getuid?.() && owned.has(row.ppid) && !owned.has(row.pid)) {
+        owned.add(row.pid);
+        changed = true;
+      }
+    if (!changed) break;
+  }
+  return [...owned];
 }
 
 /**

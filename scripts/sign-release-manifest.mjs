@@ -14,11 +14,17 @@
 // config/keys/release-manifest.private.pem (gitignored; generated once via
 // scripts/generate-signing-keys.mjs).
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
-import { createReadStream, readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, readFileSync, writeFileSync, statSync } from 'node:fs';
 import {
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64,
   releaseManifestSigningPayload
 } from '../packages/shared/dist/release.js';
+import {
+  isNativeUpdateDescriptor,
+  nativeUpdateMatchesManifest
+} from '../packages/shared/dist/native-app-updates.js';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   completeManifestArtifacts,
   declaresCompletePlatformSet,
@@ -54,6 +60,29 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
 try {
   completeManifestArtifacts(manifest, { historical: args.includes('--historical') });
+  const nativePath = option('native-update');
+  if (nativePath) {
+    const candidate = JSON.parse(readFileSync(nativePath, 'utf8'));
+    if (
+      !isNativeUpdateDescriptor(candidate) ||
+      candidate.channel !== 'stable' ||
+      !nativeUpdateMatchesManifest(candidate, manifest)
+    )
+      throw new Error('NATIVE_UPDATE_DESCRIPTOR_INVALID');
+    if (candidate.target !== option('platform')) throw new Error('NATIVE_UPDATE_TARGET_MISMATCH');
+    const archive = nativePath.replace(/\.native-update\.json$/u, '');
+    if (
+      archive === nativePath ||
+      candidate.sourceRevision !==
+        execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() ||
+      statSync(archive).size !== candidate.archive.length ||
+      path.basename(archive) !== path.posix.basename(new URL(candidate.archive.url).pathname) ||
+      (await hashFile(archive)) !== candidate.archive.sha256
+    )
+      throw new Error('NATIVE_UPDATE_ARCHIVE_MISMATCH');
+    manifest.nativeUpdates ??= {};
+    manifest.nativeUpdates[candidate.target] = candidate;
+  }
   const dmgPath = option('dmg');
   if (dmgPath) {
     const platform = option('platform') ?? 'macos-arm64';

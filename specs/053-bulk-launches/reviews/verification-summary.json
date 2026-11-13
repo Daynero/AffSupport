@@ -1,0 +1,141 @@
+{
+  "feature": "053-bulk-launches",
+  "source_base": "2d616995",
+  "verified_at": "2026-11-13T02:05:48.342Z",
+  "scope": "Local implementation acceptance before documentation closeout commit; no production or packaged-beta qualification.",
+  "verify": {
+    "command": "SOTY_VERIFY_SERIAL=1 nice -n 15 npm run verify",
+    "ok": true,
+    "duration_ms": 1534368,
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true
+      },
+      {
+        "id": "format",
+        "ok": true
+      },
+      {
+        "id": "lint",
+        "ok": true
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true
+      },
+      {
+        "id": "design-tokens",
+        "ok": true
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true
+      },
+      {
+        "id": "migrations-additive",
+        "ok": true
+      },
+      {
+        "id": "styles",
+        "ok": true
+      },
+      {
+        "id": "i18n",
+        "ok": true
+      },
+      {
+        "id": "env-registry",
+        "ok": true
+      },
+      {
+        "id": "csp",
+        "ok": true
+      },
+      {
+        "id": "audit",
+        "ok": true
+      },
+      {
+        "id": "suite",
+        "ok": true
+      }
+    ],
+    "tests": {
+      "total": 11086,
+      "passed": 10991,
+      "failed": 0,
+      "skipped": 95,
+      "shards": {
+        "plannedShards": 8,
+        "executedShards": 8,
+        "completedShards": 8,
+        "complete": true
+      },
+      "skip_reasons": {
+        "disposable native PostgreSQL": 16,
+        "disposable PostgreSQL container": 49,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "disposable PostgreSQL": 4,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 8,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:SOTY_POWER_LOAD": 2
+      }
+    },
+    "coverage_measured": false
+  },
+  "build": {
+    "command": "nice -n 15 npm run build",
+    "shared": "passed",
+    "web": "passed",
+    "agent": "passed",
+    "warning": "Existing large web chunk warning remains; bounded gzip assertions pass."
+  },
+  "postgres": {
+    "command": "npm run test:db",
+    "isolated": true,
+    "sql_files": 73,
+    "sql_assertions": 1463,
+    "auth_tests": 3,
+    "integration_tests": 81,
+    "ok": true,
+    "source_application_rows_copied": false,
+    "owned_resources_cleaned": true
+  },
+  "browser": {
+    "errors": [],
+    "mobileOverflow": false,
+    "keyboardSelection": true,
+    "reducedMotion": "1ms",
+    "persistentCopy": true
+  },
+  "native_benchmark": {
+    "fixture": "12s 640x360 H.264 without audio, 20 independent outputs, one codec thread",
+    "sequential_ms": 2020,
+    "concurrency_2_ms": 1165,
+    "faster_percent": 42.3,
+    "scope": "Local native pipeline only; no provider/network latency claim"
+  },
+  "release_actions": {
+    "main_merge": false,
+    "production_deployment": false,
+    "production_migration": false,
+    "release_artifact_change": false
+  }
+}

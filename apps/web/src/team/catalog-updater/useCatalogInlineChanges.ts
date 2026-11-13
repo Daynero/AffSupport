@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { readCatalogSnapshot } from './readCatalogSnapshot';
@@ -69,6 +70,7 @@ export function useCatalogInlineChanges({
   onChanged?: () => void;
   clockOffsetMs?: number;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
   const privateEpoch = usePrivateCacheEpoch();
   const generation = useRef(0);
   const mounted = useRef(true);
@@ -231,6 +233,8 @@ export function useCatalogInlineChanges({
       error: new DOMException('Catalog scope changed', 'AbortError')
     });
     if (!active()) return obsolete();
+    if (!legacyImages && field === 'refreshImages')
+      return { confirmed: false, error: new TeamApiError('GLOBAL_IMAGE_SETTINGS_RETIRED', false) };
     if (
       locks.current.has(id) ||
       unknownIntents.current.has(id) ||
@@ -503,7 +507,7 @@ export function useCatalogInlineChanges({
   return {
     snapshotFor,
     states,
-    undo,
+    undo: legacyImages ? undo : undo.filter(entry => entry.field !== 'refreshImages'),
     change,
     saveSchedule,
     reconcile,

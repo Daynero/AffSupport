@@ -1,3 +1,5 @@
+export { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from './team/catalog-global-images.js';
+export * from './native-app-updates.js';
 export { STITCH_ERROR_CODES, type StitchErrorCode } from './stitch-errors.js';
 
 export type JobStatus =
@@ -753,6 +755,7 @@ export interface HealthResponse {
   architecture?: 'arm64' | 'x64' | 'unknown';
   packageTarget?: 'macos-arm64' | 'macos-x64' | 'windows-x64' | 'unknown';
   nativeStartupId?: string | null;
+  nativeAppUpdateStatus?: 'available' | 'recovery_required' | 'unsupported';
   ok: boolean;
   tools: QueueState['tools'];
   version: string;
@@ -798,6 +801,7 @@ export const AGENT_CAPABILITIES = [
    * upgraded in step with the other.
    */
   'event-stream',
+  'native-app-updates-v1',
   'finder-image-conversion',
   'landing',
   'landing-preview',
@@ -2087,3 +2091,8 @@ export interface MacosStartupRecord {
   architecture: 'arm64' | 'x64';
   buildId: string;
 }
+
+export type {
+  GlobalImageDiagnosticMetadata,
+  GlobalImageLifecycleStage
+} from './team/catalog-global-images.js';

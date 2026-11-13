@@ -1,0 +1,107 @@
+{
+  "ok": false,
+  "command": "verify",
+  "generated_at": "2026-11-13T11:11:48.273Z",
+  "form": "fast",
+  "error": "suite",
+  "data": {
+    "duration_ms": 314024,
+    "totals": {
+      "gates": 15,
+      "passed": 14,
+      "failed": 1,
+      "tests": 1324,
+      "skipped_tests": 14,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 6,
+        "disposable PostgreSQL container": 8
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1778
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 23451
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 22547
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 18787
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 30237
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 3682
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 113
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2086
+      },
+      {
+        "id": "migrations-additive",
+        "ok": true,
+        "duration_ms": 198
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 98
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 100
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 143
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 69
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 6123
+      },
+      {
+        "id": "suite",
+        "ok": false,
+        "duration_ms": 204601
+      }
+    ],
+    "failure": {
+      "gate": "suite",
+      "subject": "tests/acceptance-fault-provider.test.ts > feeds rate limiting through the real client: a one-shot 429 is ridden out by its own retry — TeamFunctionError: RATE_LIMITED",
+      "excerpt": [
+        "tests/acceptance-fault-provider.test.ts > feeds rate limiting through the real client: a one-shot 429 is ridden out by its own retry — TeamFunctionError: RATE_LIMITED",
+        "tests/launch-overrides.test.tsx > edits and copies every result field, saves the current override map and reopens it without mutating generated values — TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Edit Catalog name\""
+      ]
+    }
+  }
+}

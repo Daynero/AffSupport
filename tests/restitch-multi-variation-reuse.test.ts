@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,15 +12,27 @@ const tools = vi.hoisted(() => ({
   calls: 0,
   delayMs: 0,
   failRaw: false,
+  checkInputs: false,
+  gate: null as Promise<void> | null,
   args: [] as string[][]
 }));
 vi.mock('../apps/agent/src/stitcher/run.js', async () => {
   const fs = await import('node:fs/promises');
   return {
-    runTool: async (_command: string, args: string[]) => {
+    runTool: async (_command: string, args: string[], options?: { signal?: AbortSignal }) => {
       tools.calls += 1;
       tools.args.push(args);
+      if (tools.gate) await tools.gate;
       if (tools.delayMs) await new Promise(resolve => setTimeout(resolve, tools.delayMs));
+      if (options?.signal?.aborted)
+        return { code: 1, cancelled: true, spawnErrorCode: null, stderr: '' };
+      if (tools.checkInputs) {
+        try {
+          await fs.readFile(args[args.indexOf('-i') + 1]!);
+        } catch {
+          return { code: 1, cancelled: false, spawnErrorCode: null, stderr: 'missing input' };
+        }
+      }
       if (tools.failRaw && args.includes('rawvideo'))
         return { code: 1, cancelled: false, spawnErrorCode: null, stderr: 'no' };
       await fs.writeFile(args[args.length - 1] as string, 'body');
@@ -59,6 +71,8 @@ afterEach(async () => {
   tools.calls = 0;
   tools.delayMs = 0;
   tools.failRaw = false;
+  tools.checkInputs = false;
+  tools.gate = null;
   tools.args = [];
   await Promise.all(roots.splice(0).map(dir => removeTemporaryDirectory(dir)));
 });
@@ -258,4 +272,132 @@ describe('a held screen', () => {
     expect(encodes[0]).toContain('-loop');
     expect(encodes[0]).not.toContain('-stream_loop');
   });
+});
+
+it('materializes twenty independent consumers before eviction can remove the shared body', async () => {
+  const directory = await root();
+  const cache = new PreparedBodyCache({ root: directory, maxBytes: 1 });
+  tools.delayMs = 20;
+  const results = await Promise.all(
+    Array.from({ length: 20 }, (_, index) =>
+      cache.prepare({
+        profile: profile(`/tmp/batch-${index}/source.bin`, index),
+        plan,
+        sourceIdentity: contentIdentity('c'.repeat(32), 1000),
+        workspacePath: path.join(directory, `consumer-${index}.mp4`)
+      })
+    )
+  );
+  expect(tools.calls).toBe(1);
+  expect(results.every(result => result.ok)).toBe(true);
+  for (const result of results)
+    if (result.ok) expect(await readFile(result.value.path, 'utf8')).toBe('body');
+  expect(new Set(results.flatMap(result => (result.ok ? [result.value.path] : []))).size).toBe(20);
+  if (!results[0]?.ok) throw new Error('first consumer missing');
+  await unlink(results[0].value.path);
+  for (const result of results.slice(1))
+    if (result.ok) expect(await readFile(result.value.path, 'utf8')).toBe('body');
+});
+
+it('cancels a waiting consumer promptly without canceling the shared producer', async () => {
+  const cache = new PreparedBodyCache({ root: await root() });
+  tools.delayMs = 100;
+  const options = {
+    profile: profile('/tmp/producer/source.bin', 1),
+    plan,
+    sourceIdentity: contentIdentity('d'.repeat(32), 1000)
+  };
+  let completed = false;
+  const producer = cache.prepare(options).then(result => {
+    completed = true;
+    return result;
+  });
+  const controller = new AbortController();
+  const waiter = cache.prepare({ ...options, signal: controller.signal });
+  controller.abort();
+  expect(await waiter).toEqual({ ok: false, error: 'STITCH_CANCELLED' });
+  expect(completed).toBe(false);
+  expect((await producer).ok).toBe(true);
+  expect(tools.calls).toBe(1);
+});
+
+it('never overwrites a shared cached inode when a consumer workspace is reused', async () => {
+  const directory = await root();
+  const cache = new PreparedBodyCache({ root: directory });
+  const source = profile('/synthetic/one.mp4', 1);
+  const workspacePath = path.join(directory, 'consumer.mp4');
+  const first = await cache.prepare({
+    profile: source,
+    plan,
+    workspacePath,
+    sourceIdentity: 'verified:first'
+  });
+  expect(first.ok).toBe(true);
+  await writeFile(workspacePath, 'first immutable content');
+  const second = await cache.prepare({
+    profile: source,
+    plan,
+    workspacePath,
+    sourceIdentity: 'verified:second'
+  });
+  expect(second.ok).toBe(true);
+  expect(await readFile(cache.pathFor(source, plan, 'verified:first'), 'utf8')).toBe(
+    'first immutable content'
+  );
+  expect(await readFile(workspacePath, 'utf8')).toBe('body');
+});
+
+it('rebuilds from a surviving verified copy when the shared producer input is deleted during preparation', async () => {
+  const directory = await root();
+  const cache = new PreparedBodyCache({ root: directory });
+  const gone = path.join(directory, 'gone.mp4'),
+    kept = path.join(directory, 'kept.mp4');
+  await Promise.all([writeFile(gone, 'source'), writeFile(kept, 'source')]);
+  tools.checkInputs = true;
+  let release!: () => void;
+  tools.gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const options = { plan, sourceIdentity: 'verified:same' };
+  const first = cache.prepare({ ...options, profile: profile(gone, 1) });
+  await vi.waitFor(() => expect(tools.calls).toBe(1));
+  const second = cache.prepare({
+    ...options,
+    profile: profile(kept, 2),
+    workspacePath: path.join(directory, 'consumer.mp4')
+  });
+  await unlink(gone);
+  release();
+  expect((await first).ok).toBe(false);
+  const survived = await second;
+  expect(survived.ok).toBe(true);
+  if (survived.ok) expect(await readFile(survived.value.path, 'utf8')).toBe('body');
+  expect(tools.calls).toBe(2);
+  expect((await cache.prepare({ ...options, profile: profile(kept, 2) })).ok).toBe(true);
+  expect(tools.calls).toBe(2);
+});
+
+it('a cancelled shared producer cannot cancel the other nineteen consumers', async () => {
+  const directory = await root(),
+    cache = new PreparedBodyCache({ root: directory });
+  let release!: () => void;
+  tools.gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const controller = new AbortController();
+  const options = {
+    plan,
+    sourceIdentity: 'verified:cancel',
+    profile: profile('/synthetic/source', 1)
+  };
+  const first = cache.prepare({ ...options, signal: controller.signal });
+  await vi.waitFor(() => expect(tools.calls).toBe(1));
+  const rest = Array.from({ length: 19 }, (_, index) =>
+    cache.prepare({ ...options, workspacePath: path.join(directory, `consumer-${index}.mp4`) })
+  );
+  controller.abort();
+  release();
+  expect(await first).toEqual({ ok: false, error: 'STITCH_CANCELLED' });
+  expect((await Promise.all(rest)).every(result => result.ok)).toBe(true);
+  expect(tools.calls).toBe(2);
 });

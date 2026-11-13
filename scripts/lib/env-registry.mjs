@@ -108,6 +108,8 @@ export function scanUsage(pattern, text) {
   const names = new Set();
   if (pattern === 'vite') for (const match of text.matchAll(VITE_USAGE)) names.add(match[0]);
   else if (pattern === 'deno') for (const match of text.matchAll(DENO_USAGE)) names.add(match[1]);
+  else if (pattern === 'worker')
+    for (const match of text.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/gu)) names.add(match[1]);
   else if (pattern === 'envfile')
     for (const line of text.split(/\r?\n/)) {
       const match = ENV_FILE_KEY.exec(line.trim());

@@ -255,6 +255,14 @@ export interface ProcessOutputRecoveryFile {
   canTrash: boolean;
   appProperties: Record<string, string>;
 }
+export interface CatalogRenameFile {
+  id: string;
+  name: string;
+  etag: string;
+  parents: string[];
+  trashed: boolean;
+  canRename: boolean;
+}
 
 function isStrongDriveEtag(value: unknown): value is string {
   return typeof value === 'string' && /^"[\x21\x23-\x7e]{1,510}"$/u.test(value);
@@ -327,7 +335,14 @@ function parseProcessOutputRecoveryFile(value: unknown, fileId: string): Process
  * «Google Drive не відповідає», with nothing for them to do but press Retry).
  */
 export const DRIVE_READ_RETRY_DELAYS_MS: readonly number[] = [400, 1_200];
+const DRIVE_READ_MAX_INLINE_WAIT_MS = 1_200;
 const TRANSIENT_DRIVE_STATUSES: ReadonlySet<number> = new Set([500, 502, 503, 504]);
+function driveRetryAfter(response: Response): number {
+  const raw = response.headers.get('retry-after');
+  if (!raw) return 0;
+  const value = /^\d+$/u.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+  return Number.isFinite(value) ? Math.min(1_000_000_000, Math.max(0, Math.ceil(value))) : 0;
+}
 
 export class GoogleDriveClient {
   readonly #accessToken: string;
@@ -459,6 +474,69 @@ export class GoogleDriveClient {
     ) {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
+  }
+
+  /** Canonical rename uses the same verified v2 conditional-write contract. */
+  async getCatalogRenameFile(fileId: string, signal: AbortSignal): Promise<CatalogRenameFile> {
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v2/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set(
+      'fields',
+      'id,title,etag,parents(id),labels(trashed),capabilities(canRename)'
+    );
+    const response = await this.#request(url, { signal });
+    const value: unknown = await response.json().catch(() => null);
+    if (
+      !isRecord(value) ||
+      value.id !== fileId ||
+      typeof value.title !== 'string' ||
+      !isStrongDriveEtag(value.etag) ||
+      !Array.isArray(value.parents) ||
+      !value.parents.every(parent => isRecord(parent) && typeof parent.id === 'string') ||
+      !isRecord(value.labels) ||
+      typeof value.labels.trashed !== 'boolean' ||
+      !isRecord(value.capabilities) ||
+      typeof value.capabilities.canRename !== 'boolean'
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      id: fileId,
+      name: value.title,
+      etag: value.etag,
+      parents: value.parents.map(parent => (parent as { id: string }).id),
+      trashed: value.labels.trashed,
+      canRename: value.capabilities.canRename
+    };
+  }
+
+  /** One attempt; the caller persists the exact ETag and reconciles every unknown reply. */
+  async renameCatalogConditionally(
+    fileId: string,
+    etag: string,
+    name: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (
+      !isStrongDriveEtag(etag) ||
+      !name.trim() ||
+      name.length > 1024 ||
+      /[\p{Cc}\p{Cs}]/u.test(name)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    signal.throwIfAborted();
+    const url = new URL(`https://www.googleapis.com/drive/v2/files/${encodeURIComponent(fileId)}`);
+    url.searchParams.set('supportsAllDrives', 'true');
+    url.searchParams.set('fields', 'id,title');
+    const response = await this.#request(url, {
+      method: 'PATCH',
+      signal,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'if-match': etag },
+      body: JSON.stringify({ title: name })
+    });
+    const value: unknown = await response.json().catch(() => null);
+    if (!isRecord(value) || value.id !== fileId || value.title !== name)
+      throw new TeamFunctionError('INVALID_RESPONSE');
   }
 
   async listFolders(input: {
@@ -1808,9 +1886,16 @@ export class GoogleDriveClient {
         response.status === 429 ||
         (response.status === 403 &&
           RATE_LIMIT_REASONS.has((await driveErrorReason(response.clone())).reason));
-      if (retry && (TRANSIENT_DRIVE_STATUSES.has(response.status) || slowDown)) {
+      const retryAfterMs = driveRetryAfter(response);
+      if (
+        retry &&
+        retryAfterMs <= DRIVE_READ_MAX_INLINE_WAIT_MS &&
+        (TRANSIENT_DRIVE_STATUSES.has(response.status) || slowDown)
+      ) {
+        // Honor short provider pauses here; hand longer waits to durable scheduling
+        // with their floor intact instead of keeping an Edge request asleep.
         await response.body?.cancel().catch(() => undefined);
-        await this.#sleep(DRIVE_READ_RETRY_DELAYS_MS[attempt]!);
+        await this.#sleep(Math.max(DRIVE_READ_RETRY_DELAYS_MS[attempt]!, retryAfterMs));
         continue;
       }
       return this.#classify(response);
@@ -1819,6 +1904,8 @@ export class GoogleDriveClient {
 
   async #classify(response: Response): Promise<Response> {
     if (response.ok) return response;
+    const retryAfterMs = driveRetryAfter(response);
+    const details = retryAfterMs ? { retryAfterMs } : undefined;
     if (response.status === 401) throw new TeamFunctionError('NEEDS_REAUTH');
     if (response.status === 412)
       throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
@@ -1829,11 +1916,12 @@ export class GoogleDriveClient {
       // Drive spells "slow down" with the same status as "you may not": only
       // the reason tells them apart, and the first must never retire a job.
       if (RATE_LIMIT_REASONS.has(reason.reason)) {
-        throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+        throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });
       }
       throw new TeamFunctionError('PERMISSION_DENIED');
     }
-    if (response.status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
+    if (response.status === 429)
+      throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });
     if (response.status === 400 && reason.location === 'pageToken') {
       // An expired listing or changes page token restarts that page with a
       // fresh generation (028); it says nothing about the connection.
@@ -1842,7 +1930,10 @@ export class GoogleDriveClient {
         details: { reason: 'PAGE_TOKEN_REJECTED' }
       });
     }
-    throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: response.status >= 500 });
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE', {
+      retryable: response.status >= 500,
+      details
+    });
   }
 }
 

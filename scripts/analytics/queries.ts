@@ -1,3 +1,11 @@
+import { getCatalogRenameEvidence, mergeCatalogRenameInspection } from './catalog-renames.js';
+import {
+  getDurableLaunchBatchEvidence,
+  mergeDurableLaunchBatchInspection
+} from './launch-batches.js';
+import { inspectBackgroundSetup } from './background-setup.js';
+import { getGlobalImageEvidence } from './global-images.js';
+import { getNativeUpdateEvidence, inspectNativeUpdate } from './native-app-updates.js';
 import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
 import { getCatalogGrowthEvidence } from './catalog-growth.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -1877,6 +1885,57 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     )
   );
 
+  const nativeUpdates = await readSource('nativeAppUpdates', () => getNativeUpdateEvidence(period));
+  const nativeCoverage = capabilities.find(capability => capability.id === 'update.native_app');
+  if (nativeCoverage) {
+    const required = [
+      'preparing',
+      'prepared',
+      'consented',
+      'draining',
+      'drained',
+      'install_committed',
+      'replacement_started',
+      'relaunch_requested',
+      'target_started',
+      'native_ready',
+      'ui_visible'
+    ];
+    const complete =
+      nativeUpdates?.attempts.filter(
+        attempt =>
+          attempt.ui_success && required.every(stage => attempt.observed_stages.includes(stage))
+      ) ?? [];
+    nativeCoverage.samples = nativeUpdates?.attempts.length ?? null;
+    nativeCoverage.status =
+      !nativeUpdates?.supported || !nativeUpdates.attempts.length
+        ? 'uncovered'
+        : complete.length === nativeUpdates.attempts.length &&
+            !nativeUpdates.truncated &&
+            !nativeUpdates.invalid_records
+          ? 'covered'
+          : 'partial';
+    nativeCoverage.missing = [
+      ...(!nativeUpdates?.supported ? ['native_journal_unavailable'] : []),
+      ...(!nativeUpdates?.attempts.length ? ['no_delivered_native_attempts'] : []),
+      ...(nativeUpdates?.attempts.some(attempt => !attempt.native_success)
+        ? ['native_readiness_unconfirmed']
+        : []),
+      ...(nativeUpdates?.attempts.some(attempt => !attempt.ui_success)
+        ? ['ui_visibility_unconfirmed']
+        : []),
+      ...(nativeUpdates?.truncated ? ['native_receipts_truncated'] : []),
+      ...(nativeUpdates?.invalid_records ? ['invalid_native_receipts'] : []),
+      ...(nativeUpdates?.attempts.some(
+        attempt => !required.every(stage => attempt.observed_stages.includes(stage))
+      )
+        ? ['native_stage_chain_incomplete']
+        : [])
+    ];
+    nativeCoverage.note =
+      'Bounded delivered native receipts only. No rows is unknown. Source/package/helper-budget acceptance remains a separate release qualification.';
+  }
+
   const unavailable = new Set(
     sources.filter(source => source.status === 'unavailable').map(source => source.id)
   );
@@ -1884,10 +1943,12 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     'team.launches': 'launchAudit',
     'team.catalog_settings': 'catalogSettingsAudit',
     'team.catalog_images': 'catalogImageAudit',
+    'team.catalog_global_images': 'catalogImageAudit',
     'team.catalog_text_schedule': 'textScheduleAudit',
     'team.tariff_recovery': 'recoveryAudit',
     'team.recovery_retirement': 'retirementAudit',
-    'team.sync': 'syncJobs'
+    'team.sync': 'syncJobs',
+    'update.native_app': 'nativeAppUpdates'
   };
   for (const capability of capabilities) {
     const projection = projectionSources[capability.id];
@@ -2006,9 +2067,37 @@ function auditCapability(
     ...(capability.note ? { note: capability.note } : {})
   };
 
+  if (
+    ['team.catalog_image_pool', 'team.catalog_image_prompt', 'team.catalog_images'].includes(
+      capability.id
+    ) &&
+    catalogImageAudit?.global.retiredEpoch
+  ) {
+    return {
+      ...base,
+      status: 'covered',
+      missing: [],
+      samples: null,
+      current_lifecycle: {
+        retired_since_policy_epoch: catalogImageAudit.global.retiredEpoch,
+        historical_coverage: 'unknown'
+      },
+      note: 'Private image setup is retired under the global policy. Current absence is expected; historical coverage remains unknown.'
+    };
+  }
   if (capability.id === 'team.catalog_text_schedule') {
     const missing = textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'];
     const samples = textScheduleAudit?.evidence.length ?? 0;
+    return {
+      ...base,
+      status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
+      missing,
+      samples
+    };
+  }
+  if (capability.id === 'team.catalog_global_images') {
+    const missing = catalogImageAudit?.global.missing ?? ['global_image_projection_unavailable'];
+    const samples = catalogImageAudit?.global.samples ?? 0;
     return {
       ...base,
       status: missing.length ? (samples ? 'partial' : 'uncovered') : 'covered',
@@ -2360,7 +2449,68 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const core = await getInspectBeforeDurableBatch(id, asOf, limit);
+  const batches = await getDurableLaunchBatchEvidence(id, asOf);
+  const renames = await getCatalogRenameEvidence(id, asOf);
+  return inspectBackgroundSetup(
+    mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames)
+  );
+}
+async function getInspectBeforeDurableBatch(
+  id: string,
+  asOf?: string,
+  limit = 500
+): Promise<InspectData> {
+  const nativeUpdate = await getNativeUpdateEvidence(
+    { start: null, end: asOf ?? new Date().toISOString(), token: 'all', label: 'all time' },
+    { id }
+  );
+  const nativeInspection = inspectNativeUpdate(id, nativeUpdate);
+  if (nativeInspection) return nativeInspection;
   const original = await getInspectWithoutPublication(id, asOf, limit);
+  const globalImages = /^[0-9a-f-]{36}$/iu.test(id)
+    ? await getGlobalImageEvidence(id, {
+        token: 'all',
+        start: null,
+        end: asOf ?? new Date().toISOString(),
+        label: 'all',
+        ...(asOf ? { as_of: asOf } : {})
+      })
+    : null;
+  if (globalImages?.evidence.length && !original.found) {
+    const stages = globalImages.evidence.map(row => String(row.stage)),
+      last = globalImages.evidence[0]!;
+    return {
+      found: true,
+      id,
+      matched_by: ['authoritative_table'],
+      capability: 'team.catalog_global_images',
+      tool: 'team',
+      global_images: globalImages,
+      stages: {
+        expected: ['allocated', 'confirmed'],
+        observed: [...new Set(stages)],
+        missing: ['allocated', 'confirmed'].filter(stage => !stages.includes(stage))
+      },
+      terminal: null,
+      last_proven_stage: String(last.stage),
+      first_seen_at: String(globalImages.evidence.at(-1)!.occurred_at),
+      last_seen_at: String(last.occurred_at),
+      delivery_lag_ms: { p50: null, p95: null, samples: 0 },
+      agent: {
+        local_app_versions: [],
+        local_app_builds: [],
+        web_build_ids: [],
+        platforms: [],
+        architectures: [],
+        agent_instance_id: null,
+        agent_instance_ids: [],
+        agent_platforms: [],
+        note: 'Global image receipts are server evidence; browser and advertising-platform delivery remain separate.'
+      },
+      events: []
+    };
+  }
   const growthEvidence =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&
     (await getSchema()).tables.analytics_catalog_growth_video_recipes
@@ -2758,6 +2908,96 @@ async function getInspectCore(id: string, asOf?: string, limit = 500): Promise<I
     if (found) return found;
   }
   if (events.found) {
+    const batchEvents = events.events.filter(
+      event =>
+        event.properties.flow_step === 'launch_batch_admission' &&
+        (event.flow_id === id || event.properties.flow_id === id)
+    );
+    const batchLoading = events.events.filter(
+      event =>
+        event.properties.flow_step === 'launch_batch_loading' &&
+        (event.flow_id === id || event.properties.flow_id === id)
+    );
+    if (batchEvents.length || batchLoading.length) {
+      const loadingStates = new Set(
+        batchLoading.flatMap(event =>
+          event.event_name === 'operation_completed'
+            ? ['loaded' as const]
+            : event.event_name === 'operation_failed'
+              ? ['failed' as const]
+              : event.event_name === 'operation_cancelled'
+                ? ['cancelled' as const]
+                : []
+        )
+      );
+      const loading = !batchLoading.length
+        ? null
+        : loadingStates.size === 1
+          ? [...loadingStates][0]!
+          : ('unknown' as const);
+      const expected = [
+        'batch_loading',
+        'admission_started',
+        'generation_result',
+        'result_visible'
+      ];
+      const observed = [
+        ...(batchLoading.length ? ['batch_loading'] : []),
+        ...(batchEvents.length ? ['admission_started'] : [])
+      ];
+      const flows = [
+        ...new Set(
+          batchEvents
+            .map(event => event.properties.attempt_id)
+            .filter((flow): flow is string => typeof flow === 'string' && OPAQUE_ID.test(flow))
+        )
+      ].slice(0, 100);
+      const admissions = flows.map(flow_id => {
+        const child = batchEvents.filter(event => event.properties.attempt_id === flow_id);
+        const states = new Set(
+          child.flatMap(event =>
+            event.event_name === 'operation_completed'
+              ? ['accepted' as const]
+              : event.event_name === 'operation_failed'
+                ? ['failed' as const]
+                : event.event_name === 'operation_cancelled'
+                  ? ['cancelled' as const]
+                  : []
+          )
+        );
+        const launch_id =
+          child
+            .map(event => event.properties.workflow_id)
+            .find(
+              (launch): launch is string => typeof launch === 'string' && OPAQUE_ID.test(launch)
+            ) ?? null;
+        return {
+          flow_id,
+          launch_id,
+          state: states.size === 1 ? [...states][0]! : ('unknown' as const)
+        };
+      });
+      return {
+        ...events,
+        capability: 'team.launches',
+        terminal: null,
+        stages: {
+          expected,
+          observed,
+          missing: expected.filter(stage => !observed.includes(stage))
+        },
+        last_proven_stage: batchEvents.length ? 'admission_started' : 'batch_loading',
+        launch_batch: {
+          scope: 'observed_admissions',
+          loading,
+          admissions,
+          blind_spots: [
+            'Admission is not generation completion or result delivery. Inspect each child flow_id for authoritative generation evidence.',
+            'Unsubmitted session-local drafts and missing/delayed telemetry are unknown. This bounded view cannot prove total batch completion.'
+          ]
+        }
+      };
+    }
     const assignmentEvents = events.events.filter(event =>
       ['assign_account', 'release_account'].includes(String(event.properties.launch_action))
     );

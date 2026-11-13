@@ -64,6 +64,9 @@ import type { ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
 import { WorkspaceOperationsProvider } from '../explorer/WorkspaceOperationsProvider';
 import { useOptionalAuth } from '../../auth/AuthContext';
+import { privateCacheActorEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
+import { observeBackgroundSetup } from '../catalog-updater/backgroundSetupAnalytics.js';
+import { BackgroundRecoveryNotice } from '../catalog-updater/BackgroundRecoveryNotice.js';
 import { renderTeamLanding } from '../../api/client';
 import {
   buildTeamRoute,
@@ -190,7 +193,9 @@ export function WorkspaceShell({
   query?: TeamRouteQuery;
 }) {
   const { t } = useI18n();
-  const user = useOptionalAuth()?.user;
+  const auth = useOptionalAuth();
+  const user = auth?.user;
+  usePrivateCacheEpoch();
   const { activeTeam, teams, revision, can, notifyStateChanged } = useTeam();
   const { push } = useToasts();
   const agent = useOptionalAgent();
@@ -358,9 +363,14 @@ export function WorkspaceShell({
 
   // The updater's state for the chip beside the settings link (023); the dialog reads its own.
   const catalogUpdater = useCatalogUpdater(teamId);
-  // With re-stitching on, this tab lends the connected Soty app to the updater's spare copies (023).
+  // One workspace owner enables durable background execution on authenticated connection.
   const restitchPreparer = useRestitchPreparer({
     teamId,
+    automatic:
+      auth?.status === 'authenticated' && user && can('process')
+        ? { actorId: user.id, sessionKey: String(privateCacheActorEpoch()) }
+        : undefined,
+    onSetupStage: observeBackgroundSetup,
     enabled:
       catalogUpdater.state?.state === 'running' &&
       catalogUpdater.state.restitch &&
@@ -867,6 +877,10 @@ export function WorkspaceShell({
                   {/* 034 — the term running out, and the updater the pause left off. */}
                   <TariffBanner teamId={teamId} />
                   <UpdaterResumeNotice teamId={teamId} onResumed={catalogUpdater.reload} />
+                  <BackgroundRecoveryNotice
+                    status={restitchPreparer.backgroundStatus}
+                    errorCode={restitchPreparer.setupErrorCode}
+                  />
 
                   {/* Real links, not toggles: middle-click, copy-link and Back all work,
           and the active one is announced rather than merely coloured. The strip

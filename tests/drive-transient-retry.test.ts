@@ -71,6 +71,40 @@ describe('Drive reads ride out a transient failure', () => {
     expect(a.fetchImpl).toHaveBeenCalledTimes(3);
   });
 
+  it.each([403, 429, 503])('honors a short Retry-After before retrying a %s read', async status => {
+    const response = json(status, { error: { errors: [{ reason: 'userRateLimitExceeded' }] } });
+    response.headers.set('retry-after', '1');
+    const a = drive(response, json(200, FILE));
+    expect((await a.client.getFile('file-1')).id).toBe('file-1');
+    expect(a.waits).toEqual([1000]);
+    expect(a.fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([1, 60])('honors an HTTP-date Retry-After %s seconds in the future', async seconds => {
+    const now = Date.parse('2026-11-13T10:00:00Z');
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const response = json(429, {});
+      response.headers.set('retry-after', new Date(now + seconds * 1000).toUTCString());
+      const a = drive(response, json(200, FILE));
+      if (seconds === 1) {
+        expect((await a.client.getFile('file-1')).id).toBe('file-1');
+        expect(a.waits).toEqual([1000]);
+        expect(a.fetchImpl).toHaveBeenCalledTimes(2);
+      } else {
+        await expect(a.client.getFile('file-1')).rejects.toMatchObject({
+          code: 'RATE_LIMITED',
+          retryable: true,
+          details: { retryAfterMs: 60_000 }
+        });
+        expect(a.waits).toEqual([]);
+        expect(a.fetchImpl).toHaveBeenCalledOnce();
+      }
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('answers «you may not», a timeout and a cancellation at once', async () => {
     const a = drive(denied());
     expect(await code(() => a.client.getFile('file-1'))).toBe('PERMISSION_DENIED');
@@ -94,6 +128,30 @@ describe('Drive reads ride out a transient failure', () => {
     const bounded = a.client.withRequestDeadline(Date.now() - 1);
     expect(await code(() => bounded.getFile('file-1'))).toBe('DRIVE_UNAVAILABLE');
     expect(a.fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('aborts an unanswered Google fetch at its deadline without poisoning a sibling request', async () => {
+    const signals: AbortSignal[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error('missing request deadline');
+      signals.push(signal);
+      return new Promise<Response>((_resolve, reject) => {
+        const abort = () => reject(signal.reason);
+        signal.addEventListener('abort', abort, { once: true });
+        if (signal.aborted) abort();
+      });
+    });
+    const blocked = new GoogleDriveClient(TOKEN, fetcher).withRequestDeadline(Date.now() + 25);
+    const healthy = drive(json(200, FILE));
+    const results = await Promise.all([
+      code(() => blocked.getFile('missing-reply')),
+      healthy.client.getFile('file-1')
+    ]);
+    expect(results[0]).toBe('DRIVE_UNAVAILABLE');
+    expect(results[1]).toMatchObject({ id: 'file-1' });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(signals.every(signal => signal.aborted)).toBe(true);
   });
 });
 

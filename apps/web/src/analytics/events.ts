@@ -363,6 +363,7 @@ export type AnalyticsProperties = {
 
 export interface TeamFileAttemptStartedProperties {
   attempt_id: string;
+  flow_id?: string;
   action: TeamAnalyticsAction;
   file_surface?: TeamAnalyticsProperties['file_surface'];
   storage_kind: TeamAnalyticsStorage;
@@ -772,3 +773,6 @@ export function analyticsTool(
   if (name.startsWith('transcription')) return 'transcription';
   return null;
 }
+
+// Global image lifecycle is authoritative server evidence; this export shares its privacy boundary.
+export { sanitizeGlobalImageMetadata } from '@video-compressor/shared';

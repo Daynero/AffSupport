@@ -6,7 +6,7 @@ import {
   parseCatalogVideoGenerationProgress,
   type CatalogInitialVideoAuthority
 } from './catalog-video-generation.ts';
-import { launchFailure } from '../_shared/launch-failures.ts';
+import { launchFailure, launchRetryAfterMs } from '../_shared/launch-failures.ts';
 import {
   parseLaunchConfig,
   parseLaunchRevision,
@@ -81,7 +81,7 @@ export async function executeLaunchCatalog(
   if (!isRecord(claimed)) throw new TeamFunctionError('INVALID_RESPONSE');
   if (claimed.state === 'succeeded') return claimed;
   if (
-    (claimed.catalogImageContractVersion !== 1 && claimed.catalogImageContractVersion !== 2) ||
+    ![1, 2, 3].includes(Number(claimed.catalogImageContractVersion)) ||
     typeof claimed.fence !== 'string' ||
     typeof claimed.advertisingUrl !== 'string' ||
     !isRecord(claimed.sources)
@@ -418,8 +418,8 @@ export async function executeLaunchCatalog(
         : {
             teamId,
             videoMaterialId: config.materialId,
-            ...(claimed.catalogImageContractVersion === 2
-              ? { catalogImageContractVersion: 2 }
+            ...([2, 3].includes(Number(claimed.catalogImageContractVersion))
+              ? { catalogImageContractVersion: claimed.catalogImageContractVersion as 2 | 3 }
               : {}),
             sourceLink: claimed.advertisingUrl,
             productCount: config.catalog.productCount,
@@ -472,10 +472,18 @@ export async function executeLaunchCatalog(
     // here would stamp the winner's generation with a stale LEASE_MISMATCH and
     // show the person "Генерацію зупинено" while it is in fact continuing.
     if (LAUNCH_LEASE_LOST.has(failure.code)) return { id: generationId, state: 'running' };
-    await call(deps.service, 'service_interrupt_launch_generation', {
-      ...authority,
-      p_code: failure.code
-    }).catch(() => undefined);
+    const retryAfterMs = launchRetryAfterMs(failure);
+    await call(
+      deps.service,
+      retryAfterMs
+        ? 'service_interrupt_launch_generation_with_backoff'
+        : 'service_interrupt_launch_generation',
+      {
+        ...authority,
+        p_code: failure.code,
+        ...(retryAfterMs ? { p_retry_after_ms: retryAfterMs } : {})
+      }
+    ).catch(() => undefined);
     throw failure;
   } finally {
     clearInterval(heartbeat);

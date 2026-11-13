@@ -133,7 +133,7 @@ export interface ManagedChildOptions {
 }
 
 interface ManagedChild {
-  child: ChildProcess;
+  child: ChildProcess | null;
   pid: number;
   toolId: string;
   /** Descendant PIDs, for trees like Playwright's. Filled in by the tree tracker. */
@@ -372,6 +372,38 @@ export class PowerGovernor {
     this.onChange?.();
   }
 
+  /** Adopt a verified native helper while its launcher remains the lifetime owner.
+   * The caller must refresh ownership from the platform process table and release
+   * immediately when the PID disappears. Only this governor suspends the helper.
+   */
+  registerNativeHelper(pid: number): () => void {
+    if (!Number.isSafeInteger(pid) || pid <= 0 || this.children.has(pid)) return () => {};
+    this.children.set(pid, {
+      child: null,
+      pid,
+      toolId: 'native-app-update',
+      descendants: [],
+      suspendedDescendants: new Set(),
+      deprioritized: new Set(),
+      suspended: false,
+      holds: new Set(),
+      terminating: false,
+      terminationPinUntil: 0,
+      live: true
+    });
+    this.retune();
+    this.onChange?.();
+    return () => {
+      const entry = this.children.get(pid);
+      if (!entry || entry.child !== null) return;
+      if (this.isStopped(entry)) this.resume(entry);
+      entry.live = false;
+      this.children.delete(pid);
+      this.retune();
+      this.onChange?.();
+    };
+  }
+
   /**
    * Removes a child. Always resumes first: a process deregistered while stopped
    * stays stopped forever, and its PID may later be recycled onto something
@@ -564,7 +596,9 @@ export class PowerGovernor {
         // Through the ChildProcess handle, never the raw PID: Node drops the
         // handle once the child is reaped, so this can never signal a PID the
         // OS has since recycled onto something unrelated.
-        entry.child.kill('SIGKILL');
+        // A native installer is owned by the native host, not by agent shutdown.
+        // Release/resume it; never kill a potentially committed replacement.
+        entry.child?.kill('SIGKILL');
       } catch (error) {
         this.onError(error, 'Could not stop a managed child process during shutdown');
       }
@@ -735,7 +769,8 @@ export class PowerGovernor {
     if (!entry.live) return;
     if (entry.terminating) return;
     try {
-      if (!entry.suspended && pauseProcess(entry.child)) entry.suspended = true;
+      if (!entry.suspended && (entry.child ? pauseProcess(entry.child) : pauseProcessId(entry.pid)))
+        entry.suspended = true;
     } catch (error) {
       this.onError(error, 'Could not suspend a managed child process');
     }
@@ -778,7 +813,8 @@ export class PowerGovernor {
     }
     entry.suspendedDescendants.clear();
     try {
-      resumeProcess(entry.child);
+      if (entry.child) resumeProcess(entry.child);
+      else resumeProcessId(entry.pid);
     } catch (error) {
       this.onError(error, 'Could not resume a managed child process');
     }

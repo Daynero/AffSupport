@@ -1,0 +1,139 @@
+{
+  "actualSourceComponents": true,
+  "syntheticData": true,
+  "errors": [],
+  "views": [
+    {
+      "file": "13-settings-dark",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200
+    },
+    {
+      "file": "23-duration-expanded",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1330
+    },
+    {
+      "file": "14-settings-light",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200
+    },
+    {
+      "file": "16-creative-choice",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200
+    }
+  ],
+  "checks": [
+    {
+      "theme": "dark",
+      "width": 960,
+      "scrollWidth": 960,
+      "rightAligned": true,
+      "color": "rgb(184, 173, 190)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "rightAligned": true,
+      "color": "rgb(184, 173, 190)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "dark",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "rightAligned": true,
+      "color": "rgb(184, 173, 190)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rightAligned": true,
+      "color": "rgb(184, 173, 190)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "dark",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "rightAligned": true,
+      "color": "rgb(184, 173, 190)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "dark",
+      "singleAmountOnly": true,
+      "singleDesktopWidthsBounded": true
+    },
+    {
+      "theme": "dark",
+      "longValuesBounded": true,
+      "fullValueInTitle": true,
+      "liveValueUpdates": true,
+      "pendingCatalogOmitted": true,
+      "unresolvedAndUnselectedOmitted": true
+    },
+    {
+      "theme": "light",
+      "width": 960,
+      "scrollWidth": 960,
+      "rightAligned": true,
+      "color": "rgb(108, 97, 115)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "rightAligned": true,
+      "color": "rgb(108, 97, 115)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "light",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "rightAligned": true,
+      "color": "rgb(108, 97, 115)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "scrollWidth": 1440,
+      "rightAligned": true,
+      "color": "rgb(108, 97, 115)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "light",
+      "width": 1920,
+      "scrollWidth": 1920,
+      "rightAligned": true,
+      "color": "rgb(108, 97, 115)",
+      "text": "SUB1 — patrik · SUB2 — g1-892-Video_24 · SUB3 — Video_24"
+    },
+    {
+      "theme": "light",
+      "singleAmountOnly": true,
+      "singleDesktopWidthsBounded": true
+    },
+    {
+      "theme": "light",
+      "longValuesBounded": true,
+      "fullValueInTitle": true,
+      "liveValueUpdates": true,
+      "pendingCatalogOmitted": true,
+      "unresolvedAndUnselectedOmitted": true
+    }
+  ]
+}

@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "kind": "bounded-development-validation",
+  "capturedAt": "2026-11-12T19:55:32.368851+00:00",
+  "branch": "feature/macos-trusted-updates",
+  "source": {
+    "baseCommit": "f95734f0913198657c793c8f978443757859b071",
+    "workingTreeDirty": true,
+    "codeTreeSha256": "dcb5eedadf3d2ad974fba6ab840aba9368632d20a7e015c4038e967e85878d20",
+    "filesHashed": 2581,
+    "scope": "apps, packages, packaging, scripts, tests, config, package/TypeScript/Vitest/ESLint inputs; documentation and ignored outputs excluded"
+  },
+  "includedInNextRelease": false,
+  "productionReady": false,
+  "productionActions": false,
+  "packagesBuilt": false,
+  "installedAppLaunched": false,
+  "tests": {
+    "acceptedAfterTargetedCorrection": {
+      "passed": 803,
+      "skipped": 2,
+      "failed": 0,
+      "files": 82
+    },
+    "runs": {
+      "impact-tests": {
+        "success": false,
+        "numTotalTests": 689,
+        "numPassedTests": 686,
+        "numFailedTests": 1,
+        "numPendingTests": 2
+      },
+      "code-map-regression": {
+        "success": true,
+        "numTotalTests": 25,
+        "numPassedTests": 25,
+        "numFailedTests": 0,
+        "numPendingTests": 0
+      },
+      "focused-tests": {
+        "success": true,
+        "numTotalTests": 119,
+        "numPassedTests": 119,
+        "numFailedTests": 0,
+        "numPendingTests": 0
+      }
+    },
+    "correction": "The impact run remains failed as originally recorded. Its one code-map failure was fixed and its file was re-run successfully in code-map-regression; no other impact assertions failed. Repeated test instances are counted by file/title/occurrence.",
+    "skips": [
+      {
+        "file": "tests/power-shared-budget.test.ts",
+        "test": "concurrent tools share one budget [needs: env:SOTY_POWER_LOAD] holds 8 tools inside a 40% limit, on average and at worst { limit: 40, tools: 8 }",
+        "reason": "opt-in SOTY_POWER_LOAD CPU benchmark disabled during parallel work"
+      },
+      {
+        "file": "tests/power-shared-budget.test.ts",
+        "test": "concurrent tools share one budget [needs: env:SOTY_POWER_LOAD] holds 8 tools inside a 70% limit, on average and at worst { limit: 70, tools: 8 }",
+        "reason": "opt-in SOTY_POWER_LOAD CPU benchmark disabled during parallel work"
+      }
+    ]
+  },
+  "passedGates": {
+    "build-shared": {
+      "exitCode": 0,
+      "durationSeconds": 1.77,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "typecheck-agent": {
+      "exitCode": 0,
+      "durationSeconds": 3.33,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "typecheck-web": {
+      "exitCode": 0,
+      "durationSeconds": 23.2,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "typecheck-soty-review": {
+      "exitCode": 0,
+      "durationSeconds": 2.04,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "typecheck-scripts": {
+      "exitCode": 0,
+      "durationSeconds": 3.63,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "typecheck-focused": {
+      "exitCode": 0,
+      "durationSeconds": 13.08,
+      "nodeHeapMiB": 1536,
+      "stopped": null
+    },
+    "lint": {
+      "exitCode": 0,
+      "durationSeconds": 29.61,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "format-check": {
+      "exitCode": 0,
+      "durationSeconds": 33.96,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "design-tokens": {
+      "exitCode": 0,
+      "durationSeconds": 0.25,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "tailwind-classes": {
+      "exitCode": 0,
+      "durationSeconds": 2.55,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "styles": {
+      "exitCode": 0,
+      "durationSeconds": 0.25,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "i18n": {
+      "exitCode": 0,
+      "durationSeconds": 0.26,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "env-registry": {
+      "exitCode": 0,
+      "durationSeconds": 0.26,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "csp": {
+      "exitCode": 0,
+      "durationSeconds": 0.26,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "shell-syntax": {
+      "exitCode": 0,
+      "durationSeconds": 0.26,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "native-boundaries": {
+      "exitCode": 0,
+      "durationSeconds": 9.77,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "compile-native-arm64": {
+      "exitCode": 0,
+      "durationSeconds": 10.99,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    },
+    "compile-native-x64": {
+      "exitCode": 0,
+      "durationSeconds": 12.75,
+      "nodeHeapMiB": 768,
+      "stopped": null
+    }
+  },
+  "nativeProbe": {
+    "checks": 13,
+    "scope": "native-store-and-recovery",
+    "actualNativeExecution": true,
+    "packagedUpgrade": false
+  },
+  "nativeCompilation": {
+    "targets": ["arm64", "x86_64"],
+    "kind": "compile-and-link-only",
+    "sdk": "Sparkle 2.10.1",
+    "sdkSha256": "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27",
+    "executed": false,
+    "developerId": false,
+    "notarized": false,
+    "intelRuntimeVerified": false
+  },
+  "resourcePolicy": {
+    "nice": 15,
+    "vitestWorkers": 1,
+    "threadPools": 1,
+    "defaultNodeHeapMiB": 768,
+    "focusedTestTypecheckHeapMiB": 1536,
+    "hostMinimumMemoryFreePercent": 20,
+    "stopOwnCommandAtLoadOverLogicalCpusTimes": 2,
+    "otherProcessesSignaled": false,
+    "betaServicesChanged": false,
+    "dependencyWrites": "Worktree-local workspace links and build outputs; dependency source left unchanged. Shared tool-cache symlinks were replaced locally before final confirmation; earlier cache writes are not excluded. Former cache targets were not cleared or modified during replacement.",
+    "serialization": "Early web typecheck and focused tests briefly overlapped. A private flock was added for every subsequent command; no foreign process was signaled.",
+    "otherWorktreeSourcesModified": false,
+    "finalLocalCacheConfirmation": {
+      "tests": 119,
+      "passed": true,
+      "durationSeconds": 13.03
+    }
+  },
+  "fixes": [
+    "Export native update contracts through both shared package entry points.",
+    "Remove native snapshot from unsupported analytics context.",
+    "Use bounded Web Stream readers compatible with script/test compiler libraries; cancel failed reads and release locks.",
+    "Bind diagnostic category/code as SQL parameters without weakening the read-only guard.",
+    "Retain foreground busy membership until its terminal vault write completes; strict update flush awaits writes and rechecks faults.",
+    "Map native update diagnostics only to existing product source/forwarder files.",
+    "Clear inherited native-update authority in launcher before explicitly enabling a qualified native host."
+  ],
+  "notCompleted": [
+    "Full test-tree TypeScript check exceeded the self-imposed 768/1536 MiB Node heap; focused test typecheck passed at 1536 MiB. No further heap increase was attempted.",
+    "Overall npm run verify and release gates were not completed; this is not a green universal verification result.",
+    "Actual signed/notarized/stapled Soty packages, clean-host trust, hosted/local UI A-to-B-to-C upgrades and fault/reboot acceptance remain unverified.",
+    "SDK helper registration before heavy extraction, 20/100 percent CPU compliance, all-tool workload acceptance and 20-sample latency proof require packaged execution.",
+    "Live native-receipt-to-web-to-database-to-CLI delivery is unverified; local producer/forwarder/SQL/CLI regressions do not replace deployed transport acceptance.",
+    "Intel compilation is cross-target static evidence; Intel runtime/hardware and Windows hosted installer acceptance were not performed.",
+    "Packaging was deferred because the shared volume had only about 2 GiB free and concurrent agents were active. Installed apps and shared beta were not touched."
+  ],
+  "privateEvidenceDirectory": "scratchpad/native-updates-validation (ignored, local only)"
+}

@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { Button, Checkbox, ConfirmDialog } from '../../components/ui/index';
@@ -50,9 +51,19 @@ export function CatalogProfileEditor({
   onPendingChange?: (pending: boolean) => void;
   activeAttempt?: boolean;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
+  const fields = FIELDS.filter(([field]) => legacyImages || field !== 'refreshImages');
   const { t } = useI18n();
   const activeTeamId = useOptionalTeam()?.activeTeamId ?? null;
   const [draft, setDraft] = useState<CatalogUpdateProfilePatch>({});
+  useEffect(() => {
+    if (!legacyImages)
+      setDraft(current => {
+        const next = { ...current };
+        delete next.refreshImages;
+        return next;
+      });
+  }, [legacyImages]);
   const [baseline, setBaseline] = useState({ profile, interval });
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const dirty = Object.keys(draft).length > 0;
@@ -99,7 +110,7 @@ export function CatalogProfileEditor({
   const base = conflict?.profile ?? baseline.profile;
   const baseInterval = conflict ? conflict.interval : baseline.interval;
   const overlappingFields = conflict
-    ? FIELDS.filter(
+    ? fields.filter(
         ([field]) =>
           draft[field] !== undefined &&
           baseline.profile[field] !== conflict.profile[field] &&
@@ -114,7 +125,7 @@ export function CatalogProfileEditor({
   const hasOverlap = overlappingFields.length > 0 || Boolean(intervalOverlaps);
   const selected = [
     t('catalogUpdaterIds'),
-    ...FIELDS.filter(([field]) => draft[field] ?? base[field]).map(([, key]) => t(key))
+    ...fields.filter(([field]) => draft[field] ?? base[field]).map(([, key]) => t(key))
   ];
   const nextInterval = draft.updateInterval === undefined ? baseInterval : draft.updateInterval;
 
@@ -184,7 +195,7 @@ export function CatalogProfileEditor({
       </p>
       <strong>{t('catalogUpdaterWhat')}</strong>
       <div className="team-updater-profile-choices">
-        {FIELDS.map(([field, label, effect]) => (
+        {fields.map(([field, label, effect]) => (
           <div key={field}>
             <Checkbox
               checked={draft[field] ?? base[field]}
@@ -247,16 +258,16 @@ export function CatalogProfileEditor({
             })}
           </p>
           <ul>
-            {FIELDS.filter(([field]) => conflict.profile[field] !== baseline.profile[field]).map(
-              ([field, label]) => (
+            {fields
+              .filter(([field]) => conflict.profile[field] !== baseline.profile[field])
+              .map(([field, label]) => (
                 <li key={field}>
                   {t(label)}:{' '}
                   {baseline.profile[field] ? t('catalogUpdaterBulkOn') : t('catalogUpdaterBulkOff')}{' '}
                   →{' '}
                   {conflict.profile[field] ? t('catalogUpdaterBulkOn') : t('catalogUpdaterBulkOff')}
                 </li>
-              )
-            )}
+              ))}
           </ul>
           <p>{t('catalogUpdaterProfileConflictAction')}</p>
           {hasOverlap && (

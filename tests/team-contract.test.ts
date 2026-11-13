@@ -27,6 +27,7 @@ import {
   TEAM_CATALOG_PUBLICATION_ERROR_CODES,
   RESTITCH_RECOVERY_ERROR_CODES,
   CATALOG_IMAGE_ERROR_CODES,
+  GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   CATALOG_VIDEO_R2_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
@@ -261,6 +262,10 @@ describe('team contract', () => {
     const publicationDelta = readFileSync(publicationPath, 'utf8');
     const videoPath = 'supabase/migrations/20261207194000_catalog_video_r2_error_codes.sql';
     const videoDelta = readFileSync(videoPath, 'utf8');
+    const globalDelta = readFileSync(
+      'supabase/migrations/20261208095900_catalog_global_error_codes.sql',
+      'utf8'
+    );
     expect(createHash('sha256').update(mutationDelta.replaceAll('\r\n', '\n')).digest('hex')).toBe(
       '5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9'
     );
@@ -292,6 +297,7 @@ describe('team contract', () => {
     expect(codes(publicationDelta)).toEqual([...TEAM_CATALOG_PUBLICATION_ERROR_CODES]);
     expect(codes(restitchRecoveryDelta)).toEqual([...RESTITCH_RECOVERY_ERROR_CODES]);
     expect(codes(videoDelta)).toEqual([...CATALOG_VIDEO_R2_ERROR_CODES]);
+    expect(codes(globalDelta)).toEqual([...GLOBAL_CATALOG_IMAGE_ERROR_CODES]);
     expect(
       [
         ...codes(base),
@@ -307,7 +313,8 @@ describe('team contract', () => {
         ...codes(mutationDelta),
         ...codes(publicationDelta),
         ...codes(restitchRecoveryDelta),
-        ...codes(videoDelta)
+        ...codes(videoDelta),
+        ...codes(globalDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
@@ -429,6 +436,7 @@ describe('team contract', () => {
       expect(before).not.toContain('VIDEO_R2_DISABLED');
       await db.db.exec(publicationDelta);
       await db.db.exec(videoDelta);
+      await db.db.exec(globalDelta);
       const catalog = await db.root<{ code: string }>(
         'select code from public.team_error_codes order by code'
       );
@@ -439,11 +447,13 @@ describe('team contract', () => {
           .filter(
             code =>
               !(TEAM_CATALOG_PUBLICATION_ERROR_CODES as readonly string[]).includes(code) &&
-              !(CATALOG_VIDEO_R2_ERROR_CODES as readonly string[]).includes(code)
+              !(CATALOG_VIDEO_R2_ERROR_CODES as readonly string[]).includes(code) &&
+              !(GLOBAL_CATALOG_IMAGE_ERROR_CODES as readonly string[]).includes(code)
           )
       ).toEqual(before);
       await db.db.exec(publicationDelta);
       await db.db.exec(videoDelta);
+      await db.db.exec(globalDelta);
       expect(
         (
           await db.root<{ code: string }>('select code from public.team_error_codes order by code')

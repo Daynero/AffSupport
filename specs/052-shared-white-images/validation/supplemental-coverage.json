@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "kind": "supplemental_coverage_union",
+  "scope": "Previous complete coverage plus final focused run. Changed toolbar uses final measurements only. Not a successful final canonical suite.",
+  "total_lines": 84.09,
+  "numeric_floors_changed": false,
+  "failures": [],
+  "selected_files": {
+    "apps/web/src/team/catalog-updater/CatalogIconControls.tsx": 100,
+    "packages/shared/src/team/catalog-global-alias.ts": 97.91,
+    "packages/shared/src/team/catalog-global-images.ts": 95.2
+  }
+}

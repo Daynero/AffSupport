@@ -66,11 +66,19 @@ describe('Soty Finder image conversion integration', () => {
     const development = readFileSync('scripts/package-dev-mac.sh', 'utf8');
     for (const script of [production, development]) {
       expect(script).toContain('scripts/build-finder-extension.sh');
-      expect(script).toContain('-framework FinderSync');
-      expect(script).toContain('-target "$swift_target"');
+      expect(script).toContain('scripts/compile-native-launcher.sh');
+      expect(script).toContain('"$swift_target" "$app" "$arch"');
       expect(script).toContain('scripts/lib/macos-target.mjs swift');
-      expect(script).toContain('--preserve-metadata=entitlements');
+      // 048: both variants sign through the chain, which gives the extension its own
+      // sandbox entitlements file instead of whatever the build left on it.
+      expect(script).toContain('scripts/sign-mac-app.sh');
     }
+    const compiler = readFileSync('scripts/compile-native-launcher.sh', 'utf8');
+    expect(compiler).toContain('-framework FinderSync');
+    expect(compiler).toContain('-target "$target"');
+    const chain = readFileSync('scripts/sign-mac-app.sh', 'utf8');
+    expect(chain).toContain('packaging/FinderExtension/FinderExtension.entitlements');
+    expect(chain).toContain('*.finder-extension');
     // The extension id is the app's bundle id plus a suffix, and the bundle id
     // comes from the shared profile — which is what keeps the two variants'
     // extensions from ever claiming the same identity.

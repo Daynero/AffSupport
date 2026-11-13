@@ -119,7 +119,9 @@ describe('the step adapter runs the runbook', () => {
           version: '9.9.9',
           sourceSha,
           cwd: root,
-          env: { PATH: `${bin}:${process.env.PATH}` },
+          // A release without a certificate says so; the default policy would stop
+          // macos_package at the 048 trust preflight (tested below).
+          env: { PATH: `${bin}:${process.env.PATH}`, SOTY_MACOS_TRUST_POLICY: 'adhoc-pre-048' },
           binding,
           allowRemote: false
         });
@@ -281,7 +283,11 @@ itRequiring(
         await writeFile(
           join(root, 'scripts/verify-macos-release-trust.mjs'),
           `import { appendFileSync } from 'node:fs';\n` +
-            `appendFileSync(${JSON.stringify(log)}, 'trust TMPDIR=' + process.env.TMPDIR + '\\n');\n`
+            `appendFileSync(${JSON.stringify(log)}, 'trust TMPDIR=' + process.env.TMPDIR + '\\n');\n` +
+            // The gate's record is what publish journals (048 T013); the pre-048 policy
+            // claims no Apple trust.
+            `const arch = process.argv.includes('--arch=x64') ? 'x64' : 'arm64';\n` +
+            `process.stdout.write(JSON.stringify({ target: 'macos-' + arch, trustPolicy: 'adhoc-pre-048', appleTrust: 'unverified', developerId: false, notarized: false, stapled: false }) + '\\n');\n`
         );
         await writeFile(
           join(bin, 'git'),
@@ -302,7 +308,7 @@ const fs=require('node:fs');const path=require('node:path');const a=process.argv
           version,
           sourceSha,
           cwd: root,
-          env: { PATH: process.env.PATH },
+          env: { PATH: process.env.PATH, SOTY_MACOS_TRUST_POLICY: 'adhoc-pre-048' },
           binding,
           allowRemote: true
         });
@@ -365,6 +371,76 @@ itRequiring(
     } finally {
       if (previousPath === undefined) delete process.env.PATH;
       else process.env.PATH = previousPath;
+      await removeTemporaryDirectory(root);
+    }
+  },
+  30_000
+);
+
+itRequiring(
+  posixReleaseHost,
+  'refuses to package a developer-id release until its trust inputs exist (048 T019)',
+  async () => {
+    const { root, bin, log } = await fakeProject();
+    try {
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version: '9.9.9',
+        sourceSha,
+        cwd: root,
+        // The default policy is developer-id, and nothing here names an identity.
+        env: { PATH: `${bin}:${process.env.PATH}` },
+        binding,
+        allowRemote: false
+      });
+      const result = await adapter.execute('macos_package');
+      expect(result).toMatchObject({ ok: false, error: { code: 'GATE_FAILED' } });
+      expect(result.error.subject).toContain('MACOS_TRUST_INPUTS_MISSING');
+      // Nothing was built on the way to that refusal.
+      expect(await readFile(log, 'utf8').catch(() => '')).not.toContain('npm run package:mac');
+    } finally {
+      await removeTemporaryDirectory(root);
+    }
+  },
+  30_000
+);
+
+itRequiring(
+  posixReleaseHost,
+  'refuses to publish a developer-id release whose package carries no chain summary (048 T013)',
+  async () => {
+    const version = '9.9.9';
+    const armName = releaseArtifactName('macos-arm64', version);
+    const intelName = releaseArtifactName('macos-x64', version);
+    const { root, log } = await fakeProject();
+    try {
+      await mkdir(join(root, 'release/x64'), { recursive: true });
+      await writeFile(join(root, 'release', armName), 'arm fixture');
+      await writeFile(join(root, 'release/x64', intelName), 'intel fixture');
+      // The gate is satisfied; the summary beside the image is what is missing.
+      await writeFile(
+        join(root, 'scripts/verify-macos-release-trust.mjs'),
+        `import { appendFileSync } from 'node:fs';\n` +
+          `appendFileSync(${JSON.stringify(log)}, 'trust ' + process.argv.slice(2).join(' ') + '\\n');\n` +
+          `const arch = process.argv.includes('--arch=x64') ? 'x64' : 'arm64';\n` +
+          `process.stdout.write(JSON.stringify({ target: 'macos-' + arch, trustPolicy: 'developer-id', appleTrust: 'verified', developerId: true, hardenedMachO: 11, notarized: true, stapled: true }) + '\\n');\n`
+      );
+      const adapter = await createStepAdapter({
+        runId: 'run',
+        version,
+        sourceSha,
+        cwd: root,
+        env: { PATH: process.env.PATH ?? '', MACOS_EXPECTED_TEAM_ID: 'ABCDEFGHIJ' },
+        binding,
+        allowRemote: true
+      });
+      const result = await adapter.execute('publish');
+      expect(result).toMatchObject({ ok: false, error: { code: 'GATE_FAILED' } });
+      expect(result.error.subject).toContain('MACOS_SIGNING_SUMMARY_REQUIRED');
+      const calls = await readFile(log, 'utf8');
+      expect(calls).toContain('trust ');
+      expect(calls).not.toContain('release view');
+    } finally {
       await removeTemporaryDirectory(root);
     }
   },

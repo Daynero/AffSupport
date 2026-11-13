@@ -5,7 +5,7 @@ export interface WorkspaceMutationIntent {
   materialIds: string[];
   createdAt: number;
 }
-type Action = 'bulk-trash' | 'restore';
+type Action = 'bulk-trash' | 'restore' | 'catalog-rename';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const unavailable = () => new TeamApiError('CATALOG_COMMAND_STORAGE_UNAVAILABLE', false);
 const canonicalIds = (ids: readonly string[]) =>

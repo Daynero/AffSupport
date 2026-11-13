@@ -1012,7 +1012,7 @@ it('keeps the proven terminal codec cause and its action over a later busy retry
 });
 
 it.each(['cancel_requested', 'canceled_with_cleanup_pending', 'video_only'] as const)(
-  'does not offer Repeat while canonical cancellation is %s and permits only a status read',
+  'does not offer Repeat while canonical cancellation is %s and observes cleanup automatically',
   async state => {
     const refresh = vi.fn(async () => {});
     render(
@@ -1040,12 +1040,8 @@ it.each(['cancel_requested', 'canceled_with_cleanup_pending', 'video_only'] as c
     expect(screen.queryByText(/waiting for active video work/)).toBeNull();
     expect(screen.getByText(/waiting for safe cleanup/)).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Check status' })).toBeTruthy());
-    expect(refresh).toHaveBeenCalledOnce();
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Check status' }));
-    });
-    expect(refresh).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('button', { name: 'Check status' })).toBeNull();
   }
 );
 it('keeps exact cancellation retry reachable when its reply is unconfirmed rather than canonically accepted', () => {

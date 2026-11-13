@@ -1,0 +1,13 @@
+{
+  "command": "SOTY_TEST_DB_SOURCE_PROJECT=r2beta045 nice -n 15 npm run test:db",
+  "completed_at": "2026-11-13T11:44:30.776089+00:00",
+  "ok": true,
+  "sql_files": 74,
+  "sql_assertions": 1481,
+  "auth_tests": 3,
+  "native_integration_files": 10,
+  "native_integration_tests": 81,
+  "native_duration_ms": 172120,
+  "log_sha256": "b0658d81b0996a4fb3fa6f620280197ac90a006a627024390395203067acd0f9",
+  "scope": "Canonical disposable PostgreSQL with complete migration chain; schema and roles only copied from local Supabase, scheduled jobs disabled, all disposable containers cleaned. No source rows or credentials copied and no production changes."
+}

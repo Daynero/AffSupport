@@ -1,5 +1,5 @@
 import { verifyMacosPayload } from './lib/macos-payload.mjs';
-import { createHash } from 'node:crypto';
+import { assertStagedBrowserProvenance } from './lib/staged-browser-provenance.mjs';
 import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -84,17 +84,20 @@ for (const target of [browserExecutable, browserLicense]) {
     throw new Error(`The staged browser file is missing or empty: ${target}`);
   }
 }
-if (
-  browserManifest.executableSha256 !== undefined &&
-  createHash('sha256')
-    .update(await readFile(browserExecutable))
-    .digest('hex') !== browserManifest.executableSha256
-) {
-  throw new Error('The staged Chromium bytes differ from their recorded digest.');
-}
-const staticOnly = process.argv.slice(3).includes('--static');
-if (process.argv.slice(3).some(arg => arg !== '--static'))
+const options = process.argv.slice(3);
+const staticOnly = options.includes('--static');
+const signingFile =
+  options.find(arg => arg.startsWith('--signing='))?.slice('--signing='.length) ?? null;
+if (options.some(arg => arg !== '--static' && !arg.startsWith('--signing=')))
   throw new Error('STAGED_VERIFICATION_ARGUMENT_INVALID');
+// 048: a bundle signed through the chain no longer holds the download's bytes; the
+// chain's summary beside the package (`--signing=`) then has to attest the lineage.
+await assertStagedBrowserProvenance({
+  stagedAgent,
+  browserExecutable,
+  recordedSha256: browserManifest.executableSha256,
+  signingFile: signingFile && path.resolve(signingFile)
+});
 if (staticOnly) {
   if (!['arm64', 'x64'].includes(browserManifest.architecture))
     throw new Error('STAGED_BROWSER_TARGET_UNKNOWN');

@@ -13,6 +13,13 @@ import type { UnavailableReason } from './materials/actions';
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
   FEATURE_RETIRED: 'teamErrorWrongState',
+  GLOBAL_IMAGE_POOL_UNAVAILABLE: 'catalogImagesErrorUnavailable',
+  GLOBAL_IMAGE_READINESS_UNKNOWN: 'catalogImagesErrorVerification',
+  GLOBAL_IMAGE_ALLOCATION_UNKNOWN: 'catalogImagesErrorUncertain',
+  GLOBAL_IMAGE_SETTINGS_RETIRED: 'catalogGlobalSettingsRetired',
+  GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED: 'catalogImagesErrorUpgrade',
+  GLOBAL_IMAGE_POLICY_CONFLICT: 'catalogImagesErrorConflict',
+  GLOBAL_IMAGE_CLEANUP_UNKNOWN: 'catalogImagesErrorUncertain',
   CATALOG_IMAGE_UPGRADE_REQUIRED: 'catalogImagesErrorUpgrade',
   CATALOG_IMAGE_IMPORT_DISABLED: 'catalogImagesErrorDisabled',
   IMAGE_QUOTA_EXCEEDED: 'catalogImagesErrorQuota',

@@ -1,3 +1,5 @@
+/** Maximum explicitly selected drafts in one session-local batch. */
+export const LAUNCH_BATCH_MAX_ITEMS = 100;
 /** Launches are a separate workspace aggregate; Tasks remain unchanged. */
 import type { LaunchNote } from './launches/notes.js';
 import type { LaunchAnalyticsStage } from './launches/lifecycle.js';
@@ -51,7 +53,7 @@ export interface LaunchConfig {
   /** Absent on legacy launches, which retain max/count allocation. */
   minBudget?: number;
   adsCount: number;
-  budgetMode: 'auto' | 'manual';
+  budgetMode: 'auto' | 'manual' | 'single';
   budgets: number[] | null;
   age: number;
   gender: 'M' | 'W' | 'ALL';
@@ -153,6 +155,9 @@ export interface LaunchGeneration {
   childOperationIds: string[];
 }
 export interface LaunchSummary {
+  sourceMaterialId?: string;
+  /** Bounded protected live projection; absent on older servers. */
+  generation?: LaunchGeneration | null;
   id: string;
   assignment?: LaunchAssignmentState;
   version: string;
@@ -199,6 +204,9 @@ export interface LaunchRevision {
     materialId: string;
     variant: number;
     name: string;
+    /** Live material name; the original name above remains immutable. */
+    currentName?: string;
+    boundNames?: string[];
     url: string;
     available?: boolean;
     restitchMaterialId: string | null;
@@ -206,6 +214,8 @@ export interface LaunchRevision {
   createdAt: string;
 }
 export interface LaunchDetail {
+  /** Authoritative name reservation; not a completed catalog. */
+  pendingCatalogName?: string | null;
   id: string;
   version: string;
   draft: LaunchDraft;

@@ -28,13 +28,18 @@ export function CatalogCreationVideoFields({
   onChange,
   restitch,
   productCount,
-  disabled
+  disabled,
+  part = 'all',
+  revealPublicationErrors = false
 }: {
   value: CatalogCreationVideoDraft;
   onChange(value: CatalogCreationVideoDraft): void;
   restitch: boolean;
   productCount: number;
   disabled: boolean;
+  /** Launches can keep variations visible while disclosing publication separately. */
+  part?: 'all' | 'variations' | 'publication';
+  revealPublicationErrors?: boolean;
 }) {
   const { t } = useI18n();
   const countId = useId(),
@@ -46,7 +51,7 @@ export function CatalogCreationVideoFields({
     value.variationCount !== '' && (!Number.isInteger(count) || count < 1 || count > productCount);
   return (
     <>
-      {restitch && (
+      {part !== 'publication' && restitch && (
         <FormField
           label={t('catalogVideoVariationCount')}
           htmlFor={countId}
@@ -65,65 +70,68 @@ export function CatalogCreationVideoFields({
           />
         </FormField>
       )}
-      <CatalogPublicationSchedule
-        enabled={value.delayed}
-        disabled={disabled}
-        date={value.date}
-        time={value.time}
-        zone={value.zone}
-        onChange={(delayed, date, time) => change({ delayed, date, time, occurrence: undefined })}
-      >
-        <Calendar
-          label={t('catalogPublicationDate')}
-          value={toCalendarDate(value.date)}
-          // Past days are shown as unavailable; a busy form freezes the calendar
-          // instead of marking every day — and the chosen one — invalid (1.4.3).
-          minValue={catalogPublicationFirstDay(value.zone)}
-          isDisabled={disabled}
-          onChange={date => change({ date: fromCalendarDate(date) ?? '', occurrence: undefined })}
-        />
-        <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
-          <CatalogTimeInput
-            id={timeId}
-            disabled={disabled}
-            value={value.time}
-            onChange={time => change({ time, occurrence: undefined })}
+      {part !== 'variations' && (
+        <CatalogPublicationSchedule
+          forceOpen={revealPublicationErrors}
+          enabled={value.delayed}
+          disabled={disabled}
+          date={value.date}
+          time={value.time}
+          zone={value.zone}
+          onChange={(delayed, date, time) => change({ delayed, date, time, occurrence: undefined })}
+        >
+          <Calendar
+            label={t('catalogPublicationDate')}
+            value={toCalendarDate(value.date)}
+            // Past days are shown as unavailable; a busy form freezes the calendar
+            // instead of marking every day — and the chosen one — invalid (1.4.3).
+            minValue={catalogPublicationFirstDay(value.zone)}
+            isDisabled={disabled}
+            onChange={date => change({ date: fromCalendarDate(date) ?? '', occurrence: undefined })}
           />
-        </FormField>
-        <FormField label={t('catalogPublicationZone')} htmlFor={zoneId}>
-          <CatalogTimeZoneSelect
-            id={zoneId}
-            disabled={disabled}
-            value={value.zone}
-            date={value.date}
-            time={value.time}
-            onChange={zone => change({ zone, occurrence: undefined })}
-          />
-        </FormField>
-        {(value.occurrence !== undefined ||
-          catalogPublicationTimeRepeats(`${value.date}T${value.time}`, value.zone)) && (
-          <FormField label={t('catalogPublicationOccurrence')}>
-            {/* An empty value renders the placeholder; listing '' as an option left
-              the trigger blank with no label (seen on beta, 1.4.2). */}
-            <Select
-              aria-label={t('catalogPublicationOccurrence')}
+          <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
+            <CatalogTimeInput
+              id={timeId}
               disabled={disabled}
-              value={value.occurrence ?? ''}
-              placeholder={t('catalogPublicationChoose')}
-              onChange={occurrence =>
-                change({
-                  occurrence:
-                    occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
-                })
-              }
-              options={[
-                { value: 'earlier', label: t('catalogPublicationEarlier') },
-                { value: 'later', label: t('catalogPublicationLater') }
-              ]}
+              value={value.time}
+              onChange={time => change({ time, occurrence: undefined })}
             />
           </FormField>
-        )}
-      </CatalogPublicationSchedule>
+          <FormField label={t('catalogPublicationZone')} htmlFor={zoneId}>
+            <CatalogTimeZoneSelect
+              id={zoneId}
+              disabled={disabled}
+              value={value.zone}
+              date={value.date}
+              time={value.time}
+              onChange={zone => change({ zone, occurrence: undefined })}
+            />
+          </FormField>
+          {(value.occurrence !== undefined ||
+            catalogPublicationTimeRepeats(`${value.date}T${value.time}`, value.zone)) && (
+            <FormField label={t('catalogPublicationOccurrence')}>
+              {/* An empty value renders the placeholder; listing '' as an option left
+              the trigger blank with no label (seen on beta, 1.4.2). */}
+              <Select
+                aria-label={t('catalogPublicationOccurrence')}
+                disabled={disabled}
+                value={value.occurrence ?? ''}
+                placeholder={t('catalogPublicationChoose')}
+                onChange={occurrence =>
+                  change({
+                    occurrence:
+                      occurrence === 'earlier' || occurrence === 'later' ? occurrence : undefined
+                  })
+                }
+                options={[
+                  { value: 'earlier', label: t('catalogPublicationEarlier') },
+                  { value: 'later', label: t('catalogPublicationLater') }
+                ]}
+              />
+            </FormField>
+          )}
+        </CatalogPublicationSchedule>
+      )}
     </>
   );
 }

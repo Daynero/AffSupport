@@ -44,6 +44,15 @@
       },
       "productionSource": "config/production.env (tracked)",
       "note": "Tracked on purpose: none of these are secret, and packaging must not depend on a file only one machine has."
+    },
+    "catalog-image-delivery": {
+      "description": "052 read-only public image alias Worker; inactive until explicit provider acceptance.",
+      "scan": {
+        "roots": ["apps/catalog-image-delivery/src"],
+        "pattern": "worker"
+      },
+      "productionSource": "Environment-scoped Cloudflare Worker bindings and secrets, reviewed through canonical full-release acceptance.",
+      "note": "Optional for an inactive compatibility release; all bindings and exact route/cache proof are mandatory before T0. Never expose HMAC key values."
     }
   },
   "variables": [
@@ -545,6 +554,54 @@
       "secret": true,
       "format": "non-empty",
       "note": "Secret counterpart of the video-bucket R2 S3 key."
+    },
+    {
+      "name": "CATALOG_GLOBAL_ALIAS_KEYS",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "052 version-to-base64 HMAC keyring. Isolated worker and delivery Worker must match. Keep every issued key; never print values. Missing configuration leaves global pool unready; never activates T0."
+    },
+    {
+      "name": "CATALOG_IMAGES_ENVIRONMENT",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
+    },
+    {
+      "name": "R2_CATALOG_PUBLIC_ORIGIN",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
+    },
+    {
+      "name": "CATALOG_GLOBAL_ALIAS_KEYS",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
+    },
+    {
+      "name": "CATALOG_GLOBAL_ROUTING_REVISION",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
+    },
+    {
+      "name": "CATALOG_GLOBAL_DELIVERY_CONFIRMATION",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
     }
   ]
 }

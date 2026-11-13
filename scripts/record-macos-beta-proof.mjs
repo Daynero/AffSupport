@@ -11,6 +11,7 @@ import {
 } from './lib/release/platform-evidence.mjs';
 import { verifyMacosPayload } from './lib/macos-payload.mjs';
 import { betaPackageProvenance } from './beta-package-provenance.mjs';
+import { auditMacosSigning } from './audit-macos-signing.mjs';
 const target = parseMacosTarget(process.argv.slice(2));
 const cwd = process.cwd();
 const paths = macosPaths(cwd, 'beta', target.arch);
@@ -61,9 +62,12 @@ const publicConfigDigest = await betaPublicConfigDigest(cwd);
 const payloadDigest = await betaPackageProvenance({ cwd, action: 'verify', arch: target.arch });
 const packageDigest = createHash('sha256').update(bytes).digest('hex');
 const webPayloadDigest = await outputDigest(path.join(paths.app, 'Contents/Resources/web/dist'));
+// 048 FR-008 (T008): the chain's work is part of the proof, not only a valid signature.
+const codeSigning = await auditMacosSigning(paths.app, path.join(paths.root, 'signing.json'));
 const proof = {
   webPayloadDigest,
   ...qualification,
+  codeSigning,
   target: target.platform,
   sourceRevision: sourceSha,
   buildId: metadata.buildId,

@@ -84,6 +84,19 @@ export function validateMacosBetaEvidence(proof, target, binding) {
       proof.physicalHost !== (arch === 'x64' ? 'intel' : 'apple-silicon') ||
       !/^\d+\.\d+(?:\.\d+)?$/u.test(proof.macosVersion ?? '') || Number(proof.macosVersion.split('.')[0]) < 13)
     throw new Error('MACOS_BETA_TARGET_UNPROVEN');
+  // 048 FR-008 (T008): the proof records the chain's work — every Mach-O hardened, the
+  // runtime alone on the JIT profile — not only that some signature verified.
+  const signing = proof.codeSigning;
+  if (
+    !signing || typeof signing !== 'object' || signing.chain !== 'sign-mac-app' ||
+    !['adhoc', 'developer-id'].includes(signing.identity) ||
+    !Number.isSafeInteger(signing.hardenedMachO) || signing.hardenedMachO < 3 || signing.hardenedMachO > 1024 ||
+    !Number.isSafeInteger(signing.machO) || signing.machO < 1 || signing.machO > signing.hardenedMachO ||
+    !signing.profiles || typeof signing.profiles !== 'object' ||
+    !['node', 'chromium', 'hardened'].every(name => Number.isSafeInteger(signing.profiles[name]) && signing.profiles[name] >= 0) ||
+    signing.profiles.node !== 1
+  )
+    throw new Error('MACOS_BETA_SIGNING_UNPROVEN');
   if (proof.buildId !== binding.buildId) throw new Error('MACOS_BETA_BUILD_MISMATCH');
   for (const [field, expected] of Object.entries({
     sourceRevision: binding.sourceSha,
@@ -108,6 +121,17 @@ export function validateMacosBetaEvidence(proof, target, binding) {
   return {
     schemaVersion: proof.schemaVersion,
     ...qualification,
+    codeSigning: {
+      chain: 'sign-mac-app',
+      identity: signing.identity,
+      hardenedMachO: signing.hardenedMachO,
+      machO: signing.machO,
+      profiles: {
+        node: signing.profiles.node,
+        chromium: signing.profiles.chromium,
+        hardened: signing.profiles.hardened
+      }
+    },
     target,
     sourceRevision: proof.sourceRevision,
     buildId: proof.buildId,

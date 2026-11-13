@@ -280,6 +280,10 @@ function sortKeysDeep(value: unknown): unknown {
 }
 
 export interface StableReleaseManifest {
+  /** Optional on legacy releases; covered by the same canonical manifest signature. */
+  nativeUpdates?: Partial<
+    Record<'macos-arm64' | 'macos-x64', import('./native-app-updates.js').NativeUpdateDescriptor>
+  >;
   /** Revision 2 binds the complete ARM + Intel + Windows distribution. */
   platformSetVersion?: 2;
   schemaVersion: 1;

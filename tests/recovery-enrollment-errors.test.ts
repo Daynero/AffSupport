@@ -6,30 +6,35 @@ const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => {
   for (const app of apps.splice(0)) await app.close();
 });
-it.each(['AGENT_UPDATE_REQUIRED', 'PERMISSION_DENIED', 'INVALID_RESPONSE'])(
-  'preserves the closed setup failure %s at the native route',
-  async code => {
-    const app = Fastify();
-    apps.push(app);
-    registerRecoveryRoutes(
-      app,
-      {
-        enroll: vi.fn(async () => {
-          throw new Error(code);
-        })
-      } as unknown as TeamRecoveryWorker,
-      () => true
-    );
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/team/recovery/confirm',
-      payload: { enrollmentId: 'synthetic', challengeId: 'synthetic' }
-    });
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toEqual({ error: code });
-  }
-);
-it('does not expose an unrecognized upstream error or credential', async () => {
+it.each([
+  'AGENT_UPDATE_REQUIRED',
+  'PERMISSION_DENIED',
+  'INVALID_RESPONSE',
+  'DRIVE_UNAVAILABLE',
+  'RATE_LIMITED',
+  'UPDATE_PENDING',
+  'EXPIRED'
+])('preserves the closed setup failure %s at the native route', async code => {
+  const app = Fastify();
+  apps.push(app);
+  registerRecoveryRoutes(
+    app,
+    {
+      enroll: vi.fn(async () => {
+        throw new Error(code);
+      })
+    } as unknown as TeamRecoveryWorker,
+    () => true
+  );
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/team/recovery/confirm',
+    payload: { enrollmentId: 'synthetic', challengeId: 'synthetic' }
+  });
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: code });
+});
+it('does not expose an unrecognized upstream error or misclassify local persistence failure as revoked authority', async () => {
   const app = Fastify();
   apps.push(app);
   registerRecoveryRoutes(
@@ -46,5 +51,5 @@ it('does not expose an unrecognized upstream error or credential', async () => {
     url: '/api/team/recovery/confirm',
     payload: { enrollmentId: 'synthetic', challengeId: 'synthetic' }
   });
-  expect(response.json()).toEqual({ error: 'AUTH_REQUIRED' });
+  expect(response.json()).toEqual({ error: 'DRIVE_UNAVAILABLE' });
 });

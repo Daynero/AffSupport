@@ -1,0 +1,14 @@
+{
+  "name": "@video-compressor/catalog-image-delivery",
+  "version": "1.4.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "vite": "8.1.6",
+    "typescript": "^5.9.3"
+  }
+}

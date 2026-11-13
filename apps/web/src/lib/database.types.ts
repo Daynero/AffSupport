@@ -7311,6 +7311,18 @@ export type GeneratedDatabase = {
         Args: { p_team: string };
         Returns: Json;
       };
+      get_launch_batch: {
+        Args: { p_team: string; p_key: string };
+        Returns: Json;
+      };
+      list_launch_batches: {
+        Args: { p_team: string; p_limit?: number; p_before?: string; p_before_id?: string };
+        Returns: Json;
+      };
+      cancel_launch_batch: {
+        Args: { p_team: string; p_key: string; p_cancel_key: string; p_expected_actor: string };
+        Returns: Json;
+      };
       get_launch: {
         Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;
@@ -7583,6 +7595,27 @@ export type GeneratedDatabase = {
         Returns: string;
       };
       get_team_product_catalog_settings: {
+        Args: { p_team: string };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_settings';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      get_team_product_catalog_settings_v3: {
         Args: { p_team: string };
         Returns: {
           created_at: string;

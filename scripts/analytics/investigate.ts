@@ -1,3 +1,5 @@
+import { getOwnedGlobalImageEvidence } from './global-images.js';
+import { diagnoseNativeUpdates } from './native-app-updates.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
@@ -333,6 +335,25 @@ async function resolveSubject(
        limit 1`,
       [value, asUuid, period.end]
     );
+
+  if (asUuid && schema.tables.analytics_catalog_global_journal) {
+    // A shared image/catalog is not an actor identity. Resolve only an operation
+    // whose retained receipts agree on one actor; ambiguous ownership stays unknown.
+    const globalOwner = await queryOne<{ user_id: string | null; is_flow: boolean }>(
+      `select min(actor_id::text) user_id,bool_or(flow_id=$1::uuid) is_flow
+       from public.analytics_catalog_global_journal
+       where $1::uuid in(flow_id,attempt_id) and received_at<=$2::timestamptz and actor_id is not null
+       having count(distinct actor_id)=1`,
+      [asUuid, period.end]
+    );
+    if (globalOwner?.user_id)
+      return scopeOf(
+        globalOwner.is_flow ? 'flow' : 'attempt',
+        asUuid,
+        { user_id: globalOwner.user_id, installation_id: null },
+        asUuid
+      );
+  }
 
   if (asUuid) {
     const run = await owner(`(e.run_id = $2::uuid or e.properties ->> 'run_id' = $1::text)`);
@@ -1905,6 +1926,7 @@ export async function getInvestigation(
         'Use an API6 client for original transcription; this snapshot does not prove browser delivery or local file cleanup.'
     });
   }
+  const global_images = await getOwnedGlobalImageEvidence(scope.userId, period);
   const catalog_images = await getCatalogImageDiagnosis(null, period, {
     userId: scope.userId,
     limit: 100
@@ -2357,6 +2379,31 @@ export async function getInvestigation(
         'Inspect the diagnostic flow. Reconcile the canonical response before retrying; missing visibility is unknown.'
     });
   }
+  const native_app_updates = diagnoseNativeUpdates(
+    journal
+      .filter(record => record.category === 'update' && record.code === 'native_update_stage')
+      .map(record => ({ props: record.props, recorded_at: record.recorded_at })),
+    Boolean(schema.tables.agent_journal_records)
+  );
+  for (const attempt of native_app_updates.attempts) {
+    if (attempt.ui_success) continue;
+    const fingerprint = `update:native:${attempt.error_code ?? 'APP_UPDATE_UI_UNCONFIRMED'}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: createHash('sha256')
+        .update(`native-update:${attempt.installation_id}:${attempt.attempt_id}`)
+        .digest('hex'),
+      kind: ['failed', 'unknown'].includes(attempt.outcome) ? 'fact' : 'insufficient',
+      severity: 'medium',
+      rule: 'native_app_update_receipt',
+      title: `Soty update: ${attempt.outcome}; last proven stage: ${attempt.last_proven_stage ?? 'unknown'}.`,
+      evidence: [`attempt:${attempt.attempt_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read updates and inspect for this attempt. Reconcile native receipts before retrying; missing browser delivery is not installation failure.'
+    });
+  }
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -2366,6 +2413,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    global_images,
     catalog_images,
     catalog_video_r2,
     recovery_retirement,
@@ -2387,6 +2435,7 @@ export async function getInvestigation(
     errors,
     journal_around_failures: journalAroundFailures,
     sync,
+    native_app_updates,
     coverage: { events: rows.length, journal_records: journal.length, blind_spots: blindSpots },
     findings,
     schema: schemaSummary(schema)

@@ -1,0 +1,87 @@
+{
+  "base_commit": "d4c05130e380eb268c84cf7da800a6c0ea5ac9df",
+  "branch": "053-bulk-launches",
+  "recorded_at": "2026-11-13T14:55:04.246246+00:00",
+  "files": [
+    {
+      "path": "apps/web/src/locales/en.ts",
+      "sha256": "4fb86044ae5a557ead599d62e57d934781ed329cad51171bbea367efe4fffa16"
+    },
+    {
+      "path": "apps/web/src/locales/uk.ts",
+      "sha256": "1c3b712686f09077c92458368aec0fbb06b46298677e3a6283fb1a432f1806f5"
+    },
+    {
+      "path": "apps/web/src/styles/launch-settings.css",
+      "sha256": "46c7878c728331d35d4e596586dbce584f1d1c71adfb0e6046a205e1be887d6f"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchDefaultsReview.tsx",
+      "sha256": "f7bee487d1dca3ee8770a1653584c86c5ffca8dce771f2fed1ab57ec9bb397c3"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchEditor.tsx",
+      "sha256": "b90c186fa5efb245adab7b22037d6f56cf0088d89fbc49fb8caa2258fd085da3"
+    },
+    {
+      "path": "packages/shared/src/team/launches.ts",
+      "sha256": "65426c7a4890a815d554257e9c5168daf7b42c78d635d88a6205da119e11e8c2"
+    },
+    {
+      "path": "packages/shared/src/team/launches/budgets.ts",
+      "sha256": "11b5872e862b1f86d1412595c99f6ad94d921e4afa0a295fa53e31e5e01843e5"
+    },
+    {
+      "path": "packages/shared/src/team/launches/persistence.ts",
+      "sha256": "1c6187fad3a6ca2d7c0bfdc1c178f31e1a7e4b7950a64ee8df76f7e96ea7de24"
+    },
+    {
+      "path": "packages/shared/src/team/launches/preview.ts",
+      "sha256": "ed7591f46fe5c96571ecbb719a274370dce4b0b0704c4aa452f5a9083b092dca"
+    },
+    {
+      "path": "packages/shared/src/team/launches/validation.ts",
+      "sha256": "be0c81420120ea91d408abd4ca54db141688ab2ae7211a0474e31affe5bfba9a"
+    },
+    {
+      "path": "scripts/analytics/coverage-registry.ts",
+      "sha256": "16d23865498a70f7d975db21b789bb2d1a637760d717cfd588e11f44519380bf"
+    },
+    {
+      "path": "supabase/migrations/20261207401400_launch_single_budget.sql",
+      "sha256": "ac8c6628601e1129faafdfd40199ae0997881a19717191fa47ffe15f160e0a49"
+    },
+    {
+      "path": "supabase/tests/database/launch-single-budget.test.sql",
+      "sha256": "eb11199f6b49a4faa5898bcbf8859d55ecf1a43fafb6a14c93f6ad2c72ba231a"
+    },
+    {
+      "path": "tests/launch-budget-bounds.test.ts",
+      "sha256": "13d3dcb3ca5c9402eb0cd431fba4e6bf0990ec77ebd211762019281266f23dd4"
+    },
+    {
+      "path": "tests/launch-budget-editing.test.tsx",
+      "sha256": "a3c7f6ef851cb7a07fb55fa8ec45c85e6e0f48166d38408d9236efc53b04ed6e"
+    },
+    {
+      "path": "tests/launch-copy-archive.test.ts",
+      "sha256": "687f3ecf5c0724ccdb4781d9bb835a0ae3f6d528243bf6e51e71b7652e0610ff"
+    },
+    {
+      "path": "tests/launch-default-values.test.ts",
+      "sha256": "2267afec5309ca611454d3a57b653e7b078ec703b142012fcfea562075a5f196"
+    },
+    {
+      "path": "tests/launch-defaults-review.test.tsx",
+      "sha256": "463b8942c536b784423cb2e1be1d119d987c35ab1b8ec009d82d07dce49d36af"
+    },
+    {
+      "path": "tests/launch-durable-batch-contract.test.ts",
+      "sha256": "c2dc19682be7d615e0008e4ecbe427949c879567419184a6cc60742227fccf8c"
+    },
+    {
+      "path": "tests/launch-offer-defaults.test.ts",
+      "sha256": "9ae765a730adc2de6cce3f1a02ae7abab9c53d2f1cc79ca508c17b9fdb54a27b"
+    }
+  ]
+}

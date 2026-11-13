@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { privateClientId, usePrivateCacheEpoch } from '../private-cache-scope';
 import { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { TeamApiError, type CatalogMutationOptions } from '../../api/team';
@@ -116,6 +117,8 @@ function CatalogDefaultsEditorScope({
   onOpenChange?: (open: boolean) => void;
   onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
+  const fields = FIELDS.filter(([field]) => legacyImages || field !== 'refreshImages');
   const mounted = useRef(true);
   const [owner] = useState(() => captureCatalogMutationOwner(() => mounted.current));
   const controllers = useRef(new Set<AbortController>());
@@ -129,7 +132,7 @@ function CatalogDefaultsEditorScope({
   const { t } = useI18n();
   const { can } = useTeam();
   const editable = can('process');
-  const supported = FIELDS.every(([, get]) => Boolean(client[get]));
+  const supported = fields.every(([, get]) => Boolean(client[get]));
   const [saved, setSaved] = useState<Defaults | null>(null);
   const [draft, setDraft] = useState<Defaults | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +175,7 @@ function CatalogDefaultsEditorScope({
     setFieldResults({});
     setConfirmed(false);
     void Promise.all(
-      FIELDS.map(async ([field, get]) => {
+      fields.map(async ([field, get]) => {
         const value = await withReadDeadline(() => client[get]!(teamId), controller.signal);
         if (typeof value !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
         return [field, value] as const;
@@ -196,9 +199,9 @@ function CatalogDefaultsEditorScope({
       controller.abort();
       controllers.current.delete(controller);
     };
-  }, [client, teamId, supported, revision, t]);
+  }, [client, teamId, supported, revision, legacyImages, t]);
 
-  const changed = FIELDS.filter(([field]) => saved && draft && saved[field] !== draft[field]);
+  const changed = fields.filter(([field]) => saved && draft && saved[field] !== draft[field]);
   const dirty = changed.length > 0;
   useEffect(() => {
     onDraftChange?.({ dirty, saving });
@@ -305,7 +308,8 @@ function CatalogDefaultsEditorScope({
             aside: (
               <span className="catalog-defaults-summary">
                 {saved &&
-                  (FIELDS.filter(([field]) => saved[field])
+                  (fields
+                    .filter(([field]) => saved[field])
                     .map(([, , , label]) => t(label))
                     .join(' · ') ||
                     t('catalogDefaultsEnabled', { count: 0 }))}
@@ -339,7 +343,7 @@ function CatalogDefaultsEditorScope({
                       void save();
                     }}
                   >
-                    {FIELDS.map(([field, , set, label, hint]) => (
+                    {fields.map(([field, , set, label, hint]) => (
                       <div key={field} className="catalog-defaults-row">
                         <Checkbox
                           checked={draft[field]}

@@ -1,0 +1,293 @@
+{
+  "source_base": "58172104",
+  "branch": "053-bulk-launches",
+  "scope": "Working-tree source components with synthetic data; loopback browser fixtures, no provider writes. Desktop captures only.",
+  "captured_at": "2026-11-13T12:07:31.906776+00:00",
+  "browser_errors": [],
+  "views": [
+    {
+      "file": "01-list-dark.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "c6bd76dbbb4d6e4b37d542ca022977495fe043697be19ec50a84ca5069eaa511"
+    },
+    {
+      "file": "02-list-light.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "fa85d7f7be2313ef5fa6b48d3da4fe6344fca3976d6c2b888e6cfbdf6e04997f"
+    },
+    {
+      "file": "12-progress-dark.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 927,
+      "sha256": "f01508037d8dfaa4e12c2fbeb55a582fee4709f481f36e203a7b64543ba0cca4"
+    },
+    {
+      "file": "13-settings-dark.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200,
+      "sha256": "ffff65f021d22042d63cbe8e2c168e0b00325d502d1d0e116337d751df1e5e78"
+    },
+    {
+      "file": "14-settings-light.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200,
+      "sha256": "60a1f0887102189196eeeba9e4077461abff4826148d1617c437baf188f54215"
+    },
+    {
+      "file": "23-duration-expanded.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1330,
+      "sha256": "c889507c11e9a65eb03bf689aa0bce62fb26a3f157525bad7bd18fe61d2bfa49"
+    },
+    {
+      "file": "16-creative-choice.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 1200,
+      "sha256": "7d6738e2331eb6fdb9640d58188e945086f71509d832a5d22f292ebc7fcaf6ad"
+    },
+    {
+      "file": "17-rename-warning.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "aba5b75d7f1efc77dde8835c22c714fca1baf055e76d4357f3ad6dd6caaea60d"
+    },
+    {
+      "file": "18-renamed-result.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "b3d4a4780ae2eabccf5d5a42d7b1bfba60cc9de536e5a99a87c7a87f1c420c64"
+    },
+    {
+      "file": "19-renamed-manager.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "9532aa85f90ef48e71807373beb6e5b6e3430430e5981bcc2d3c37246265dc9e"
+    },
+    {
+      "file": "20-notes-neutral.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "d80926936f302209fe177f52858ac2bcef0808af87c8b873c896000e9f8673ae"
+    },
+    {
+      "file": "22-notes-copied.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "34f2698fba332916ea9374d5eeb928db5edd590393733ac0ab78393f207bd080"
+    },
+    {
+      "file": "21-batch-progress.png",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "height": 900,
+      "sha256": "84a2fce628350460544cf720e200d64e230fd1974c369bc8b76193e01757c62a"
+    }
+  ],
+  "card_resize": {
+    "checked_at": "2026-11-13T09:31:34.899Z",
+    "errors": [],
+    "sizes": [
+      {
+        "width": 320,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 390,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 639,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 640,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 720,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 721,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 900,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 1024,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 1280,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      },
+      {
+        "width": 1600,
+        "overflow": false,
+        "neighbors_moved_after_card_content_change": false
+      }
+    ],
+    "note": "Geometry checks only; no mobile screenshots in delivery."
+  },
+  "settings_polish": {
+    "sourceComponents": true,
+    "syntheticData": true,
+    "errors": [],
+    "views": [
+      {
+        "theme": "dark",
+        "variant": "compact",
+        "width": 960,
+        "scrollWidth": 960,
+        "creativeWidth": 190.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "dark",
+        "variant": "compact",
+        "width": 1024,
+        "scrollWidth": 1024,
+        "creativeWidth": 222.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "dark",
+        "variant": "compact",
+        "width": 1280,
+        "scrollWidth": 1280,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "dark",
+        "variant": "compact",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "dark",
+        "variant": "compact",
+        "width": 1920,
+        "scrollWidth": 1920,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "dark",
+        "variant": "100-manual-budgets-long-name-expanded",
+        "width": 1280,
+        "scrollWidth": 1280,
+        "height": 144,
+        "scrollHeight": 598,
+        "inputs": 100
+      },
+      {
+        "theme": "light",
+        "variant": "compact",
+        "width": 960,
+        "scrollWidth": 960,
+        "creativeWidth": 190.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "light",
+        "variant": "compact",
+        "width": 1024,
+        "scrollWidth": 1024,
+        "creativeWidth": 222.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "light",
+        "variant": "compact",
+        "width": 1280,
+        "scrollWidth": 1280,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "light",
+        "variant": "compact",
+        "width": 1440,
+        "scrollWidth": 1440,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "light",
+        "variant": "compact",
+        "width": 1920,
+        "scrollWidth": 1920,
+        "creativeWidth": 246.1875,
+        "helpHeights": [24, 24],
+        "r2Visible": true,
+        "visibleUrlLabels": 1
+      },
+      {
+        "theme": "light",
+        "variant": "100-manual-budgets-long-name-expanded",
+        "width": 1280,
+        "scrollWidth": 1280,
+        "height": 144,
+        "scrollHeight": 598,
+        "inputs": 100
+      }
+    ],
+    "previous_default_height": 1561,
+    "current_default_height": 1200,
+    "notes": "Actual desktop browser layout; bounded creative field, single visible URL label, inline help, R2 outside disclosures, keyboard reaches the last of 100 manual budgets.",
+    "regression": {
+      "command": "nice -n 15 ./node_modules/.bin/vitest run tests/launch-editor-preview.test.tsx tests/launch-catalog-settings.test.tsx tests/launch-creative-picker.test.tsx tests/launch-defaults-actions.test.tsx tests/launch-defaults-review.test.tsx tests/launch-workspace-ui.test.tsx --maxWorkers=1 --no-file-parallelism",
+      "files": 6,
+      "passed": 112,
+      "failed": 0,
+      "log_sha256": "ac654ee6eebbb2f1246e455158ad2123b67135b3e5c493ccdde7e248d268fe4c"
+    }
+  },
+  "settings_recaptured_at": "2026-11-13T13:26:15.602639+00:00"
+}

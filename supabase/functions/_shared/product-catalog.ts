@@ -1,7 +1,7 @@
 import {
-  isR2CatalogImage,
-  type R2CatalogImage
-} from '../../../packages/shared/dist/team/catalog-images.js';
+  isPublishedCatalogImage,
+  type PublishedCatalogImage
+} from '../../../packages/shared/dist/team/catalog-global-images.js';
 import { pairCatalogImageRow, catalogImageFacts } from './catalog-image-rows.ts';
 import { isRecord } from './validation.ts';
 /**
@@ -85,7 +85,7 @@ export interface ProductCatalogRowDetails {
    * kept so a later update can pair the row's words with the picture it already has.
    */
   pictureName: string | null;
-  pictureImage?: R2CatalogImage;
+  pictureImage?: PublishedCatalogImage;
 }
 
 /**
@@ -143,7 +143,7 @@ export function planCatalogRows(input: {
   settings: ProductCatalogSpaceSettings;
   texts: ReadonlyArray<{ title: string; description: string }>;
   /** The pictures drawn for this catalog, with the file names that say what they show. */
-  images: ReadonlyArray<{ link: string; name?: string | null; image?: R2CatalogImage }>;
+  images: ReadonlyArray<{ link: string; name?: string | null; image?: PublishedCatalogImage }>;
   random?: () => number;
   now?: number;
   /** The catalog's own label; invented when none is given. */
@@ -163,7 +163,7 @@ export function planCatalogRows(input: {
     return facts;
   };
   for (let index = 0; index < input.count; index += 1) {
-    const image: { link: string; name?: string | null; image?: R2CatalogImage } =
+    const image: { link: string; name?: string | null; image?: PublishedCatalogImage } =
       input.images.length > 0
         ? input.images[index % input.images.length]
         : { link: input.settings.imageLink ?? '', name: null };
@@ -712,7 +712,7 @@ export function parseCatalogRowRecipe(value: unknown): ProductCatalogRowValues[]
       }
     }
     if (r.pictureImage !== undefined) {
-      if (!isR2CatalogImage(r.pictureImage)) return null;
+      if (!isPublishedCatalogImage(r.pictureImage)) return null;
       row.pictureImage = r.pictureImage;
     }
     if (r.pictureName !== undefined) {

@@ -24,6 +24,8 @@ const TABLES = [
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
+  'analytics_launch_batches',
+  'analytics_catalog_renames',
   'analytics_catalog_generations',
   'analytics_launch_cleanup',
   'analytics_launch_assignments',
@@ -55,6 +57,11 @@ const TABLES = [
   'analytics_catalog_text_schedule_journal',
   'analytics_catalog_text_schedule_coverage',
   'analytics_catalog_image_storage',
+  'analytics_catalog_global_coverage',
+  'analytics_catalog_global_images',
+  'analytics_catalog_global_policy',
+  'analytics_catalog_global_cleanup',
+  'analytics_catalog_global_journal',
   'analytics_catalog_image_optimization'
 ] as const;
 
@@ -81,6 +88,19 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_launch_batches') ? { analytics_launch_batches: true } : {}),
+      ...(has('table', 'analytics_catalog_renames') ? { analytics_catalog_renames: true } : {}),
+      ...Object.fromEntries(
+        [
+          'analytics_catalog_global_coverage',
+          'analytics_catalog_global_images',
+          'analytics_catalog_global_policy',
+          'analytics_catalog_global_cleanup',
+          'analytics_catalog_global_journal'
+        ]
+          .filter(name => has('table', name))
+          .map(name => [name, true])
+      ),
       ...(has('table', 'analytics_catalog_video_session_authorities')
         ? { analytics_catalog_video_session_authorities: true }
         : {}),
@@ -227,11 +247,14 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_video_r2_journal' &&
         table !== 'analytics_catalog_video_r2_copies' &&
         table !== 'analytics_catalog_video_r2_purges' &&
+        table !== 'analytics_launch_batches' &&
+        table !== 'analytics_catalog_renames' &&
         table !== 'analytics_catalog_video_r2_coverage' &&
         table !== 'analytics_catalog_text_schedule' &&
         table !== 'analytics_catalog_text_schedule_journal' &&
         table !== 'analytics_catalog_text_schedule_coverage' &&
         table !== 'analytics_catalog_image_storage' &&
+        !table.startsWith('analytics_catalog_global_') &&
         table !== 'analytics_catalog_image_optimization' &&
         table !== 'analytics_process_output_cleanup' &&
         // 047 projections: their readers report their own blind spots when absent.

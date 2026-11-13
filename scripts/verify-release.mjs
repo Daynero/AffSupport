@@ -1,3 +1,7 @@
+import {
+  isNativeUpdateDescriptor,
+  nativeUpdateMatchesManifest
+} from '../packages/shared/dist/native-app-updates.js';
 import { execFileSync } from 'node:child_process';
 import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -184,6 +188,22 @@ for (const [platform, artifact] of Object.entries(stableManifest.artifacts ?? {}
   if (!artifact?.url?.startsWith('https://') || !/^[a-f0-9]{64}$/.test(artifact?.sha256 ?? '')) {
     fail(`stable release manifest artifact ${platform} is incomplete`);
   }
+}
+
+if (stableManifest.nativeUpdates !== undefined) {
+  if (
+    !stableManifest.nativeUpdates ||
+    typeof stableManifest.nativeUpdates !== 'object' ||
+    Array.isArray(stableManifest.nativeUpdates) ||
+    !Object.entries(stableManifest.nativeUpdates).every(
+      ([target, candidate]) =>
+        isNativeUpdateDescriptor(candidate) &&
+        candidate.target === target &&
+        candidate.channel === 'stable' &&
+        nativeUpdateMatchesManifest(candidate, stableManifest)
+    )
+  )
+    fail('native update metadata does not match this signed release');
 }
 
 // The web client refuses unsigned manifests, so a release must ship stable.json

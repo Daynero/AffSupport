@@ -69,7 +69,9 @@ select ok(not has_function_privilege('service_role', 'public.service_claim_catal
 do $$ declare canonical uuid; claimed uuid; job private.catalog_sync_jobs; retry integer; begin
   select job_id into canonical from ownership_feed;
   for i in 1..1005 loop
-    update private.catalog_sync_jobs set next_attempt_at = clock_timestamp() where id = canonical;
+    -- This regression verifies ownership and retry accounting, not subsecond
+    -- wall-clock eligibility. Keep each synthetic poll unambiguously overdue.
+    update private.catalog_sync_jobs set next_attempt_at = clock_timestamp() - interval '1 minute' where id = canonical;
     -- The production claimer uses a non-blocking advisory lock. An unrelated
     -- local worker can briefly hold it, so retry only an empty claim.
     for retry in 1..10 loop
