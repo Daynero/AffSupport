@@ -64,9 +64,8 @@ const service: ServiceRpcClient = {
   }
 };
 beforeAll(async () => {
-  db = await createTeamTestDb({
-    throughMigration: '20261207401200_catalog_background_fair_claims.sql'
-  });
+  // Exercise durable admission against the integrated image-pool and rename migrations.
+  db = await createTeamTestDb();
   await createUser(db, { id: actor, email: 'launch-video@synthetic.invalid' });
   await db.root('insert into public.admin_users(user_id) values($1)', [actor]);
   team = (

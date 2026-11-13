@@ -92,9 +92,11 @@ describe('appSupportRoot', () => {
 });
 
 describe('capabilities', () => {
-  it('exposes the full macOS feature set', () => {
+  it('exposes macOS features while native updates require a qualified host', () => {
     setPlatform('darwin');
+    vi.stubEnv('PACKAGED_APP', '0');
     expect(capabilities()).toEqual({
+      nativeAppUpdates: false,
       recoveryCredentials: true,
       nativeFilePicker: true,
       directoryIntake: true,

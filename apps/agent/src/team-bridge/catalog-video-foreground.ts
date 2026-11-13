@@ -194,7 +194,9 @@ export class CatalogVideoForegroundController {
   }
   prepare(raw: unknown): Promise<CatalogVideoForegroundExecutor> {
     const work = this.#prepareSerial.then(async () => {
+      if (this.#updatePaused) throw new Error('UPDATE_PENDING');
       await this.#heal();
+      if (this.#updatePaused) throw new Error('UPDATE_PENDING');
       const binding = parseCatalogVideoForegroundBinding(raw),
         actorId = this.#actor();
       if (!binding) throw new Error('INVALID_INPUT');
@@ -591,6 +593,8 @@ export class CatalogVideoForegroundController {
   }
   async flushForUpdate() {
     if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
+    // Prepares no longer queue behind network attaches. Drain both before replacement.
+    await this.#prepareSerial;
     await this.#serial;
     await Promise.all([...this.#waitingTasks, ...[...this.#running.values()].map(run => run.task)]);
     if (this.#faulted) throw new Error('APP_UPDATE_BUSY');

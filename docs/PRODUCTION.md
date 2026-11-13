@@ -829,6 +829,7 @@ preflight checks `catalogGlobalCutover` evidence if explicitly declared; trusted
 Operator control cannot mint it. Publication to next and promotion never call
 activate. Activation, cleanup timing and source/config proof require a separate
 explicit validated owner intent; no command in this implementation runs them.
+
 ## Native macOS updates (052)
 
 The first qualified release containing the native host still needs the normal one-time signed installer. Later macOS updates use an explicitly accepted, dual-bound ZIP from the promoted production `stable.json`; next does not independently activate native updates. A web rollback never automatically downgrades an already-started native target.

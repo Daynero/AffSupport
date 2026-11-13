@@ -949,3 +949,61 @@ it('stays busy until the terminal foreground vault write is durable', async () =
   resume();
   await controller.shutdown();
 });
+
+it('refuses new preparation while native update admission is paused', async () => {
+  const f = fixture();
+  const resume = f.controller.pauseForUpdate();
+  try {
+    await expect(f.controller.prepare(binding)).rejects.toThrow('UPDATE_PENDING');
+    expect(f.saved()).toBeNull();
+  } finally {
+    resume();
+    await f.controller.shutdown();
+  }
+});
+
+it('native update flush waits for the separate foreground preparation queue', async () => {
+  const f = fixture();
+  let startWrite!: () => void, releaseWrite!: () => void;
+  const started = new Promise<void>(resolve => {
+    startWrite = resolve;
+  });
+  const heldWrite = new Promise<void>(resolve => {
+    releaseWrite = resolve;
+  });
+  let first = true;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    redeem: f.redeem,
+    run: f.run,
+    vault: {
+      read: async () => null,
+      write: async () => {
+        if (first) {
+          first = false;
+          startWrite();
+          await heldWrite;
+        }
+      }
+    }
+  });
+  const preparing = controller.prepare(binding);
+  await started;
+  const resume = controller.pauseForUpdate();
+  let flushed = false;
+  const flushing = controller.flushForUpdate().then(() => {
+    flushed = true;
+  });
+  try {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(flushed).toBe(false);
+  } finally {
+    releaseWrite();
+    await preparing;
+    await flushing;
+    resume();
+    await controller.shutdown();
+  }
+});

@@ -256,9 +256,7 @@ describeRequiring(
       expect(
         feature045Increment,
         `shared/existing growth from clean 045 base: ${feature045Increment}B; 1.3.0 relative cap ${RELEASE_130_SHARED_GROWTH_CEILING}B plus 053 ${FEATURE_053_SHARED_ALLOWANCE}B`
-      ).toBeLessThanOrEqual(
-        RELEASE_130_SHARED_GROWTH_CEILING + FEATURE_053_SHARED_ALLOWANCE
-      );
+      ).toBeLessThanOrEqual(RELEASE_130_SHARED_GROWTH_CEILING + FEATURE_053_SHARED_ALLOWANCE);
       expect(
         existingBytes,
         `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
