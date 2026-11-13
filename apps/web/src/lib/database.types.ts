@@ -7196,6 +7196,112 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      analytics_catalog_video_replacements: {
+        Row: {
+          actor_id: string;
+          catalog_material_id: string;
+          confirmed_at: string | null;
+          created_at: string;
+          error_code: string | null;
+          move_dispatched: boolean | null;
+          move_to_video_folder: boolean;
+          publication_job_id: string | null;
+          request_id: string;
+          source_material_id: string;
+          state: string;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          catalog_material_id?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string | null;
+          error_code?: string | null;
+          move_dispatched?: never;
+          move_to_video_folder?: boolean | null;
+          publication_job_id?: string | null;
+          request_id?: string | null;
+          source_material_id?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          catalog_material_id?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string | null;
+          error_code?: string | null;
+          move_dispatched?: never;
+          move_to_video_folder?: boolean | null;
+          publication_job_id?: string | null;
+          request_id?: string | null;
+          source_material_id?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_replacements_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_claim_eligibility';
+            referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_publication_job_id_fkey';
+            columns: ['publication_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_publication_preparations';
+            referencedColumns: ['job_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_publication_job_id_fkey';
+            columns: ['publication_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_publications';
+            referencedColumns: ['job_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_source_material_id_fkey';
+            columns: ['source_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_replacements_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       analytics_catalog_video_session_authorities: {
         Row: {
           actor_id: string;
@@ -9963,6 +10069,10 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_accept_catalog_video_replacement: {
+        Args: { p_actor: string; p_catalog: string; p_request: Json; p_team: string };
+        Returns: Json;
+      };
       service_accept_catalog_video_restitch_alias: {
         Args: {
           p_hash: string;
@@ -10776,6 +10886,14 @@ export type GeneratedDatabase = {
         Args: { p_copy: string; p_fence: number; p_worker: string };
         Returns: undefined;
       };
+      service_catalog_video_replacement_context: {
+        Args: { p_actor: string; p_catalog: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_replacement_status: {
+        Args: { p_actor: string; p_catalog: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
       service_check_restitch_control_screen_range: {
         Args: { p_dispatch: string; p_ticket_hash: string };
         Returns: Json;
@@ -10956,6 +11074,10 @@ export type GeneratedDatabase = {
           update_count: number;
           video_link: string;
         }[];
+      };
+      service_claim_catalog_video_replacement: {
+        Args: { p_request: string; p_worker: string };
+        Returns: Json;
       };
       service_claim_catalog_video_set: {
         Args: { p_hash: string; p_native: string; p_protocol: number };
@@ -11371,6 +11493,10 @@ export type GeneratedDatabase = {
         Args: { p_job: string; p_state: string; p_worker: string };
         Returns: boolean;
       };
+      service_defer_catalog_video_replacement: {
+        Args: { p_code: string; p_request: string; p_worker: string };
+        Returns: undefined;
+      };
       service_defer_initial_catalog_recovery: {
         Args: { p_actor: string; p_code: string; p_key: string; p_team: string };
         Returns: string;
@@ -11454,6 +11580,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_due_catalog_renames: { Args: { p_limit?: number }; Returns: Json };
+      service_due_catalog_video_replacements: { Args: { p_limit?: number }; Returns: Json };
       service_end_material_group_execution: {
         Args: {
           p_acknowledged?: string;
@@ -11603,6 +11730,10 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_finish_catalog_update_write: { Args: { p_item: string }; Returns: boolean };
+      service_finish_catalog_video_replacement: {
+        Args: { p_observed: Json; p_request: string; p_worker: string };
+        Returns: Json;
+      };
       service_finish_initial_catalog_publication: {
         Args: {
           p_actor: string;
@@ -12368,6 +12499,10 @@ export type GeneratedDatabase = {
           p_version: string;
         };
         Returns: Json;
+      };
+      service_prepare_catalog_video_move: {
+        Args: { p_etag: string; p_request: string; p_worker: string };
+        Returns: boolean;
       };
       service_prepare_launch_process_upload: {
         Args: { p_actor: string; p_operation: string };
