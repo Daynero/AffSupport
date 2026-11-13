@@ -345,7 +345,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     const result = await sql(`do $proof$
     declare challenge jsonb; first_reply jsonb; replay jsonb;
     begin
-      challenge:=public.service_team_recovery('delegate',decode(repeat('11',32),'hex'),jsonb_build_object('actorId','${owner}','teamId','${team}','installationId','34000000-0000-4000-8000-000000000003'));
+      challenge:=public.service_team_recovery('delegate',decode(repeat('11',32),'hex'),jsonb_build_object('protocolVersion',2,'actorId','${owner}','teamId','${team}','installationId','34000000-0000-4000-8000-000000000003'));
       perform public.service_team_recovery('redeem',decode(repeat('11',32),'hex'),jsonb_build_object('protocolVersion',2,'challengeId',challenge->>'challengeId','refresh',repeat('a',43),'refreshHash','\\x'||repeat('22',32)));
       first_reply:=public.service_team_recovery('rotate',decode(repeat('22',32),'hex'),jsonb_build_object('rotationId','34000000-0000-4000-8000-000000000004','refresh',repeat('b',43),'refreshHash','\\x'||repeat('33',32),'claim',repeat('c',43),'claimHash','\\x'||repeat('44',32)));
       replay:=public.service_team_recovery('rotate',decode(repeat('22',32),'hex'),jsonb_build_object('rotationId','34000000-0000-4000-8000-000000000004'));
@@ -364,7 +364,7 @@ describe.skipIf(!container)('034 recovery [needs: SOTY_TARIFF_POSTGRES_CONTAINER
     const installation = randomUUID();
     const request = randomUUID();
     await sql(`do $setup$ declare challenge jsonb; begin
-      challenge:=public.service_team_recovery('delegate',decode(repeat('71',32),'hex'),jsonb_build_object('actorId','${owner}','teamId','${team}','installationId','${installation}'));
+      challenge:=public.service_team_recovery('delegate',decode(repeat('71',32),'hex'),jsonb_build_object('protocolVersion',2,'actorId','${owner}','teamId','${team}','installationId','${installation}'));
       perform public.service_team_recovery('redeem',decode(repeat('71',32),'hex'),jsonb_build_object('protocolVersion',2,'challengeId',challenge->>'challengeId','refresh',repeat('q',43),'refreshHash','\\x'||repeat('72',32)));
       perform public.service_team_recovery('rotate',decode(repeat('72',32),'hex'),jsonb_build_object('rotationId','${randomUUID()}','refresh',repeat('r',43),'refreshHash','\\x'||repeat('73',32),'claim',repeat('s',43),'claimHash','\\x'||repeat('74',32)));
       perform public.service_team_recovery('claim',decode(repeat('74',32),'hex'),jsonb_build_object('protocolVersion',2,'requestId','${request}'));

@@ -89,10 +89,18 @@ export async function handleRecovery(
     }
     if (typeof body.ticketDigest !== 'string' || !/^[0-9a-f]{64}$/u.test(body.ticketDigest))
       throw new TeamFunctionError('INVALID_INPUT');
+    if (body.automatic !== undefined && body.automatic !== true)
+      throw new TeamFunctionError('INVALID_INPUT');
+    if (body.automatic === true && uuid(body.expectedActorId) !== actorId)
+      throw new TeamFunctionError('PERMISSION_DENIED');
     return deps.rpc('delegate', recoveryDigest(body.ticketDigest), {
       actorId,
       teamId,
-      installationId
+      installationId,
+      ...(body.automatic === true ? { automatic: true } : {}),
+      ...(body.renewalDelegationId !== undefined
+        ? { renewalDelegationId: uuid(body.renewalDelegationId) }
+        : {})
     });
   }
   // Desktop-only responses contain credentials. Never return them to a browser origin.

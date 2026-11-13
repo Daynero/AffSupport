@@ -17,7 +17,8 @@ export function CatalogPublicationSchedule({
   time,
   zone,
   onChange,
-  children
+  children,
+  forceOpen = false
 }: {
   enabled: boolean;
   disabled: boolean;
@@ -26,6 +27,8 @@ export function CatalogPublicationSchedule({
   zone: string;
   onChange(enabled: boolean, date: string, time: string): void;
   children: ReactNode;
+  /** Reveal an invalid schedule when its host form is submitted. */
+  forceOpen?: boolean;
 }) {
   const { t, language } = useI18n();
   const [open, setOpen] = useState(false);
@@ -67,7 +70,7 @@ export function CatalogPublicationSchedule({
           <button
             type="button"
             className="settings-collapse section-heading compact-heading"
-            aria-expanded={open}
+            aria-expanded={open || forceOpen}
             aria-controls={bodyId}
             onClick={() => setOpen(value => !value)}
           >
@@ -79,11 +82,11 @@ export function CatalogPublicationSchedule({
             <ChevronDown
               size={ICON_SIZE}
               strokeWidth={ICON_STROKE}
-              className={`settings-chevron ${open ? '' : 'is-rotated'}`}
+              className={`settings-chevron ${open || forceOpen ? '' : 'is-rotated'}`}
               aria-hidden="true"
             />
           </button>
-          <div id={bodyId} className="catalog-publication-controls" hidden={!open}>
+          <div id={bodyId} className="catalog-publication-controls" hidden={!open && !forceOpen}>
             {children}
           </div>
         </section>

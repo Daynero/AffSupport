@@ -28,6 +28,8 @@ export interface AnalyticsSchema {
     analytics_catalog_sync_jobs: boolean;
     analytics_catalog_generations?: boolean;
     analytics_launch_generations?: boolean;
+    analytics_launch_batches?: boolean;
+    analytics_catalog_renames?: boolean;
     analytics_launch_cleanup?: boolean;
     analytics_launch_assignments?: boolean;
     analytics_launch_assignment_events?: boolean;
@@ -281,6 +283,8 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
+  catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -300,6 +304,16 @@ export interface InspectFound {
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
   launches?: import('./launches.js').LaunchEvidenceResult;
+  launch_batch?: {
+    scope: 'observed_admissions';
+    loading: 'loaded' | 'failed' | 'cancelled' | 'unknown' | null;
+    admissions: Array<{
+      flow_id: string;
+      launch_id: string | null;
+      state: 'accepted' | 'failed' | 'cancelled' | 'unknown';
+    }>;
+    blind_spots: string[];
+  };
   found: true;
   id: string;
   /** Which column or property carried the id. */
@@ -320,6 +334,8 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
+  catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -992,6 +1008,7 @@ export interface InvestigateData {
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   workspace?: import('./workspace.js').WorkspaceEvidenceResult;
   launches?: import('./launches.js').LaunchEvidenceResult;
+
   subject: InvestigateSubject;
   environment: InvestigateEnvironment;
   sessions: { count: number; recent: InvestigateSession[] };

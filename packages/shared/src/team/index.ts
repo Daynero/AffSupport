@@ -23,6 +23,7 @@ export * from './transcript.js';
 export * from './transport.js';
 
 export * from './launches.js';
+export * from './launch-batch.js';
 
 export * from './account-order.js';
 export * from './account-lifecycle.js';
@@ -42,3 +43,5 @@ export * from './catalog-publication-source.js';
 export * from './catalog-video-progress.js';
 
 export * from './catalog-video-foreground.js';
+
+export * from './catalog-rename.js';

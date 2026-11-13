@@ -7,6 +7,8 @@ import { getLaunchEvidence, getLaunchAudit } from '../scripts/analytics/launches
 import { sanitizeEventProperties } from '../scripts/analytics/sanitize';
 import { sanitizeTeamAnalyticsProperties } from '../packages/shared/src/team/analytics';
 import {
+  launchBatchAdmission,
+  launchBatchLoading,
   launchIntent,
   launchAction,
   launchVisible,
@@ -583,3 +585,129 @@ it('exposes only opaque reuse receipts and rejects malformed provenance', async 
     await db.exec('rollback');
   }
 });
+
+it('joins batch admission to child flow without claiming delivered results or collecting settings', () => {
+  const tracker = { track: vi.fn() };
+  launchBatchAdmission(FLOW, GENERATION, LAUNCH, 'started', tracker);
+  launchBatchAdmission(FLOW, GENERATION, LAUNCH, 'accepted', tracker);
+  expect(tracker.track.mock.calls.map(c => c[0])).toEqual([
+    'operation_started',
+    'operation_completed'
+  ]);
+  for (const [, properties] of tracker.track.mock.calls) {
+    expect(sanitizeEventProperties(properties)).toMatchObject({
+      flow_id: FLOW,
+      attempt_id: GENERATION,
+      workflow_id: LAUNCH,
+      flow_step: 'launch_batch_admission'
+    });
+    expect(Object.keys(properties)).not.toContain('name');
+  }
+});
+
+it('diagnoses persisted batch admissions independently and keeps missing outcomes unknown', async () => {
+  const batch = '78000000-0000-4000-8000-000000000053';
+  const tracker = { track: vi.fn() };
+  for (const [suffix, state] of [
+    ['54', 'accepted'],
+    ['55', 'failed'],
+    ['56', 'cancelled'],
+    ['57', 'unknown']
+  ] as const) {
+    const child = `78000000-0000-4000-8000-0000000000${suffix}`;
+    launchBatchAdmission(batch, child, LAUNCH, 'started', tracker);
+    if (state !== 'unknown') launchBatchAdmission(batch, child, LAUNCH, state, tracker);
+  }
+  for (const [event, properties] of tracker.track.mock.calls) {
+    const safe = sanitizeEventProperties(properties);
+    const guard = await db.db.query<{ safe: boolean }>(
+      'select public.analytics_properties_are_safe_v2($1::jsonb) safe',
+      [JSON.stringify(safe)]
+    );
+    expect(guard.rows[0]?.safe).toBe(true);
+    await db.db.query(
+      `insert into public.analytics_events(user_id,event_name,flow_id,attempt_id,properties,occurred_at,created_at)
+      values($1,$2,$3,$4,$5::jsonb,'2026-10-12T17:00:00Z','2026-10-12T17:00:01Z')`,
+      [ACTOR, event, batch, safe.attempt_id, JSON.stringify(safe)]
+    );
+  }
+  const result = await getInspect(batch, ASOF);
+  if (!result.found) throw new Error('batch fixture missing');
+  expect(result.launch_batch?.admissions.map(i => i.state)).toEqual([
+    'accepted',
+    'failed',
+    'cancelled',
+    'unknown'
+  ]);
+  expect(result.terminal).toBeNull();
+  expect(result.launch_batch?.blind_spots.join(' ')).toContain('not generation completion');
+  const beforeDelivery = await getInspect(batch, '2026-10-12T17:00:00Z');
+  expect(beforeDelivery.found).toBe(false);
+});
+
+it('keeps a parked batch item unknown while its correlated safe failure survives ingestion and inspect', async () => {
+  const batch = '78000000-0000-4000-8000-000000000073';
+  const child = '78000000-0000-4000-8000-000000000074';
+  const tracker = { track: vi.fn() };
+  launchBatchAdmission(batch, child, LAUNCH, 'started', tracker);
+  launchIntent({ flowId: child, launchId: LAUNCH }, 'catalog', tracker);
+  launchAction(
+    { flowId: child, launchId: LAUNCH },
+    'generate',
+    'blocked',
+    'LAUNCH_RESULT_UNCERTAIN',
+    undefined,
+    tracker
+  );
+  for (const [event, properties] of tracker.track.mock.calls) {
+    const safe = sanitizeEventProperties(properties);
+    const guard = await db.db.query<{ safe: boolean }>(
+      'select public.analytics_properties_are_safe_v2($1::jsonb) safe',
+      [JSON.stringify(safe)]
+    );
+    expect(guard.rows[0]?.safe).toBe(true);
+    await db.db.query(
+      `insert into public.analytics_events(user_id,event_name,flow_id,attempt_id,properties,occurred_at,created_at)
+       values($1,$2,$3,$4,$5::jsonb,'2026-10-12T17:00:00Z','2026-10-12T17:00:01Z')`,
+      [ACTOR, event, safe.flow_id, safe.attempt_id ?? null, JSON.stringify(safe)]
+    );
+  }
+  const group = await getInspect(batch, ASOF),
+    item = await getInspect(child, ASOF);
+  if (!group.found || !item.found) throw new Error('missing batch diagnosis');
+  expect(group.launch_batch?.admissions).toEqual([expect.objectContaining({ state: 'unknown' })]);
+  expect(group.terminal).toBeNull();
+  expect(item.terminal).toBeNull();
+  expect(JSON.stringify(item)).toContain('LAUNCH_RESULT_UNCERTAIN');
+  expect(JSON.stringify(item)).not.toContain('SYNTHETIC_CAPI_SECRET');
+});
+
+it.each(['loaded', 'failed', 'cancelled'] as const)(
+  'diagnoses batch module %s before any admission without claiming completed generation',
+  async state => {
+    const suffix = state === 'loaded' ? '61' : state === 'failed' ? '62' : '63';
+    const batch = `78000000-0000-4000-8000-0000000000${suffix}`;
+    const tracker = { track: vi.fn() };
+    launchBatchLoading(batch, 'started', tracker);
+    launchBatchLoading(batch, state, tracker);
+    for (const [event, properties] of tracker.track.mock.calls) {
+      const safe = sanitizeEventProperties(properties);
+      const guard = await db.db.query<{ safe: boolean }>(
+        'select public.analytics_properties_are_safe_v2($1::jsonb) safe',
+        [JSON.stringify(safe)]
+      );
+      expect(guard.rows[0]?.safe).toBe(true);
+      await db.db.query(
+        `insert into public.analytics_events(user_id,event_name,flow_id,properties,occurred_at,created_at)
+      values($1,$2,$3,$4::jsonb,'2026-10-12T17:00:00Z','2026-10-12T17:00:01Z')`,
+        [ACTOR, event, batch, JSON.stringify(safe)]
+      );
+    }
+    const result = await getInspect(batch, ASOF);
+    if (!result.found) throw new Error('loading evidence missing');
+    expect(result.launch_batch?.loading).toBe(state);
+    expect(result.launch_batch?.admissions).toEqual([]);
+    expect(result.terminal).toBeNull();
+    expect(result.stages.missing).toContain('admission_started');
+  }
+);

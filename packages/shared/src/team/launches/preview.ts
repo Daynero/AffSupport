@@ -63,7 +63,8 @@ export function launchPreview(
       config.campaignCount,
       config.maxBudget,
       config.budgets,
-      config.minBudget
+      config.minBudget,
+      config.budgetMode
     ).map((budget, index) => {
       const row = { ordinal: index + 1, budget, ...launchAdRange(index + 1, config.adsCount) };
       return { ...row, name: launchCampaignName(config, sources, row) };
@@ -126,7 +127,8 @@ export function launchNamingPreview(
       config.maxBudget ?? 0,
       config.adsCount ?? 0,
       config.budgetMode === 'manual' ? (config.budgets ?? []) : null,
-      config.minBudget
+      config.minBudget,
+      config.budgetMode
     );
   } catch {
     return [];

@@ -270,20 +270,20 @@ it('switches restitch time between a point and an independently editable interva
     );
   }
   render(<Host />);
+  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 30 min' }));
   expect(screen.getAllByRole('slider')).toHaveLength(1);
-  expect(screen.getByText('30 min')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByText('25–35 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 25–35 min' })).toBeTruthy();
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
-  expect(screen.getByText('25–36 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 25–36 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
   expect(screen.getAllByRole('slider')).toHaveLength(1);
-  expect(screen.getByText('31 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 31 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByText('26–36 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 26–36 min' })).toBeTruthy();
 });
 
 it('keeps a centered random interval inside the 1–60 minute scale at the upper edge', () => {
@@ -314,14 +314,14 @@ it('keeps a centered random interval inside the 1–60 minute scale at the upper
     );
   }
   render(<Host />);
-  expect(screen.getByText('55–60 min')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 55–60 min' }));
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
-  expect(screen.getByText('55–59 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 55–59 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
-  expect(screen.getByText('57 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 57 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
-  expect(screen.getByText('52–60 min')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Video duration · 52–60 min' })).toBeTruthy();
 });
 
 it('updates automatic budgets from both bounds and changes the heading for one campaign', () => {
@@ -389,4 +389,79 @@ it('shows one shared accessible budget error outside the control row', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')).toBe(error.id);
   }
+});
+
+it('opens hidden catalog schedule controls on submit without hiding the variation count', async () => {
+  const config = launchConfig({
+    method: 'catalog',
+    catalog: {
+      productCount: 100,
+      restitchEnabled: true,
+      finalDurationMode: 'random-30-40',
+      customFinalDurationSeconds: null,
+      catalogVideoProtocolVersion: 1,
+      videoVariationCount: 5,
+      videoPublication: {
+        mode: 'scheduled',
+        localDateTime: '2020-01-01T12:00',
+        timeZone: 'Europe/Kyiv',
+        resolvedOffset: '+02:00',
+        dueAt: '2020-01-01T10:00:00.000Z'
+      }
+    }
+  });
+  const props = {
+    teamId: 'team',
+    config,
+    sources: null,
+    accounts: [],
+    offers: [],
+    buyers: [],
+    disabled: false,
+    onChange: vi.fn(),
+    onRefreshSources: vi.fn()
+  };
+  render(<LaunchEditor {...props} submitted />);
+  expect(
+    screen.getByRole('button', { name: 'More catalog options' }).getAttribute('aria-expanded')
+  ).toBe('true');
+  const variation = await screen.findByLabelText('Video variations');
+  expect(variation.closest('[hidden]')).toBeNull();
+  const time = await screen.findByLabelText('Time');
+  expect(time.closest('[hidden]')).toBeNull();
+});
+
+it('lets the user repair an invalid automatic budget range by switching to manual budgets', () => {
+  function Host() {
+    const [config, setConfig] = React.useState<LaunchDraft>(() =>
+      launchConfig({ campaignCount: 3, minBudget: 70, maxBudget: 15 })
+    );
+    return (
+      <LaunchEditor
+        teamId="team"
+        config={config}
+        sources={null}
+        accounts={[]}
+        offers={[]}
+        buyers={[]}
+        disabled={false}
+        onChange={patch => setConfig(current => ({ ...current, ...patch }))}
+        onRefreshSources={vi.fn()}
+      />
+    );
+  }
+  render(<Host />);
+  fireEvent.click(screen.getByRole('radio', { name: 'Manual' }));
+  for (let index = 1; index <= 3; index++) {
+    const input = screen.getByRole('spinbutton', { name: `Campaign budgets ${index}` });
+    expect(input).toHaveProperty('value', '');
+    fireEvent.change(input, { target: { value: String(index * 10) } });
+  }
+  expect(screen.queryByRole('alert')).toBeNull();
+  fireEvent.click(screen.getByRole('radio', { name: 'Automatic' }));
+  fireEvent.click(screen.getByRole('radio', { name: 'Manual' }));
+  expect(screen.getByRole('spinbutton', { name: 'Campaign budgets 3' })).toHaveProperty(
+    'value',
+    '30'
+  );
 });

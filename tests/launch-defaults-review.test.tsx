@@ -153,3 +153,17 @@ it.each([true, false])(
     expect(value('Schedule the video link')).toBe('—');
   }
 );
+it('reviews the persisted single amount and its mode explicitly', () => {
+  const config = launchConfig({ budgetMode: 'single', maxBudget: 20 });
+  render(
+    <LaunchDefaultsReview
+      current={{ config, subConfig: config.subConfig }}
+      buyer=""
+      disabled={false}
+      onReview={vi.fn()}
+    />
+  );
+  expect(screen.getByText('Single')).toBeTruthy();
+  expect(screen.getByText('20')).toBeTruthy();
+  expect(screen.queryByText('Automatic')).toBeNull();
+});

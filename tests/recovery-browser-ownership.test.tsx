@@ -5,13 +5,21 @@ import { useRestitchPreparer } from '../apps/web/src/team/catalog-updater/useRes
 import { RECOVERY_CHANGED } from '../apps/web/src/api/recovery';
 const state = vi.hoisted(() => ({
   native: true,
+  actorBound: false,
+  automatic: undefined as { actorId: string; sessionKey: string } | undefined,
+  ensure: vi.fn(),
   status: vi.fn(),
   connection: 'connected',
   instanceId: 'agent-one'
 }));
 vi.mock('../apps/web/src/AgentContext', () => ({
   useOptionalAgent: () => ({
-    capabilities: state.native ? ['team-background-recovery'] : [],
+    capabilities: state.native
+      ? [
+          'team-background-recovery',
+          ...(state.actorBound ? ['team-background-recovery-actor-bound'] : [])
+        ]
+      : [],
     connection: state.connection,
     lastKnownAgent: { instanceId: state.instanceId }
   })
@@ -19,13 +27,17 @@ vi.mock('../apps/web/src/AgentContext', () => ({
 vi.mock('../apps/web/src/api/useAgentEventStream', () => ({ useAgentEventStream: () => {} }));
 vi.mock('../apps/web/src/api/recovery', () => ({
   RECOVERY_CHANGED: 'soty.recovery.changed',
-  backgroundRecoveryStatus: (team: string) => state.status(team)
+  backgroundRecoveryStatus: (team: string) => state.status(team),
+  ensureBackgroundRecovery: (...args: unknown[]) => state.ensure(...args)
 }));
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
   state.status.mockReset();
   state.native = true;
+  state.actorBound = false;
+  state.automatic = undefined;
+  state.ensure.mockReset();
   state.connection = 'connected';
   state.instanceId = 'agent-one';
 });
@@ -42,15 +54,82 @@ function controller() {
     useRestitchPreparer({
       teamId: 'synthetic',
       enabled: state.connection === 'connected',
-      client
+      client,
+      automatic: state.automatic
     })
   );
-  return { claim, client, rerender: hook.rerender, unmount: hook.unmount };
+  return { claim, client, result: hook.result, rerender: hook.rerender, unmount: hook.unmount };
 }
 function fixture() {
   return controller().claim;
 }
 describe('one restitch executor owner', () => {
+  it('automatically enrolls old user-off settings and never lends the browser a competing claim', async () => {
+    vi.useFakeTimers();
+    state.actorBound = true;
+    state.automatic = { actorId: 'actor', sessionKey: 'session' };
+    state.status.mockResolvedValue({ enabled: false, automaticSetup: 'eligible' });
+    state.ensure.mockResolvedValue({ enabled: true, automaticSetup: 'ready' });
+    let view!: ReturnType<typeof controller>;
+    await act(async () => {
+      view = controller();
+    });
+    expect(state.ensure).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(view.claim).not.toHaveBeenCalled();
+    expect(view.result.current.backgroundStatus).toMatchObject({ enabled: true });
+  });
+
+  it('bounds a hung ownership read and automatically retries without issuing browser work', async () => {
+    vi.useFakeTimers();
+    state.status
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValue({ enabled: true });
+    let view!: ReturnType<typeof controller>;
+    await act(async () => {
+      view = controller();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(46_000);
+    });
+    expect(state.status).toHaveBeenCalledTimes(2);
+    expect(view.claim).not.toHaveBeenCalled();
+  });
+
+  it('fences setup replies after an actor/session change and keeps retirement blocked', async () => {
+    vi.useFakeTimers();
+    state.actorBound = true;
+    state.automatic = { actorId: 'old', sessionKey: 'old' };
+    state.status
+      .mockResolvedValueOnce({ enabled: false, automaticSetup: 'eligible' })
+      .mockResolvedValue({ enabled: false, automaticSetup: 'retiring' });
+    let finish!: (value: unknown) => void;
+    state.ensure.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    let view!: ReturnType<typeof controller>;
+    await act(async () => {
+      view = controller();
+    });
+    const scope = state.ensure.mock.calls[0][1];
+    await act(async () => {
+      state.automatic = { actorId: 'new', sessionKey: 'new' };
+      view.rerender();
+    });
+    expect(scope.isCurrent()).toBe(false);
+    expect(scope.signal.aborted).toBe(true);
+    await act(async () => {
+      finish({ enabled: true, automaticSetup: 'ready' });
+    });
+    expect(view.result.current.backgroundStatus).toMatchObject({ automaticSetup: 'retiring' });
+    expect(state.ensure).toHaveBeenCalledOnce();
+    expect(view.claim).not.toHaveBeenCalled();
+  });
   it('returns a handoff received after the browser executor stopped instead of stranding its lease', async () => {
     vi.useFakeTimers();
     state.native = false;

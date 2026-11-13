@@ -24,6 +24,8 @@ const TABLES = [
   'analytics_daily_events',
   'analytics_daily_tool_outcomes',
   'analytics_launch_generations',
+  'analytics_launch_batches',
+  'analytics_catalog_renames',
   'analytics_catalog_generations',
   'analytics_launch_cleanup',
   'analytics_launch_assignments',
@@ -81,6 +83,8 @@ async function probe(): Promise<AnalyticsSchema> {
       agent_platform: has('column', 'agent_platform')
     },
     tables: {
+      ...(has('table', 'analytics_launch_batches') ? { analytics_launch_batches: true } : {}),
+      ...(has('table', 'analytics_catalog_renames') ? { analytics_catalog_renames: true } : {}),
       ...(has('table', 'analytics_catalog_video_session_authorities')
         ? { analytics_catalog_video_session_authorities: true }
         : {}),
@@ -227,6 +231,8 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_video_r2_journal' &&
         table !== 'analytics_catalog_video_r2_copies' &&
         table !== 'analytics_catalog_video_r2_purges' &&
+        table !== 'analytics_launch_batches' &&
+        table !== 'analytics_catalog_renames' &&
         table !== 'analytics_catalog_video_r2_coverage' &&
         table !== 'analytics_catalog_text_schedule' &&
         table !== 'analytics_catalog_text_schedule_journal' &&

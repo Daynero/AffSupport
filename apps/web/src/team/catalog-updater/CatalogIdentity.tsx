@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ExternalLink, Settings2 } from 'lucide-react';
+import { ExternalLink, Settings2, Pencil } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button, Popover } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
@@ -10,13 +10,17 @@ export function CatalogIdentity({
   parts,
   context,
   sheetUrl,
-  onConfigure
+  onConfigure,
+  onRename,
+  previousNames = []
 }: {
   name: string;
   parts: string[];
   context: string;
   sheetUrl: string;
   onConfigure: () => void;
+  onRename?: () => void;
+  previousNames?: string[];
 }) {
   const { t } = useI18n();
   const anchor = useRef<HTMLButtonElement>(null);
@@ -47,6 +51,9 @@ export function CatalogIdentity({
         <div className="catalog-identity-heading">
           <strong>{name}</strong>
           <small>{context}</small>
+          {previousNames.length > 0 && (
+            <small>{t('launchCatalogRenameAliases', { names: previousNames.join(' · ') })}</small>
+          )}
         </div>
         <div className="catalog-identity-actions">
           <a
@@ -58,6 +65,20 @@ export function CatalogIdentity({
             <ExternalLink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             <span>{t('catalogIconsOpenSheet')}</span>
           </a>
+          {onRename && (
+            <Button
+              className="catalog-identity-action"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                onRename();
+              }}
+            >
+              <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <span>{t('teamFileRename')}</span>
+            </Button>
+          )}
           <Button
             className="catalog-identity-action"
             size="sm"

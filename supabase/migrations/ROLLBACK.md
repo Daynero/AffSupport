@@ -3146,3 +3146,48 @@ upload was published and that finished more than five minutes ago) and patches
 already patched — production was patched with this body on 2026-11-13). Rolling back means
 restoring the 399995 body through a reviewed forward migration and dropping the helper; sets
 already canceled stay canceled and their outputs stay in Drive.
+
+### 20261207400700_launch_bulk_projection.sql — bulk Launch projection
+
+This additive migration keeps all existing public RPC signatures, grants and JSON fields.
+It adds optional creation cursors, bounded generation/video progress, source-grouping identity,
+a reserved catalog name, a partial index for newest-first listing and an index for the latest generation lookup. The prior detail body
+remains in `private.get_launch_before_bulk`; its public grants are revoked. Public generated
+DB types do not change: both RPC arguments and their JSON return types are unchanged.
+
+For a product rollback, deploy the previous verified web/agent snapshot through the normal
+release channel. Leave the additive projection and index in place: older clients ignore the
+new fields and continue using legacy date pagination when `sort=created` is absent. No data,
+generation receipts, copied marks or catalog resources need reversal. Do not run a down
+migration, remove the index or replay uncertain writes. A defect in this projection is repaired
+with a new forward migration after checking the original wrapper chain and its ACL tests.
+
+### 20261207401000–20261207401300 — durable launches, automatic background and catalog names
+
+These migrations add durable batch receipts and pending admission, automatic recovery setup,
+fair background claims, canonical catalog rename intents and searchable prior names. Existing
+launch generations, native ownership grants and material operation identities remain authoritative.
+The new worker paths retry only retained identities and respect leases, cancellation, source
+versions and conditional provider writes. The analytics views expose metadata only.
+
+A product rollback uses the previous verified release snapshot. Keep the additive tables,
+receipts, aliases and indexes: deleting them could lose accepted work or permit a repeated
+provider write. Inspect pending batches, recovery grants and rename operations before changing
+worker behavior. An unknown rename is reconciled against its original provider ETag; do not
+issue a fresh rename merely to repair the UI, revoke an unrelated native owner or replay a
+consumed upload grant. A fenced absent rename request must remain fenced.
+
+Any correction uses a reviewed forward migration preserving the public wrapper chain and ACLs.
+Do not remove old-name aliases, rewrite immutable launch URLs/name snapshots or revert names
+as a rollback action. Confirmed names and outputs are user data. These source migrations have
+not been applied to production by this feature task.
+
+The durable batch, background claim schedule and canonical rename tables retain
+`task_cleanup_reference_fence` while they exist. It guards late material references
+and keeps global cleanup coverage verified. Disabling it intentionally fails
+closed and retains files as `cleanup_unverified`; never exempt these consumers or
+bypass the coverage check to restore cleanup. An application rollback requires no
+trigger removal.
+
+### 20261207401400 — single launch budget
+Additive enum admission in the existing profile validator; no data rewrite. Forward-fix only. Older clients do not understand single mode, so retain the updated shared/web/Edge code together; never restore the old validator while single profiles exist. Existing automatic/manual rules and ACLs are unchanged.

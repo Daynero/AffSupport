@@ -55,6 +55,7 @@ import { CatalogRowStage } from './CatalogRowStage';
 import { CatalogRowPublicationNote } from './CatalogRowPublicationNote';
 import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import { CatalogIdentity } from './CatalogIdentity';
+import { LazyCatalogRenameDialog } from '../product-catalog/LazyCatalogRenameDialog.js';
 import {
   CatalogIconControls,
   CatalogIconLegend,
@@ -348,6 +349,12 @@ function CatalogUpdaterDialogScope({
       else listFlow.current?.complete();
     } else if (registry.error) listFlow.current?.fail('READ_FAILED');
   }, [registry.rows, registry.error, registry.invalidRowCount]);
+  const [renameRow, setRenameRow] = useState<CatalogRegistryRow | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const openRename = (row: CatalogRegistryRow) => {
+    setRenameRow(row);
+    setRenameOpen(true);
+  };
   const [expandedCatalogId, setExpandedCatalogId] = useState<string | null>(null);
   const [videoVariationsRow, setVideoVariationsRow] = useState<CatalogRegistryRow | null>(null);
   const [publicationCatalogId, setPublicationCatalogId] = useState<string | null>(null);
@@ -1455,10 +1462,12 @@ function CatalogUpdaterDialogScope({
                         <span className="catalog-name-primary">
                           <CatalogIdentity
                             name={row.name}
+                            previousNames={row.nameAliases}
                             parts={nameParts(row.name)}
                             context={`${row.videoName} · ${row.folderName ?? t('catalogUpdaterSpaceRoot')}`}
                             sheetUrl={row.sheetUrl}
                             onConfigure={() => setExpandedCatalogId(row.catalogId)}
+                            onRename={permissions?.edit ? () => openRename(row) : undefined}
                           />
                           <span
                             className="catalog-save-indicator"
@@ -1786,6 +1795,7 @@ function CatalogUpdaterDialogScope({
                               mayRun ? () => setPublicationCatalogId(row.catalogId) : undefined
                             }
                             onChanged={registry.reload}
+                            onRename={permissions.edit ? () => openRename(row) : undefined}
                             onReveal={onReveal}
                             onConfigure={
                               row.profile ? () => setExpandedCatalogId(row.catalogId) : undefined
@@ -1817,6 +1827,21 @@ function CatalogUpdaterDialogScope({
         )}
       </div>
 
+      {renameRow && (
+        <LazyCatalogRenameDialog
+          teamId={teamId}
+          materialId={renameRow.catalogId}
+          currentName={renameRow.name}
+          open={renameOpen}
+          disabled={!permissions?.edit}
+          surface="catalog_manager"
+          onClose={() => setRenameOpen(false)}
+          onRenamed={name => {
+            setRenameRow(row => (row ? { ...row, name } : row));
+            registry.reload();
+          }}
+        />
+      )}
       {liveSelected.length > 0 && (
         <footer
           className="team-updater-footer"

@@ -1,0 +1,464 @@
+{
+  "base_commit": "5817210436bf7a708c6a757933d42802dfaed5a2",
+  "branch": "053-bulk-launches",
+  "recorded_at": "2026-11-13T14:09:23.563781+00:00",
+  "scope": "Changed implementation, migrations and tests verified by the final complete canonical run. Unchanged inputs are inherited from base_commit; documentation and generated build artifacts are not listed.",
+  "files": [
+    {
+      "path": "apps/agent/src/team-bridge/recovery-enrollment.ts",
+      "sha256": "efe9a2cde5655f158038d1793209c1d34a1541b38cbd69184cc60de791e388c8"
+    },
+    {
+      "path": "apps/agent/src/team-bridge/recovery-journal.ts",
+      "sha256": "3df1c080a4b3c1afdead2865a3999c5c2ac5b437774d779c6fdd2e6d7c89313e"
+    },
+    {
+      "path": "apps/agent/src/team-bridge/recovery-worker.ts",
+      "sha256": "5811a28c88ffa164b510ffa7017c3d1c4d0529392db6a0b4bd3b87e1eca37b7f"
+    },
+    {
+      "path": "apps/web/src/analytics/events.ts",
+      "sha256": "7edfe07eaccbf9eea1f399d225a4a95b2d6350838e6a2bc18a8195dbbbeff973"
+    },
+    {
+      "path": "apps/web/src/analytics/service.ts",
+      "sha256": "9c57f8c4e954a5f4f406637fc2121d37b80e775bbbff80196016f1912edfb593"
+    },
+    {
+      "path": "apps/web/src/api/catalog-rename.ts",
+      "sha256": "e126909d5fc6055fda49a7bd29a4d95d7c974e81470c2f9caa241a6084b2c1db"
+    },
+    {
+      "path": "apps/web/src/api/launch-batches.ts",
+      "sha256": "3db4e270a13bdd8b0e9a08ae28b3bf47900ea87e8ef9f0d56029c6148b229d48"
+    },
+    {
+      "path": "apps/web/src/api/recovery.ts",
+      "sha256": "5e80d1cd6a8d0e37ebbd1d41caf5865dcf36f597e715a9038f7a66229405b9fd"
+    },
+    {
+      "path": "apps/web/src/api/team.ts",
+      "sha256": "2904c2e561cd17601168048c95ebc141896b152e70e570684005bd85d6b68d4f"
+    },
+    {
+      "path": "apps/web/src/lib/database.types.ts",
+      "sha256": "bf571447db6b31dd1e215189a0dd85daff3cd72efcf458583739f0e36a494d69"
+    },
+    {
+      "path": "apps/web/src/locales/en.ts",
+      "sha256": "8ed6c903f666d02d92614a0062f5d922b2dae02b86585c380953eb309fbe0332"
+    },
+    {
+      "path": "apps/web/src/locales/uk.ts",
+      "sha256": "301c6d8f8bbb5d82f985e5b592dd286dcadfe0786fe91520a4dc1ed238ac5c57"
+    },
+    {
+      "path": "apps/web/src/styles/components.css",
+      "sha256": "5e06daa965278c8112dcbc49cc463568c0e032dc28887ad730ba16da277f0d87"
+    },
+    {
+      "path": "apps/web/src/styles/index.css",
+      "sha256": "b50fa9cf6505a626da7fb0283cfdca5014ea437b5507156d59c90433cac3c9ca"
+    },
+    {
+      "path": "apps/web/src/styles/launch-settings.css",
+      "sha256": "2b748c80cd3c0cfc737d9b00c050e0f7317b688732a463b1778a6a4f27dfddd3"
+    },
+    {
+      "path": "apps/web/src/styles/tokens.css",
+      "sha256": "68b506bed451c95fbc7ed169648d095b0ee0f58a7f587901bb779f2c403fe926"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/BackgroundRecoveryNotice.tsx",
+      "sha256": "b66650012b871e3bb0f536c1fab483bf418eb5e282407af687e360f0d19ea671"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/CatalogBackgroundStalledNote.tsx",
+      "sha256": "18c5566838020174ce29fffc344354aab6f41c6a51261fa8993d0c29b73d61df"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/CatalogIdentity.tsx",
+      "sha256": "4fc8fa6aaebed58c64f1685bd15db75fdf7d2ecf088ba509ad7ae8a24459444f"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx",
+      "sha256": "f95c1ed804d7a99f7cb2edc71fa9e64c5ea354b072d7d9d80a907ae0ff4369fd"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/UpdaterRowActions.tsx",
+      "sha256": "6ba925bdb4f4c1291e1e5174e07aba537931b44a4049221f70b06c93ed6a4fab"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/backgroundSetupAnalytics.ts",
+      "sha256": "80feb32fc29e5f930fc2ba7f6289d72ec7db4506f939ca438744b646fe21058b"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/useCatalogUpdater.ts",
+      "sha256": "1b6b889c30faf1a76d87028542cf8689f09ddbe8292dd2961899a6028f8e242e"
+    },
+    {
+      "path": "apps/web/src/team/catalog-updater/useRestitchPreparer.ts",
+      "sha256": "60867dcdb6a7369915cc992a48730b6e02cfe7e91bebd66b99f4b93bf90e9979"
+    },
+    {
+      "path": "apps/web/src/team/catalog/useMaterialActions.ts",
+      "sha256": "622a0568064bbac78795760f186abdbcb06d7e0b32c2928d092e306e8cf9a4f8"
+    },
+    {
+      "path": "apps/web/src/team/launches/CopyResultField.tsx",
+      "sha256": "bc3c15401c43fb636cafd093390f703ac8b2949256dfeb144795954830448721"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchBatch.tsx",
+      "sha256": "1840b7b2b0a787158c0c843bd06857618855d58ef2c16d76d0863a64024e5042"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchCard.tsx",
+      "sha256": "2a86f6d6a2778b89b343585c98ea9bb7ef4a5aae03969b50701e6c775d694a4a"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchCatalogVideoFields.tsx",
+      "sha256": "b3eb2864f91e8d30199abe6b8c2f002d6410e32ccc7c2aa35a3a645024e75942"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchCreativePicker.tsx",
+      "sha256": "c888320934e2ee99167b5fe9625c38880c25ad2350dcbd1969b4ef564b48894e"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchDefaultsActions.tsx",
+      "sha256": "445dac7a6cef67afb1bcd699bb8c1377a4cff88fb0743e7d9d210682a5a51411"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchEditor.tsx",
+      "sha256": "346b337455c8c20c0f46a069b252b63e9c328b39a823d719cbaaa1ea1d365cc5"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchGenerationProgress.tsx",
+      "sha256": "9d3c14c72f30697819abd5dfe0b59ac3038e02194b7e0b75e6f3a1da1f29d9b8"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchNotes.tsx",
+      "sha256": "fa74e2ebde84cae73f86d549c877bf62db3c192aaa1cfaa8605492a8ab26489c"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchRestitchDurationField.tsx",
+      "sha256": "be15ac3464eff2f6e1fdfee672e00e766e6e6b0b0ef0a5a0242fce32db41287c"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchResult.tsx",
+      "sha256": "c5c76a1dbc88dd190a5cbc7f95812bac8536be1ca7cb947ce1210cab65a98923"
+    },
+    {
+      "path": "apps/web/src/team/launches/LaunchSpace.tsx",
+      "sha256": "199fcf1e47e203ce4dae73cc833dc9536aa7ef8947262120327d878055724637"
+    },
+    {
+      "path": "apps/web/src/team/launches/batchModel.ts",
+      "sha256": "632a7243ad3f09aecf1d738d3f67dfdea6da1d1f46527063fefeac979677534e"
+    },
+    {
+      "path": "apps/web/src/team/launches/durableBatchModel.ts",
+      "sha256": "562efaacac41c6bda2e54bf7c3300fbab09e8f6aa8a5e14a2f4aeb68b1b9c1e5"
+    },
+    {
+      "path": "apps/web/src/team/launches/launchPresentation.ts",
+      "sha256": "f100a1278d59b6c33b34747481a7d8b6639355b3365804075c249c81456d39e7"
+    },
+    {
+      "path": "apps/web/src/team/launches/useDurableLaunchBatches.ts",
+      "sha256": "1b2f01d13c0825aee84faed2a134ee9f1804c0066eda71bb56c64a86e2501bfb"
+    },
+    {
+      "path": "apps/web/src/team/launches/useLaunchElapsed.ts",
+      "sha256": "4b32cc4b5b9ab009f0bcd53c7d0ac55da16112c510bd922eb7e81ad26a26923e"
+    },
+    {
+      "path": "apps/web/src/team/launches/useLaunchListSelection.ts",
+      "sha256": "4447a8ef54ffe47719a53424b4e45753cd147fc8de5dc89069e2478b22874c17"
+    },
+    {
+      "path": "apps/web/src/team/product-catalog/CatalogCreationVideoFields.tsx",
+      "sha256": "15a608659cbd524710cc3aeffa690ef66f36d40f3513d49484232060aeb89099"
+    },
+    {
+      "path": "apps/web/src/team/product-catalog/CatalogPublicationSchedule.tsx",
+      "sha256": "5e7bea374058cae10e97532022e61054fdec9e415d0b9398fc48fdb6449e56c5"
+    },
+    {
+      "path": "apps/web/src/team/product-catalog/CatalogRenameDialog.tsx",
+      "sha256": "81694e017fbf42630e23fd301ab68f337292ab78fe6f0245a16464fb29de8003"
+    },
+    {
+      "path": "apps/web/src/team/product-catalog/LazyCatalogRenameDialog.tsx",
+      "sha256": "ed7df3cd4d05fe98d2b9aa7fd9471416563e4907a79d923e7b2a26f5ca89bace"
+    },
+    {
+      "path": "apps/web/src/team/tariffs/UpdaterResumeNotice.tsx",
+      "sha256": "304b68704c565b75c724fc8c5d880dd3ee4213d03f32df1aa36b4f34ef295231"
+    },
+    {
+      "path": "apps/web/src/team/workspace/SpaceSettings.tsx",
+      "sha256": "77937f40596017c88801b9460091d6f87682adea1b4ed5bbc3931f3eba9c4354"
+    },
+    {
+      "path": "apps/web/src/team/workspace/WorkspaceShell.tsx",
+      "sha256": "95b398c63f4ecab87b73bd1f4bae29f5c145eec775afdf10f9f86c9c6fdd4162"
+    },
+    {
+      "path": "apps/web/src/team/workspace/mutationJournal.ts",
+      "sha256": "952b483f4bf03701a7eaf960ee4bdbe5f488f82c1f8184031d1f606144275d46"
+    },
+    {
+      "path": "coverage-critical.json",
+      "sha256": "eb024725fa9d7896335ee5289f645a85469ddf91a6d82a79c676cdc52bb0838d"
+    },
+    {
+      "path": "packages/shared/src/team/catalog-rename.ts",
+      "sha256": "24940414aafbb5f5ee050788a24f2cb978670b9da9533d0ea78144efcc10f7ed"
+    },
+    {
+      "path": "packages/shared/src/team/index.ts",
+      "sha256": "2e08c4333f3b91041152e3780ec4ca33d434dc52b635412dc035f7b53d0b30e8"
+    },
+    {
+      "path": "packages/shared/src/team/launch-batch.ts",
+      "sha256": "3609a907f0e6f57b9e5147a82cffc535926d9d287f4495e284939319f9d9324f"
+    },
+    {
+      "path": "packages/shared/src/team/launches.ts",
+      "sha256": "2c5756ff661d63ac2a1ce31621b1533a97959655596bee75a03fb0349d8db8ee"
+    },
+    {
+      "path": "packages/shared/src/team/launches/persistence.ts",
+      "sha256": "6b1e8a656a53e09e3399cee42af16b14641747989383ab47022f26f74ba8d11a"
+    },
+    {
+      "path": "scripts/analytics/background-setup.ts",
+      "sha256": "b52010e8706557b2c980f902a84f316dbf04e89a474e034bc9e76507c71aba4a"
+    },
+    {
+      "path": "scripts/analytics/catalog-renames.ts",
+      "sha256": "3044efbb0b916395fd98c535e5eb8002c1d5c92963fb18f08d92c4d2355c8ab4"
+    },
+    {
+      "path": "scripts/analytics/coverage-registry.ts",
+      "sha256": "8f37d348b500128290eaecc1da3bfa14d8310b63be47e1a668c913d1c0e70f68"
+    },
+    {
+      "path": "scripts/analytics/launch-batches.ts",
+      "sha256": "979a4680775318bafd4a381d74ac4dbe4b11bf107c26eaca97a1f667a53fa399"
+    },
+    {
+      "path": "scripts/analytics/queries.ts",
+      "sha256": "0cb6662d35bc8c39ef22b7d361957a8a6a301b7225dc7e21157536df9baee209"
+    },
+    {
+      "path": "scripts/analytics/schema.ts",
+      "sha256": "22d6166532005abdffbe47160af7000d5df11127c2ae6c50457fd65f62c36376"
+    },
+    {
+      "path": "scripts/analytics/types.ts",
+      "sha256": "154d76144067141ec1a76c63f488f3893c28e264ccf5e6a2c29429550186bdad"
+    },
+    {
+      "path": "supabase/functions/_shared/drive.ts",
+      "sha256": "62ecaa216124a2f50e6bb4f12189633d05d44cf22d54ade91bde9ef1b75806d5"
+    },
+    {
+      "path": "supabase/functions/_shared/launch-failures.ts",
+      "sha256": "674922d6a0d4a291904a3b08c14083894b3b2160e19a65f19fdb13215967285d"
+    },
+    {
+      "path": "supabase/functions/drive-ops/catalog-rename.ts",
+      "sha256": "f57156d892cbac4a0ea9eb9f5ea8c2b0317a7fb4ca73f867c47a9ed5994dab26"
+    },
+    {
+      "path": "supabase/functions/drive-ops/index.ts",
+      "sha256": "ad7a6f42e28791147e116739dda1a50acdf6ac960cecb7440fc0be081851fe1f"
+    },
+    {
+      "path": "supabase/functions/drive-ops/launch-batch.ts",
+      "sha256": "ba90f5aae4368448ab321fec0d66c6c8fde72005f1457ae75c04e02269583812"
+    },
+    {
+      "path": "supabase/functions/drive-ops/launch-catalog.ts",
+      "sha256": "8188c15e2d9f50437aba49a9fcf6353956bf4da2b666f9ade4605b81fcca040a"
+    },
+    {
+      "path": "supabase/functions/team-recovery/handler.ts",
+      "sha256": "c0e4c66e59448959a917a879a9cfd58d026984829da644202f1decf690a3f614"
+    },
+    {
+      "path": "supabase/migrations/20261207401000_launch_durable_batches.sql",
+      "sha256": "40f4df0eee47c0de0e0afb288407b7838a0e5b155d4da65c4ce64a9062c05e74"
+    },
+    {
+      "path": "supabase/migrations/20261207401100_recovery_automatic_setup.sql",
+      "sha256": "818b5973d32827c0f4896b754573398c6e30b4be970425af0ccf3edf17aaf7db"
+    },
+    {
+      "path": "supabase/migrations/20261207401200_catalog_background_fair_claims.sql",
+      "sha256": "7d1b8b639a3cfb2f93ed8cdf370e73f4d7b045e1293fe6f39170f6a47431f510"
+    },
+    {
+      "path": "supabase/migrations/20261207401300_catalog_canonical_rename.sql",
+      "sha256": "cf0bc20c2fc71033630e5ac282bd75ee717cc4f1a14f3bc13899b57945fdaf8a"
+    },
+    {
+      "path": "supabase/migrations/ROLLBACK.md",
+      "sha256": "30fa14023b873e64ade7a688f05717803a930dcc6deda391890f6ef48e8bedba"
+    },
+    {
+      "path": "supabase/tests/database/catalog-sync-ownership.test.sql",
+      "sha256": "79528279086d35ca2cf7ad864999264a19a9661e9d016b5b0c34e620068bb7fa"
+    },
+    {
+      "path": "supabase/tests/database/launch-durable-batches.test.sql",
+      "sha256": "fe76151e35251502e69580079d080902e4568e498c7ad6d8bbb3169578dbb692"
+    },
+    {
+      "path": "tests/acceptance-fault-provider.test.ts",
+      "sha256": "9008bebe72b992ac1e1db4c19da469cb321c0da46ca53b75cdb8a5edd574c382"
+    },
+    {
+      "path": "tests/background-automatic-ui.test.tsx",
+      "sha256": "4c5d6ea1affb98ee40849f0894e17fa054b30817f798c8ad4ba7d4082746cc99"
+    },
+    {
+      "path": "tests/background-setup-analytics.test.ts",
+      "sha256": "0086d00537077a6b6d2bd38047655821e4beccda3fc0ca6361e916824567516f"
+    },
+    {
+      "path": "tests/catalog-canonical-rename.test.ts",
+      "sha256": "1d636d36d68588428cbf52d34fe1943379989d9bf63a27a388f2b0d184ce0bc4"
+    },
+    {
+      "path": "tests/catalog-rename-analytics.test.ts",
+      "sha256": "5462c52ecc2bea54ec06b684a17792ea7ac8cfcc1715b6c3bee772965fea130c"
+    },
+    {
+      "path": "tests/catalog-rename-contract.test.ts",
+      "sha256": "965caeca53bad6fdffb8edd4983eaef2fa5639f16566141ab579abaed6fa7900"
+    },
+    {
+      "path": "tests/catalog-rename-drive.test.ts",
+      "sha256": "b5dfee3bd0084a75327cfa6cbf0fca41a4759d01c0c86dfd846dc9050c81b6e9"
+    },
+    {
+      "path": "tests/catalog-rename-ui.test.tsx",
+      "sha256": "774fcf20fe3da74044867ceb69d2a996a26bf2e55cf5f2f41a770d67bafe42e9"
+    },
+    {
+      "path": "tests/catalog-updater-dialog.test.tsx",
+      "sha256": "acac3eab2efa114528e99f4b5bb62070f0df913a8aecf301e17ba68f801cc124"
+    },
+    {
+      "path": "tests/drive-transient-retry.test.ts",
+      "sha256": "9ef318371f2d1ba082334aa06de29bed6aa1055754f1d61f43c33d2c5404a54d"
+    },
+    {
+      "path": "tests/fixtures/launch-batches.ts",
+      "sha256": "a642dab447b7c80a044f59e2b0dff7ee7070d27ca5f98f43ec52f82b4745b7f4"
+    },
+    {
+      "path": "tests/launch-batch-admission.test.tsx",
+      "sha256": "f23029961cc571ff617c0ccfdbae9f0152154a194da31b029fb2e288b8a2f493"
+    },
+    {
+      "path": "tests/launch-batch-resilience.test.tsx",
+      "sha256": "84755902ad3c56cd7bd2f28bd2094940bd45ffb82de62b079953bb8d92e771fd"
+    },
+    {
+      "path": "tests/launch-batch.test.tsx",
+      "sha256": "f0e29c6bb21b4d51fcf9d9f66b6eb7e605077c09e10518e7254e1d52f939794b"
+    },
+    {
+      "path": "tests/launch-card-interactions.test.tsx",
+      "sha256": "a153d581311d13c8197898a951edc1be82cff2d8b5905b6d68c64bf483531a9c"
+    },
+    {
+      "path": "tests/launch-catalog-execution.test.ts",
+      "sha256": "8dfb39efa87710acb0ffeea32ee6d7311cce3d958f0e2d7dfc807718bc4ab456"
+    },
+    {
+      "path": "tests/launch-catalog-settings.test.tsx",
+      "sha256": "405cd10b1804bf18ff30b334192e05ec4069519e5277376b62efbd22d55e28c5"
+    },
+    {
+      "path": "tests/launch-creative-picker.test.tsx",
+      "sha256": "e2d50a10d7f0a7388363ef4e0dc8562bf57ed017a0c69519e01878b47f418593"
+    },
+    {
+      "path": "tests/launch-durable-batch-catalog.test.ts",
+      "sha256": "21b823a1de5a9ad478c2d16c4a014bb2f6a1979b3ef62182c81cb4ec02facda4"
+    },
+    {
+      "path": "tests/launch-durable-batch-contract.test.ts",
+      "sha256": "9b98a2f321dfeee75f34061682af32307b7d235c317543d0ca6e09ea8d20b015"
+    },
+    {
+      "path": "tests/launch-durable-batch-storage.test.ts",
+      "sha256": "e05e9859af7a7e419e9e6c5beea043dd0d73aafe04b599e38cb6e7d98381f62d"
+    },
+    {
+      "path": "tests/launch-editor-preview.test.tsx",
+      "sha256": "78bfa82e4a3ec1f2ec8840790d03f6ae6bb578f073b0174531e46d3e9dc123fa"
+    },
+    {
+      "path": "tests/launch-elapsed.test.tsx",
+      "sha256": "43408e5ac5dade9a83110116272715117e823ab58fcc60187bbf6d52c37f673e"
+    },
+    {
+      "path": "tests/launch-failures.test.ts",
+      "sha256": "d2c7c817f033b7fd16faaad0a8c63d6f4da84317da3e5c79fc4233670abdc3d2"
+    },
+    {
+      "path": "tests/launch-notes.test.tsx",
+      "sha256": "423339c824da83c6d933692a12c5f7717545b54ff4db5391c4f2034568b69812"
+    },
+    {
+      "path": "tests/launch-overrides.test.tsx",
+      "sha256": "e873346dcb6d1d60f9afa7b68175e9860bc4c66fb6ec9226db222fdd5274ca04"
+    },
+    {
+      "path": "tests/launch-progress.test.tsx",
+      "sha256": "f43773fca769362ff8b8c636620161ade1e766257f540aaeb59f5f69c9b51984"
+    },
+    {
+      "path": "tests/launch-workspace-ui.test.tsx",
+      "sha256": "083298ef7424605d5b56c90312baebd53d287a6d3c5dba5abbc997c9bc4da48b"
+    },
+    {
+      "path": "tests/performance-budgets.test.ts",
+      "sha256": "68ed2c8ad7929a3552596aba00c1e7eab1296a05944747e42e0711191a07cb7e"
+    },
+    {
+      "path": "tests/recovery-automatic-setup.test.ts",
+      "sha256": "ec08021e8bd0e30070ba099ce1a8eab51ebdeac6cb9eab046d9884103ad97ec9"
+    },
+    {
+      "path": "tests/recovery-browser-ownership.test.tsx",
+      "sha256": "5ee50a7b459fd0f35977f6f4274f874a3fd1c8a5077970764d542a2acb2229bb"
+    },
+    {
+      "path": "tests/recovery-enrollment-errors.test.ts",
+      "sha256": "09b84f5333b01be0ae849b6907e33825f14b8f28996e83ffc97d723f2c519669"
+    },
+    {
+      "path": "tests/tariff-catalog-recovery-postgres.test.ts",
+      "sha256": "9c97e022783487564b3c335b6e2c6d5dd217f4de8cb377a22dacb4026064bc24"
+    },
+    {
+      "path": "tests/team-recovery-delegation.test.ts",
+      "sha256": "66144cc2c4830c245eab3b4967c9d44a13e9fb2c547087c199ed082ff5ca5f58"
+    },
+    {
+      "path": "tests/team-recovery-handler.test.ts",
+      "sha256": "a0a51143913dff53c20bbaf31e916666f879bf7fa8f5192ab4d737ca2e3f8b36"
+    },
+    {
+      "path": "tests/team-recovery-worker.test.ts",
+      "sha256": "38840d37b4b55606b862b450a8e7505a88f354f56b77b17f1306fac5e16564d4"
+    }
+  ]
+}

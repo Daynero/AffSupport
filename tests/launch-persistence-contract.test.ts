@@ -165,3 +165,36 @@ describe('Launch persisted transport boundary', () => {
     expect(parseLaunchGeneration({ ...generation, childOperationIds: ['child', 2] })).toBeNull();
   });
 });
+
+it('retains only validated optional card generation and pending catalog name', () => {
+  const base = {
+    id: 'launch',
+    version: '1',
+    launchDate: null,
+    offer: '',
+    social: '',
+    creativeAlias: '',
+    method: 'other',
+    workStatus: 'todo',
+    assigneeId: null,
+    budgets: [],
+    generationState: 'running'
+  };
+  expect(parseLaunchSummary({ ...base, generation })?.generation?.stage).toBe('catalog_creating');
+  expect(
+    parseLaunchSummary({ ...base, generation: { ...generation, state: 'invented' } })
+  ).toBeNull();
+  const detail = {
+    id: 'launch',
+    version: '1',
+    draft: {},
+    expectedSourceSnapshot: null,
+    assigneeId: null,
+    workStatus: 'todo',
+    activeRevision: null,
+    generation,
+    pendingCatalogName: 'Reserved catalog'
+  };
+  expect(parseLaunchDetail(detail)?.pendingCatalogName).toBe('Reserved catalog');
+  expect(parseLaunchDetail({ ...detail, pendingCatalogName: { secret: true } })).toBeNull();
+});

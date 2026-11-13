@@ -1,0 +1,13 @@
+{
+  "command": "SOTY_TEST_DB_SOURCE_PROJECT=r2beta045 nice -n 15 npm run test:db",
+  "completed_at": "2026-11-13T14:59:14.998501+00:00",
+  "ok": true,
+  "sql_files": 75,
+  "sql_assertions": 1490,
+  "auth_tests": 3,
+  "native_integration_files": 10,
+  "native_integration_tests": 81,
+  "native_duration_ms": 170330,
+  "log_sha256": "3ebebb86409dd9c7608241830088bfbff2d9d31c829acd60bcbade7a4d991c7f",
+  "scope": "Canonical disposable PostgreSQL, complete migration chain; no source data/role passwords copied, disposable containers cleaned. No production changes."
+}

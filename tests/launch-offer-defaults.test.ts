@@ -195,3 +195,24 @@ it('round-trips every form value in both profile scopes without leaking content 
   );
   expect(JSON.stringify(signals)).not.toMatch(/SYNTHETIC_NOTE_VALUE|SYNTHETIC_PROFILE_TOKEN/);
 });
+
+it('persists single budgets in both profile scopes and rejects contradictory/invalid amounts', async () => {
+  const single = { campaignCount: 100, maxBudget: 1, budgetMode: 'single', budgets: null };
+  for (const scope of [null, offer]) {
+    const previous = await read(scope ?? undefined);
+    const saved = await save(scope, previous?.version ?? null, undefined, single);
+    expect((await read(scope ?? undefined))?.config).toEqual(single);
+    for (const change of [
+      { maxBudget: 0 },
+      { maxBudget: 1.5 },
+      { maxBudget: 1000000 },
+      { minBudget: 1 },
+      { budgets: Array(100).fill(1) }
+    ]) {
+      await expect(
+        save(scope, saved[0].result.version, undefined, { ...single, ...change })
+      ).rejects.toThrow('INVALID_INPUT');
+    }
+    expect((await read(scope ?? undefined))?.config).toEqual(single);
+  }
+});

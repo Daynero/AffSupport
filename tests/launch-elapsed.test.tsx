@@ -89,3 +89,78 @@ it('counts from the server start on a computer that never saw the launch begin (
   const skewed = renderHook(() => useLaunchElapsed('skewed', ahead, false, true));
   expect(skewed.result.current).toBe('00:00');
 });
+
+it('does not reset a confirmed attempt when a lost request enters preparation again', async () => {
+  vi.useFakeTimers();
+  const view = renderHook(({ pending }) => useLaunchElapsed('launch', generation, pending, true), {
+    initialProps: { pending: false }
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(75_000);
+  });
+  view.rerender({ pending: true });
+  expect(view.result.current).toBe('01:15');
+  view.rerender({ pending: false });
+  expect(view.result.current).toBe('01:15');
+});
+
+it('retains a stored attempt while reopened detail temporarily has no generation metadata', async () => {
+  vi.useFakeTimers();
+  const first = renderHook(() => useLaunchElapsed('launch', generation, false, true));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(95_000);
+  });
+  first.unmount();
+  const view = renderHook(({ gen }) => useLaunchElapsed('launch', gen, false, true), {
+    initialProps: { gen: null as LaunchGeneration | null }
+  });
+  view.rerender({ gen: generation });
+  expect(view.result.current).toBe('01:35');
+});
+
+it('does not move the clock backward when acceptance supplies a later server start', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-13T09:00:00Z'));
+  const view = renderHook(({ gen, pending }) => useLaunchElapsed('launch', gen, pending, true), {
+    initialProps: { gen: null as LaunchGeneration | null, pending: true }
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20_000);
+  });
+  view.rerender({ gen: { ...generation, startedAt: new Date().toISOString() }, pending: false });
+  expect(view.result.current).toBe('00:20');
+});
+
+it('does not carry another launch clock into a reused progress component', async () => {
+  vi.useFakeTimers();
+  const view = renderHook(({ scope, gen }) => useLaunchElapsed(scope, gen, false, true), {
+    initialProps: { scope: 'first', gen: generation }
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(90_000);
+  });
+  view.rerender({ scope: 'second', gen: { ...generation, id: 'second-gen' } });
+  expect(view.result.current).toBe('00:00');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  view.rerender({ scope: 'first', gen: generation });
+  expect(view.result.current).toBe('01:35');
+});
+
+it('keeps elapsed wall time through an observation outage instead of freezing at the error', async () => {
+  vi.useFakeTimers();
+  const running = { ...generation, state: 'running' as const };
+  const view = renderHook(({ active }) => useLaunchElapsed('launch', running, false, active), {
+    initialProps: { active: true }
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  view.rerender({ active: false });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20_000);
+  });
+  view.rerender({ active: true });
+  expect(view.result.current).toBe('00:30');
+});

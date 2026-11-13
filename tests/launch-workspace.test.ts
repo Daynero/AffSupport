@@ -120,6 +120,28 @@ it('projects a failed draft generation with a non-null inactive result flag and 
   expect(Object.keys(diagnosticRow)).not.toContain('config');
   expect(Object.keys(diagnosticRow)).not.toContain('original_url');
   expect(Object.keys(diagnosticRow)).not.toContain('generated_url');
+  await db.root(
+    `insert into private.catalog_generation_intents
+    (team_id,video_material_id,actor_id,request_key,request_digest,request_payload,variant,checkpoint)
+    values($1,gen_random_uuid(),$2,$3,'digest','{}',1,'{"namePlan":{"name":"Reserved catalog V1"}}')`,
+    [team, OWNER, `launch:${generation}:catalog`]
+  );
+  const detail = (
+    await db.asUser<{ result: { pendingCatalogName: string | null } }>(
+      OWNER,
+      'select public.get_launch($1,$2) result',
+      [team, launch]
+    )
+  )[0].result;
+  expect(detail.pendingCatalogName).toBe('Reserved catalog V1');
+  const history = (
+    await db.asUser<{ result: { pendingCatalogName: string | null } }>(
+      OWNER,
+      'select public.get_launch($1,$2,$3) result',
+      [team, launch, revision]
+    )
+  )[0].result;
+  expect(history.pendingCatalogName).toBeNull();
 });
 
 it('persists ordered SUB defaults, replays the original version and rejects stale replacement', async () => {
@@ -592,4 +614,54 @@ it('edits dictionaries with scoped permissions, optimistic versions, replay and 
       )
     )[0].n
   ).toBe(1);
+});
+
+it('paginates newest creations independently of planned dates, retaining legacy date cursors', async () => {
+  const ids: string[] = [];
+  for (let index = 0; index < 3; index++) {
+    const row = (
+      await db.asUser<{ result: { id: string } }>(
+        OWNER,
+        'select public.save_launch_draft($1,null,null,$2,$3::jsonb,null) result',
+        [
+          team,
+          `bulk-order-${index}`,
+          JSON.stringify({ creativeAlias: 'bulk-timeline', launchDate: `2026-11-${20 - index}` })
+        ]
+      )
+    )[0].result;
+    ids.push(row.id);
+    await db.root('update public.team_launches set created_at=$2::timestamptz where id=$1', [
+      row.id,
+      `2026-11-13T10:0${index}:00Z`
+    ]);
+  }
+  type Page = {
+    items: Array<{ id: string; hasResult: boolean; generation: null }>;
+    nextCursor: { id: string; createdAt: string; date: string };
+  };
+  const read = async (filter: Record<string, unknown>) =>
+    (
+      await db.asUser<{ result: Page }>(
+        OWNER,
+        'select public.list_launches($1,$2::jsonb,2) result',
+        [team, JSON.stringify({ search: 'bulk-timeline', ...filter })]
+      )
+    )[0].result;
+  const first = await read({ sort: 'created' });
+  expect(first.items.map(i => i.id)).toEqual([ids[2], ids[1]]);
+  expect(first.items.every(i => i.hasResult === false && i.generation === null)).toBe(true);
+  const second = await read({
+    sort: 'created',
+    cursorId: first.nextCursor.id,
+    cursorCreatedAt: first.nextCursor.createdAt
+  });
+  expect(second.items.map(i => i.id)).toEqual([ids[0]]);
+  expect((await read({})).items.map(i => i.id)).toEqual([ids[0], ids[1]]);
+  expect((await read({ ids: [ids[2]] })).items.map(i => i.id)).toEqual([ids[2]]);
+  await expect(read({ ids: 'invalid' })).rejects.toThrow('INVALID_INPUT');
+  await expect(read({ ids: [] })).rejects.toThrow('INVALID_INPUT');
+  await expect(
+    db.asUser(null, 'select public.list_launches($1,$2::jsonb,2)', [team, '{"sort":"created"}'])
+  ).rejects.toThrow();
 });

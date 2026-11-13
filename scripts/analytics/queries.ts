@@ -1,3 +1,9 @@
+import { getCatalogRenameEvidence, mergeCatalogRenameInspection } from './catalog-renames.js';
+import {
+  getDurableLaunchBatchEvidence,
+  mergeDurableLaunchBatchInspection
+} from './launch-batches.js';
+import { inspectBackgroundSetup } from './background-setup.js';
 import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
 import { getCatalogGrowthEvidence } from './catalog-growth.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -2360,6 +2366,18 @@ function auditFindings(
 const OPAQUE_ID = /^[a-z0-9][a-z0-9_-]{0,95}$/i;
 
 export async function getInspect(id: string, asOf?: string, limit = 500): Promise<InspectData> {
+  const core = await getInspectBeforeDurableBatch(id, asOf, limit);
+  const batches = await getDurableLaunchBatchEvidence(id, asOf);
+  const renames = await getCatalogRenameEvidence(id, asOf);
+  return inspectBackgroundSetup(
+    mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames)
+  );
+}
+async function getInspectBeforeDurableBatch(
+  id: string,
+  asOf?: string,
+  limit = 500
+): Promise<InspectData> {
   const original = await getInspectWithoutPublication(id, asOf, limit);
   const growthEvidence =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id) &&
@@ -2758,6 +2776,96 @@ async function getInspectCore(id: string, asOf?: string, limit = 500): Promise<I
     if (found) return found;
   }
   if (events.found) {
+    const batchEvents = events.events.filter(
+      event =>
+        event.properties.flow_step === 'launch_batch_admission' &&
+        (event.flow_id === id || event.properties.flow_id === id)
+    );
+    const batchLoading = events.events.filter(
+      event =>
+        event.properties.flow_step === 'launch_batch_loading' &&
+        (event.flow_id === id || event.properties.flow_id === id)
+    );
+    if (batchEvents.length || batchLoading.length) {
+      const loadingStates = new Set(
+        batchLoading.flatMap(event =>
+          event.event_name === 'operation_completed'
+            ? ['loaded' as const]
+            : event.event_name === 'operation_failed'
+              ? ['failed' as const]
+              : event.event_name === 'operation_cancelled'
+                ? ['cancelled' as const]
+                : []
+        )
+      );
+      const loading = !batchLoading.length
+        ? null
+        : loadingStates.size === 1
+          ? [...loadingStates][0]!
+          : ('unknown' as const);
+      const expected = [
+        'batch_loading',
+        'admission_started',
+        'generation_result',
+        'result_visible'
+      ];
+      const observed = [
+        ...(batchLoading.length ? ['batch_loading'] : []),
+        ...(batchEvents.length ? ['admission_started'] : [])
+      ];
+      const flows = [
+        ...new Set(
+          batchEvents
+            .map(event => event.properties.attempt_id)
+            .filter((flow): flow is string => typeof flow === 'string' && OPAQUE_ID.test(flow))
+        )
+      ].slice(0, 100);
+      const admissions = flows.map(flow_id => {
+        const child = batchEvents.filter(event => event.properties.attempt_id === flow_id);
+        const states = new Set(
+          child.flatMap(event =>
+            event.event_name === 'operation_completed'
+              ? ['accepted' as const]
+              : event.event_name === 'operation_failed'
+                ? ['failed' as const]
+                : event.event_name === 'operation_cancelled'
+                  ? ['cancelled' as const]
+                  : []
+          )
+        );
+        const launch_id =
+          child
+            .map(event => event.properties.workflow_id)
+            .find(
+              (launch): launch is string => typeof launch === 'string' && OPAQUE_ID.test(launch)
+            ) ?? null;
+        return {
+          flow_id,
+          launch_id,
+          state: states.size === 1 ? [...states][0]! : ('unknown' as const)
+        };
+      });
+      return {
+        ...events,
+        capability: 'team.launches',
+        terminal: null,
+        stages: {
+          expected,
+          observed,
+          missing: expected.filter(stage => !observed.includes(stage))
+        },
+        last_proven_stage: batchEvents.length ? 'admission_started' : 'batch_loading',
+        launch_batch: {
+          scope: 'observed_admissions',
+          loading,
+          admissions,
+          blind_spots: [
+            'Admission is not generation completion or result delivery. Inspect each child flow_id for authoritative generation evidence.',
+            'Unsubmitted session-local drafts and missing/delayed telemetry are unknown. This bounded view cannot prove total batch completion.'
+          ]
+        }
+      };
+    }
     const assignmentEvents = events.events.filter(event =>
       ['assign_account', 'release_account'].includes(String(event.properties.launch_action))
     );

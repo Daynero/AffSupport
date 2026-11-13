@@ -428,6 +428,10 @@
      product's long-standing 44px floor; `xs`/`sm` are what dense surfaces
      (the accounts table, explorer rows) use instead of one-off heights. */
   --search-dialog-height: 640px;
+  /* Launch cards reserve room for wrapping facts and asynchronous progress. */
+  --launch-card-min-width: 280px;
+  --launch-card-min-height: 256px;
+
   --control-height-xs: 24px;
   --control-height-sm: 30px;
   --control-height-md: 38px;

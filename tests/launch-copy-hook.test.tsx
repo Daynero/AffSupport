@@ -163,6 +163,6 @@ it('announces a copy with the day the list shows, for the usual toast time (1.4.
   const toast = push.mock.calls[0][0];
   expect(toast.text).not.toContain('2026-11-12');
   expect(toast.text).toContain(formatDayValue('2026-11-12', 'en-US'));
-  expect(toast.action).toBeTruthy();
+  expect(toast.action).toBeUndefined();
   expect(toast.sticky).toBeFalsy();
 });

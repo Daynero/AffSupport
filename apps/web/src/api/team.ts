@@ -450,6 +450,8 @@ export interface CatalogRowPublication {
 }
 
 export interface CatalogRegistryRow {
+  /** Confirmed previous material names, used by catalog search. */
+  nameAliases?: string[];
   videoGeneration?: CatalogVideoRowProgress | null;
   /** Missing on older servers; null when no scheduled publication is pending. */
   videoPublication?: CatalogRowPublication | null;
@@ -708,6 +710,11 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     !row ||
     typeof row.catalog_id !== 'string' ||
     typeof row.name !== 'string' ||
+    (row.name_aliases !== undefined &&
+      (!Array.isArray(row.name_aliases) ||
+        !row.name_aliases.every(
+          (name: unknown) => typeof name === 'string' && name.length > 0 && name.length <= 1024
+        ))) ||
     typeof row.sheet_url !== 'string' ||
     !/^https:\/\//u.test(row.sheet_url) ||
     typeof row.video_id !== 'string' ||
@@ -738,6 +745,10 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
   }
   return {
     catalogId: row.catalog_id,
+    ...(Array.isArray(row.name_aliases) &&
+    row.name_aliases.every((name: unknown) => typeof name === 'string')
+      ? { nameAliases: [...row.name_aliases] as string[] }
+      : {}),
     name: row.name,
     sheetUrl: row.sheet_url,
     videoId: row.video_id,

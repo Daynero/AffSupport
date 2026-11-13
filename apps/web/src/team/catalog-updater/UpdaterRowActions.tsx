@@ -44,7 +44,8 @@ export function UpdaterRowActions({
   onHistory,
   onPublication,
   onVideoVariations,
-  onConfigure
+  onConfigure,
+  onRename
 }: {
   row: CatalogRegistryRow;
   teamId: string;
@@ -57,6 +58,7 @@ export function UpdaterRowActions({
   onPublication?: () => void;
   onVideoVariations?: () => void;
   onConfigure?: () => void;
+  onRename?: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -100,6 +102,7 @@ export function UpdaterRowActions({
     context,
     {
       ...host.handlers,
+      ...(onRename ? { rename: onRename } : {}),
       open: () => window.open(row.sheetUrl, '_blank', 'noopener,noreferrer'),
       showInFolder: onReveal ? () => onReveal(row) : undefined
       // One inline — open the sheet — and the rest named in "…" (024, T131):

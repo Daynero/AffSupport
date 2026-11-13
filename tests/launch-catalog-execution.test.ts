@@ -4,6 +4,7 @@ import {
   type LaunchCatalogExecutionDeps
 } from '../supabase/functions/drive-ops/launch-catalog';
 import { launchConfig, launchSources } from './fixtures/launches';
+import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 
 it.each([1, 2])(
   'keeps the server-accepted image contract %i when creating the child',
@@ -351,6 +352,29 @@ it('leaves a generation whose lease moved to another executor running instead of
     executeLaunchCatalog(executionDeps(rpc), 'team', 'generation', 'actor')
   ).resolves.toEqual({ id: 'generation', state: 'running' });
   expect(rpc.mock.calls.map(([name]) => name)).not.toContain('service_interrupt_launch_generation');
+});
+
+it('persists a provider cooldown atomically when catalog source verification is rate limited', async () => {
+  const rpc = vi.fn(async (name: string) => ({
+    data: name === 'service_restore_registered_launch_catalog' ? false : claimedCatalog(name),
+    error: null
+  }));
+  const deps = executionDeps(rpc);
+  deps.proveSource.mockRejectedValue(
+    new TeamFunctionError('RATE_LIMITED', {
+      retryable: true,
+      details: { retryAfterMs: 3_600_000 }
+    })
+  );
+  await expect(executeLaunchCatalog(deps, 'team', 'generation', 'actor')).rejects.toMatchObject({
+    code: 'RATE_LIMITED',
+    details: { retryAfterMs: 3_600_000 }
+  });
+  expect(rpc).toHaveBeenCalledWith(
+    'service_interrupt_launch_generation_with_backoff',
+    expect.objectContaining({ p_code: 'RATE_LIMITED', p_retry_after_ms: 3_600_000, p_fence: '2' })
+  );
+  expect(deps.driveFor).not.toHaveBeenCalled();
 });
 
 it('still stops the generation with the real code for any other failure', async () => {

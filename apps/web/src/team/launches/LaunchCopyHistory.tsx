@@ -15,6 +15,7 @@ export function useLaunchCopyMark(field: string | undefined, value: string) {
   const history = useContext(Context);
   return {
     seen: Boolean(field && history?.seen(field, value)),
+    managed: Boolean(field && history),
     remember: () => (field && history ? history.remember(field, value) : true)
   };
 }
@@ -24,11 +25,13 @@ export function LaunchCopyHistory({
   scope,
   lineageId,
   values,
+  seedCopies,
   children
 }: {
   scope: LaunchCopyScope | null;
   lineageId: string;
   values: Record<string, string>;
+  seedCopies?: Record<string, string>;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -211,6 +214,17 @@ export function LaunchCopyHistory({
       });
     void flush();
   };
+  const seedSignature = JSON.stringify(seedCopies ?? {});
+  const seedApply = useRef(apply);
+  seedApply.current = apply;
+  useEffect(() => {
+    const matching = Object.fromEntries(
+      Object.entries(seedCopies ?? {}).filter(
+        ([field, value]) => current.current.values[field] === value
+      )
+    );
+    if (Object.keys(matching).length) seedApply.current(matching, true);
+  }, [identity, seedSignature]);
   const visible = eligible;
   const completed = Object.fromEntries(
     Object.entries(visible).filter(([field, value]) => seen(field, value))

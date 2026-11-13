@@ -8,6 +8,8 @@ import { emptyTeamRouteQuery } from '../apps/web/src/team/routes';
 import { quickRangeValue } from '../apps/web/src/team/tasks/useTasks';
 import { launchConfig, launchSources } from './fixtures/launches';
 import { launchPreview, type LaunchDetail } from '../packages/shared/src/team/launches';
+import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope.js';
+import { batchReceipt, batchUuid } from './fixtures/launch-batches.js';
 import { launchAction } from '../apps/web/src/team/launches/analytics';
 const TEAM = '79999999-0000-4000-8000-000000000001';
 const LAUNCH = '79999999-0000-4000-8000-000000000002';
@@ -17,6 +19,10 @@ function mockClipboard(writeText: (value: string) => Promise<void>) {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
 }
 const seams = vi.hoisted(() => ({
+  batchRead: vi.fn(),
+  batchSubmit: vi.fn(),
+  batchList: vi.fn(),
+  batchCancel: vi.fn(),
   actor: 'actor-a',
   revision: 0,
   view: true,
@@ -45,6 +51,15 @@ const seams = vi.hoisted(() => ({
   accounts: [] as unknown[],
   offers: [] as unknown[],
   buyers: [] as unknown[]
+}));
+vi.mock('../apps/web/src/api/launch-batches.js', async original => ({
+  ...(await original<typeof import('../apps/web/src/api/launch-batches.js')>()),
+  launchBatchApi: {
+    read: seams.batchRead,
+    submit: seams.batchSubmit,
+    list: seams.batchList,
+    cancel: seams.batchCancel
+  }
 }));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: seams.actor } })
@@ -184,6 +199,8 @@ vi.mock('../apps/web/src/team/launches/LaunchGenerationProgress', () => ({
 }));
 vi.mock('../apps/web/src/team/launches/analytics', () => ({
   launchIntent: vi.fn(),
+  launchBatchLoading: vi.fn(),
+  launchBatchAdmission: vi.fn(),
   launchMutation: (_correlation: unknown, _action: unknown, execute: () => Promise<unknown>) =>
     execute(),
   launchAction: vi.fn(),
@@ -222,6 +239,11 @@ function resetSeams() {
   }));
   seams.setAssignment.mockReset();
   seams.actor = 'actor-a';
+  setPrivateCacheScope(seams.actor, 'team');
+  seams.batchRead.mockReset().mockResolvedValue(null);
+  seams.batchSubmit.mockReset().mockImplementation(async command => batchReceipt(command));
+  seams.batchList.mockReset().mockResolvedValue({ items: [], hasMore: false, nextCursor: null });
+  seams.batchCancel.mockReset();
   seams.revision = 0;
   seams.view = true;
   seams.edit = false;
@@ -279,6 +301,7 @@ it('orders launch date shortcuts after the calendar and filters the server list 
   if (future.kind !== 'range') throw new Error('Tomorrow must resolve to a date range');
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      sort: 'created',
       search: '',
       from: future.from,
       to: future.to
@@ -286,31 +309,39 @@ it('orders launch date shortcuts after the calendar and filters the server list 
   );
   expect(tomorrow.getAttribute('aria-pressed')).toBe('true');
   fireEvent.click(tomorrow);
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
+  );
   fireEvent.click(today);
   const expected = quickRangeValue('today', new Date());
   if (expected.kind !== 'range') throw new Error('Today must resolve to a date range');
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      sort: 'created',
       search: '',
       from: expected.from,
       to: expected.to
     })
   );
   fireEvent.click(today);
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
+  );
   fireEvent.click(yesterday);
   const prior = quickRangeValue('yesterday', new Date());
   if (prior.kind !== 'range') throw new Error('Yesterday must resolve to a date range');
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      sort: 'created',
       search: '',
       from: prior.from,
       to: prior.to
     })
   );
   fireEvent.click(screen.getByRole('button', { name: 'Clear date filter' }));
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
+  );
 });
 it('closes a clean new draft without an unsaved-change prompt', async () => {
   const { buildTeamRoute } = await import('../apps/web/src/team/routes');
@@ -1623,6 +1654,7 @@ it('appends a cursor page and clears a filter that has no matching launches', as
   fireEvent.click(await screen.findByRole('button', { name: 'Show more' }));
   await waitFor(() => expect(document.querySelectorAll('.launch-card')).toHaveLength(2));
   expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+    sort: 'created',
     search: '',
     cursorId: LAUNCH,
     cursorDate: null
@@ -1630,7 +1662,9 @@ it('appends a cursor page and clears a filter that has no matching launches', as
   fireEvent.click(screen.getByRole('button', { name: 'Today' }));
   const clear = await screen.findByRole('button', { name: 'Clear filters' });
   fireEvent.click(clear);
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
+  );
 });
 
 it('loads an editor assignee filter without querying private member management data', async () => {
@@ -2028,6 +2062,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   if (today.kind !== 'range') throw new Error('Expected range');
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      sort: 'created',
       search: 'needle',
       from: today.from,
       to: today.to
@@ -2043,17 +2078,22 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   );
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+      sort: 'created',
       search: 'needle',
       from: today.from,
       to: today.to
     })
   );
   returned.rerender(<LaunchSpace teamId="another-team" query={query} />);
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith('another-team', { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith('another-team', { search: '', sort: 'created' })
+  );
   returned.unmount();
   seams.actor = 'actor-b';
   render(<LaunchSpace teamId={TEAM} query={query} />);
-  await waitFor(() => expect(seams.list).toHaveBeenLastCalledWith(TEAM, { search: '' }));
+  await waitFor(() =>
+    expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
+  );
   expect((screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
 });
 
@@ -2168,8 +2208,7 @@ it('keeps the date filter and reports where to find a scheduled copy', async () 
   const { formatDayValue } = await import('../apps/web/src/format');
   expect(notice.text).toContain(formatDayValue('2026-11-01', 'en-US'));
   expect(notice.text).not.toContain('2026-11-01');
-  expect(notice.action.label).toBe('Open copy');
-  act(() => notice.action.run());
+  expect(notice.action).toBeUndefined();
   expect(window.location.search).toContain(copyId);
   expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true');
   expect(seams.copy).toHaveBeenCalledOnce();
@@ -2210,7 +2249,7 @@ it('keeps or re-resolves the sources of a never-generated launch and generates i
   seams.detail.mockImplementation(async () => current);
   seams.selection.mockResolvedValue(sources);
   seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
-  seams.generate.mockResolvedValue({});
+  seams.generate.mockImplementation(() => new Promise(() => {}));
   const view = render(<LaunchSpace teamId={TEAM} query={query} />);
   await waitFor(() => expect(seams.selection).toHaveBeenCalled());
   await waitFor(() =>
@@ -2238,6 +2277,11 @@ it('keeps or re-resolves the sources of a never-generated launch and generates i
   fireEvent.click(screen.getByRole('button', { name: 'Generate launch' }));
   await waitFor(() => expect(seams.generate).toHaveBeenCalledOnce());
   expect(screen.queryByText('Check the value')).toBeNull();
+  expect(new URLSearchParams(window.location.search).get('launchTab')).toBe('result');
+  view.rerender(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
+  expect(await screen.findByText('Preparing your result')).toBeTruthy();
+  expect(screen.getAllByRole('button', { name: /Copy Campaign name/ }).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: 'Copy Advertising URL' })).toBeNull();
 });
 
 it('names what is missing instead of a bare «check the value» when sources cannot be looked up', async () => {
@@ -2267,4 +2311,189 @@ it('names what is missing instead of a bare «check the value» when sources can
   ).toBeTruthy();
   expect(seams.generate).not.toHaveBeenCalled();
   expect(screen.queryByText('Check the value')).toBeNull();
+});
+
+it('correlates a copied regeneration preview with its new request, not the previous generation', async () => {
+  seams.edit = true;
+  seams.realGeneration = true;
+  const clipboardWrite = vi.fn().mockResolvedValue(undefined);
+  mockClipboard(clipboardWrite);
+  const config = launchConfig();
+  const preview = launchPreview(config, launchSources);
+  if (!preview.ok) throw new Error('fixture');
+  const sources = {
+    ...launchSources,
+    schemaVersion: 1 as const,
+    agentRowId: config.agentRowId,
+    offerId: config.offerId,
+    buyerId: config.buyerId,
+    materialId: config.materialId,
+    catalogSettingsVersion: null
+  };
+  seams.accounts = [
+    {
+      id: sources.accountId,
+      name: sources.social,
+      agents: [{ id: config.agentRowId, agentId: sources.agentId }]
+    }
+  ];
+  seams.offers = [{ id: config.offerId, value: sources.offer }];
+  seams.buyers = [{ id: config.buyerId, value: sources.buyer }];
+  seams.selection.mockResolvedValue(sources);
+  seams.detail.mockResolvedValue({
+    ...detail(config.originalUrl),
+    draft: { ...config, maxBudget: 60 },
+    expectedSourceSnapshot: sources,
+    generation: {
+      id: 'old-generation',
+      requestKey: 'old-request',
+      state: 'succeeded',
+      stage: 'result_committed',
+      stateVersion: '1',
+      progress: null,
+      errorCode: null,
+      childOperationIds: []
+    },
+    activeRevision: {
+      id: 'old-revision',
+      revisionNo: 1,
+      kind: 'generated',
+      config,
+      sources: launchSources,
+      baselineRevisionId: null,
+      baseline: preview.value,
+      overrides: {},
+      catalog: null,
+      createdAt: '2026-10-28T00:00:00Z'
+    }
+  });
+  seams.save.mockResolvedValue({ id: LAUNCH, version: '2' });
+  seams.generate.mockImplementation(() => new Promise(() => {}));
+  render(<LaunchSpace teamId={TEAM} query={{ ...query, launchTab: 'result' }} />);
+  const regenerate = await screen.findByRole('button', { name: 'Generate update' });
+  await waitFor(() => expect(regenerate).toHaveProperty('disabled', false));
+  fireEvent.click(regenerate);
+  fireEvent.click(await screen.findByRole('button', { name: 'Update launch' }));
+  await waitFor(() => expect(seams.generate).toHaveBeenCalledOnce());
+  expect(await screen.findByText('Preparing your result')).toBeTruthy();
+  const previewCopy = screen.getAllByRole('button', { name: /Copy Campaign name/ })[0];
+  fireEvent.click(previewCopy);
+  await waitFor(() => expect(clipboardWrite).toHaveBeenCalledOnce(), { timeout: 1000 });
+  await waitFor(() =>
+    expect(launchAction).toHaveBeenCalledWith(
+      { flowId: seams.generate.mock.calls[0][3], launchId: LAUNCH, generationId: undefined },
+      'copy_field',
+      'success',
+      undefined,
+      'campaign_name'
+    )
+  );
+});
+
+it('shows the accepted batch generation on a stale draft card without starting a browser media worker', async () => {
+  seams.edit = true;
+  seams.actor = batchUuid(2);
+  setPrivateCacheScope(seams.actor, 'team');
+  seams.list.mockResolvedValue({
+    items: [{ ...listLaunch(), hasResult: false }],
+    nextCursor: null
+  });
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Select launch' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Generate selected (1)' }));
+  await waitFor(() => expect(seams.batchSubmit).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(document.querySelector('.launch-card')?.textContent).toContain('Preparing launch')
+  );
+  expect(seams.detail).not.toHaveBeenCalled();
+  expect(seams.generate).not.toHaveBeenCalled();
+});
+it('observes an accepted ten-item batch in a hidden tab when both list endpoints fail', async () => {
+  seams.edit = true;
+  seams.actor = batchUuid(2);
+  setPrivateCacheScope(seams.actor, 'team');
+  const selected = Array.from({ length: 10 }, (_, n) => ({
+    ...listLaunch(batchUuid(100 + n)),
+    hasResult: false
+  }));
+  seams.list.mockResolvedValue({ items: selected, nextCursor: null });
+  let accepted: ReturnType<typeof batchReceipt> | null = null;
+  seams.batchSubmit.mockImplementation(async command => {
+    accepted = batchReceipt(command);
+    return accepted;
+  });
+  seams.batchRead.mockImplementation(async () => accepted);
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  for (const box of await screen.findAllByRole('checkbox', { name: 'Select launch' }))
+    fireEvent.click(box);
+  fireEvent.click(screen.getByRole('button', { name: 'Generate selected (10)' }));
+  await waitFor(() => expect(seams.batchSubmit).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByText('Batch · 0 of 10 finished')).toBeTruthy());
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  seams.list.mockRejectedValue(new TypeError('offline'));
+  seams.batchList.mockRejectedValue(new TypeError('offline'));
+  accepted = {
+    ...accepted!,
+    items: accepted!.items.map(item => ({
+      ...item,
+      generation: {
+        ...item.generation!,
+        state: 'succeeded',
+        stage: 'result_committed',
+        stateVersion: '2'
+      }
+    }))
+  };
+  vi.useFakeTimers();
+  try {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(screen.getByText('Batch · 10 of 10 finished')).toBeTruthy();
+    expect(seams.batchSubmit).toHaveBeenCalledOnce();
+    expect(seams.generate).not.toHaveBeenCalled();
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
+it('does not dispatch a batch when permission disappears while its module is loading', async () => {
+  seams.edit = true;
+  seams.list.mockResolvedValue({
+    items: [{ ...listLaunch(), hasResult: false }],
+    nextCursor: null
+  });
+  const view = render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Select launch' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Generate selected (1)' }));
+  seams.edit = false;
+  view.rerender(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  await act(async () => {});
+  expect(seams.detail).not.toHaveBeenCalled();
+  expect(seams.generate).not.toHaveBeenCalled();
+  expect(seams.batchSubmit).not.toHaveBeenCalled();
+});
+
+it('does not carry a pending batch import across sign-out and sign-in of the same actor', async () => {
+  const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cache-scope.js');
+  setPrivateCacheScope('actor-a', 'team');
+  try {
+    seams.edit = true;
+    seams.list.mockResolvedValue({
+      items: [{ ...listLaunch(), hasResult: false }],
+      nextCursor: null
+    });
+    render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select launch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate selected (1)' }));
+    setPrivateCacheScope(null, '');
+    setPrivateCacheScope('actor-a', 'team');
+    await act(async () => {});
+    expect(seams.detail).not.toHaveBeenCalled();
+    expect(seams.generate).not.toHaveBeenCalled();
+    expect(seams.batchSubmit).not.toHaveBeenCalled();
+  } finally {
+    setPrivateCacheScope(null, '');
+  }
 });

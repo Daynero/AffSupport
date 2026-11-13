@@ -98,12 +98,17 @@ async function fixture(
     claimExpiresAt: new Date(Date.now() + 300000).toISOString(),
     active: null
   };
+  const setupSecrets = new Map<string, RecoverySecrets>();
   const secrets: RecoverySecretStore = {
-    read: async () => data,
-    write: async (_account, value) => {
-      data = { ...value };
+    read: async account =>
+      account.startsWith('soty-recovery-enrollment-') ? (setupSecrets.get(account) ?? null) : data,
+    write: async (account, value) => {
+      if (account.startsWith('soty-recovery-enrollment-')) setupSecrets.set(account, { ...value });
+      else data = { ...value };
     },
-    delete: async () => undefined
+    delete: async account => {
+      setupSecrets.delete(account);
+    }
   };
   const process = {
     process: vi.fn(),
@@ -130,6 +135,7 @@ async function fixture(
   workers.push(worker);
   return {
     worker,
+    secrets,
     record,
     journal,
     process,
@@ -141,6 +147,274 @@ async function fixture(
   };
 }
 describe('background recovery worker', () => {
+  it('restores the same secure enrollment ticket after a native crash and expired reply window', async () => {
+    const f = await fixture();
+    await f.journal.save({ registrations: [], checkpoints: [] });
+    await f.worker.load();
+    const endpoint = 'http://127.0.0.1:54321/functions/v1/team-recovery';
+    const setup = await f.worker.beginAutomatic(TEAM, endpoint, ACTOR);
+    if (!('enrollmentId' in setup)) throw new Error('expected enrollment');
+    f.fetcher.mockRejectedValueOnce(new Error('lost response'));
+    await expect(f.worker.enroll(setup.enrollmentId, REQUEST)).rejects.toThrow('DRIVE_UNAVAILABLE');
+    const saved = await f.journal.load();
+    expect(saved.enrollments).toHaveLength(1);
+    expect(JSON.stringify(saved)).not.toContain('ticketDigest');
+    await f.worker.shutdown();
+    await vi.advanceTimersByTimeAsync(RECOVERY_BUDGET.enrollmentMs + 1);
+    const next = new TeamRecoveryWorker({ ...f.worker.options, secrets: f.secrets });
+    workers.push(next);
+    await next.load();
+    expect(await next.beginAutomatic(TEAM, endpoint, ACTOR)).toEqual(setup);
+    f.fetcher.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          value: {
+            actorId: ACTOR,
+            teamId: TEAM,
+            installationId: setup.installationId,
+            delegationId: DELEGATION,
+            refresh: 'r'.repeat(43),
+            expiresAt: new Date(Date.now() + 86400000).toISOString()
+          }
+        })
+      )
+    );
+    await expect(next.enroll(setup.enrollmentId, JOB)).resolves.toMatchObject({ enabled: true });
+    expect((await f.journal.load()).enrollments).toBeUndefined();
+  });
+
+  it('permits renewal only after the stored current credential has actually expired', async () => {
+    const f = await fixture();
+    f.setSecrets({ ...f.getSecrets(), expiresAt: new Date(Date.now() - 1).toISOString() });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM).automaticSetup).toBe('eligible');
+    const setup = await f.worker.beginAutomatic(
+      TEAM,
+      'http://127.0.0.1:54321/functions/v1/team-recovery',
+      ACTOR
+    );
+    expect(setup).toMatchObject({ renewalDelegationId: DELEGATION });
+    expect(f.fetcher).not.toHaveBeenCalled();
+  });
+
+  it('preserves rotated credentials and held execution when confirmation metadata must be replayed', async () => {
+    const f = await fixture();
+    await f.journal.save({ registrations: [], checkpoints: [] });
+    await f.worker.load();
+    const setup = f.worker.begin(TEAM, 'http://127.0.0.1:54321/functions/v1/team-recovery');
+    const receipt = {
+      actorId: ACTOR,
+      teamId: TEAM,
+      installationId: setup.installationId,
+      delegationId: DELEGATION,
+      refresh: 'r'.repeat(43),
+      expiresAt: new Date(Date.now() + 86400000).toISOString()
+    };
+    f.fetcher.mockImplementation(
+      async () => new Response(JSON.stringify({ ok: true, value: receipt }))
+    );
+    vi.spyOn(f.journal, 'save').mockRejectedValueOnce(new Error('disk unavailable'));
+    await expect(f.worker.enroll(setup.enrollmentId, REQUEST)).rejects.toThrow('disk unavailable');
+    const durable = { ...f.getSecrets(), refresh: 'z'.repeat(43), active: brokerClaim() };
+    f.setSecrets(durable);
+    await expect(f.worker.enroll(setup.enrollmentId, REQUEST)).resolves.toMatchObject({
+      enabled: true
+    });
+    expect(f.getSecrets()).toEqual(durable);
+  });
+
+  it('coalesces automatic setup and native confirmation across tabs without replacing live ownership', async () => {
+    const f = await fixture();
+    await f.journal.save({ registrations: [], checkpoints: [] });
+    await f.worker.load();
+    const endpoint = 'http://127.0.0.1:54321/functions/v1/team-recovery';
+    const first = await f.worker.beginAutomatic(TEAM, endpoint, ACTOR);
+    if (!('enrollmentId' in first)) throw new Error('expected new enrollment');
+    expect(await f.worker.beginAutomatic(TEAM, endpoint, ACTOR)).toEqual(first);
+    expect(f.worker.status(TEAM).automaticSetup).toBe('pending');
+    let respond!: (value: Response) => void;
+    f.fetcher.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          respond = resolve;
+        })
+    );
+    const left = f.worker.enroll(first.enrollmentId, REQUEST);
+    const right = f.worker.enroll(first.enrollmentId, REQUEST);
+    await vi.waitFor(() => expect(f.fetcher).toHaveBeenCalledOnce());
+    respond(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          value: {
+            actorId: ACTOR,
+            teamId: TEAM,
+            installationId: first.installationId,
+            delegationId: DELEGATION,
+            refresh: 'r'.repeat(43),
+            expiresAt: new Date(Date.now() + 86400000).toISOString()
+          }
+        })
+      )
+    );
+    await expect(left).resolves.toEqual({ enabled: true, installationId: first.installationId });
+    await expect(right).resolves.toEqual({ enabled: true, installationId: first.installationId });
+    await expect(f.worker.enroll(first.enrollmentId, REQUEST)).resolves.toMatchObject({
+      enabled: true
+    });
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    expect(await f.worker.beginAutomatic(TEAM, endpoint, ACTOR)).toEqual({
+      enabled: true,
+      installationId: first.installationId
+    });
+    expect((await f.journal.load()).registrations).toHaveLength(1);
+  });
+
+  it('reuses the native enrollment after a lost redeem response and refuses a different challenge', async () => {
+    const f = await fixture();
+    await f.journal.save({ registrations: [], checkpoints: [] });
+    await f.worker.load();
+    const setup = f.worker.begin(TEAM, 'http://127.0.0.1:54321/functions/v1/team-recovery');
+    f.fetcher.mockRejectedValueOnce(new Error('network'));
+    await expect(f.worker.enroll(setup.enrollmentId, REQUEST)).rejects.toThrow('DRIVE_UNAVAILABLE');
+    await expect(f.worker.enroll(setup.enrollmentId, OP)).rejects.toThrow('INVALID_INPUT');
+    f.fetcher.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          value: {
+            actorId: ACTOR,
+            teamId: TEAM,
+            installationId: setup.installationId,
+            delegationId: DELEGATION,
+            refresh: 'r'.repeat(43),
+            expiresAt: new Date(Date.now() + 86400000).toISOString()
+          }
+        })
+      )
+    );
+    await expect(f.worker.enroll(setup.enrollmentId, REQUEST)).resolves.toMatchObject({
+      enabled: true
+    });
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(
+      f.fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).challengeId)
+    ).toEqual([REQUEST, REQUEST]);
+  });
+
+  it('refuses automatic replacement of a retiring registration or a different actor', async () => {
+    const f = await fixture();
+    await f.worker.load();
+    const endpoint = 'http://127.0.0.1:54321/functions/v1/team-recovery';
+    await expect(f.worker.beginAutomatic(TEAM, endpoint, OP)).rejects.toThrow('PERMISSION_DENIED');
+    await f.worker.prepareActorChange(null);
+    expect(f.worker.status(TEAM).automaticSetup).toBe('retiring');
+    await expect(f.worker.beginAutomatic(TEAM, endpoint, ACTOR)).rejects.toThrow(
+      'PERMISSION_DENIED'
+    );
+  });
+
+  it('automatically resumes legacy retry exhaustion without episode history after its persisted deadline', async () => {
+    const f = await fixture();
+    const saved = await f.journal.load();
+    saved.checkpoints[0] = {
+      ...saved.checkpoints[0],
+      stage: 'blocked',
+      reason: 'retry_exhausted',
+      retryNotBefore: Date.now() + 120000
+    };
+    await f.journal.save(saved);
+    f.fetcher.mockImplementation(
+      async (_url, init) =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            value:
+              JSON.parse(String(init?.body)).action === 'probe' ? { allowed: true } : { job: null }
+          })
+        )
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(119999);
+    await f.worker.idle();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
+    expect(f.fetcher.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).action)).toEqual([
+      'probe',
+      'claim'
+    ]);
+    expect(f.process.process).not.toHaveBeenCalled();
+  });
+
+  it('keeps a next probe after hourly retry exhaustion without a native restart', async () => {
+    const f = await fixture();
+    const saved = await f.journal.load();
+    saved.checkpoints[0] = {
+      ...saved.checkpoints[0],
+      retryEpisodes: [Date.now(), Date.now(), Date.now()]
+    };
+    await f.journal.save(saved);
+    f.fetcher.mockRejectedValueOnce(new Error('network'));
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM).reason).toBe('retry_exhausted');
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const action = JSON.parse(String(init?.body)).action;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          value:
+            action === 'probe'
+              ? { allowed: true }
+              : action === 'rotate'
+                ? {
+                    refresh: 'r'.repeat(43),
+                    claim: 'c'.repeat(43),
+                    claimExpiresAt: new Date(Date.now() + 300000).toISOString()
+                  }
+                : { job: null }
+        })
+      );
+    });
+    await vi.advanceTimersByTimeAsync(3599999);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
+  });
+
+  it.each(['INVALID_INPUT', 'INVALID_RESPONSE', 'AGENT_UPDATE_REQUIRED'])(
+    'keeps claiming siblings after a specific set returns %s',
+    async code => {
+      const f = await fixture('claiming', { catalogVariants: { nativeInstanceId: INSTALL } });
+      let claims = 0;
+      f.fetcher.mockImplementation(async (_url, init) => {
+        const action = JSON.parse(String(init?.body)).action;
+        if (action === 'variant_claim')
+          return new Response(
+            JSON.stringify({ ok: true, value: { setId: ++claims === 1 ? JOB : null } })
+          );
+        if (action === 'variant_load')
+          return new Response(JSON.stringify({ ok: false, error: { code } }), { status: 409 });
+        return new Response(JSON.stringify({ ok: true, value: { job: null } }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(f.worker.status(TEAM)).toMatchObject({ automaticSetup: 'ready', state: 'settled' });
+      await vi.advanceTimersByTimeAsync(30000);
+      await f.worker.idle();
+      expect(claims).toBe(2);
+      expect(f.process.process).not.toHaveBeenCalled();
+    }
+  );
   it('retains the original dispatch credential for closure-only bookkeeping after rights and current credentials change', async () => {
     let allowed = true,
       release!: () => void;

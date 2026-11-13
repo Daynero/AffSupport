@@ -153,12 +153,33 @@
   min-width: 0;
 }
 
+/* Batch outcomes and long offer names remain readable on narrow screens. */
+.ui-button.launch-batch-item-button {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--control-height-sm);
+  white-space: normal;
+  text-align: start;
+}
+.launch-batch-item-button .ui-button-label {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+/* Launches use their own container-driven grid and reserve expansion space.
+   Progress/status updates consume this space without moving neighbouring rows. */
+.team-task-grid.launch-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--launch-card-min-width)), 1fr));
+  grid-auto-rows: minmax(var(--launch-card-min-height), auto);
+  align-items: stretch;
+}
 /* The launch has one opening surface; only selection and actions stand apart. */
 .team-task-card.launch-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: calc(var(--text-body) * 2.6) 1fr var(--space-1) auto;
   align-items: stretch;
-  min-height: 0;
+  min-height: var(--launch-card-min-height);
+  height: 100%;
   gap: var(--space-2);
   padding: var(--space-3);
   border-color: color-mix(in oklab, var(--color-accent) 30%, var(--color-border));
@@ -166,6 +187,29 @@
 }
 .launch-card .team-task-card-strip {
   flex-wrap: nowrap;
+}
+.launch-card .team-task-card-select,
+.launch-card .team-task-card-menu {
+  flex-shrink: 0;
+}
+.launch-card .team-task-agent-chip {
+  min-width: 0;
+  max-width: 35%;
+}
+.launch-card-account-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launch-card .team-task-agent-chip-dot {
+  flex-shrink: 0;
+}
+.launch-card-progress {
+  min-width: 0;
+}
+.launch-card-state {
+  max-width: 100%;
+  white-space: normal;
 }
 .launch-card-body {
   min-width: 0;
@@ -181,8 +225,20 @@
   box-shadow: none;
 }
 .launch-card .team-task-card-footer {
+  display: grid;
+  grid-template-rows: 1.5em 1.5em;
+  align-content: end;
+  justify-content: start;
+  gap: 0;
   margin: 0;
   padding: 0;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.launch-card .team-task-card-footer > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .launch-card .team-task-card-footer .team-task-card-date {
   margin-left: 0;
@@ -200,6 +256,10 @@
   white-space: normal;
 }
 .launch-card-heading {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
   padding: 0;
   border: 0;
   background: transparent;
@@ -213,7 +273,7 @@
   font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .launch-card-context {
   overflow: hidden;
@@ -221,7 +281,7 @@
   color: var(--color-text);
   font-size: var(--text-caption);
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .launch-card-context strong {
   color: var(--color-accent);
@@ -230,7 +290,10 @@
 .launch-card-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-content: start;
+  min-height: 3em;
+  line-height: 1.5;
+  gap: 0 var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
@@ -430,8 +493,11 @@
 .launch-result-row.launch-result-campaign-row > :nth-child(2) {
   min-width: 0;
 }
-.launch-result-row.launch-result-campaign-row .ui-button.launch-result-value {
+.launch-result-row.launch-result-campaign-row:has(.launch-result-edit)
+  .ui-button.launch-result-value {
   padding-inline-end: calc(var(--control-height-md) + var(--space-5));
+}
+.launch-result-row.launch-result-campaign-row .ui-button.launch-result-value {
   border: 1px solid var(--color-neutral-border);
   border-radius: var(--radius-md);
   background: var(--color-neutral-surface-raised);
@@ -4499,72 +4565,46 @@
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);
 }
-/* Persistent personal copy state: quiet content, readable and still interactive. */
+/* Personal copy state remains legible in both themes, including after the flash. */
 .launch-result-row.launch-result-already-copied:not(.launch-result-copied)
   .ui-button.launch-result-value {
-  background: var(--color-neutral-surface-subtle);
-  border-color: var(--color-neutral-border);
-  color: var(--color-neutral-text-muted);
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
 }
-.launch-result-already-copied .launch-result-campaign-budget {
-  background: var(--color-neutral-surface-muted);
-  color: var(--color-neutral-text-muted);
-}
-.launch-copy-mark {
+.launch-copy-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
   flex-shrink: 0;
-  margin-inline-start: var(--space-2);
-  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+  color: var(--color-secondary-text);
+}
+.launch-result-already-copied .launch-copy-affordance,
+.launch-result-copied .launch-copy-affordance {
+  color: var(--color-success-text);
+}
+.launch-card[data-state='draft'] {
+  border-style: dashed;
+}
+.launch-card[data-state='ready'] {
+  border-color: var(--color-success-border);
+}
+.launch-card[data-state='failed'] {
+  border-color: var(--color-error-border);
+}
+.launch-card[data-state='partial'] {
+  border-color: var(--color-warning-border);
+}
+.launch-card[data-state='running'],
+.launch-card[data-state='queued'] {
+  border-color: var(--color-info-border);
 }
 .ui-button.launch-note-copy.launch-note-already-copied {
   background: var(--color-neutral-surface-subtle);
   color: var(--color-neutral-text-muted);
   border-color: var(--color-neutral-border);
-}
-.launch-note-editor .team-tag-dot.is-button.is-palette {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-height-lg);
-  min-width: var(--control-height-lg);
-  height: var(--control-height-md);
-  min-height: var(--control-height-md);
-  border: 1px solid var(--color-secondary-border);
-  border-radius: var(--radius-md);
-  background: var(--color-secondary-soft);
-  color: var(--team-tag-color, var(--color-secondary-text));
-  opacity: 1;
-}
-.launch-note-editor .team-tag-dot.is-button.is-palette:hover {
-  background: var(--color-secondary-softer);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='red'] {
-  --launch-note-color: var(--team-tag-red);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='orange'] {
-  --launch-note-color: var(--team-tag-orange);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='yellow'] {
-  --launch-note-color: var(--team-tag-yellow);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='green'] {
-  --launch-note-color: var(--team-tag-green);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='blue'] {
-  --launch-note-color: var(--team-tag-blue);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='purple'] {
-  --launch-note-color: var(--team-tag-purple);
-}
-:is(.launch-note-editor, .launch-note-copy)[data-color='grey'] {
-  --launch-note-color: var(--team-tag-grey);
-}
-.launch-note-editor[data-color],
-.ui-button.launch-note-copy[data-color] {
-  background: color-mix(in srgb, var(--launch-note-color) 18%, var(--color-neutral-surface-subtle));
-  border-color: color-mix(in srgb, var(--launch-note-color) 45%, var(--color-neutral-border));
-}
-.launch-note-editor[data-color] :is(.ui-input, .ui-textarea) {
-  background: transparent;
 }
 .launch-copy-progress {
   display: flex;
@@ -4659,4 +4699,29 @@
   overflow: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+}
+
+/* On narrow screens, show the name instead of making a copy target a tiny scroll strip. */
+@media (max-width: 640px) {
+  .launch-result-row .ui-button.launch-result-value {
+    height: auto;
+  }
+  .launch-result-row .launch-result-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+  }
+  .launch-result-campaign-row .launch-result-value .ui-button-label {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .launch-result-campaign-row .launch-result-text {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .launch-result-campaign-row > :first-child {
+    top: var(--space-2);
+    transform: none;
+  }
 }

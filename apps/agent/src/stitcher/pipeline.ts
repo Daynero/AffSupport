@@ -121,6 +121,7 @@ export const runStitchPipeline: StitchPipeline = async context => {
 
   nextPhase('body');
   const body = await context.bodies.prepare({
+    workspacePath: path.join(workDir, 'prepared-body.mp4'),
     profile,
     plan,
     threads,

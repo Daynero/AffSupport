@@ -4,13 +4,15 @@ import { launchApi, TeamApiError } from '../../api/team';
 import { launchMutation } from './analytics';
 import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
-import { navigateTo } from '../../lib/navigation';
-import { buildTeamRoute, emptyTeamRouteQuery } from '../routes';
 import { formatDayValue } from '../../format';
 import { launchBrowserTimezone } from './launchTimezone';
 
 /** One config-only copy seam for both the list and an open Launch. */
-export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) => void) {
+export function useLaunchCopy(
+  teamId: string,
+  onCopied: (value: LaunchDetail) => void,
+  notify = true
+) {
   const [busy, setBusy] = useState(false);
   const toasts = useOptionalToasts();
   const { t, language } = useI18n();
@@ -67,23 +69,12 @@ export function useLaunchCopy(teamId: string, onCopied: (value: LaunchDetail) =>
       pending.onCopied(next);
       intent.current = null;
       try {
-        const copyPath = buildTeamRoute({
-          spaceId: teamId,
-          section: 'launches',
-          query: { ...emptyTeamRouteQuery(), launchId: next.id, launchTab: 'settings' }
-        });
-        // The day reads the way the list shows it ("12 лист."), and an action toast
-        // already outlasts a plain receipt; a sticky one hung for minutes (1.4.3).
-        if (toasts && next.draft.launchDate)
+        if (notify && toasts && next.draft.launchDate)
           toasts.push({
             tone: 'success',
             text: t('launchesCopyCreatedForDate', {
               date: formatDayValue(next.draft.launchDate, language === 'uk' ? 'uk-UA' : 'en-US')
-            }),
-            action: {
-              label: t('launchesOpenCopy'),
-              run: () => navigateTo(copyPath)
-            }
+            })
           });
       } catch {
         // A notification cannot invalidate a confirmed copy or invite another one.

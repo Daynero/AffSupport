@@ -1,5 +1,4 @@
 import './space-settings.css';
-import { BackgroundRecoverySettings } from '../tariffs/BackgroundRecoverySettings';
 import { useEffect, useRef, useState } from 'react';
 import { Link2 } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
@@ -255,7 +254,6 @@ export function SpaceSettings({
             {/* How team mode behaves, first: it is what a person opens these
                 settings to change. */}
             <TeamPreferencesSection teamId={teamId} client={client} />
-            <BackgroundRecoverySettings teamId={teamId} />
             {activeTeam?.role === 'owner' && (
               <DriveConnectionPanel
                 key={`drive:${teamId}`}

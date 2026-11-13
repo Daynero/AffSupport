@@ -1,4 +1,11 @@
 import { TeamFunctionError } from './errors.ts';
+/** The one provider detail needed for safe scheduling; never retain raw payloads. */
+export function launchRetryAfterMs(error: unknown): number {
+  const value = error instanceof TeamFunctionError ? error.details?.retryAfterMs : undefined;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? Math.min(1_000_000_000, value)
+    : 0;
+}
 /** Code locations only: `at fn (file:line:col)` frames carry no request data. */
 export function launchFailureFrames(error: unknown): string[] {
   const stack = error instanceof Error && typeof error.stack === 'string' ? error.stack : '';
@@ -22,8 +29,14 @@ function isSharedValidationError(error: unknown): error is Error & { reason: str
 /** Launch input/output can contain credentials. Unknown exception text is never logged or
  * returned; only the error class and code frames are logged, so a 500 is diagnosable. */
 export function launchFailure(error: unknown): TeamFunctionError {
-  if (error instanceof TeamFunctionError)
-    return new TeamFunctionError(error.code, { status: error.status, retryable: error.retryable });
+  if (error instanceof TeamFunctionError) {
+    const retryAfterMs = launchRetryAfterMs(error);
+    return new TeamFunctionError(error.code, {
+      status: error.status,
+      retryable: error.retryable,
+      ...(retryAfterMs ? { details: { retryAfterMs } } : {})
+    });
+  }
   // Shared validators (e.g. a deferred catalog link time already in the past) raise a typed,
   // content-free INVALID_INPUT. It is the caller's input, never an internal/uncertain failure.
   if (isSharedValidationError(error))

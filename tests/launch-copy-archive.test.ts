@@ -558,3 +558,29 @@ describe('copy and archive Launch', () => {
     ).toBe(1);
   });
 });
+
+it('round trips the single-budget draft through save, copy and reopen without an inherited minimum', async () => {
+  const config = { campaignCount: 100, maxBudget: 1, budgetMode: 'single', budgets: null };
+  const source = (
+    await db.asUser<{ v: { id: string; version: string } }>(
+      OWNER,
+      'select public.save_launch_draft($1,null,null,$2,$3::jsonb,null) v',
+      [team, 'single-budget-source', JSON.stringify(config)]
+    )
+  )[0].v;
+  const copied = (
+    await db.asUser<{ v: { id: string } }>(
+      OWNER,
+      "select public.copy_launch($1,$2,null,$3,'single-budget-copy','UTC') v",
+      [team, source.id, source.version]
+    )
+  )[0].v;
+  const detail = (
+    await db.asUser<{ v: { draft: unknown } }>(OWNER, 'select public.get_launch($1,$2) v', [
+      team,
+      copied.id
+    ])
+  )[0].v;
+  expect(detail.draft).toMatchObject(config);
+  expect(detail.draft).not.toHaveProperty('minBudget');
+});

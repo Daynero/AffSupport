@@ -56,3 +56,30 @@ it('applying an empty profile clears stale reusable fields without clearing the 
     materialId: 'current'
   });
 });
+
+it('applies a single budget without retaining an old minimum or manual array', () => {
+  const profile = launchDefaultValues({
+    budgetMode: 'single',
+    maxBudget: 20,
+    budgets: null,
+    campaignCount: 100
+  });
+  expect(
+    applyLaunchDefaultValues(
+      {
+        budgetMode: 'manual',
+        minBudget: 30,
+        maxBudget: 100,
+        budgets: [30, 100],
+        materialId: 'current'
+      },
+      profile
+    )
+  ).toEqual({
+    budgetMode: 'single',
+    maxBudget: 20,
+    budgets: null,
+    campaignCount: 100,
+    materialId: 'current'
+  });
+});

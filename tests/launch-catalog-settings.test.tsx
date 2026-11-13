@@ -32,9 +32,16 @@ it('shows restitch duration only after video restitching is enabled', () => {
       config={{ ...draft, catalog: { ...draft.catalog!, restitchEnabled: true } }}
     />
   );
+  expect(screen.queryByRole('slider')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 2 min' }));
   expect(
     screen.getByRole('slider', { name: 'Duration, minutes' }).getAttribute('aria-valuenow')
   ).toBe('2');
+  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 2 min' }));
+  expect(screen.queryByRole('slider')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Video duration · 2 min' }).getAttribute('aria-expanded')
+  ).toBe('false');
 });
 it('initializes missing catalog settings when an older draft changes launch method', () => {
   const change = vi.fn();
@@ -85,6 +92,7 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
   };
   const view = render(<LaunchEditor {...props} config={draft} />);
   const count = screen.getByRole('spinbutton', { name: 'Products in catalog' });
+  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 30 min' }));
   const duration = screen.getByRole('slider', { name: 'Duration, minutes' });
   expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
   expect(
@@ -106,4 +114,33 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
   view.rerender(<LaunchEditor {...props} config={{ ...draft, method: 'other' }} />);
   expect(screen.queryByRole('spinbutton', { name: 'Products in catalog' })).toBeNull();
   expect(screen.queryByRole('slider', { name: 'Duration, minutes' })).toBeNull();
+});
+
+it('reveals the duration editor automatically when its hidden value is invalid on submit', () => {
+  const draft = newLaunchDraft();
+  draft.method = 'catalog';
+  draft.catalog = {
+    ...draft.catalog!,
+    restitchEnabled: true,
+    finalDurationMode: 'custom',
+    customFinalDurationSeconds: null
+  };
+  render(
+    <LaunchEditor
+      teamId="team"
+      config={draft}
+      sources={null}
+      accounts={[]}
+      offers={[]}
+      buyers={[]}
+      onChange={vi.fn()}
+      disabled={false}
+      submitted
+      onRefreshSources={vi.fn()}
+    />
+  );
+  expect(
+    screen.getByRole('button', { name: 'Video duration · 30 min' }).getAttribute('aria-expanded')
+  ).toBe('true');
+  expect(screen.getByRole('slider', { name: 'Duration, minutes' })).toBeTruthy();
 });
