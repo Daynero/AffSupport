@@ -5,6 +5,44 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { LaunchDefaultsReview } from '../apps/web/src/team/launches/LaunchDefaultsReview';
 import { launchConfig } from './fixtures/launches';
 afterEach(cleanup);
+it.each([true, false])(
+  'preserves video and publication defaults with restitch %s',
+  restitchEnabled => {
+    const config = launchConfig({ method: 'catalog' });
+    config.catalog = {
+      ...config.catalog!,
+      restitchEnabled,
+      copyVideoToR2: true,
+      catalogVideoProtocolVersion: 1,
+      videoVariationCount: 7,
+      videoPublication: restitchEnabled
+        ? {
+            mode: 'scheduled',
+            localDateTime: '2026-12-01T12:00',
+            timeZone: 'Europe/Kyiv',
+            resolvedOffset: '+02:00',
+            dueAt: '2026-12-01T10:00:00.000Z'
+          }
+        : { mode: 'immediate' }
+    };
+    const before = structuredClone(config);
+    const reviewed = vi.fn();
+    render(
+      <LaunchDefaultsReview
+        current={{ config, subConfig: config.subConfig }}
+        buyer="buyer"
+        disabled={false}
+        onReview={reviewed}
+      />
+    );
+    expect(screen.getByText('Copy the video to R2')).toBeTruthy();
+    if (restitchEnabled) expect(screen.getByText('2026-12-01 12:00 · Europe/Kyiv')).toBeTruthy();
+    else expect(screen.getByText('1', { selector: 'dd' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reviewed; keep my Launch draft' }));
+    expect(reviewed).toHaveBeenCalledOnce();
+    expect(config).toEqual(before);
+  }
+);
 it('shows current defaults and ordered SUB without exposing unrelated Launch content', () => {
   const config = launchConfig({ originalUrl: 'SYNTHETIC_PRIVATE_URL' });
   const reviewed = vi.fn();

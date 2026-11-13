@@ -342,6 +342,8 @@ export const en = {
   catalogImagesErrorUncertain:
     'Upload completion has not been confirmed. Choose Check status; this does not upload the files again.',
   catalogImagesErrorDisabled: 'New picture uploads are disabled for this space.',
+  catalogGlobalSettingsRetired:
+    'Catalog pictures are now supplied automatically. Reload Soty to continue.',
   catalogImagesErrorUpgrade: 'Refresh the page: this space uses the new picture mechanism.',
   catalogImagesErrorVerification:
     'The public picture link has not been verified. Refresh status before retrying.',
@@ -2828,6 +2830,8 @@ export const en = {
   productCatalogTextsBrowseTitle: 'Names and descriptions',
   productCatalogTextsSearch: 'Search names or descriptions',
   productCatalogTextsFound: 'Found: {count}',
+  productCatalogTextFallbackTitle: 'When names are missing',
+  productCatalogTextFallbackHint: 'Use this title and description when the text pool is empty.',
   productCatalogFallbackTitle: 'When names or images are missing',
   productCatalogFallbackInUse: 'In use',
   productCatalogFallbackUnused: 'Held in reserve',

@@ -10,7 +10,10 @@ import {
 } from '../apps/web/src/team/product-catalog/ProductCatalogSettingsSection';
 
 vi.mock('../apps/web/src/analytics/service', () => ({ analytics: { track: vi.fn() } }));
-vi.mock('../apps/web/src/team/TeamContext', () => ({ useTeam: () => ({ can: () => true }) }));
+vi.mock('../apps/web/src/team/TeamContext', () => ({
+  useTeam: () => ({ can: () => true }),
+  useLegacyCatalogImageSettings: () => true
+}));
 vi.mock('../apps/web/src/components/toast', () => ({ useToasts: () => ({ push: vi.fn() }) }));
 beforeEach(() => localStorage.setItem('language', 'en'));
 afterEach(() => {

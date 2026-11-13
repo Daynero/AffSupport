@@ -1,3 +1,4 @@
+import { getOwnedGlobalImageEvidence } from './global-images.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
@@ -333,6 +334,25 @@ async function resolveSubject(
        limit 1`,
       [value, asUuid, period.end]
     );
+
+  if (asUuid && schema.tables.analytics_catalog_global_journal) {
+    // A shared image/catalog is not an actor identity. Resolve only an operation
+    // whose retained receipts agree on one actor; ambiguous ownership stays unknown.
+    const globalOwner = await queryOne<{ user_id: string | null; is_flow: boolean }>(
+      `select min(actor_id::text) user_id,bool_or(flow_id=$1::uuid) is_flow
+       from public.analytics_catalog_global_journal
+       where $1::uuid in(flow_id,attempt_id) and received_at<=$2::timestamptz and actor_id is not null
+       having count(distinct actor_id)=1`,
+      [asUuid, period.end]
+    );
+    if (globalOwner?.user_id)
+      return scopeOf(
+        globalOwner.is_flow ? 'flow' : 'attempt',
+        asUuid,
+        { user_id: globalOwner.user_id, installation_id: null },
+        asUuid
+      );
+  }
 
   if (asUuid) {
     const run = await owner(`(e.run_id = $2::uuid or e.properties ->> 'run_id' = $1::text)`);
@@ -1905,6 +1925,7 @@ export async function getInvestigation(
         'Use an API6 client for original transcription; this snapshot does not prove browser delivery or local file cleanup.'
     });
   }
+  const global_images = await getOwnedGlobalImageEvidence(scope.userId, period);
   const catalog_images = await getCatalogImageDiagnosis(null, period, {
     userId: scope.userId,
     limit: 100
@@ -2366,6 +2387,7 @@ export async function getInvestigation(
   };
   return {
     subject,
+    global_images,
     catalog_images,
     catalog_video_r2,
     recovery_retirement,

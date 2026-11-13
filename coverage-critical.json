@@ -109,6 +109,8 @@
     "packages/shared/src/team/catalog-video-set.ts": 90,
     "packages/shared/src/team/launches/catalog-video.ts": 90,
     "packages/shared/src/team/catalog-rename.ts": 90,
-    "packages/shared/src/team/launch-batch.ts": 90
+    "packages/shared/src/team/launch-batch.ts": 90,
+    "packages/shared/src/team/catalog-global-images.ts": 90,
+    "packages/shared/src/team/catalog-global-alias.ts": 90
   }
 }

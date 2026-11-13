@@ -1,8 +1,10 @@
 import {
+  isPublishedCatalogImage,
+  type PublishedCatalogImage
+} from '../../../packages/shared/dist/team/catalog-global-images.js';
+import {
   CATALOG_IMAGE_GARMENTS,
   CATALOG_IMAGE_COLORS,
-  isR2CatalogImage,
-  type R2CatalogImage,
   type CatalogImageClassification
 } from '../../../packages/shared/dist/team/catalog-images.js';
 import type { ProductCatalogRowValues } from './product-catalog.ts';
@@ -14,28 +16,30 @@ export interface LegacyDrawnImage {
   resourceKey: string | null;
   name?: string | null;
 }
-export type CatalogDrawnImage = LegacyDrawnImage | R2CatalogImage;
+export type CatalogDrawnImage = LegacyDrawnImage | PublishedCatalogImage;
 export interface CatalogImageDrawOptions {
-  contractVersion?: 2;
+  contractVersion?: 2 | 3;
+  catalogId?: string;
+  pairs?: readonly ({ garment: string | null; color: string | null } | null)[];
   attemptId?: string;
   scope?: 'create' | 'growth' | 'refresh';
 }
-export function r2Image(image: CatalogDrawnImage): image is R2CatalogImage {
-  return isR2CatalogImage(image);
+export function publishedImage(image: CatalogDrawnImage): image is PublishedCatalogImage {
+  return isPublishedCatalogImage(image);
 }
 export function legacyImage(image: CatalogDrawnImage): image is LegacyDrawnImage {
-  return !r2Image(image);
+  return !publishedImage(image);
 }
 export function catalogImageUrl(image: CatalogDrawnImage): string {
-  if (r2Image(image)) return image.publicUrl;
+  if (publishedImage(image)) return image.publicUrl;
   const base = `https://drive.google.com/uc?export=view&id=${encodeURIComponent(image.driveFileId)}`;
   return image.resourceKey ? `${base}&resourcekey=${encodeURIComponent(image.resourceKey)}` : base;
 }
 export function catalogImageName(image: CatalogDrawnImage): string | null {
-  return r2Image(image) ? null : (image.name ?? null);
+  return publishedImage(image) ? null : (image.name ?? null);
 }
 export function catalogImageFacts(image: CatalogDrawnImage) {
-  if (!r2Image(image)) return pictureFacts(image.name ?? '');
+  if (!publishedImage(image)) return pictureFacts(image.name ?? '');
   return image.classification.mode === 'matched'
     ? { garment: garmentOf(image.classification.garment), color: image.classification.color }
     : { garment: null, color: null };
@@ -48,11 +52,11 @@ export function rowImageFacts(row: ProductCatalogRowValues) {
 /** Actual outgoing references, including images retained from older updater rounds. */
 export function catalogImagesInRows(
   rows: readonly ProductCatalogRowValues[] | undefined
-): R2CatalogImage[] {
-  const images: R2CatalogImage[] = [];
+): PublishedCatalogImage[] {
+  const images: PublishedCatalogImage[] = [];
   for (const row of rows ?? []) {
     if (!row.pictureImage) continue;
-    if (!isR2CatalogImage(row.pictureImage) || row.imageLink !== row.pictureImage.publicUrl)
+    if (!isPublishedCatalogImage(row.pictureImage) || row.imageLink !== row.pictureImage.publicUrl)
       throw new TeamFunctionError('INVALID_RESPONSE');
     images.push(row.pictureImage);
   }
@@ -72,6 +76,18 @@ function factsInText(text: string) {
   );
   return { garments, colors };
 }
+/** Frozen text restricts the allocator to the exact factual bucket or unclassified images. */
+export function catalogImageRequirements(row: ProductCatalogRowValues): {
+  garment: string | null;
+  color: string | null;
+} {
+  const facts = factsInText(`${row.title} ${row.description}`),
+    garments = [...new Set(facts.garments)],
+    colors = [...new Set(facts.colors)];
+  return garments.length === 1 && colors.length === 1
+    ? { garment: garments[0]!, color: colors[0]! }
+    : { garment: null, color: null };
+}
 function replaceFact(text: string, from: string, to: string): string {
   return text.replace(new RegExp(phrasePattern(from), 'giu'), match =>
     match[0] === match[0]?.toUpperCase()
@@ -90,7 +106,7 @@ export function pairCatalogImageRow(
   image: CatalogDrawnImage,
   options: { allowTextGeneration: boolean }
 ): ProductCatalogRowValues {
-  if (!r2Image(image))
+  if (!publishedImage(image))
     return {
       ...row,
       imageLink: catalogImageUrl(image),
@@ -151,7 +167,7 @@ export function pairCatalogImageRow(
 
 /** Strict persisted union reader, with the old shape accepted only as Drive. */
 export function parseCatalogDrawnImage(value: unknown): CatalogDrawnImage | null {
-  if (isR2CatalogImage(value)) return value;
+  if (isPublishedCatalogImage(value)) return value;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   if ('kind' in value && value.kind !== undefined && value.kind !== 'legacy_drive') return null;
   if (!('driveFileId' in value) || typeof value.driveFileId !== 'string' || !value.driveFileId)

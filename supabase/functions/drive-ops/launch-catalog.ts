@@ -81,7 +81,7 @@ export async function executeLaunchCatalog(
   if (!isRecord(claimed)) throw new TeamFunctionError('INVALID_RESPONSE');
   if (claimed.state === 'succeeded') return claimed;
   if (
-    (claimed.catalogImageContractVersion !== 1 && claimed.catalogImageContractVersion !== 2) ||
+    ![1, 2, 3].includes(Number(claimed.catalogImageContractVersion)) ||
     typeof claimed.fence !== 'string' ||
     typeof claimed.advertisingUrl !== 'string' ||
     !isRecord(claimed.sources)
@@ -418,8 +418,8 @@ export async function executeLaunchCatalog(
         : {
             teamId,
             videoMaterialId: config.materialId,
-            ...(claimed.catalogImageContractVersion === 2
-              ? { catalogImageContractVersion: 2 }
+            ...([2, 3].includes(Number(claimed.catalogImageContractVersion))
+              ? { catalogImageContractVersion: claimed.catalogImageContractVersion as 2 | 3 }
               : {}),
             sourceLink: claimed.advertisingUrl,
             productCount: config.catalog.productCount,

@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { privateCacheEpoch, privateCacheSuperseded } from '../private-cache-scope';
 import { TeamApiError } from '../../api/team';
 import { saveCatalogProfile } from './saveCatalogProfile';
@@ -54,6 +55,8 @@ export function CatalogBulkEditor({
   onPendingChange?: (pending: boolean) => void;
   onUncertainChange?: (uncertain: boolean) => void;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
+  const fields = FIELDS.filter(([field]) => legacyImages || field !== 'refreshImages');
   const mounted = useRef(true);
   const scopeEpoch = useRef(privateCacheEpoch()).current;
   const applyLocked = useRef(false);
@@ -66,6 +69,14 @@ export function CatalogBulkEditor({
   }, []);
   const { t } = useI18n();
   const [draft, setDraft] = useState<CatalogUpdateProfilePatch>({});
+  useEffect(() => {
+    if (!legacyImages)
+      setDraft(current => {
+        const next = { ...current };
+        delete next.refreshImages;
+        return next;
+      });
+  }, [legacyImages]);
   const [pending, setPending] = useState(false);
   const [failures, setFailures] = useState<string[]>([]);
   const [successCount, setSuccessCount] = useState(0);
@@ -445,54 +456,55 @@ export function CatalogBulkEditor({
         </div>
       )}
       <div className="team-updater-profile-choices">
-        {FIELDS.filter(
-          ([field]) => mode === 'all' || (mode === 'restitch' && field === 'restitch')
-        ).map(([field, label]) => (
-          <div key={field} className="team-updater-filter-field">
-            <span>
-              {t(label)} ·{' '}
-              {items.every(item => item.profile[field] === items[0]?.profile[field])
-                ? items[0]?.profile[field]
-                  ? t('catalogUpdaterBulkOn')
-                  : t('catalogUpdaterBulkOff')
-                : t('catalogUpdaterMixed')}
-            </span>
-            <SelectMenu
-              id={`bulk-${field}`}
-              disabled={locked}
-              label={`${t(label)} · ${
-                items.every(item => item.profile[field] === items[0]?.profile[field])
+        {fields
+          .filter(([field]) => mode === 'all' || (mode === 'restitch' && field === 'restitch'))
+          .map(([field, label]) => (
+            <div key={field} className="team-updater-filter-field">
+              <span>
+                {t(label)} ·{' '}
+                {items.every(item => item.profile[field] === items[0]?.profile[field])
                   ? items[0]?.profile[field]
                     ? t('catalogUpdaterBulkOn')
                     : t('catalogUpdaterBulkOff')
-                  : t('catalogUpdaterMixed')
-              }`}
-              placeholder={t('catalogUpdaterBulkKeep')}
-              errorLabel={t(label)}
-              value={draft[field] === undefined ? 'keep' : draft[field] ? 'on' : 'off'}
-              options={[
-                { value: 'keep', label: t('catalogUpdaterBulkKeep') },
-                { value: 'on', label: t('catalogUpdaterBulkOn') },
-                { value: 'off', label: t('catalogUpdaterBulkOff') }
-              ]}
-              onChange={value => {
-                resetResults();
-                setDraft(current => {
-                  const next = { ...current };
-                  if (value === 'keep') delete next[field];
-                  else next[field] = value === 'on';
-                  return next;
-                });
-              }}
-            />
-          </div>
-        ))}
+                  : t('catalogUpdaterMixed')}
+              </span>
+              <SelectMenu
+                id={`bulk-${field}`}
+                disabled={locked}
+                label={`${t(label)} · ${
+                  items.every(item => item.profile[field] === items[0]?.profile[field])
+                    ? items[0]?.profile[field]
+                      ? t('catalogUpdaterBulkOn')
+                      : t('catalogUpdaterBulkOff')
+                    : t('catalogUpdaterMixed')
+                }`}
+                placeholder={t('catalogUpdaterBulkKeep')}
+                errorLabel={t(label)}
+                value={draft[field] === undefined ? 'keep' : draft[field] ? 'on' : 'off'}
+                options={[
+                  { value: 'keep', label: t('catalogUpdaterBulkKeep') },
+                  { value: 'on', label: t('catalogUpdaterBulkOn') },
+                  { value: 'off', label: t('catalogUpdaterBulkOff') }
+                ]}
+                onChange={value => {
+                  resetResults();
+                  setDraft(current => {
+                    const next = { ...current };
+                    if (value === 'keep') delete next[field];
+                    else next[field] = value === 'on';
+                    return next;
+                  });
+                }}
+              />
+            </div>
+          ))}
       </div>
       <p className="field-hint">
         {keys.length
           ? t('catalogUpdaterBulkPreview', {
               count: affected,
-              changes: FIELDS.filter(([field]) => draft[field] !== undefined)
+              changes: fields
+                .filter(([field]) => draft[field] !== undefined)
                 .map(
                   ([field, label]) =>
                     `${t(label)}: ${draft[field] ? t('catalogUpdaterBulkOn') : t('catalogUpdaterBulkOff')}`

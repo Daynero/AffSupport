@@ -773,3 +773,6 @@ export function analyticsTool(
   if (name.startsWith('transcription')) return 'transcription';
   return null;
 }
+
+// Global image lifecycle is authoritative server evidence; this export shares its privacy boundary.
+export { sanitizeGlobalImageMetadata } from '@video-compressor/shared';

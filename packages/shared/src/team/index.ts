@@ -45,3 +45,5 @@ export * from './catalog-video-progress.js';
 export * from './catalog-video-foreground.js';
 
 export * from './catalog-rename.js';
+export * from './catalog-global-images.js';
+export * from './catalog-global-alias.js';

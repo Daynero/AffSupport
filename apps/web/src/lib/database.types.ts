@@ -7615,6 +7615,27 @@ export type GeneratedDatabase = {
           isSetofReturn: true;
         };
       };
+      get_team_product_catalog_settings_v3: {
+        Args: { p_team: string };
+        Returns: {
+          created_at: string;
+          description: string | null;
+          image_link: string | null;
+          price: number;
+          price_max: number | null;
+          price_min: number | null;
+          team_id: string;
+          title: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'team_product_catalog_settings';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       get_team_product_catalog_text_schedule: {
         Args: { p_team: string };
         Returns: Json;

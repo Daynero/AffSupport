@@ -61,6 +61,33 @@ describe('R2 durable version and publication authority', () => {
       expect.objectContaining({ contractVersion: undefined, attemptId: 'intent' })
     );
   });
+  it('normalizes a current client replay to the accepted v2 payload before hashing', async () => {
+    const f = fixture(false);
+    await createDurableProductCatalog(
+      f.deps,
+      f.store,
+      async () => f.drive,
+      { ...body, catalogImageContractVersion: 2 },
+      ACTOR
+    );
+    vi.mocked(f.store.begin).mockClear();
+    f.store.imageRequestVersion = vi.fn(async () => 2 as const);
+    f.deps.assertImageContract = vi.fn(async () => {
+      throw new TeamFunctionError('GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED');
+    });
+    await createDurableProductCatalog(
+      f.deps,
+      f.store,
+      async () => f.drive,
+      { ...body, catalogImageContractVersion: 3 },
+      ACTOR
+    );
+    expect(f.store.begin).toHaveBeenCalledWith(
+      { ...body, randomLinkVariation: true, catalogImageContractVersion: 2 },
+      expect.any(String)
+    );
+    expect(f.deps.assertImageContract).not.toHaveBeenCalled();
+  });
   it('keeps an accepted v2 request from being retried through an old payload', async () => {
     const f = fixture(false);
     f.store.imageRequestVersion = vi.fn(async () => 2 as const);

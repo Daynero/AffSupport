@@ -71,3 +71,6 @@ verify_jwt = false
 # named catalog-sync secret as catalog-images (no new secret is provisioned).
 [functions.catalog-video-r2]
 verify_jwt = false
+
+[functions.catalog-global-images]
+verify_jwt = false

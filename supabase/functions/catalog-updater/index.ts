@@ -293,23 +293,29 @@ Deno.serve(async request => {
               options
             ),
           finalizeImageUses: async (teamId, attemptId, delivered) => {
-            await rpcValue(service, 'service_catalog_image_finalize_uses_v2', {
+            await rpcValue(service, 'service_catalog_image_finalize_uses_v3', {
               p_team: teamId,
               p_attempt: attemptId,
               p_delivered: delivered
             });
           },
           validateImageUses: async (teamId, attemptId) => {
-            await rpcValue(service, 'service_catalog_image_validate_uses_v2', {
+            await rpcValue(service, 'service_catalog_image_validate_uses_v3', {
               p_team: teamId,
               p_attempt: attemptId
             });
           },
           validateImageRows: async (teamId, images) => {
-            await rpcValue(service, 'service_catalog_image_validate_rows_v2', {
-              p_team: teamId,
-              p_images: images
-            });
+            await rpcValue(
+              service,
+              images.some(image => image.kind === 'global')
+                ? 'service_catalog_global_validate_rows'
+                : 'service_catalog_image_validate_rows_v2',
+              {
+                p_team: teamId,
+                p_images: images
+              }
+            );
           },
           drawTexts: async (teamId, count) => {
             const rows = await rpcValue(service, 'service_draw_product_catalog_texts', {

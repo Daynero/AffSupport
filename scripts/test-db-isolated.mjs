@@ -215,6 +215,7 @@ try {
         'tests/process-output-adoption-postgres.test.ts',
         'tests/search-migration-role-postgres.test.ts',
         'tests/catalog-image-adoption-postgres.test.ts',
+        'tests/catalog-global-confirmation-postgres.test.ts',
         'tests/catalog-command-postgres.test.ts',
         'tests/material-share-postgres.test.ts',
         'tests/recovery-retention-postgres.test.ts',

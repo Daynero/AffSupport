@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select has_table('private','catalog_global_images','global ownership is independent of tenant publications');
+select has_table('private','catalog_global_assignments','durable issued pairs exist');
+select has_table('private','catalog_image_retirements','cleanup identities survive tenant cascades');
+select ok((select activated_at is null and epoch=0 and state='prepared' from private.catalog_global_policy where singleton),'migration does not activate T0');
+select is((select count(*)::integer from private.catalog_global_operators),0,'migration does not grant an operator');
+select ok(not has_table_privilege('authenticated','private.catalog_global_images','SELECT'),'ordinary user cannot enumerate global usage');
+select ok(not has_table_privilege('service_role','private.catalog_global_assignments','INSERT'),'service must use verified allocation RPC');
+select ok(not has_function_privilege('authenticated','public.service_catalog_global_allocate(uuid,uuid,uuid,uuid,integer,bigint,text,jsonb)','EXECUTE'),'browser cannot forge issued bindings');
+select ok(has_function_privilege('service_role','public.service_catalog_global_confirm(uuid,uuid,uuid)','EXECUTE'),'canonical trusted completion can confirm uses');
+select ok((select bool_and(relrowsecurity) from pg_class where oid in ('private.catalog_global_images'::regclass,'private.catalog_global_assignments'::regclass,'private.catalog_global_recipes'::regclass,'private.catalog_image_retirements'::regclass)),'all private operational state enables RLS');
+select * from finish();
+rollback;

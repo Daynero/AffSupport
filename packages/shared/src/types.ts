@@ -1,3 +1,4 @@
+export { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from './team/catalog-global-images.js';
 export { STITCH_ERROR_CODES, type StitchErrorCode } from './stitch-errors.js';
 
 export type JobStatus =
@@ -2087,3 +2088,8 @@ export interface MacosStartupRecord {
   architecture: 'arm64' | 'x64';
   buildId: string;
 }
+
+export type {
+  GlobalImageDiagnosticMetadata,
+  GlobalImageLifecycleStage
+} from './team/catalog-global-images.js';

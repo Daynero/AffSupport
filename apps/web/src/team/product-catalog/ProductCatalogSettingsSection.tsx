@@ -23,7 +23,7 @@ import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
-import { useTeam } from '../TeamContext';
+import { useTeam, useLegacyCatalogImageSettings } from '../TeamContext';
 import { useCatalogSettingsFlow } from './useCatalogSettingsFlow';
 import './catalog-text-schedule.css';
 import './catalog-settings-layout.css';
@@ -66,7 +66,7 @@ export interface ProductCatalogSettingsClient {
       description: string | null;
       priceMin: number;
       priceMax: number;
-      imageLink: string | null;
+      imageLink?: string | null;
     }
   ) => Promise<ProductCatalogSettings>;
   listProductCatalogImageSources?: (
@@ -150,6 +150,7 @@ export function ProductCatalogSettingsSection({
   onOpenEditorChange?: (id: string) => void;
   onDraftChange?: (state: { dirty: boolean; saving: boolean }) => void;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
   const [localOpen, setLocalOpen] = useState('');
   const open = openEditor ?? localOpen;
   const setOpen = (id: string) => {
@@ -160,7 +161,8 @@ export function ProductCatalogSettingsSection({
   const [scheduleDraft, setScheduleDraft] = useState({ dirty: false, saving: false });
   const [imagesBusy, setImagesBusy] = useState(false);
   const [textsBusy, setTextsBusy] = useState(false);
-  const saving = valueDraft.saving || scheduleDraft.saving || imagesBusy || textsBusy;
+  const saving =
+    valueDraft.saving || scheduleDraft.saving || (legacyImages && imagesBusy) || textsBusy;
   useEffect(() => {
     onDraftChange?.({ dirty: valueDraft.dirty || scheduleDraft.dirty, saving });
   }, [onDraftChange, valueDraft.dirty, scheduleDraft.dirty, saving]);
@@ -195,12 +197,14 @@ export function ProductCatalogSettingsSection({
           hasImageSources={Boolean(client.listProductCatalogImageSources || client.catalogImages)}
           hasTextPool={Boolean(client.listProductCatalogTexts)}
         />
-        <CatalogImagesSection
-          teamId={teamId}
-          client={client}
-          onPool={setImages}
-          onBusyChange={setImagesBusy}
-        />
+        {legacyImages && (
+          <CatalogImagesSection
+            teamId={teamId}
+            client={client}
+            onPool={setImages}
+            onBusyChange={setImagesBusy}
+          />
+        )}
         <CatalogTextsSection
           teamId={teamId}
           client={client}
@@ -245,12 +249,16 @@ function CatalogSummarySection({
   hasTextPool: boolean;
 }) {
   const { t } = useI18n();
+  const legacyImages = useLegacyCatalogImageSettings();
+  const globalPolicy = useTeam().globalImagePolicy;
   const known =
-    fallback !== null && (!hasTextPool || texts !== null) && (!hasImageSources || images !== null);
+    fallback !== null &&
+    (!hasTextPool || texts !== null) &&
+    (!legacyImages || !hasImageSources || images !== null);
   const ready =
     known &&
     ((texts ?? 0) > 0 || fallback?.title) &&
-    ((images ?? 0) > 0 || fallback?.image) &&
+    (legacyImages ? (images ?? 0) > 0 || fallback?.image : globalPolicy?.usable === true) &&
     range !== null;
   return (
     <header className="catalog-settings-heading">
@@ -264,9 +272,11 @@ function CatalogSummarySection({
               : 'productCatalogSummaryBlocked'
         )}
       </p>
-      {known && ((!(texts ?? 0) && fallback?.title) || (!(images ?? 0) && fallback?.image)) && (
-        <p className="field-hint">{t('productCatalogFallbackInUse')}</p>
-      )}
+      {known &&
+        ((!(texts ?? 0) && fallback?.title) ||
+          (legacyImages && !(images ?? 0) && fallback?.image)) && (
+          <p className="field-hint">{t('productCatalogFallbackInUse')}</p>
+        )}
       <a
         className="product-catalog-updater-link"
         href={updaterHref()}
@@ -1077,6 +1087,7 @@ function CatalogValuesSection({
   hasTexts: boolean | null;
 }) {
   const { t } = useI18n();
+  const legacyImages = useLegacyCatalogImageSettings();
   const diagnostic = useCatalogSettingsFlow();
   const { push } = useToasts();
   const { can } = useTeam();
@@ -1143,11 +1154,13 @@ function CatalogValuesSection({
   const maxCheck = validatePrice(max);
   const rangeOk = minCheck.ok && maxCheck.ok && minCheck.value <= maxCheck.value;
   const linkCheck = link.trim() === '' ? null : validateWebLink(link, IMAGE_LINK_MAX);
-  const linkOk = linkCheck === null || linkCheck.ok;
+  const linkOk = !legacyImages || linkCheck === null || linkCheck.ok;
   const titleOk = title.trim().length <= TITLE_MAX;
   const descriptionOk = description.trim().length <= DESCRIPTION_MAX;
   const valid = rangeOk && linkOk && titleOk && descriptionOk;
-  const fallbackUsed = Boolean(persisted?.title || persisted?.description || persisted?.imageLink);
+  const fallbackUsed = Boolean(
+    persisted?.title || persisted?.description || (legacyImages && persisted?.imageLink)
+  );
 
   useEffect(
     () => () => {
@@ -1156,7 +1169,12 @@ function CatalogValuesSection({
     [onDraftChange]
   );
   const priceDirty = loaded && snapshot(min, max) !== savedPrice;
-  const fallbackDirty = loaded && snapshot(title, description, link) !== savedFallback;
+  const fallbackDirty =
+    loaded &&
+    (legacyImages
+      ? snapshot(title, description, link) !== savedFallback
+      : snapshot(title, description) !==
+        snapshot(persisted?.title ?? '', persisted?.description ?? ''));
   useEffect(() => {
     onDraftChange?.({ dirty: priceDirty || fallbackDirty, saving });
   }, [priceDirty, fallbackDirty, saving, onDraftChange]);
@@ -1185,12 +1203,16 @@ function CatalogValuesSection({
         title: part === 'fallback' ? title.trim() || null : (persisted?.title ?? null),
         description:
           part === 'fallback' ? description.trim() || null : (persisted?.description ?? null),
-        imageLink:
-          part === 'fallback'
-            ? linkCheck?.ok
-              ? linkCheck.value
-              : null
-            : (persisted?.imageLink ?? null),
+        ...(legacyImages
+          ? {
+              imageLink:
+                part === 'fallback'
+                  ? linkCheck?.ok
+                    ? linkCheck.value
+                    : null
+                  : (persisted?.imageLink ?? null)
+            }
+          : {}),
         priceMin: part === 'price' && minCheck.ok ? minCheck.value : persisted!.priceMin,
         priceMax: part === 'price' && maxCheck.ok ? maxCheck.value : persisted!.priceMax
       });
@@ -1305,17 +1327,19 @@ function CatalogValuesSection({
       <CatalogSection
         icon={FileSpreadsheet}
         titleId="product-catalog-fallback-title"
-        title={t('productCatalogFallbackTitle')}
-        description={t('productCatalogFallbackHint')}
+        title={t(legacyImages ? 'productCatalogFallbackTitle' : 'productCatalogTextFallbackTitle')}
+        description={t(
+          legacyImages ? 'productCatalogFallbackHint' : 'productCatalogTextFallbackHint'
+        )}
         aside={
           fallbackDirty
             ? t('productCatalogUnsaved')
-            : hasImages === null || hasTexts === null
+            : (legacyImages && hasImages === null) || hasTexts === null
               ? t('catalogSettingsUnknown')
               : t(
                   !fallbackUsed
                     ? 'productCatalogFallbackEmpty'
-                    : hasImages && hasTexts
+                    : (!legacyImages || hasImages) && hasTexts
                       ? 'productCatalogFallbackUnused'
                       : 'productCatalogFallbackInUse'
                 )
@@ -1335,7 +1359,7 @@ function CatalogValuesSection({
               )}
             </p>
           )}
-          {persisted?.imageLink && (
+          {legacyImages && persisted?.imageLink && (
             <p className="field-hint">
               {t(
                 hasImages === null
@@ -1372,20 +1396,22 @@ function CatalogValuesSection({
               onChange={event => setDescription(event.target.value)}
             />
           </div>
-          <div className="field-group">
-            <label className="field-label" htmlFor={ids.link}>
-              <span>{t('productCatalogImageLinkLabel')}</span>
-            </label>
-            <Input
-              id={ids.link}
-              type="text"
-              inputMode="url"
-              value={link}
-              readOnly={!editable || saving || !loaded}
-              invalid={!linkOk}
-              onChange={event => setLink(event.target.value)}
-            />
-          </div>
+          {legacyImages && (
+            <div className="field-group">
+              <label className="field-label" htmlFor={ids.link}>
+                <span>{t('productCatalogImageLinkLabel')}</span>
+              </label>
+              <Input
+                id={ids.link}
+                type="text"
+                inputMode="url"
+                value={link}
+                readOnly={!editable || saving || !loaded}
+                invalid={!linkOk}
+                onChange={event => setLink(event.target.value)}
+              />
+            </div>
+          )}
           {!linkOk && <p className="team-inline-error">{t('productCatalogLinkInvalid')}</p>}
           {editable && (
             <div className="settings-section-actions">

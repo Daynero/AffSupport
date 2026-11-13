@@ -53,7 +53,7 @@ export interface CatalogIntent {
   operationId: string | null;
 }
 export interface CatalogIntentStore {
-  imageRequestVersion?: () => Promise<1 | 2 | null>;
+  imageRequestVersion?: () => Promise<1 | 2 | 3 | null>;
   resources?: (intent: CatalogIntent, owner: string) => Promise<Record<string, unknown>>;
   completed?: (intent: CatalogIntent) => Promise<CreateProductCatalogResult | null>;
   operation?: (
@@ -161,7 +161,7 @@ export function catalogIntentStore(
         p_actor: actorId,
         p_key: key
       });
-      if (version === null || version === 1 || version === 2) return version;
+      if (version === null || version === 1 || version === 2 || version === 3) return version;
       throw new TeamFunctionError('INVALID_RESPONSE');
     },
     async begin(payload, owner) {
@@ -330,10 +330,13 @@ export async function createDurableProductCatalog(
   // Only a server-owned accepted payload authorizes legacy retry normalization.
   const request = { ...requested };
   if (acceptedVersion === 1) delete request.catalogImageContractVersion;
-  if (acceptedVersion === 2 && request.catalogImageContractVersion !== 2)
+  if (acceptedVersion === 2 && ![2, 3].includes(request.catalogImageContractVersion ?? 0))
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
-  // Reject fresh old-client work before creating an accepted legacy receipt.
-  if (acceptedVersion !== 1)
+  if (acceptedVersion === 2) request.catalogImageContractVersion = 2;
+  if (acceptedVersion === 3 && request.catalogImageContractVersion !== 3)
+    throw new TeamFunctionError('GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED');
+  // Accepted old receipts can be read after T0; SQL refuses unfinished legacy work.
+  if (acceptedVersion !== 1 && acceptedVersion !== 2)
     await deps.assertImageContract?.(request.teamId, request.catalogImageContractVersion);
   const owner = crypto.randomUUID();
   const intent = await store.begin({ ...request }, owner);
@@ -674,7 +677,11 @@ export async function createDurableProductCatalog(
           return values;
         }
         await check();
-        const images = await deps.drawImages(team, count, { ...options, attemptId: intent.id });
+        const images = await deps.drawImages(team, count, {
+          ...options,
+          attemptId: intent.id,
+          catalogId: intent.id
+        });
         await store.checkpoint(intent, owner, 'planning', { images });
         return images;
       },
@@ -894,6 +901,7 @@ export async function createDurableProductCatalog(
         plan: initialVideoPlan,
         catalogMaterialId: result.catalog.materialId
       });
+    await deps.bindGlobalImageCatalog?.(request.teamId, intent.id, result.catalog.materialId);
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;

@@ -7,7 +7,7 @@ import {
   catalogImageUrl,
   catalogImageName,
   legacyImage,
-  r2Image,
+  publishedImage,
   type CatalogDrawnImage,
   type CatalogImageDrawOptions
 } from '../_shared/catalog-image-rows.ts';
@@ -141,7 +141,7 @@ export interface ProductCatalogDeps {
     actorId: string;
     permission: 'view' | 'edit';
   }): Promise<CatalogVideo>;
-  assertImageContract?(teamId: string, version: 2 | undefined): Promise<void>;
+  assertImageContract?(teamId: string, version: 2 | 3 | undefined): Promise<void>;
   /** 050: refuse `copyVideoToR2` before any side effect unless the feature is available and the actor may manage catalog settings. */
   assertVideoR2Option?(teamId: string, actorId: string): Promise<void>;
   /** 050: record the option on the registered catalog and queue its first copy. */
@@ -150,6 +150,7 @@ export interface ProductCatalogDeps {
     actorId: string;
     catalogMaterialId: string;
   }): Promise<void>;
+  bindGlobalImageCatalog?(teamId: string, intentId: string, materialId: string): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
   /** A completed re-stitch of this video by this member, verified before the sheet is made. */
@@ -236,7 +237,7 @@ export interface CatalogCreationVideoPreferences {
   videoPublication: import('../../../packages/shared/dist/team/catalog-publication.js').CatalogVideoPublicationRequest;
 }
 export interface CreateProductCatalogRequest extends Partial<CatalogCreationVideoPreferences> {
-  catalogImageContractVersion?: 2;
+  catalogImageContractVersion?: 2 | 3;
   /** 050: copy the catalog video to R2 and issue the R2 link from the next update on. */
   copyVideoToR2?: boolean;
   teamId: string;
@@ -297,12 +298,17 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   if (body.randomLinkVariation !== undefined && typeof body.randomLinkVariation !== 'boolean')
     invalid();
   if (body.copyVideoToR2 !== undefined && typeof body.copyVideoToR2 !== 'boolean') invalid();
-  if (body.catalogImageContractVersion !== undefined && body.catalogImageContractVersion !== 2)
+  if (
+    body.catalogImageContractVersion !== undefined &&
+    ![2, 3].includes(Number(body.catalogImageContractVersion))
+  )
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   const videoPreferences = parseCatalogCreationVideoPreferences(body, count.value);
   return {
     ...videoPreferences,
-    ...(body.catalogImageContractVersion === 2 ? { catalogImageContractVersion: 2 } : {}),
+    ...([2, 3].includes(Number(body.catalogImageContractVersion))
+      ? { catalogImageContractVersion: body.catalogImageContractVersion as 2 | 3 }
+      : {}),
     ...(body.copyVideoToR2 === true ? { copyVideoToR2: true } : {}),
     teamId,
     videoMaterialId,
@@ -607,7 +613,7 @@ export async function createProductCatalog(
         images: images.map(image => ({
           link: catalogImageUrl(image),
           name: catalogImageName(image),
-          ...(r2Image(image) ? { image } : {})
+          ...(publishedImage(image) ? { image } : {})
         }))
       });
       if (!planned) wrongState('settings_missing');

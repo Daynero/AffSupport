@@ -186,6 +186,25 @@ afterEach(async () => {
 });
 
 describe('a re-stitched delivery', () => {
+  it('reuses verified inspection across workspaces, rebinds its path and evicts old identities', async () => {
+    const first = await source();
+    const second = await source('second.mp4');
+    const checksum = (n: number) => n.toString(16).padStart(32, '0');
+    await run(first, { defaults, prepared: null }, undefined, checksum(1));
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(1);
+    expect(staging.mock.calls.at(-1)?.[0]).toMatchObject({
+      request: { profile: { path: second } }
+    });
+    for (let n = 2; n <= 17; n += 1)
+      await run(first, { defaults, prepared: null }, undefined, checksum(n));
+    expect(probeSource).toHaveBeenCalledTimes(17);
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(18);
+    clearRestitchInspections();
+    await run(second, { defaults, prepared: null }, undefined, checksum(1));
+    expect(probeSource).toHaveBeenCalledTimes(19);
+  });
   it.each([
     ['BODY_HEAD_FAILED', 'BODY_HEAD_FAILED'],
     ['/private/media/source.mp4 provider detail', 'PROCESS_FAILED']

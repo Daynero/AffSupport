@@ -273,3 +273,95 @@ feed importer remain explicit gates. No Meta ingestion, ad publication or produc
 claimed. T055's actual external/Meta feed-import acceptance remains explicit and open; JPEG/PNG
 output and anonymous GET alone cannot close it. Full evidence and task status are in
 `specs/045-catalog-r2-images/validation.md`.
+
+## 052: shared white images (separate feature branch, inactive until accepted T0)
+
+Contract3 uses a single global pool for everyone. It has no customer image setup.
+At activation, workspace gallery/imports/Drive sources/prompt/fallback URL and
+image-refresh controls disappear. Texts, prices, scheduling, video and restitch
+images retain their existing controls. Every successful new catalog and update
+uses a complete global recipe, including historical `refreshImages=false`.
+
+An image's issued slot changes its permanent HMAC URL every200 distinct durable
+catalog+image bindings. Retries and repeated rows reuse the same binding. Old URLs
+remain valid. Confirmed uses are separate: one count after actual catalog write
+proof, once per catalog+image pair.5000 is informational and never blocks issuance.
+This does not measure advertising impressions or guarantee Facebook behavior.
+
+The allocation path reads ready metadata in one batch, locks only selected
+images with SKIP LOCKED, freezes the complete recipe atomically and returns it.
+It never generates, uploads, signs or verifies bytes per product row. Background
+work maintains canonical bytes and current+2 aliases. A stale/missing serving
+proof fails explicitly; it does not wait for another user's import.
+
+Owner status is read-only:
+
+```bash
+npm run analytics -- global-images --json
+npm run analytics -- global-images --image <uuid> --json
+npm run analytics -- global-images --at-least 5000 --sort uses --limit 50 --json
+npm run analytics -- global-images --cleanup --json
+```
+
+Operator import uses `node scripts/catalog-global-operator.mjs import --directory
+<owned-local-fixtures> --key <stable-request-key>`. Configure the isolated endpoint,
+authenticated operator token and exact target confirmation through environment
+variables, never command arguments. The CLI accepts dev/beta only; production
+is a separate explicitly authorized canonical release. Operator access is an
+explicit service-managed grant, independent of team ownership. Mixed local image
+formats reuse045's deterministic validation/optimization, create-only R2 PUT and
+full authenticated plus anonymous readback. Transfer completion is not readiness.
+
+Delivery Worker source is `apps/catalog-image-delivery`. Provision it only through
+the canonical reviewed full-release configuration: route `/g/*` on the confirmed
+media origin; `/g1/*` MUST bypass that Worker. Configure standard CDN cache
+eligibility for canonical `/g1/*` (UUID paths have no image extension), honor
+immutable public headers, and verify canonical origin fanout with provider evidence.
+The Worker needs the exact environment/origin/routing revision and versioned HMAC
+keyring. Keep all issued key versions. No database or transformation runs on GET.
+The Supabase global worker and delivery Worker must share the same keyring/config.
+
+`verify-catalog-global-provider.mjs --manifest <owned-beta-fixtures.json> --output
+<new-report.json>` checks bounded anonymous bytes, headers and observed cache
+status. HTTP alone cannot pass browser, installed macOS/Windows, Meta import,
+origin-fanout or physical-retirement acceptance; its report leaves these unverified.
+For owned retirement fixtures the same checker accepts `--phase retirement-before`
+or `--phase retirement-after`, validating the manifest deadline, retained/protected
+exact bytes and due managed public absence. It never performs DELETE. Origin-delete,
+CDN-purge and quota receipts remain separate unknowns;404 is not physical proof.
+No test or import activates the policy.
+
+Before T0, preparation fences fresh legacy image admissions and drains/reconciles
+existing grants, PUTs, catalog writes and physical deletion leases. Unknown work
+blocks activation. The typed manifest captures Soty-owned v1 objects and separate
+external-only metadata references in bounded pages. The trusted release adapter
+must record exact source/config/manifest acceptance, including current AND archived
+rollback builds that understand this policy. An operator HTTP request cannot mint
+that permit. A compatibility-baseline release is required when the archived rollback
+build lacks policy support. Next publication never activates T0 automatically.
+
+T0 and its720-hour deadline are immutable. Old managed images remain for30 days;
+updates use the global pool immediately. Cleanup then reuses045's verified physical
+purge transport; `policy_reason=policy_retirement` distinguishes policy ownership
+without changing the legacy purge reason contract. Existing tombstones, orphan and
+team-delete paths respect the same hold. Quota is credited only by the existing
+positive-delete completion against the current charged ledger. External references
+terminate as metadata_unlinked/external_untouched: originals and permissions are
+never changed. Unknown/exhausted children remain visible and prevent cleanup_complete.
+Paused/unupdated old catalogs do not extend the deadline.
+
+Routing/cache references checked against the official provider docs:
+[default cache eligibility](https://developers.cloudflare.com/cache/concepts/default-cache-behavior/)
+uses file extensions, so the extensionless canonical namespace needs an explicit
+cache rule. [Worker fetch/cache behavior](https://developers.cloudflare.com/workers/reference/how-the-cache-works/)
+explains the canonical subrequest path. Use a path
+[Worker Route](https://developers.cloudflare.com/workers/configuration/routing/routes/)
+for `/g/*`, with the R2 custom-domain origin available outside that route; do not
+turn the whole media hostname into this Worker's Custom Domain. These configuration
+requirements still need actual isolated provider acceptance.
+
+If existing unknown legacy work must recover before activation, explicitly use
+`resume_legacy` with `confirmation=resume-legacy:<environment>`. It only reopens
+pre-T0 legacy admission and discards the unactivated manifest, so recovery can
+finish before a fresh prepare/proof. It cannot reset T0, reopen settings after
+activation or delete image bytes.

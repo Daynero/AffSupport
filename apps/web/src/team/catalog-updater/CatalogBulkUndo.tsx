@@ -1,3 +1,4 @@
+import { useLegacyCatalogImageSettings } from '../TeamContext';
 import { privateCacheEpoch } from '../private-cache-scope';
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
@@ -27,7 +28,10 @@ const keyFor = (receipt: CatalogBulkUndoReceipt) =>
   `${receipt.catalogId}:${receipt.after.profile.version}`;
 
 /** Restore only fields this batch changed; frequency and its calendar form one setting. */
-function restorePatch(receipt: CatalogBulkUndoReceipt): CatalogUpdateProfilePatch {
+function restorePatch(
+  receipt: CatalogBulkUndoReceipt,
+  legacyImages = true
+): CatalogUpdateProfilePatch {
   const patch: CatalogUpdateProfilePatch = {};
   if (receipt.patch.videoVariantCount !== undefined)
     patch.videoVariantCount = receipt.before.profile.videoVariantCount ?? 1;
@@ -38,7 +42,8 @@ function restorePatch(receipt: CatalogBulkUndoReceipt): CatalogUpdateProfilePatc
     'refreshTexts',
     'growProducts'
   ] as const)
-    if (receipt.patch[key] !== undefined) patch[key] = receipt.before.profile[key];
+    if ((legacyImages || key !== 'refreshImages') && receipt.patch[key] !== undefined)
+      patch[key] = receipt.before.profile[key];
   if (receipt.patch.updateInterval !== undefined || receipt.patch.schedule !== undefined) {
     patch.updateInterval = receipt.before.interval;
     patch.schedule = receipt.before.profile.schedule ?? null;
@@ -74,6 +79,7 @@ export function CatalogBulkUndo({
   onSaved: () => void;
   onActivityChange: (activity: { pending: boolean; uncertain: boolean }) => void;
 }) {
+  const legacyImages = useLegacyCatalogImageSettings();
   const { t } = useI18n();
   const mounted = useRef(true);
   const scopeEpoch = useRef(privateCacheEpoch()).current;
@@ -90,7 +96,11 @@ export function CatalogBulkUndo({
     flow: CatalogUiFlow;
     failure?: CatalogUiFailure;
   } | null>(null);
-  const visible = receipts.filter(receipt => allowed.current.has(receipt.catalogId));
+  const visible = receipts.filter(
+    receipt =>
+      allowed.current.has(receipt.catalogId) &&
+      (legacyImages || Object.keys(receipt.patch).some(key => key !== 'refreshImages'))
+  );
   const unknown = visible.some(receipt => results[keyFor(receipt)]?.phase === 'unknown');
   const candidates = visible.filter(receipt =>
     unknown
@@ -165,7 +175,7 @@ export function CatalogBulkUndo({
               }
               if (!active()) continue;
               const expected = base;
-              const patch = restorePatch(receipt);
+              const patch = restorePatch(receipt, legacyImages);
               const outcome = await saveCatalogProfile({
                 base: expected,
                 patch,

@@ -22,6 +22,11 @@ export interface ResolvedPeriod {
 export interface AnalyticsSchema {
   events: { attempt_id: boolean; agent_instance_id: boolean; agent_platform: boolean };
   tables: {
+    analytics_catalog_global_coverage?: boolean;
+    analytics_catalog_global_images?: boolean;
+    analytics_catalog_global_policy?: boolean;
+    analytics_catalog_global_cleanup?: boolean;
+    analytics_catalog_global_journal?: boolean;
     agent_journal_records: boolean;
     analytics_daily_events: boolean;
     analytics_daily_tool_outcomes: boolean;
@@ -145,6 +150,9 @@ export interface CohortsData {
 export interface JourneyData {
   /** Period selects server receipt time; events remain ordered by occurrence. */
   window_basis: 'created_at';
+  global_images?: Awaited<
+    ReturnType<typeof import('./global-images.js').getOwnedGlobalImageEvidence>
+  >;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   catalog_video_r2?: import('./catalog-video-r2.js').CatalogVideoR2Diagnosis;
   events: JourneyEvent[];
@@ -162,7 +170,9 @@ export const NO_AGENT_CONTEXT_NOTE =
 export type AuditStatus = 'covered' | 'partial' | 'uncovered' | 'declared_but_never_emitted';
 
 export interface AuditCapability {
-  current_lifecycle?: { retired_since_api_version: 6; historical_coverage: 'unknown' };
+  current_lifecycle?:
+    | { retired_since_api_version: 6; historical_coverage: 'unknown' }
+    | { retired_since_policy_epoch: string; historical_coverage: 'unknown' };
   id: string;
   tool: string;
   status: AuditStatus;
@@ -285,6 +295,7 @@ export interface InspectAgentIdentity {
 export interface InspectFound {
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
+  global_images?: Awaited<ReturnType<typeof import('./global-images.js').getGlobalImageEvidence>>;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -1000,6 +1011,9 @@ export interface InvestigateData {
   >;
   catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   translation_retirement?: import('./library-retirement.js').TranslationRetirementEvidence;
+  global_images?: Awaited<
+    ReturnType<typeof import('./global-images.js').getOwnedGlobalImageEvidence>
+  >;
   catalog_images?: import('./catalog-images.js').CatalogImageDiagnosis;
   catalog_video_r2?: import('./catalog-video-r2.js').CatalogVideoR2Diagnosis;
   recovery_retirement?: import('./recovery-retirement.js').RecoveryRetirementEvidence;

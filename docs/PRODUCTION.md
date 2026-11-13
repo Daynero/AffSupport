@@ -815,3 +815,17 @@ Before publication `scripts/verify-macos-release-trust.mjs` checks each Mac DMG'
 Manifest-only verification reuses sealed binaries and refreshes exact-source qualification (native ARM, static-qualified Intel). The resulting `release/beta/platform-baseline.json` binds both Mac seals and Windows workflow proof to the signed channel. Web mini releases retain and validate this complete baseline; they never rebuild an installer or change its architecture. All existing production authorization, activation and recovery gates still apply.
 
 For one ARM build host, prepare/verify the Intel beta target first (`npm run beta:package -- --arch=x64`, then `npm run beta:verify -- --arch=x64`), which never launches x64 code; then prepare/verify ARM natively. Packaging still refuses a running same-flavor app. Intel production package/DMG verification is static and does not require stopping a running production app. Public signature/notarization, all-three-artifact final-byte checks, Windows hosted proof, G0 and explicit activation are unchanged. Mini binds the qualification mode and may not relabel static Intel evidence native.
+
+### Future052 global image activation
+
+Feature052 is inactive by migration and excluded from the1.4.3 release worktree.
+Its separate full-release acceptance is documented in `docs/CATALOG_IMAGES.md`
+and `specs/052-shared-white-images/quickstart.md`. Provisioning the new delivery
+Worker, exact `/g/*` route/canonical-cache rules and beta provider evidence precede
+T0. Both current and archived rollback builds must understand the policy; otherwise
+ship a separately verified compatibility baseline first. The read-only release
+preflight checks `catalogGlobalCutover` evidence if explicitly declared; trusted
+`recordCatalogGlobalAcceptance` records the short-lived exact-bound permit.
+Operator control cannot mint it. Publication to next and promotion never call
+activate. Activation, cleanup timing and source/config proof require a separate
+explicit validated owner intent; no command in this implementation runs them.

@@ -78,6 +78,10 @@ it('flags a scheduled link time that is not at least a minute ahead', () => {
   expect(launchPublicationTimePassed(unresolved('2026-11-08T23:18'), now)).toBe(true);
   expect(launchPublicationTimePassed(unresolved('2026-11-09T05:00'), now)).toBe(false);
   expect(launchPublicationTimePassed(unresolved('not-a-time'), now)).toBe(false);
+  // A reopened draft in the repeated autumn hour remains valid until the later occurrence.
+  const fold = unresolved('2026-10-25T03:30');
+  expect(launchPublicationTimePassed(fold, Date.parse('2026-10-25T01:00:00Z'))).toBe(false);
+  expect(launchPublicationTimePassed(fold, Date.parse('2026-10-25T01:30:00Z'))).toBe(true);
 });
 
 it('keeps an unresolved repeated hour available until its later occurrence approaches', () => {

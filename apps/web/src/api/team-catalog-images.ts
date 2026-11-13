@@ -1,3 +1,4 @@
+import { isGlobalImageReadiness, type GlobalImageReadiness } from '@video-compressor/shared';
 import {
   isCatalogImageCapabilities,
   isCatalogImageImportJob,
@@ -26,6 +27,7 @@ export interface CatalogImageManifestFile {
 }
 
 export interface CatalogImageClient {
+  globalReadiness?: (teamId: string) => Promise<GlobalImageReadiness>;
   readStorage(teamId: string): Promise<CatalogImageStorage>;
   readLibrary(teamId: string, cursor?: string | null): Promise<CatalogImageLibraryPage>;
   continueImport(id: string, input: { idempotencyKey: string }): Promise<CatalogImageImportJob>;
@@ -86,6 +88,7 @@ const pathId = (id: string) => encodeURIComponent(id);
 
 /** The existing team function boundary owns auth and error-envelope decoding. */
 export const catalogImageClient: CatalogImageClient = {
+  globalReadiness: getGlobalCatalogImageReadiness,
   readStorage: teamId =>
     invokeTeamFunction(query('storage', { teamId }), {}, isCatalogImageStorage, { method: 'GET' }),
   readLibrary: (teamId, cursor) =>
@@ -227,4 +230,13 @@ export function uploadCatalogImage(
     }
     request.send(file);
   });
+}
+
+export function getGlobalCatalogImageReadiness(teamId: string): Promise<GlobalImageReadiness> {
+  return invokeTeamFunction(
+    `catalog-global-images/readiness?teamId=${encodeURIComponent(teamId)}`,
+    {},
+    isGlobalImageReadiness,
+    { method: 'GET' }
+  );
 }

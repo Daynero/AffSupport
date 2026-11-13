@@ -1,5 +1,6 @@
 import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
 import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import { CATALOG_VIDEO_R2_REASONS } from '../../packages/shared/src/team/catalog-video-r2.js';
 import {
@@ -1625,6 +1626,25 @@ function build(): Record<string, CodeLocation> {
       check:
         'Inspect this exact correlated attempt. API completion validates the server response only; visible editor refresh is separate. Implicit preserve-draft keeps local typing and its original conflict version. An explicit Keep mine retries only unacknowledged fields against the reviewed version; a further peer change must conflict again. Take their version clears pending typing and renders the newest confirmed snapshot for that same task. For missing terminals read the protected current task before retrying; do not infer rollback or delivery from missing events.'
     };
+  }
+  for (const code of GLOBAL_CATALOG_IMAGE_ERROR_CODES) {
+    for (const prefix of [
+      'catalog:global',
+      'catalog:update',
+      'launches:generation',
+      'team:library'
+    ]) {
+      map[`${prefix}:${code}`] = {
+        files: [
+          'supabase/functions/_shared/catalog-global-images.ts',
+          'supabase/functions/catalog-global-images/worker.ts',
+          'supabase/migrations/20261208100000_catalog_global_pool.sql',
+          'apps/web/src/team/errors.ts'
+        ],
+        check:
+          'Check the global policy epoch, issued assignment and ready proof before retrying this same intent.'
+      };
+    }
   }
   for (const code of CATALOG_IMAGE_ERROR_CODES) {
     map[`catalog:update:${code}`] = {
