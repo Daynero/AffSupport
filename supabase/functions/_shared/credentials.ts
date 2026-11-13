@@ -92,6 +92,12 @@ export async function refreshGoogleAccessToken(input: {
   const sleep = input.sleep ?? (ms => new Promise<void>(done => setTimeout(done, ms)));
   const now = input.now ?? Date.now;
   const startedAt = now();
+  const retry = async (attempt: number) => {
+    const delay = TOKEN_REFRESH_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined || now() - startedAt + delay >= TOKEN_REFRESH_BUDGET_MS) return false;
+    await sleep(delay);
+    return now() - startedAt < TOKEN_REFRESH_BUDGET_MS;
+  };
   const body = new URLSearchParams({
     client_id: input.clientId,
     client_secret: input.clientSecret,
@@ -105,17 +111,22 @@ export async function refreshGoogleAccessToken(input: {
    * grant is final at once, and no attempt starts past the budget.
    */
   let payload: unknown;
+  let lastFailureCode: 'DRIVE_UNAVAILABLE' | 'RATE_LIMITED' = 'DRIVE_UNAVAILABLE';
   for (let attempt = 0; ; attempt++) {
-    const another =
-      attempt < TOKEN_REFRESH_RETRY_DELAYS_MS.length &&
-      now() - startedAt + TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]! < TOKEN_REFRESH_BUDGET_MS;
+    const remaining = TOKEN_REFRESH_BUDGET_MS - (now() - startedAt);
+    if (remaining <= 0) throw new TeamFunctionError(lastFailureCode, { retryable: true });
     let response: Response;
     try {
+      const signal = AbortSignal.timeout(Math.min(10_000, remaining));
       response = await fetchImpl('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body,
-        signal: AbortSignal.timeout(10_000)
+        signal
+      });
+      payload = await response.json().catch(failure => {
+        if (signal.aborted) throw failure;
+        return null;
       });
     } catch (failure) {
       /*
@@ -135,26 +146,18 @@ export async function refreshGoogleAccessToken(input: {
           )
         )
       );
-      if (another) {
-        await sleep(TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]!);
-        continue;
-      }
+      lastFailureCode = 'DRIVE_UNAVAILABLE';
+      if (await retry(attempt)) continue;
       throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
     }
-    payload = await response.json().catch(() => null);
     if (response.ok) break;
     if (isRecord(payload) && payload.error === 'invalid_grant') {
       throw new TeamFunctionError('NEEDS_REAUTH', { retryable: false });
     }
-    console.error(
-      'token-refresh-refused',
-      JSON.stringify(redactForLog({ status: response.status, payload, attempt }))
-    );
+    console.error('token-refresh-refused', JSON.stringify({ status: response.status, attempt }));
     const transient = response.status === 429 || response.status >= 500;
-    if (transient && another) {
-      await sleep(TOKEN_REFRESH_RETRY_DELAYS_MS[attempt]!);
-      continue;
-    }
+    lastFailureCode = response.status === 429 ? 'RATE_LIMITED' : 'DRIVE_UNAVAILABLE';
+    if (transient && (await retry(attempt))) continue;
     throw new TeamFunctionError(response.status === 429 ? 'RATE_LIMITED' : 'DRIVE_UNAVAILABLE', {
       retryable: transient
     });

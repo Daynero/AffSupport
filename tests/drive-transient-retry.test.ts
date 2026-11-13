@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DRIVE_READ_RETRY_DELAYS_MS, GoogleDriveClient } from '../supabase/functions/_shared/drive';
 import {
   refreshGoogleAccessToken,
   TOKEN_REFRESH_RETRY_DELAYS_MS
 } from '../supabase/functions/_shared/credentials';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
+
+afterEach(() => vi.restoreAllMocks());
 
 /**
  * Production 2026-11-12: one unanswered Drive call during a launch's source check reached the
@@ -136,5 +138,102 @@ describe('Google token refresh rides out a transient failure', () => {
       expect.objectContaining({ code: 'NEEDS_REAUTH' })
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['network', 'rate-limit'] as const)(
+    'keeps slow %s attempts and waits inside the total 20-second deadline',
+    async failure => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      let elapsed = 0;
+      const timeouts: number[] = [];
+      const starts: number[] = [];
+      const waits: number[] = [];
+      vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+        timeouts.push(ms);
+        return new AbortController().signal;
+      });
+      const fetchImpl = vi.fn(async () => {
+        starts.push(elapsed);
+        elapsed += timeouts.at(-1)!;
+        if (failure === 'network') throw new TypeError('fetch failed');
+        return json(429, {});
+      });
+      const result = await code(() =>
+        refreshGoogleAccessToken({
+          ...input(fetchImpl, waits),
+          now: () => elapsed,
+          sleep: async ms => {
+            waits.push(ms);
+            elapsed += ms;
+          }
+        })
+      );
+      expect(result).toBe(failure === 'network' ? 'DRIVE_UNAVAILABLE' : 'RATE_LIMITED');
+      expect(starts).toEqual([0, 10_400]);
+      expect(timeouts).toEqual([10_000, 9_600]);
+      expect(waits).toEqual([400]);
+      expect(elapsed).toBe(20_000);
+    }
+  );
+
+  it('preserves rate limiting without sending another request after an overslept retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let elapsed = 0;
+    const fetchImpl = vi.fn(async () => json(429, {}));
+    expect(
+      await code(() =>
+        refreshGoogleAccessToken({
+          ...input(fetchImpl, []),
+          now: () => elapsed,
+          sleep: async () => {
+            elapsed = 25_000;
+          }
+        })
+      )
+    ).toBe('RATE_LIMITED');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a timed-out response body with only the remaining request budget', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let elapsed = 0;
+    const signals: AbortController[] = [];
+    const timeouts: number[] = [];
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const controller = new AbortController();
+      signals.push(controller);
+      timeouts.push(ms);
+      return controller.signal;
+    });
+    const truncated = json(200, {});
+    vi.spyOn(truncated, 'json').mockImplementation(async () => {
+      elapsed = 10_000;
+      signals[0]!.abort();
+      throw new DOMException('request body timed out', 'AbortError');
+    });
+    const fetchImpl = vi.fn().mockResolvedValueOnce(truncated).mockResolvedValueOnce(token());
+    const result = await refreshGoogleAccessToken({
+      ...input(fetchImpl, []),
+      now: () => elapsed,
+      sleep: async ms => {
+        elapsed += ms;
+      }
+    });
+    expect(result.accessToken).toHaveLength(40);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(timeouts).toEqual([10_000, 9_600]);
+  });
+
+  it('logs bounded refusal metadata without retaining provider response content', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetchImpl = vi.fn(async () => json(503, { detail: 'private-provider-detail' }));
+    expect(await code(() => refreshGoogleAccessToken(input(fetchImpl, [])))).toBe(
+      'DRIVE_UNAVAILABLE'
+    );
+    expect(log.mock.calls).toEqual([
+      ['token-refresh-refused', JSON.stringify({ status: 503, attempt: 0 })],
+      ['token-refresh-refused', JSON.stringify({ status: 503, attempt: 1 })],
+      ['token-refresh-refused', JSON.stringify({ status: 503, attempt: 2 })]
+    ]);
   });
 });
