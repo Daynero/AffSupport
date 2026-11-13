@@ -126,7 +126,7 @@ async function fixture(options: { admit: boolean } = { admit: true }) {
   ]);
   // What the creation flow records before it hands the set to the agent.
   await db.root(
-    "update private.catalog_generation_intents set checkpoint=jsonb_build_object('initialVideoPlan',jsonb_build_object('setId',$2::text)),request_payload=request_payload||'{\"catalogVideoProtocolVersion\":1}'::jsonb where id=$1",
+    "update private.catalog_generation_intents set checkpoint=checkpoint||jsonb_build_object('initialVideoPlan',jsonb_build_object('setId',$2::text)),request_payload=request_payload||'{\"catalogVideoProtocolVersion\":1}'::jsonb where id=$1",
     [intent, set]
   );
   if (!options.admit) return { set, request, key, op: null as string | null };

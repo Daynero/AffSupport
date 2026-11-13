@@ -43,7 +43,7 @@ Goal: no Catalog section or hidden creation prerequisite remains. Independent te
 
 - [x] T017 [P] Add restricted scalar policy/count projections for generation/update attempts in supabase/migrations/20261208121000_automatic_catalog_content_diagnostics.sql without exposing row content or using current snapshot as historical proof.
 - [x] T018 Extend optional-column evidence parsing and standalone inspect join in scripts/analytics/catalog-generations.ts, scripts/analytics/queries.ts and scripts/analytics/types.ts; retain all existing batch/rename/native wrappers.
-- [x] T019 Add missing global image/pairing closed-code mappings and retirement/automatic capability notes in scripts/analytics/code-map.ts, scripts/analytics/coverage-registry.ts and packages/shared/src/team/launches/lifecycle.ts.
+- [x] T019 Add missing global image/pairing closed-code mappings and retirement/automatic capability notes in scripts/analytics/code-map.ts, scripts/analytics/coverage-registry.ts and packages/shared/src/team/launches/lifecycle.ts; retain the complete SQL analytics guard and admit those closed Launch codes in supabase/migrations/20261208122000_automatic_catalog_analytics_guard.sql.
 - [x] T020 Verify actual SQL→CLI creation/updater diagnosis, unknown/missing visibility and privacy in tests/catalog-generation-diagnostic-producer.test.ts, tests/analytics-catalog-generations.test.ts, tests/catalog-diagnostics-ingestion.test.ts and tests/analytics-code-map.test.ts.
 
 ## Phase7 — Polish and validation

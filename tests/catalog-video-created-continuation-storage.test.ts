@@ -88,7 +88,7 @@ it('continues real native dispatch, durable grants and original finalization aft
     [catalog, team, source, owner]
   );
   await db.root(
-    "update private.catalog_generation_intents set state='registered',checkpoint=jsonb_build_object('materialId',$2::text,'initialVideoPlan',jsonb_build_object('setId',$3::text)),result=jsonb_build_object('catalog',jsonb_build_object('materialId',$2::text))where id=$1",
+    "update private.catalog_generation_intents set state='registered',checkpoint=checkpoint||jsonb_build_object('materialId',$2::text,'initialVideoPlan',jsonb_build_object('setId',$3::text)),result=jsonb_build_object('catalog',jsonb_build_object('materialId',$2::text))where id=$1",
     [intent, catalog, set]
   );
   const authority = (

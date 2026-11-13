@@ -121,7 +121,7 @@ async function creation(opts: {
     requests.map((_, index) => ({ recipeRowId: crypto.randomUUID(), videoVariantIndex: index }))
   ]);
   await db.root(
-    "update private.catalog_generation_intents set checkpoint=jsonb_build_object('initialVideoPlan',jsonb_build_object('setId',$2::text)),request_payload=request_payload||'{\"catalogVideoProtocolVersion\":1}'::jsonb where id=$1",
+    "update private.catalog_generation_intents set checkpoint=checkpoint||jsonb_build_object('initialVideoPlan',jsonb_build_object('setId',$2::text)),request_payload=request_payload||'{\"catalogVideoProtocolVersion\":1}'::jsonb where id=$1",
     [intent, set]
   );
   const op = crypto.randomUUID();

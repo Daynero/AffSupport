@@ -402,7 +402,7 @@ it('seeds accepted initial N into the manager profile and exposes it without cha
     )
   )[0]!.v.id;
   await db.root(
-    "update private.catalog_generation_intents set checkpoint=jsonb_build_object('materialId',$2::uuid),state='registered'where id=$1",
+    "update private.catalog_generation_intents set checkpoint=checkpoint||jsonb_build_object('materialId',$2::uuid),state='registered'where id=$1",
     [intent, catalog]
   );
   const profile = (

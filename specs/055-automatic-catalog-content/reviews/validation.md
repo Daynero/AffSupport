@@ -39,3 +39,20 @@ PNGs and the gallery are in `~/Downloads/Soty-automatic-catalog-2026-11-13/`; th
 ## Remaining integration acceptance
 
 Run canonical static/suite/build checks on the combined source, retain exact results and skips, and update the next-release inventory. Packaged native-update acceptance and shared-image provider/cutover acceptance remain release prerequisites; these local feature checks do not replace them.
+
+## Combined-branch correction pass
+
+The build group passed all 6 gates on `602c7a5c`; the complete fast run passed
+all 15 static gates, then stopped after the first of 8 test shards. It reported
+1,364 passing checks, 15 failures and 17 named skips; this is a partial result.
+
+The failures exposed three integration boundaries. New exact-intent inspection
+also reads the existing timing projection, so the synthetic SELECT-only batch
+reader now receives the same two pure helper permissions as the real analytics
+role. Historical video-state fixtures now merge their checkpoint patches instead
+of discarding the new immutable server policy marker. Production marker validation
+is unchanged. Finally, the existing guard contract detected that the SQL analytics
+guard rejected all seven global-image Launch codes now emitted by the client.
+`20261208122000_automatic_catalog_analytics_guard.sql` preserves the complete
+integrated guard and adds only those closed values. A stale diagnostic source-file
+reference was also corrected. The corrected 14-file run passed all 148 checks. Full validation is pending.

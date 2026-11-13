@@ -708,7 +708,7 @@ it('fences a late material/name binding into a catalog intent while rename is un
   await f.accept(command);
   await expect(
     db.root(
-      "update private.catalog_generation_intents set checkpoint=jsonb_build_object('materialId',$2::text,'launchSubBinding',jsonb_build_object('name','Original catalog'))where id=$1",
+      "update private.catalog_generation_intents set checkpoint=checkpoint||jsonb_build_object('materialId',$2::text,'launchSubBinding',jsonb_build_object('name','Original catalog'))where id=$1",
       [intent, f.material]
     )
   ).rejects.toThrow('LAUNCH_BUSY');

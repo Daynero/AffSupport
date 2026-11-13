@@ -726,7 +726,7 @@ it('diagnoses durable pending, refusal and completion through actual SQL receipt
   await recoverLaunchBatchAdmission(service);
   await recoverLaunchBatchOther(service, async () => {});
   await db.db.exec(
-    'create role durable_batch_diagnostics_reader;grant usage on schema public to durable_batch_diagnostics_reader;grant select on all tables in schema public to durable_batch_diagnostics_reader;'
+    'create role durable_batch_diagnostics_reader;grant usage on schema public to durable_batch_diagnostics_reader;grant select on all tables in schema public to durable_batch_diagnostics_reader;grant execute on function private.catalog_generation_timings_v1(jsonb), private.catalog_content_diagnostic_receipt(jsonb,integer,jsonb) to durable_batch_diagnostics_reader;'
   );
   let chain = Promise.resolve();
   const install = () =>

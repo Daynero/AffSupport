@@ -1675,7 +1675,7 @@ function build(): Record<string, CodeLocation> {
         'supabase/functions/drive-ops/catalog-durable.ts',
         'supabase/functions/_shared/product-catalog.ts',
         'supabase/functions/_shared/catalog-image-rows.ts',
-        'supabase/migrations/20261208111000_automatic_catalog_content_diagnostics.sql'
+        'supabase/migrations/20261208121000_automatic_catalog_content_diagnostics.sql'
       ],
       check:
         'Inspect the exact intent and frozen recipe before retrying; count receipts prove planning only and never provider or browser delivery.'

@@ -3218,3 +3218,11 @@ The latest content recipe is a registered material-reference consumer and keeps
 `task_cleanup_reference_fence`. Removing or disabling that trigger intentionally
 closes automatic cleanup as unverified; never exempt the recipe table to bypass
 coverage. Existing recipes may retain images needed by an unresolved catalog write.
+
+### 055 analytics guard compatibility
+
+`20261208122000_automatic_catalog_analytics_guard.sql` adds seven closed global-image
+Launch error values to the existing analytics guard. Retain these values while any
+compatible client or queued historical event may emit them. Restoring an older
+body would silently discard those diagnostic events. No property names, payload
+limits, path/credential filters or function privileges are broadened.
