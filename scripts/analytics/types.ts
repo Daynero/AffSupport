@@ -1090,6 +1090,7 @@ export function investigatePrivacyFailure(
   if (key === 'files')
     return (REPO_FILE.test(value) ||
       value === 'packaging/Launcher.swift' ||
+      value === 'packaging/NativeUpdates/Coordinator.swift' ||
       /^packaging\/windows\/SotyAgentHost\/[A-Za-z]+\.cs$/.test(value)) &&
       !value.includes('..')
       ? null
