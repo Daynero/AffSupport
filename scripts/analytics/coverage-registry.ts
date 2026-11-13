@@ -75,6 +75,8 @@ export interface CapabilitySignal {
     | 'launch_account_picker'
     | 'launch_settings_editor'
     | 'launch_detail_session'
+    | 'launch_batch_admission'
+    | 'launch_batch_loading'
     | 'members_list'
     | 'assignees_list'
     | `task_${'create' | 'list' | 'read' | 'update' | 'editor_refresh' | 'editor_preserve_draft'}`
@@ -786,6 +788,48 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Browser network/provider root cause; raw import errors and URLs are never collected.'
     ],
     note: 'flow_step=launch_settings_editor bounds generic operations to this capability. Completion proves the editor DOM committed, pending close cancels, retry keeps its flow and creates a new attempt; failure uses team:library:LAUNCH_EDITOR_LOAD_FAILED. A missing terminal remains unknown.'
+  },
+  {
+    id: 'launches.batch_loading',
+    tool: 'team',
+    title: 'Launch batch module loading',
+    stages: ['requested', 'loaded'],
+    stageEvents: { requested: ['operation_started'], loaded: ['operation_completed'] },
+    start: [{ event: 'operation_started', correlate: 'flow_id', flowStep: 'launch_batch_loading' }],
+    terminal: [
+      { event: 'operation_completed', correlate: 'flow_id', flowStep: 'launch_batch_loading' },
+      { event: 'operation_failed', correlate: 'flow_id', flowStep: 'launch_batch_loading' },
+      { event: 'operation_cancelled', correlate: 'flow_id', flowStep: 'launch_batch_loading' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: ['Browser closure before import settles', 'Missing or delayed telemetry'],
+    note: 'The requested batch module is downloaded only after Generate. Loaded means the code is available, not that a launch was admitted or delivered. inspect reports loading separately and keeps batch terminal null; permission loss before import completion prevents dispatch. Import exceptions and URLs are never collected.'
+  },
+  {
+    id: 'launches.batch_admission',
+    tool: 'team',
+    title: 'Launch batch admission',
+    stages: ['selected', 'admission', 'accepted'],
+    stageEvents: { admission: ['operation_started'], accepted: ['operation_completed'] },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_batch_admission' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_batch_admission' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_batch_admission' },
+      { event: 'operation_cancelled', correlate: 'attempt_id', flowStep: 'launch_batch_admission' }
+    ],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'events',
+    unobservable: [
+      'Unsubmitted queue after browser closure',
+      'Missing acceptance reply',
+      'Preview does not prove result delivery'
+    ],
+    note: 'flow_id groups a batch; attempt_id equals the child launch flow and workflow_id identifies the saved launch. Admission completion proves a generation receipt, never final media or browser delivery. Existing team.launches and native pipeline journal retain authoritative stages, safe causes and body fromCache timing. Unknown admission retains exact keys; no terminal means unknown. Drafts are retained after queue stop or scope loss. Protected list state has confirmed parent/video progress; reserved name and preview values are never telemetry. Cache materialization and independent waiter cancellation are verified in restitch-multi-variation-reuse; no universal speedup or physical platform acceptance is claimed.'
   },
   {
     id: 'launches.session',

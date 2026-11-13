@@ -22,17 +22,20 @@ const key = (s: LaunchCopyScope, field: string) =>
 function Host({
   value = 'Alpha',
   actor = 'actor-a',
-  revision = 'base'
+  revision = 'base',
+  seedCopies
 }: {
   value?: string;
   actor?: string;
   revision?: string;
+  seedCopies?: Record<string, string>;
 }) {
   return (
     <LaunchCopyHistory
       scope={{ ...scope, actorId: actor, revisionId: revision }}
       lineageId={revision}
       values={{ 'campaign:1': value }}
+      seedCopies={seedCopies}
     >
       <CopyResultField
         compact
@@ -348,4 +351,28 @@ it('debounces receipt reads during manual typing and excludes uncopyable empty v
     vi.advanceTimersByTime(300);
   });
   expect(launchCopyMarksApi.read).toHaveBeenLastCalledWith(scope, {});
+});
+
+it('hands matching preview copies to the confirmed revision and preserves reset', async () => {
+  const seeds = { 'campaign:1': 'Alpha', catalog_name: 'Wrong reservation' };
+  const view = render(
+    <React.StrictMode>
+      <Host seedCopies={seeds} />
+    </React.StrictMode>
+  );
+  await tick();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(true);
+  expect(launchCopyMarksApi.write).toHaveBeenCalledWith(scope, { 'campaign:1': 'Alpha' }, true);
+  fireEvent.click(screen.getByRole('button', { name: 'Reset copy marks' }));
+  await tick();
+  view.rerender(
+    <React.StrictMode>
+      <Host seedCopies={{ ...seeds }} />
+    </React.StrictMode>
+  );
+  await tick();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(false);
+  view.rerender(<Host value="Different" revision="next" seedCopies={seeds} />);
+  await tick();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(false);
 });

@@ -149,3 +149,44 @@ export function launchAssignmentVisible(
 ) {
   launchVisible(c, tracker, action);
 }
+
+/** Batch membership joins to existing per-launch flow IDs; acceptance is not delivery. */
+export function launchBatchAdmission(
+  batchId: string,
+  itemFlowId: string,
+  launchId: string,
+  state: 'started' | 'accepted' | 'failed' | 'cancelled',
+  tracker: AnalyticsTracker = analytics
+) {
+  const properties = {
+    flow_id: batchId,
+    attempt_id: itemFlowId,
+    workflow_id: launchId,
+    flow_step: 'launch_batch_admission'
+  };
+  emit(() => {
+    if (state === 'started') tracker.track('operation_started', properties);
+    else if (state === 'accepted')
+      tracker.track('operation_completed', { ...properties, outcome: 'success', success: true });
+    else if (state === 'cancelled')
+      tracker.track('operation_cancelled', { ...properties, outcome: 'cancelled' });
+    else tracker.track('operation_failed', { ...properties, outcome: 'failure' });
+  });
+}
+
+/** Loading the batch UI proves neither admission nor delivery of any launch. */
+export function launchBatchLoading(
+  batchId: string,
+  state: 'started' | 'loaded' | 'failed' | 'cancelled',
+  tracker: AnalyticsTracker = analytics
+) {
+  const properties = { flow_id: batchId, flow_step: 'launch_batch_loading' };
+  emit(() => {
+    if (state === 'started') tracker.track('operation_started', properties);
+    else if (state === 'loaded')
+      tracker.track('operation_completed', { ...properties, outcome: 'success', success: true });
+    else if (state === 'cancelled')
+      tracker.track('operation_cancelled', { ...properties, outcome: 'cancelled' });
+    else tracker.track('operation_failed', { ...properties, outcome: 'failure' });
+  });
+}

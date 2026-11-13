@@ -44,7 +44,8 @@ export function useLaunchGeneration(
     version: string;
     config: LaunchDraft;
     sources: LaunchSourceSnapshot | null;
-  }) => void
+  }) => void,
+  externalFlowId?: string
 ) {
   const [busy, setBusy] = useState(false);
   const [pendingStage, setPendingStage] = useState<LaunchStage | null>(null);
@@ -226,7 +227,7 @@ export function useLaunchGeneration(
   } | null>(null);
   const intent = (method: 'catalog' | 'other', launchId?: string) => {
     if (!flow.current) {
-      flow.current = crypto.randomUUID();
+      flow.current = externalFlowId ?? crypto.randomUUID();
       launchIntent({ flowId: flow.current, launchId }, method);
     }
     return flow.current;
@@ -796,6 +797,8 @@ export function useLaunchGeneration(
         launchAction({ flowId: flow.current }, 'generate', 'cancelled');
       flow.current = null;
     },
-    hasUnresolvedRequest: request.current !== null || saveIntent.current !== null
+    get hasUnresolvedRequest() {
+      return request.current !== null || saveIntent.current !== null;
+    }
   };
 }

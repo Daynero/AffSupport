@@ -32,6 +32,11 @@ const FEATURE_045_COMPARISON = path.join(
   root,
   'specs/045-catalog-r2-images/bundle-budget-comparison.json'
 );
+const FEATURE_053_COMPARISON = path.join(
+  root,
+  'specs/053-bulk-launches/reviews/bundle-budget-comparison.json'
+);
+const BATCH_ROUTE = 'src/team/launches/LaunchBatch.tsx';
 const ACCOUNT_ROUTE = 'src/team/accounts/AccountSpace.tsx';
 const LAUNCH_ROUTE = 'src/team/launches/LaunchSpace.tsx';
 // Explicit feature 038 allowance: unified finance/runs, archive and library drag
@@ -47,6 +52,15 @@ const LAUNCH_ROOT_CEILING = 20_000;
 // Owner approved 2026-11-10 for 1.4.1: the catalog video fields and publication status
 // ship in production instead of a beta-only chunk (measured 52 389).
 const LAUNCH_EXCLUSIVE_CEILING = 54_000;
+// 053 implementation scope: exact detached 1.4.4 base measured 54,291 B Launch
+// and 1,081,860 B shared/existing (already +17,072 B above the older global cap).
+// Keep that existing growth distinct from this feature's bounded contribution.
+// Evidence, identical lockfiles and complete lazy graphs are archived in 053.
+// Entry, largest chunk, Accounts, root Launch and the original baseline stay fixed.
+const RELEASE_144_EXISTING_ALLOWANCE = 18_000;
+const FEATURE_053_LAUNCH_ALLOWANCE = 8_000;
+const FEATURE_053_LAUNCH_INCREMENT_CEILING = 7_500;
+const FEATURE_053_SHARED_ALLOWANCE = 3_000;
 // Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
 // measured shared growth is 30,145 B against the unchanged clean 045 base.
 const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
@@ -125,7 +139,13 @@ function measure() {
 }
 
 describeRequiring(
-  requirePath('apps/web/dist/assets', MANIFEST, ACCOUNTS_BEFORE, FEATURE_045_COMPARISON),
+  requirePath(
+    'apps/web/dist/assets',
+    MANIFEST,
+    ACCOUNTS_BEFORE,
+    FEATURE_045_COMPARISON,
+    FEATURE_053_COMPARISON
+  ),
   'download budget',
   () => {
     const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline;
@@ -186,7 +206,39 @@ describeRequiring(
       expect(measured.lazyLaunchChunks).toBe(1);
       expect(measured.lazyLaunch).toBe(sizeOf(launches.rootFile));
       expect(measured.lazyLaunch).toBeLessThanOrEqual(LAUNCH_ROOT_CEILING);
-      expect(launchBytes).toBeLessThanOrEqual(LAUNCH_EXCLUSIVE_CEILING);
+      expect(launchBytes).toBeLessThanOrEqual(
+        LAUNCH_EXCLUSIVE_CEILING + FEATURE_053_LAUNCH_ALLOWANCE
+      );
+      const feature053 = JSON.parse(readFileSync(FEATURE_053_COMPARISON, 'utf8')) as {
+        base_source: string;
+        baseline: {
+          launch_exclusive_gzip: number;
+          shared_existing_gzip: number;
+          lockfile_sha256: string;
+        };
+        feature: { lockfile_sha256: string };
+      };
+      expect(feature053.base_source).toBe('2d616995');
+      expect(feature053.baseline.launch_exclusive_gzip).toBe(54_291);
+      expect(feature053.baseline.shared_existing_gzip).toBe(1_081_860);
+      expect(feature053.baseline.lockfile_sha256).toBe(feature053.feature.lockfile_sha256);
+      expect(
+        Math.max(0, launchBytes - feature053.baseline.launch_exclusive_gzip)
+      ).toBeLessThanOrEqual(FEATURE_053_LAUNCH_INCREMENT_CEILING);
+      expect(
+        Math.max(0, existingBytes - feature053.baseline.shared_existing_gzip)
+      ).toBeLessThanOrEqual(FEATURE_053_SHARED_ALLOWANCE);
+      if (
+        typeof manifest !== 'object' ||
+        !manifest ||
+        !(BATCH_ROUTE in manifest) ||
+        !(LAUNCH_ROUTE in manifest)
+      )
+        throw new Error('Batch lazy route missing');
+      expect(manifest[BATCH_ROUTE]).toMatchObject({ isDynamicEntry: true });
+      expect(manifest[LAUNCH_ROUTE]).toMatchObject({
+        dynamicImports: expect.arrayContaining([BATCH_ROUTE])
+      });
       expect(accountBytes).toBeLessThanOrEqual(ACCOUNTS_EXCLUSIVE_CEILING);
       expect(accountsIncrement).toBeLessThanOrEqual(ACCOUNTS_INCREMENTAL_ALLOWANCE);
       const feature045Increment = Math.max(
@@ -195,13 +247,21 @@ describeRequiring(
       );
       expect(
         feature045Increment,
-        `shared/existing growth from clean 045 base: ${feature045Increment}B; bounded 1.3.0 relative growth ${RELEASE_130_SHARED_GROWTH_CEILING}B`
-      ).toBeLessThanOrEqual(RELEASE_130_SHARED_GROWTH_CEILING);
+        `shared/existing growth from clean 045 base: ${feature045Increment}B; 1.3.0 relative cap ${RELEASE_130_SHARED_GROWTH_CEILING}B plus measured 1.4.4 ${RELEASE_144_EXISTING_ALLOWANCE}B and 053 ${FEATURE_053_SHARED_ALLOWANCE}B`
+      ).toBeLessThanOrEqual(
+        RELEASE_130_SHARED_GROWTH_CEILING +
+          RELEASE_144_EXISTING_ALLOWANCE +
+          FEATURE_053_SHARED_ALLOWANCE
+      );
       expect(
         existingBytes,
         `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
       ).toBeLessThanOrEqual(
-        ceiling + FEATURE_045_INCREMENTAL_ALLOWANCE + RELEASE_047_049_ALLOWANCE
+        ceiling +
+          FEATURE_045_INCREMENTAL_ALLOWANCE +
+          RELEASE_047_049_ALLOWANCE +
+          RELEASE_144_EXISTING_ALLOWANCE +
+          FEATURE_053_SHARED_ALLOWANCE
       );
     });
 

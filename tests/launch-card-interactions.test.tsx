@@ -255,3 +255,12 @@ it('shows the day the launch is for, with when it was made in the title', () => 
   expect(time.getAttribute('dateTime')).toBe('2026-11-12');
   expect(time.getAttribute('title')).toMatch(/Launch date: .*created/u);
 });
+
+it('uses modifier clicks on the heading for selection, including shift range', () => {
+  const open = vi.fn(),
+    selected = vi.fn();
+  render(<LaunchCard value={summary()} onOpen={open} onSelectedChange={selected} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Offer' }), { shiftKey: true });
+  expect(selected).toHaveBeenCalledWith(true, { shiftKey: true });
+  expect(open).not.toHaveBeenCalled();
+});

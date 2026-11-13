@@ -3146,3 +3146,18 @@ upload was published and that finished more than five minutes ago) and patches
 already patched — production was patched with this body on 2026-11-13). Rolling back means
 restoring the 399995 body through a reviewed forward migration and dropping the helper; sets
 already canceled stay canceled and their outputs stay in Drive.
+
+### 20261207400700_launch_bulk_projection.sql — bulk Launch projection
+
+This additive migration keeps all existing public RPC signatures, grants and JSON fields.
+It adds optional creation cursors, bounded generation/video progress, source-grouping identity,
+a reserved catalog name, a partial index for newest-first listing and an index for the latest generation lookup. The prior detail body
+remains in `private.get_launch_before_bulk`; its public grants are revoked. Public generated
+DB types do not change: both RPC arguments and their JSON return types are unchanged.
+
+For a product rollback, deploy the previous verified web/agent snapshot through the normal
+release channel. Leave the additive projection and index in place: older clients ignore the
+new fields and continue using legacy date pagination when `sort=created` is absent. No data,
+generation receipts, copied marks or catalog resources need reversal. Do not run a down
+migration, remove the index or replay uncertain writes. A defect in this projection is repaired
+with a new forward migration after checking the original wrapper chain and its ACL tests.

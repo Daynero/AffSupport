@@ -1,9 +1,8 @@
 import { useLaunchCopyMark } from './LaunchCopyHistory';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Check, ExternalLink, Pencil } from 'lucide-react';
+import { Check, Copy, ExternalLink, Pencil } from 'lucide-react';
 import { Button, Input, Textarea } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useOptionalToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 export function CopyResultField({
   copyKey,
@@ -40,12 +39,13 @@ export function CopyResultField({
 }) {
   const { t } = useI18n();
   const copiedDescriptionId = useId();
-  const toasts = useOptionalToasts();
   const [editing, setEditing] = useState(false);
   const [flashValue, setFlashValue] = useState<string | null>(null);
+  const [sessionCopiedValue, setSessionCopiedValue] = useState<string | null>(null);
   const copied = flashValue === value;
   const remembered = useLaunchCopyMark(copyKey, value);
-  const alreadyCopied = remembered.seen && !copied;
+  const alreadyCopied =
+    (remembered.seen || (!remembered.managed && sessionCopiedValue === value)) && !copied;
   const [failed, setFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editor = useRef<HTMLInputElement>(null);
@@ -63,6 +63,7 @@ export function CopyResultField({
   const inlineEdit = compact && !campaignOrdinal;
   useEffect(() => {
     setFlashValue(null);
+    setSessionCopiedValue(null);
     setFailed(false);
   }, [value]);
   useEffect(() => {
@@ -100,8 +101,9 @@ export function CopyResultField({
       } catch {
         // Reporting failure cannot undo a successful clipboard write.
       }
-      toasts?.push({ tone: 'success', text: t('launchesCopied') });
+
       setFlashValue(copiedValue);
+      setSessionCopiedValue(copiedValue);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setFlashValue(null), 1500);
     } catch {
@@ -231,14 +233,14 @@ export function CopyResultField({
               <span className="launch-result-campaign-budget">{campaignBudget}</span>
             )}
             <span className="launch-result-text text-left">{value}</span>
-            {alreadyCopied && (
-              <Check
-                className="launch-copy-mark"
-                size={ICON_SIZE}
-                strokeWidth={ICON_STROKE}
-                aria-hidden="true"
-              />
-            )}
+            <span className="launch-copy-affordance">
+              {alreadyCopied || copied ? (
+                <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              ) : (
+                <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              )}
+              <span>{t(alreadyCopied || copied ? 'launchesCopied' : 'launchesCopyValue')}</span>
+            </span>
           </Button>
           {inlineEdit && editable && (
             <Button

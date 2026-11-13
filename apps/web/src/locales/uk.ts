@@ -1,6 +1,31 @@
 import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
+  launchesBulkPreviousResult: 'Попередній збережений результат',
+  launchesBulkQueued: 'У черзі',
+  launchesBulkFailed: 'Помилка',
+  launchesBulkPartial: 'Потребує уваги',
+  launchesBulkGenerate: 'Генерувати вибрані ({count})',
+  launchesBulkStop: 'Зупинити чергу',
+  launchesBulkSummary: 'Масовий запуск · завершено {done} із {total}',
+  launchesBulkSelectedCopied: 'Налаштування скопійовано. Вставте, щоб створити чернетки.',
+  launchesBulkPaste: 'Вставити налаштування',
+  launchesBulkCopy: 'Копіювати налаштування',
+  launchesBulkUncertain: 'Перевірте цей запуск перед повтором',
+  launchesBulkStopped: 'Не передано',
+  launchesBulkAccepted: 'Передано',
+  launchesBulkCreated: 'Створено {date}',
+  launchesPendingTitle: 'Готуємо результат',
+  launchesPendingHelp: 'Назви кампаній уже можна копіювати. Посилання з’являться після створення.',
+  launchesPendingName: 'Резервуємо назву каталогу…',
+  launchesPendingLink: 'Створюємо посилання…',
+  launchesPendingPreview: 'Попередній перегляд',
+  launchesBulkDraftsOnly: 'Виберіть збережені чернетки для спільної генерації',
+  launchesBulkLimit: 'Виберіть до 100 збережених заготовок для одного масового запуску.',
+  launchesBulkScope: 'Якщо залишити сторінку, непередані чернетки залишаться збереженими.',
+  launchesBulkNewest: 'Спочатку найновіші',
+  launchesBulkSelectAll: 'Вибрати завантажені запуски',
+
   catalogWriteUnsupported:
     'Публікацію відеопосилання заблоковано: сховище не підтримує безпечне оновлення клітинок каталогу. Наявні посилання збережено.',
   catalogVideoDeferredTableReady:

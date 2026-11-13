@@ -12,6 +12,9 @@
  * because a stream copy cannot begin mid-GOP.
  */
 
+import { waitForShared } from './shared-wait.js';
+import { constants } from 'node:fs';
+import { copyFile, link } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -58,6 +61,8 @@ export interface PreparedBody {
 export type PrepareResult = { ok: true; value: PreparedBody } | { ok: false; error: string };
 
 export interface PrepareOptions {
+  /** Materialize an immutable consumer copy before releasing the eviction pin. */
+  workspacePath?: string;
   profile: SourceProfile;
   plan: StitchPlan;
   /** Same queue id the browser sends as run_id. */
@@ -111,6 +116,8 @@ export function preparedBodyKey(
  * the second waits for the first and then finds it in the cache.
  */
 const inFlight = new Map<string, Promise<PrepareResult>>();
+const pins = new Map<string, number>();
+const evicting = new Map<string, Promise<void>>();
 
 export class PreparedBodyCache {
   private readonly directory: string;
@@ -127,10 +134,40 @@ export class PreparedBodyCache {
 
   async prepare(options: PrepareOptions): Promise<PrepareResult> {
     const target = this.pathFor(options.profile, options.plan, options.sourceIdentity ?? null);
+    while (evicting.has(target)) await evicting.get(target);
+    pins.set(target, (pins.get(target) ?? 0) + 1);
+    try {
+      if (options.signal?.aborted) return { ok: false, error: 'STITCH_CANCELLED' };
+      const result = await this.#sharedPrepare(target, options);
+      if (options.signal?.aborted) return { ok: false, error: 'STITCH_CANCELLED' };
+      if (!result.ok || !options.workspacePath) return result;
+      if (path.resolve(options.workspacePath) === path.resolve(target))
+        return { ok: false, error: 'BODY_PREPARE_FAILED' };
+      // A previous run may have left a hardlink here. Unlink it; never overwrite its shared inode.
+      await rm(options.workspacePath, { force: true });
+      await link(result.value.path, options.workspacePath).catch(() =>
+        copyFile(result.value.path, options.workspacePath!, constants.COPYFILE_EXCL)
+      );
+      return { ok: true, value: { ...result.value, path: options.workspacePath } };
+    } catch {
+      return {
+        ok: false,
+        error: options.signal?.aborted ? 'STITCH_CANCELLED' : 'BODY_PREPARE_FAILED'
+      };
+    } finally {
+      const remaining = (pins.get(target) ?? 1) - 1;
+      if (remaining) pins.set(target, remaining);
+      else pins.delete(target);
+      // Consumer files have their own directory entry and survive cache eviction.
+      if (options.workspacePath) await this.evictDownToCap();
+    }
+  }
+
+  async #sharedPrepare(target: string, options: PrepareOptions): Promise<PrepareResult> {
     for (;;) {
       const running = inFlight.get(target);
       if (!running) break;
-      const shared = await running;
+      const shared = await waitForShared(running, options.signal);
       // Someone else's cancellation is not ours: look again, and build it ourselves if needed.
       if (shared.ok || shared.error !== 'STITCH_CANCELLED' || options.signal?.aborted)
         return shared.ok ? { ok: true, value: { ...shared.value, fromCache: true } } : shared;
@@ -198,7 +235,14 @@ export class PreparedBodyCache {
     if (total <= this.maxBytes) return;
     for (const entry of entries.sort((a, b) => a.usedAtMs - b.usedAtMs)) {
       if (total <= this.maxBytes) return;
-      await rm(entry.path, { force: true }).catch(() => {});
+      if (pins.has(entry.path) || evicting.has(entry.path)) continue;
+      const removal = rm(entry.path, { force: true }).catch(() => {});
+      evicting.set(entry.path, removal);
+      try {
+        await removal;
+      } finally {
+        if (evicting.get(entry.path) === removal) evicting.delete(entry.path);
+      }
       total -= entry.size;
     }
   }

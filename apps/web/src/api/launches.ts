@@ -256,7 +256,10 @@ export const launchApi = {
     teamId: string,
     filter: Record<string, Json> = {},
     limit = 50
-  ): Promise<{ items: LaunchSummary[]; nextCursor: { id: string; date: string | null } | null }> {
+  ): Promise<{
+    items: LaunchSummary[];
+    nextCursor: { id: string; date: string | null; createdAt?: string } | null;
+  }> {
     const { data, error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('list_launches', {
         p_team: teamId,
@@ -269,7 +272,7 @@ export const launchApi = {
       throw new TeamApiError('INVALID_RESPONSE', false);
     const items = data.items.map(parseLaunchSummary);
     if (items.some(x => !x)) throw new TeamApiError('INVALID_RESPONSE', false);
-    let nextCursor: { id: string; date: string | null } | null = null;
+    let nextCursor: { id: string; date: string | null; createdAt?: string } | null = null;
     if (data.nextCursor !== null) {
       const c = data.nextCursor;
       if (
@@ -278,7 +281,16 @@ export const launchApi = {
         (c.date !== null && typeof c.date !== 'string')
       )
         throw new TeamApiError('INVALID_RESPONSE', false);
-      nextCursor = { id: c.id, date: c.date };
+      if (
+        c.createdAt !== undefined &&
+        (typeof c.createdAt !== 'string' || !Number.isFinite(Date.parse(c.createdAt)))
+      )
+        throw new TeamApiError('INVALID_RESPONSE', false);
+      nextCursor = {
+        id: c.id,
+        date: c.date,
+        ...(typeof c.createdAt === 'string' ? { createdAt: c.createdAt } : {})
+      };
     }
     return { items: items.filter((x): x is LaunchSummary => x !== null), nextCursor };
   },

@@ -259,3 +259,72 @@ describe('a held screen', () => {
     expect(encodes[0]).not.toContain('-stream_loop');
   });
 });
+
+it('materializes twenty independent consumers before eviction can remove the shared body', async () => {
+  const directory = await root();
+  const cache = new PreparedBodyCache({ root: directory, maxBytes: 1 });
+  tools.delayMs = 20;
+  const results = await Promise.all(
+    Array.from({ length: 20 }, (_, index) =>
+      cache.prepare({
+        profile: profile(`/tmp/batch-${index}/source.bin`, index),
+        plan,
+        sourceIdentity: contentIdentity('c'.repeat(32), 1000),
+        workspacePath: path.join(directory, `consumer-${index}.mp4`)
+      })
+    )
+  );
+  expect(tools.calls).toBe(1);
+  expect(results.every(result => result.ok)).toBe(true);
+  for (const result of results)
+    if (result.ok) expect(await readFile(result.value.path, 'utf8')).toBe('body');
+  expect(new Set(results.flatMap(result => (result.ok ? [result.value.path] : []))).size).toBe(20);
+});
+
+it('cancels a waiting consumer promptly without canceling the shared producer', async () => {
+  const cache = new PreparedBodyCache({ root: await root() });
+  tools.delayMs = 100;
+  const options = {
+    profile: profile('/tmp/producer/source.bin', 1),
+    plan,
+    sourceIdentity: contentIdentity('d'.repeat(32), 1000)
+  };
+  let completed = false;
+  const producer = cache.prepare(options).then(result => {
+    completed = true;
+    return result;
+  });
+  const controller = new AbortController();
+  const waiter = cache.prepare({ ...options, signal: controller.signal });
+  controller.abort();
+  expect(await waiter).toEqual({ ok: false, error: 'STITCH_CANCELLED' });
+  expect(completed).toBe(false);
+  expect((await producer).ok).toBe(true);
+  expect(tools.calls).toBe(1);
+});
+
+it('never overwrites a shared cached inode when a consumer workspace is reused', async () => {
+  const directory = await root();
+  const cache = new PreparedBodyCache({ root: directory });
+  const source = profile('/synthetic/one.mp4', 1);
+  const workspacePath = path.join(directory, 'consumer.mp4');
+  const first = await cache.prepare({
+    profile: source,
+    plan,
+    workspacePath,
+    sourceIdentity: 'verified:first'
+  });
+  expect(first.ok).toBe(true);
+  await writeFile(workspacePath, 'first immutable content');
+  const second = await cache.prepare({
+    profile: source,
+    plan,
+    workspacePath,
+    sourceIdentity: 'verified:second'
+  });
+  expect(second.ok).toBe(true);
+  expect(await readFile(cache.pathFor(source, plan, 'verified:first'), 'utf8')).toBe(
+    'first immutable content'
+  );
+  expect(await readFile(workspacePath, 'utf8')).toBe('body');
+});

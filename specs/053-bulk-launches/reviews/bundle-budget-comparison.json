@@ -1,0 +1,145 @@
+{
+  "base_source": "2d616995",
+  "measured_at": "2026-11-13T01:38:36.170Z",
+  "command": "npm ci --ignore-scripts; npm run build",
+  "node": "v22.23.2",
+  "baseline": {
+    "total_gzip": 1191698,
+    "launch_root_gzip": 8385,
+    "launch_initial_exclusive_gzip": 8570,
+    "launch_exclusive_gzip": 54291,
+    "accounts_exclusive_gzip": 79960,
+    "shared_existing_gzip": 1081860,
+    "batch_lazy": false,
+    "batch_in_static_graph": false,
+    "lockfile_sha256": "67ad598c05ffe1b43e11fe68fe7f23e7fa3e5aafeb999ed4d0fded7dfa3e4403",
+    "launch_files": [
+      {
+        "file": "assets/BN4EYiDx.js",
+        "gzip_bytes": 4594,
+        "sha256": "0fcab2750250f615527056f9e6e08d2c5c7cf1727f7c6c1586ef953d794e4c6f"
+      },
+      {
+        "file": "assets/CYAbkXME.js",
+        "gzip_bytes": 264,
+        "sha256": "490edd58e833b5b1ce2262a1c607557a85efdd9d89ffe3459af686a924fafb41"
+      },
+      {
+        "file": "assets/DqpWkSke.js",
+        "gzip_bytes": 185,
+        "sha256": "8a16a0aa5e389b4cbe30a1061e4850448e945516506bf6609b9358e8a5f71ca5"
+      },
+      {
+        "file": "assets/LaunchCatalogVideoFields-DA95UbaM.js",
+        "gzip_bytes": 848,
+        "sha256": "1781bd83f5dce14da45d430c7872b622dd4714980e61bb47e3c30151822b8306"
+      },
+      {
+        "file": "assets/LaunchEditor-CXdxWjzE.js",
+        "gzip_bytes": 9649,
+        "sha256": "632011b57fdb96ffafe408c372e7faa3aca82bb30d40d07d66675e27d8a55529"
+      },
+      {
+        "file": "assets/LaunchSession-VgmtJZeY.js",
+        "gzip_bytes": 30065,
+        "sha256": "57a739303684dbebb8310f2ab0884110e1434953ecd431f4f4f3607e14162591"
+      },
+      {
+        "file": "assets/LaunchSpace-ByBFAC46.js",
+        "gzip_bytes": 8385,
+        "sha256": "1c9cc68d7ea4a1ff50770a733539dfcb3d974082cb62c00281c486a397222921"
+      },
+      {
+        "file": "assets/j8JUyUMl.js",
+        "gzip_bytes": 301,
+        "sha256": "d540d1e542f854b49b41377d04f225c015add965e09dc2a17a69823d92d79f07"
+      }
+    ]
+  },
+  "feature": {
+    "total_gzip": 1200854,
+    "launch_root_gzip": 10594,
+    "launch_initial_exclusive_gzip": 12642,
+    "launch_exclusive_gzip": 61668,
+    "accounts_exclusive_gzip": 79964,
+    "shared_existing_gzip": 1083635,
+    "batch_lazy": true,
+    "batch_in_static_graph": false,
+    "lockfile_sha256": "67ad598c05ffe1b43e11fe68fe7f23e7fa3e5aafeb999ed4d0fded7dfa3e4403",
+    "launch_files": [
+      {
+        "file": "assets/CBLWr4YF.js",
+        "gzip_bytes": 878,
+        "sha256": "011f3f922138a6fc4251e600ae78f26048818bce015f10abcadf7b701b384469"
+      },
+      {
+        "file": "assets/CIez6XNA.js",
+        "gzip_bytes": 185,
+        "sha256": "30fbc090b26040bdee47fc6cf8bb215f8b399b71380b8dc0b9e10eb85aea32a2"
+      },
+      {
+        "file": "assets/CYAbkXME.js",
+        "gzip_bytes": 264,
+        "sha256": "490edd58e833b5b1ce2262a1c607557a85efdd9d89ffe3459af686a924fafb41"
+      },
+      {
+        "file": "assets/CloD1AiJ.js",
+        "gzip_bytes": 4659,
+        "sha256": "5cdeb7ab265de6dc9524ffe5ee6d36fd42600a78b4f3aa08a9b6d6575c389181"
+      },
+      {
+        "file": "assets/D5vkv7UV.js",
+        "gzip_bytes": 317,
+        "sha256": "21a74dc70165a4365f7dec1d4afb75e7fd487ac4ce72d01c9ca64d1e719bc284"
+      },
+      {
+        "file": "assets/Ddx4_KJ6.js",
+        "gzip_bytes": 721,
+        "sha256": "ad67571052cd8292441f90a94b33c9a17b5c9251218e4fc8ef384b277020335b"
+      },
+      {
+        "file": "assets/DrMH0RCQ.js",
+        "gzip_bytes": 4812,
+        "sha256": "0c603a864ce5b69614fd4483312998eea771613f5491290b0c5e419ca1daba3a"
+      },
+      {
+        "file": "assets/LaunchBatch-BK3o-szI.js",
+        "gzip_bytes": 2241,
+        "sha256": "fec7839fef3d7016439b3f84ac644b6d8f5f6a1d375539d700a7d4e8b76e0be9"
+      },
+      {
+        "file": "assets/LaunchCatalogVideoFields-C_biXk7q.js",
+        "gzip_bytes": 856,
+        "sha256": "2d8af2e52a30c0b6ffb11df42e815acae4feb598480fc497122ba21b532d62ee"
+      },
+      {
+        "file": "assets/LaunchEditor-DnFkGl4W.js",
+        "gzip_bytes": 9663,
+        "sha256": "6e97c4e740541cf5f3e05d5b315e94a40b584653d90b945f326c8f6a81a7003d"
+      },
+      {
+        "file": "assets/LaunchSession-BGvXvek2.js",
+        "gzip_bytes": 26478,
+        "sha256": "3fa62eb672aa6df45dce57d2ab0c2b81b7ebb71daedf7a53a9a845e3ab44ab38"
+      },
+      {
+        "file": "assets/LaunchSpace-CJfdliQo.js",
+        "gzip_bytes": 10594,
+        "sha256": "c31c5957603212e8b7309970c6c72ae6d2573b8c2a50783b7b78a5d7f43bf12b"
+      }
+    ]
+  },
+  "increase": {
+    "total_gzip": 9156,
+    "launch_exclusive_gzip": 7377,
+    "shared_existing_gzip": 1775,
+    "launch_initial_exclusive_gzip": 4072
+  },
+  "limits": {
+    "launch_exclusive_gzip": 62000,
+    "feature_launch_increment": 7500,
+    "feature_shared_increment": 3000,
+    "launch_root_gzip": 20000
+  },
+  "scope": "Exact detached release source versus isolated feature checkout, identical lockfiles/configuration. Includes descendant lazy chunks. Existing base exceeds the older 1.4.1 shared budget; no baseline file or entry/largest/Accounts caps are changed. Implementation evidence, not release qualification."
+}

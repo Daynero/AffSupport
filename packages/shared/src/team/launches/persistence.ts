@@ -120,7 +120,7 @@ export function parseLaunchPreview(value: unknown): LaunchPreview | null {
     (sub3 !== null && typeof sub3 !== 'string')
   )
     return null;
-  const campaigns = [];
+  const campaigns: LaunchPreview['campaigns'] = [];
   for (const c of value.campaigns) {
     if (
       !isRecord(c) ||
@@ -305,6 +305,15 @@ export function parseLaunchDetail(value: unknown): LaunchDetail | null {
       value.workStatus !== 'done')
   )
     return null;
+  if (
+    value.pendingCatalogName !== undefined &&
+    value.pendingCatalogName !== null &&
+    (typeof value.pendingCatalogName !== 'string' ||
+      !value.pendingCatalogName.trim() ||
+      value.pendingCatalogName.length > 1024 ||
+      /\p{Cc}/u.test(value.pendingCatalogName))
+  )
+    return null;
   const draft = parseLaunchDraft(value.draft);
   const sources =
     value.expectedSourceSnapshot === null ? null : parseLaunchSources(value.expectedSourceSnapshot);
@@ -322,6 +331,9 @@ export function parseLaunchDetail(value: unknown): LaunchDetail | null {
     version: value.version,
     draft,
     expectedSourceSnapshot: sources,
+    ...(typeof value.pendingCatalogName === 'string' || value.pendingCatalogName === null
+      ? { pendingCatalogName: value.pendingCatalogName }
+      : {}),
     assigneeId: value.assigneeId,
     workStatus: value.workStatus,
     activeRevision: active,
@@ -357,6 +369,8 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
       ? null
       : LAUNCH_GENERATION_STATES.find(s => s === value.generationState);
   if (generationState === undefined) return null;
+  const generation = value.generation == null ? null : parseLaunchGeneration(value.generation);
+  if (value.generation != null && !generation) return null;
   return {
     id: value.id,
     ...(assignment ? { assignment } : {}),
@@ -395,6 +409,10 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
       ? { campaignCount: value.campaignCount }
       : {}),
     ...(typeof value.advantagePlus === 'boolean' ? { advantagePlus: value.advantagePlus } : {}),
-    generationState
+    ...(typeof value.sourceMaterialId === 'string'
+      ? { sourceMaterialId: value.sourceMaterialId }
+      : {}),
+    generationState,
+    ...(value.generation !== undefined ? { generation } : {})
   };
 }

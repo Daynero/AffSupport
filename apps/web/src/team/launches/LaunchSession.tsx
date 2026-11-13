@@ -1,4 +1,5 @@
-import { launchMutation, launchObservedGeneration, launchVisible } from './analytics';
+import { LaunchPendingResult } from './LaunchPendingResult.js';
+import { launchAction, launchMutation, launchObservedGeneration, launchVisible } from './analytics';
 import { launchPublicationTimePassed } from './launchPublicationTiming';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, History as HistoryIcon, Trash2, X } from 'lucide-react';
@@ -130,6 +131,38 @@ export function LaunchSession({
   const latestProgressDetail = useRef(detail);
   latestProgressDetail.current = detail;
   const generationClick = useRef(false);
+  const [previewCopies, setPreviewCopies] = useState<{
+    flowId: string;
+    values: Record<string, string>;
+  } | null>(null);
+  const rememberPreviewCopy = (field: string, value: string) => {
+    const flowId = previewCopies?.flowId ?? detail?.generation?.requestKey;
+    if (!flowId) return;
+    setPreviewCopies(current =>
+      current && current.flowId !== flowId
+        ? current
+        : { flowId, values: { ...current?.values, [field]: value } }
+    );
+  };
+  const previewFlowId = previewCopies?.flowId ?? detail?.generation?.requestKey;
+  const previewGeneration =
+    detail?.generation?.requestKey === previewFlowId ? detail?.generation : null;
+  const previewCatalogName = previewGeneration ? detail?.pendingCatalogName : null;
+  const reportPreviewCopy = (
+    field: 'catalog_name' | 'campaign_name',
+    outcome: 'success' | 'failure'
+  ) =>
+    launchAction(
+      {
+        flowId: previewFlowId ?? undefined,
+        launchId: detail?.id,
+        generationId: previewGeneration?.id
+      },
+      'copy_field',
+      outcome,
+      undefined,
+      field
+    );
   const failedRestitch = useRef<string | null>(null);
   const observeFailedRestitch = useCallback((id: string | null) => {
     failedRestitch.current = id;
@@ -262,6 +295,11 @@ export function LaunchSession({
     teamId,
     next => {
       const g = next.generation;
+      const acceptedFlow = g?.requestKey;
+      if (acceptedFlow)
+        setPreviewCopies(current =>
+          current?.flowId === acceptedFlow ? current : { flowId: acceptedFlow, values: {} }
+        );
       if (g && !['succeeded', 'canceled'].includes(g.state)) {
         ownedKey.current ??= g.requestKey ?? null;
         if (g.requestKey === ownedKey.current) pendingGeneration.current = g.id;
@@ -276,30 +314,36 @@ export function LaunchSession({
           approvedOutputs.current = null;
           approvedConfig.current = null;
         }
-        onChange(next, 'settings');
+        onChange(next, 'result');
       }
     },
     receipt => {
       draft.acknowledge(receipt.config, receipt.sources, receipt.version);
       if (!detail) {
-        onChange({
-          id: receipt.id,
-          version: receipt.version,
-          draft: receipt.config,
-          expectedSourceSnapshot: receipt.sources,
-          assigneeId: null,
-          workStatus: 'todo',
-          activeRevision: null,
-          generation: null
-        });
+        onChange(
+          {
+            id: receipt.id,
+            version: receipt.version,
+            draft: receipt.config,
+            expectedSourceSnapshot: receipt.sources,
+            assigneeId: null,
+            workStatus: 'todo',
+            activeRevision: null,
+            generation: null
+          },
+          'result'
+        );
       } else if (detail.id === receipt.id) {
         if (manual.revision?.id === detail.activeRevision?.id) manual.advanceBase(receipt.version);
-        onChange({
-          ...detail,
-          version: receipt.version,
-          draft: receipt.config,
-          expectedSourceSnapshot: receipt.sources
-        });
+        onChange(
+          {
+            ...detail,
+            version: receipt.version,
+            draft: receipt.config,
+            expectedSourceSnapshot: receipt.sources
+          },
+          'result'
+        );
       }
     }
   );
@@ -980,7 +1024,9 @@ export function LaunchSession({
     setChangeReview(null);
     inputAuthority.current.locked = true;
     inputAuthority.current.generationLocked = true;
+    setPreviewCopies({ flowId: request.key, values: {} });
     draft.setConfig(request.config);
+    onTab('result');
     ownedKey.current = request.key;
     approvedOutputs.current = overrides;
     approvedConfig.current = { config: request.config, sources: request.sources };
@@ -1406,7 +1452,11 @@ export function LaunchSession({
               if (next === 'result' || next === 'settings') onTab(next);
             }}
             items={[
-              { id: 'result', label: t('launchesResult'), disabled: !displayedRevision },
+              {
+                id: 'result',
+                label: t('launchesResult'),
+                disabled: !displayedRevision && !showProgress && !detail?.generation
+              },
               { id: 'settings', label: t('launchesSettings') }
             ]}
           />
@@ -1694,11 +1744,48 @@ export function LaunchSession({
           }}
         />
       )}
-      {tab === 'result' && displayedRevision ? (
+      {tab === 'result' &&
+        !historical &&
+        (generation.busy ||
+          generation.hasUnresolvedRequest ||
+          (detail?.generation && detail.generation.state !== 'succeeded')) &&
+        displayedRevision && (
+          <>
+            <LaunchPendingResult
+              config={draft.config}
+              sources={draft.sources}
+              catalogName={previewCatalogName}
+              onCopied={rememberPreviewCopy}
+              onCopyOutcome={reportPreviewCopy}
+            />
+            <p className="text-label text-ink-muted">{t('launchesBulkPreviousResult')}</p>
+          </>
+        )}
+      {tab === 'result' &&
+      !historical &&
+      (generation.busy ||
+        generation.hasUnresolvedRequest ||
+        (detail?.generation && detail.generation.state !== 'succeeded')) &&
+      !displayedRevision ? (
+        <LaunchPendingResult
+          config={draft.config}
+          sources={draft.sources}
+          catalogName={previewCatalogName}
+          onCopied={rememberPreviewCopy}
+          onCopyOutcome={reportPreviewCopy}
+        />
+      ) : tab === 'result' && displayedRevision ? (
         <LaunchResult
           teamId={teamId}
           launchId={detail?.id}
           revision={displayedRevision}
+          seedCopies={
+            !historical &&
+            previewCopies?.flowId === detail?.generation?.requestKey &&
+            displayedRevision.generationId === detail?.generation?.id
+              ? previewCopies?.values
+              : undefined
+          }
           notes={historical ? (displayedRevision.config.notes ?? []) : (draft.config.notes ?? [])}
           settingsChanged={
             !historical &&

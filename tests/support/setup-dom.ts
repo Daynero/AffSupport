@@ -55,6 +55,11 @@ if (typeof css.escape !== 'function') {
   css.escape = (value: string) => String(value).replace(/[^\w-]/gu, character => `\\${character}`);
 }
 
+// jsdom has no layout and omits Element.scrollTo. Navigation still needs the browser API;
+// tests that assert scroll requests can spy on this shared no-op implementation.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollTo !== 'function')
+  Element.prototype.scrollTo = () => {};
+
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {

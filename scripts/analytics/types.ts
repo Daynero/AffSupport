@@ -298,6 +298,16 @@ export interface InspectFound {
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   accounts?: import('./accounts.js').AccountDiagnostic[];
   launches?: import('./launches.js').LaunchEvidenceResult;
+  launch_batch?: {
+    scope: 'observed_admissions';
+    loading: 'loaded' | 'failed' | 'cancelled' | 'unknown' | null;
+    admissions: Array<{
+      flow_id: string;
+      launch_id: string | null;
+      state: 'accepted' | 'failed' | 'cancelled' | 'unknown';
+    }>;
+    blind_spots: string[];
+  };
   found: true;
   id: string;
   /** Which column or property carried the id. */
@@ -990,6 +1000,7 @@ export interface InvestigateData {
   recovery?: import('./tariff-recovery.js').RecoveryEvidenceResult;
   workspace?: import('./workspace.js').WorkspaceEvidenceResult;
   launches?: import('./launches.js').LaunchEvidenceResult;
+
   subject: InvestigateSubject;
   environment: InvestigateEnvironment;
   sessions: { count: number; recent: InvestigateSession[] };

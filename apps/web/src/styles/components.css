@@ -430,8 +430,11 @@
 .launch-result-row.launch-result-campaign-row > :nth-child(2) {
   min-width: 0;
 }
-.launch-result-row.launch-result-campaign-row .ui-button.launch-result-value {
+.launch-result-row.launch-result-campaign-row:has(.launch-result-edit)
+  .ui-button.launch-result-value {
   padding-inline-end: calc(var(--control-height-md) + var(--space-5));
+}
+.launch-result-row.launch-result-campaign-row .ui-button.launch-result-value {
   border: 1px solid var(--color-neutral-border);
   border-radius: var(--radius-md);
   background: var(--color-neutral-surface-raised);
@@ -4499,21 +4502,41 @@
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);
 }
-/* Persistent personal copy state: quiet content, readable and still interactive. */
+/* Personal copy state remains legible in both themes, including after the flash. */
 .launch-result-row.launch-result-already-copied:not(.launch-result-copied)
   .ui-button.launch-result-value {
-  background: var(--color-neutral-surface-subtle);
-  border-color: var(--color-neutral-border);
-  color: var(--color-neutral-text-muted);
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
 }
-.launch-result-already-copied .launch-result-campaign-budget {
-  background: var(--color-neutral-surface-muted);
-  color: var(--color-neutral-text-muted);
-}
-.launch-copy-mark {
+.launch-copy-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
   flex-shrink: 0;
-  margin-inline-start: var(--space-2);
-  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+  color: var(--color-secondary-text);
+}
+.launch-result-already-copied .launch-copy-affordance,
+.launch-result-copied .launch-copy-affordance {
+  color: var(--color-success-text);
+}
+.launch-card[data-state='draft'] {
+  border-style: dashed;
+}
+.launch-card[data-state='ready'] {
+  border-color: var(--color-success-border);
+}
+.launch-card[data-state='failed'] {
+  border-color: var(--color-error-border);
+}
+.launch-card[data-state='partial'] {
+  border-color: var(--color-warning-border);
+}
+.launch-card[data-state='running'],
+.launch-card[data-state='queued'] {
+  border-color: var(--color-info-border);
 }
 .ui-button.launch-note-copy.launch-note-already-copied {
   background: var(--color-neutral-surface-subtle);
@@ -4659,4 +4682,29 @@
   overflow: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+}
+
+/* On narrow screens, show the name instead of making a copy target a tiny scroll strip. */
+@media (max-width: 640px) {
+  .launch-result-row .ui-button.launch-result-value {
+    height: auto;
+  }
+  .launch-result-row .launch-result-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+  }
+  .launch-result-campaign-row .launch-result-value .ui-button-label {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .launch-result-campaign-row .launch-result-text {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .launch-result-campaign-row > :first-child {
+    top: var(--space-2);
+    transform: none;
+  }
 }

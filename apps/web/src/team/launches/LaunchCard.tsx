@@ -1,8 +1,30 @@
+import {
+  launchCardState,
+  launchCardLabels,
+  launchCardProgress,
+  type LaunchCardState
+} from './launchPresentation.js';
 import { formatTaskDate } from '../tasks/TaskDateField';
 import { useRef, useState } from 'react';
-import { Link2, MoreHorizontal, Trash2 } from 'lucide-react';
+import {
+  Check,
+  CircleDashed,
+  Clock3,
+  AlertCircle,
+  Square,
+  Link2,
+  MoreHorizontal,
+  Trash2
+} from 'lucide-react';
 import { teamTaskDate, type LaunchSummary } from '@video-compressor/shared';
-import { Card, Badge, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
+import {
+  Card,
+  Badge,
+  Checkbox,
+  DropdownMenu,
+  IconButton,
+  Progress
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { campaignCountLabel } from './campaignCountLabel';
@@ -13,6 +35,7 @@ export function LaunchCard({
   onDelete,
   selected = false,
   onSelectedChange,
+  queueState,
   actionsDisabled = false
 }: {
   value: LaunchSummary;
@@ -20,16 +43,34 @@ export function LaunchCard({
   onCopyLink?: () => void;
   onDelete?: () => void;
   selected?: boolean;
-  onSelectedChange?: (selected: boolean) => void;
+  onSelectedChange?: (selected: boolean, modifiers?: { shiftKey: boolean }) => void;
   actionsDisabled?: boolean;
+  queueState?: LaunchCardState;
 }) {
   const { t, language } = useI18n();
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const attention = ['failed', 'partial', 'interrupted'].includes(value.generationState ?? '');
-  const generating =
-    value.generationState !== null &&
-    !['succeeded', 'canceled', 'failed', 'partial', 'interrupted'].includes(value.generationState);
+  const state = queueState ?? launchCardState(value);
+  const color =
+    state === 'ready'
+      ? 'success'
+      : state === 'failed'
+        ? 'error'
+        : state === 'partial'
+          ? 'warning'
+          : state === 'running' || state === 'queued'
+            ? 'info'
+            : 'neutral';
+  const StateIcon =
+    state === 'ready'
+      ? Check
+      : state === 'failed' || state === 'partial'
+        ? AlertCircle
+        : state === 'running' || state === 'queued'
+          ? Clock3
+          : state === 'canceled'
+            ? Square
+            : CircleDashed;
   // The card names the day the launch is for: the list filters by it, and a copy's
   // toast tells the user to look the copy up by it. When it was made goes in the title.
   const createdOn = value.createdAt
@@ -100,6 +141,7 @@ export function LaunchCard({
       interactive
       selected={selected}
       className="launch-card team-task-card"
+      data-state={state}
       data-launch-id={value.id}
       onClick={event => {
         const target = event.target;
@@ -107,6 +149,10 @@ export function LaunchCard({
         if (!(target instanceof Element) || !event.currentTarget.contains(target)) return;
         if (target.closest('button, a, input, label, [role="checkbox"], [role="menuitem"]')) return;
         if (window.getSelection()?.toString()) return;
+        if ((event.metaKey || event.ctrlKey || event.shiftKey) && onSelectedChange) {
+          onSelectedChange(!selected, { shiftKey: event.shiftKey });
+          return;
+        }
         onOpen();
       }}
     >
@@ -123,8 +169,11 @@ export function LaunchCard({
           type="button"
           className="launch-card-heading"
           title={heading}
-          onClick={() => {
-            if (!window.getSelection()?.toString()) onOpen();
+          onClick={event => {
+            if (window.getSelection()?.toString()) return;
+            if ((event.metaKey || event.ctrlKey || event.shiftKey) && onSelectedChange)
+              onSelectedChange(!selected, { shiftKey: event.shiftKey });
+            else onOpen();
           }}
         >
           {heading}
@@ -189,11 +238,10 @@ export function LaunchCard({
       </div>
       <div className="launch-card-body">
         <span className="launch-card-content">
-          {(attention || generating) && (
-            <Badge color={attention ? 'warning' : 'primary'}>
-              {t(attention ? 'launchesNeedsAttention' : 'launchesBusy')}
-            </Badge>
-          )}
+          <Badge color={color}>
+            <StateIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t(launchCardLabels[state])}
+          </Badge>
           <span className="launch-card-context">
             {value.creativeAlias.trim() && value.creativeAlias.trim() !== heading && (
               <strong>{value.creativeAlias} · </strong>
@@ -217,6 +265,14 @@ export function LaunchCard({
           </span>
         </span>
       </div>
+      {(state === 'running' || state === 'queued' || state === 'partial') && (
+        <Progress
+          size="xs"
+          color={color}
+          label={t(launchCardLabels[state])}
+          value={queueState ? undefined : launchCardProgress(value)}
+        />
+      )}
       {shownOn && (
         <div className="team-task-card-footer">
           <time
@@ -233,6 +289,18 @@ export function LaunchCard({
           >
             {formatTaskDate(language, shownOn)}
           </time>
+          {value.createdAt && Number.isFinite(Date.parse(value.createdAt)) && (
+            <span className="text-micro text-ink-muted">
+              {t('launchesBulkCreated', {
+                date: new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }).format(new Date(value.createdAt))
+              })}
+            </span>
+          )}
         </div>
       )}
     </Card>

@@ -27,6 +27,7 @@ const CatalogCreatedPublicationStatus = lazy(() =>
 
 export function LaunchResult({
   revision,
+  seedCopies,
   notes = revision.config.notes ?? [],
   overrides,
   onChange,
@@ -39,6 +40,7 @@ export function LaunchResult({
   teamId
 }: {
   revision: LaunchRevision;
+  seedCopies?: Record<string, string>;
   notes?: LaunchNote[];
   overrides: LaunchOverrides;
   onChange: (overrides: LaunchOverrides) => void;
@@ -132,6 +134,7 @@ export function LaunchResult({
       scope={copyScope}
       lineageId={revision.baselineRevisionId ?? revision.id}
       values={copyValues}
+      seedCopies={seedCopies}
     >
       <div className="flex flex-col gap-3">
         {settingsChanged && (

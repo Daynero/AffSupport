@@ -42,7 +42,7 @@ it('reviews only affected outputs and lets the user return before confirming', a
   ]);
   expect(screen.queryByRole('status')).toBeNull();
 });
-it('hides workflow and completed badges while keeping generation problems visible', () => {
+it('shows stopped and failed generation without confusing workflow status', () => {
   const value: LaunchSummary = {
     id: 'launch',
     version: '1',
@@ -66,7 +66,7 @@ it('hides workflow and completed badges while keeping generation problems visibl
   view.rerender(
     <LaunchCard value={{ ...value, generationState: 'interrupted' }} onOpen={vi.fn()} />
   );
-  expect(screen.getByText('Generation needs attention')).toBeTruthy();
+  expect(screen.getByText('Failed')).toBeTruthy();
 });
 describe('Launch UI primitives', () => {
   it('opens edit and copies the resulting value with keyboard controls', async () => {

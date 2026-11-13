@@ -19,6 +19,7 @@
  * again. That skip is the whole reason a prepared space can promise ten seconds.
  */
 
+import { waitForShared } from '../stitcher/shared-wait.js';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -464,6 +465,7 @@ type Inspection = {
  * download verified, so a different file can never borrow another's edges.
  */
 const inspections = new Map<string, Inspection>();
+const inspecting = new Map<string, Promise<Inspection | null>>();
 const INSPECTIONS_KEPT = 16;
 
 /** Drive's MD5 plus the byte count; null when the download could not verify one. */
@@ -494,7 +496,28 @@ async function inspect(
       return { profile: { ...known.profile, path: file }, detected: { ...known.detected } };
     }
   }
-  const found = await inspectUncached(file, prepared, signal);
+  if (!prepared && key) {
+    const running = inspecting.get(key);
+    if (running) {
+      const shared = await waitForShared(running, signal).catch(error => {
+        if (signal.aborted) throw error;
+        return null;
+      });
+      signal.throwIfAborted();
+      if (shared)
+        return { profile: { ...shared.profile, path: file }, detected: { ...shared.detected } };
+      // A failed or canceled leader is not evidence about this consumer.
+      return inspect(file, prepared, signal, sourceIdentity);
+    }
+  }
+  const work = inspectUncached(file, prepared, signal);
+  if (!prepared && key) inspecting.set(key, work);
+  let found: Inspection | null;
+  try {
+    found = await work;
+  } finally {
+    if (key && inspecting.get(key) === work) inspecting.delete(key);
+  }
   if (found && !prepared && key) {
     inspections.set(key, { profile: { ...found.profile }, detected: { ...found.detected } });
     while (inspections.size > INSPECTIONS_KEPT) {
