@@ -7,6 +7,10 @@ import {
   historicalReleasePlatforms,
   REQUIRED_RELEASE_PLATFORMS
 } from '../packages/shared/dist/release.js';
+import {
+  isNativeUpdateDescriptor,
+  nativeUpdateMatchesManifest
+} from '../packages/shared/dist/native-app-updates.js';
 import { BETA_MARKERS } from '../packages/shared/dist/environment.js';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { createHash } from 'node:crypto';
@@ -94,4 +98,39 @@ for (const platform of process.argv.includes('--historical')
     fail(`Published ${platform} bytes do not match signed manifest.`);
 
   process.stdout.write(`Published Agent verified (${platform}): ${url}\n`);
+}
+
+// The native archive is independently pinned and signed inside the same channel.
+for (const [target, candidate] of Object.entries(manifest.nativeUpdates ?? {})) {
+  if (
+    !isNativeUpdateDescriptor(candidate) ||
+    candidate.target !== target ||
+    candidate.channel !== 'stable' ||
+    !nativeUpdateMatchesManifest(candidate, manifest)
+  )
+    fail('NATIVE_UPDATE_DESCRIPTOR_INVALID');
+  if (!candidate.archive.url.startsWith(`${binding.artifactUrlBase}/`))
+    fail('NATIVE_UPDATE_ARTIFACT_BINDING');
+  const response = await fetch(candidate.archive.url, { signal: AbortSignal.timeout(30 * 60_000) });
+  if (!response.ok || !response.body) fail('NATIVE_UPDATE_ARCHIVE_UNAVAILABLE');
+  const hash = createHash('sha256');
+  let bytes = 0;
+  const reader = response.body.getReader();
+  try {
+    for (;;) {
+      const { done, value: chunk } = await reader.read();
+      if (done) break;
+      bytes += chunk.length;
+      if (bytes > candidate.archive.length) {
+        await reader.cancel();
+        fail('NATIVE_UPDATE_ARCHIVE_LENGTH');
+      }
+      hash.update(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (bytes !== candidate.archive.length || hash.digest('hex') !== candidate.archive.sha256)
+    fail('NATIVE_UPDATE_ARCHIVE_DIGEST');
+  process.stdout.write(`Published native update verified (${target}).\n`);
 }

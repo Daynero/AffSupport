@@ -81,7 +81,10 @@
     "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs",
     "release:web": "node scripts/release-web-only.mjs",
     "beta:verify:web": "node scripts/verify-web-only.mjs",
-    "runtime:mac": "node scripts/stage-macos-inputs.mjs"
+    "runtime:mac": "node scripts/stage-macos-inputs.mjs",
+    "updates:keys": "node scripts/generate-native-update-keys.mjs",
+    "updates:fixture": "node scripts/native-update-fixture.mjs",
+    "updates:probe": "node scripts/verify-native-update-probe.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

@@ -260,6 +260,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) {
     recordInterruptedNativeStartup(process, agentReady, nativeStartupAttempt)
   }
+  private var nativeUpdates: NativeAppUpdateCoordinator?
+  private var nativeUpdateStartupFailed = false
+  private var nativeUpdateInitializationAttempted = false
   private var process: Process?
   private var stderrText = ""
   private var readinessTimer: Timer?
@@ -313,6 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     installMenuBarItem()
     beginInstalledBuildMonitoring()
     if acquireInstanceLock() {
+      initializeNativeUpdates()
       startAgentWhenPortIsFree()
     } else if ProcessInfo.processInfo.environment["AGENT_UPDATE_HANDOFF"] == "1" {
       beginHandoff()
@@ -328,6 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if nativeUpdates?.permitsQuit == false { return .terminateCancel }
     isTerminating = true
     readinessTimer?.invalidate()
     handoffTimer?.invalidate()
@@ -341,6 +346,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       process.waitUntilExit()
     }
     return .terminateNow
+  }
+
+  private func initializeNativeUpdates() {
+    guard lockFD >= 0, !nativeUpdateInitializationAttempted else { return }
+    nativeUpdateInitializationAttempted = true
+    if Bundle.main.object(forInfoDictionaryKey: "SotyNativeUpdatesEnabled") as? Bool == true {
+        do {
+          let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(supportDirectoryName)
+          nativeUpdates = try NativeAppUpdateCoordinator(support: support, channel: releaseChannel,
+            target: NativeUpdateBuildPolicy.target, version: expectedVersion, buildId: expectedBuildID,
+            revision: sourceRevision, agentURL: agentBaseURL)
+          nativeUpdates?.onChange = { [weak self] in self?.refreshNativeUpdateMenu() }
+          refreshNativeUpdateMenu()
+        } catch {
+          nativeUpdateStartupFailed = true
+          updateStatusItem?.title = "Soty update needs attention…"
+          updateStatusItem?.isHidden = false
+        }
+      }
+  }
+
+  private func refreshNativeUpdateMenu() {
+    guard let updater = nativeUpdates else { return }
+    updateStatusItem?.title = updater.menuTitle()
+    updateStatusItem?.isEnabled = true
+    updateStatusItem?.isHidden = false
+    updateStatusItem?.action = #selector(checkForNativeUpdate)
+    updateStatusItem?.target = self
+  }
+
+  @objc private func checkForNativeUpdate() {
+    if process?.isRunning != true, let help = URL(string: "__PUBLIC_SITE_ORIGIN__") {
+      NSWorkspace.shared.open(help)
+      return
+    }
+    nativeUpdates?.requestCheck(); openInterface()
   }
 
   private func installedLocationAllowed() -> Bool {
@@ -438,6 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func clearUpdateStatus() {
+    if nativeUpdates != nil { refreshNativeUpdateMenu(); return }
     guard !installedUpdatePending, !waitingForPreviousAgent else { return }
     updateStatusItem?.isHidden = true
     restartUpdateItem?.isHidden = true
@@ -683,6 +725,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func startAgentWhenPortIsFree() {
+    initializeNativeUpdates()
     probeHealth(timeout: 0.35) { [weak self] health in
       guard let self, !self.isTerminating else { return }
       if let health {
@@ -874,6 +917,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     child.standardError = output
     var packagedEnvironment = [
       "PACKAGED_APP": "1",
+      // Disabled channels cannot inherit another launcher's updater authority.
+      "AGENT_NATIVE_UPDATES": "0",
+      "AGENT_NATIVE_UPDATE_STARTUP_FAILED": "0",
       "AGENT_NATIVE_STARTUP_ID": startupAttempt.uuidString.lowercased(),
       "NO_OPEN": "1",
       // Release channel and application environment are distinct at build time,
@@ -893,6 +939,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       "AGENT_NATIVE_TOKEN": nativeToken,
       "AGENT_ENTITLEMENT_PUBLIC_KEY": "__AGENT_ENTITLEMENT_PUBLIC_KEY__",
     ]
+    if let updater = nativeUpdates {
+      packagedEnvironment["AGENT_NATIVE_UPDATES"] = "1"
+      packagedEnvironment["AGENT_NATIVE_UPDATE_SOCKET"] = updater.socketPath
+      packagedEnvironment["AGENT_NATIVE_UPDATE_STATE"] = updater.directory.path
+      packagedEnvironment["AGENT_NATIVE_UPDATE_TOKEN"] = updater.token
+      packagedEnvironment["AGENT_NATIVE_UPDATE_BUNDLE"] = Bundle.main.bundleURL.path
+    }
+    if nativeUpdateStartupFailed { packagedEnvironment["AGENT_NATIVE_UPDATE_STARTUP_FAILED"] = "1" }
     if let updateHandoffToken {
       packagedEnvironment["AGENT_UPDATE_HANDOFF_TOKEN"] = updateHandoffToken
     }
@@ -915,6 +969,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.stopBusyMonitoring()
         self.readinessTimer?.invalidate()
         self.process = nil
+        if let updater = self.nativeUpdates, updater.awaitingAgentExit {
+          updater.agentDidExit(finished.terminationStatus)
+          return // Sparkle must retain this host until its replacement handoff.
+        }
+        self.nativeUpdates?.agentDidExit(finished.terminationStatus)
         if finished.terminationStatus == updateHandoffExitStatus {
           // The Agent accepted a coordinated update drain. When this app was
           // updated in place, reopen the new payload; when a newer launcher is
@@ -949,6 +1008,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       recordNativeStartup(.spawn, .begin, startupAttempt)
       try child.run()
       process = child
+      nativeUpdates?.agentPid = child.processIdentifier
       beginReadinessChecks()
     } catch {
       recordNativeStartup(.spawn, nativeStartupFailureCode(error), startupAttempt)

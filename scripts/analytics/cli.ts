@@ -1,4 +1,5 @@
 import { getGlobalImageStatus, getGlobalImageEvidence } from './global-images.js';
+import { getNativeUpdateEvidence } from './native-app-updates.js';
 import { lookupCodeLocations } from './code-map.js';
 import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidence.js';
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
@@ -410,8 +411,12 @@ export async function executeCommand(
       return done(full, formatStages('Onboarding', full, period));
     }
     case 'updates': {
-      const [stages, delivery_lag_ms] = await Promise.all([getUpdates(period), lag()]);
-      const full = { stages, delivery_lag_ms };
+      const [stages, native_app_updates, delivery_lag_ms] = await Promise.all([
+        getUpdates(period),
+        getNativeUpdateEvidence(period),
+        lag()
+      ]);
+      const full = { stages, native_app_updates, delivery_lag_ms };
       return done(full, formatStages('Updates', full, period));
     }
     case 'errors': {

@@ -39,6 +39,31 @@ export const en = {
     'Accepted launches keep running in the background. You can return to their progress at any time.',
   launchesBulkNewest: 'Newest first',
   launchesBulkSelectAll: 'Select loaded launches',
+  appUpdateBootstrap:
+    'Install this version once. Later updates can finish inside Soty after your tasks are saved.',
+  appUpdatePrepare: 'Download',
+  appUpdateWait: 'Finish tasks',
+  appUpdateInstall: 'Install',
+  appUpdateAttentionTitle: 'Soty update needs attention',
+  appUpdateReadyTitle: 'Soty {version} is ready',
+  appUpdateReconnecting: 'Reconnecting to Soty. The last confirmed update stage is shown.',
+  appUpdateRecovery:
+    'The update outcome is not confirmed. Refresh the status or reinstall Soty from the signed installer. Your original files stay safe.',
+  appUpdateDownloading: 'Downloading and verifying the update. You can keep working.',
+  appUpdateWaiting:
+    'Finishing current tasks and saving their results. New tasks will be available after the update.',
+  appUpdateInstalling: 'Finishing the download and installing Soty. It will reopen automatically.',
+  appUpdateReady: 'The updated app and its local tools are ready.',
+  appUpdateConsent:
+    'Install after current tasks finish. Soty will save your work, update and reopen. macOS may ask for your password.',
+  appUpdateSteps: 'Update stages',
+  appUpdateRequestFailed: 'Could not confirm the action. Refresh the status before trying again.',
+  appUpdateAutoDownload: 'Download updates automatically',
+  appUpdateDownload: 'Download update',
+  appUpdateAccept: 'Update when tasks finish',
+  appUpdateCancel: 'Cancel update',
+  appUpdateReinstall: 'Download installer',
+  appUpdateRefresh: 'Refresh update status',
 
   catalogWriteUnsupported:
     'Video-link publication is blocked because this storage cannot safely update catalog cells. Existing links are preserved.',

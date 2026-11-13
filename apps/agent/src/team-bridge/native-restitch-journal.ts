@@ -1,5 +1,6 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, rename, rm } from 'node:fs/promises';
+import { mkdir, open, rename, rm, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { isRecord } from '@video-compressor/shared';
 import {
@@ -34,6 +35,17 @@ export class NativeRestitchJournal {
   #observation: 'unread' | 'missing' | 'loaded' | 'unconfirmed' = 'unread';
   constructor(readonly root: string) {
     this.#file = path.join(root, 'restitch-executors.json');
+  }
+  async flushForUpdate(): Promise<void> {
+    await this.#writes;
+    if (this.#observation === 'unconfirmed') throw new Error('APP_UPDATE_BUSY');
+    try {
+      await lstat(this.#file);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return;
+      throw error;
+    }
+    await syncUpdateStateFiles([this.#file]);
   }
   observation() {
     return this.#observation;

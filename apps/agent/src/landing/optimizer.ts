@@ -1,3 +1,4 @@
+import { syncUpdateStateFiles } from '../update/receipt.js';
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
@@ -28,7 +29,7 @@ import { isRewritableFile, rewriteReferences, type RenameMap } from './reference
 import { classifyAsset, detectLandingRoot, walkFiles } from './scan.js';
 import { optimizeVideo } from './video.js';
 import { stripFileMetadata } from './metadata.js';
-import { loadLandingSettings, saveLandingSettings } from './store.js';
+import { loadLandingSettings, saveLandingSettings, landingSettingsPath } from './store.js';
 import { numberedRenames } from './numbering.js';
 import {
   LandingPreviewStore,
@@ -810,6 +811,7 @@ class LandingJobOptimizer {
 
 /** Owns independent workspaces and drains landing jobs through one resource-safe queue. */
 export class LandingOptimizer {
+  private settingsSave = Promise.resolve();
   private settings: LandingSettings = defaultLandingSettings();
   private workers: LandingJobOptimizer[] = [];
   private teamWorkers = new Set<LandingJobOptimizer>();
@@ -864,7 +866,11 @@ export class LandingOptimizer {
     // Saved, not awaited: a preference that fails to reach the disk still applies to this
     // run, and making the person wait on a write to see their own click is worse than losing
     // the write.
-    void saveLandingSettings(this.settings);
+    const snapshot = structuredClone(this.settings);
+    this.settingsSave = this.settingsSave
+      .catch(() => {})
+      .then(() => saveLandingSettings(snapshot, undefined, true));
+    void this.settingsSave.catch(() => {});
     this.notify();
   }
 
@@ -874,6 +880,11 @@ export class LandingOptimizer {
    * Called once at startup rather than in the constructor, because reading a file is
    * asynchronous and the optimizer has to exist before anything can await it.
    */
+  async flushForUpdate(): Promise<void> {
+    await this.settingsSave;
+    await saveLandingSettings(this.settings, undefined, true);
+    await syncUpdateStateFiles([landingSettingsPath()]);
+  }
   async restoreSettings(): Promise<void> {
     this.updateSettings(await loadLandingSettings());
   }

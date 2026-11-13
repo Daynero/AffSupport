@@ -296,6 +296,7 @@ export interface InspectFound {
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   global_images?: Awaited<ReturnType<typeof import('./global-images.js').getGlobalImageEvidence>>;
+  native_app_update?: import('./native-app-updates.js').NativeUpdateEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
   catalog_video_sets?: import('./catalog-video-sets.js').CatalogVideoSetEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
@@ -1001,6 +1002,7 @@ export interface InvestigateFinding {
 }
 
 export interface InvestigateData {
+  native_app_updates?: import('./native-app-updates.js').NativeUpdateEvidence;
   catalog_publications?: import('./catalog-publications.js').CatalogPublicationEvidence;
   catalog_stops?: import('./catalog-stops.js').CatalogStopEvidence;
   material_sharing?: Awaited<

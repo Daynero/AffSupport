@@ -66,3 +66,7 @@ The Google "G" asset used by the sign-in button is an unmodified current asset f
 `packaging/macos/inputs.json` pins the official Node 22.23.4 x64 distribution (MIT), FFmpeg 7.1.1, x264 revision 0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee, Whisper 1.9.1 and Silero VAD 5.1.2. `scripts/build-intel-inputs.sh` builds static CPU engines for macOS 13 without host CPU tuning or Homebrew runtime dependencies. Node 24 requires macOS 13.5; Intel uses the maintained Node 22 LTS line to preserve the macOS 13 minimum. Each staged input has a verified SHA-256, source URL, version and license in `approved-inputs.json`. GPL source archives, complete license texts and the build recipe accompany the installed runtime under `licenses/`.
 
 Chromium headless shell is the Playwright-pinned revision 1234. The Intel mac14 download contains x86_64 Mach-O files with deployment target macOS 13.0; package inspection verifies every native helper. The archive label alone is not runtime acceptance on macOS 13.
+
+## Sparkle 2.10.1
+
+Native macOS updates embed Sparkle 2.10.1 (MIT), from the official Sparkle Project release. The upstream archive is pinned by SHA-256 in `scripts/lib/native-update-sdk.mjs`. Its complete license is copied to `Contents/Resources/licenses/Sparkle.txt`, with the framework’s bundled notices retained. Source: https://github.com/sparkle-project/Sparkle/tree/2.10.1.

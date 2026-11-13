@@ -283,6 +283,11 @@ export class DiagnosticsLog {
     return this.flushChain;
   }
 
+  async flushForUpdate(): Promise<void> {
+    await this.flush();
+    if (this.file && this.flushedSeq < this.lastSeq) throw new Error('APP_UPDATE_FLUSH_FAILED');
+  }
+
   /** Flushes and stops accepting records; for shutdown. */
   async close(): Promise<void> {
     if (this.closed) return this.flushChain;

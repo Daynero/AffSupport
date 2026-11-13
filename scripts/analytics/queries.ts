@@ -5,6 +5,7 @@ import {
 } from './launch-batches.js';
 import { inspectBackgroundSetup } from './background-setup.js';
 import { getGlobalImageEvidence } from './global-images.js';
+import { getNativeUpdateEvidence, inspectNativeUpdate } from './native-app-updates.js';
 import { getCatalogVideoSetEvidence } from './catalog-video-sets.js';
 import { getCatalogGrowthEvidence } from './catalog-growth.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
@@ -1884,6 +1885,57 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     )
   );
 
+  const nativeUpdates = await readSource('nativeAppUpdates', () => getNativeUpdateEvidence(period));
+  const nativeCoverage = capabilities.find(capability => capability.id === 'update.native_app');
+  if (nativeCoverage) {
+    const required = [
+      'preparing',
+      'prepared',
+      'consented',
+      'draining',
+      'drained',
+      'install_committed',
+      'replacement_started',
+      'relaunch_requested',
+      'target_started',
+      'native_ready',
+      'ui_visible'
+    ];
+    const complete =
+      nativeUpdates?.attempts.filter(
+        attempt =>
+          attempt.ui_success && required.every(stage => attempt.observed_stages.includes(stage))
+      ) ?? [];
+    nativeCoverage.samples = nativeUpdates?.attempts.length ?? null;
+    nativeCoverage.status =
+      !nativeUpdates?.supported || !nativeUpdates.attempts.length
+        ? 'uncovered'
+        : complete.length === nativeUpdates.attempts.length &&
+            !nativeUpdates.truncated &&
+            !nativeUpdates.invalid_records
+          ? 'covered'
+          : 'partial';
+    nativeCoverage.missing = [
+      ...(!nativeUpdates?.supported ? ['native_journal_unavailable'] : []),
+      ...(!nativeUpdates?.attempts.length ? ['no_delivered_native_attempts'] : []),
+      ...(nativeUpdates?.attempts.some(attempt => !attempt.native_success)
+        ? ['native_readiness_unconfirmed']
+        : []),
+      ...(nativeUpdates?.attempts.some(attempt => !attempt.ui_success)
+        ? ['ui_visibility_unconfirmed']
+        : []),
+      ...(nativeUpdates?.truncated ? ['native_receipts_truncated'] : []),
+      ...(nativeUpdates?.invalid_records ? ['invalid_native_receipts'] : []),
+      ...(nativeUpdates?.attempts.some(
+        attempt => !required.every(stage => attempt.observed_stages.includes(stage))
+      )
+        ? ['native_stage_chain_incomplete']
+        : [])
+    ];
+    nativeCoverage.note =
+      'Bounded delivered native receipts only. No rows is unknown. Source/package/helper-budget acceptance remains a separate release qualification.';
+  }
+
   const unavailable = new Set(
     sources.filter(source => source.status === 'unavailable').map(source => source.id)
   );
@@ -1895,7 +1947,8 @@ export async function getAudit(period: ResolvedPeriod): Promise<AuditData> {
     'team.catalog_text_schedule': 'textScheduleAudit',
     'team.tariff_recovery': 'recoveryAudit',
     'team.recovery_retirement': 'retirementAudit',
-    'team.sync': 'syncJobs'
+    'team.sync': 'syncJobs',
+    'update.native_app': 'nativeAppUpdates'
   };
   for (const capability of capabilities) {
     const projection = projectionSources[capability.id];
@@ -2408,6 +2461,12 @@ async function getInspectBeforeDurableBatch(
   asOf?: string,
   limit = 500
 ): Promise<InspectData> {
+  const nativeUpdate = await getNativeUpdateEvidence(
+    { start: null, end: asOf ?? new Date().toISOString(), token: 'all', label: 'all time' },
+    { id }
+  );
+  const nativeInspection = inspectNativeUpdate(id, nativeUpdate);
+  if (nativeInspection) return nativeInspection;
   const original = await getInspectWithoutPublication(id, asOf, limit);
   const globalImages = /^[0-9a-f-]{36}$/iu.test(id)
     ? await getGlobalImageEvidence(id, {

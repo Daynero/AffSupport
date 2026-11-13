@@ -842,3 +842,110 @@ it('a prepare answers while an attach still waits on the network', async () => {
   expect(saved.find(e => e.receipt.enrollmentId === first.enrollmentId)?.setId).toBe(id(50));
   await f.controller.shutdown();
 });
+
+it('preserves a waiting foreground intent while update admission is held', async () => {
+  const f = fixture();
+  const receipt = await f.controller.prepare(binding);
+  const attach = {
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(7),
+    enrollmentId: receipt.enrollmentId,
+    nativeInstanceId: receipt.nativeInstanceId
+  };
+  const resume = f.controller.pauseForUpdate();
+  await expect(f.controller.attach(attach)).rejects.toThrow('UPDATE_PENDING');
+  expect(f.redeem).not.toHaveBeenCalled();
+  expect(f.run).not.toHaveBeenCalled();
+  await f.controller.flushForUpdate();
+  resume();
+  await f.controller.attach(attach);
+  expect(f.run).toHaveBeenCalledOnce();
+  await f.controller.shutdown();
+});
+
+it('does not abort already accepted foreground work when an update begins draining', async () => {
+  const f = fixture();
+  let finish!: () => void;
+  let signal: AbortSignal | undefined;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: { read: async () => null, write: async () => {} },
+    redeem: f.redeem,
+    run: async (_set, _ticket, _enrollment, abort) => {
+      signal = abort;
+      await new Promise<void>(resolve => {
+        finish = resolve;
+      });
+    }
+  });
+  const receipt = await controller.prepare(binding);
+  await controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(7),
+    enrollmentId: receipt.enrollmentId,
+    nativeInstanceId: receipt.nativeInstanceId
+  });
+  const resume = controller.pauseForUpdate();
+  expect(signal?.aborted).toBe(false);
+  expect(controller.busy()).toBe(true);
+  finish();
+  await controller.flushForUpdate();
+  expect(signal?.aborted).toBe(false);
+  resume();
+  await controller.shutdown();
+});
+
+it('stays busy until the terminal foreground vault write is durable', async () => {
+  const f = fixture();
+  let finish!: () => void, releaseWrite!: () => void, writeStarted!: () => void;
+  const waitingForWrite = new Promise<void>(resolve => {
+    writeStarted = resolve;
+  });
+  const persisted = new Promise<void>(resolve => {
+    releaseWrite = resolve;
+  });
+  let blocked = false;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    redeem: f.redeem,
+    vault: {
+      read: async () => null,
+      write: async value => {
+        if (!blocked && Array.isArray(value) && value.some(entry => entry.state === 'ready')) {
+          blocked = true;
+          writeStarted();
+          await persisted;
+        }
+      }
+    },
+    run: async () => {
+      await new Promise<void>(resolve => {
+        finish = resolve;
+      });
+    }
+  });
+  const receipt = await controller.prepare(binding);
+  await controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(7),
+    enrollmentId: receipt.enrollmentId,
+    nativeInstanceId: receipt.nativeInstanceId
+  });
+  const resume = controller.pauseForUpdate();
+  finish();
+  await waitingForWrite;
+  expect(controller.busy()).toBe(true);
+  const flushed = controller.flushForUpdate();
+  releaseWrite();
+  await flushed;
+  expect(controller.busy()).toBe(false);
+  resume();
+  await controller.shutdown();
+});

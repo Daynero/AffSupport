@@ -1,4 +1,5 @@
 import { getOwnedGlobalImageEvidence } from './global-images.js';
+import { diagnoseNativeUpdates } from './native-app-updates.js';
 import { getCatalogPublicationEvidence } from './catalog-publications.js';
 import { getCatalogStopEvidence } from './catalog-stops.js';
 import { getOwnedCatalogClaimEvidence } from './catalog-updates.js';
@@ -2378,6 +2379,31 @@ export async function getInvestigation(
         'Inspect the diagnostic flow. Reconcile the canonical response before retrying; missing visibility is unknown.'
     });
   }
+  const native_app_updates = diagnoseNativeUpdates(
+    journal
+      .filter(record => record.category === 'update' && record.code === 'native_update_stage')
+      .map(record => ({ props: record.props, recorded_at: record.recorded_at })),
+    Boolean(schema.tables.agent_journal_records)
+  );
+  for (const attempt of native_app_updates.attempts) {
+    if (attempt.ui_success) continue;
+    const fingerprint = `update:native:${attempt.error_code ?? 'APP_UPDATE_UI_UNCONFIRMED'}`;
+    const location = lookupCodeLocations(fingerprint);
+    findings.push({
+      id: createHash('sha256')
+        .update(`native-update:${attempt.installation_id}:${attempt.attempt_id}`)
+        .digest('hex'),
+      kind: ['failed', 'unknown'].includes(attempt.outcome) ? 'fact' : 'insufficient',
+      severity: 'medium',
+      rule: 'native_app_update_receipt',
+      title: `Soty update: ${attempt.outcome}; last proven stage: ${attempt.last_proven_stage ?? 'unknown'}.`,
+      evidence: [`attempt:${attempt.attempt_id}`],
+      fingerprint,
+      code_locations: location ? [location] : [],
+      next_step:
+        'Read updates and inspect for this attempt. Reconcile native receipts before retrying; missing browser delivery is not installation failure.'
+    });
+  }
   const subject: InvestigateSubject = {
     kind: scope.kind,
     id: scope.id,
@@ -2409,6 +2435,7 @@ export async function getInvestigation(
     errors,
     journal_around_failures: journalAroundFailures,
     sync,
+    native_app_updates,
     coverage: { events: rows.length, journal_records: journal.length, blind_spots: blindSpots },
     findings,
     schema: schemaSummary(schema)

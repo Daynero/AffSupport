@@ -86,6 +86,8 @@ export interface ToolModule {
   cancel(id: string): Promise<boolean>;
   /** Stop everything this tool is running, and report how many runs that was (FR-007). */
   cancelAll(): Promise<number>;
+  /** Flush durable state without cancelling work or stopping schedulers. */
+  flushForUpdate?(): Promise<void>;
   shutdown(): Promise<void>;
 }
 
@@ -176,6 +178,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () => landing.optimizer.state().running,
+      flushForUpdate: () => landing.optimizer.flushForUpdate(),
       cancel: id => landing.optimizer.cancel(id),
       cancelAll: () => landing.optimizer.cancelAll(),
       shutdown: () => landing.optimizer.shutdown()
@@ -190,6 +193,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           acceptingNewTasks: ctx.acceptingNewTasks
         }),
       busy: () => landingPreview.catalog.busy(),
+      flushForUpdate: () => landingPreview.catalog.flushForUpdate(),
       // A preview run is a single render of the whole catalog, so stopping one item and
       // stopping the run are the same act. Reporting the count keeps `cancelAll` honest
       // about whether anything was actually stopped.
@@ -260,7 +264,8 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.library.busy() ||
         teamWorkspace.restitch.busy() ||
         (teamWorkspace.nativeRestitch?.busy() ?? false) ||
-        (teamWorkspace.catalogForeground?.busy() ?? false),
+        (teamWorkspace.catalogForeground?.busy() ?? false) ||
+        (teamWorkspace.recovery?.busyForUpdate() ?? false),
       // Cancellation belongs to whichever tool is doing the work; the bridge holds nothing
       // to stop. Reported as "no such run" rather than pretended away.
       cancel: async id => teamWorkspace.nativeRestitch?.cancelOperation(id) ?? false,

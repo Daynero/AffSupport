@@ -1,3 +1,4 @@
+import { NATIVE_UPDATE_CODES } from '../../packages/shared/src/native-app-updates.js';
 import { RESTITCH_RECOVERY_ERROR_CODES } from '../../packages/shared/src/team/restitch-recovery-errors.js';
 import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
@@ -690,6 +691,15 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     files: [AGENT_SSE],
     check: 'A stream was evicted for capacity, a failed write or a stall.'
   },
+  'update:native_update_stage': {
+    files: [
+      'apps/agent/src/update/service.ts',
+      'packaging/NativeUpdates/Coordinator.swift',
+      WEB_FORWARDER
+    ],
+    check:
+      'Read the correlated attempt and native receipt revision. Native readiness and browser visibility are separate; missing or delayed receipts remain unknown.'
+  },
   'update:drain_requested': {
     files: [AGENT_QUEUE],
     check: 'An update asked the queues to drain; new work is refused until restart.'
@@ -1321,6 +1331,18 @@ function build(): Record<string, CodeLocation> {
     check: 'Whether the update prompt was shown and why the local app was not updated.'
   };
 
+  for (const code of NATIVE_UPDATE_CODES)
+    map[`update:native:${code}`] = {
+      files: [
+        'apps/agent/src/update/service.ts',
+        'apps/agent/src/update/coordinator.ts',
+        'packaging/NativeUpdates/Coordinator.swift',
+        'apps/web/src/components/NativeAppUpdateNotice.tsx',
+        WEB_FORWARDER
+      ],
+      check:
+        'Inspect native receipt stage, attempt, last proven revision and delivery coverage before retrying. Never infer replacement or user-visible success from a restarted process.'
+    };
   for (const [key, spec] of Object.entries(JOURNAL_CODES)) {
     map[`journal:${key}`] = { files: unique(spec.files), check: spec.check };
   }

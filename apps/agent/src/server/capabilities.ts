@@ -16,7 +16,8 @@ const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapab
   'team-background-recovery-actor-bound': 'recoveryCredentials',
   'finder-image-conversion': 'shellContextMenuIntegration',
   'native-file-picker': 'nativeFilePicker',
-  'directory-intake': 'directoryIntake'
+  'directory-intake': 'directoryIntake',
+  'native-app-updates-v1': 'nativeAppUpdates'
 };
 
 /**

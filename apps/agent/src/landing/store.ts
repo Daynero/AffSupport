@@ -38,14 +38,16 @@ export async function loadLandingSettings(file = landingSettingsPath()): Promise
 
 export async function saveLandingSettings(
   settings: LandingSettings,
-  file = landingSettingsPath()
+  file = landingSettingsPath(),
+  strict = false
 ): Promise<void> {
   try {
     await mkdir(path.dirname(file), { recursive: true });
     const temporary = `${file}.${process.pid}.tmp`;
     await writeFile(temporary, JSON.stringify(settings, null, 2), 'utf8');
     await rename(temporary, file);
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     // An unwritable settings file costs this session's preferences, nothing more.
   }
 }
