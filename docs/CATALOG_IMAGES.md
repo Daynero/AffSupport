@@ -278,8 +278,8 @@ output and anonymous GET alone cannot close it. Full evidence and task status ar
 
 Contract3 uses a single global pool for everyone. It has no customer image setup.
 At activation, workspace gallery/imports/Drive sources/prompt/fallback URL and
-image-refresh controls disappear. Texts, prices, scheduling, video and restitch
-images retain their existing controls. Every successful new catalog and update
+image-refresh controls disappear. Scheduling, video and restitch images retain their existing controls. Feature055
+replaces text and price setup with automatic image-specific content. Every successful new catalog and update
 uses a complete global recipe, including historical `refreshImages=false`.
 
 An image's issued slot changes its permanent HMAC URL every200 distinct durable
@@ -365,3 +365,38 @@ If existing unknown legacy work must recover before activation, explicitly use
 pre-T0 legacy admission and discards the unactivated manifest, so recovery can
 finish before a fresh prepare/proof. It cannot reset T0, reopen settings after
 activation or delete image bytes.
+
+## 055: automatic catalog content
+
+Catalog creation needs no per-space title, description or price setup. A shared local
+policy provides2,000 distinct model identities, rendered with the final image's
+validated garment and color. Unknown images receive neutral wording. Unsupported
+material, size and pattern fields remain blank. This is template generation, with
+no AI or other content-provider request and no per-space pool duplication.
+
+The same draw selects a whole-USD price within the garment's fixed band. For example,
+T-shirts use12–24, wrap dresses50–95, bomber jackets65–125 and puffer jackets85–160.
+These are approximate generated catalog prices, not inferred real sale prices.
+The complete table and policy version live in
+`packages/shared/src/team/catalog-content.ts`.
+
+New standalone intents and accepted automatic Launch revisions select policy1 on
+admission. Existing intents and frozen rows retain their original policy and values.
+A durable recipe freezes final image/text/price choices before catalog publication;
+a retry restores those exact choices. Intentional text refresh generates new text
+and price. With text refresh disabled, existing rows retain both; newly added rows
+use the automatic policy. Updater storage retains one latest recipe per catalog,
+with bounded per-attempt count receipts for historical diagnosis.
+
+The Catalog tab in space settings and its setup blockers are removed. Old bookmarks
+open the catalog manager. Per-catalog schedules, refresh controls, video/R2 and
+restitch configuration remain available. The legacy text-schedule tick no longer
+runs in the new worker; historical tables and compatibility RPCs remain intact.
+Image availability still follows the existing global/R2/legacy authority. Feature055
+does not activate the shared image pool or waive its provider acceptance requirements.
+
+Read-only diagnosis exposes policy version and frozen planned/generated/retained
+row counts, never titles, descriptions, prices or image metadata. Policy selection
+alone does not prove recipe persistence or delivery. Missing or invalid receipts
+remain explicit; retired scheduling is a source-policy fact, not proof that a hosted
+worker has already been upgraded.

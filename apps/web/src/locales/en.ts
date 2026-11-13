@@ -387,7 +387,7 @@ export const en = {
   catalogVideoR2PanelCopied:
     'The video copy is ready; the sheet switches to it with the catalog’s next write, and keeps its Drive link until then.',
   catalogVideoR2NextUpdate: 'The link changes once the copy is ready.',
-  catalogVideoR2NoPermission: 'Only a member who can change the catalog settings can turn this on.',
+  catalogVideoR2NoPermission: 'Turning this on requires permission to manage catalog details.',
   catalogVideoR2StatusR2: 'R2',
   catalogVideoR2StatusReturning: 'Returning to Drive',
   catalogVideoR2StatusDrive: 'Drive',
@@ -702,8 +702,8 @@ export const en = {
   launchesGenderAll: 'All',
   launchesDate: 'Launch date',
   launchesCatalog: 'Catalog',
-  launchesCatalogSetupMissing:
-    'Complete the catalog settings: save a price range, names and descriptions, and images or fallback values.',
+  launchesCatalogImagesUnavailable:
+    'Catalog images are currently unavailable. Try again when the image source is ready.',
   launchesOpenRestitchSettings: 'Choose re-stitching images',
   launchesOpenCatalogSettings: 'Open catalog settings',
   launchesOther: 'No catalog',
@@ -2903,7 +2903,7 @@ export const en = {
     'The current catalog goes to the trash, and its link will not show the new products.',
   productCatalogProducts: 'Products: {count}',
   productCatalogErrorNotVideo: 'A catalog can only be made from a video.',
-  productCatalogErrorSettingsMissing: 'This space has no catalog settings yet.',
+  productCatalogErrorSettingsMissing: 'The catalog could not be prepared. Try creating it again.',
   productCatalogErrorShare: 'Google Drive does not allow sharing this file by link.',
   productCatalogDriveUnavailable: 'Connect the space’s Google Drive to create catalogs.',
   productCatalogListTitle: 'Catalogs',
@@ -3189,9 +3189,9 @@ export const en = {
   catalogUpdaterLinkVariationEffect:
     'Adds a random variation to product links. Every update also replaces product IDs.',
   catalogUpdaterImagesEffect:
-    'Chooses prepared images from this space; keeps current images if none are available.',
+    'Selects available images. If text updates are off, images must match the retained names and descriptions.',
   catalogUpdaterTextsEffect:
-    'Chooses prepared names and descriptions from this space; prices vary within the configured range.',
+    'Generates names and descriptions for each image and a price within its category range. When off, existing texts and prices stay unchanged.',
   catalogUpdaterGrowEffect: 'Adds 1–5 products per update, up to 400 total.',
   catalogUpdaterRestitchEffect:
     'Prepares a new video using the space settings and replaces it in the catalog. A manual update waits for preparation to finish.',

@@ -1652,6 +1652,7 @@ function build(): Record<string, CodeLocation> {
   for (const code of GLOBAL_CATALOG_IMAGE_ERROR_CODES) {
     for (const prefix of [
       'catalog:global',
+      'catalog:generation',
       'catalog:update',
       'launches:generation',
       'team:library'
@@ -1669,6 +1670,16 @@ function build(): Record<string, CodeLocation> {
     }
   }
   for (const code of CATALOG_IMAGE_ERROR_CODES) {
+    map[`catalog:generation:${code}`] = {
+      files: [
+        'supabase/functions/drive-ops/catalog-durable.ts',
+        'supabase/functions/_shared/product-catalog.ts',
+        'supabase/functions/_shared/catalog-image-rows.ts',
+        'supabase/migrations/20261208111000_automatic_catalog_content_diagnostics.sql'
+      ],
+      check:
+        'Inspect the exact intent and frozen recipe before retrying; count receipts prove planning only and never provider or browser delivery.'
+    };
     map[`catalog:update:${code}`] = {
       files: [
         'supabase/functions/catalog-updater/worker.ts',

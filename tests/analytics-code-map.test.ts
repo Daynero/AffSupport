@@ -1,3 +1,4 @@
+import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../packages/shared/src/team/catalog-global-images';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -64,6 +65,14 @@ it('maps process output uncertainty to its durable ownership and upload seams', 
 it('maps every catalog image failure to its updater diagnostic location', () => {
   for (const code of CATALOG_IMAGE_ERROR_CODES)
     expect(lookupCodeLocations(`catalog:update:${code}`)?.matched).toBe(`catalog:update:${code}`);
+});
+
+it('maps all catalog image and pairing refusals in standalone and Launch diagnosis', () => {
+  for (const code of [...CATALOG_IMAGE_ERROR_CODES, ...GLOBAL_CATALOG_IMAGE_ERROR_CODES]) {
+    for (const prefix of ['catalog:generation', 'catalog:update', 'launches:generation'])
+      expect(lookupCodeLocations(`${prefix}:${code}`)?.matched).toBe(`${prefix}:${code}`);
+    expect(LAUNCH_ANALYTICS_CODES).toContain(code);
+  }
 });
 
 it('maps every closed Launch failure to an exact diagnostic code location', () => {

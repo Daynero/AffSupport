@@ -340,6 +340,9 @@ export async function createDurableProductCatalog(
     await deps.assertImageContract?.(request.teamId, request.catalogImageContractVersion);
   const owner = crypto.randomUUID();
   const intent = await store.begin({ ...request }, owner);
+  const contentPolicy = intent.checkpoint.contentPolicyVersion;
+  if (contentPolicy !== undefined && contentPolicy !== 1)
+    throw new TeamFunctionError('INVALID_RESPONSE');
   // A resumed intent arrives 'interrupted', and checkpointing that state again
   // releases the lease, so the next checkpoint of the same pass failed
   // LEASE_MISMATCH. A restitch creation resumed after its videos were ready
@@ -571,12 +574,30 @@ export async function createDurableProductCatalog(
             description: known.description,
             imageLink: known.imageLink,
             priceMin: known.priceMin,
-            priceMax: known.priceMax
+            priceMax: known.priceMax,
+            ...(contentPolicy === 1 ? { contentPolicyVersion: 1 as const } : {})
           };
         }
-        const settings = await deps.readSettings(team);
+        const previous = await deps.readSettings(team);
+        const settings =
+          contentPolicy === 1
+            ? {
+                title: null,
+                description: null,
+                imageLink: previous?.imageLink ?? null,
+                priceMin: 20,
+                priceMax: 40,
+                contentPolicyVersion: 1 as const
+              }
+            : previous;
         if (settings) await store.checkpoint(intent, owner, workingState(), { settings });
         return settings;
+      },
+      readRowRecipe() {
+        if (intent.checkpoint.rowRecipe === undefined) return null;
+        const known = parseCatalogRowRecipe(intent.checkpoint.rowRecipe);
+        if (!known) throw new TeamFunctionError('INVALID_RESPONSE');
+        return known;
       },
       async rememberRowRecipe(rows) {
         if (intent.checkpoint.rowRecipe !== undefined) {
@@ -584,7 +605,17 @@ export async function createDurableProductCatalog(
           if (!known) throw new TeamFunctionError('INVALID_RESPONSE');
           return known;
         }
-        await store.checkpoint(intent, owner, 'planned', { rowRecipe: rows });
+        await store.checkpoint(intent, owner, 'planned', {
+          rowRecipe: rows,
+          ...(contentPolicy === 1
+            ? {
+                content_policy_version: 1,
+                planned_row_count: rows.length,
+                automatic_row_count: rows.length,
+                retained_row_count: 0
+              }
+            : {})
+        });
         return rows;
       },
       async rememberSheetRows(rows) {

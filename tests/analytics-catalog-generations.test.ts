@@ -110,6 +110,18 @@ it('projects actual SQL checkpoint evidence through investigate without private 
   }
 });
 
+it('keeps older deployments usable with an explicitly unavailable content receipt', async () => {
+  const evidence = await getCatalogGenerationEvidence(USER, resolvePeriod('all', undefined));
+  expect(evidence.records[0]).toMatchObject({
+    content_receipt_status: 'unavailable',
+    content_policy_version: null,
+    planned_row_count: null,
+    automatic_row_count: null,
+    retained_row_count: null
+  });
+  expect(evidence.blind_spots.join(' ')).toContain('legacy versus automatic content is unknown');
+});
+
 it('reports historical snapshots unknown rather than reconstructing current stages', async () => {
   const evidence = await getCatalogGenerationEvidence(
     USER,

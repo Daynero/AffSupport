@@ -13,14 +13,6 @@ import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConne
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
-import {
-  ProductCatalogSettingsSection,
-  type ProductCatalogSettingsClient
-} from '../product-catalog/ProductCatalogSettingsSection';
-import {
-  CatalogDefaultsEditor,
-  type CatalogDefaultsClient
-} from '../catalog-updater/CatalogDefaultsEditor';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
 import { SpaceTariffSection } from '../tariffs/SpaceTariffSection';
 import { CatalogVideoR2UsageSection } from '../tariffs/CatalogVideoR2UsageSection';
@@ -45,8 +37,6 @@ export type SpaceSettingsClient = MemberManagementClient &
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
-  ProductCatalogSettingsClient &
-  CatalogDefaultsClient &
   SpaceNameClient;
 
 /**
@@ -137,7 +127,6 @@ export function SpaceSettings({
   health,
   initialTab,
   onTabChange,
-  onBeforeCloseChange,
   onBack
 }: {
   teamId: string;
@@ -147,35 +136,15 @@ export function SpaceSettings({
   initialTab?: TeamSettingsTab | null;
   /** The room now open — so the address names it, and a reload comes back to it. */
   onTabChange?: (tab: TeamSettingsTab) => void;
-  onBeforeCloseChange?: (guard: () => boolean) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
-  const [catalogDraft, setCatalogDraft] = useState({ dirty: false, saving: false });
-  const [catalogEditor, setCatalogEditor] = useState('');
-  const [contentDraft, setContentDraft] = useState({ dirty: false, saving: false });
-  const allowLeave = () =>
-    !catalogDraft.saving &&
-    !contentDraft.saving &&
-    ((!catalogDraft.dirty && !contentDraft.dirty) ||
-      window.confirm(t('catalogUpdaterDiscardDraft')));
-  useEffect(() => {
-    onBeforeCloseChange?.(
-      () =>
-        !catalogDraft.saving &&
-        !contentDraft.saving &&
-        ((!catalogDraft.dirty && !contentDraft.dirty) ||
-          window.confirm(t('catalogUpdaterDiscardDraft')))
-    );
-    return () => onBeforeCloseChange?.(() => true);
-  }, [catalogDraft, contentDraft, onBeforeCloseChange, t]);
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
-    { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
-    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') }
+    { id: 'restitch' as const, label: t('teamSettingsTabRestitch') }
   ];
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
     initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
@@ -194,23 +163,17 @@ export function SpaceSettings({
     >
       {/* Title and tab strip travel together: the strip used to scroll away on
           the first turn of the wheel, leaving a long panel with nothing saying
-          which of the five rooms it belonged to. */}
+          which settings section it belonged to. */}
       <div className="team-space-settings-bar">
         <header className="team-space-settings-header">
           <h2 id="team-space-settings-title">{t('teamSpaceSettings')}</h2>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              if (allowLeave()) onBack();
-            }}
-          >
+          <Button type="button" variant="secondary" onClick={onBack}>
             {t('teamSpaceSettingsBack')}
           </Button>
         </header>
 
         {/*
-         * Four rooms rather than one wall.
+         * Three focused rooms rather than one wall.
          *
          * Every panel used to sit in a single two-column grid: link sharing
          * beside the whole re-stitch editor, members under it, the space's
@@ -224,7 +187,6 @@ export function SpaceSettings({
           label={t('teamSettingsTabsLabel')}
           value={tab}
           onChange={next => {
-            if (!allowLeave()) return;
             setTab(next);
             onTabChange?.(next);
             // A new room opens at its top, not at the depth the last one was read to.
@@ -286,27 +248,6 @@ export function SpaceSettings({
         )}
 
         {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
-
-        {tab === 'product-catalog' && (
-          <>
-            <ProductCatalogSettingsSection
-              key={teamId}
-              teamId={teamId}
-              client={client}
-              onBeforeLeave={allowLeave}
-              openEditor={catalogEditor}
-              onOpenEditorChange={setCatalogEditor}
-              onDraftChange={setContentDraft}
-            />
-            <CatalogDefaultsEditor
-              teamId={teamId}
-              client={client}
-              open={catalogEditor === 'rules'}
-              onOpenChange={open => setCatalogEditor(open ? 'rules' : '')}
-              onDraftChange={setCatalogDraft}
-            />
-          </>
-        )}
       </div>
     </section>
   );

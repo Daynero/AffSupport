@@ -2,6 +2,14 @@ import { query } from './db.js';
 import { getSchema } from './schema.js';
 import type { ResolvedPeriod } from './types.js';
 
+export const CATALOG_TEXT_RETIREMENT = {
+  retired_since_content_policy_version: 1,
+  basis: 'source_policy',
+  historical_coverage: 'unknown'
+} as const;
+const RETIREMENT_NOTE =
+  'Per-space text generation is retired by the current source policy. This is not proof of the deployed worker version; retained journal rows remain historical evidence and missing outcomes remain unknown.';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 export async function getCatalogTextScheduleDiagnosis(
   id: string | null,
@@ -18,13 +26,17 @@ export async function getCatalogTextScheduleDiagnosis(
   const missing: string[] = required.filter(name => !schema.tables[name]);
   if (missing.length)
     return {
+      current_lifecycle: CATALOG_TEXT_RETIREMENT,
       supported: false,
       missing,
       current: [],
       evidence: [],
       coverage: null,
       truncated: false,
-      findings: ['Schedule diagnostics unavailable; missing evidence is not a successful run.']
+      findings: [
+        RETIREMENT_NOTE,
+        'Schedule diagnostics unavailable; missing evidence is not a successful run.'
+      ]
     };
   const bounded = Math.min(500, Math.max(1, Math.trunc(limit)));
   const [current, evidence, health] = await Promise.all([
@@ -66,6 +78,7 @@ export async function getCatalogTextScheduleDiagnosis(
   const rows = evidence.slice(0, bounded);
   const latestRun = rows.find(row => row.run_id !== null);
   return {
+    current_lifecycle: CATALOG_TEXT_RETIREMENT,
     supported: true,
     missing,
     current,
@@ -85,6 +98,7 @@ export async function getCatalogTextScheduleDiagnosis(
         }
       : null,
     findings: [
+      RETIREMENT_NOTE,
       ...(latestRun?.stage === 'failed'
         ? [
             'The automatic replacement failed; use its stable code and run UUID to inspect the retry.'

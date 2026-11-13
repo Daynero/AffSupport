@@ -196,7 +196,7 @@ export function LaunchSession({
           : teamErrorMessageFor(failure, t)
     );
   };
-  const [catalogSetupMissing, setCatalogSetupMissing] = useState(false);
+  const [catalogImagesUnavailable, setCatalogImagesUnavailable] = useState(false);
   const [working, setWorking] = useState(false);
   const [autosaving, setAutosaving] = useState(false);
   const preparationStatusId = useId();
@@ -971,11 +971,11 @@ export function LaunchSession({
         const ready = await readLaunchPreparation(isLaunchCatalogReady(teamApi, teamId), signal);
         if (!ready) {
           generation.blocked('WRONG_STATE');
-          setCatalogSetupMissing(true);
-          setError(t('launchesCatalogSetupMissing'));
+          setCatalogImagesUnavailable(true);
+          setError(t('launchesCatalogImagesUnavailable'));
           return;
         }
-        setCatalogSetupMissing(false);
+        setCatalogImagesUnavailable(false);
       } catch (e) {
         if (!inputAuthority.current.mounted) return;
         if (e instanceof LaunchPreparationError) {
@@ -1605,25 +1605,6 @@ export function LaunchSession({
       {!showProgress && error && restitchSettingsError(requestErrorCode) && (
         <Button onClick={openRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
       )}
-      {catalogSetupMissing && (
-        <Button
-          onClick={() =>
-            navigateTo(
-              buildTeamRoute({
-                spaceId: teamId,
-                section: 'launches',
-                query: {
-                  ...emptyTeamRouteQuery(),
-                  settings: true,
-                  settingsTab: 'product-catalog'
-                }
-              })
-            )
-          }
-        >
-          {t('launchesOpenCatalogSettings')}
-        </Button>
-      )}
       {defaultsConflict && manage && (
         <Button
           disabled={locked}
@@ -1884,8 +1865,8 @@ export function LaunchSession({
                 !inputAuthority.current.locked &&
                 inputAuthority.current.editable
               ) {
-                if (patch.method && patch.method !== 'catalog' && catalogSetupMissing) {
-                  setCatalogSetupMissing(false);
+                if (patch.method && patch.method !== 'catalog' && catalogImagesUnavailable) {
+                  setCatalogImagesUnavailable(false);
                   setError(null);
                   setRequestErrorCode(null);
                   setRequestErrorDefinitive(false);

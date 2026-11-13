@@ -5,13 +5,13 @@ export class LaunchPreparationError extends Error {
 }
 
 export interface LaunchCatalogPreparationClient {
-  getProductCatalogSettings(teamId: string): Promise<{
+  getProductCatalogSettings?(teamId: string): Promise<{
     title: string | null;
     description: string | null;
     imageLink: string | null;
   } | null>;
-  listProductCatalogTexts(teamId: string): Promise<readonly unknown[]>;
-  listProductCatalogImageSources(teamId: string): Promise<{ poolSize: number }>;
+  listProductCatalogTexts?(teamId: string): Promise<readonly unknown[]>;
+  listProductCatalogImageSources?(teamId: string): Promise<{ poolSize: number }>;
   catalogImages: {
     globalReadiness?: (teamId: string) => Promise<{ state: string; usable: boolean }>;
     capabilities(teamId: string): Promise<{ mode: 'legacy' | 'v2' }>;
@@ -28,21 +28,14 @@ export async function isLaunchCatalogReady(
     const policy = await client.catalogImages.globalReadiness(teamId);
     if (policy.state !== 'prepared') return policy.usable;
   }
-  const [settings, texts, capabilities] = await Promise.all([
-    client.getProductCatalogSettings(teamId),
-    client.listProductCatalogTexts(teamId),
-    client.catalogImages.capabilities(teamId)
-  ]);
-  if (!settings) return false;
-  const hasTexts = texts.length > 0 || Boolean(settings.title && settings.description);
+  const capabilities = await client.catalogImages.capabilities(teamId);
   if (capabilities.mode === 'v2') {
     const inventory = await client.catalogImages.inventory(teamId);
-    // Every selected matched picture can supply factual canonical text. Random
-    // pictures still require the user's generic text pool or fallback values.
-    return inventory.total > 0 && (hasTexts || inventory.unclassified === 0);
+    return inventory.total > 0;
   }
-  const images = await client.listProductCatalogImageSources(teamId);
-  return hasTexts && (images.poolSize > 0 || Boolean(settings.imageLink));
+  // Legacy source/fallback eligibility is checked by the authoritative generator.
+  // Browser admission never depends on retired price/text settings.
+  return true;
 }
 
 /** Only read-only preflight work belongs here. A late read must never start generation. */

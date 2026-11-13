@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-11-13T19:12:35.948Z",
+  "policy_version": 1,
+  "pool_size": 2000,
+  "samples": 100,
+  "rows_per_sample": 200,
+  "runtime": "v22.23.2",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "p50_ms": 0.1566660000000013,
+  "p95_ms": 0.711459000000005,
+  "maximum_ms": 2.3372910000000076,
+  "target_p95_ms": 100,
+  "passed": true,
+  "scope": "Pure content and price selection for already classified images; excludes provider, database and publication I/O; concurrent isolated build was running"
+}

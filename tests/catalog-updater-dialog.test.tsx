@@ -297,14 +297,20 @@ it('shows all five independent controls, with video first and IDs explained by t
   await userEvent.click(screen.getByRole('button', { name: 'What do the icons mean?' }));
   const help = screen.getByRole('dialog', { name: 'What do the icons mean?' });
   const settingsLinks = within(help).getAllByRole('link', { name: 'space settings' });
-  expect(settingsLinks).toHaveLength(3);
+  expect(settingsLinks).toHaveLength(1);
   expect(settingsLinks[0].getAttribute('href')).toContain('tab=restitch');
-  expect(settingsLinks[1].getAttribute('href')).toContain('tab=product-catalog');
-  expect(settingsLinks[2].getAttribute('href')).toContain('tab=product-catalog');
+  expect(within(help).getByText(/Generates names and descriptions for each image/)).toBeTruthy();
+  expect(within(help).getByText(/images must match the retained names/)).toBeTruthy();
+  expect(help.querySelector('a[href*="product-catalog"]')).toBeNull();
   expect(document.querySelector('.catalog-legend-strip')).toBeNull();
   fireEvent.keyDown(help, { key: 'Escape' });
   expect(screen.queryByRole('dialog', { name: 'What do the icons mean?' })).toBeNull();
   expect(screen.getByRole('searchbox')).toBeTruthy();
+});
+it('omits the manager menu when it would only offer retired defaults', async () => {
+  renderDialog(client([row('1', 'polo.mp4')], stopped));
+  await screen.findByLabelText('Select polo.mp4 catalog');
+  expect(screen.queryByRole('button', { name: 'Catalog manager actions' })).toBeNull();
 });
 it('closes on Escape from an empty search field', async () => {
   const { onClose } = renderDialog(client([row('1', 'polo.mp4')], stopped));

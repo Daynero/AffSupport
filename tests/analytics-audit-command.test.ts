@@ -83,6 +83,27 @@ function capability(data: AuditData, id: string) {
 }
 
 describe('audit · capability status', () => {
+  it('retires only current text schedule expectations while preserving unknown historical coverage', async () => {
+    const current = capability(
+      await getAudit(resolvePeriod('all', undefined)),
+      'team.catalog_text_schedule'
+    );
+    expect(current).toMatchObject({
+      status: 'covered',
+      samples: null,
+      current_lifecycle: {
+        retired_since_content_policy_version: 1,
+        basis: 'source_policy',
+        historical_coverage: 'unknown'
+      },
+      historical_observation: {
+        missing: expect.arrayContaining(['analytics_catalog_text_schedule_journal'])
+      }
+    });
+    const historical = capability(await getAudit(ALL), 'team.catalog_text_schedule');
+    expect(historical.status).toBe('uncovered');
+    expect(historical.missing).toContain('analytics_catalog_text_schedule_journal');
+  });
   it('keeps catalog event coverage unknown and distinguishes measured snapshots from unobserved delivery', async () => {
     const data = await getAudit(ALL);
     const catalog = capability(data, 'team.product_catalog');

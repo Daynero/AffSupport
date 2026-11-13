@@ -1,3 +1,4 @@
+import { parseCatalogContentEvidence, type CatalogContentEvidence } from './catalog-content.js';
 import type { ResolvedPeriod } from './types.js';
 import type { CatalogUpdateSchedule } from '../../packages/shared/src/team/catalog-updater.js';
 import { query } from './db.js';
@@ -28,7 +29,7 @@ export async function getTeamCatalogUpdateDiagnosis(
   return { team_id: teamId, catalogs: diagnoses };
 }
 
-interface CatalogAttemptRow {
+interface CatalogAttemptRow extends Partial<CatalogContentEvidence> {
   attempt_id: string;
   catalog_material_id: string;
   team_id: string;
@@ -70,8 +71,13 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10, period?:
            update_interval, next_run_at, reconciliation_required, schedule, attempt_schedule,
            last_success_at, last_error_code, last_error_at,
            video_preparation_state, video_preparation_error,
-           video_preparation_retry_at, video_preparation_lease_until, video_operation_state, video_operation_stage
-    from public.analytics_catalog_updates
+           video_preparation_retry_at, video_preparation_lease_until, video_operation_state, video_operation_stage,
+           to_jsonb(a)->'content_receipt_status' content_receipt_status,
+           to_jsonb(a)->'content_policy_version' content_policy_version,
+           to_jsonb(a)->'planned_row_count' planned_row_count,
+           to_jsonb(a)->'automatic_row_count' automatic_row_count,
+           to_jsonb(a)->'retained_row_count' retained_row_count
+    from public.analytics_catalog_updates a
     where (catalog_material_id = $1::uuid or attempt_id = $1::uuid)
       ${period ? 'and ($3::timestamptz is null or started_at >= $3::timestamptz) and started_at <= $4::timestamptz' : ''}
     order by started_at desc
@@ -143,6 +149,7 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10, period?:
         }
       : null,
     attempts: rows.map(row => ({
+      ...parseCatalogContentEvidence(historical && !endedInWindow(row) ? {} : row),
       attempt_id: row.attempt_id,
       trigger: row.trigger_kind,
       started_at: row.started_at,
@@ -181,6 +188,15 @@ export async function getCatalogUpdateDiagnosis(id: string, limit = 10, period?:
         ? [
             'Server claim eligibility is not exposed by this deployment; an empty native claim does not explain why work was withheld.'
           ]
+        : []),
+      'Content receipts describe the frozen attempt only. Automatic counts exclude retained rows, even if those rows were generated automatically by an older attempt. Receipt quality never changes the recorded operation outcome or proves browser visibility.',
+      ...(rows.some(row => parseCatalogContentEvidence(row).content_receipt_status === 'invalid')
+        ? ['Some content receipts are invalid; their counts and policy remain unknown.']
+        : []),
+      ...(rows.some(
+        row => parseCatalogContentEvidence(row).content_receipt_status === 'unavailable'
+      )
+        ? ['Some attempts have no available content receipt; their content policy is unknown.']
         : []),
       'Claim eligibility describes current predicates, not historical claim decisions or proof of execution.',
       'Video preparation exposes current queue state and failure code; historical preparation stages before a sheet claim are not retained.',

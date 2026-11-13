@@ -172,7 +172,13 @@ export type AuditStatus = 'covered' | 'partial' | 'uncovered' | 'declared_but_ne
 export interface AuditCapability {
   current_lifecycle?:
     | { retired_since_api_version: 6; historical_coverage: 'unknown' }
-    | { retired_since_policy_epoch: string; historical_coverage: 'unknown' };
+    | { retired_since_policy_epoch: string; historical_coverage: 'unknown' }
+    | {
+        retired_since_content_policy_version: 1;
+        basis: 'source_policy';
+        historical_coverage: 'unknown';
+      };
+  historical_observation?: { samples: number | null; missing: string[]; findings: string[] };
   id: string;
   tool: string;
   status: AuditStatus;
@@ -293,6 +299,7 @@ export interface InspectAgentIdentity {
 }
 
 export interface InspectFound {
+  catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   global_images?: Awaited<ReturnType<typeof import('./global-images.js').getGlobalImageEvidence>>;
@@ -346,6 +353,7 @@ export interface InspectFound {
 }
 
 export interface InspectNotFound {
+  catalog_generations?: import('./catalog-generations.js').CatalogGenerationEvidence;
   durable_launch_batches?: import('./launch-batches.js').DurableLaunchBatchEvidence;
   catalog_renames?: import('./catalog-renames.js').CatalogRenameEvidence;
   catalog_growth_video_recipes?: import('./catalog-growth.js').CatalogGrowthEvidence;
@@ -367,7 +375,7 @@ export interface InspectNotFound {
 export type InspectData = InspectFound | InspectNotFound;
 
 export const INSPECT_AGENT_NOTE =
-  'agent_instance_id/agent_platforms come from the Agent (envelope v3) and are empty for events from web builds before 031; platforms/architectures come from the browser.';
+  'agent_instance_id and agent_platforms come from the Agent (envelope v3) and are empty for events from web builds before 031; platforms and architectures come from the browser.';
 
 export interface CommandEnvelope<T> {
   ok: true;

@@ -1,4 +1,7 @@
-import { PRODUCT_CATALOG_TEMPLATE } from '../supabase/functions/_shared/product-catalog';
+import {
+  PRODUCT_CATALOG_TEMPLATE,
+  parseCatalogRowRecipe
+} from '../supabase/functions/_shared/product-catalog';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createDurableProductCatalog,
@@ -298,6 +301,66 @@ describe.each([3, 10])('%i concurrent catalog attempts', count => {
       expect(f.deps.finalize).toHaveBeenCalledTimes(1);
     }
   });
+});
+
+describe('automatic content through durable creation', () => {
+  it.each(['planning', 'create_reply'] as const)(
+    'creates without saved settings and preserves exact choices after %s interruption',
+    async failure => {
+      const f = fixture(failure === 'create_reply');
+      f.state.checkpoint.contentPolicyVersion = 1;
+      vi.mocked(f.deps.readSettings).mockResolvedValue(null);
+      vi.mocked(f.deps.drawImages).mockResolvedValue([
+        { driveFileId: 'dress-image', resourceKey: null, name: 'wrap-dress_coral_001.png' },
+        { driveFileId: 'tshirt-image', resourceKey: null, name: 'tshirt_black_001.png' }
+      ]);
+      if (failure === 'planning')
+        vi.mocked(f.deps.planName).mockRejectedValueOnce(
+          new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true })
+        );
+      await expect(
+        createDurableProductCatalog(f.deps, f.store, async () => f.drive, body, ACTOR)
+      ).rejects.toBeDefined();
+      const rows = parseCatalogRowRecipe(f.state.checkpoint.rowRecipe);
+      expect(rows).toHaveLength(2);
+      expect(rows![0]!.title).toMatch(/Coral Wrap Dress/u);
+      expect(rows![0]!.price).toBeGreaterThanOrEqual(50);
+      expect(rows![0]!.price).toBeLessThanOrEqual(95);
+      expect(rows![1]!.title).toMatch(/Black T-Shirt/u);
+      expect(rows![1]!.price).toBeGreaterThanOrEqual(12);
+      expect(rows![1]!.price).toBeLessThanOrEqual(24);
+      expect(f.state.checkpoint).toMatchObject({
+        content_policy_version: 1,
+        planned_row_count: 2,
+        automatic_row_count: 2,
+        retained_row_count: 0
+      });
+      const original = structuredClone(rows);
+      vi.mocked(f.deps.drawImages).mockRejectedValue(
+        new Error('A retry must not draw images again')
+      );
+      vi.mocked(f.deps.readSettings).mockRejectedValue(
+        new Error('Frozen settings must be restored')
+      );
+      const result = await createDurableProductCatalog(
+        f.deps,
+        f.store,
+        async () => f.drive,
+        body,
+        ACTOR
+      );
+      expect(result).toMatchObject({
+        outcome: 'created',
+        catalog: { materialId: 'catalog-material' }
+      });
+      expect(f.state.checkpoint.rowRecipe).toEqual(original);
+      expect(f.state.state).toBe('registered');
+      expect(f.create).toHaveBeenCalledTimes(1);
+      expect(f.deps.drawImages).toHaveBeenCalledTimes(1);
+      expect(f.deps.drawTexts).not.toHaveBeenCalled();
+      expect(f.deps.readSettings).toHaveBeenCalledTimes(1);
+    }
+  );
 });
 
 describe('durable reuse of existing catalog generator', () => {

@@ -1,3 +1,7 @@
+import {
+  getCatalogGenerationEvidence,
+  mergeCatalogGenerationInspection
+} from './catalog-generations.js';
 import { getCatalogRenameEvidence, mergeCatalogRenameInspection } from './catalog-renames.js';
 import {
   getDurableLaunchBatchEvidence,
@@ -27,7 +31,7 @@ import {
   getTranslationRetirementEvidence,
   inspectTranslationRetirement
 } from './library-retirement.js';
-import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
+import { CATALOG_TEXT_RETIREMENT, getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageAudit } from './catalog-images.js';
 import { getRecoveryRetirementEvidence, inspectRecoveryRetirement } from './recovery-retirement.js';
 import { RECOVERY_RETIREMENT_STAGES } from '../../packages/shared/src/team/recovery.js';
@@ -2085,6 +2089,21 @@ function auditCapability(
       note: 'Private image setup is retired under the global policy. Current absence is expected; historical coverage remains unknown.'
     };
   }
+  if (capability.id === 'team.catalog_text_schedule' && !period.as_of) {
+    return {
+      ...base,
+      status: 'covered',
+      missing: [],
+      samples: null,
+      current_lifecycle: CATALOG_TEXT_RETIREMENT,
+      historical_observation: {
+        samples: textScheduleAudit?.evidence.length ?? null,
+        missing: textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'],
+        findings: textScheduleAudit?.findings ?? []
+      },
+      note: 'Current source policy retires scheduled text generation; periodic emissions are no longer required. Deployed worker retirement and historical success are not inferred. Historical failures and missing evidence remain in historical_observation.'
+    };
+  }
   if (capability.id === 'team.catalog_text_schedule') {
     const missing = textScheduleAudit?.missing ?? ['catalog_text_schedule_projection_unavailable'];
     const samples = textScheduleAudit?.evidence.length ?? 0;
@@ -2452,8 +2471,18 @@ export async function getInspect(id: string, asOf?: string, limit = 500): Promis
   const core = await getInspectBeforeDurableBatch(id, asOf, limit);
   const batches = await getDurableLaunchBatchEvidence(id, asOf);
   const renames = await getCatalogRenameEvidence(id, asOf);
+  const catalogs = await getCatalogGenerationEvidence(id, {
+    token: 'all',
+    start: null,
+    end: asOf ?? new Date().toISOString(),
+    label: 'all',
+    ...(asOf ? { as_of: asOf } : {})
+  });
   return inspectBackgroundSetup(
-    mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames)
+    mergeCatalogGenerationInspection(
+      mergeCatalogRenameInspection(mergeDurableLaunchBatchInspection(core, batches), renames),
+      catalogs
+    )
   );
 }
 async function getInspectBeforeDurableBatch(

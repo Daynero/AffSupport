@@ -8,6 +8,7 @@ export type {
   AdminUserRow,
   MarketingExportRow
 } from './database.compat';
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type GeneratedDatabase = {
@@ -18,30 +19,13 @@ export type GeneratedDatabase = {
           created_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           user_id: string;
         };
         Update: {
           created_at?: string;
-          user_id?: string;
-        };
-        Relationships: [];
-      };
-      release_testers: {
-        Row: {
-          added_at: string;
-          added_by: string | null;
-          user_id: string;
-        };
-        Insert: {
-          added_at?: string;
-          added_by?: string | null;
-          user_id: string;
-        };
-        Update: {
-          added_at?: string;
-          added_by?: string | null;
           user_id?: string;
         };
         Relationships: [];
@@ -53,19 +37,20 @@ export type GeneratedDatabase = {
           code: string;
           id: number;
           installation_id: string | null;
-          props: Json;
+          props: NonNullable<Json>;
           received_at: string;
           recorded_at: string;
           seq: number;
           user_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           agent_instance_id: string;
           category: string;
           code: string;
           id?: never;
           installation_id?: string | null;
-          props?: Json;
+          props?: NonNullable<Json>;
           received_at?: string;
           recorded_at: string;
           seq: number;
@@ -77,7 +62,7 @@ export type GeneratedDatabase = {
           code?: string;
           id?: never;
           installation_id?: string | null;
-          props?: Json;
+          props?: NonNullable<Json>;
           received_at?: string;
           recorded_at?: string;
           seq?: number;
@@ -92,6 +77,7 @@ export type GeneratedDatabase = {
           event_name: string;
           users: number;
         };
+        ComputedFields: never;
         Insert: {
           count?: number;
           day: string;
@@ -118,6 +104,7 @@ export type GeneratedDatabase = {
           tool: string;
           users: number;
         };
+        ComputedFields: never;
         Insert: {
           cancellations?: number;
           completions?: number;
@@ -170,17 +157,18 @@ export type GeneratedDatabase = {
           occurred_at: string;
           outcome: string | null;
           platform: string | null;
-          properties: Json;
+          properties: NonNullable<Json>;
           release_channel: string | null;
           run_id: string | null;
           screen: string | null;
           session_id: string | null;
           session_sequence: number | null;
           tool: string | null;
-          tool_contracts: Json;
+          tool_contracts: NonNullable<Json>;
           user_id: string | null;
           web_build_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           action?: string | null;
           agent_instance_id?: string | null;
@@ -208,14 +196,14 @@ export type GeneratedDatabase = {
           occurred_at?: string;
           outcome?: string | null;
           platform?: string | null;
-          properties?: Json;
+          properties?: NonNullable<Json>;
           release_channel?: string | null;
           run_id?: string | null;
           screen?: string | null;
           session_id?: string | null;
           session_sequence?: number | null;
           tool?: string | null;
-          tool_contracts?: Json;
+          tool_contracts?: NonNullable<Json>;
           user_id?: string | null;
           web_build_id?: string | null;
         };
@@ -246,14 +234,14 @@ export type GeneratedDatabase = {
           occurred_at?: string;
           outcome?: string | null;
           platform?: string | null;
-          properties?: Json;
+          properties?: NonNullable<Json>;
           release_channel?: string | null;
           run_id?: string | null;
           screen?: string | null;
           session_id?: string | null;
           session_sequence?: number | null;
           tool?: string | null;
-          tool_contracts?: Json;
+          tool_contracts?: NonNullable<Json>;
           user_id?: string | null;
           web_build_id?: string | null;
         };
@@ -263,6 +251,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -275,6 +264,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -301,6 +291,7 @@ export type GeneratedDatabase = {
           transcript_delete_pref: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           account_status?: string;
           avatar_url?: string | null;
@@ -337,12 +328,32 @@ export type GeneratedDatabase = {
         };
         Relationships: [];
       };
+      release_testers: {
+        Row: {
+          added_at: string;
+          added_by: string | null;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          added_at?: string;
+          added_by?: string | null;
+          user_id: string;
+        };
+        Update: {
+          added_at?: string;
+          added_by?: string | null;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       role_permissions: {
         Row: {
           allowed: boolean;
           permission: string;
           role: string;
         };
+        ComputedFields: never;
         Insert: {
           allowed: boolean;
           permission: string;
@@ -383,6 +394,7 @@ export type GeneratedDatabase = {
           toast_acked_at: string | null;
           undone_at: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           after?: Json | null;
@@ -446,6 +458,7 @@ export type GeneratedDatabase = {
           tariff_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           attempts?: number;
           created_at?: string;
@@ -518,6 +531,7 @@ export type GeneratedDatabase = {
           team_id: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           bound_at?: string | null;
           claimed_at?: string | null;
@@ -609,6 +623,7 @@ export type GeneratedDatabase = {
           title_uk: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           currency?: string;
@@ -659,6 +674,7 @@ export type GeneratedDatabase = {
           summary_uk: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           active?: boolean;
           base_seats: number;
@@ -708,6 +724,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           admin_email?: string | null;
           admin_telegram?: string | null;
@@ -734,6 +751,7 @@ export type GeneratedDatabase = {
           created_at: string;
           id: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           after?: Json | null;
@@ -766,6 +784,7 @@ export type GeneratedDatabase = {
           topup: number | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_id: string;
@@ -828,6 +847,7 @@ export type GeneratedDatabase = {
           membership_revision: number;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           entity_id: string;
           entity_kind: string;
@@ -871,6 +891,7 @@ export type GeneratedDatabase = {
           team_id: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           archived: boolean;
@@ -914,25 +935,26 @@ export type GeneratedDatabase = {
         Row: {
           actor_id: string;
           operation_id: string;
-          payload: Json;
+          payload: NonNullable<Json>;
           request_id: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           operation_id?: string;
-          payload: Json;
+          payload: NonNullable<Json>;
           request_id: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
         };
         Update: {
           actor_id?: string;
           operation_id?: string;
-          payload?: Json;
+          payload?: NonNullable<Json>;
           request_id?: string;
-          result?: Json;
+          result?: NonNullable<Json>;
           team_id?: string;
         };
         Relationships: [
@@ -959,6 +981,7 @@ export type GeneratedDatabase = {
           team_id: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           parent_id: string;
           scope: string;
@@ -998,6 +1021,7 @@ export type GeneratedDatabase = {
           starts_at: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -1041,6 +1065,7 @@ export type GeneratedDatabase = {
           user_id: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           agent_id: string;
           name_color?: number;
@@ -1085,6 +1110,7 @@ export type GeneratedDatabase = {
           revision: number;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           change_kind?: string;
           revision?: number;
@@ -1125,6 +1151,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           archived_at?: string | null;
           created_at?: string;
@@ -1183,6 +1210,7 @@ export type GeneratedDatabase = {
           request_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           actor_id?: string | null;
@@ -1265,6 +1293,7 @@ export type GeneratedDatabase = {
           team_id: string;
           topup_imported_event_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -1322,27 +1351,28 @@ export type GeneratedDatabase = {
         Row: {
           actor_id: string;
           created_at: string;
-          payload: Json;
+          payload: NonNullable<Json>;
           request_id: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
           undone_by_request_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           created_at?: string;
-          payload: Json;
+          payload: NonNullable<Json>;
           request_id: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
           undone_by_request_id?: string | null;
         };
         Update: {
           actor_id?: string;
           created_at?: string;
-          payload?: Json;
+          payload?: NonNullable<Json>;
           request_id?: string;
-          result?: Json;
+          result?: NonNullable<Json>;
           team_id?: string;
           undone_by_request_id?: string | null;
         };
@@ -1378,6 +1408,7 @@ export type GeneratedDatabase = {
           updated_by: string | null;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -1453,6 +1484,7 @@ export type GeneratedDatabase = {
           label_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           agent_row_id: string;
           attached_at?: string;
@@ -1510,6 +1542,7 @@ export type GeneratedDatabase = {
           team_id: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           agent_row_id: string;
@@ -1570,6 +1603,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           agent_row_id: string;
           created_at?: string;
@@ -1630,6 +1664,7 @@ export type GeneratedDatabase = {
           to_account_name: string | null;
           to_placement_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           agent_row_id: string;
@@ -1707,9 +1742,10 @@ export type GeneratedDatabase = {
           id: string;
           occurred_at: string;
           result: string;
-          target: Json;
+          target: NonNullable<Json>;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           action: string;
           actor_id?: string | null;
@@ -1718,7 +1754,7 @@ export type GeneratedDatabase = {
           id?: string;
           occurred_at?: string;
           result: string;
-          target?: Json;
+          target?: NonNullable<Json>;
           team_id: string;
         };
         Update: {
@@ -1729,7 +1765,7 @@ export type GeneratedDatabase = {
           id?: string;
           occurred_at?: string;
           result?: string;
-          target?: Json;
+          target?: NonNullable<Json>;
           team_id?: string;
         };
         Relationships: [
@@ -1758,6 +1794,7 @@ export type GeneratedDatabase = {
           parent_folder_id: string | null;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           event_kind: string;
           id?: number;
@@ -1796,7 +1833,7 @@ export type GeneratedDatabase = {
           actor_id: string | null;
           actor_scope: string;
           authorization_epoch: number;
-          counts: Json;
+          counts: NonNullable<Json>;
           created_at: string;
           id: string;
           last_user_activity: string;
@@ -1806,11 +1843,12 @@ export type GeneratedDatabase = {
           state: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           actor_scope: string;
           authorization_epoch?: number;
-          counts?: Json;
+          counts?: NonNullable<Json>;
           created_at?: string;
           id?: string;
           last_user_activity?: string;
@@ -1824,7 +1862,7 @@ export type GeneratedDatabase = {
           actor_id?: string | null;
           actor_scope?: string;
           authorization_epoch?: number;
-          counts?: Json;
+          counts?: NonNullable<Json>;
           created_at?: string;
           id?: string;
           last_user_activity?: string;
@@ -1855,17 +1893,18 @@ export type GeneratedDatabase = {
         Row: {
           active: boolean;
           added_at: string;
-          classification: Json;
+          classification: NonNullable<Json>;
           id: string;
           public_url: string;
           publication_id: string;
           revision: number;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           active?: boolean;
           added_at?: string;
-          classification: Json;
+          classification: NonNullable<Json>;
           id?: string;
           public_url: string;
           publication_id: string;
@@ -1875,7 +1914,7 @@ export type GeneratedDatabase = {
         Update: {
           active?: boolean;
           added_at?: string;
-          classification?: Json;
+          classification?: NonNullable<Json>;
           id?: string;
           public_url?: string;
           publication_id?: string;
@@ -1912,6 +1951,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           revision?: number;
           team_id: string;
@@ -1938,6 +1978,7 @@ export type GeneratedDatabase = {
           shared_link: string | null;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           catalog_material_id?: string | null;
           created_at?: string;
@@ -1976,6 +2017,13 @@ export type GeneratedDatabase = {
             foreignKeyName: 'team_catalog_restitch_copies_catalog_material_id_fkey';
             columns: ['catalog_material_id'];
             isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_restitch_copies_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
             referencedRelation: 'team_product_catalogs';
             referencedColumns: ['material_id'];
           },
@@ -2006,37 +2054,46 @@ export type GeneratedDatabase = {
         Row: {
           actual_changes: Json | null;
           attempt_id: string;
+          automatic_row_count: number | null;
           catalog_material_id: string;
           command_id: string | null;
+          content_policy_version: number | null;
           delivery_verified_at: string | null;
           ended_at: string | null;
           failure_code: string | null;
+          planned_row_count: number | null;
           profile_snapshot: Json | null;
           profile_version: number | null;
           requested_by: string | null;
           result: string;
+          retained_row_count: number | null;
           round_due_at: string;
           source_attempt_id: string | null;
-          stage_history: Json;
+          stage_history: NonNullable<Json>;
           started_at: string;
           team_id: string;
           trigger_kind: string;
         };
+        ComputedFields: never;
         Insert: {
           actual_changes?: Json | null;
           attempt_id?: string;
+          automatic_row_count?: number | null;
           catalog_material_id: string;
           command_id?: string | null;
+          content_policy_version?: number | null;
           delivery_verified_at?: string | null;
           ended_at?: string | null;
           failure_code?: string | null;
+          planned_row_count?: number | null;
           profile_snapshot?: Json | null;
           profile_version?: number | null;
           requested_by?: string | null;
           result?: string;
+          retained_row_count?: number | null;
           round_due_at: string;
           source_attempt_id?: string | null;
-          stage_history?: Json;
+          stage_history?: NonNullable<Json>;
           started_at?: string;
           team_id: string;
           trigger_kind: string;
@@ -2044,18 +2101,22 @@ export type GeneratedDatabase = {
         Update: {
           actual_changes?: Json | null;
           attempt_id?: string;
+          automatic_row_count?: number | null;
           catalog_material_id?: string;
           command_id?: string | null;
+          content_policy_version?: number | null;
           delivery_verified_at?: string | null;
           ended_at?: string | null;
           failure_code?: string | null;
+          planned_row_count?: number | null;
           profile_snapshot?: Json | null;
           profile_version?: number | null;
           requested_by?: string | null;
           result?: string;
+          retained_row_count?: number | null;
           round_due_at?: string;
           source_attempt_id?: string | null;
-          stage_history?: Json;
+          stage_history?: NonNullable<Json>;
           started_at?: string;
           team_id?: string;
           trigger_kind?: string;
@@ -2067,6 +2128,13 @@ export type GeneratedDatabase = {
             isOneToOne: false;
             referencedRelation: 'analytics_catalog_claim_eligibility';
             referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
           },
           {
             foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
@@ -2111,7 +2179,9 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
           version: number;
+          video_variant_count: number;
         };
+        ComputedFields: never;
         Insert: {
           catalog_material_id: string;
           grow_products: boolean;
@@ -2124,6 +2194,7 @@ export type GeneratedDatabase = {
           updated_at?: string;
           updated_by?: string | null;
           version?: number;
+          video_variant_count?: number;
         };
         Update: {
           catalog_material_id?: string;
@@ -2137,6 +2208,7 @@ export type GeneratedDatabase = {
           updated_at?: string;
           updated_by?: string | null;
           version?: number;
+          video_variant_count?: number;
         };
         Relationships: [
           {
@@ -2145,6 +2217,13 @@ export type GeneratedDatabase = {
             isOneToOne: true;
             referencedRelation: 'analytics_catalog_claim_eligibility';
             referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_profiles_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
           },
           {
             foreignKeyName: 'team_catalog_update_profiles_catalog_material_id_fkey';
@@ -2187,6 +2266,7 @@ export type GeneratedDatabase = {
           team_id: string;
           update_interval: string | null;
         };
+        ComputedFields: never;
         Insert: {
           added_at?: string;
           attempts?: number;
@@ -2233,6 +2313,13 @@ export type GeneratedDatabase = {
             foreignKeyName: 'team_catalog_updater_items_catalog_material_id_fkey';
             columns: ['catalog_material_id'];
             isOneToOne: true;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_updater_items_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
             referencedRelation: 'team_product_catalogs';
             referencedColumns: ['material_id'];
           },
@@ -2263,6 +2350,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           default_restitch?: boolean;
           grow_products?: boolean;
@@ -2314,18 +2402,78 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      team_catalog_video_r2_signals: {
+        Row: {
+          catalog_material_id: string;
+          copy_state: string | null;
+          enabled: boolean;
+          last_successful_update_at: string | null;
+          link_kind: string;
+          reason: string | null;
+          revision: number;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          catalog_material_id: string;
+          copy_state?: string | null;
+          enabled?: boolean;
+          last_successful_update_at?: string | null;
+          link_kind?: string;
+          reason?: string | null;
+          revision?: number;
+          team_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          catalog_material_id?: string;
+          copy_state?: string | null;
+          enabled?: boolean;
+          last_successful_update_at?: string | null;
+          link_kind?: string;
+          reason?: string | null;
+          revision?: number;
+          team_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_video_r2_signals_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_video_r2_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_video_r2_signals_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       team_contract_settings: {
         Row: {
           key: string;
-          value: Json;
+          value: NonNullable<Json>;
         };
+        ComputedFields: never;
         Insert: {
           key: string;
-          value: Json;
+          value: NonNullable<Json>;
         };
         Update: {
           key?: string;
-          value?: Json;
+          value?: NonNullable<Json>;
         };
         Relationships: [];
       };
@@ -2340,6 +2488,7 @@ export type GeneratedDatabase = {
           outcome: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           action_kind: string;
           actor_id: string;
@@ -2381,7 +2530,7 @@ export type GeneratedDatabase = {
         Row: {
           access_expires_at: string | null;
           capabilities_checked_at: string | null;
-          capability_snapshot: Json;
+          capability_snapshot: NonNullable<Json>;
           change_page_token: string | null;
           connected_at: string | null;
           created_at: string;
@@ -2402,10 +2551,11 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           access_expires_at?: string | null;
           capabilities_checked_at?: string | null;
-          capability_snapshot?: Json;
+          capability_snapshot?: NonNullable<Json>;
           change_page_token?: string | null;
           connected_at?: string | null;
           created_at?: string;
@@ -2429,7 +2579,7 @@ export type GeneratedDatabase = {
         Update: {
           access_expires_at?: string | null;
           capabilities_checked_at?: string | null;
-          capability_snapshot?: Json;
+          capability_snapshot?: NonNullable<Json>;
           change_page_token?: string | null;
           connected_at?: string | null;
           created_at?: string;
@@ -2483,6 +2633,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           connection_id: string;
           created_at?: string;
@@ -2541,6 +2692,7 @@ export type GeneratedDatabase = {
         Row: {
           code: string;
         };
+        ComputedFields: never;
         Insert: {
           code: string;
         };
@@ -2567,6 +2719,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           accept_token_hash: string;
           created_at?: string;
@@ -2636,6 +2789,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           color?: string;
           created_at?: string;
@@ -2690,6 +2844,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           artifact_root?: string | null;
           created_at?: string;
@@ -2757,6 +2912,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           value: string;
         };
+        ComputedFields: never;
         Insert: {
           archived_at?: string | null;
           created_at?: string;
@@ -2804,6 +2960,7 @@ export type GeneratedDatabase = {
           revision_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           ad_end: number;
           ad_start: number;
@@ -2834,27 +2991,28 @@ export type GeneratedDatabase = {
       };
       team_launch_defaults: {
         Row: {
-          config: Json;
+          config: NonNullable<Json>;
           schema_version: number;
-          sub_config: Json;
+          sub_config: NonNullable<Json>;
           team_id: string;
           updated_at: string;
           updated_by: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
-          config?: Json;
+          config?: NonNullable<Json>;
           schema_version?: number;
-          sub_config?: Json;
+          sub_config?: NonNullable<Json>;
           team_id: string;
           updated_at?: string;
           updated_by: string;
           version?: number;
         };
         Update: {
-          config?: Json;
+          config?: NonNullable<Json>;
           schema_version?: number;
-          sub_config?: Json;
+          sub_config?: NonNullable<Json>;
           team_id?: string;
           updated_at?: string;
           updated_by?: string;
@@ -2880,7 +3038,7 @@ export type GeneratedDatabase = {
       team_launch_generation_steps: {
         Row: {
           attempt_no: number;
-          checkpoint: Json;
+          checkpoint: NonNullable<Json>;
           created_at: string;
           fence: number;
           generation_id: string;
@@ -2898,9 +3056,10 @@ export type GeneratedDatabase = {
           team_operation_id: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           attempt_no?: number;
-          checkpoint?: Json;
+          checkpoint?: NonNullable<Json>;
           created_at?: string;
           fence?: number;
           generation_id: string;
@@ -2920,7 +3079,7 @@ export type GeneratedDatabase = {
         };
         Update: {
           attempt_no?: number;
-          checkpoint?: Json;
+          checkpoint?: NonNullable<Json>;
           created_at?: string;
           fence?: number;
           generation_id?: string;
@@ -2997,6 +3156,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           attempt_no?: number;
@@ -3075,6 +3235,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           suppress_catalog_retention_warning?: boolean;
           team_id: string;
@@ -3106,27 +3267,28 @@ export type GeneratedDatabase = {
       };
       team_launch_offer_defaults: {
         Row: {
-          config: Json;
+          config: NonNullable<Json>;
           offer_id: string;
-          sub_config: Json;
+          sub_config: NonNullable<Json>;
           team_id: string;
           updated_at: string;
           updated_by: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
-          config?: Json;
+          config?: NonNullable<Json>;
           offer_id: string;
-          sub_config?: Json;
+          sub_config?: NonNullable<Json>;
           team_id: string;
           updated_at?: string;
           updated_by: string;
           version?: number;
         };
         Update: {
-          config?: Json;
+          config?: NonNullable<Json>;
           offer_id?: string;
-          sub_config?: Json;
+          sub_config?: NonNullable<Json>;
           team_id?: string;
           updated_at?: string;
           updated_by?: string;
@@ -3167,6 +3329,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           archived_at?: string | null;
           created_at?: string;
@@ -3211,16 +3374,17 @@ export type GeneratedDatabase = {
           created_at: string;
           digest: string;
           request_key: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           action: string;
           actor_id: string;
           created_at?: string;
           digest: string;
           request_key: string;
-          result: Json;
+          result: NonNullable<Json>;
           team_id: string;
         };
         Update: {
@@ -3229,7 +3393,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           digest?: string;
           request_key?: string;
-          result?: Json;
+          result?: NonNullable<Json>;
           team_id?: string;
         };
         Relationships: [
@@ -3257,11 +3421,12 @@ export type GeneratedDatabase = {
           restitch_material_id: string | null;
           restitch_operation_id: string | null;
           revision_id: string;
-          settings_snapshot: Json;
+          settings_snapshot: NonNullable<Json>;
           sheet_url: string;
           team_id: string;
           variant: number;
         };
+        ComputedFields: never;
         Insert: {
           catalog_id: string;
           material_id: string;
@@ -3269,7 +3434,7 @@ export type GeneratedDatabase = {
           restitch_material_id?: string | null;
           restitch_operation_id?: string | null;
           revision_id: string;
-          settings_snapshot: Json;
+          settings_snapshot: NonNullable<Json>;
           sheet_url: string;
           team_id: string;
           variant: number;
@@ -3281,7 +3446,7 @@ export type GeneratedDatabase = {
           restitch_material_id?: string | null;
           restitch_operation_id?: string | null;
           revision_id?: string;
-          settings_snapshot?: Json;
+          settings_snapshot?: NonNullable<Json>;
           sheet_url?: string;
           team_id?: string;
           variant?: number;
@@ -3300,55 +3465,56 @@ export type GeneratedDatabase = {
         Row: {
           base_revision_id: string | null;
           baseline_revision_id: string | null;
-          config: Json;
+          config: NonNullable<Json>;
           created_at: string;
           created_by: string;
           generated_url: string;
-          generator_versions: Json;
+          generator_versions: NonNullable<Json>;
           id: string;
           launch_id: string;
           original_url: string;
           result_kind: string;
-          result_overrides: Json;
+          result_overrides: NonNullable<Json>;
           revision_no: number;
-          sources: Json;
-          sub_values: Json;
+          sources: NonNullable<Json>;
+          sub_values: NonNullable<Json>;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           base_revision_id?: string | null;
           baseline_revision_id?: string | null;
-          config: Json;
+          config: NonNullable<Json>;
           created_at?: string;
           created_by: string;
           generated_url: string;
-          generator_versions?: Json;
+          generator_versions?: NonNullable<Json>;
           id?: string;
           launch_id: string;
           original_url: string;
           result_kind: string;
-          result_overrides?: Json;
+          result_overrides?: NonNullable<Json>;
           revision_no: number;
-          sources: Json;
-          sub_values: Json;
+          sources: NonNullable<Json>;
+          sub_values: NonNullable<Json>;
           team_id: string;
         };
         Update: {
           base_revision_id?: string | null;
           baseline_revision_id?: string | null;
-          config?: Json;
+          config?: NonNullable<Json>;
           created_at?: string;
           created_by?: string;
           generated_url?: string;
-          generator_versions?: Json;
+          generator_versions?: NonNullable<Json>;
           id?: string;
           launch_id?: string;
           original_url?: string;
           result_kind?: string;
-          result_overrides?: Json;
+          result_overrides?: NonNullable<Json>;
           revision_no?: number;
-          sources?: Json;
-          sub_values?: Json;
+          sources?: NonNullable<Json>;
+          sub_values?: NonNullable<Json>;
           team_id?: string;
         };
         Relationships: [
@@ -3382,6 +3548,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           launch_id: string;
           team_id: string;
@@ -3410,6 +3577,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           version: number;
         };
+        ComputedFields: never;
         Insert: {
           team_id: string;
           updated_at?: string;
@@ -3448,7 +3616,7 @@ export type GeneratedDatabase = {
           copied_from_revision_id: string | null;
           created_at: string;
           created_by: string;
-          draft_config: Json;
+          draft_config: NonNullable<Json>;
           draft_version: number;
           effective_launch_date: string | null;
           expected_source_snapshot: Json | null;
@@ -3457,6 +3625,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           work_status: string;
         };
+        ComputedFields: never;
         Insert: {
           active_revision_id?: string | null;
           aggregate_version?: number;
@@ -3467,7 +3636,7 @@ export type GeneratedDatabase = {
           copied_from_revision_id?: string | null;
           created_at?: string;
           created_by: string;
-          draft_config?: Json;
+          draft_config?: NonNullable<Json>;
           draft_version?: number;
           effective_launch_date?: string | null;
           expected_source_snapshot?: Json | null;
@@ -3486,7 +3655,7 @@ export type GeneratedDatabase = {
           copied_from_revision_id?: string | null;
           created_at?: string;
           created_by?: string;
-          draft_config?: Json;
+          draft_config?: NonNullable<Json>;
           draft_version?: number;
           effective_launch_date?: string | null;
           expected_source_snapshot?: Json | null;
@@ -3534,6 +3703,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           variant: string;
         };
+        ComputedFields: never;
         Insert: {
           completed_at?: string | null;
           created_at?: string;
@@ -3609,6 +3779,7 @@ export type GeneratedDatabase = {
           team_id: string;
           variant: string;
         };
+        ComputedFields: never;
         Insert: {
           accepted_attempt_id: string;
           accepted_by: string;
@@ -3690,6 +3861,7 @@ export type GeneratedDatabase = {
           tool_contract_version: number | null;
           tool_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           created_by: string;
@@ -3758,6 +3930,7 @@ export type GeneratedDatabase = {
           team_id: string;
           unsupported_reason: string | null;
         };
+        ComputedFields: never;
         Insert: {
           detected_end_seconds?: number;
           detected_start_seconds?: number;
@@ -3878,6 +4051,7 @@ export type GeneratedDatabase = {
           trashed_at: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           audio_fingerprint?: string | null;
           catalog_mutation_xid?: number;
@@ -4098,6 +4272,7 @@ export type GeneratedDatabase = {
           use_owner: boolean;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           configured?: boolean;
           custom_final_duration_seconds?: number;
@@ -4157,19 +4332,20 @@ export type GeneratedDatabase = {
           created_at: string;
           id: string;
           joined_at: string;
-          permission_overrides: Json;
+          permission_overrides: NonNullable<Json>;
           removed_at: string | null;
           status: string;
           team_id: string;
           updated_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           base_role: string;
           created_at?: string;
           id?: string;
           joined_at?: string;
-          permission_overrides?: Json;
+          permission_overrides?: NonNullable<Json>;
           removed_at?: string | null;
           status?: string;
           team_id: string;
@@ -4181,7 +4357,7 @@ export type GeneratedDatabase = {
           created_at?: string;
           id?: string;
           joined_at?: string;
-          permission_overrides?: Json;
+          permission_overrides?: NonNullable<Json>;
           removed_at?: string | null;
           status?: string;
           team_id?: string;
@@ -4219,6 +4395,7 @@ export type GeneratedDatabase = {
           team_id: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           changed_at?: string;
           revision?: number;
@@ -4273,6 +4450,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           bytes_completed?: number;
@@ -4363,6 +4541,7 @@ export type GeneratedDatabase = {
         Row: {
           permission: string;
         };
+        ComputedFields: never;
         Insert: {
           permission: string;
         };
@@ -4378,6 +4557,7 @@ export type GeneratedDatabase = {
           material_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           kind: string;
@@ -4427,6 +4607,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           description?: string | null;
@@ -4477,6 +4658,7 @@ export type GeneratedDatabase = {
           title: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           description: string;
           id?: string;
@@ -4520,7 +4702,7 @@ export type GeneratedDatabase = {
           last_updated_at: string | null;
           material_id: string;
           product_count: number;
-          settings_snapshot: Json;
+          settings_snapshot: NonNullable<Json>;
           sheet_url: string;
           source_link: string;
           team_id: string;
@@ -4529,6 +4711,7 @@ export type GeneratedDatabase = {
           video_link: string;
           video_material_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           created_by?: string | null;
@@ -4538,7 +4721,7 @@ export type GeneratedDatabase = {
           last_updated_at?: string | null;
           material_id: string;
           product_count: number;
-          settings_snapshot: Json;
+          settings_snapshot: NonNullable<Json>;
           sheet_url: string;
           source_link: string;
           team_id: string;
@@ -4556,7 +4739,7 @@ export type GeneratedDatabase = {
           last_updated_at?: string | null;
           material_id?: string;
           product_count?: number;
-          settings_snapshot?: Json;
+          settings_snapshot?: NonNullable<Json>;
           sheet_url?: string;
           source_link?: string;
           team_id?: string;
@@ -4615,6 +4798,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           updated_by: string | null;
         };
+        ComputedFields: never;
         Insert: {
           configured?: boolean;
           created_at?: string;
@@ -4681,6 +4865,7 @@ export type GeneratedDatabase = {
           team_id: string;
           user_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           added_at?: string;
           added_by?: string | null;
@@ -4734,6 +4919,7 @@ export type GeneratedDatabase = {
           is_base_role: boolean;
           role: string;
         };
+        ComputedFields: never;
         Insert: {
           is_base_role: boolean;
           role: string;
@@ -4752,6 +4938,7 @@ export type GeneratedDatabase = {
           updated_at: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           allow_link_on_copy?: boolean;
           created_at?: string;
@@ -4794,6 +4981,7 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           account_id: string;
           account_name_snapshot: string;
@@ -4855,6 +5043,7 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           attached_at?: string;
           attached_by: string;
@@ -4913,6 +5102,7 @@ export type GeneratedDatabase = {
           task_id: string;
           team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           attached_at?: string;
           attached_by: string;
@@ -4978,6 +5168,7 @@ export type GeneratedDatabase = {
           title: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           assignee_id?: string | null;
           assignee_label_snapshot?: string | null;
@@ -5047,6 +5238,7 @@ export type GeneratedDatabase = {
           team_id: string;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           batch_id: string;
           client_item_key: string;
@@ -5145,6 +5337,7 @@ export type GeneratedDatabase = {
           type_hint: string | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id: string;
           created_at?: string;
@@ -5220,6 +5413,7 @@ export type GeneratedDatabase = {
           team_id: string;
           verified_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           drive_folder_id: string;
@@ -5262,6 +5456,7 @@ export type GeneratedDatabase = {
           plan_interest: string | null;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           admin_note?: string | null;
           channel?: string | null;
@@ -5309,6 +5504,7 @@ export type GeneratedDatabase = {
           task_progress_max_default: number | null;
           updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           id?: string;
@@ -5335,6 +5531,7 @@ export type GeneratedDatabase = {
           email: string;
           user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           created_at?: string;
           email: string;
@@ -5367,7 +5564,7 @@ export type GeneratedDatabase = {
       analytics_catalog_claim_eligibility: {
         Row: {
           blockers: string[] | null;
-          catalog_id: string | null;
+          catalog_id: string;
           job_state: string | null;
           native_claimants: Json | null;
           native_claimants_truncated: boolean | null;
@@ -5375,8 +5572,9 @@ export type GeneratedDatabase = {
           open_operations: number | null;
           owner_id: string | null;
           prior_operations: Json | null;
-          team_id: string | null;
+          team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           blockers?: never;
           catalog_id?: string | null;
@@ -5427,9 +5625,10 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_command_bindings: {
         Row: {
-          attempt_id: string | null;
+          attempt_id: string;
           command_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           attempt_id?: string | null;
           command_id?: string | null;
@@ -5451,49 +5650,356 @@ export type GeneratedDatabase = {
       analytics_catalog_commands: {
         Row: {
           accepted: boolean | null;
-          actor_id: string | null;
+          actor_id: string;
           attempt_id: string | null;
           catalog_id: string | null;
-          command_id: string | null;
-          created_at: string | null;
-          kind: string | null;
+          command_id: string;
+          created_at: string;
+          kind: string;
           reason: string | null;
           source_attempt_id: string | null;
           status: string | null;
-          team_id: string | null;
+          team_id: string;
         };
-        Relationships: [];
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_catalog_update_commands_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_commands_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_catalog_generations: {
         Row: {
-          actor_id: string | null;
-          attempt: number | null;
-          created_at: string | null;
-          intent_id: string | null;
+          actor_id: string;
+          attempt: number;
+          automatic_row_count: number | null;
+          content_policy_version: number | null;
+          content_receipt_status: string | null;
+          created_at: string;
+          intent_id: string;
           native_sheet_bound: boolean | null;
           native_sheet_mode: boolean | null;
           native_write_acknowledged: boolean | null;
           operation_id: string | null;
           origin: string | null;
           performance: Json | null;
+          planned_row_count: number | null;
           provider_result_observed: boolean | null;
           result_registered: boolean | null;
+          retained_row_count: number | null;
           rows_planned: boolean | null;
           safe_error_code: string | null;
           settings_observed: boolean | null;
           source_observed: boolean | null;
           state: string | null;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_generation_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'catalog_generation_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_generation_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_generation_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_global_cleanup: {
+        Row: {
+          attempts: number | null;
+          code: string | null;
+          delete_after: string | null;
+          epoch: string | null;
+          external_untouched: boolean | null;
+          id: string;
+          kind: string;
+          purge_state: string | null;
+          state: string;
+          verified_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
+      analytics_catalog_global_coverage: {
+        Row: {
+          capture_enabled: boolean | null;
+          schema_version: number | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
+      analytics_catalog_global_images: {
+        Row: {
+          active: boolean;
+          classification: NonNullable<Json>;
+          confirmed_in_generation: number | null;
+          confirmed_uses_total: string | null;
+          content_expires_at: string | null;
+          content_proof_revision: string | null;
+          content_verified_at: string | null;
+          created_at: string;
+          current_generation: string | null;
+          environment: string;
+          image_id: string;
+          issued_in_generation: number | null;
+          issued_slots_total: string | null;
+          last_confirmed_at: string | null;
+          mime: string;
+          next_aliases_ready: number | null;
+          public_preview_url: string | null;
+          state: string;
+          unknown_operations: number | null;
+        };
+        ComputedFields: never;
+        Relationships: [];
+      };
+      analytics_catalog_global_journal: {
+        Row: {
+          actor_id: string | null;
+          alias_id: string | null;
+          attempt_id: string | null;
+          catalog_id: string | null;
+          code: string | null;
+          counts: NonNullable<Json>;
+          evidence_id: string | null;
+          flow_id: string | null;
+          image_id: string | null;
+          occurred_at: string;
+          received_at: string;
+          stage: string;
           team_id: string | null;
-          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          alias_id?: string | null;
+          attempt_id?: string | null;
+          catalog_id?: string | null;
+          code?: string | null;
+          counts?: Json | null;
+          evidence_id?: never;
+          flow_id?: string | null;
+          image_id?: string | null;
+          occurred_at?: string | null;
+          received_at?: string | null;
+          stage?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          alias_id?: string | null;
+          attempt_id?: string | null;
+          catalog_id?: string | null;
+          code?: string | null;
+          counts?: Json | null;
+          evidence_id?: never;
+          flow_id?: string | null;
+          image_id?: string | null;
+          occurred_at?: string | null;
+          received_at?: string | null;
+          stage?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_global_journal_code_fkey';
+            columns: ['code'];
+            isOneToOne: false;
+            referencedRelation: 'team_error_codes';
+            referencedColumns: ['code'];
+          }
+        ];
+      };
+      analytics_catalog_global_policy: {
+        Row: {
+          activated_at: string | null;
+          delete_after: string | null;
+          environment: string | null;
+          manifest_digest: string | null;
+          pending_jobs: number | null;
+          pending_operations: number | null;
+          policy_epoch: string | null;
+          routing_revision: string;
+          serving_revision: string | null;
+          serving_verified_at: string | null;
+          state: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          activated_at?: string | null;
+          delete_after?: string | null;
+          environment?: string | null;
+          manifest_digest?: string | null;
+          pending_jobs?: never;
+          pending_operations?: never;
+          policy_epoch?: never;
+          routing_revision?: string | null;
+          serving_revision?: string | null;
+          serving_verified_at?: string | null;
+          state?: string | null;
+        };
+        Update: {
+          activated_at?: string | null;
+          delete_after?: string | null;
+          environment?: string | null;
+          manifest_digest?: string | null;
+          pending_jobs?: never;
+          pending_operations?: never;
+          policy_epoch?: never;
+          routing_revision?: string | null;
+          serving_revision?: string | null;
+          serving_verified_at?: string | null;
+          state?: string | null;
         };
         Relationships: [];
+      };
+      analytics_catalog_growth_video_recipes: {
+        Row: {
+          actor_id: string;
+          applied_at: string | null;
+          attempt_id: string;
+          base_product_count: number;
+          base_revision: number;
+          catalog_material_id: string;
+          command_id: string;
+          product_count: number;
+          recipe_revision: number | null;
+          target_bound: boolean | null;
+          target_kind: string | null;
+          team_id: string;
+          video_set_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          applied_at?: string | null;
+          attempt_id?: string | null;
+          base_product_count?: number | null;
+          base_revision?: number | null;
+          catalog_material_id?: string | null;
+          command_id?: string | null;
+          product_count?: number | null;
+          recipe_revision?: never;
+          target_bound?: never;
+          target_kind?: never;
+          team_id?: string | null;
+          video_set_id?: never;
+        };
+        Update: {
+          actor_id?: string | null;
+          applied_at?: string | null;
+          attempt_id?: string | null;
+          base_product_count?: number | null;
+          base_revision?: number | null;
+          catalog_material_id?: string | null;
+          command_id?: string | null;
+          product_count?: number | null;
+          recipe_revision?: never;
+          target_bound?: never;
+          target_kind?: never;
+          team_id?: string | null;
+          video_set_id?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_attempt_id_fkey';
+            columns: ['attempt_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_command_bindings';
+            referencedColumns: ['attempt_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_attempt_id_fkey';
+            columns: ['attempt_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_updates';
+            referencedColumns: ['attempt_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_attempt_id_fkey';
+            columns: ['attempt_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_catalog_update_attempts';
+            referencedColumns: ['attempt_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_claim_eligibility';
+            referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_growth_video_recipes_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_catalog_image_coverage: {
         Row: {
           capture_enabled: boolean | null;
-          installed_at: string | null;
-          schema_version: number | null;
+          installed_at: string;
+          schema_version: number;
         };
+        ComputedFields: never;
         Insert: {
           capture_enabled?: never;
           installed_at?: string | null;
@@ -5508,11 +6014,12 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_image_daily: {
         Row: {
-          code: string | null;
-          day: string | null;
-          samples: number | null;
-          stage: string | null;
+          code: string;
+          day: string;
+          samples: number;
+          stage: string;
         };
+        ComputedFields: never;
         Insert: {
           code?: string | null;
           day?: string | null;
@@ -5530,15 +6037,16 @@ export type GeneratedDatabase = {
       analytics_catalog_image_imports: {
         Row: {
           actor_id: string | null;
-          counts: Json | null;
-          created_at: string | null;
-          id: string | null;
-          revision: number | null;
-          source_deadline: string | null;
-          source_kind: string | null;
-          state: string | null;
-          team_id: string | null;
+          counts: NonNullable<Json>;
+          created_at: string;
+          id: string;
+          revision: number;
+          source_deadline: string;
+          source_kind: string;
+          state: string;
+          team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           counts?: Json | null;
@@ -5585,12 +6093,13 @@ export type GeneratedDatabase = {
           entry_id: string | null;
           evidence_id: string | null;
           job_id: string | null;
-          occurred_at: string | null;
+          occurred_at: string;
           publication_id: string | null;
-          received_at: string | null;
+          received_at: string;
           stage: string | null;
           team_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           code?: never;
@@ -5621,14 +6130,15 @@ export type GeneratedDatabase = {
         Row: {
           canonical_bytes: number | null;
           canonical_mime: string | null;
-          entry_id: string | null;
+          entry_id: string;
           error_code: string | null;
-          job_id: string | null;
+          job_id: string;
           optimization_version: string | null;
           source_bytes: number | null;
-          state: string | null;
-          team_id: string | null;
+          state: string;
+          team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           canonical_bytes?: number | null;
           canonical_mime?: string | null;
@@ -5651,19 +6161,35 @@ export type GeneratedDatabase = {
           state?: string | null;
           team_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_image_import_entries_job_id_team_id_fkey';
+            columns: ['job_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_imports';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_image_import_entries_job_id_team_id_fkey';
+            columns: ['job_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_catalog_image_imports';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
       };
       analytics_catalog_image_publications: {
         Row: {
           classification_mode: string | null;
-          created_at: string | null;
-          id: string | null;
+          created_at: string;
+          id: string;
           pool_active: boolean | null;
-          size_bytes: number | null;
-          state: string | null;
-          team_id: string | null;
+          size_bytes: number;
+          state: string;
+          team_id: string;
           verified_at: string | null;
         };
+        ComputedFields: never;
         Insert: {
           classification_mode?: never;
           created_at?: string | null;
@@ -5684,19 +6210,35 @@ export type GeneratedDatabase = {
           team_id?: string | null;
           verified_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_image_publications_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_image_publications_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_catalog_image_purges: {
         Row: {
-          attempts: number | null;
-          created_at: string | null;
-          id: string | null;
-          next_attempt_at: string | null;
+          attempts: number;
+          created_at: string;
+          id: string;
+          next_attempt_at: string;
           publication_id: string | null;
-          reason: string | null;
-          scope_id: string | null;
-          state: string | null;
+          reason: string;
+          scope_id: string;
+          state: string;
         };
+        ComputedFields: never;
         Insert: {
           attempts?: number | null;
           created_at?: string | null;
@@ -5721,7 +6263,7 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_image_storage: {
         Row: {
-          account_id: string | null;
+          account_id: string;
           available_bytes: number | null;
           images: number | null;
           library_bytes: number | null;
@@ -5730,20 +6272,22 @@ export type GeneratedDatabase = {
           pending_deletion_bytes: number | null;
           reserved_bytes: number | null;
           retained_bytes: number | null;
-          team_id: string | null;
+          team_id: string;
           used_bytes: number | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_catalog_image_uses: {
         Row: {
-          catalog_attempt_id: string | null;
-          created_at: string | null;
-          publication_id: string | null;
-          row_identity: string | null;
-          state: string | null;
-          team_id: string | null;
+          catalog_attempt_id: string;
+          created_at: string;
+          publication_id: string;
+          row_identity: string;
+          state: string;
+          team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           catalog_attempt_id?: string | null;
           created_at?: string | null;
@@ -5760,14 +6304,93 @@ export type GeneratedDatabase = {
           state?: string | null;
           team_id?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_image_uses_publication_id_team_id_fkey';
+            columns: ['publication_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_publications';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_image_uses_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_image_uses_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_publication_preparations: {
+        Row: {
+          actor_id: string;
+          catalog_material_id: string;
+          due_at: string | null;
+          due_verified_unique_links: number | null;
+          first_due_source_observed_at: string | null;
+          first_source_observed_at: string | null;
+          job_created_at: string;
+          job_id: string;
+          job_state: string;
+          last_due_source_observed_at: string | null;
+          last_source_observed_at: string | null;
+          observed_at: string | null;
+          preparation_error_at: string | null;
+          preparation_error_code: string | null;
+          prepared_unique_links: number | null;
+          private_mapping_prepared: boolean | null;
+          publication_mode: string;
+          required_unique_links: number | null;
+          team_id: string;
+          validation_epoch_expired: boolean | null;
+          validation_epoch_started_at: string | null;
+          writer_protocol: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_publication_jobs_catalog_material_id_team_id_fkey';
+            columns: ['catalog_material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_publications';
+            referencedColumns: ['catalog_material_id', 'team_id'];
+          }
+        ];
+      };
+      analytics_catalog_renames: {
+        Row: {
+          actor_id: string | null;
+          attempt_count: number | null;
+          confirmed_at: string | null;
+          created_at: string | null;
+          dispatched: boolean | null;
+          error_code: string | null;
+          material_id: string | null;
+          next_attempt_at: string | null;
+          operation_id: string | null;
+          origin: string | null;
+          request_key: string | null;
+          state: string | null;
+          team_id: string | null;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_catalog_settings_coverage: {
         Row: {
           capture_enabled: boolean | null;
-          installed_at: string | null;
-          schema_version: number | null;
+          installed_at: string;
+          schema_version: number;
         };
+        ComputedFields: never;
         Insert: {
           capture_enabled?: never;
           installed_at?: string | null;
@@ -5782,32 +6405,34 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_settings_current: {
         Row: {
-          catalog_material_id: string | null;
+          catalog_material_id: string;
           creator_id: string | null;
-          observed_at: string | null;
+          observed_at: string;
           profile_version: number | null;
-          state: Json | null;
-          team_id: string | null;
+          state: NonNullable<Json>;
+          team_id: string;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_catalog_settings_history: {
         Row: {
           actor_id: string | null;
-          actor_kind: string | null;
-          after_state: Json | null;
+          actor_kind: string;
+          after_state: NonNullable<Json>;
           baseline_kind: string | null;
           before_state: Json | null;
-          catalog_material_id: string | null;
-          changed_fields: string[] | null;
+          catalog_material_id: string;
+          changed_fields: string[];
           creator_id: string | null;
-          event_id: string | null;
-          observed_at: string | null;
+          event_id: string;
+          observed_at: string;
           profile_version: number | null;
-          source: string | null;
-          team_id: string | null;
-          transaction_id: number | null;
+          source: string;
+          team_id: string;
+          transaction_id: number;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           actor_kind?: string | null;
@@ -5844,7 +6469,7 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_sync_jobs: {
         Row: {
-          attempts: number | null;
+          attempts: number;
           cancel_requested_at: string | null;
           canonical_error_code: string | null;
           canonical_job_id: string | null;
@@ -5853,43 +6478,51 @@ export type GeneratedDatabase = {
           completed_at: string | null;
           confirmed_at: string | null;
           confirmed_sequence: number | null;
-          connection_id: string | null;
-          connection_state: string | null;
-          created_at: string | null;
+          connection_id: string;
+          connection_state: string;
+          created_at: string;
           detached_at: string | null;
           error_detail: string | null;
-          files_added: number | null;
-          files_listed: number | null;
-          files_removed: number | null;
-          files_updated: number | null;
-          folders_done: number | null;
-          items_unavailable: number | null;
-          job_id: string | null;
+          files_added: number;
+          files_listed: number;
+          files_removed: number;
+          files_updated: number;
+          folders_done: number;
+          items_unavailable: number;
+          job_id: string;
           job_kind: string | null;
           last_error_code: string | null;
           last_progress_at: string | null;
           last_recovery_at: string | null;
-          lease_epoch: number | null;
+          lease_epoch: number;
           lease_expires_at: string | null;
-          lease_lost_count: number | null;
-          next_attempt_at: string | null;
-          no_progress_runs: number | null;
+          lease_lost_count: number;
+          next_attempt_at: string;
+          no_progress_runs: number;
           owner_email_normalized: string | null;
-          phase: string | null;
+          phase: string;
           recovery_count: number | null;
           replay_after: number | null;
           request_id: string | null;
           request_key_hash: string | null;
           request_outcome: string | null;
           requested_by: string | null;
-          run_count: number | null;
+          run_count: number;
           scan_completed_at: string | null;
           scope_hash: string | null;
-          state: string | null;
-          team_id: string | null;
-          updated_at: string | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
         };
+        ComputedFields: never;
         Relationships: [
+          {
+            foreignKeyName: 'catalog_sync_jobs_connection_id_fkey';
+            columns: ['connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_drive_connections';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'team_drive_connections_team_id_fkey';
             columns: ['team_id'];
@@ -5908,19 +6541,20 @@ export type GeneratedDatabase = {
       };
       analytics_catalog_text_schedule: {
         Row: {
-          attempts: number | null;
-          enabled: boolean | null;
+          attempts: number;
+          enabled: boolean;
           last_error: string | null;
           last_run_at: string | null;
           lease_until: string | null;
           next_attempt_at: string | null;
           next_run_at: string | null;
-          revision: number | null;
+          revision: number;
           run_id: string | null;
-          team_id: string | null;
-          text_count: number | null;
-          updated_at: string | null;
+          team_id: string;
+          text_count: number;
+          updated_at: string;
         };
+        ComputedFields: never;
         Insert: {
           attempts?: number | null;
           enabled?: boolean | null;
@@ -5949,14 +6583,30 @@ export type GeneratedDatabase = {
           text_count?: number | null;
           updated_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_text_schedule_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_text_schedule_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: true;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_catalog_text_schedule_coverage: {
         Row: {
           capture_enabled: boolean | null;
-          installed_at: string | null;
+          installed_at: string;
           schema_version: number | null;
         };
+        ComputedFields: never;
         Insert: {
           capture_enabled?: never;
           installed_at?: string | null;
@@ -5973,13 +6623,14 @@ export type GeneratedDatabase = {
         Row: {
           code: string | null;
           evidence_id: string | null;
-          occurred_at: string | null;
+          occurred_at: string;
           run_id: string | null;
-          schedule_revision: number | null;
-          stage: string | null;
-          team_id: string | null;
-          text_count: number | null;
+          schedule_revision: number;
+          stage: string;
+          team_id: string;
+          text_count: number;
         };
+        ComputedFields: never;
         Insert: {
           code?: string | null;
           evidence_id?: never;
@@ -6000,15 +6651,54 @@ export type GeneratedDatabase = {
           team_id?: string | null;
           text_count?: number | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_text_schedule_journal_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_text_schedule_journal_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_updater_video_requests: {
+        Row: {
+          actor_id: string | null;
+          attempt_id: string | null;
+          canceled: boolean | null;
+          catalog_material_id: string | null;
+          created_at: string | null;
+          failure_observed: boolean | null;
+          last_proven_stage: string | null;
+          profile_version: number | null;
+          request_id: string | null;
+          requested_count: number | null;
+          safe_failure_code: string | null;
+          set_admission_missing: boolean | null;
+          state: string | null;
+          team_id: string | null;
+          video_set_id: string | null;
+        };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_catalog_updates: {
         Row: {
           actual_changes: Json | null;
-          attempt_id: string | null;
+          attempt_id: string;
           attempt_schedule: Json | null;
-          catalog_material_id: string | null;
-          current_profile_version: number | null;
+          automatic_row_count: number | null;
+          catalog_material_id: string;
+          content_policy_version: number | null;
+          content_receipt_status: string | null;
+          current_profile_version: number;
           delivery_verified_at: string | null;
           ended_at: string | null;
           failure_code: string | null;
@@ -6016,15 +6706,17 @@ export type GeneratedDatabase = {
           last_error_code: string | null;
           last_success_at: string | null;
           next_run_at: string | null;
+          planned_row_count: number | null;
           profile_version: number | null;
           reconciliation_required: boolean | null;
-          result: string | null;
+          result: string;
+          retained_row_count: number | null;
           schedule: Json | null;
           source_attempt_id: string | null;
-          stage_history: Json | null;
-          started_at: string | null;
-          team_id: string | null;
-          trigger_kind: string | null;
+          stage_history: NonNullable<Json>;
+          started_at: string;
+          team_id: string;
+          trigger_kind: string;
           update_interval: string | null;
           video_operation_stage: string | null;
           video_operation_state: string | null;
@@ -6033,6 +6725,7 @@ export type GeneratedDatabase = {
           video_preparation_retry_at: string | null;
           video_preparation_state: string | null;
         };
+        ComputedFields: never;
         Relationships: [
           {
             foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
@@ -6040,6 +6733,13 @@ export type GeneratedDatabase = {
             isOneToOne: false;
             referencedRelation: 'analytics_catalog_claim_eligibility';
             referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
           },
           {
             foreignKeyName: 'team_catalog_update_attempts_catalog_material_id_fkey';
@@ -6064,6 +6764,605 @@ export type GeneratedDatabase = {
           }
         ];
       };
+      analytics_catalog_video_baselines: {
+        Row: {
+          actor_id: string;
+          catalog_material_id: string;
+          cell_proof_present: boolean | null;
+          check_id: string;
+          closed_at: string | null;
+          created_at: string;
+          expires_at: string;
+          job_id: string;
+          observed_at: string | null;
+          provider_revision: string | null;
+          receipt_present: boolean | null;
+          revision: number;
+          state: string;
+          team_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          catalog_material_id?: string | null;
+          cell_proof_present?: never;
+          check_id?: string | null;
+          closed_at?: string | null;
+          created_at?: string | null;
+          expires_at?: string | null;
+          job_id?: string | null;
+          observed_at?: never;
+          provider_revision?: string | null;
+          receipt_present?: never;
+          revision?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          catalog_material_id?: string | null;
+          cell_proof_present?: never;
+          check_id?: string | null;
+          closed_at?: string | null;
+          created_at?: string | null;
+          expires_at?: string | null;
+          job_id?: string | null;
+          observed_at?: never;
+          provider_revision?: string | null;
+          receipt_present?: never;
+          revision?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_publication_baseline_c_catalog_material_id_team_id_fkey';
+            columns: ['catalog_material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_publications';
+            referencedColumns: ['catalog_material_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_publication_baseline_checks_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_publication_preparations';
+            referencedColumns: ['job_id'];
+          },
+          {
+            foreignKeyName: 'catalog_publication_baseline_checks_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_video_publications';
+            referencedColumns: ['job_id'];
+          }
+        ];
+      };
+      analytics_catalog_video_children: {
+        Row: {
+          operation_id: string | null;
+          operation_state: string | null;
+          output_registered: boolean | null;
+          request_id: string;
+          state: string;
+          video_set_id: string;
+          video_variant_index: number;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_variants_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_variants_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_video_consumers: {
+        Row: {
+          actor_id: string;
+          catalog_intent_id: string | null;
+          catalog_material_id: string | null;
+          product_count: number;
+          recipe_revision: number;
+          reference_id: string;
+          team_id: string;
+          update_attempt_id: string | null;
+          video_set_id: string;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_recipe_references_catalog_intent_id_team_id_fkey';
+            columns: ['catalog_intent_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_generations';
+            referencedColumns: ['intent_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_recipe_references_update_attempt_id_team_id_fkey';
+            columns: ['update_attempt_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_updates';
+            referencedColumns: ['attempt_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_recipe_references_update_attempt_id_team_id_fkey';
+            columns: ['update_attempt_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_catalog_update_attempts';
+            referencedColumns: ['attempt_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_product_catalogs_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_video_publications: {
+        Row: {
+          active_provider_revision: string | null;
+          active_recipe_revision: number | null;
+          active_source_material_id: string | null;
+          active_source_version: string | null;
+          active_target_kind: string | null;
+          active_verified_at: string | null;
+          active_video_set_id: string | null;
+          actor_id: string;
+          blocked_reason: string | null;
+          catalog_material_id: string;
+          command_id: string | null;
+          desired_recipe_revision: number | null;
+          desired_source_material_id: string | null;
+          desired_source_version: string | null;
+          desired_target_kind: string;
+          desired_video_set_id: string | null;
+          dispatched_at: string | null;
+          due_at: string | null;
+          job_created_at: string | null;
+          job_due_at: string | null;
+          job_id: string | null;
+          job_provider_revision: string | null;
+          job_recipe_revision: number | null;
+          job_revision: number | null;
+          job_source_material_id: string | null;
+          job_source_version: string | null;
+          job_state: string | null;
+          job_target_kind: string | null;
+          job_time_zone: string | null;
+          job_verified_at: string | null;
+          job_video_set_id: string | null;
+          lease_until: string | null;
+          legacy_delivery_unverified: boolean;
+          next_attempt_at: string | null;
+          observed_at: string | null;
+          policy_revision: number;
+          policy_updated_at: string;
+          publication_mode: string;
+          registered_generated_video_count: number | null;
+          requested_generated_video_count: number | null;
+          requested_mode: string | null;
+          team_id: string;
+          time_zone: string | null;
+          writer_fence_present: boolean | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_publication_poli_catalog_material_id_team_id_fkey';
+            columns: ['catalog_material_id', 'team_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_publication_policies_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_claim_eligibility';
+            referencedColumns: ['catalog_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_publication_policies_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_video_consumers';
+            referencedColumns: ['catalog_material_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_publication_policies_catalog_material_id_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_product_catalogs';
+            referencedColumns: ['material_id'];
+          }
+        ];
+      };
+      analytics_catalog_video_r2_copies: {
+        Row: {
+          attempts: number;
+          catalog_material_id: string | null;
+          copy_id: string;
+          created_at: string;
+          deleted_at: string | null;
+          full_hash_verified: boolean;
+          last_error: string | null;
+          parts_verified: number | null;
+          ready_at: string | null;
+          retire_after: string | null;
+          retire_reason: string | null;
+          size_bucket: string | null;
+          source_material_id: string;
+          state: string;
+          team_id: string;
+          use_count: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number | null;
+          catalog_material_id?: string | null;
+          copy_id?: string | null;
+          created_at?: string | null;
+          deleted_at?: string | null;
+          full_hash_verified?: boolean | null;
+          last_error?: string | null;
+          parts_verified?: never;
+          ready_at?: string | null;
+          retire_after?: string | null;
+          retire_reason?: string | null;
+          size_bucket?: never;
+          source_material_id?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+          use_count?: never;
+        };
+        Update: {
+          attempts?: number | null;
+          catalog_material_id?: string | null;
+          copy_id?: string | null;
+          created_at?: string | null;
+          deleted_at?: string | null;
+          full_hash_verified?: boolean | null;
+          last_error?: string | null;
+          parts_verified?: never;
+          ready_at?: string | null;
+          retire_after?: string | null;
+          retire_reason?: string | null;
+          size_bucket?: never;
+          source_material_id?: string | null;
+          state?: string | null;
+          team_id?: string | null;
+          use_count?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_r2_copies_requested_by_catalog_fkey';
+            columns: ['catalog_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_r2_copies_source_material_id_fkey';
+            columns: ['source_material_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_r2_copies_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_r2_copies_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_catalog_video_r2_coverage: {
+        Row: {
+          capture_enabled: boolean | null;
+          installed_at: string;
+          schema_version: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Update: {
+          capture_enabled?: never;
+          installed_at?: string | null;
+          schema_version?: number | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_video_r2_journal: {
+        Row: {
+          actor_id: string | null;
+          attempt_id: string | null;
+          catalog_material_id: string | null;
+          code: string | null;
+          copy_id: string | null;
+          duration_bucket: string | null;
+          evidence_id: string | null;
+          full_hash_verified: boolean | null;
+          intent_id: string | null;
+          link_kind: string | null;
+          occurred_at: string;
+          part_verification: string | null;
+          received_at: string;
+          size_bucket: string | null;
+          source_material_id: string | null;
+          stage: string | null;
+          team_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          attempt_id?: string | null;
+          catalog_material_id?: string | null;
+          code?: never;
+          copy_id?: string | null;
+          duration_bucket?: string | null;
+          evidence_id?: never;
+          full_hash_verified?: boolean | null;
+          intent_id?: string | null;
+          link_kind?: string | null;
+          occurred_at?: string | null;
+          part_verification?: string | null;
+          received_at?: string | null;
+          size_bucket?: string | null;
+          source_material_id?: string | null;
+          stage?: never;
+          team_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          attempt_id?: string | null;
+          catalog_material_id?: string | null;
+          code?: never;
+          copy_id?: string | null;
+          duration_bucket?: string | null;
+          evidence_id?: never;
+          full_hash_verified?: boolean | null;
+          intent_id?: string | null;
+          link_kind?: string | null;
+          occurred_at?: string | null;
+          part_verification?: string | null;
+          received_at?: string | null;
+          size_bucket?: string | null;
+          source_material_id?: string | null;
+          stage?: never;
+          team_id?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_video_r2_purges: {
+        Row: {
+          attempts: number;
+          copy_id: string | null;
+          created_at: string;
+          last_error: string | null;
+          next_attempt_at: string;
+          purge_id: string;
+          purged: boolean | null;
+          purged_at: string | null;
+          reason: string;
+          team_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          attempts?: number | null;
+          copy_id?: string | null;
+          created_at?: string | null;
+          last_error?: string | null;
+          next_attempt_at?: string | null;
+          purge_id?: string | null;
+          purged?: never;
+          purged_at?: string | null;
+          reason?: string | null;
+          team_id?: string | null;
+        };
+        Update: {
+          attempts?: number | null;
+          copy_id?: string | null;
+          created_at?: string | null;
+          last_error?: string | null;
+          next_attempt_at?: string | null;
+          purge_id?: string | null;
+          purged?: never;
+          purged_at?: string | null;
+          reason?: string | null;
+          team_id?: string | null;
+        };
+        Relationships: [];
+      };
+      analytics_catalog_video_session_authorities: {
+        Row: {
+          actor_id: string;
+          authority_id: string;
+          catalog_material_id: string | null;
+          consumer_kind: string;
+          created_at: string;
+          expires_at: string;
+          launch_id: string | null;
+          original_request_id: string | null;
+          redeemed_at: string | null;
+          safe_error_code: string | null;
+          session_valid: boolean | null;
+          set_id: string | null;
+          state: string | null;
+          team_id: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_foreground_authorities_safe_error_code_fkey';
+            columns: ['safe_error_code'];
+            isOneToOne: false;
+            referencedRelation: 'team_error_codes';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'catalog_video_foreground_authorities_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_foreground_authorities_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_foreground_authorities_video_set_id_fkey';
+            columns: ['set_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_catalog_video_sets';
+            referencedColumns: ['video_set_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_foreground_authorities_video_set_id_fkey';
+            columns: ['set_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_batches';
+            referencedColumns: ['video_set_id'];
+          }
+        ];
+      };
+      analytics_catalog_video_sets: {
+        Row: {
+          actor_id: string;
+          catalog_intent_id: string | null;
+          catalog_material_id: string | null;
+          created_at: string;
+          executor_bound: boolean | null;
+          native_boot_observed: boolean | null;
+          product_count: number;
+          queued_count: number | null;
+          recipe_revision: number;
+          registered_count: number | null;
+          requested_count: number;
+          revision: number;
+          state: string;
+          team_id: string;
+          unknown_count: number | null;
+          update_attempt_id: string | null;
+          updated_at: string;
+          video_set_id: string;
+          working_count: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          catalog_intent_id?: string | null;
+          catalog_material_id?: string | null;
+          created_at?: string | null;
+          executor_bound?: never;
+          native_boot_observed?: never;
+          product_count?: number | null;
+          queued_count?: never;
+          recipe_revision?: number | null;
+          registered_count?: never;
+          requested_count?: number | null;
+          revision?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+          unknown_count?: never;
+          update_attempt_id?: string | null;
+          updated_at?: string | null;
+          video_set_id?: string | null;
+          working_count?: never;
+        };
+        Update: {
+          actor_id?: string | null;
+          catalog_intent_id?: string | null;
+          catalog_material_id?: string | null;
+          created_at?: string | null;
+          executor_bound?: never;
+          native_boot_observed?: never;
+          product_count?: number | null;
+          queued_count?: never;
+          recipe_revision?: number | null;
+          registered_count?: never;
+          requested_count?: number | null;
+          revision?: number | null;
+          state?: string | null;
+          team_id?: string | null;
+          unknown_count?: never;
+          update_attempt_id?: string | null;
+          updated_at?: string | null;
+          video_set_id?: string | null;
+          working_count?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'catalog_video_sets_catalog_intent_id_team_id_fkey';
+            columns: ['catalog_intent_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_generations';
+            referencedColumns: ['intent_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_sets_catalog_material_id_team_id_fkey';
+            columns: ['catalog_material_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_materials';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_sets_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_sets_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_sets_update_attempt_id_team_id_fkey';
+            columns: ['update_attempt_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_updates';
+            referencedColumns: ['attempt_id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'catalog_video_sets_update_attempt_id_team_id_fkey';
+            columns: ['update_attempt_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_catalog_update_attempts';
+            referencedColumns: ['attempt_id', 'team_id'];
+          }
+        ];
+      };
       analytics_commercial_access: {
         Row: {
           id: string | null;
@@ -6076,22 +7375,24 @@ export type GeneratedDatabase = {
           seats_used: number | null;
           team_id: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_launch_assignment_events: {
         Row: {
-          action: string | null;
+          action: string;
           actor_id: string | null;
           agent_row_id: string | null;
-          id: string | null;
-          launch_id: string | null;
-          occurred_at: string | null;
+          id: string;
+          launch_id: string;
+          occurred_at: string;
           previous_agent_row_id: string | null;
           previous_state: string | null;
-          state: string | null;
-          team_id: string | null;
-          version: number | null;
+          state: string;
+          team_id: string;
+          version: number;
         };
+        ComputedFields: never;
         Insert: {
           action?: string | null;
           actor_id?: string | null;
@@ -6118,20 +7419,29 @@ export type GeneratedDatabase = {
           team_id?: string | null;
           version?: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_assignment_events_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
       };
       analytics_launch_assignments: {
         Row: {
           actor_id: string | null;
           agent_row_id: string | null;
           current_assignment_count: number | null;
-          launch_id: string | null;
+          launch_id: string;
           manual_hold_count: number | null;
-          state: string | null;
-          team_id: string | null;
-          updated_at: string | null;
-          version: number | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
+          version: number;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           agent_row_id?: string | null;
@@ -6154,49 +7464,150 @@ export type GeneratedDatabase = {
           updated_at?: string | null;
           version?: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'team_launch_assignments_agent_row_id_team_id_fkey';
+            columns: ['agent_row_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_account_agents';
+            referencedColumns: ['id', 'team_id'];
+          },
+          {
+            foreignKeyName: 'team_launch_assignments_launch_id_team_id_fkey';
+            columns: ['launch_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launches';
+            referencedColumns: ['id', 'team_id'];
+          }
+        ];
+      };
+      analytics_launch_batches: {
+        Row: {
+          actor_id: string;
+          admission: string | null;
+          admission_attempts: number;
+          admission_next_attempt_at: string | null;
+          batch_id: string;
+          cancel_error_code: string | null;
+          cancel_next_attempt_at: string | null;
+          cancel_pending: boolean;
+          cancel_requested_at: string | null;
+          child_request_key: string;
+          created_at: string;
+          error_code: string | null;
+          generation_error_code: string | null;
+          generation_id: string | null;
+          generation_stage: string | null;
+          generation_state: string | null;
+          generation_updated_at: string | null;
+          launch_id: string;
+          member_count: number | null;
+          member_updated_at: string;
+          ordinal: number;
+          request_key: string;
+          team_id: string;
+          video_registered_count: number | null;
+          video_requested_count: number | null;
+          video_set_id: string | null;
+          video_state: string | null;
+          video_updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'launch_batch_items_cancel_error_code_fkey';
+            columns: ['cancel_error_code'];
+            isOneToOne: false;
+            referencedRelation: 'team_error_codes';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'launch_batch_items_error_code_fkey';
+            columns: ['error_code'];
+            isOneToOne: false;
+            referencedRelation: 'team_error_codes';
+            referencedColumns: ['code'];
+          },
+          {
+            foreignKeyName: 'launch_batch_items_generation_id_fkey';
+            columns: ['generation_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['generation_id'];
+          },
+          {
+            foreignKeyName: 'launch_batch_items_generation_id_fkey';
+            columns: ['generation_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_launch_generations';
+            referencedColumns: ['generation_id'];
+          },
+          {
+            foreignKeyName: 'launch_batch_items_generation_id_fkey';
+            columns: ['generation_id'];
+            isOneToOne: false;
+            referencedRelation: 'team_launch_generations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'launch_batches_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'launch_batches_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_launch_cleanup: {
         Row: {
-          actor_id: string | null;
-          generation_id: string | null;
-          generation_updated_at: string | null;
-          operation_id: string | null;
-          operation_state: string | null;
+          actor_id: string;
+          generation_id: string;
+          generation_updated_at: string;
+          operation_id: string;
+          operation_state: string;
           provider_result_known: boolean | null;
           quiescence_proven: boolean | null;
           registered_output_present: boolean | null;
-          updated_at: string | null;
+          updated_at: string;
           upload_phase: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_launch_generations: {
         Row: {
-          actor_id: string | null;
-          attempt_no: number | null;
+          actor_id: string;
+          attempt_no: number;
           cancel_requested_at: string | null;
           catalog_registered: boolean | null;
           catalog_sub_binding: Json | null;
-          created_at: string | null;
+          created_at: string;
           flow_id: string | null;
-          generation_id: string | null;
-          launch_id: string | null;
+          generation_id: string;
+          launch_id: string;
           lease_expires_at: string | null;
           method: string | null;
           next_attempt_at: string | null;
           result_is_active: boolean | null;
-          retryable: boolean | null;
+          retryable: boolean;
           reuse_evidence: Json | null;
-          revision_id: string | null;
+          revision_id: string;
           safe_error_code: string | null;
           stage: string | null;
-          state: string | null;
+          state: string;
           state_version: string | null;
           steps: Json | null;
-          team_id: string | null;
-          updated_at: string | null;
+          team_id: string;
+          updated_at: string;
         };
+        ComputedFields: never;
         Relationships: [
           {
             foreignKeyName: 'team_launch_generations_launch_id_team_id_fkey';
@@ -6216,36 +7627,115 @@ export type GeneratedDatabase = {
       };
       analytics_material_group_execution: {
         Row: {
-          action: string | null;
-          actor_id: string | null;
+          action: string;
+          actor_id: string;
           claim_protocol: number | null;
           code: string | null;
           confirmed_count: number | null;
-          created_at: string | null;
+          created_at: string;
           execution_epoch: number | null;
           has_unconfirmed_dispatch: boolean | null;
-          id: string | null;
+          id: string;
           member_count: number | null;
           operation_id: string | null;
           state: string | null;
-          team_id: string | null;
+          team_id: string;
           updated_at: string | null;
         };
-        Relationships: [];
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_material_group_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      analytics_material_historical_observations: {
+        Row: {
+          action: string;
+          actor_id: string;
+          basis: string | null;
+          created_at: string;
+          id: string;
+          matching_count: number | null;
+          member_count: number | null;
+          missing_count: number | null;
+          observed_at: string | null;
+          operation_id: string | null;
+          state: string | null;
+          team_id: string;
+          updated_at: string | null;
+        };
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'team_material_group_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'team_material_group_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_material_share_intents: {
         Row: {
-          actor_id: string | null;
+          actor_id: string;
           command_id: string | null;
           confirmed_at: string | null;
-          created_at: string | null;
-          intent_id: string | null;
+          created_at: string;
+          intent_id: string;
           material_id: string | null;
           permission_acknowledged: boolean | null;
-          state: string | null;
-          team_id: string | null;
-          write_may_have_started: boolean | null;
+          state: string;
+          team_id: string;
+          write_may_have_started: boolean;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           command_id?: never;
@@ -6270,15 +7760,31 @@ export type GeneratedDatabase = {
           team_id?: string | null;
           write_may_have_started?: boolean | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'team_material_share_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'team_material_share_intents_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_membership_access_signals: {
         Row: {
-          changed_at: string | null;
-          revision: number | null;
-          team_id: string | null;
-          user_id: string | null;
+          changed_at: string;
+          revision: number;
+          team_id: string;
+          user_id: string;
         };
+        ComputedFields: never;
         Insert: {
           changed_at?: string | null;
           revision?: number | null;
@@ -6310,21 +7816,22 @@ export type GeneratedDatabase = {
       };
       analytics_process_output_cleanup: {
         Row: {
-          actor_id: string | null;
-          attempts: number | null;
-          captured_handoff_expires_at: string | null;
-          cleanup_state: string | null;
-          created_at: string | null;
-          id: string | null;
+          actor_id: string;
+          attempts: number;
+          captured_handoff_expires_at: string;
+          cleanup_state: string;
+          created_at: string;
+          id: string;
           lease_expires_at: string | null;
           max_attempts: number | null;
           next_attempt_at: string | null;
           provider_material_registered: boolean | null;
           provider_mutation_reserved: boolean | null;
           provider_result_recorded: boolean | null;
-          updated_at: string | null;
-          upload_state: string | null;
+          updated_at: string;
+          upload_state: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           attempts?: number | null;
@@ -6357,16 +7864,32 @@ export type GeneratedDatabase = {
           updated_at?: string | null;
           upload_state?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'process_upload_ownership_operation_id_fkey';
+            columns: ['id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'process_upload_ownership_operation_id_fkey';
+            columns: ['id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_recovery_execution: {
         Row: {
-          actor_id: string | null;
+          actor_id: string;
           member_ids: string[] | null;
-          operation_id: string | null;
-          started_at: string | null;
-          team_id: string | null;
+          operation_id: string;
+          started_at: string;
+          team_id: string;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           member_ids?: never;
@@ -6381,16 +7904,32 @@ export type GeneratedDatabase = {
           started_at?: string | null;
           team_id?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'team_recovery_execution_fences_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'team_recovery_execution_fences_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_recovery_retirement: {
         Row: {
-          actor_id: string | null;
-          attempt_id: string | null;
-          confirmed_at: string | null;
-          installation_id: string | null;
-          retired_count: number | null;
+          actor_id: string;
+          attempt_id: string;
+          confirmed_at: string;
+          installation_id: string;
+          retired_count: number;
         };
+        ComputedFields: never;
         Insert: {
           actor_id?: string | null;
           attempt_id?: string | null;
@@ -6410,41 +7949,72 @@ export type GeneratedDatabase = {
       analytics_restitch_selection_slots: {
         Row: {
           abandoned_grant_count: number | null;
-          actor_id: string | null;
+          actor_id: string;
           budget_revision: number | null;
           candidate_count: number | null;
           candidate_versions: Json | null;
           confirmed_bytes: number | null;
           confirmed_io_ms: number | null;
           consumed_grant_count: number | null;
-          created_at: string | null;
+          created_at: string;
           grant_count: number | null;
           issued_grant_count: number | null;
-          operation_id: string | null;
-          pool_namespace_id: string | null;
+          operation_id: string;
+          pool_namespace_id: string;
           range_count: number | null;
           refresh_count: number | null;
           retry_count: number | null;
-          slot: string | null;
+          slot: string;
           snapshot_complete: boolean | null;
           state: string | null;
-          team_id: string | null;
+          team_id: string;
           unconfirmed_range_count: number | null;
           updated_at: string | null;
         };
-        Relationships: [];
+        ComputedFields: never;
+        Relationships: [
+          {
+            foreignKeyName: 'restitch_selection_roots_root_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'analytics_launch_cleanup';
+            referencedColumns: ['operation_id'];
+          },
+          {
+            foreignKeyName: 'restitch_selection_roots_root_operation_id_fkey';
+            columns: ['operation_id'];
+            isOneToOne: true;
+            referencedRelation: 'team_operations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'restitch_selection_roots_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'analytics_catalog_image_storage';
+            referencedColumns: ['team_id'];
+          },
+          {
+            foreignKeyName: 'restitch_selection_roots_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       analytics_team_workspace: {
         Row: {
-          member_joined_at: string | null;
+          member_joined_at: string;
           member_removed_at: string | null;
-          member_user_id: string | null;
-          pilot_enrolled_at: string | null;
+          member_user_id: string;
+          pilot_enrolled_at: string;
           pilot_exited_at: string | null;
           root_connected_at: string | null;
-          root_state: string | null;
+          root_state: string;
           workspace_key: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_translation_retirement: {
@@ -6462,22 +8032,24 @@ export type GeneratedDatabase = {
           team_id: string | null;
           updated_at: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_users: {
         Row: {
-          account_status: string | null;
+          account_status: string;
           display_name: string | null;
           email: string | null;
           email_normalized: string | null;
-          id: string | null;
-          language: string | null;
+          id: string;
+          language: string;
           last_login_at: string | null;
           last_seen_at: string | null;
-          marketing_consent: boolean | null;
-          plan: string | null;
-          registered_at: string | null;
+          marketing_consent: boolean;
+          plan: string;
+          registered_at: string;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_workspace_operations: {
@@ -6493,32 +8065,34 @@ export type GeneratedDatabase = {
           team_id: string | null;
           updated_at: string | null;
         };
+        ComputedFields: never;
         Relationships: [];
       };
       analytics_workspace_recovery: {
         Row: {
           actor_id: string | null;
           attempt_id: string | null;
-          attempts: number | null;
+          attempts: number;
           delivered_at: string | null;
-          epoch: number | null;
+          epoch: number;
           finished_at: string | null;
-          item_id: string | null;
-          kind: string | null;
-          last_progress_at: string | null;
+          item_id: string;
+          kind: string;
+          last_progress_at: string;
           member_ids: string[] | null;
           operation_id: string | null;
           reason_code: string | null;
-          recovery_id: string | null;
-          recovery_state: string | null;
-          registered_at: string | null;
-          resource_id: string | null;
-          stage: string | null;
+          recovery_id: string;
+          recovery_state: string;
+          registered_at: string;
+          resource_id: string;
+          stage: string;
           started_at: string | null;
-          state: string | null;
-          team_id: string | null;
-          updated_at: string | null;
+          state: string;
+          team_id: string;
+          updated_at: string;
         };
+        ComputedFields: never;
         Relationships: [];
       };
     };
@@ -6565,7 +8139,7 @@ export type GeneratedDatabase = {
         }[];
       };
       admin_active_support_goal: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           currency: string;
@@ -6587,6 +8161,7 @@ export type GeneratedDatabase = {
           isSetofReturn: false;
         };
       };
+      admin_add_release_tester: { Args: { p_email: string }; Returns: string };
       admin_agent_versions: {
         Args: { p_end_date: string; p_start_date: string };
         Returns: {
@@ -6611,15 +8186,12 @@ export type GeneratedDatabase = {
           event_count: number;
         }[];
       };
-      admin_end_space_tariff: {
-        Args: { p_id: string; p_now: boolean };
-        Returns: Json;
-      };
+      admin_end_space_tariff: { Args: { p_id: string; p_now: boolean }; Returns: Json };
       admin_extend_space_tariff: {
         Args: { p_id: string; p_months: number; p_notify?: boolean };
         Returns: Json;
       };
-      admin_get_tariff_settings: { Args: never; Returns: Json };
+      admin_get_tariff_settings: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_grant_space_tariff: {
         Args: {
           p_email: string;
@@ -6638,31 +8210,29 @@ export type GeneratedDatabase = {
         Args: { p_input: Json; p_operation: string };
         Returns: Json;
       };
-      admin_list_legacy_spaces: { Args: never; Returns: Json };
+      admin_list_legacy_spaces: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_owner_spaces: { Args: { p_email: string }; Returns: Json };
-      admin_list_space_requests: { Args: never; Returns: Json };
-      admin_list_space_tariff_events: { Args: { p_id: string }; Returns: Json };
-      admin_list_space_tariffs: { Args: never; Returns: Json };
-      admin_list_tariff_plans: { Args: never; Returns: Json };
-      admin_list_tariff_seats: { Args: { p_team: string }; Returns: Json };
-      admin_list_team_workspace_waitlist: {
-        Args: never;
-        Returns: {
-          created_at: string;
-          email: string;
-          user_id: string;
-        }[];
-      };
-      admin_add_release_tester: { Args: { p_email: string }; Returns: string };
       admin_list_release_testers: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           added_at: string;
           email: string;
           user_id: string;
         }[];
       };
-      admin_remove_release_tester: { Args: { p_user_id: string }; Returns: boolean };
+      admin_list_space_requests: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_space_tariff_events: { Args: { p_id: string }; Returns: Json };
+      admin_list_space_tariffs: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_tariff_plans: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_tariff_seats: { Args: { p_team: string }; Returns: Json };
+      admin_list_team_workspace_waitlist: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          created_at: string;
+          email: string;
+          user_id: string;
+        }[];
+      };
       admin_list_users: {
         Args: {
           p_account_status?: string;
@@ -6686,7 +8256,7 @@ export type GeneratedDatabase = {
         }[];
       };
       admin_list_windows_app_waitlist: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           email: string;
@@ -6698,7 +8268,7 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       admin_marketing_export: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           display_name: string;
           email: string;
@@ -6716,34 +8286,16 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      admin_overview: {
-        Args: { p_end_date: string; p_start_date: string };
-        Returns: Json;
-      };
-      admin_preview_drive_account: {
-        Args: { p_email: string; p_owner: string };
-        Returns: Json;
-      };
-      admin_preview_space_tariff: {
-        Args: { p_email: string; p_team?: string };
-        Returns: Json;
-      };
+      admin_overview: { Args: { p_end_date: string; p_start_date: string }; Returns: Json };
+      admin_preview_drive_account: { Args: { p_email: string; p_owner: string }; Returns: Json };
+      admin_preview_space_tariff: { Args: { p_email: string; p_team?: string }; Returns: Json };
       admin_reassign_space_tariff: {
-        Args: {
-          p_confirm_new_google_slot: boolean;
-          p_id: string;
-          p_new_owner: string;
-        };
+        Args: { p_confirm_new_google_slot: boolean; p_id: string; p_new_owner: string };
         Returns: Json;
       };
-      admin_remove_tariff_member: {
-        Args: { p_team: string; p_user: string };
-        Returns: boolean;
-      };
-      admin_revoke_tariff_invitation: {
-        Args: { p_invitation: string };
-        Returns: boolean;
-      };
+      admin_remove_release_tester: { Args: { p_user_id: string }; Returns: boolean };
+      admin_remove_tariff_member: { Args: { p_team: string; p_user: string }; Returns: boolean };
+      admin_revoke_tariff_invitation: { Args: { p_invitation: string }; Returns: boolean };
       admin_set_account_status: {
         Args: { p_account_status: string; p_user_id: string };
         Returns: boolean;
@@ -6765,10 +8317,7 @@ export type GeneratedDatabase = {
           total: number;
         }[];
       };
-      admin_undo_space_tariff_event: {
-        Args: { p_event: string };
-        Returns: Json;
-      };
+      admin_undo_space_tariff_event: { Args: { p_event: string }; Returns: Json };
       admin_update_space_tariff: {
         Args: {
           p_ends_on: string;
@@ -6832,14 +8381,8 @@ export type GeneratedDatabase = {
           isSetofReturn: false;
         };
       };
-      analytics_properties_are_safe: {
-        Args: { payload: Json };
-        Returns: boolean;
-      };
-      analytics_properties_are_safe_v2: {
-        Args: { payload: Json };
-        Returns: boolean;
-      };
+      analytics_properties_are_safe: { Args: { payload: Json }; Returns: boolean };
+      analytics_properties_are_safe_v2: { Args: { payload: Json }; Returns: boolean };
       archive_launch: {
         Args: {
           p_expected_version: string;
@@ -6879,23 +8422,21 @@ export type GeneratedDatabase = {
         Args: { p_generation: string; p_operation: string; p_team: string };
         Returns: undefined;
       };
-      can_access_team_workspace: { Args: never; Returns: boolean };
+      bind_launch_restitch_before_video: {
+        Args: { p_generation: string; p_operation: string; p_team: string };
+        Returns: undefined;
+      };
+      can_access_team_workspace: { Args: Record<PropertyKey, never>; Returns: boolean };
+      cancel_launch_batch: {
+        Args: { p_cancel_key: string; p_expected_actor: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
       cancel_launch_generation: {
-        Args: {
-          p_generation: string;
-          p_launch: string;
-          p_request_key: string;
-          p_team: string;
-        };
+        Args: { p_generation: string; p_launch: string; p_request_key: string; p_team: string };
         Returns: Json;
       };
       cancel_launch_request: {
-        Args: {
-          p_cancel_key: string;
-          p_key: string;
-          p_launch: string;
-          p_team: string;
-        };
+        Args: { p_cancel_key: string; p_key: string; p_launch: string; p_team: string };
         Returns: Json;
       };
       cancel_library_job: {
@@ -6917,10 +8458,7 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      cancel_team_catalog_update: {
-        Args: { p_catalog: string; p_team: string };
-        Returns: boolean;
-      };
+      cancel_team_catalog_update: { Args: { p_catalog: string; p_team: string }; Returns: boolean };
       cancel_team_catalog_update_attempt: {
         Args: {
           p_catalog: string;
@@ -6964,6 +8502,7 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
+      catalog_global_policy_active: { Args: Record<PropertyKey, never>; Returns: boolean };
       claim_library_job: {
         Args: {
           p_agent_instance: string;
@@ -6994,10 +8533,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       clear_team_agent_run_markers: { Args: { p_team: string }; Returns: Json };
-      clear_team_agent_runs: {
-        Args: { p_agent: string; p_team: string };
-        Returns: Json;
-      };
+      clear_team_agent_runs: { Args: { p_agent: string; p_team: string }; Returns: Json };
       clear_team_agent_topups: {
         Args: { p_team: string };
         Returns: {
@@ -7029,21 +8565,13 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      copy_team_tasks: {
-        Args: { p_tasks: string[]; p_team: string };
-        Returns: string[];
-      };
+      copy_team_tasks: { Args: { p_tasks: string[]; p_team: string }; Returns: string[] };
       copy_team_tasks_once: {
         Args: { p_request: string; p_tasks: string[]; p_team: string };
         Returns: string[];
       };
       create_invitation: {
-        Args: {
-          p_email: string;
-          p_initial_role: string;
-          p_team: string;
-          p_token_hash: string;
-        };
+        Args: { p_email: string; p_initial_role: string; p_team: string; p_token_hash: string };
         Returns: {
           delivery_error_code: string;
           delivery_state: string;
@@ -7058,12 +8586,7 @@ export type GeneratedDatabase = {
         }[];
       };
       create_launch_dictionary: {
-        Args: {
-          p_kind: string;
-          p_request_key: string;
-          p_team: string;
-          p_value: string;
-        };
+        Args: { p_kind: string; p_request_key: string; p_team: string; p_value: string };
         Returns: Json;
       };
       create_team: {
@@ -7077,12 +8600,7 @@ export type GeneratedDatabase = {
         }[];
       };
       create_team_account: {
-        Args: {
-          p_name: string;
-          p_starts_on?: string;
-          p_team: string;
-          p_timezone?: string;
-        };
+        Args: { p_name: string; p_starts_on?: string; p_team: string; p_timezone?: string };
         Returns: {
           archived_at: string | null;
           created_at: string;
@@ -7103,12 +8621,7 @@ export type GeneratedDatabase = {
         };
       };
       create_team_label: {
-        Args: {
-          p_color?: string;
-          p_name: string;
-          p_scope?: string;
-          p_team: string;
-        };
+        Args: { p_color?: string; p_name: string; p_scope?: string; p_team: string };
         Returns: {
           color: string;
           created_at: string;
@@ -7203,10 +8716,7 @@ export type GeneratedDatabase = {
           ok: boolean;
         }[];
       };
-      delete_team_agent_run: {
-        Args: { p_run: string; p_team: string };
-        Returns: Json;
-      };
+      delete_team_agent_run: { Args: { p_run: string; p_team: string }; Returns: Json };
       delete_team_label: {
         Args: { p_label: string; p_team: string };
         Returns: {
@@ -7241,10 +8751,7 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       dismiss_team_bulk_trash: { Args: { p_group: string; p_team: string }; Returns: undefined };
-      draw_restitch_screens: {
-        Args: { p_exclude?: string[]; p_team: string };
-        Returns: Json;
-      };
+      draw_restitch_screens: { Args: { p_exclude?: string[]; p_team: string }; Returns: Json };
       edit_launch_dictionary: {
         Args: {
           p_expected_updated_at: string;
@@ -7257,7 +8764,7 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      expire_team_invitations: { Args: never; Returns: number };
+      expire_team_invitations: { Args: Record<PropertyKey, never>; Returns: number };
       fail_library_job: {
         Args: {
           p_agent_instance: string;
@@ -7268,14 +8775,8 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      find_launch_generation: {
-        Args: { p_key: string; p_team: string };
-        Returns: Json;
-      };
-      find_reusable_transcript: {
-        Args: { p_team: string; p_video: string };
-        Returns: Json;
-      };
+      find_launch_generation: { Args: { p_key: string; p_team: string }; Returns: Json };
+      find_reusable_transcript: { Args: { p_team: string; p_video: string }; Returns: Json };
       find_team_folder_sync_request: {
         Args: { p_folder?: string; p_team: string };
         Returns: {
@@ -7307,36 +8808,21 @@ export type GeneratedDatabase = {
           state: string;
         }[];
       };
-      get_effective_restitch_defaults: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      get_launch_batch: {
-        Args: { p_team: string; p_key: string };
-        Returns: Json;
-      };
-      list_launch_batches: {
-        Args: { p_team: string; p_limit?: number; p_before?: string; p_before_id?: string };
-        Returns: Json;
-      };
-      cancel_launch_batch: {
-        Args: { p_team: string; p_key: string; p_cancel_key: string; p_expected_actor: string };
-        Returns: Json;
-      };
+      get_effective_restitch_defaults: { Args: { p_team: string }; Returns: Json };
       get_launch: {
         Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;
       };
-      get_launch_archive_warning: {
-        Args: { p_launch: string; p_team: string };
+      get_launch_archive_warning: { Args: { p_launch: string; p_team: string }; Returns: Json };
+      get_launch_assignment: { Args: { p_launch: string; p_team: string }; Returns: Json };
+      get_launch_assignment_mutation: { Args: { p_key: string; p_team: string }; Returns: Json };
+      get_launch_batch: { Args: { p_key: string; p_team: string }; Returns: Json };
+      get_launch_before_catalog_video: {
+        Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;
       };
-      get_launch_assignment: {
-        Args: { p_launch: string; p_team: string };
-        Returns: Json;
-      };
-      get_launch_assignment_mutation: {
-        Args: { p_key: string; p_team: string };
+      get_launch_before_started_at: {
+        Args: { p_launch: string; p_revision?: string; p_team: string };
         Returns: Json;
       };
       get_launch_copy_marks: {
@@ -7350,26 +8836,18 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_launch_defaults: { Args: { p_team: string }; Returns: Json };
-      get_launch_offer_defaults: {
-        Args: { p_offer: string; p_team: string };
-        Returns: Json;
-      };
+      get_launch_offer_defaults: { Args: { p_offer: string; p_team: string }; Returns: Json };
       get_launch_restitch_preparation: {
         Args: { p_generation: string; p_team: string };
         Returns: Json;
       };
-      get_launch_restitch_reuse: {
+      get_launch_restitch_reuse: { Args: { p_generation: string; p_team: string }; Returns: Json };
+      get_launch_restitch_reuse_before_video: {
         Args: { p_generation: string; p_team: string };
         Returns: Json;
       };
-      get_launch_sources: {
-        Args: { p_launch: string; p_team: string };
-        Returns: Json;
-      };
-      get_library_processing_context: {
-        Args: { p_source: string; p_team: string };
-        Returns: Json;
-      };
+      get_launch_sources: { Args: { p_launch: string; p_team: string }; Returns: Json };
+      get_library_processing_context: { Args: { p_source: string; p_team: string }; Returns: Json };
       get_material_preview: {
         Args: { p_material: string; p_team: string };
         Returns: {
@@ -7455,11 +8933,8 @@ export type GeneratedDatabase = {
           name: string;
         }[];
       };
-      get_member_restitch_preference: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      get_my_space_access: { Args: never; Returns: Json };
+      get_member_restitch_preference: { Args: { p_team: string }; Returns: Json };
+      get_my_space_access: { Args: Record<PropertyKey, never>; Returns: Json };
       get_operation: {
         Args: { p_operation: string; p_team: string };
         Returns: {
@@ -7505,44 +8980,23 @@ export type GeneratedDatabase = {
         };
       };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
-      get_task_progress_max_default: { Args: never; Returns: number };
+      get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
       get_team_account_archive_preflight: {
         Args: { p_entity: string; p_kind: string; p_team: string };
         Returns: Json;
       };
-      get_team_account_mutation: {
-        Args: { p_request_id: string; p_team: string };
-        Returns: Json;
-      };
+      get_team_account_mutation: { Args: { p_request_id: string; p_team: string }; Returns: Json };
       get_team_accounts_overview: {
-        Args: {
-          p_from: string;
-          p_team: string;
-          p_timezone: string;
-          p_to: string;
-        };
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
       };
-      get_team_agent_assignment_state: {
-        Args: { p_agent: string; p_team: string };
-        Returns: Json;
-      };
+      get_team_agent_assignment_state: { Args: { p_agent: string; p_team: string }; Returns: Json };
       get_team_agent_finance: {
-        Args: {
-          p_from: string;
-          p_team: string;
-          p_timezone: string;
-          p_to: string;
-        };
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
       };
       get_team_agent_finance_v2: {
-        Args: {
-          p_from: string;
-          p_team: string;
-          p_timezone: string;
-          p_to: string;
-        };
+        Args: { p_from: string; p_team: string; p_timezone: string; p_to: string };
         Returns: Json;
       };
       get_team_agent_transfer_eligibility: {
@@ -7554,46 +9008,28 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       get_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
-      get_team_catalog_updater_grow: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
+      get_team_catalog_updater_grow: { Args: { p_team: string }; Returns: boolean };
       get_team_catalog_updater_random_link_variation: {
         Args: { p_team: string };
         Returns: boolean;
       };
-      get_team_catalog_updater_refresh_images: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      get_team_catalog_updater_refresh_texts: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      get_team_catalog_updater_restitch_default: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
+      get_team_catalog_updater_refresh_images: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_refresh_texts: { Args: { p_team: string }; Returns: boolean };
+      get_team_catalog_updater_restitch_default: { Args: { p_team: string }; Returns: boolean };
       get_team_folder_resync_status: {
         Args: { p_job: string; p_team: string };
         Returns: {
           status: string;
         }[];
       };
-      get_team_folder_sync_status: {
-        Args: { p_job: string; p_team: string };
-        Returns: Json;
-      };
+      get_team_folder_sync_status: { Args: { p_job: string; p_team: string }; Returns: Json };
       get_team_landing_source_status: {
         Args: { p_team: string };
         Returns: {
           has_detached_landing_candidates: boolean;
         }[];
       };
-      get_team_material_note: {
-        Args: { p_material: string; p_team: string };
-        Returns: string;
-      };
+      get_team_material_note: { Args: { p_material: string; p_team: string }; Returns: string };
       get_team_product_catalog_settings: {
         Args: { p_team: string };
         Returns: {
@@ -7636,10 +9072,7 @@ export type GeneratedDatabase = {
           isSetofReturn: true;
         };
       };
-      get_team_product_catalog_text_schedule: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
+      get_team_product_catalog_text_schedule: { Args: { p_team: string }; Returns: Json };
       get_team_storage_health: { Args: { p_team: string }; Returns: Json };
       get_team_storage_health_v2: { Args: { p_team: string }; Returns: Json };
       get_team_tariff: { Args: { p_team: string }; Returns: Json };
@@ -7652,16 +9085,10 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      get_team_task_progress_max_default: {
-        Args: { p_team: string };
-        Returns: number;
-      };
+      get_team_task_progress_max_default: { Args: { p_team: string }; Returns: number };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
-      get_transcript_delete_pref: { Args: never; Returns: string };
-      get_upload_batch: {
-        Args: { p_batch: string; p_team: string };
-        Returns: Json;
-      };
+      get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
+      get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
       heartbeat_library_job: {
         Args: {
           p_agent_instance: string;
@@ -7688,11 +9115,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       ingest_agent_journal: {
-        Args: {
-          p_agent_instance_id: string;
-          p_installation_id: string;
-          p_records: Json;
-        };
+        Args: { p_agent_instance_id: string; p_installation_id: string; p_records: Json };
         Returns: Json;
       };
       ingest_analytics_events: {
@@ -7703,8 +9126,8 @@ export type GeneratedDatabase = {
           reason: string;
         }[];
       };
-      is_admin: { Args: never; Returns: boolean };
-      is_release_tester: { Args: never; Returns: boolean };
+      is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_release_tester: { Args: Record<PropertyKey, never>; Returns: boolean };
       issue_landing_preview_grant: {
         Args: {
           p_actor: string;
@@ -7741,7 +9164,7 @@ export type GeneratedDatabase = {
         Args: { p_channel?: string; p_plan?: string };
         Returns: boolean;
       };
-      join_windows_app_waitlist: { Args: never; Returns: boolean };
+      join_windows_app_waitlist: { Args: Record<PropertyKey, never>; Returns: boolean };
       leave_team: {
         Args: { p_team: string };
         Returns: {
@@ -7774,15 +9197,16 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
+      list_launch_batches: {
+        Args: { p_before?: string; p_before_id?: string; p_limit?: number; p_team: string };
+        Returns: Json;
+      };
       list_launch_dictionaries: { Args: { p_team: string }; Returns: Json };
       list_launch_revisions: {
         Args: { p_before?: number; p_launch: string; p_team: string };
         Returns: Json;
       };
-      list_launches: {
-        Args: { p_filter?: Json; p_limit?: number; p_team: string };
-        Returns: Json;
-      };
+      list_launches: { Args: { p_filter?: Json; p_limit?: number; p_team: string }; Returns: Json };
       list_library_contribution_totals: {
         Args: { p_from?: string; p_team: string; p_to?: string };
         Returns: {
@@ -7793,12 +9217,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_library_materials: {
-        Args: {
-          p_cursor?: string;
-          p_page_size?: number;
-          p_stage: string;
-          p_team: string;
-        };
+        Args: { p_cursor?: string; p_page_size?: number; p_stage: string; p_team: string };
         Returns: {
           category: string;
           created_at: string;
@@ -7842,7 +9261,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_my_invitations: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           delivery_error_code: string;
@@ -7858,7 +9277,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_my_teams: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           connection_state: string;
           id: string;
@@ -7871,14 +9290,8 @@ export type GeneratedDatabase = {
         Args: { p_team: string; p_video: string };
         Returns: Json;
       };
-      list_restitch_sources: {
-        Args: { p_scope: string; p_team: string };
-        Returns: Json;
-      };
-      list_task_attachment_cleanup: {
-        Args: { p_task: string; p_team: string };
-        Returns: Json;
-      };
+      list_restitch_sources: { Args: { p_scope: string; p_team: string }; Returns: Json };
+      list_task_attachment_cleanup: { Args: { p_task: string; p_team: string }; Returns: Json };
       list_task_attachment_folders: {
         Args: { p_task: string; p_team: string };
         Returns: {
@@ -7887,12 +9300,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_team_account_archive: {
-        Args: {
-          p_cursor?: string;
-          p_limit?: number;
-          p_query?: string;
-          p_team: string;
-        };
+        Args: { p_cursor?: string; p_limit?: number; p_query?: string; p_team: string };
         Returns: Json;
       };
       list_team_account_two_factor_seeds: {
@@ -7927,18 +9335,10 @@ export type GeneratedDatabase = {
         }[];
       };
       list_team_agent_finance_history: {
-        Args: {
-          p_agent: string;
-          p_cursor?: Json;
-          p_limit?: number;
-          p_team: string;
-        };
+        Args: { p_agent: string; p_cursor?: Json; p_limit?: number; p_team: string };
         Returns: Json;
       };
-      list_team_agent_finance_legacy: {
-        Args: { p_agent?: string; p_team: string };
-        Returns: Json;
-      };
+      list_team_agent_finance_legacy: { Args: { p_agent?: string; p_team: string }; Returns: Json };
       list_team_audit_events: {
         Args: { p_before?: string; p_limit?: number; p_team: string };
         Returns: {
@@ -7954,14 +9354,8 @@ export type GeneratedDatabase = {
         }[];
       };
       list_team_bulk_trash: { Args: { p_team: string }; Returns: Json };
-      list_team_catalog_manager_snapshot: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
-      list_team_catalog_progress_identity: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
+      list_team_catalog_manager_snapshot: { Args: { p_team: string }; Returns: Json };
+      list_team_catalog_progress_identity: { Args: { p_team: string }; Returns: Json };
       list_team_catalog_update_attempts: {
         Args: { p_catalog: string; p_limit?: number; p_team: string };
         Returns: {
@@ -7999,6 +9393,7 @@ export type GeneratedDatabase = {
           schedule: Json;
           updated_at: string;
           version: number;
+          video_variant_count: number;
         }[];
       };
       list_team_drive_selections: {
@@ -8135,6 +9530,7 @@ export type GeneratedDatabase = {
           last_update_error: string;
           last_updated_at: string;
           name: string;
+          name_aliases: string[];
           next_run_at: string;
           product_count: number;
           restitch_progress: number;
@@ -8197,12 +9593,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_team_trashed_materials_v2: {
-        Args: {
-          p_before?: string;
-          p_before_id?: string;
-          p_limit?: number;
-          p_team: string;
-        };
+        Args: { p_before?: string; p_before_id?: string; p_limit?: number; p_team: string };
         Returns: {
           id: string;
           kind: string;
@@ -8212,7 +9603,7 @@ export type GeneratedDatabase = {
         }[];
       };
       list_two_factor_entries: {
-        Args: never;
+        Args: Record<PropertyKey, never>;
         Returns: {
           created_at: string;
           id: string;
@@ -8221,10 +9612,7 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
-      list_video_text_variants: {
-        Args: { p_team: string; p_video: string };
-        Returns: Json;
-      };
+      list_video_text_variants: { Args: { p_team: string; p_video: string }; Returns: Json };
       lookup_invitable_account: {
         Args: { p_email: string; p_team: string };
         Returns: {
@@ -8234,12 +9622,7 @@ export type GeneratedDatabase = {
         }[];
       };
       mark_team_bulk_trash_request: {
-        Args: {
-          p_error?: string;
-          p_group: string;
-          p_material: string;
-          p_team: string;
-        };
+        Args: { p_error?: string; p_group: string; p_material: string; p_team: string };
         Returns: undefined;
       };
       move_team_account_agent: {
@@ -8255,18 +9638,10 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
-      next_product_catalog_variant: {
-        Args: { p_team: string; p_video: string };
-        Returns: number;
-      };
+      next_product_catalog_variant: { Args: { p_team: string; p_video: string }; Returns: number };
       owned_team_count: { Args: { p_user: string }; Returns: number };
       patch_team_catalog_update_profile: {
-        Args: {
-          p_catalog: string;
-          p_expected_version: number;
-          p_patch: Json;
-          p_team: string;
-        };
+        Args: { p_catalog: string; p_expected_version: number; p_patch: Json; p_team: string };
         Returns: Json;
       };
       patch_team_catalog_update_profile_as_actor: {
@@ -8284,6 +9659,10 @@ export type GeneratedDatabase = {
         Returns: undefined;
       };
       prepare_launch_restitch: {
+        Args: { p_exclude?: string[]; p_generation: string; p_team: string };
+        Returns: Json;
+      };
+      prepare_launch_restitch_before_video: {
         Args: { p_exclude?: string[]; p_generation: string; p_team: string };
         Returns: Json;
       };
@@ -8322,12 +9701,7 @@ export type GeneratedDatabase = {
         Returns: string;
       };
       release_team_agent_assignments: {
-        Args: {
-          p_agent: string;
-          p_expected_version: string;
-          p_key: string;
-          p_team: string;
-        };
+        Args: { p_agent: string; p_expected_version: string; p_key: string; p_team: string };
         Returns: Json;
       };
       remove_member: {
@@ -8444,18 +9818,9 @@ export type GeneratedDatabase = {
         }[];
       };
       reset_share_preference: { Args: { p_team: string }; Returns: boolean };
-      resolve_launch_selection: {
-        Args: { p_config: Json; p_team: string };
-        Returns: Json;
-      };
-      resume_team_catalog_updater: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
-      retire_team_recovery_installation: {
-        Args: { p_installation: string };
-        Returns: number;
-      };
+      resolve_launch_selection: { Args: { p_config: Json; p_team: string }; Returns: Json };
+      resume_team_catalog_updater: { Args: { p_team: string }; Returns: boolean };
+      retire_team_recovery_installation: { Args: { p_installation: string }; Returns: number };
       retire_team_recovery_installation_observed: {
         Args: { p_attempt: string; p_installation: string };
         Returns: Json;
@@ -8472,19 +9837,17 @@ export type GeneratedDatabase = {
         Args: { p_generation: string; p_key: string; p_team: string };
         Returns: Json;
       };
+      retry_launch_restitch_before_video: {
+        Args: { p_generation: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
       retry_team_catalog_update: {
         Args: { p_catalog: string; p_source_attempt: string; p_team: string };
         Returns: number;
       };
-      retry_workspace_recovery: {
-        Args: { p_recovery: string };
-        Returns: boolean;
-      };
+      retry_workspace_recovery: { Args: { p_recovery: string }; Returns: boolean };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
-      revoke_team_recovery: {
-        Args: { p_installation: string; p_team: string };
-        Returns: boolean;
-      };
+      revoke_team_recovery: { Args: { p_installation: string; p_team: string }; Returns: boolean };
       run_team_catalog_update_now: {
         Args: { p_catalogs: string[]; p_team: string };
         Returns: number;
@@ -8525,12 +9888,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       save_team_catalog_updater: {
-        Args: {
-          p_catalogs: string[];
-          p_interval: string;
-          p_restitch: boolean;
-          p_team: string;
-        };
+        Args: { p_catalogs: string[]; p_interval: string; p_restitch: boolean; p_team: string };
         Returns: Json;
       };
       scan_library_requirements: {
@@ -8579,7 +9937,111 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      service_abort_catalog_baseline_check: {
+        Args: { p_actor: string; p_check: string; p_fence: string; p_team: string };
+        Returns: boolean;
+      };
+      service_accept_catalog_rename: {
+        Args: {
+          p_actor: string;
+          p_key: string;
+          p_material: string;
+          p_request: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_catalog_updater_variants: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_count: number;
+          p_executor?: string;
+          p_profile_version: number;
+          p_request: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_catalog_video_restitch_alias: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: Json;
+      };
+      service_accept_catalog_video_set: {
+        Args: {
+          p_actor: string;
+          p_assignments: Json;
+          p_children: Json;
+          p_executor: string;
+          p_payload: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_catalog_video_set_before_foreground: {
+        Args: {
+          p_actor: string;
+          p_assignments: Json;
+          p_children: Json;
+          p_executor: string;
+          p_payload: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_foreground_catalog_video_set: {
+        Args: {
+          p_actor: string;
+          p_assignments: Json;
+          p_children: Json;
+          p_enrollment: string;
+          p_payload: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_launch_batch: {
+        Args: { p_actor: string; p_intent: Json; p_key: string; p_prepared: Json; p_team: string };
+        Returns: Json;
+      };
+      service_accept_launch_catalog_video_generation: {
+        Args: {
+          p_actor: string;
+          p_config: Json;
+          p_digest: string;
+          p_expected_version: string;
+          p_key: string;
+          p_launch: string;
+          p_preview: Json;
+          p_sources: Json;
+          p_team: string;
+          p_video: Json;
+        };
+        Returns: Json;
+      };
       service_accept_launch_generation: {
+        Args: {
+          p_actor: string;
+          p_config: Json;
+          p_digest: string;
+          p_expected_version: string;
+          p_key: string;
+          p_launch: string;
+          p_preview: Json;
+          p_sources: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_accept_launch_generation_before_video: {
         Args: {
           p_actor: string;
           p_config: Json;
@@ -8634,13 +10096,18 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_acknowledge_material_share: {
+        Args: { p_actor: string; p_intent: string; p_permission: string; p_team: string };
+        Returns: boolean;
+      };
+      service_adopt_catalog_variant_round: {
         Args: {
           p_actor: string;
-          p_intent: string;
-          p_permission: string;
+          p_attempt: string;
+          p_catalog: string;
+          p_executor?: string;
           p_team: string;
         };
-        Returns: boolean;
+        Returns: Json;
       };
       service_append_library_contribution: {
         Args: {
@@ -8652,6 +10119,10 @@ export type GeneratedDatabase = {
           p_team: string;
         };
         Returns: string;
+      };
+      service_attach_catalog_updater_variant_target: {
+        Args: { p_actor: string; p_request: string; p_team: string };
+        Returns: Json;
       };
       service_attach_launch_catalog: {
         Args: {
@@ -8673,9 +10144,27 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_attach_launch_catalog_legacy_inner: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_authorize_catalog_baseline_check: {
+        Args: { p_actor: string; p_check: string; p_fence: string; p_team: string };
+        Returns: Json;
+      };
       service_authorize_catalog_cleanup: {
         Args: { p_kind: string; p_material: string; p_worker: string };
         Returns: boolean;
+      };
+      service_authorize_catalog_video_executor: {
+        Args: { p_hash: string; p_native: string; p_protocol: number; p_set: string };
+        Returns: Json;
       };
       service_authorize_launch_cleanup: {
         Args: {
@@ -8720,9 +10209,26 @@ export type GeneratedDatabase = {
         Args: { p_grant: string; p_ticket_hash: string };
         Returns: Json;
       };
-      service_authorize_task_cleanup: {
-        Args: { p_id: string };
-        Returns: boolean;
+      service_authorize_task_cleanup: { Args: { p_id: string }; Returns: boolean };
+      service_await_catalog_video_foreground: {
+        Args: {
+          p_enrollment: string;
+          p_execution_native?: string;
+          p_expected_execution_native?: string;
+          p_native: string;
+          p_proof_hash: string;
+        };
+        Returns: Json;
+      };
+      service_begin_catalog_baseline_check: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_check: string;
+          p_expected_revision: number;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_begin_catalog_folder: {
         Args: {
@@ -8748,6 +10254,19 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_begin_catalog_nonvideo_update_write: {
+        Args: {
+          p_baseline_version: string;
+          p_context_token: string;
+          p_expected_count: number;
+          p_item: string;
+          p_marker: string;
+          p_product_count: number;
+          p_settings_snapshot: Json;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
       service_begin_catalog_update_write: {
         Args: {
           p_baseline_version: string;
@@ -8765,17 +10284,16 @@ export type GeneratedDatabase = {
         Args: { p_connection: string; p_job: string };
         Returns: boolean;
       };
+      service_begin_initial_catalog_publication: {
+        Args: { p_actor: string; p_catalog: string; p_intent: string; p_team: string };
+        Returns: Json;
+      };
       service_begin_material_group_dispatch: {
         Args: { p_executor: string; p_intent: string; p_material: string };
         Returns: boolean;
       };
       service_begin_material_group_dispatch_v2: {
-        Args: {
-          p_epoch: number;
-          p_executor: string;
-          p_intent: string;
-          p_material: string;
-        };
+        Args: { p_epoch: number; p_executor: string; p_intent: string; p_material: string };
         Returns: boolean;
       };
       service_begin_material_share: {
@@ -8832,13 +10350,41 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_bootstrap_catalog_sync: {
-        Args: {
-          p_epoch: number;
-          p_job: string;
-          p_token: string;
-          p_worker: string;
-        };
+        Args: { p_epoch: number; p_job: string; p_token: string; p_worker: string };
         Returns: boolean;
+      };
+      service_cancel_catalog_updater_variants: {
+        Args: { p_actor: string; p_catalog: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
+      service_cancel_initial_catalog_video: {
+        Args: { p_actor: string; p_key: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
+      service_capture_catalog_video_source: {
+        Args: {
+          p_actor: string;
+          p_expected_connection: string;
+          p_expected_file: string;
+          p_expected_version: string;
+          p_material: string;
+          p_observed: Json;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_capture_initial_catalog_publication_source: {
+        Args: {
+          p_actor: string;
+          p_connection: string;
+          p_expected_version: string;
+          p_file: string;
+          p_intent: string;
+          p_observed: Json;
+          p_source: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_cas_restitch_control_selection: {
         Args: {
@@ -8878,6 +10424,72 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_material: string; p_team: string };
         Returns: boolean;
       };
+      service_catalog_foreground_updater_scope: {
+        Args: { p_actor: string; p_catalog: string; p_team: string; p_version: number };
+        Returns: Json;
+      };
+      service_catalog_global_acceptance: {
+        Args: { p_digest: string; p_evidence: Json };
+        Returns: undefined;
+      };
+      service_catalog_global_alias_plan: { Args: { p_image: string }; Returns: Json };
+      service_catalog_global_allocate: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_count: number;
+          p_epoch: number;
+          p_intent: string;
+          p_pairs?: Json;
+          p_scope?: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_catalog_global_bind: {
+        Args: { p_catalog: string; p_material: string; p_team: string };
+        Returns: undefined;
+      };
+      service_catalog_global_bind_existing: {
+        Args: { p_intent: string; p_material: string; p_team: string };
+        Returns: undefined;
+      };
+      service_catalog_global_confirm: {
+        Args: { p_completion: string; p_intent: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_global_control: {
+        Args: { p_action: string; p_actor: string; p_payload?: Json };
+        Returns: Json;
+      };
+      service_catalog_global_cutover: {
+        Args: { p_action: string; p_actor: string; p_payload?: Json };
+        Returns: Json;
+      };
+      service_catalog_global_identity: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_intent: string;
+          p_material?: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_catalog_global_kick: { Args: Record<PropertyKey, never>; Returns: number };
+      service_catalog_global_readiness: {
+        Args: { p_actor: string; p_team?: string };
+        Returns: Json;
+      };
+      service_catalog_global_retirement_tick: { Args: Record<PropertyKey, never>; Returns: Json };
+      service_catalog_global_validate_rows: {
+        Args: { p_images: Json; p_team: string };
+        Returns: undefined;
+      };
+      service_catalog_global_work: {
+        Args: { p_action: string; p_data?: Json; p_worker: string };
+        Returns: Json;
+      };
       service_catalog_image_admit_v2: {
         Args: { p_expected_revision: number; p_team: string };
         Returns: boolean;
@@ -8886,10 +10498,7 @@ export type GeneratedDatabase = {
         Args: { p_entry: string; p_fence: number; p_worker: string };
         Returns: Json;
       };
-      service_catalog_image_claim_v2: {
-        Args: { p_worker: string };
-        Returns: Json;
-      };
+      service_catalog_image_claim_v2: { Args: { p_worker: string }; Returns: Json };
       service_catalog_image_commit_v2: {
         Args: {
           p_entry: string;
@@ -8906,12 +10515,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_catalog_image_enumeration_error_v2: {
-        Args: {
-          p_code: string;
-          p_fence: number;
-          p_job: string;
-          p_worker: string;
-        };
+        Args: { p_code: string; p_fence: number; p_job: string; p_worker: string };
         Returns: undefined;
       };
       service_catalog_image_enumeration_v2: {
@@ -8926,32 +10530,23 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
-      service_catalog_image_expire_v2: { Args: never; Returns: undefined };
+      service_catalog_image_expire_v2: { Args: Record<PropertyKey, never>; Returns: undefined };
       service_catalog_image_finalize_uses_v2: {
         Args: { p_attempt: string; p_delivered: boolean; p_team: string };
         Returns: undefined;
       };
-      service_catalog_image_kick_v2: { Args: never; Returns: undefined };
-      service_catalog_image_mode_v2: {
-        Args: { p_team: string };
-        Returns: string;
+      service_catalog_image_finalize_uses_v3: {
+        Args: { p_attempt: string; p_delivered: boolean; p_team: string };
+        Returns: undefined;
       };
+      service_catalog_image_kick_v2: { Args: Record<PropertyKey, never>; Returns: undefined };
+      service_catalog_image_mode_v2: { Args: { p_team: string }; Returns: string };
       service_catalog_image_optimization_v2: {
-        Args: {
-          p_entry: string;
-          p_fence: number;
-          p_phase: string;
-          p_worker: string;
-        };
+        Args: { p_entry: string; p_fence: number; p_phase: string; p_worker: string };
         Returns: undefined;
       };
       service_catalog_image_progress_v2: {
-        Args: {
-          p_entry: string;
-          p_fence: number;
-          p_stage: string;
-          p_worker: string;
-        };
+        Args: { p_entry: string; p_fence: number; p_stage: string; p_worker: string };
         Returns: undefined;
       };
       service_catalog_image_publication_v2: {
@@ -8965,7 +10560,7 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
-      service_catalog_image_purge_claim_v2: { Args: never; Returns: Json };
+      service_catalog_image_purge_claim_v2: { Args: Record<PropertyKey, never>; Returns: Json };
       service_catalog_image_purge_finish_v2: {
         Args: { p_fence: number; p_id: string; p_success: boolean };
         Returns: undefined;
@@ -8986,21 +10581,11 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_catalog_image_request_version_v2: {
-        Args: {
-          p_actor: string;
-          p_key: string;
-          p_team: string;
-          p_video: string;
-        };
+        Args: { p_actor: string; p_key: string; p_team: string; p_video: string };
         Returns: number;
       };
       service_catalog_image_reserve_v2: {
-        Args: {
-          p_entry: string;
-          p_fence: number;
-          p_image: Json;
-          p_worker: string;
-        };
+        Args: { p_entry: string; p_fence: number; p_image: Json; p_worker: string };
         Returns: Json;
       };
       service_catalog_image_update_attempt_v2: {
@@ -9015,17 +10600,33 @@ export type GeneratedDatabase = {
         Args: { p_attempt: string; p_team: string };
         Returns: undefined;
       };
+      service_catalog_image_validate_uses_v3: {
+        Args: { p_attempt: string; p_team: string };
+        Returns: undefined;
+      };
       service_catalog_missing_candidates: {
-        Args: {
-          p_epoch: number;
-          p_generation: string;
-          p_job: string;
-          p_worker: string;
-        };
+        Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
         Returns: {
           expected_revision: number;
           file_id: string;
         }[];
+      };
+      service_catalog_publication_allows_legacy_write: {
+        Args: { p_catalog: string };
+        Returns: boolean;
+      };
+      service_catalog_publication_cells_context: {
+        Args: { p_job: string; p_worker: string };
+        Returns: Json;
+      };
+      service_catalog_publication_clock: { Args: Record<PropertyKey, never>; Returns: number };
+      service_catalog_rename_context: {
+        Args: { p_actor: string; p_material: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_rename_status: {
+        Args: { p_actor: string; p_key: string; p_material: string; p_team: string };
+        Returns: Json;
       };
       service_catalog_scan_frontier: {
         Args: { p_epoch: number; p_job: string; p_worker: string };
@@ -9042,6 +10643,138 @@ export type GeneratedDatabase = {
       service_catalog_text_schedule_inputs: {
         Args: { p_lease: string; p_run: string; p_team: string };
         Returns: Json;
+      };
+      service_catalog_update_content_recipe: {
+        Args: { p_catalog: string; p_expected_base?: string; p_recipe?: Json; p_worker: string };
+        Returns: Json;
+      };
+      service_catalog_updater_variant_outputs: {
+        Args: { p_actor: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_foreground_context: {
+        Args: { p_actor: string; p_enrollment: string; p_source: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_public_executor: {
+        Args: { p_actor: string; p_set: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_r2_apply_create_option: {
+        Args: { p_actor: string; p_catalog: string; p_enabled: boolean };
+        Returns: Json;
+      };
+      service_catalog_video_r2_availability: {
+        Args: { p_actor: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_r2_begin_upload: {
+        Args: { p_copy: string; p_fence: number; p_upload_id: string; p_worker: string };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_claim: { Args: { p_worker: string }; Returns: Json };
+      service_catalog_video_r2_claim_purge: { Args: { p_worker: string }; Returns: Json };
+      service_catalog_video_r2_claim_retire: { Args: { p_worker: string }; Returns: Json };
+      service_catalog_video_r2_confirm_use: {
+        Args: { p_catalog: string; p_job?: string; p_link_kind: string; p_uses?: Json };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_kick: { Args: { p_route?: string }; Returns: undefined };
+      service_catalog_video_r2_mark_deleted: {
+        Args: {
+          p_code?: string;
+          p_copy: string;
+          p_fence: number;
+          p_success: boolean;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_mark_purged: {
+        Args: { p_code?: string; p_fence: number; p_id: string; p_success: boolean };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_part: {
+        Args: {
+          p_copy: string;
+          p_duration_ms?: number;
+          p_etag: string;
+          p_fence: number;
+          p_part: number;
+          p_sha256: string;
+          p_size: number;
+          p_verified_by: string;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_ready: {
+        Args: {
+          p_copy: string;
+          p_duration_ms?: number;
+          p_fence: number;
+          p_full_hash_verified: boolean;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_reconcile_pending: { Args: { p_limit?: number }; Returns: number };
+      service_catalog_video_r2_release: {
+        Args: {
+          p_code: string;
+          p_copy: string;
+          p_fence: number;
+          p_terminal: boolean;
+          p_worker: string;
+        };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_renew: {
+        Args: { p_copy: string; p_fence: number; p_worker: string };
+        Returns: boolean;
+      };
+      service_catalog_video_r2_resolve: {
+        Args: {
+          p_assume_enabled?: boolean;
+          p_catalog: string;
+          p_job?: string;
+          p_md5: string;
+          p_mime: string;
+          p_size_bytes: number;
+          p_source_material: string;
+          p_source_version: string;
+          p_team?: string;
+        };
+        Returns: Json;
+      };
+      service_catalog_video_r2_resolve_current: {
+        Args: { p_catalog: string; p_source_material?: string };
+        Returns: Json;
+      };
+      service_catalog_video_r2_retire_orphans: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      service_catalog_video_r2_set_preference: {
+        Args: { p_actor: string; p_catalog: string; p_enabled: boolean };
+        Returns: Json;
+      };
+      service_catalog_video_r2_signals: {
+        Args: { p_actor: string; p_team: string };
+        Returns: Json;
+      };
+      service_catalog_video_r2_state: {
+        Args: { p_actor: string; p_catalog: string };
+        Returns: Json;
+      };
+      service_catalog_video_r2_usage: { Args: { p_actor: string; p_team: string }; Returns: Json };
+      service_catalog_video_r2_verifying: {
+        Args: { p_copy: string; p_fence: number; p_worker: string };
+        Returns: undefined;
+      };
+      service_catalog_video_r2_yield: {
+        Args: { p_copy: string; p_fence: number; p_worker: string };
+        Returns: undefined;
       };
       service_check_restitch_control_screen_range: {
         Args: { p_dispatch: string; p_ticket_hash: string };
@@ -9073,13 +10806,20 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_checkpoint_initial_sync: {
+      service_checkpoint_catalog_video_set: {
         Args: {
-          p_folder_queue: Json;
-          p_job: string;
-          p_page_token: string;
-          p_worker: string;
+          p_actor: string;
+          p_children: Json;
+          p_epoch: number;
+          p_executor: string;
+          p_revision: number;
+          p_set: string;
+          p_team: string;
         };
+        Returns: boolean;
+      };
+      service_checkpoint_initial_sync: {
+        Args: { p_folder_queue: Json; p_job: string; p_page_token: string; p_worker: string };
         Returns: boolean;
       };
       service_checkpoint_launch_catalog_intent_v1: {
@@ -9105,12 +10845,7 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_checkpoint_material_group_execution_v2: {
-        Args: {
-          p_epoch: number;
-          p_executor: string;
-          p_intent: string;
-          p_material: string;
-        };
+        Args: { p_epoch: number; p_executor: string; p_intent: string; p_material: string };
         Returns: boolean;
       };
       service_checkpoint_material_group_intent: {
@@ -9130,6 +10865,14 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
+      service_claim_catalog_publication_jobs: {
+        Args: { p_limit?: number; p_worker: string };
+        Returns: Json;
+      };
+      service_claim_catalog_publication_preparations: {
+        Args: { p_limit?: number; p_worker: string };
+        Returns: Json;
+      };
       service_claim_catalog_reconciliations: {
         Args: { p_limit?: number };
         Returns: {
@@ -9140,6 +10883,16 @@ export type GeneratedDatabase = {
           marker: string;
           resource_key: string;
         }[];
+      };
+      service_claim_catalog_rename: {
+        Args: {
+          p_actor: string;
+          p_key: string;
+          p_material: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_claim_catalog_sync_jobs: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
@@ -9178,10 +10931,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
-      service_claim_catalog_text_schedule: {
-        Args: { p_limit?: number };
-        Returns: Json;
-      };
+      service_claim_catalog_text_schedule: { Args: { p_limit?: number }; Returns: Json };
       service_claim_catalog_updater_items: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string };
         Returns: {
@@ -9207,17 +10957,18 @@ export type GeneratedDatabase = {
           video_link: string;
         }[];
       };
-      service_claim_launch_cleanup: {
-        Args: { p_limit?: number; p_owner: string };
+      service_claim_catalog_video_set: {
+        Args: { p_hash: string; p_native: string; p_protocol: number };
         Returns: Json;
       };
+      service_claim_initial_publication_reverify: {
+        Args: { p_actor: string; p_intent: string; p_team: string };
+        Returns: string;
+      };
+      service_claim_launch_batch_admission_recovery: { Args: { p_limit?: number }; Returns: Json };
+      service_claim_launch_cleanup: { Args: { p_limit?: number; p_owner: string }; Returns: Json };
       service_claim_launch_generation: {
-        Args: {
-          p_actor: string;
-          p_generation: string;
-          p_owner: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_generation: string; p_owner: string; p_team: string };
         Returns: Json;
       };
       service_claim_launch_video_cleanup: {
@@ -9282,12 +11033,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_claim_restitch_native_control: {
-        Args: {
-          p_claim: string;
-          p_contract: number;
-          p_grant: string;
-          p_ticket_hash: string;
-        };
+        Args: { p_claim: string; p_contract: number; p_grant: string; p_ticket_hash: string };
         Returns: Json;
       };
       service_claim_retired_restitch_copies: {
@@ -9299,19 +11045,14 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
-      service_claim_tariff_notices: {
-        Args: { p_limit?: number };
+      service_claim_tariff_notices: { Args: { p_limit?: number }; Returns: Json };
+      service_claim_task_cleanup: { Args: { p_limit?: number }; Returns: Json };
+      service_claim_uncertain_process_uploads: {
+        Args: { p_limit?: number; p_operation?: string; p_owner: string };
         Returns: Json;
       };
-      service_claim_task_cleanup: { Args: { p_limit?: number }; Returns: Json };
       service_claim_upload_folder: {
-        Args: {
-          p_actor: string;
-          p_key: string;
-          p_name: string;
-          p_parent: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_key: string; p_name: string; p_parent: string; p_team: string };
         Returns: {
           claimed: boolean;
           operation_id: string;
@@ -9324,12 +11065,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_commit_archive_inspection: {
-        Args: {
-          p_fingerprint?: string;
-          p_material: string;
-          p_outcome: string;
-          p_version: string;
-        };
+        Args: { p_fingerprint?: string; p_material: string; p_outcome: string; p_version: string };
         Returns: boolean;
       };
       service_commit_catalog_scan_page: {
@@ -9433,12 +11169,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_commit_thumbnail: {
-        Args: {
-          p_material: string;
-          p_reason?: string;
-          p_state: string;
-          p_version?: string;
-        };
+        Args: { p_material: string; p_reason?: string; p_state: string; p_version?: string };
         Returns: string;
       };
       service_commit_workspace_folder: {
@@ -9476,10 +11207,21 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_complete_material_group_intent: {
-        Args: { p_intent: string };
+      service_complete_catalog_video_variant: {
+        Args: {
+          p_code: string;
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_outcome: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
         Returns: Json;
       };
+      service_complete_material_group_intent: { Args: { p_intent: string }; Returns: Json };
       service_complete_orphan_cleanup: {
         Args: { p_material: string; p_trashed: boolean; p_worker: string };
         Returns: boolean;
@@ -9541,6 +11283,7 @@ export type GeneratedDatabase = {
         Args: { p_dispatch: string; p_purpose: string; p_ticket_hash: string };
         Returns: Json;
       };
+      service_continue_launch_batch_recovery: { Args: Record<PropertyKey, never>; Returns: number };
       service_create_drive_oauth_transaction: {
         Args: {
           p_actor: string;
@@ -9614,19 +11357,29 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
-      service_defer_restitch_job: {
+      service_created_launch_catalog_video: {
         Args: {
-          p_code: string;
-          p_interval: string;
-          p_job: string;
-          p_lease_token_hash: string;
+          p_action: string;
+          p_actor: string;
+          p_generation: string;
+          p_request?: string;
+          p_team: string;
         };
+        Returns: Json;
+      };
+      service_defer_catalog_publication: {
+        Args: { p_job: string; p_state: string; p_worker: string };
         Returns: boolean;
       };
-      service_delete_google_drive_credential: {
-        Args: { p_credential: string };
+      service_defer_initial_catalog_recovery: {
+        Args: { p_actor: string; p_code: string; p_key: string; p_team: string };
+        Returns: string;
+      };
+      service_defer_restitch_job: {
+        Args: { p_code: string; p_interval: string; p_job: string; p_lease_token_hash: string };
         Returns: boolean;
       };
+      service_delete_google_drive_credential: { Args: { p_credential: string }; Returns: boolean };
       service_detach_drive_connection: {
         Args: { p_actor: string; p_connection: string; p_team: string };
         Returns: {
@@ -9636,12 +11389,7 @@ export type GeneratedDatabase = {
         }[];
       };
       service_direct_add_registered_member: {
-        Args: {
-          p_actor: string;
-          p_base_role: string;
-          p_email: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_base_role: string; p_email: string; p_team: string };
         Returns: {
           base_role: string;
           display_name: string;
@@ -9654,6 +11402,22 @@ export type GeneratedDatabase = {
           user_id: string;
         }[];
       };
+      service_dispatch_catalog_publication: {
+        Args: { p_fence: string; p_job: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_dispatch_catalog_video_variant: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: Json;
+      };
       service_draw_product_catalog_images: {
         Args: { p_count: number; p_team: string };
         Returns: {
@@ -9664,9 +11428,15 @@ export type GeneratedDatabase = {
         }[];
       };
       service_draw_product_catalog_images_v2: {
+        Args: { p_attempt?: string; p_count: number; p_scope?: string; p_team: string };
+        Returns: Json;
+      };
+      service_draw_product_catalog_images_v3: {
         Args: {
-          p_attempt?: string;
+          p_attempt: string;
+          p_catalog?: string;
           p_count: number;
+          p_pairs?: Json;
           p_scope?: string;
           p_team: string;
         };
@@ -9683,6 +11453,7 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_exclude?: string[]; p_team: string };
         Returns: Json;
       };
+      service_due_catalog_renames: { Args: { p_limit?: number }; Returns: Json };
       service_end_material_group_execution: {
         Args: {
           p_acknowledged?: string;
@@ -9705,12 +11476,7 @@ export type GeneratedDatabase = {
       service_enqueue_catalog_reconciliation:
         | { Args: { p_connection: string }; Returns: string }
         | {
-            Args: {
-              p_connection: string;
-              p_epoch: number;
-              p_job: string;
-              p_worker: string;
-            };
+            Args: { p_connection: string; p_epoch: number; p_job: string; p_worker: string };
             Returns: string;
           };
       service_enqueue_discovered_catalog_subtree: {
@@ -9732,16 +11498,22 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_fail_drive_mutation_preflight: {
-        Args: {
-          p_actor: string;
-          p_error_code: string;
-          p_operation: string;
-          p_retryable?: boolean;
-        };
+        Args: { p_actor: string; p_error_code: string; p_operation: string; p_retryable?: boolean };
         Returns: boolean;
       };
       service_fail_landing_render: {
         Args: { p_reason: string; p_render: string };
+        Returns: undefined;
+      };
+      service_fail_launch_catalog_video: {
+        Args: {
+          p_actor: string;
+          p_code: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
         Returns: undefined;
       };
       service_fail_upload_batch_item: {
@@ -9766,6 +11538,16 @@ export type GeneratedDatabase = {
       };
       service_finalize_uploaded_material: {
         Args: { p_actor: string; p_drive: Json; p_operation: string };
+        Returns: Json;
+      };
+      service_find_launch_catalog_video_reuse: {
+        Args: {
+          p_actor: string;
+          p_config: Json;
+          p_digest: string;
+          p_launch: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       service_find_team_name_conflicts: {
@@ -9802,20 +11584,49 @@ export type GeneratedDatabase = {
           transcript_text: string;
         }[];
       };
-      service_finish_catalog_folder: {
+      service_finish_catalog_baseline_check: {
         Args: {
-          p_epoch: number;
-          p_generation: string;
-          p_job: string;
-          p_worker: string;
+          p_actor: string;
+          p_check: string;
+          p_fence: string;
+          p_outcome: string;
+          p_provider_revision: string;
+          p_recipe_revision?: number;
+          p_team: string;
+          p_video_cells_digest: string;
+          p_video_set?: string;
+        };
+        Returns: Json;
+      };
+      service_finish_catalog_folder: {
+        Args: { p_epoch: number; p_generation: string; p_job: string; p_worker: string };
+        Returns: boolean;
+      };
+      service_finish_catalog_update_write: { Args: { p_item: string }; Returns: boolean };
+      service_finish_initial_catalog_publication: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_cells_digest: string;
+          p_fence: string;
+          p_intent: string;
+          p_provider_revision: string;
+          p_team: string;
         };
         Returns: boolean;
       };
-      service_finish_catalog_update_write: {
-        Args: { p_item: string };
-        Returns: boolean;
-      };
       service_finish_launch_cleanup: {
+        Args: {
+          p_cleaned_file?: string;
+          p_fence: string;
+          p_generation: string;
+          p_intent_fence: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
+      service_finish_launch_cleanup_before_video: {
         Args: {
           p_cleaned_file?: string;
           p_fence: string;
@@ -9847,13 +11658,18 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_finish_tariff_notice: {
+      service_finish_restitch_native_control_before_process_alias: {
         Args: {
-          p_error?: string;
-          p_id: string;
-          p_sent: boolean;
-          p_skipped?: boolean;
+          p_claim: string;
+          p_grant: string;
+          p_outcome: string;
+          p_quiescence: string;
+          p_ticket_hash: string;
         };
+        Returns: boolean;
+      };
+      service_finish_tariff_notice: {
+        Args: { p_error?: string; p_id: string; p_sent: boolean; p_skipped?: boolean };
         Returns: boolean;
       };
       service_forget_restitch_copy: {
@@ -9996,10 +11812,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
-      service_get_process_upload: {
-        Args: { p_actor: string; p_operation: string };
-        Returns: Json;
-      };
+      service_get_process_upload: { Args: { p_actor: string; p_operation: string }; Returns: Json };
       service_get_root_operation_context: {
         Args: { p_actor: string; p_permission: string; p_team: string };
         Returns: {
@@ -10012,10 +11825,7 @@ export type GeneratedDatabase = {
           team_id: string;
         }[];
       };
-      service_get_space_restitch_defaults: {
-        Args: { p_team: string };
-        Returns: Json;
-      };
+      service_get_space_restitch_defaults: { Args: { p_team: string }; Returns: Json };
       service_get_team_operation: {
         Args: { p_actor: string; p_operation: string };
         Returns: {
@@ -10085,6 +11895,30 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
+      service_initial_catalog_video_context: {
+        Args: {
+          p_actor: string;
+          p_executor?: string;
+          p_require_executor?: boolean;
+          p_source: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_initial_catalog_video_context_before_foreground: {
+        Args: {
+          p_actor: string;
+          p_executor: string;
+          p_require_executor?: boolean;
+          p_source: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_initial_catalog_video_outputs: {
+        Args: { p_actor: string; p_recipe: number; p_set: string; p_team: string };
+        Returns: Json;
+      };
       service_interrupt_launch_generation: {
         Args: {
           p_actor: string;
@@ -10092,6 +11926,18 @@ export type GeneratedDatabase = {
           p_fence: string;
           p_generation: string;
           p_owner: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_interrupt_launch_generation_with_backoff: {
+        Args: {
+          p_actor: string;
+          p_code: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_retry_after_ms: number;
           p_team: string;
         };
         Returns: undefined;
@@ -10122,6 +11968,38 @@ export type GeneratedDatabase = {
       service_is_launch_restitch_process: {
         Args: { p_actor: string; p_operation: string };
         Returns: boolean;
+      };
+      service_issue_catalog_video_grants: {
+        Args: {
+          p_acquisition: number;
+          p_finalize_hash: string;
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+          p_source_hash: string;
+          p_source_uses: number;
+        };
+        Returns: boolean;
+      };
+      service_issue_catalog_video_restitch_control: {
+        Args: {
+          p_enrollment: string;
+          p_grant: string;
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_proof_hash: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+          p_ticket_hash: string;
+        };
+        Returns: Json;
       };
       service_issue_restitch_control_screen_range: {
         Args: {
@@ -10170,7 +12048,31 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_launch_batch_context: {
+        Args: { p_actor: string; p_intent: Json; p_key: string; p_team: string };
+        Returns: Json;
+      };
+      service_launch_catalog_foreground_source: {
+        Args: {
+          p_actor: string;
+          p_generation: string;
+          p_key: string;
+          p_team: string;
+          p_version: string;
+        };
+        Returns: Json;
+      };
       service_launch_restitch_receipt: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_launch_restitch_receipt_before_video: {
         Args: {
           p_actor: string;
           p_fence: string;
@@ -10184,7 +12086,7 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_launch: string; p_team: string };
         Returns: Json;
       };
-      service_launch_worker_ready: { Args: never; Returns: boolean };
+      service_launch_worker_ready: { Args: Record<PropertyKey, never>; Returns: boolean };
       service_link_launch_restitch_catalog: {
         Args: {
           p_actor: string;
@@ -10227,6 +12129,8 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_list_catalog_updater_variant_targets: { Args: { p_limit?: number }; Returns: Json };
+      service_list_catalog_variant_rounds: { Args: { p_limit?: number }; Returns: Json };
       service_list_connection_selections: {
         Args: { p_connection: string };
         Returns: {
@@ -10236,10 +12140,9 @@ export type GeneratedDatabase = {
           resource_key: string;
         }[];
       };
-      service_list_launch_catalog_recovery: {
-        Args: { p_limit?: number };
-        Returns: Json;
-      };
+      service_list_initial_catalog_recovery: { Args: { p_limit?: number }; Returns: Json };
+      service_list_launch_batch_other_recovery: { Args: { p_limit?: number }; Returns: Json };
+      service_list_launch_catalog_recovery: { Args: { p_limit?: number }; Returns: Json };
       service_list_launch_cleanup_permissions: {
         Args: {
           p_fence: string;
@@ -10262,23 +12165,18 @@ export type GeneratedDatabase = {
           resource_key: string;
         }[];
       };
-      service_list_user_restitch_objects: {
-        Args: { p_user: string };
-        Returns: string[];
-      };
+      service_list_user_restitch_objects: { Args: { p_user: string }; Returns: string[] };
       service_mark_catalog_update_unknown: {
         Args: { p_error: string; p_item: string; p_worker: string };
         Returns: boolean;
       };
-      service_mark_drive_needs_reauth: {
-        Args: { p_credential: string };
+      service_mark_drive_needs_reauth: { Args: { p_credential: string }; Returns: number };
+      service_mark_due_catalog_publications_unsupported: {
+        Args: { p_limit?: number };
         Returns: number;
       };
       service_mark_folder_indexed:
-        | {
-            Args: { p_connection: string; p_drive_folder_id: string };
-            Returns: number;
-          }
+        | { Args: { p_connection: string; p_drive_folder_id: string }; Returns: number }
         | {
             Args: {
               p_connection: string;
@@ -10324,12 +12222,7 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_mark_material_group_execution_reconciling_v2: {
-        Args: {
-          p_epoch: number;
-          p_error_code: string;
-          p_executor: string;
-          p_intent: string;
-        };
+        Args: { p_epoch: number; p_error_code: string; p_executor: string; p_intent: string };
         Returns: boolean;
       };
       service_mark_material_group_reconciling: {
@@ -10338,11 +12231,7 @@ export type GeneratedDatabase = {
       };
       service_mark_root_state:
         | {
-            Args: {
-              p_connection: string;
-              p_root_name?: string;
-              p_state: string;
-            };
+            Args: { p_connection: string; p_root_name?: string; p_state: string };
             Returns: undefined;
           }
         | {
@@ -10357,32 +12246,72 @@ export type GeneratedDatabase = {
             Returns: undefined;
           };
       service_material_share_status: {
-        Args: {
-          p_actor: string;
-          p_file: string;
-          p_material: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_file: string; p_material: string; p_team: string };
         Returns: Json;
       };
       service_next_product_catalog_variant: {
         Args: { p_team: string; p_video: string };
         Returns: number;
       };
+      service_note_catalog_updater_variant_admission: {
+        Args: {
+          p_actor: string;
+          p_code?: string;
+          p_request: string;
+          p_stage: string;
+          p_team: string;
+        };
+        Returns: undefined;
+      };
+      service_note_catalog_variant_round_failure: {
+        Args: { p_actor: string; p_attempt: string; p_code: string; p_team: string };
+        Returns: undefined;
+      };
+      service_note_catalog_video_foreground_intent: {
+        Args: {
+          p_actor: string;
+          p_enrollment: string;
+          p_intent: string;
+          p_planned_set: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_note_catalog_video_variant_heartbeat: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation?: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: boolean;
+      };
+      service_note_initial_publication_reverify: {
+        Args: { p_code: string; p_intent: string; p_team: string };
+        Returns: undefined;
+      };
+      service_note_launch_video_absent: {
+        Args: {
+          p_fence: string;
+          p_generation: string;
+          p_operation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: string;
+      };
       service_note_restitched_folder: {
         Args: { p_drive_folder_id: string; p_team: string };
         Returns: undefined;
       };
       service_observe_material_share_public: {
-        Args: {
-          p_actor: string;
-          p_file: string;
-          p_material: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_file: string; p_material: string; p_team: string };
         Returns: number;
       };
-      service_open_catalog_updater_rounds: { Args: never; Returns: number };
+      service_open_catalog_updater_rounds: { Args: Record<PropertyKey, never>; Returns: number };
       service_park_catalog_update_claim: {
         Args: { p_item: string; p_worker: string };
         Returns: boolean;
@@ -10403,6 +12332,40 @@ export type GeneratedDatabase = {
           p_intent: string;
           p_owner: string;
           p_team: string;
+        };
+        Returns: Json;
+      };
+      service_prepare_catalog_nonvideo_update_context: {
+        Args: { p_item: string; p_worker: string };
+        Returns: Json;
+      };
+      service_prepare_catalog_publication_cells: {
+        Args: { p_job: string; p_payload: Json; p_worker: string };
+        Returns: Json;
+      };
+      service_prepare_catalog_rename: {
+        Args: {
+          p_etag: string;
+          p_live_name: string;
+          p_live_version: string;
+          p_operation: string;
+          p_owner: string;
+        };
+        Returns: boolean;
+      };
+      service_prepare_catalog_video_foreground: {
+        Args: {
+          p_actor: string;
+          p_enrollment: string;
+          p_key: string;
+          p_kind: string;
+          p_native: string;
+          p_proof_hash: string;
+          p_session: string;
+          p_source: string;
+          p_team: string;
+          p_token_hash: string;
+          p_version: string;
         };
         Returns: Json;
       };
@@ -10434,17 +12397,19 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
-      service_prune_material_share_receipts: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
-      service_publish_launch_generation: {
+      service_prune_material_share_receipts: { Args: { p_limit?: number }; Returns: number };
+      service_publish_launch_batch_other_generation: {
         Args: {
           p_actor: string;
           p_fence: string;
           p_generation: string;
+          p_owner: string;
           p_team: string;
         };
+        Returns: Json;
+      };
+      service_publish_launch_generation: {
+        Args: { p_actor: string; p_fence: string; p_generation: string; p_team: string };
         Returns: Json;
       };
       service_quiesce_restitch_executor: {
@@ -10459,12 +12424,7 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_quiesce_restitch_native_control: {
-        Args: {
-          p_claim: string;
-          p_grant: string;
-          p_quiescence: string;
-          p_ticket_hash: string;
-        };
+        Args: { p_claim: string; p_grant: string; p_quiescence: string; p_ticket_hash: string };
         Returns: boolean;
       };
       service_read_active_restitch_selection_slot: {
@@ -10474,6 +12434,101 @@ export type GeneratedDatabase = {
           p_executor: string;
           p_root_operation: string;
           p_slot: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_catalog_baseline_check: {
+        Args: { p_actor: string; p_catalog: string; p_check: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_nonvideo_reconciliation: {
+        Args: { p_item: string; p_marker: string };
+        Returns: boolean;
+      };
+      service_read_catalog_nonvideo_update_context: {
+        Args: { p_item: string; p_worker: string };
+        Returns: Json;
+      };
+      service_read_catalog_publication: {
+        Args: { p_actor: string; p_catalog: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_publication_command: {
+        Args: { p_actor: string; p_catalog: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_updater_variants: {
+        Args: { p_actor: string; p_catalog: string; p_request?: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_updater_variants_before_foreground: {
+        Args: { p_actor: string; p_catalog: string; p_request?: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_video_acceptance: {
+        Args: { p_actor: string; p_set: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_video_admission: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: Json;
+      };
+      service_read_catalog_video_consumer_acceptance: {
+        Args: { p_actor: string; p_intent: string; p_set: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_catalog_video_process_context: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: Json;
+      };
+      service_read_catalog_video_set: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_set: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_initial_catalog_ready_binding: {
+        Args: { p_actor: string; p_key: string; p_source: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_initial_catalog_request: {
+        Args: { p_actor: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_initial_catalog_video: {
+        Args: { p_actor: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_initial_catalog_video_before_foreground: {
+        Args: { p_actor: string; p_key: string; p_team: string };
+        Returns: Json;
+      };
+      service_read_launch_catalog_video_context: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
           p_team: string;
         };
         Returns: Json;
@@ -10492,6 +12547,28 @@ export type GeneratedDatabase = {
         Args: { p_epoch?: number; p_executor?: string; p_intent: string };
         Returns: Json;
       };
+      service_read_material_historical_receipt: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_destination?: string;
+          p_material: string;
+          p_operation: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_read_material_historical_receipt_by_key: {
+        Args: {
+          p_action: string;
+          p_actor: string;
+          p_destination?: string;
+          p_key: string;
+          p_material: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_read_restitch_control_screen_range_consumption: {
         Args: { p_dispatch: string; p_ticket_hash: string };
         Returns: Json;
@@ -10507,12 +12584,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_read_restitch_control_selection: {
-        Args: {
-          p_active?: boolean;
-          p_control: string;
-          p_control_hash: string;
-          p_slot: string;
-        };
+        Args: { p_active?: boolean; p_control: string; p_control_hash: string; p_slot: string };
         Returns: Json;
       };
       service_read_restitch_executor_claim: {
@@ -10547,12 +12619,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_read_restitch_selection_slot: {
-        Args: {
-          p_actor: string;
-          p_root_operation: string;
-          p_slot: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_root_operation: string; p_slot: string; p_team: string };
         Returns: Json;
       };
       service_read_restitch_selection_source: {
@@ -10583,6 +12650,18 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_intent: string; p_team: string };
         Returns: Json;
       };
+      service_reconcile_catalog_video_variant: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_index: number;
+          p_request: string;
+          p_set: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       service_reconcile_confirmed_material_group: {
         Args: {
           p_action: string;
@@ -10595,11 +12674,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       service_record_access_expiry: {
-        Args: {
-          p_credential: string;
-          p_expires_at: string;
-          p_scope_set?: string[];
-        };
+        Args: { p_credential: string; p_expires_at: string; p_scope_set?: string[] };
         Returns: number;
       };
       service_record_catalog_permission: {
@@ -10617,9 +12692,37 @@ export type GeneratedDatabase = {
         };
         Returns: undefined;
       };
+      service_record_catalog_publication_link: {
+        Args: {
+          p_job: string;
+          p_link_kind?: string;
+          p_material: string;
+          p_source_version: string;
+          p_url: string;
+          p_worker: string;
+        };
+        Returns: boolean;
+      };
       service_record_catalog_update_changes: {
         Args: { p_changes: Json; p_item: string; p_worker: string };
         Returns: boolean;
+      };
+      service_record_catalog_video_foreground_failure: {
+        Args: { p_actor: string; p_code: string; p_enrollment: string; p_team: string };
+        Returns: boolean;
+      };
+      service_record_launch_batch_other_failure: {
+        Args: {
+          p_actor: string;
+          p_code: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_retry_after_ms?: number;
+          p_team: string;
+          p_transient: boolean;
+        };
+        Returns: undefined;
       };
       service_record_restitch_output: {
         Args: {
@@ -10640,8 +12743,29 @@ export type GeneratedDatabase = {
         };
         Returns: Json;
       };
+      service_redeem_catalog_video_foreground: {
+        Args: {
+          p_enrollment: string;
+          p_execution_native?: string;
+          p_expected_execution_native?: string;
+          p_native: string;
+          p_proof_hash: string;
+          p_set: string;
+        };
+        Returns: Json;
+      };
       service_redeem_restitch_native_control: {
         Args: { p_grant: string; p_proof_hash: string };
+        Returns: Json;
+      };
+      service_reference_ready_catalog_video_set: {
+        Args: {
+          p_actor: string;
+          p_assignments: Json;
+          p_payload: Json;
+          p_set: string;
+          p_team: string;
+        };
         Returns: Json;
       };
       service_refresh_material_revision: {
@@ -10684,16 +12808,29 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_release_catalog_sync_job:
-        | { Args: { p_job: string; p_worker: string }; Returns: boolean }
-        | {
-            Args: { p_epoch: number; p_job: string; p_worker: string };
-            Returns: boolean;
-          };
-      service_release_team_name_reservation: {
-        Args: { p_operation: string };
+      service_release_catalog_publication_preparation: {
+        Args: { p_error_code?: string; p_job: string; p_worker: string };
         Returns: boolean;
       };
+      service_release_catalog_sync_job:
+        | { Args: { p_job: string; p_worker: string }; Returns: boolean }
+        | { Args: { p_epoch: number; p_job: string; p_worker: string }; Returns: boolean };
+      service_release_catalog_variant_regular: {
+        Args: { p_request: string; p_team: string };
+        Returns: boolean;
+      };
+      service_release_catalog_variant_regulars: { Args: { p_limit?: number }; Returns: number };
+      service_release_silent_catalog_video_foreground: {
+        Args: {
+          p_enrollment: string;
+          p_execution_native?: string;
+          p_native: string;
+          p_proof_hash: string;
+          p_set: string;
+        };
+        Returns: number;
+      };
+      service_release_team_name_reservation: { Args: { p_operation: string }; Returns: boolean };
       service_replace_drive_connection: {
         Args: {
           p_actor: string;
@@ -10726,9 +12863,37 @@ export type GeneratedDatabase = {
         Args: { p_actor: string; p_team: string };
         Returns: string;
       };
+      service_request_process_upload_reconcile: {
+        Args: { p_operation: string; p_token_hash: string };
+        Returns: boolean;
+      };
+      service_requeue_catalog_publication_cell_jobs: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
       service_requeue_catalog_transcripts: {
         Args: { p_connection: string; p_files: Json };
         Returns: number;
+      };
+      service_require_catalog_video_audience: {
+        Args: { p_enrollment?: string; p_hash: string; p_kind: string; p_set: string };
+        Returns: boolean;
+      };
+      service_reserve_catalog_publication: {
+        Args: { p_job: string; p_worker: string };
+        Returns: string;
+      };
+      service_reserve_catalog_video_grants: {
+        Args: {
+          p_hash: string;
+          p_index: number;
+          p_native: string;
+          p_operation: string;
+          p_protocol: number;
+          p_request: string;
+          p_set: string;
+        };
+        Returns: Json;
       };
       service_reserve_library_folder: {
         Args: {
@@ -10761,21 +12926,11 @@ export type GeneratedDatabase = {
         Returns: boolean;
       };
       service_resolve_catalog_reconciliation: {
-        Args: {
-          p_item: string;
-          p_marker: string;
-          p_outcome: string;
-          p_worker: string;
-        };
+        Args: { p_item: string; p_marker: string; p_outcome: string; p_worker: string };
         Returns: boolean;
       };
       service_resolve_team_folder: {
-        Args: {
-          p_actor: string;
-          p_drive_folder_id: string;
-          p_permission: string;
-          p_team: string;
-        };
+        Args: { p_actor: string; p_drive_folder_id: string; p_permission: string; p_team: string };
         Returns: {
           drive_file_id: string;
           material_id: string;
@@ -10800,6 +12955,24 @@ export type GeneratedDatabase = {
           p_owner: string;
           p_team: string;
         };
+        Returns: boolean;
+      };
+      service_resume_catalog_updater_variants: {
+        Args: { p_actor: string; p_catalog: string; p_request: string; p_team: string };
+        Returns: Json;
+      };
+      service_resume_catalog_variant_round: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_executor?: string;
+          p_request: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_retire_unused_catalog_video_foreground: {
+        Args: { p_actor: string; p_enrollment: string; p_team: string };
         Returns: boolean;
       };
       service_retry_catalog_child: {
@@ -10835,13 +13008,35 @@ export type GeneratedDatabase = {
             Returns: boolean;
           };
       service_retry_catalog_update: {
-        Args: {
-          p_error: string;
-          p_item: string;
-          p_next_attempt_at: string;
-          p_worker: string;
-        };
+        Args: { p_error: string; p_item: string; p_next_attempt_at: string; p_worker: string };
         Returns: boolean;
+      };
+      service_retry_catalog_video_variant: {
+        Args: {
+          p_actor: string;
+          p_epoch: number;
+          p_executor: string;
+          p_index: number;
+          p_request: string;
+          p_set: string;
+          p_team: string;
+        };
+        Returns: Json;
+      };
+      service_retry_failed_catalog_video_variants: {
+        Args: { p_actor: string; p_set: string; p_team: string };
+        Returns: Json;
+      };
+      service_retry_launch_batch_admission: {
+        Args: {
+          p_actor: string;
+          p_intent: Json;
+          p_key: string;
+          p_owner: string;
+          p_prepared: Json;
+          p_team: string;
+        };
+        Returns: Json;
       };
       service_reuse_launch_catalog: {
         Args: {
@@ -10853,9 +13048,30 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_revoke_user_team_grants: {
-        Args: { p_user: string };
-        Returns: number;
+      service_reuse_launch_catalog_before_video: {
+        Args: {
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
+        };
+        Returns: boolean;
+      };
+      service_revoke_user_team_grants: { Args: { p_user: string }; Returns: number };
+      service_save_catalog_publication: {
+        Args: {
+          p_actor: string;
+          p_catalog: string;
+          p_due: string;
+          p_expected_revision: number;
+          p_mode: string;
+          p_request: string;
+          p_target: Json;
+          p_team: string;
+          p_zone: string;
+        };
+        Returns: Json;
       };
       service_save_catalog_sync_progress:
         | {
@@ -10901,19 +13117,34 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_settle_launch_authority_losses: {
-        Args: { p_limit?: number };
-        Returns: number;
+      service_settle_catalog_publication: {
+        Args: {
+          p_fence: string;
+          p_job: string;
+          p_outcome: string;
+          p_provider_revision?: string;
+          p_worker: string;
+        };
+        Returns: boolean;
       };
+      service_settle_catalog_rename: {
+        Args: {
+          p_code?: string;
+          p_drive: Json;
+          p_operation: string;
+          p_owner: string;
+          p_retry_after_ms?: number;
+          p_terminal?: boolean;
+        };
+        Returns: Json;
+      };
+      service_settle_catalog_variant_deliveries: { Args: { p_limit?: number }; Returns: number };
+      service_settle_catalog_video_cancellations: { Args: { p_limit?: number }; Returns: Json };
+      service_settle_launch_authority_losses: { Args: { p_limit?: number }; Returns: number };
       service_settle_launch_batch: { Args: { p_limit?: number }; Returns: Json };
-      service_settle_launch_restitch_batch: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
-      service_settle_launch_restitch_cancellations: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
+      service_settle_launch_batch_cancellations: { Args: { p_limit?: number }; Returns: number };
+      service_settle_launch_restitch_batch: { Args: { p_limit?: number }; Returns: number };
+      service_settle_launch_restitch_cancellations: { Args: { p_limit?: number }; Returns: number };
       service_settle_process_output_cleanup: {
         Args: {
           p_code?: string;
@@ -10936,9 +13167,16 @@ export type GeneratedDatabase = {
         };
         Returns: boolean;
       };
-      service_settle_task_cleanup: {
-        Args: { p_id: string; p_result: string };
-        Returns: undefined;
+      service_settle_task_cleanup: { Args: { p_id: string; p_result: string }; Returns: undefined };
+      service_settle_uncertain_process_upload: {
+        Args: {
+          p_code?: string;
+          p_fence: string;
+          p_operation: string;
+          p_owner: string;
+          p_result: string;
+        };
+        Returns: string;
       };
       service_start_landing_render: {
         Args: {
@@ -10989,6 +13227,7 @@ export type GeneratedDatabase = {
         };
         Returns: string;
       };
+      service_sweep_catalog_updater_rounds: { Args: { p_limit?: number }; Returns: Json };
       service_team_recovery: {
         Args: { p_action: string; p_hash: string; p_input?: Json };
         Returns: Json;
@@ -11008,12 +13247,7 @@ export type GeneratedDatabase = {
       service_touch_catalog_reconciled:
         | { Args: { p_connection: string }; Returns: undefined }
         | {
-            Args: {
-              p_connection: string;
-              p_epoch: number;
-              p_job: string;
-              p_worker: string;
-            };
+            Args: { p_connection: string; p_epoch: number; p_job: string; p_worker: string };
             Returns: undefined;
           };
       service_touch_launch_generation: {
@@ -11041,11 +13275,7 @@ export type GeneratedDatabase = {
       };
       service_upsert_catalog_page:
         | {
-            Args: {
-              p_connection: string;
-              p_files: Json;
-              p_parent_folder_id: string;
-            };
+            Args: { p_connection: string; p_files: Json; p_parent_folder_id: string };
             Returns: number;
           }
         | {
@@ -11059,12 +13289,18 @@ export type GeneratedDatabase = {
             };
             Returns: number;
           };
-      set_invitation_delivery_state: {
+      service_wait_launch_catalog_video: {
         Args: {
-          p_delivery_state: string;
-          p_error_code?: string;
-          p_invitation: string;
+          p_actor: string;
+          p_fence: string;
+          p_generation: string;
+          p_owner: string;
+          p_team: string;
         };
+        Returns: undefined;
+      };
+      set_invitation_delivery_state: {
+        Args: { p_delivery_state: string; p_error_code?: string; p_invitation: string };
         Returns: boolean;
       };
       set_launch_assignment: {
@@ -11113,10 +13349,7 @@ export type GeneratedDatabase = {
         Args: { p_drive_version: string; p_material: string; p_prep: Json };
         Returns: boolean;
       };
-      set_member_restitch_defaults: {
-        Args: { p_defaults: Json; p_team: string };
-        Returns: Json;
-      };
+      set_member_restitch_defaults: { Args: { p_defaults: Json; p_team: string }; Returns: Json };
       set_member_restitch_sources: {
         Args: { p_items: Json; p_slot: string; p_team: string };
         Returns: Json;
@@ -11156,14 +13389,8 @@ export type GeneratedDatabase = {
         Args: { p_items: Json; p_slot: string; p_team: string };
         Returns: Json;
       };
-      set_share_preference: {
-        Args: { p_allow: boolean; p_team: string };
-        Returns: boolean;
-      };
-      set_task_progress_max_default: {
-        Args: { p_value: number };
-        Returns: undefined;
-      };
+      set_share_preference: { Args: { p_allow: boolean; p_team: string }; Returns: boolean };
+      set_task_progress_max_default: { Args: { p_value: number }; Returns: undefined };
       set_team_account_archived: {
         Args: {
           p_archived: boolean;
@@ -11220,12 +13447,7 @@ export type GeneratedDatabase = {
             Returns: Json;
           };
       set_team_agent_money: {
-        Args: {
-          p_agent: string;
-          p_balance: number;
-          p_team: string;
-          p_topup: number;
-        };
+        Args: { p_agent: string; p_balance: number; p_team: string; p_topup: number };
         Returns: Json;
       };
       set_team_agent_run_marker: {
@@ -11314,21 +13536,13 @@ export type GeneratedDatabase = {
         Returns: number;
       };
       set_transcript_delete_pref: { Args: { p_pref: string }; Returns: string };
-      settle_launch_restitch: {
-        Args: { p_generation: string; p_team: string };
-        Returns: boolean;
-      };
+      settle_launch_restitch: { Args: { p_generation: string; p_team: string }; Returns: boolean };
       start_team_bulk_trash: {
         Args: { p_group: string; p_materials: string[]; p_team: string };
         Returns: Json;
       };
       start_team_bulk_trash_as_actor: {
-        Args: {
-          p_expected_actor: string;
-          p_group: string;
-          p_materials: string[];
-          p_team: string;
-        };
+        Args: { p_expected_actor: string; p_group: string; p_materials: string[]; p_team: string };
         Returns: Json;
       };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
@@ -11336,7 +13550,7 @@ export type GeneratedDatabase = {
         Args: { p_category: string; p_kind: string; p_mime_type: string };
         Returns: string;
       };
-      touch_last_seen: { Args: never; Returns: string };
+      touch_last_seen: { Args: Record<PropertyKey, never>; Returns: string };
       transfer_ownership: {
         Args: { p_demote_to: string; p_team: string; p_to_user: string };
         Returns: {
@@ -11347,10 +13561,7 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
-      undo_task_material_detach: {
-        Args: { p_receipt: string; p_team: string };
-        Returns: Json;
-      };
+      undo_task_material_detach: { Args: { p_receipt: string; p_team: string }; Returns: Json };
       undo_team_agent_finance_clear: {
         Args: {
           p_intent?: string;
@@ -11376,12 +13587,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       update_membership: {
-        Args: {
-          p_base_role?: string;
-          p_member: string;
-          p_overrides?: Json;
-          p_team: string;
-        };
+        Args: { p_base_role?: string; p_member: string; p_overrides?: Json; p_team: string };
         Returns: {
           base_role: string;
           display_name: string;
@@ -11403,12 +13609,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       update_team_label: {
-        Args: {
-          p_color: string;
-          p_label: string;
-          p_name: string;
-          p_team: string;
-        };
+        Args: { p_color: string; p_label: string; p_name: string; p_team: string };
         Returns: {
           color: string;
           created_at: string;
@@ -11427,12 +13628,7 @@ export type GeneratedDatabase = {
         };
       };
       update_team_product_catalog_text: {
-        Args: {
-          p_description: string;
-          p_id: string;
-          p_team: string;
-          p_title: string;
-        };
+        Args: { p_description: string; p_id: string; p_team: string; p_title: string };
         Returns: {
           description: string;
           id: string;
@@ -11484,10 +13680,7 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
-      wake_team_catalog_sync: {
-        Args: { p_team: string };
-        Returns: boolean;
-      };
+      wake_team_catalog_sync: { Args: { p_team: string }; Returns: boolean };
     };
     Enums: {
       [_ in never]: never;
@@ -11512,9 +13705,7 @@ export type Tables<
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
       Row: infer R;
@@ -11537,9 +13728,7 @@ export type TablesInsert<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Insert: infer I;
     }
@@ -11561,9 +13750,7 @@ export type TablesUpdate<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Update: infer U;
     }
@@ -11585,9 +13772,7 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
     : never) = never
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
     ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
@@ -11601,9 +13786,7 @@ export type CompositeTypes<
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
     : never) = never
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
     ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
