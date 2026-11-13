@@ -46,7 +46,9 @@ const LAUNCH_ROOT_CEILING = 20_000;
 // Owner approved 2026-11-09 for 047+049: +2 000 for Launch reliability (measured 50 447).
 // Owner approved 2026-11-10 for 1.4.1: the catalog video fields and publication status
 // ship in production instead of a beta-only chunk (measured 52 389).
-const LAUNCH_EXCLUSIVE_CEILING = 54_000;
+// Owner approved 2026-11-13 for 1.4.4: published 1.4.3 already measured 54 054 B;
+// the new reliability fixes remain bounded at 54 500 B (hosted build: 54 357 B).
+const LAUNCH_EXCLUSIVE_CEILING = 54_500;
 // Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
 // measured shared growth is 30,145 B against the unchanged clean 045 base.
 const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
@@ -54,11 +56,15 @@ const FEATURE_045_INCREMENTAL_ALLOWANCE = 32_000;
 // Owner approved 2026-11-09 for 047+049 (measured 61 022 integrated): relative growth only.
 // Owner approved 2026-11-10 for 1.4.1: catalog video variants and deferred publication
 // are in the production bundle, no longer tree-shaken behind a beta flag (measured 65 454).
-const RELEASE_130_SHARED_GROWTH_CEILING = 67_000;
+// Owner approved 2026-11-13: reconcile the shipped 1.4.3 growth (84 012 B) and
+// bound the 1.4.4 candidate (84 737 B locally), preserving the clean 045 base.
+const RELEASE_130_SHARED_GROWTH_CEILING = 85_500;
 // Owner approved 2026-11-09: global ratchet allowance for 047+049 (measured +22 268 B).
 // Owner approved 2026-11-10 for 1.4.1: the same features now ship in production
 // (measured +26 700 B against the original ratchet plus the 045 allocation).
-const RELEASE_047_049_ALLOWANCE = 28_000;
+// Owner approved 2026-11-13: the coupled existing-assets ceiling is 1 083 288 B.
+// Historical baselines, entry/largest chunk and Accounts limits stay fixed.
+const RELEASE_047_049_ALLOWANCE = 46_500;
 
 /**
  * How far the total may drift before this fails.

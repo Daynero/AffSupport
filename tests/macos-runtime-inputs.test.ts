@@ -43,6 +43,8 @@ describe('first Intel runtime bootstrap', () => {
 });
 
 describeRequiring(requirePlatform('darwin'), 'static bootstrap fixtures', () => {
+  // Cold xcrun/clang plus repeated payload inspection exceeds the generic 5s
+  // unit deadline on hosted Macs. This is a hang watchdog, not a timing assertion.
   it('seals fixed destinations without source paths and refuses tampered bytes or replacement', async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'soty-runtime-stage-'));
     try {
@@ -133,5 +135,5 @@ describeRequiring(requirePlatform('darwin'), 'static bootstrap fixtures', () => 
     } finally {
       await removeTemporaryDirectory(cwd);
     }
-  });
+  }, 30_000);
 });

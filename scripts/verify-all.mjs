@@ -182,7 +182,10 @@ const PHASES = {
           path.join(root, 'scripts/run-unit-suite.mjs'),
           ...(form === 'release' ? ['--coverage'] : [])
         ],
-        timeoutMs: 2_700_000
+        // All eight shards remain serial. Hosted Windows reached ~1,000 files
+        // at 45 minutes while still progressing; allow the complete suite and
+        // report merge to finish, retaining a bounded one-hour hang watchdog.
+        timeoutMs: 3_600_000
       }
     ]
   },

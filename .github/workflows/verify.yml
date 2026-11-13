@@ -39,8 +39,8 @@ jobs:
   test-macos:
     name: test-macos
     runs-on: macos-latest
-    # The suite owns 45 minutes; allow setup and evidence upload as on Windows.
-    timeout-minutes: 60
+    # The serial suite owns 60 minutes; reserve setup and evidence upload too.
+    timeout-minutes: 75
     env:
       NODE_OPTIONS: --max-old-space-size=2048
     steps:
@@ -71,7 +71,7 @@ jobs:
   coverage-macos:
     name: coverage-macos
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     continue-on-error: true
     env:
       NODE_OPTIONS: --max-old-space-size=2048
@@ -97,8 +97,8 @@ jobs:
   test-windows:
     name: test-windows
     runs-on: windows-latest
-    # The suite owns 45 minutes; allow native contract probes, setup and evidence upload.
-    timeout-minutes: 60
+    # The serial suite owns 60 minutes; allow native probes, setup and evidence upload.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
