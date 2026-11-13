@@ -161,7 +161,7 @@ export async function verifyPublicationCells(
   frozen: FrozenPublicationCells
 ): Promise<
   | { outcome: 'verified'; providerRevision: string; verifiedAt: string }
-  | { outcome: 'unknown' }
+  | { outcome: 'unknown'; reason?: 'SOURCE_CHANGED' }
   | { outcome: 'absent' }
 > {
   try {
@@ -190,7 +190,13 @@ export async function verifyPublicationCells(
       providerRevision: current.version!,
       verifiedAt: new Date().toISOString()
     };
-  } catch {
-    return { outcome: 'unknown' };
+  } catch (cause) {
+    // Still unknown — a changed sheet is never proof of absence — but say why. Production
+    // 2026-11-13 (DreamTeam, TR 82_v2): the id column was refilled by hand a minute after
+    // dispatch, every verification since failed on the recipe, and with the reason swallowed
+    // the stale-job close (400400) never saw SOURCE_CHANGED: «ще не підтверджено» for good.
+    return cause instanceof TeamFunctionError && cause.code === 'SOURCE_CHANGED'
+      ? { outcome: 'unknown', reason: 'SOURCE_CHANGED' }
+      : { outcome: 'unknown' };
   }
 }

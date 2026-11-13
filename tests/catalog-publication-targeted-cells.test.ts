@@ -122,6 +122,25 @@ it('settles lost acknowledgement only with exact marker and complete matching ce
   expect(await verifyPublicationCells(d as never, frozen)).toEqual({ outcome: 'unknown' });
   expect(d.writeNativeSpreadsheetCells).not.toHaveBeenCalled();
 });
+it('names a changed sheet behind our receipt, and still never calls it absent', async () => {
+  const d = drive();
+  d.readNativeSpreadsheetMarkers.mockResolvedValue(['fence:abc']);
+  d.readNativeCatalogColumns.mockResolvedValue([
+    ['description', 'id', 'two12', 'one13'],
+    ['description', 'video[0].url', 'https://example.test/two', 'https://example.test/one']
+  ]);
+  expect(await verifyPublicationCells(d as never, frozen)).toEqual({
+    outcome: 'unknown',
+    reason: 'SOURCE_CHANGED'
+  });
+  // The same change with no receipt of ours is unknown too, never absent.
+  d.readNativeSpreadsheetMarkers.mockResolvedValue([]);
+  expect(await verifyPublicationCells(d as never, frozen)).toEqual({
+    outcome: 'unknown',
+    reason: 'SOURCE_CHANGED'
+  });
+  expect(d.writeNativeSpreadsheetCells).not.toHaveBeenCalled();
+});
 it('reports absent only when no receipt of this fence exists and the sheet is still readable', async () => {
   // Beta 2026-11-08: the write never left the worker; without `absent` the job stayed unknown forever.
   const d = drive();
