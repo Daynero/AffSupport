@@ -11,6 +11,7 @@ beforeAll(async () => {
     throughMigration: '20261207173000_catalog_video_diagnostics.sql'
   });
   await db.root('create role variant_diagnostic_reader');
+  await db.root('grant wishly_analytics_ro to variant_diagnostic_reader');
   await db.root('grant usage on schema public to variant_diagnostic_reader');
   await db.root(
     'grant select on public.analytics_catalog_video_sets,public.analytics_catalog_video_children,public.analytics_catalog_updater_video_requests,public.analytics_catalog_video_consumers to variant_diagnostic_reader'

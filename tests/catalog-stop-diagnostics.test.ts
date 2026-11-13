@@ -22,6 +22,7 @@ beforeAll(async () => {
   await createUser(db, { id: OWNER, email: 'catalog-stop@example.invalid' });
   await db.root('insert into public.admin_users(user_id) values($1)', [OWNER]);
   await db.root('create role catalog_stop_reader bypassrls');
+  await db.root('grant wishly_analytics_ro to catalog_stop_reader');
   await db.root('grant usage on schema public to catalog_stop_reader');
   await db.root('grant select on all tables in schema public to catalog_stop_reader');
   setQueryExecutor((sql, params) =>
@@ -304,7 +305,9 @@ it('reports an unavailable target projection without converting UI feedback into
     p.flow.complete();
     await p.service.flush();
     await execute(() =>
-      db.root('revoke select on public.analytics_catalog_updates from catalog_stop_reader')
+      db.root(
+        'revoke select on public.analytics_catalog_updates from catalog_stop_reader, wishly_analytics_ro'
+      )
     );
     try {
       const evidence = await getCatalogStopEvidence(p.flow.id);
@@ -313,7 +316,9 @@ it('reports an unavailable target projection without converting UI feedback into
       expect(evidence.flows[0]).toMatchObject({ ui_terminal: 'operation_completed', target: null });
     } finally {
       await execute(() =>
-        db.root('grant select on public.analytics_catalog_updates to catalog_stop_reader')
+        db.root(
+          'grant select on public.analytics_catalog_updates to catalog_stop_reader, wishly_analytics_ro'
+        )
       );
     }
   } finally {

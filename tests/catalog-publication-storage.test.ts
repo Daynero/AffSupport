@@ -360,6 +360,7 @@ it('exposes privacy-safe real SQL projection under SELECT-only diagnosis with mi
     [f.catalog]
   );
   await db.root('create role publication_diagnostic_reader');
+  await db.root('grant wishly_analytics_ro to publication_diagnostic_reader');
   await db.root('grant usage on schema public to publication_diagnostic_reader');
   await db.root(
     'grant select on public.analytics_catalog_video_publications,public.analytics_catalog_video_baselines to publication_diagnostic_reader'

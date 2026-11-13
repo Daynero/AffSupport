@@ -28,6 +28,7 @@ beforeAll(async () => {
   });
   await db.root('insert into public.admin_users(user_id) values($1)', [actor]);
   await db.root('create role group_diagnostic_reader bypassrls');
+  await db.root('grant wishly_analytics_ro to group_diagnostic_reader');
   await db.root('grant usage on schema public to group_diagnostic_reader');
   await db.root('grant select on all tables in schema public to group_diagnostic_reader');
 }, 60_000);

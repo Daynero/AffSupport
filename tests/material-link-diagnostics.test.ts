@@ -29,6 +29,7 @@ beforeAll(async () => {
   db = await createTeamTestDb();
   await createUser(db, { id: OWNER, email: 'link-diagnostics@example.invalid' });
   await db.root('create role material_link_reader bypassrls');
+  await db.root('grant wishly_analytics_ro to material_link_reader');
   await db.root('grant usage on schema public to material_link_reader');
   await db.root('grant select on all tables in schema public to material_link_reader');
   setQueryExecutor((sql, params) => {

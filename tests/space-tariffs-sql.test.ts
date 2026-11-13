@@ -1358,6 +1358,7 @@ describe('background work (R6–R8)', () => {
       delivered_at: null
     });
     await harness.root('create role recovery_diagnosis_reader nologin');
+    await harness.root('grant wishly_analytics_ro to recovery_diagnosis_reader');
     await harness.root(
       'grant select on public.analytics_workspace_recovery to recovery_diagnosis_reader'
     );

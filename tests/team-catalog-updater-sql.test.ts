@@ -1481,6 +1481,7 @@ it('does not open a replacement round while an orphaned reconciliation receipt s
   )[0]!;
   expect(Number(attempts.n)).toBe(1);
   await harness.root('create role catalog_hold_diagnostics_reader');
+  await harness.root('grant wishly_analytics_ro to catalog_hold_diagnostics_reader');
   await harness.root('grant usage on schema public to catalog_hold_diagnostics_reader');
   await harness.root(
     'grant select on public.analytics_catalog_updates to catalog_hold_diagnostics_reader'
@@ -1575,6 +1576,7 @@ it('quarantines a leased terminal round without rewriting history or losing its 
     harness.asUser(OWNER, 'select public.cancel_team_catalog_update($1,$2)', [teamId, sheet])
   ).rejects.toThrow(/CATALOG_UPDATE_RECONCILIATION_REQUIRED/);
   await harness.root('create role catalog_quarantine_diagnostics_reader');
+  await harness.root('grant wishly_analytics_ro to catalog_quarantine_diagnostics_reader');
   await harness.root('grant usage on schema public to catalog_quarantine_diagnostics_reader');
   await harness.root(
     'grant select on public.analytics_catalog_updates to catalog_quarantine_diagnostics_reader'

@@ -18,6 +18,7 @@ beforeAll(async () => {
   db = await createTeamTestDb();
   await createUser(db, { id: USER, email: 'synthetic-catalog@example.invalid' });
   await db.root('create role catalog_diagnostics_reader bypassrls');
+  await db.root('grant wishly_analytics_ro to catalog_diagnostics_reader');
   await db.root('grant usage on schema public to catalog_diagnostics_reader');
   await db.root('grant select on all tables in schema public to catalog_diagnostics_reader');
   setQueryExecutor((sql, params) => {

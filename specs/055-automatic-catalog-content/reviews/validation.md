@@ -56,3 +56,15 @@ guard rejected all seven global-image Launch codes now emitted by the client.
 `20261208122000_automatic_catalog_analytics_guard.sql` preserves the complete
 integrated guard and adds only those closed values. A stale diagnostic source-file
 reference was also corrected. The corrected 14-file run passed all 148 checks. Full validation is pending.
+
+The next complete run on `a29fd6d1` passed all 15 static gates and stopped after
+2 of 8 shards: 2,908 checks passed, 1 failed and 24 had named skips. The remaining
+failure was another historical diagnostic-reader fixture missing the same helper
+permissions. All custom diagnostic readers now inherit the actual migration-owned
+`wishly_analytics_ro` role rather than copying its helper permissions. Fixtures
+still enforce SELECT-only execution. Initial fixture edits used multiple commands
+in a prepared query and were split into individual calls; the missing-view fixture
+also revokes inherited access during its fault injection. The 13-file focused pass
+then had 217 passes and that one revoke-fixture failure. After correction, all 42
+analytics/Stop test files passed: 379 checks, no failures or skips. These overlapping
+focused results are not a complete-suite total. No production ACL was changed.

@@ -28,6 +28,7 @@ beforeAll(async () => {
     )
   )[0]!.id;
   await db.root('create role restore_diagnostic_reader bypassrls');
+  await db.root('grant wishly_analytics_ro to restore_diagnostic_reader');
   await db.root('grant usage on schema public to restore_diagnostic_reader');
   await db.root('grant select on all tables in schema public to restore_diagnostic_reader');
   setQueryExecutor((sql, params) =>
