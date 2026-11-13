@@ -47,6 +47,20 @@ it('drafts a preset and commits only when Save is pressed', async () => {
   expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
 });
 
+it('moves keyboard focus into the selected schedule preset on opening', async () => {
+  render(<UpdaterIntervalPicker value="1d" label="Schedule" onChange={vi.fn()} />);
+  const trigger = screen.getByRole('button', { name: 'Schedule: Daily' });
+  trigger.focus();
+  await userEvent.keyboard('{Enter}');
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Daily' }))
+  );
+  await userEvent.tab();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Weekly' }));
+  await userEvent.keyboard('{Escape}');
+  expect(document.activeElement).toBe(trigger);
+});
+
 it('discards unsaved draft on close and validates custom hours before saving', async () => {
   const onChange = vi.fn();
   render(<UpdaterIntervalPicker value="1h" label="Schedule" onChange={onChange} />);

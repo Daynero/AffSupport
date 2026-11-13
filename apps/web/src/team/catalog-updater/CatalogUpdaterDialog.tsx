@@ -2016,17 +2016,21 @@ function CatalogUpdaterDialogScope({
                         {t('teamSettingsTabRestitch')}
                       </Button>
                     )}
-                    <p role="status">
-                      {t(
-                        inline.states[row.catalogId]?.phase === 'pending'
-                          ? 'catalogIconsSaving'
-                          : inline.states[row.catalogId]?.phase === 'unknown'
-                            ? 'catalogIconsUnknown'
-                            : inline.states[row.catalogId]?.phase === 'conflict'
-                              ? 'catalogIconsConflict'
-                              : 'catalogIconsLegendHint'
-                      )}
-                    </p>
+                    {['pending', 'unknown', 'conflict'].includes(
+                      inline.states[row.catalogId]?.phase ?? ''
+                    ) && (
+                      <p role="status">
+                        {t(
+                          inline.states[row.catalogId]?.phase === 'pending'
+                            ? 'catalogIconsSaving'
+                            : inline.states[row.catalogId]?.phase === 'unknown'
+                              ? 'catalogIconsUnknown'
+                              : inline.states[row.catalogId]?.phase === 'conflict'
+                                ? 'catalogIconsConflict'
+                                : 'catalogIconsLegendHint'
+                        )}
+                      </p>
+                    )}
                     {inline.states[row.catalogId]?.phase === 'unknown' && (
                       <Button
                         size="sm"

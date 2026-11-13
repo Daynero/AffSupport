@@ -231,6 +231,7 @@ export function UpdaterIntervalPicker({
         placement="bottom-end"
         frequent
         label={label}
+        initialFocus="button[aria-pressed='true']"
         className="team-updater-interval-menu catalog-schedule-panel"
       >
         {open && (
