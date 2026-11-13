@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { assertReadOnlySql, setQueryExecutor } from '../scripts/analytics/db';
 import { getCatalogPublicationEvidence } from '../scripts/analytics/catalog-publications';
+import { investigateOutputIsPrivate } from '../scripts/analytics/types';
 const id = (n: number) => '77000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const row = {
   catalog_material_id: id(1),
@@ -109,4 +110,39 @@ it('whitelists normalized fields instead of leaking arbitrary projection extras'
   expect(result.records[0]).not.toHaveProperty('provider_payload');
   expect(result.records[0]).not.toHaveProperty('raw_path');
   expect(JSON.stringify(result)).not.toContain('PRIVATE_PAYLOAD');
+});
+
+it.each([
+  ['Europe/Kyiv', 'v2'],
+  ['America/Argentina/Buenos_Aires', 'v2'],
+  ['Etc/GMT+5', 'v2'],
+  ['UTC', 'W/"fixture-v2"']
+])('keeps valid publication metadata readable by investigate (%s, %s)', async (zone, revision) => {
+  setQueryExecutor(async sql =>
+    sql.includes('analytics_catalog_video_publications')
+      ? [{ ...row, job_time_zone: zone, job_provider_revision: revision }]
+      : []
+  );
+  const evidence = await getCatalogPublicationEvidence({ id: id(4) });
+  expect(evidence.records).toHaveLength(1);
+  expect(evidence.records[0]).toMatchObject({
+    job_time_zone: zone,
+    job_provider_revision: revision
+  });
+  expect(investigateOutputIsPrivate({ catalog_publications: evidence })).toBe(true);
+});
+
+it.each([
+  { job_time_zone: '/Users/private' },
+  { job_time_zone: 'Europe/../../private' },
+  { job_time_zone: 'Europe/PrivateFixture' },
+  { job_time_zone: 'https://private.example' },
+  { job_provider_revision: 'W/"BearerSecret"' },
+  { job_provider_revision: 'W/"/Users/private"' },
+  { job_provider_revision: 'W/"https://private.example"' },
+  { job_provider_revision: 'W/"person@example.test"' },
+  { other: 'Europe/Kyiv' },
+  { other: 'W/"fixture-v2"' }
+])('continues refusing private publication metadata: %j', metadata => {
+  expect(investigateOutputIsPrivate({ catalog_publications: { records: [metadata] } })).toBe(false);
 });

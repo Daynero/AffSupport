@@ -1749,7 +1749,7 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       'apps/web/src/team/drive/DriveConnectionPanel.tsx'
     ],
     check:
-      'Inspect the last proven authorization stage and current owner, tariff and identity reservation; absent callback delivery does not prove that Google consent failed.'
+      'Inspect the last proven permission stage and current owner, tariff and identity reservation; absent callback delivery does not prove that Google consent failed.'
   },
   'team:access:GOOGLE_ACCOUNT_NOT_APPROVED': {
     files: [
