@@ -92,3 +92,6 @@ The subsequent desktop-layout polish and manual-budget recovery fix measure
 and 1,212,662 B total (+20,964 B, 1.76%). Initial exclusive Launch is 13,265 B;
 root is 10,933 B. All four budget tests pass under the same unchanged allocation
 (398 B relative Launch headroom and 618 B shared headroom).
+
+## Single budget and actual SUB preview
+The owner follow-up measures 66,058 B complete Launch, 1,091,237 B shared/existing and 1,212,822 B total. Against locally verified `d4c05130`, this adds 165 B Launch, removes 5 B shared and adds 160 B total (gzip). Initial exclusive Launch is 13,258 B and root 10,928 B. All four built-asset budget checks pass with the existing allocations unchanged; no dependencies or new recurring reads were added. Exact built-asset hashes are in `single-budget-bundle.json`.

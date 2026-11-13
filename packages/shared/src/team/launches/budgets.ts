@@ -2,13 +2,15 @@ import {
   LAUNCH_ADS_MAX,
   LAUNCH_BUDGET_MAX,
   LAUNCH_CAMPAIGN_MAX,
+  type LaunchConfig,
   type LaunchCampaign
 } from '../launches.js';
 export function launchBudgets(
   count: number,
   max: number,
   manual: number[] | null = null,
-  min?: number
+  min?: number,
+  mode: LaunchConfig['budgetMode'] = manual ? 'manual' : 'auto'
 ): number[] {
   if (
     !Number.isSafeInteger(count) ||
@@ -19,6 +21,10 @@ export function launchBudgets(
     max > LAUNCH_BUDGET_MAX
   )
     throw new Error('LAUNCH_BUDGET_INVALID');
+  if (mode === 'single') {
+    if (manual !== null || min !== undefined) throw new Error('LAUNCH_BUDGET_INVALID');
+    return Array.from({ length: count }, () => max);
+  }
   if (min !== undefined && (!Number.isSafeInteger(min) || min < 1 || min > max))
     throw new Error('LAUNCH_BUDGET_INVALID');
   const values =
@@ -61,11 +67,12 @@ export function launchPreviewRows(
   max: number,
   ads: number,
   manual: number[] | null = null,
-  min?: number
+  min?: number,
+  mode: LaunchConfig['budgetMode'] = manual ? 'manual' : 'auto'
 ): LaunchCampaign[] {
   if (!Number.isSafeInteger(ads) || ads < 1 || ads > LAUNCH_ADS_MAX)
     throw new Error('INVALID_INPUT');
-  return launchBudgets(count, max, manual, min).map((budget, index) => ({
+  return launchBudgets(count, max, manual, min, mode).map((budget, index) => ({
     ordinal: index + 1,
     budget,
     ...launchAdRange(index + 1, ads),

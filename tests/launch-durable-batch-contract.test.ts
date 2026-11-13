@@ -199,3 +199,29 @@ it('derives previews on the server and forwards only the selected immutable inte
     })
   ]);
 });
+
+it('prepares single-budget batch campaigns from stored settings rather than dividing the amount', async () => {
+  const single = { ...config, budgetMode: 'single', campaignCount: 3, maxBudget: 20 };
+  const rpc = vi.fn(async (name: string, _args: Record<string, unknown>) => ({
+    data:
+      name === 'service_launch_batch_context'
+        ? { items: [{ ...command.items[0], config: single, sources, errorCode: null }] }
+        : receipt(),
+    error: null
+  }));
+  await acceptLaunchBatch({ rpc }, command.expectedActorId, command);
+  const args = rpc.mock.calls.find(([name]) => name === 'service_accept_launch_batch')![1];
+  expect(args.p_prepared).toEqual([
+    expect.objectContaining({
+      config: single,
+      errorCode: null,
+      preview: expect.objectContaining({
+        campaigns: [
+          expect.objectContaining({ ordinal: 1, budget: 20, adStart: 1, adEnd: 3 }),
+          expect.objectContaining({ ordinal: 2, budget: 20, adStart: 4, adEnd: 6 }),
+          expect.objectContaining({ ordinal: 3, budget: 20, adStart: 7, adEnd: 9 })
+        ]
+      })
+    })
+  ]);
+});

@@ -87,3 +87,9 @@ Dependencies: T037 precedes T038/T039 and T040/T041. Those groups may be delegat
 - [x] T053 Extend bounded rename diagnostics and inspect coverage; repeat focused/visual/performance and canonical verification after all follow-up work (FR-011–FR-012, SC-006, SC-011).
 
 T048/T049 use disjoint UI files and can proceed alongside Phase11. T050 precedes T051/T052; T053 and T047 final evidence follow all work. Desktop screenshots only per owner.
+
+## Phase 13 — Single budget and actual SUB summary
+- [x] T054 Specify explicit single-budget persistence, validation, transitions and diagnostic reuse; analyze shared/SQL/profile/batch agreement (FR-024, SC-012).
+- [x] T055 Reproduce single-budget calculation/persistence/generation and mode transition behavior; implement shared config/calculation and additive SQL profile validation (FR-024, SC-012).
+- [x] T056 Polish count labels, budget spacing, three-mode control/one amount and profile review; show actual bounded muted SUB summary (FR-021, FR-024, SC-012).
+- [x] T057 Review edge cases twice, run focused/SQL/static/build/full verification and desktop browser acceptance, update Downloads screenshots and commit on 053 (SC-006, SC-012).

@@ -46,7 +46,8 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
     else if (k === 'gender' && (v === 'M' || v === 'W' || v === 'ALL')) result.gender = v;
     else if (k === 'method' && (v === 'other' || v === 'catalog')) result.method = v;
     else if (k === 'advantagePlus' && typeof v === 'boolean') result.advantagePlus = v;
-    else if (k === 'budgetMode' && (v === 'auto' || v === 'manual')) result.budgetMode = v;
+    else if (k === 'budgetMode' && (v === 'auto' || v === 'manual' || v === 'single'))
+      result.budgetMode = v;
     else if (
       k === 'budgets' &&
       (v === null ||

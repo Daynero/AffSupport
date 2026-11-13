@@ -53,7 +53,7 @@ export interface LaunchConfig {
   /** Absent on legacy launches, which retain max/count allocation. */
   minBudget?: number;
   adsCount: number;
-  budgetMode: 'auto' | 'manual';
+  budgetMode: 'auto' | 'manual' | 'single';
   budgets: number[] | null;
   age: number;
   gender: 'M' | 'W' | 'ALL';

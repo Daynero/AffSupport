@@ -62,7 +62,13 @@ export function LaunchDefaultsReview({
           </dd>
           <dt>{t('launchesBudgetMode')}</dt>
           <dd>
-            {t(config.budgetMode === 'manual' ? 'launchesCustomBudgets' : 'launchesAutomatic')}
+            {t(
+              config.budgetMode === 'single'
+                ? 'launchesSingleBudget'
+                : config.budgetMode === 'manual'
+                  ? 'launchesCustomBudgets'
+                  : 'launchesAutomatic'
+            )}
           </dd>
           {config.budgetMode === 'manual' && <dd>{config.budgets?.join(' · ')}</dd>}
           <dt>{t('launchesAdsCount')}</dt>

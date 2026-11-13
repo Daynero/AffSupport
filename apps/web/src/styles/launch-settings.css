@@ -68,7 +68,6 @@
 .launch-editor-compact .launch-editor-budget > .ui-field-label {
   display: none;
 }
-.launch-editor-compact .launch-editor-campaigns .launch-editor-fields-row,
 .launch-editor-compact .launch-editor-budget-row {
   align-items: flex-start;
   gap: var(--space-3);
@@ -219,6 +218,17 @@
   min-height: var(--control-height-md);
   padding-block: var(--space-1);
 }
+.launch-editor-sub-accordion .ui-accordion-item {
+  min-width: 0;
+}
+.launch-editor-sub-accordion .ui-accordion-aside {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--weight-body);
+}
 .launch-defaults-actions {
   flex-direction: row;
   flex-wrap: wrap;
@@ -241,4 +251,14 @@
 .launch-defaults-feedback,
 .launch-defaults-actions > [role='status'] {
   flex-basis: 100%;
+}
+
+.launch-editor-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.launch-editor-compact .launch-editor-campaigns .launch-editor-fields-row {
+  align-items: flex-start;
+  gap: var(--space-4) var(--space-6);
 }

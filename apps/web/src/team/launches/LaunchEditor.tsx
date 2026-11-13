@@ -130,6 +130,10 @@ export function LaunchEditor({
   const subPreview = config.subConfig
     ? launchSubPreview(config.subConfig, config.creativeAlias, localSources)
     : null;
+  const subSummary = Object.entries(subPreview ?? {})
+    .filter(([, value]) => value !== null)
+    .map(([slot, value]) => `${slot.toUpperCase()} — ${value}`)
+    .join(' · ');
   if (config.method === 'catalog' && config.catalog) {
     const count = config.catalog.productCount;
     if (!Number.isSafeInteger(count) || count < 1 || count > 400)
@@ -158,7 +162,8 @@ export function LaunchEditor({
     campaignCount: 'launchSettingsCampaignCount',
     adsCount: 'launchSettingsAdsCount',
     minBudget: 'launchSettingsBudgetFrom',
-    maxBudget: 'launchSettingsBudgetTo',
+    maxBudget:
+      config.budgetMode === 'single' ? 'launchesBudgetPerCampaign' : 'launchSettingsBudgetTo',
     age: 'launchSettingsAge',
     productCount: 'launchSettingsProducts'
   };
@@ -290,7 +295,7 @@ export function LaunchEditor({
             changed({
               [key]: next,
               ...((key === 'maxBudget' || key === 'campaignCount') &&
-              config.budgetMode !== 'manual' &&
+              (config.budgetMode ?? 'auto') === 'auto' &&
               config.minBudget === undefined &&
               budgets.length
                 ? { minBudget: budgets[0] }
@@ -320,7 +325,8 @@ export function LaunchEditor({
       config.campaignCount ?? 0,
       config.maxBudget ?? 0,
       config.budgetMode === 'manual' ? config.budgets : null,
-      config.minBudget
+      config.minBudget,
+      config.budgetMode
     );
   } catch {
     errors.budgets = 'LAUNCH_BUDGET_INVALID';
@@ -343,7 +349,7 @@ export function LaunchEditor({
       className="launch-editor-compact mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-3"
     >
       <Card role="panel">
-        <fieldset disabled={disabled} className="m-0 flex flex-col gap-4 border-0 p-0">
+        <fieldset disabled={disabled} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
           <section className="launch-editor-section" aria-label={t('launchesSectionSources')}>
             <div className="launch-editor-source-grid">
               <div className="flex min-w-0 flex-col gap-3">
@@ -496,6 +502,7 @@ export function LaunchEditor({
                   {
                     id: 'launch-sub-settings',
                     title: t('launchesSubSettings'),
+                    aside: subSummary ? <span title={subSummary}>{subSummary}</span> : undefined,
                     content: (
                       <div className="launch-editor-sub-content">
                         <p>{t('launchesSubSettingsHelp')}</p>
@@ -551,8 +558,10 @@ export function LaunchEditor({
               </div>
             </div>
             <div className="launch-editor-fields-row">
-              {number('campaignCount', 'launchesCampaignCount')}
-              {number('adsCount', 'launchesAdsCount')}
+              <div className="launch-editor-counts">
+                {number('campaignCount', 'launchesCampaignCount')}
+                {number('adsCount', 'launchesAdsCount')}
+              </div>
               <div className="launch-editor-budget">
                 <span className="ui-field-label">
                   {t(
@@ -568,16 +577,19 @@ export function LaunchEditor({
                       disabled={disabled}
                       options={[
                         { value: 'auto', label: t('launchesAutomatic') },
-                        { value: 'manual', label: t('launchesCustomBudgets') }
+                        { value: 'manual', label: t('launchesCustomBudgets') },
+                        { value: 'single', label: t('launchesSingleBudget') }
                       ]}
                       onChange={mode => {
-                        if (mode === 'auto' || mode === 'manual')
+                        if (mode === 'single')
+                          changed({ budgetMode: 'single', budgets: null, minBudget: undefined });
+                        else if (mode === 'auto' || mode === 'manual')
                           if (mode === 'auto') changed({ budgetMode: 'auto', budgets: null });
                           else {
                             const manual =
                               manualBudgetDraft.length === (config.campaignCount ?? 0)
                                 ? manualBudgetDraft
-                                : budgets.length
+                                : budgets.length && config.budgetMode !== 'single'
                                   ? budgets
                                   : Array.from(
                                       {
@@ -601,7 +613,9 @@ export function LaunchEditor({
                       }}
                     />
                   </FormField>
-                  {config.budgetMode !== 'manual' ? (
+                  {config.budgetMode === 'single' ? (
+                    number('maxBudget', 'launchesBudgetPerCampaign', '$')
+                  ) : config.budgetMode !== 'manual' ? (
                     <>
                       {number('minBudget', 'launchesMinBudget', '$')}
                       {number(
@@ -672,9 +686,11 @@ export function LaunchEditor({
                     role="alert"
                   >
                     {t(
-                      config.budgetMode === 'manual'
-                        ? 'launchesBudgetInvalid'
-                        : 'launchesBudgetRangeInvalid'
+                      config.budgetMode === 'single'
+                        ? 'launchesMaxBudgetInvalid'
+                        : config.budgetMode === 'manual'
+                          ? 'launchesBudgetInvalid'
+                          : 'launchesBudgetRangeInvalid'
                     )}
                   </p>
                 )}

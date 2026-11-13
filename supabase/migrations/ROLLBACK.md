@@ -3188,3 +3188,6 @@ and keeps global cleanup coverage verified. Disabling it intentionally fails
 closed and retains files as `cleanup_unverified`; never exempt these consumers or
 bypass the coverage check to restore cleanup. An application rollback requires no
 trigger removal.
+
+### 20261207401400 — single launch budget
+Additive enum admission in the existing profile validator; no data rewrite. Forward-fix only. Older clients do not understand single mode, so retain the updated shared/web/Edge code together; never restore the old validator while single profiles exist. Existing automatic/manual rules and ACLs are unchanged.

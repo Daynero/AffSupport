@@ -41,3 +41,39 @@ it('round trips minimum budgets and uses the same amounts in naming and authorit
     errors: { budgets: 'LAUNCH_BUDGET_INVALID' }
   });
 });
+
+it.each([1, 3, 100])(
+  'uses one dollar amount for each of %i campaigns and preserves distinct ad ranges',
+  count => {
+    const config = { ...launchConfig(), budgetMode: 'single', campaignCount: count, maxBudget: 1 };
+    const draft = parseLaunchDraft(JSON.parse(JSON.stringify(config)));
+    expect(draft?.budgetMode).toBe('single');
+    const parsed = parseLaunchConfig(draft);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error('single mode rejected');
+    const preview = launchPreview(parsed.value, launchSources);
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) throw new Error('single preview rejected');
+    expect(preview.value.campaigns.map(row => row.budget)).toEqual(Array(count).fill(1));
+    expect(new Set(preview.value.campaigns.map(row => row.name)).size).toBe(count);
+    expect(preview.value.campaigns.at(-1)?.adEnd).toBe(count * config.adsCount);
+    expect(launchNamingPreview(parsed.value, launchSources)).toEqual(preview.value.campaigns);
+  }
+);
+it('rejects invalid single amounts and hidden contradictory bounds without relaxing automatic/manual validation', () => {
+  for (const maxBudget of [0, -1, 1.5, NaN, Infinity, 1000000])
+    expect(parseLaunchConfig({ ...launchConfig(), budgetMode: 'single', maxBudget }).ok).toBe(
+      false
+    );
+  for (const extra of [{ budgets: [30, 30, 30] }, { minBudget: 10 }])
+    expect(parseLaunchConfig({ ...launchConfig(), budgetMode: 'single', ...extra }).ok).toBe(false);
+  expect(parseLaunchConfig({ ...launchConfig(), budgetMode: 'single', maxBudget: 999999 }).ok).toBe(
+    true
+  );
+  expect(parseLaunchConfig({ ...launchConfig(), budgetMode: 'auto', minBudget: 30 }).ok).toBe(
+    false
+  );
+  expect(
+    parseLaunchConfig({ ...launchConfig(), budgetMode: 'manual', budgets: [30, 30, 30] }).ok
+  ).toBe(false);
+});

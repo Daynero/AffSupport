@@ -159,7 +159,8 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
   const budgets = value.budgets;
   if (gender !== 'M' && gender !== 'W' && gender !== 'ALL') errors.gender = 'INVALID_INPUT';
   if (method !== 'catalog' && method !== 'other') errors.method = 'INVALID_INPUT';
-  if (budgetMode !== 'auto' && budgetMode !== 'manual') errors.budgetMode = 'INVALID_INPUT';
+  if (budgetMode !== 'auto' && budgetMode !== 'manual' && budgetMode !== 'single')
+    errors.budgetMode = 'INVALID_INPUT';
   if (typeof value.advantagePlus !== 'boolean') errors.advantagePlus = 'INVALID_INPUT';
   if (value.schemaVersion !== 1) errors.schemaVersion = 'INVALID_INPUT';
   if (
@@ -167,7 +168,7 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
     (!Array.isArray(budgets) || !budgets.every((v: unknown) => typeof v === 'number'))
   )
     errors.budgets = 'LAUNCH_BUDGET_INVALID';
-  if (budgetMode === 'auto' && budgets !== null) errors.budgets = 'LAUNCH_BUDGET_INVALID';
+  if (budgetMode !== 'manual' && budgets !== null) errors.budgets = 'LAUNCH_BUDGET_INVALID';
   if (Object.keys(errors).length) return { ok: false, errors };
   // Narrow every field again instead of trusting a route generic or casting a payload.
   if (
@@ -188,7 +189,7 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
     typeof value.advantagePlus !== 'boolean' ||
     (gender !== 'M' && gender !== 'W' && gender !== 'ALL') ||
     (method !== 'other' && method !== 'catalog') ||
-    (budgetMode !== 'auto' && budgetMode !== 'manual')
+    (budgetMode !== 'auto' && budgetMode !== 'manual' && budgetMode !== 'single')
   )
     return { ok: false, errors: { config: 'INVALID_INPUT' } };
   let manual: number[] | null = null;
@@ -205,7 +206,8 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
       value.campaignCount,
       value.maxBudget,
       manual,
-      typeof value.minBudget === 'number' ? value.minBudget : undefined
+      typeof value.minBudget === 'number' ? value.minBudget : undefined,
+      budgetMode
     );
   } catch {
     return { ok: false, errors: { budgets: 'LAUNCH_BUDGET_INVALID' } };

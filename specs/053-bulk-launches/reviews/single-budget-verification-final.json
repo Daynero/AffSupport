@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-13T15:51:41.058Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1777933,
+    "totals": {
+      "gates": 2,
+      "passed": 2,
+      "failed": 0,
+      "tests": 11270,
+      "skipped_tests": 95,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 16,
+        "disposable PostgreSQL container": 49,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "disposable PostgreSQL": 4,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 8,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 1840
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1776067
+      }
+    ]
+  }
+}
