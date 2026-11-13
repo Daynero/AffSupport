@@ -1,7 +1,7 @@
 import { itRequiring, requirePlatform } from './support/requires.js';
 const itPosix = itRequiring.bind(null, requirePlatform('darwin', 'linux'));
 import { removeTemporaryDirectory } from './support/temp-dir.js';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, symlink } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -14,13 +14,17 @@ import {
   assertSameUpdateChannel,
   assertProductionWebConfiguration,
   fetchLiveManifest,
+  webPublicationOrigin,
+  webOnlyLiveSmokeChecks,
   packagePayloadDigest,
   verifyLiveWebBytes
 } from '../scripts/lib/web-only-proof.mjs';
-import { recordReconciledPublication } from '../scripts/release-web-only.mjs';
+import { recordReconciledPublication, runWebOnly } from '../scripts/release-web-only.mjs';
+import { activeBinding } from '../scripts/lib/release/bindings.mjs';
 import { selectOwnedRuntimePids } from '../scripts/verify-beta-runtime.mjs';
 import { outputDigest } from '../scripts/release-web-meta.mjs';
 import { candidateStaticResponse } from '../scripts/lib/web-only-runtime.mjs';
+import { readHistory, readState } from '../scripts/lib/release-channel/state.mjs';
 import {
   acquireWebReleaseLock,
   assertWebReleaseUnlocked,
@@ -34,11 +38,13 @@ async function temporary() {
   return dir;
 }
 afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   for (const dir of directories.splice(0)) await removeTemporaryDirectory(dir);
 });
 function signed() {
   const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-  const manifest = { schemaVersion: 1, channel: 'stable', version: '1.2.7' };
+  const manifest = { schemaVersion: 1, channel: 'stable', version: '1.2.7', buildId: '1.2.7+1' };
   const signature = sign('sha256', Buffer.from(releaseManifestSigningPayload(manifest)), {
     key: pair.privateKey,
     dsaEncoding: 'ieee-p1363'
@@ -50,6 +56,56 @@ function signed() {
 }
 
 describe('web-only exact channel and payload', () => {
+  it('keeps the signed next agent channel when production still serves the previous release', async () => {
+    const current = signed();
+    const previous = signed();
+    const requests: string[] = [];
+    const binding = {
+      siteOrigin: 'https://production.test',
+      previewSiteOrigin: 'https://next.test',
+      previewBranch: 'next'
+    };
+    const bytes = await fetchLiveManifest(binding, async url => {
+      requests.push(String(url));
+      return new Response(
+        new Uint8Array(
+          new URL(String(url)).origin === binding.previewSiteOrigin ? current.bytes : previous.bytes
+        )
+      );
+    });
+    expect(assertSameUpdateChannel(current.bytes, bytes, current.key)).toMatch(/^[a-f0-9]{64}$/);
+    expect(requests).toEqual(['https://next.test/.well-known/wishly/stable.json']);
+    const failedRequests: string[] = [];
+    await expect(
+      fetchLiveManifest(binding, async url => {
+        failedRequests.push(String(url));
+        return new Response(new Uint8Array(previous.bytes), {
+          status: new URL(String(url)).origin === binding.previewSiteOrigin ? 503 : 200
+        });
+      })
+    ).rejects.toThrow('UNAVAILABLE');
+    expect(failedRequests).toEqual(['https://next.test/.well-known/wishly/stable.json']);
+  });
+  it('requires a complete preview binding and retains legacy sandbox smoke routing', () => {
+    const legacy = { siteOrigin: 'https://sandbox.test' };
+    const preview = { ...legacy, previewSiteOrigin: 'https://next.test', previewBranch: 'next' };
+    expect(webPublicationOrigin(legacy)).toBe(legacy.siteOrigin);
+    expect(webOnlyLiveSmokeChecks(legacy)).toEqual([
+      { id: 'live-smoke', args: ['scripts/verify-live-smoke.mjs'] }
+    ]);
+    expect(webOnlyLiveSmokeChecks(preview)).toEqual([
+      { id: 'live-smoke', args: ['scripts/verify-live-smoke.mjs', '--channel=next'] },
+      { id: 'production-compatibility', args: ['scripts/verify-live-smoke.mjs', '--served-only'] }
+    ]);
+    for (const incomplete of [
+      { ...legacy, previewBranch: 'next' },
+      { ...legacy, previewSiteOrigin: 'https://next.test' },
+      { ...legacy, previewSiteOrigin: '', previewBranch: '' }
+    ]) {
+      expect(() => webPublicationOrigin(incomplete)).toThrow('TARGET_INVALID');
+      expect(() => webOnlyLiveSmokeChecks(incomplete)).toThrow('TARGET_INVALID');
+    }
+  });
   it('verifies the real P1363 signature format and unchanged raw bytes', () => {
     const { bytes, key } = signed();
     expect(assertSameUpdateChannel(bytes, bytes, key)).toMatch(/^[a-f0-9]{64}$/);
@@ -85,6 +141,44 @@ describe('web-only exact channel and payload', () => {
 });
 
 describe('web-only exact beta UI and live readback', () => {
+  it('reads every published byte from next without requiring a production promotion', async () => {
+    const dir = await temporary();
+    await mkdir(path.join(dir, '.well-known/wishly'), { recursive: true });
+    const files: Record<string, string> = {
+      'index.html': 'candidate page',
+      '.well-known/wishly/stable.json': 'candidate channel',
+      '.well-known/wishly/web-release.json': 'candidate identity'
+    };
+    for (const [name, bytes] of Object.entries(files)) await writeFile(path.join(dir, name), bytes);
+    const digest = await outputDigest(dir);
+    const binding = {
+      siteOrigin: 'https://production.test',
+      previewSiteOrigin: 'https://next.test',
+      previewBranch: 'next'
+    };
+    const requests: string[] = [];
+    const fetcher = async (url: URL | RequestInfo) => {
+      const parsed = new URL(String(url));
+      requests.push(parsed.origin);
+      return new Response(
+        parsed.origin === binding.previewSiteOrigin
+          ? files[parsed.pathname.slice(1) || 'index.html']
+          : 'previous production release'
+      );
+    };
+    await expect(
+      verifyLiveWebBytes({ directory: dir, binding, expectedDigest: digest, fetcher })
+    ).resolves.toMatchObject({ files: 3 });
+    expect(requests).toEqual(Array(3).fill(binding.previewSiteOrigin));
+    await expect(
+      verifyLiveWebBytes({
+        directory: dir,
+        binding,
+        expectedDigest: digest,
+        fetcher: async () => new Response('stale next')
+      })
+    ).rejects.toThrow('MISMATCH');
+  });
   it('fulfills only actual static bytes and leaves auth/API requests real', async () => {
     const dir = await temporary();
     await writeFile(path.join(dir, 'index.html'), '<html>candidate</html>');
@@ -280,6 +374,170 @@ describe('historical packaged-beta payload seal', () => {
 });
 
 describe('response-lost publication history reconciliation', () => {
+  itPosix(
+    'reconciles the canonical mini command against next while production stays older',
+    async () => {
+      const root = await temporary();
+      const directory = path.join(root, 'release/automation');
+      const draft = path.join(root, 'draft');
+      await mkdir(path.join(draft, '.well-known/wishly'), { recursive: true });
+      const files: Record<string, Buffer> = {
+        'index.html': Buffer.from('candidate page'),
+        '.well-known/wishly/stable.json': await readFile(
+          path.join(process.cwd(), 'apps/web/public/.well-known/wishly/stable.json')
+        ),
+        '.well-known/wishly/web-release.json': Buffer.from('candidate web identity')
+      };
+      for (const [name, bytes] of Object.entries(files))
+        await writeFile(path.join(draft, name), bytes);
+      const digest = await outputDigest(draft);
+      const archive = path.join(directory, 'bundles', digest);
+      const { cp } = await import('node:fs/promises');
+      await cp(draft, archive, { recursive: true });
+      const binding = activeBinding({});
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        ['-e', 'process.stdout.write(String(process.pid))'],
+        { timeout: 5000 }
+      );
+      const deployment = {
+        schemaVersion: 1,
+        runId: 'lost-run',
+        bindingId: binding.bindingId,
+        bindingDigest: binding.digest,
+        sourceSha: 'a'.repeat(40),
+        manifestSha: 'b'.repeat(40),
+        outputDigest: digest
+      };
+      const pending = {
+        schemaVersion: 1,
+        ownerRoot: root,
+        archive,
+        runId: deployment.runId,
+        bindingDigest: binding.digest,
+        outputDigest: digest,
+        deployment,
+        uploadProcess: { pid: Number(stdout) }
+      };
+      const pendingFile = await webReleaseStateFile(root, 'web-publication-pending.json');
+      await writeFile(pendingFile, JSON.stringify(pending));
+      await writeFile(
+        path.join(directory, 'web-only-report.json'),
+        JSON.stringify({
+          runId: deployment.runId,
+          sourceSha: deployment.sourceSha,
+          outputDigest: digest,
+          state: 'blocked',
+          publicationState: 'unknown'
+        })
+      );
+      const channelDir = path.join(root, 'channel');
+      vi.stubEnv('SOTY_RELEASE_BINDING', '');
+      vi.stubEnv('SOTY_RELEASE_CHANNEL_DIR', channelDir);
+      const requests: string[] = [];
+      vi.stubGlobal('fetch', async (input: URL | RequestInfo) => {
+        const url = new URL(String(input));
+        requests.push(url.origin);
+        return url.origin === binding.previewSiteOrigin
+          ? new Response(new Uint8Array(files[url.pathname.slice(1) || 'index.html']))
+          : new Response('older production release');
+      });
+      await expect(runWebOnly({ cwd: root, mode: 'reconcile' })).resolves.toMatchObject({
+        ok: true,
+        state: 'publication_verified'
+      });
+      expect(requests).toEqual(Array(4).fill(binding.previewSiteOrigin));
+      expect((await readState(channelDir)).next).toMatchObject({
+        status: 'testing',
+        build: { outputDigest: digest }
+      });
+      expect((await readState(channelDir)).production).toBeNull();
+      await expect(readFile(pendingFile)).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(runWebOnly({ cwd: root, mode: 'reconcile' })).resolves.toMatchObject({
+        state: 'nothing_pending'
+      });
+      expect(await readHistory(channelDir)).toHaveLength(1);
+    }
+  );
+  itPosix('restores the next candidate receipt once after a lost upload response', async () => {
+    const root = await temporary();
+    const directory = path.join(root, 'release/automation');
+    const draft = path.join(root, 'draft');
+    await mkdir(path.join(draft, '.well-known/wishly'), { recursive: true });
+    const { bytes, key } = signed();
+    await writeFile(path.join(draft, 'index.html'), 'candidate');
+    await writeFile(path.join(draft, '.well-known/wishly/stable.json'), bytes);
+    const digest = await outputDigest(draft);
+    const archive = path.join(directory, 'bundles', digest);
+    const { cp } = await import('node:fs/promises');
+    await cp(draft, archive, { recursive: true });
+    const deployment = {
+      schemaVersion: 1,
+      runId: 'owned-run',
+      bindingId: 'production',
+      bindingDigest: 'd'.repeat(64),
+      sourceSha: 'a'.repeat(40),
+      manifestSha: 'b'.repeat(40),
+      outputDigest: digest
+    };
+    const pending = {
+      schemaVersion: 1,
+      runId: deployment.runId,
+      ownerRoot: root,
+      archive,
+      outputDigest: digest,
+      bindingDigest: deployment.bindingDigest,
+      deployment
+    };
+    await writeFile(
+      path.join(directory, 'web-only-report.json'),
+      JSON.stringify({
+        runId: deployment.runId,
+        sourceSha: deployment.sourceSha,
+        outputDigest: digest,
+        state: 'blocked',
+        publicationState: 'unknown'
+      })
+    );
+    const channelDir = path.join(root, 'channel');
+    const channel = {
+      binding: {
+        bindingId: 'production',
+        digest: deployment.bindingDigest,
+        siteOrigin: 'https://production.test',
+        previewSiteOrigin: 'https://next.test',
+        previewBranch: 'next'
+      },
+      dir: channelDir,
+      publicKeySpki: key
+    };
+    await recordReconciledPublication(pending, '2026-11-13T12:00:00Z', channel);
+    await recordReconciledPublication(pending, '2026-11-13T12:01:00Z', channel);
+    const state = await readState(channelDir);
+    expect(state.next).toMatchObject({
+      status: 'testing',
+      builds: 1,
+      build: {
+        outputDigest: digest,
+        sourceSha: deployment.sourceSha,
+        manifestSha: deployment.manifestSha,
+        kind: 'web-only'
+      }
+    });
+    expect(state.production).toBeNull();
+    expect(await readHistory(channelDir)).toHaveLength(1);
+    await expect(
+      recordReconciledPublication(pending, '2026-11-13T12:02:00Z', {
+        ...channel,
+        binding: { ...channel.binding, digest: 'e'.repeat(64) }
+      })
+    ).rejects.toThrow('IDENTITY_INVALID');
+    await writeFile(path.join(archive, 'index.html'), 'changed archive');
+    await expect(
+      recordReconciledPublication(pending, '2026-11-13T12:02:00Z', channel)
+    ).rejects.toThrow('ARCHIVE_CHANGED');
+    expect(await readHistory(channelDir)).toHaveLength(1);
+  });
   itPosix('repairs history once and preserves an independent live-smoke failure', async () => {
     const root = await temporary();
     const directory = path.join(root, 'release/automation');

@@ -121,8 +121,17 @@ async function persistPending(cwd, pending) {
   const file = await webReleaseStateFile(cwd, 'web-publication-pending.json');
   await atomicRecord(file, pending);
 }
-/** Record proven publication idempotently; preserve any independent smoke failure. */
-export async function recordReconciledPublication(pending, now = new Date().toISOString()) {
+/**
+ * Record proven publication idempotently; preserve any independent smoke failure.
+ * @param {any} pending
+ * @param {string} [now]
+ * @param {{binding?: any, dir?: string, publicKeySpki?: string}} [channelOptions]
+ */
+export async function recordReconciledPublication(
+  pending,
+  now = new Date().toISOString(),
+  channelOptions = {}
+) {
   const { validateWebDeployment } = await import('./lib/release/adapters/web.mjs');
   const deployment = pending.deployment;
   const root = pending.ownerRoot;
@@ -149,6 +158,41 @@ export async function recordReconciledPublication(pending, now = new Date().toIS
     report.outputDigest !== deployment.outputDigest
   )
     throw new Error('WEB_ONLY_PENDING_REPORT_CHANGED');
+  // A lost uploader response may also have prevented the `next` receipt.
+  // Restore it only after the caller's exact live readback, without counting
+  // an already-recorded successful upload as a second candidate build.
+  if (channelOptions.binding?.previewBranch) {
+    if (
+      channelOptions.binding.bindingId !== deployment.bindingId ||
+      channelOptions.binding.digest !== pending.bindingDigest
+    )
+      throw new Error('WEB_ONLY_PENDING_IDENTITY_INVALID');
+    const { outputDigest } = await import('./release-web-meta.mjs');
+    if ((await outputDigest(pending.archive)) !== pending.outputDigest)
+      throw new Error('WEB_ONLY_PENDING_ARCHIVE_CHANGED');
+    const { channelContext, recordNextPublication } =
+      await import('./lib/release-channel/operations.mjs');
+    const { readState, archivedBundle } = await import('./lib/release-channel/state.mjs');
+    const context = await channelContext({ ...channelOptions, root, now: () => now });
+    const state = await readState(context.dir);
+    const current = state.next?.build;
+    if (
+      current &&
+      state.next?.status === 'testing' &&
+      current.outputDigest === deployment.outputDigest &&
+      current.sourceSha === deployment.sourceSha &&
+      current.manifestSha === deployment.manifestSha
+    ) {
+      await archivedBundle(context.dir, current);
+    } else {
+      await recordNextPublication(context, {
+        directory: pending.archive,
+        sourceSha: deployment.sourceSha,
+        manifestSha: deployment.manifestSha,
+        kind: 'web-only'
+      });
+    }
+  }
   const historyFile = path.join(root, 'release/automation/web-deployments.jsonl');
   const history = await readFile(historyFile, 'utf8').then(
     text =>
@@ -218,7 +262,7 @@ async function reconcilePublication(cwd) {
       binding,
       expectedDigest: pending.outputDigest
     });
-    await recordReconciledPublication(pending);
+    await recordReconciledPublication(pending, new Date().toISOString(), { binding });
     // Only exact live readback can clear uncertainty. A partial/different deploy stays blocked.
     await rm(await webReleaseStateFile(cwd, 'web-publication-pending.json'));
     return {
@@ -479,6 +523,7 @@ export async function runWebOnly({
       inspectPackagedBeta,
       assertSameUpdateChannel,
       fetchLiveManifest,
+      webOnlyLiveSmokeChecks,
       packagePayloadDigest,
       writeWebOnlyProof,
       assertStoredWebOnlyProof
@@ -725,7 +770,8 @@ export async function runWebOnly({
     published = true;
     report.publicationState = 'published_unverified';
     await persist();
-    await gate('live-smoke', [process.execPath, 'scripts/verify-live-smoke.mjs']);
+    for (const check of webOnlyLiveSmokeChecks(binding))
+      await gate(check.id, [process.execPath, ...check.args]);
     assertSameUpdateChannel(manifest, await fetchLiveManifest(binding));
     // Static byte readback is independent of upload's exit code.
     const { verifyLiveWebBytes } = await import('./lib/web-only-proof.mjs');

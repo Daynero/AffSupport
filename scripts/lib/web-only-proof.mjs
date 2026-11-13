@@ -72,12 +72,35 @@ export function assertSameUpdateChannel(local, live, key = RELEASE_MANIFEST_PUBL
   return sha256(local);
 }
 
+/** Mini releases verify the same branch deploy-web publishes; legacy sandboxes have no preview. */
+export function webPublicationOrigin(binding) {
+  if (
+    (binding.previewBranch != null || binding.previewSiteOrigin != null) &&
+    (!binding.previewBranch || !binding.previewSiteOrigin)
+  )
+    throw new Error('WEB_ONLY_PUBLICATION_TARGET_INVALID');
+  return binding.previewBranch ? binding.previewSiteOrigin : binding.siteOrigin;
+}
+
+export function webOnlyLiveSmokeChecks(binding) {
+  webPublicationOrigin(binding);
+  return binding.previewBranch
+    ? [
+        { id: 'live-smoke', args: ['scripts/verify-live-smoke.mjs', '--channel=next'] },
+        { id: 'production-compatibility', args: ['scripts/verify-live-smoke.mjs', '--served-only'] }
+      ]
+    : [{ id: 'live-smoke', args: ['scripts/verify-live-smoke.mjs'] }];
+}
+
 export async function fetchLiveManifest(binding, fetcher = fetch) {
-  const response = await fetcher(`${binding.siteOrigin}/.well-known/wishly/stable.json`, {
-    cache: 'no-store',
-    redirect: 'error',
-    signal: AbortSignal.timeout(20_000)
-  });
+  const response = await fetcher(
+    `${webPublicationOrigin(binding)}/.well-known/wishly/stable.json`,
+    {
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000)
+    }
+  );
   if (!response.ok) throw new Error('WEB_ONLY_LIVE_CHANNEL_UNAVAILABLE');
   if (!response.body) throw new Error('WEB_ONLY_LIVE_CHANNEL_UNAVAILABLE');
   const reader = response.body.getReader();
@@ -395,6 +418,7 @@ export async function assertStoredWebOnlyProof({
 
 /** Sequential, bounded origin readback. Hosting directives are not publicly served assets. */
 export async function verifyLiveWebBytes({ directory, binding, expectedDigest, fetcher = fetch }) {
+  const origin = webPublicationOrigin(binding);
   if (
     !/^[a-f0-9]{64}$/u.test(expectedDigest ?? '') ||
     (await outputDigest(directory)) !== expectedDigest
@@ -436,7 +460,7 @@ export async function verifyLiveWebBytes({ directory, binding, expectedDigest, f
             ? relative.slice(0, -5)
             : relative;
     const pathname = `/${served.split('/').map(encodeURIComponent).join('/')}`;
-    const response = await fetcher(new URL(pathname, binding.siteOrigin), {
+    const response = await fetcher(new URL(pathname, origin), {
       cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(Math.max(1, Math.min(20_000, deadline - Date.now())))
