@@ -1,6 +1,6 @@
 # Validation — automatic catalog content
 
-Implementation is isolated on `055-automatic-catalog-content`, based on `c2d81d29`. Production publication, shared-image activation, cleanup and release identity changes are outside this work. Final combined-branch verification is pending.
+Implementation is isolated on `055-automatic-catalog-content`, based on `c2d81d29`. Production publication, shared-image activation, cleanup and release identity changes are outside this work. The current integrated baseline is verified below; the owner-requested parallel replacement/HEVC handoff remains pending.
 
 ## Shared policy and performance
 
@@ -38,13 +38,13 @@ PNGs and the gallery are in `~/Downloads/Soty-automatic-catalog-2026-11-13/`; th
 
 ## Remaining integration acceptance
 
-Run canonical static/suite/build checks on the combined source, retain exact results and skips, and update the next-release inventory. Packaged native-update acceptance and shared-image provider/cutover acceptance remain release prerequisites; these local feature checks do not replace them.
+The current baseline checks and inventory are recorded below. After the parallel source handoff, repeat applicable verification on the newly combined source. Packaged native-update acceptance and shared-image provider/cutover acceptance remain release prerequisites; these local feature checks do not replace them.
 
 ## Combined-branch correction pass
 
 The build group passed all 6 gates on `602c7a5c`; the complete fast run passed
 all 15 static gates, then stopped after the first of 8 test shards. It reported
-1,364 passing checks, 15 failures and 17 named skips; this is a partial result.
+1,332 passing checks, 15 failures and 17 named skips; this is a partial result.
 
 The failures exposed three integration boundaries. New exact-intent inspection
 also reads the existing timing projection, so the synthetic SELECT-only batch
@@ -58,7 +58,7 @@ integrated guard and adds only those closed values. A stale diagnostic source-fi
 reference was also corrected. The corrected 14-file run passed all 148 checks. Full validation is pending.
 
 The next complete run on `a29fd6d1` passed all 15 static gates and stopped after
-2 of 8 shards: 2,908 checks passed, 1 failed and 24 had named skips. The remaining
+2 of 8 shards: 2,883 checks passed, 1 failed and 24 had named skips. The remaining
 failure was another historical diagnostic-reader fixture missing the same helper
 permissions. All custom diagnostic readers now inherit the actual migration-owned
 `wishly_analytics_ro` role rather than copying its helper permissions. Fixtures
@@ -70,7 +70,7 @@ analytics/Stop test files passed: 379 checks, no failures or skips. These overla
 focused results are not a complete-suite total. No production ACL was changed.
 
 The integrated run on `31bd7872` passed all 15 static gates and reached 3 of 8
-shards: 4,294 passing checks, one stale R2 permission-copy expectation and 27
+shards: 4,266 passing checks, one stale R2 permission-copy expectation and 27
 named skips. The permission behavior was correct; the test still named the removed
 Catalog settings panel. Its wording expectation was updated. No other old strings
 from this translation change remain in tests. Remaining shards are being run as a
@@ -92,3 +92,30 @@ are registered with a 99% absolute line floor; no existing floor was lowered.
 The owner subsequently asked the coordinator to include the parallel worktree's
 completed fixes before final combined verification. That work remains independent
 until its exact completed source is handed over.
+
+## Verified current integration baseline
+
+Canonical `npm run verify` on `895fa7f7088155c332c932b660c91e78f8933639`
+passes all 16 gates and all 8 test shards: **11,497 passed, 0 failed, 98 skipped**,
+11,595 total checks across 1,241 files, in 1,999 seconds. The exact skip reasons
+and source scopes are in [integration-baseline.json](integration-baseline.json).
+The command's `totals.tests` counts all outcomes; the historical passing totals
+above were corrected from the raw suite reports. No skip is counted as a pass.
+Global release coverage was not measured by this fast command; focused policy
+coverage is recorded separately.
+
+The canonical build group passes all 6 gates and environment group both gates on
+`31bd7872`. Product code in apps/packages/Edge/scripts is unchanged through the
+baseline. Browser checks pass 10 public routes in both themes, with zero
+accessibility violations/page errors, and all 3 CSP checks. The schema/role-only
+disposable DB evidence is recorded above at `5434a41d`; migrations and native DB
+test sources have not changed, while the later Edge manual-sheet fix has its own
+14 passing checks. These recorded sources are retained, not relabelled as packaged
+acceptance for a newer commit.
+
+The owner subsequently expanded the parallel work to automatic HEVC compatibility
+and asked this coordinator to include the completed replacement/UI/fix work too.
+That agent owns its implementation and focused/media/browser checks; this task
+owns the merge and final combined validation after exact-source handoff. The
+current green baseline does **not** certify those unmerged changes. Production
+publication and the native-package/shared-pool release prerequisites remain pending.

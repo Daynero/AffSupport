@@ -1,0 +1,80 @@
+{
+  "source": "895fa7f7088155c332c932b660c91e78f8933639",
+  "scope": "Verified current integration baseline; parallel catalog replacement and HEVC changes are not included or certified by this record.",
+  "fullFast": {
+    "command": "npm run verify",
+    "generatedAt": "2026-11-13T23:10:47.249Z",
+    "ok": true,
+    "durationMs": 1999092,
+    "gates": {
+      "total": 16,
+      "passed": 16,
+      "failed": 0
+    },
+    "suite": {
+      "plannedShards": 8,
+      "executedShards": 8,
+      "completedShards": 8,
+      "complete": true
+    },
+    "tests": {
+      "total": 11595,
+      "passed": 11497,
+      "failed": 0,
+      "skipped": 98,
+      "todo": 0
+    },
+    "files": 1241,
+    "skipReasons": {
+      "platform:darwin": 4,
+      "disposable native PostgreSQL": 16,
+      "disposable PostgreSQL container": 49,
+      "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+      "disposable PostgreSQL": 6,
+      "env:RUN_REAL_KARAOKE_SMOKE": 1,
+      "env:RUN_REAL_MEDIA_SMOKE": 1,
+      "ffmpeg": 2,
+      "ffprobe": 2,
+      "disposable process PostgreSQL container": 8,
+      "owned previous-schema PostgreSQL clone": 1,
+      "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+      "HINDI_TRANSCRIPTION_SAMPLE": 1,
+      "SOTY_TRANSITION_REPORT": 1,
+      "env:SOTY_POWER_LOAD": 2
+    },
+    "globalCoverageMeasured": false
+  },
+  "build": {
+    "source": "31bd7872ef1f6f0ae5c96066ebee8d840722c880",
+    "gatesPassed": 6,
+    "gatesTotal": 6,
+    "productCodeUnchangedThroughBaseline": true
+  },
+  "environment": {
+    "source": "31bd7872ef1f6f0ae5c96066ebee8d840722c880",
+    "gatesPassed": 2,
+    "gatesTotal": 2
+  },
+  "browser": {
+    "source": "31bd7872ef1f6f0ae5c96066ebee8d840722c880",
+    "publicRoutes": 10,
+    "themes": 2,
+    "accessibilityViolations": 0,
+    "pageErrors": 0,
+    "cspPassed": 3,
+    "cspFailed": 0
+  },
+  "database": {
+    "source": "5434a41d",
+    "pgTapFiles": 76,
+    "pgTapAssertions": 1500,
+    "realAuthChecks": 3,
+    "nativeChecks": 83,
+    "migrationChainUnchangedThroughBaseline": true,
+    "notes": "Disposable local schema/roles-only clone; prior-source evidence, not an exact-SHA packaged qualification. The later Edge-only manual-sheet fix passed14 targeted checks."
+  },
+  "focusedCoverage": "policy-coverage.json",
+  "parallelHandoffPending": true,
+  "productionActionsPerformed": false,
+  "packagedReleaseQualified": false
+}
