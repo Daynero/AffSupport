@@ -758,6 +758,33 @@ function operationGroups(rows: EventRow[]): OperationGroup[] {
 
 /** A quick in-memory reading: did the group end in success? Only the rest go through inspect. */
 function endedInSuccess(group: OperationGroup): boolean {
+  // A Launch workflow ID also identifies saved drafts. Successful draft/copy
+  // receipts do not start processing runs; require every independent action
+  // flow to have its own matching success before excluding this entity group.
+  // Native run/attempt IDs, generation acceptance and missing correlation
+  // must still go through inspect rather than being inferred as complete.
+  if (
+    group.id_kind === 'workflow_id' &&
+    group.rows.length > 0 &&
+    group.rows.every(
+      row =>
+        !row.run_id &&
+        !row.attempt_id &&
+        OPAQUE_ID.test(row.flow_id ?? '') &&
+        ['team_launch_intent', 'team_launch_action'].includes(row.event_name) &&
+        ['copy_launch', 'save_draft'].includes(String(row.props.launch_action))
+    )
+  ) {
+    const latestByFlow = new Map(group.rows.map(row => [row.flow_id, row]));
+    return group.rows.every(row => {
+      const latest = latestByFlow.get(row.flow_id);
+      return (
+        latest?.event_name === 'team_launch_action' &&
+        latest.outcome === 'success' &&
+        latest.props.launch_action === row.props.launch_action
+      );
+    });
+  }
   const terminal = [...group.rows]
     .reverse()
     .find(

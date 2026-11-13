@@ -173,7 +173,12 @@ export async function recordReconciledPublication(
     const { channelContext, recordNextPublication } =
       await import('./lib/release-channel/operations.mjs');
     const { readState, archivedBundle } = await import('./lib/release-channel/state.mjs');
-    const context = await channelContext({ ...channelOptions, root, now: () => now });
+    const context = await channelContext({
+      ...channelOptions,
+      binding: channelOptions.binding,
+      root,
+      now: () => now
+    });
     const state = await readState(context.dir);
     const current = state.next?.build;
     if (

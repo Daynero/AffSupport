@@ -1,6 +1,8 @@
 // Stable, machine-readable output shapes for the Soty analytics CLI.
 // The coding agent parses these; keep field names and meanings stable.
 
+import { isLaunchTimezone } from '../../packages/shared/src/team/launches/naming.js';
+
 export type PeriodToken = 'today' | '7d' | '30d' | '90d' | 'all';
 
 export interface ResolvedPeriod {
@@ -1025,8 +1027,8 @@ const CREDENTIAL = /bearer|oauth|token=|authorization/i;
 
 /**
  * 033 FR-011 — defense in depth for `investigate` and `journal`: no forbidden key anywhere, and
- * no string that is an address, a URL, a credential or a path. The only path allowed is a
- * repo-relative source file inside a `files` array.
+ * no string that is an address, a URL, a credential or a path. Repository source files,
+ * validated publication time zones and weak provider revisions have narrow typed exceptions.
  */
 export type InvestigatePrivacyFailure =
   'forbidden_key' | 'invalid_source_file' | 'address' | 'url' | 'path' | 'credential';
@@ -1054,12 +1056,22 @@ export function investigatePrivacyFailure(
   if (typeof value !== 'string') return null;
   if (key === 'files')
     return (REPO_FILE.test(value) ||
+      value === 'packaging/Launcher.swift' ||
       /^packaging\/windows\/SotyAgentHost\/[A-Za-z]+\.cs$/.test(value)) &&
       !value.includes('..')
       ? null
       : 'invalid_source_file';
   if (value.includes('@')) return 'address';
   if (value.includes('://')) return 'url';
+  // These public metadata values contain a slash but are not filesystem paths.
+  // Never exempt arbitrary fields or unvalidated provider strings.
+  if (key === 'job_time_zone' && isLaunchTimezone(value)) return null;
+  if (
+    key === 'job_provider_revision' &&
+    /^W\/"[A-Za-z0-9._:-]{1,1000}"$/u.test(value) &&
+    !CREDENTIAL.test(value)
+  )
+    return null;
   if (/[/\\]/.test(value)) return 'path';
   if (CREDENTIAL.test(value)) return 'credential';
   return null;

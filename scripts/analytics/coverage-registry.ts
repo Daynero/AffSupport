@@ -881,6 +881,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     unobservable: [
       'Browser visibility when its signal is absent; authoritative commit is separate evidence.',
       'Browser storage can reject analytics enqueue before delivery; a missing client event does not negate an authoritative Launch commit.',
+      'A successful draft save or copy receipt proves its own commit only; native generation and browser visibility need their separate correlated evidence.',
       'External Ads Manager use and tracking-platform interpretation.',
       'A missing native quiescence receipt or incomplete Drive lookup cannot prove that a canceled video upload is safe to clean; cleanup_pending remains explicit.',
       'A source-video or image grant with an unknown create reply or unprovable competing use keeps cancellation in cleanup_pending; exact known grants are reconciled by fenced provider lookup.'

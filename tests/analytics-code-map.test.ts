@@ -21,6 +21,7 @@ import {
 } from '../apps/web/src/analytics/errors';
 import { compressionErrorStage } from '../apps/web/src/analytics/compression';
 import { CODE_MAP, lookupCodeLocations } from '../scripts/analytics/code-map';
+import { investigatePrivacyFailure } from '../scripts/analytics/types';
 import { LAUNCH_ANALYTICS_CODES } from '../packages/shared/src/team/launches/lifecycle';
 
 /**
@@ -188,6 +189,12 @@ describe('code map · files', () => {
     for (const [key, entry] of Object.entries(CODE_MAP)) {
       expect(entry.check.length, key).toBeGreaterThan(10);
       expect(entry.check, key).not.toMatch(/[/\\@]|:\/\/|token|bearer/i);
+    }
+  });
+
+  it('passes every complete code location through the investigation privacy guard', () => {
+    for (const [key, entry] of Object.entries(CODE_MAP)) {
+      expect(investigatePrivacyFailure(entry), key).toBeNull();
     }
   });
 });
