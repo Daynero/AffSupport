@@ -75,7 +75,7 @@ PRODUCTION_SITE_ORIGIN`.
   - `/pair` повертає на `?origin=`, якщо той є в `allowedOrigins`.
   - Edge `allowedBrowserOrigins` додає preview, коли `WISHLY_SITE_URL` — прод-адреса.
   - `drive-oauth-callback` повертає на origin, збережений у транзакції, якщо він дозволений.
-  - Supabase Auth: дозволити `https://next.soty.pp.ua/**`.
+  - Supabase Auth: дозволити точний `https://next.soty.pp.ua/auth/callback` (шаблон `/**` відмовляє release preflight).
   - Google Picker API key: додати referrer `https://next.soty.pp.ua/*`.
 - **Rationale**: точна адреса, а не wildcard; прив'язано до прод-конфігурації, щоб бета
   нічого не отримала.
