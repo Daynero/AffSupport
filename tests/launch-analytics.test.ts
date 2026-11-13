@@ -645,6 +645,43 @@ it('diagnoses persisted batch admissions independently and keeps missing outcome
   expect(beforeDelivery.found).toBe(false);
 });
 
+it('keeps a parked batch item unknown while its correlated safe failure survives ingestion and inspect', async () => {
+  const batch = '78000000-0000-4000-8000-000000000073';
+  const child = '78000000-0000-4000-8000-000000000074';
+  const tracker = { track: vi.fn() };
+  launchBatchAdmission(batch, child, LAUNCH, 'started', tracker);
+  launchIntent({ flowId: child, launchId: LAUNCH }, 'catalog', tracker);
+  launchAction(
+    { flowId: child, launchId: LAUNCH },
+    'generate',
+    'blocked',
+    'LAUNCH_RESULT_UNCERTAIN',
+    undefined,
+    tracker
+  );
+  for (const [event, properties] of tracker.track.mock.calls) {
+    const safe = sanitizeEventProperties(properties);
+    const guard = await db.db.query<{ safe: boolean }>(
+      'select public.analytics_properties_are_safe_v2($1::jsonb) safe',
+      [JSON.stringify(safe)]
+    );
+    expect(guard.rows[0]?.safe).toBe(true);
+    await db.db.query(
+      `insert into public.analytics_events(user_id,event_name,flow_id,attempt_id,properties,occurred_at,created_at)
+       values($1,$2,$3,$4,$5::jsonb,'2026-10-12T17:00:00Z','2026-10-12T17:00:01Z')`,
+      [ACTOR, event, safe.flow_id, safe.attempt_id ?? null, JSON.stringify(safe)]
+    );
+  }
+  const group = await getInspect(batch, ASOF),
+    item = await getInspect(child, ASOF);
+  if (!group.found || !item.found) throw new Error('missing batch diagnosis');
+  expect(group.launch_batch?.admissions).toEqual([expect.objectContaining({ state: 'unknown' })]);
+  expect(group.terminal).toBeNull();
+  expect(item.terminal).toBeNull();
+  expect(JSON.stringify(item)).toContain('LAUNCH_RESULT_UNCERTAIN');
+  expect(JSON.stringify(item)).not.toContain('SYNTHETIC_CAPI_SECRET');
+});
+
 it.each(['loaded', 'failed', 'cancelled'] as const)(
   'diagnoses batch module %s before any admission without claiming completed generation',
   async state => {

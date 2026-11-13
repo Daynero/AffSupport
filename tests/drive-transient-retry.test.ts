@@ -93,6 +93,30 @@ describe('Drive reads ride out a transient failure', () => {
     expect(await code(() => bounded.getFile('file-1'))).toBe('DRIVE_UNAVAILABLE');
     expect(a.fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('aborts an unanswered Google fetch at its deadline without poisoning a sibling request', async () => {
+    const signals: AbortSignal[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error('missing request deadline');
+      signals.push(signal);
+      return new Promise<Response>((_resolve, reject) => {
+        const abort = () => reject(signal.reason);
+        signal.addEventListener('abort', abort, { once: true });
+        if (signal.aborted) abort();
+      });
+    });
+    const blocked = new GoogleDriveClient(TOKEN, fetcher).withRequestDeadline(Date.now() + 25);
+    const healthy = drive(json(200, FILE));
+    const results = await Promise.all([
+      code(() => blocked.getFile('missing-reply')),
+      healthy.client.getFile('file-1')
+    ]);
+    expect(results[0]).toBe('DRIVE_UNAVAILABLE');
+    expect(results[1]).toMatchObject({ id: 'file-1' });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(signals.every(signal => signal.aborted)).toBe(true);
+  });
 });
 
 describe('Google token refresh rides out a transient failure', () => {

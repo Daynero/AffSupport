@@ -115,7 +115,7 @@ export function preparedBodyKey(
  * Two variations of one set that reach the body at the same moment must not both re-encode it:
  * the second waits for the first and then finds it in the cache.
  */
-const inFlight = new Map<string, Promise<PrepareResult>>();
+const inFlight = new Map<string, { work: Promise<PrepareResult>; sourcePath: string }>();
 const pins = new Map<string, number>();
 const evicting = new Map<string, Promise<void>>();
 
@@ -167,17 +167,27 @@ export class PreparedBodyCache {
     for (;;) {
       const running = inFlight.get(target);
       if (!running) break;
-      const shared = await waitForShared(running, options.signal);
-      // Someone else's cancellation is not ours: look again, and build it ourselves if needed.
-      if (shared.ok || shared.error !== 'STITCH_CANCELLED' || options.signal?.aborted)
-        return shared.ok ? { ok: true, value: { ...shared.value, fromCache: true } } : shared;
+      const shared = await waitForShared(running.work, options.signal);
+      if (shared.ok) return { ok: true, value: { ...shared.value, fromCache: true } };
+      if (options.signal?.aborted) return shared;
+      // A producer owns its input workspace. Its cancellation or a deleted input
+      // says nothing about another consumer's independently verified copy.
+      if (shared.error === 'STITCH_CANCELLED') continue;
+      const inputGone =
+        running.sourcePath !== options.profile.path &&
+        (await stat(running.sourcePath).then(
+          () => false,
+          error => (error as NodeJS.ErrnoException).code === 'ENOENT'
+        ));
+      if (!inputGone) return shared;
     }
     const own = this.#prepareAt(target, options);
-    inFlight.set(target, own);
+    const entry = { work: own, sourcePath: options.profile.path };
+    inFlight.set(target, entry);
     try {
       return await own;
     } finally {
-      if (inFlight.get(target) === own) inFlight.delete(target);
+      if (inFlight.get(target) === entry) inFlight.delete(target);
     }
   }
 

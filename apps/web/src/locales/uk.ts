@@ -11,7 +11,11 @@ export const uk: Record<keyof typeof en, string> = {
   launchesBulkSelectedCopied: 'Налаштування скопійовано. Вставте, щоб створити чернетки.',
   launchesBulkPaste: 'Вставити налаштування',
   launchesBulkCopy: 'Копіювати налаштування',
-  launchesBulkUncertain: 'Перевірте цей запуск перед повтором',
+  launchesBulkUncertain: 'Перевіряємо результат…',
+  launchesBulkDeferred: 'Не підтверджено',
+  launchesBulkDeferredHelp:
+    'Інші запуски продовжуються. Непідтверджені результати перевіряються автоматично без створення дублікатів.',
+  launchesBulkCheck: 'Перевірити стан',
   launchesBulkStopped: 'Не передано',
   launchesBulkAccepted: 'Передано',
   launchesBulkCreated: 'Створено {date}',
@@ -22,7 +26,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesPendingPreview: 'Попередній перегляд',
   launchesBulkDraftsOnly: 'Виберіть збережені чернетки для спільної генерації',
   launchesBulkLimit: 'Виберіть до 100 збережених заготовок для одного масового запуску.',
-  launchesBulkScope: 'Якщо залишити сторінку, непередані чернетки залишаться збереженими.',
+  launchesBulkScope:
+    'Залиште сторінку відкритою для чернеток у черзі. Якщо вийти, непередані чернетки залишаться збереженими.',
   launchesBulkNewest: 'Спочатку найновіші',
   launchesBulkSelectAll: 'Вибрати завантажені запуски',
 

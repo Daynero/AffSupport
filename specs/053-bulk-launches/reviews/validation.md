@@ -121,3 +121,10 @@ All 30 tasks are evidenced and complete. The implementation was rechecked agains
 6 architectural constraints and the 6 constitution principles. No remaining
 buildable gap was identified within the specified scope. The documented runtime /
 release limitations above remain explicit and are not relabeled as completed tests.
+
+
+## Subsequent unattended-failure hardening
+
+The owner-requested expanded fault matrix, third review, new regressions and final
+verification for the follow-up are recorded in [resilience.md](resilience.md).
+The counts above describe the original feature commit `49ade050`.

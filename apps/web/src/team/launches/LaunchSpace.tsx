@@ -95,6 +95,7 @@ function LaunchSpaceContent({
   const toasts = useOptionalToasts();
   const [batch, setBatch] = useState<{ id: string; items: LaunchBatchItem[] } | null>(null);
   const [batchStates, setBatchStates] = useState<LaunchBatchItem[]>([]);
+  const [batchPulse, setBatchPulse] = useState(0);
   const batchRunning = useRef(false);
   const [BatchComponent, setBatchComponent] = useState<typeof LaunchBatch | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -274,20 +275,24 @@ function LaunchSpaceContent({
     void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
   }, [refresh, revision, t]);
   const hasRunningLaunch =
-    batchStates.some(i => ['dispatching', 'accepted', 'uncertain'].includes(i.state)) ||
+    batchStates.some(i => ['dispatching', 'accepted', 'uncertain', 'deferred'].includes(i.state)) ||
     items.some(item => ['running', 'queued'].includes(launchCardState(item)));
   useEffect(() => {
     if (!hasRunningLaunch) return;
     const reconcile = () => {
+      // An unattended batch must advance even when the list is hidden or its read fails.
+      setBatchPulse(value => value + 1);
       if (document.visibilityState === 'visible') void refresh().catch(() => undefined);
     };
     const timer = window.setInterval(reconcile, 10_000);
     document.addEventListener('visibilitychange', reconcile);
     window.addEventListener('focus', reconcile);
+    window.addEventListener('online', reconcile);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', reconcile);
       window.removeEventListener('focus', reconcile);
+      window.removeEventListener('online', reconcile);
     };
   }, [hasRunningLaunch, refresh]);
   useEffect(() => {
@@ -621,6 +626,7 @@ function LaunchSpaceContent({
           teamId={teamId}
           initial={batch.items}
           summaries={items}
+          reconcileEpoch={batchPulse}
           enabled={can('edit')}
           onStates={setBatchStates}
           onFinished={() => {

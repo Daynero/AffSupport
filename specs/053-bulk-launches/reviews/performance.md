@@ -43,3 +43,19 @@ The original baseline file, 20,000 B root-chunk cap, entry, largest-chunk and Ac
 caps are unchanged. This is a documented allocation for additional functionality,
 not a claim that total download size decreased or that a production release passed.
 The before/after file sizes and hashes are in [bundle-budget-comparison.json](bundle-budget-comparison.json).
+
+## Unattended-failure follow-up
+
+The expanded owner-requested recovery scope measures 62,768 B complete Launch,
+1,083,905 B shared/existing, and 1,202,225 B total. Relative to initial feature
+commit `49ade050`, the changes add 1,100 B Launch and 270 B shared, 1,371 B total.
+Initial exclusive Launch imports are 12,748 B; the root chunk is 10,633 B.
+The added recovery stays lazy. All descendants remain in the measurement.
+
+Allocate a further bounded 1,000 B to this new Launch recovery scope: at most
+8,500 B over the exact 54,291 B base, and a 63,000 B absolute route ceiling.
+The initial implementation had 123 B of remaining allowance; final follow-up
+uses 1,100 B with 23 B still below the stricter relative ceiling.
+The shared allowance remains 3,000 B and the entry, root, largest, Accounts and
+original baseline gates are unchanged. This is an explicit functionality
+allocation backed by before/after evidence, not a size reduction or a skipped gate.

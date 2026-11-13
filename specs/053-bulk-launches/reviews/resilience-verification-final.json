@@ -1,0 +1,111 @@
+{
+  "ok": true,
+  "command": "verify",
+  "generated_at": "2026-11-13T08:40:50.452Z",
+  "form": "fast",
+  "data": {
+    "duration_ms": 1988495,
+    "totals": {
+      "gates": 15,
+      "passed": 15,
+      "failed": 0,
+      "tests": 11124,
+      "skipped_tests": 95,
+      "skip_reasons": {
+        "disposable native PostgreSQL": 16,
+        "disposable PostgreSQL container": 49,
+        "platform:darwin": 3,
+        "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+        "disposable PostgreSQL": 4,
+        "env:RUN_REAL_KARAOKE_SMOKE": 1,
+        "env:RUN_REAL_MEDIA_SMOKE": 1,
+        "ffmpeg": 2,
+        "ffprobe": 2,
+        "disposable process PostgreSQL container": 8,
+        "owned previous-schema PostgreSQL clone": 1,
+        "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+        "HINDI_TRANSCRIPTION_SAMPLE": 1,
+        "SOTY_TRANSITION_REPORT": 1,
+        "env:SOTY_POWER_LOAD": 2
+      },
+      "coverage_lines": null
+    },
+    "gates": [
+      {
+        "id": "build:shared",
+        "ok": true,
+        "duration_ms": 2302
+      },
+      {
+        "id": "format",
+        "ok": true,
+        "duration_ms": 33865
+      },
+      {
+        "id": "lint",
+        "ok": true,
+        "duration_ms": 30453
+      },
+      {
+        "id": "typecheck:projects",
+        "ok": true,
+        "duration_ms": 27795
+      },
+      {
+        "id": "typecheck:tests",
+        "ok": true,
+        "duration_ms": 40176
+      },
+      {
+        "id": "typecheck:scripts",
+        "ok": true,
+        "duration_ms": 5643
+      },
+      {
+        "id": "design-tokens",
+        "ok": true,
+        "duration_ms": 176
+      },
+      {
+        "id": "tailwind-classes",
+        "ok": true,
+        "duration_ms": 2748
+      },
+      {
+        "id": "migrations-additive",
+        "ok": true,
+        "duration_ms": 224
+      },
+      {
+        "id": "styles",
+        "ok": true,
+        "duration_ms": 126
+      },
+      {
+        "id": "i18n",
+        "ok": true,
+        "duration_ms": 146
+      },
+      {
+        "id": "env-registry",
+        "ok": true,
+        "duration_ms": 176
+      },
+      {
+        "id": "csp",
+        "ok": true,
+        "duration_ms": 88
+      },
+      {
+        "id": "audit",
+        "ok": true,
+        "duration_ms": 5817
+      },
+      {
+        "id": "suite",
+        "ok": true,
+        "duration_ms": 1838725
+      }
+    ]
+  }
+}

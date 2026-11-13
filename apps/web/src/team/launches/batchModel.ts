@@ -2,7 +2,18 @@ import { launchCardState, type LaunchCardState } from './launchPresentation.js';
 import { LAUNCH_BATCH_MAX_ITEMS, type LaunchSummary } from '@video-compressor/shared';
 export const LAUNCH_BATCH_CONCURRENCY = 2;
 export type BatchItemState =
-  'queued' | 'dispatching' | 'accepted' | 'completed' | 'blocked' | 'uncertain' | 'stopped';
+  | 'queued'
+  | 'dispatching'
+  | 'accepted'
+  | 'completed'
+  | 'blocked'
+  | 'uncertain'
+  | 'deferred'
+  | 'partial'
+  | 'canceled'
+  | 'stopped';
+export const batchPending = (state: BatchItemState) =>
+  ['queued', 'dispatching', 'accepted', 'uncertain', 'deferred'].includes(state);
 export interface LaunchBatchItem {
   source: LaunchSummary;
   state: BatchItemState;
@@ -42,9 +53,11 @@ export function batchCardState(
   item: LaunchBatchItem | undefined
 ): LaunchCardState | undefined {
   if (!item || item.state === 'stopped') return undefined;
+  if (value.generation?.requestKey && value.generation.requestKey !== item.flowId) return undefined;
   if (item.state === 'queued') return 'queued';
   if (item.state === 'dispatching') return 'running';
-  if (item.state === 'uncertain') return 'unknown';
+  if (item.state === 'uncertain' || item.state === 'deferred') return 'unknown';
   if (launchCardState(value) !== 'draft') return undefined;
+  if (item.state === 'partial' || item.state === 'canceled') return item.state;
   return item.state === 'accepted' ? 'running' : item.state === 'completed' ? 'ready' : 'failed';
 }

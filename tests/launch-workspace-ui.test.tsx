@@ -2388,6 +2388,80 @@ it('shows preparing on the card during batch preflight before any server list up
   expect(seams.generate).not.toHaveBeenCalled();
 });
 
+it('finishes an unattended batch in a hidden tab even when every subsequent list read fails', async () => {
+  seams.edit = true;
+  seams.realGeneration = true;
+  const saved = new Map<string, LaunchDetail>();
+  const selected = Array.from({ length: 10 }, (_, n) => ({
+    ...listLaunch(`79999999-0000-4000-8000-${String(n + 2).padStart(12, '0')}`),
+    version: '1',
+    hasResult: false
+  }));
+  for (const row of selected)
+    saved.set(row.id, { ...detail('https://example.invalid'), id: row.id, workStatus: 'todo' });
+  seams.list.mockResolvedValue({ items: selected, nextCursor: null });
+  seams.refreshSources.mockResolvedValue({
+    ...launchSources,
+    ...launchConfig(),
+    catalogSettingsVersion: null
+  });
+  seams.detail.mockImplementation(async (_team, id) => saved.get(id));
+  seams.save.mockImplementation(async input => ({ id: input.id, version: '2' }));
+  seams.generate.mockImplementation(async (_team, id, inputVersion, requestKey) => {
+    saved.set(id, {
+      ...saved.get(id)!,
+      version: '3',
+      generation: {
+        id: `generation-${id}`,
+        inputVersion,
+        requestKey,
+        state: 'running',
+        stage: 'catalog_creating',
+        stateVersion: '1',
+        errorCode: null,
+        progress: null,
+        childOperationIds: []
+      }
+    });
+    return {};
+  });
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  await screen.findAllByRole('checkbox', { name: 'Select launch' });
+  for (const box of screen.getAllByRole('checkbox', { name: 'Select launch' }))
+    fireEvent.click(box);
+  fireEvent.click(screen.getByRole('button', { name: 'Generate selected (10)' }));
+  await waitFor(() => expect(seams.generate).toHaveBeenCalledTimes(2));
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  seams.list.mockRejectedValue(new TypeError('list transport unavailable'));
+  vi.useFakeTimers();
+  try {
+    for (let turn = 0; turn < 8; turn++) {
+      for (const [id, row] of saved)
+        if (row.generation)
+          saved.set(id, {
+            ...row,
+            generation: {
+              ...row.generation,
+              state: 'succeeded',
+              stage: 'result_committed',
+              stateVersion: '2'
+            }
+          });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      // visibilitychange is the same global reconciliation seam after timer throttling/sleep.
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    }
+    expect(seams.generate).toHaveBeenCalledTimes(10);
+    expect(screen.getByText('Batch · 10 of 10 finished')).toBeTruthy();
+  } finally {
+    visibility.mockRestore();
+  }
+});
+
 it('does not dispatch a batch when permission disappears while its module is loading', async () => {
   seams.edit = true;
   seams.list.mockResolvedValue({

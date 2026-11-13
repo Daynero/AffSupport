@@ -20,6 +20,7 @@ vi.mock('../apps/web/src/api/team.js', async original => ({
 vi.mock('../apps/web/src/team/launches/useLaunchGeneration.js', () => ({
   useLaunchGeneration: (_team: string, notify: (detail: LaunchDetail) => void) => ({
     busy: false,
+    observe: vi.fn(),
     hasUnresolvedRequest: false,
     generate: async (detail: LaunchDetail, config: LaunchConfig) => {
       seams.requests(detail, config);
@@ -180,27 +181,25 @@ it('observes accepted work hidden by a list filter and frees its slot', async ()
   const input = props();
   const view = render(<LaunchBatch {...input} />);
   await waitFor(() => expect(seams.generate).toHaveBeenCalledTimes(2));
-  seams.list.mockResolvedValue({
-    items: [
-      {
-        ...summaries[0],
-        generationState: 'succeeded',
-        generation: {
-          id: 'generation-1',
-          state: 'succeeded',
-          stage: 'result_committed',
-          stateVersion: '2',
-          progress: null,
-          errorCode: null,
-          childOperationIds: []
-        }
-      }
-    ],
-    nextCursor: null
-  });
-  view.rerender(<LaunchBatch {...input} summaries={[]} />);
+  const read = seams.detail.getMockImplementation()!;
+  seams.detail.mockImplementation(async (team, id) => ({
+    ...(await read(team, id)),
+    generation:
+      id === '1'
+        ? {
+            id: 'generation-1',
+            state: 'succeeded',
+            stage: 'result_committed',
+            stateVersion: '2',
+            progress: null,
+            errorCode: null,
+            childOperationIds: []
+          }
+        : null
+  }));
+  view.rerender(<LaunchBatch {...input} summaries={[]} reconcileEpoch={1} />);
   await waitFor(() => expect(seams.generate).toHaveBeenCalledTimes(3));
-  expect(seams.list).toHaveBeenCalledWith('team', { ids: ['1', '2'] }, 100);
+  expect(seams.detail).toHaveBeenCalledWith('team', '1', null, expect.any(AbortSignal));
 });
 
 it('never starts queued work under a different actor after an in-flight preflight', async () => {

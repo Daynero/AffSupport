@@ -9,7 +9,11 @@ export const en = {
   launchesBulkSelectedCopied: 'Settings copied. Paste to create drafts.',
   launchesBulkPaste: 'Paste settings',
   launchesBulkCopy: 'Copy settings',
-  launchesBulkUncertain: 'Check this launch before retrying',
+  launchesBulkUncertain: 'Checking the result…',
+  launchesBulkDeferred: 'Unconfirmed',
+  launchesBulkDeferredHelp:
+    'Other launches continue. Unconfirmed results are checked automatically without creating duplicates.',
+  launchesBulkCheck: 'Check status',
   launchesBulkStopped: 'Not submitted',
   launchesBulkAccepted: 'Submitted',
   launchesBulkCreated: 'Created {date}',
@@ -20,7 +24,8 @@ export const en = {
   launchesPendingPreview: 'Preview',
   launchesBulkDraftsOnly: 'Select saved drafts to generate together',
   launchesBulkLimit: 'Select up to 100 saved drafts for one batch.',
-  launchesBulkScope: 'Unsubmitted drafts stay saved if you leave this page.',
+  launchesBulkScope:
+    'Keep this page open for queued drafts. If you leave, unsubmitted drafts stay saved.',
   launchesBulkNewest: 'Newest first',
   launchesBulkSelectAll: 'Select loaded launches',
 

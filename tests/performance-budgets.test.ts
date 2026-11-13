@@ -58,8 +58,12 @@ const LAUNCH_EXCLUSIVE_CEILING = 54_000;
 // Evidence, identical lockfiles and complete lazy graphs are archived in 053.
 // Entry, largest chunk, Accounts, root Launch and the original baseline stay fixed.
 const RELEASE_144_EXISTING_ALLOWANCE = 18_000;
-const FEATURE_053_LAUNCH_ALLOWANCE = 8_000;
-const FEATURE_053_LAUNCH_INCREMENT_CEILING = 7_500;
+// The owner's subsequent unattended-failure scope adds 1,100 B to the complete
+// Launch graph (49ade050 -> follow-up). Add 1 kB to the original 7.5 kB
+// incremental ceiling (which had 123 B headroom);
+// no entry, shared, root, Accounts or historical baseline allowance changes.
+const FEATURE_053_LAUNCH_ALLOWANCE = 9_000;
+const FEATURE_053_LAUNCH_INCREMENT_CEILING = 8_500;
 const FEATURE_053_SHARED_ALLOWANCE = 3_000;
 // Integrated 1.2.10 includes the completed R2 library, quota and schedule UI;
 // measured shared growth is 30,145 B against the unchanged clean 045 base.

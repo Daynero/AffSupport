@@ -45,8 +45,11 @@ export function useLaunchGeneration(
     config: LaunchDraft;
     sources: LaunchSourceSnapshot | null;
   }) => void,
-  externalFlowId?: string
+  externalFlowId?: string,
+  beforeAdmission?: () => void
 ) {
+  const admissionGuard = useRef(beforeAdmission);
+  admissionGuard.current = beforeAdmission;
   const [busy, setBusy] = useState(false);
   const [pendingStage, setPendingStage] = useState<LaunchStage | null>(null);
   const [, refreshIntentState] = useState(0);
@@ -60,7 +63,7 @@ export function useLaunchGeneration(
   // finish even if the person closes the detail modal.
   const acceptedWork = useRef(false);
   const activeReceipt = useRef<{ launchId: string; generationId: string } | null>(null);
-  const lastObserved = useRef<LaunchDetail | null>(null);
+  const lastObserved = useRef<Pick<LaunchDetail, 'id' | 'version' | 'generation'> | null>(null);
   savedHandler.current = onDraftSaved;
   useEffect(() => {
     mounted.current = true;
@@ -290,6 +293,7 @@ export function useLaunchGeneration(
     setPendingStage(cancelRequested.current ? 'cancel' : 'validation');
     let acceptanceConfirmed = false;
     try {
+      admissionGuard.current?.();
       if (!saveIntent.current && !request.current)
         saveIntent.current = {
           teamId,
@@ -330,12 +334,14 @@ export function useLaunchGeneration(
         setPendingStage('draft_saved');
       }
       const pending = request.current;
+      admissionGuard.current?.();
       if (cancelRequested.current) {
         await cancelPending();
         return;
       }
       const dispatch = async (foregroundExecutor: CatalogForegroundExecutor | undefined) => {
         requireRequestOwner();
+        admissionGuard.current?.();
         if (cancelRequested.current) {
           await cancelPending();
           throw new TeamApiError('PROCESS_CANCELED', false);
@@ -363,6 +369,7 @@ export function useLaunchGeneration(
             signal: controller.signal,
             stillWanted: () => {
               requireRequestOwner();
+              admissionGuard.current?.();
               if (cancelRequested.current) throw new TeamApiError('PROCESS_CANCELED', false);
             }
           }
@@ -394,11 +401,15 @@ export function useLaunchGeneration(
         if (request.current === pending) await cancelPending();
         return;
       }
-      await continueAccepted(
-        await active(launchReply(launchApi.detail(teamId, pending.id))),
-        attempt,
-        controller.signal
-      );
+      const acceptedDetail = await active(launchReply(launchApi.detail(teamId, pending.id)));
+      if (
+        acceptedDetail.id !== pending.id ||
+        !acceptedDetail.generation ||
+        (acceptedDetail.generation.requestKey &&
+          acceptedDetail.generation.requestKey !== pending.key)
+      )
+        throw new TeamApiError('LAUNCH_RESULT_UNCERTAIN', true);
+      await continueAccepted(acceptedDetail, attempt, controller.signal);
       if (attempt !== execution.current) return;
       request.current = null;
       flow.current = null;
@@ -712,7 +723,7 @@ export function useLaunchGeneration(
   return {
     busy,
     pendingStage,
-    observe: (detail: LaunchDetail) => {
+    observe: (detail: Pick<LaunchDetail, 'id' | 'version' | 'generation'>) => {
       const known = lastObserved.current;
       if (
         known?.id === detail.id &&

@@ -53,3 +53,12 @@ T001 → T002 → T003/T004 → US1 and US3; US4 cache ownership before US2 conc
 - [x] T029 Measure the exact base and feature download graphs, address the launch route budget failure and verify bounded bundle growth per FR-012 / SC-006 (verification follow-up).
 
 - [x] T030 Fence deferred batch loading with the original actor epoch, including sign-out/sign-in of the same actor, per FR-006 (acceptance follow-up).
+
+## Phase 10: Owner-requested unattended fault hardening
+- [x] T031 Enumerate cross-layer failure/race matrix and extend specification/plan with explicit safe uncertainty and browser lifetime semantics (FR-013–FR-017).
+- [x] T032 Reproduce ten-item starvation after two lost replies and unavailable receipts with real useLaunchGeneration; reproduce missing producer input poisoning surviving consumers (FR-013, FR-017).
+- [x] T033 Implement bounded readback, same-key replay, parked uncertainty, hidden-tab cadence, terminal child handling and unload guard; verify stop/scope/stale/late-response races (FR-013–FR-016).
+- [x] T034 Isolate deleted/canceled shared producers and verify surviving consumers, retained outputs and authority checks (FR-017).
+- [x] T035 Verify diagnostic ingestion/CLI semantics, design, download budget and broad fault regressions; run two review/fix passes and canonical verify; commit only to 053 (FR-011–FR-017).
+
+- [x] T036 Verify automatic recovery after five-minute preflight/admission outages, fair atomic slot reservation, Stop during internal provider backoff, late save completion, and pending cancellation/cleanup isolation (FR-014–FR-016).

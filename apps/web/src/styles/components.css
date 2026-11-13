@@ -153,6 +153,19 @@
   min-width: 0;
 }
 
+/* Batch outcomes and long offer names remain readable on narrow screens. */
+.ui-button.launch-batch-item-button {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--control-height-sm);
+  white-space: normal;
+  text-align: start;
+}
+.launch-batch-item-button .ui-button-label {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 /* The launch has one opening surface; only selection and actions stand apart. */
 .team-task-card.launch-card {
   display: flex;

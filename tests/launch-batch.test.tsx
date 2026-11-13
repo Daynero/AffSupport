@@ -104,10 +104,30 @@ it('shows local admission and receipts immediately while the server list is stil
     ['completed', 'ready'],
     ['blocked', 'failed'],
     ['uncertain', 'unknown'],
+    ['deferred', 'unknown'],
+    ['partial', 'partial'],
+    ['canceled', 'canceled'],
     ['stopped', undefined]
   ] as const)
     expect(batchCardState(value, { ...item, state })).toBe(expected);
   expect(batchCardState(value, undefined)).toBeUndefined();
+});
+it('does not cover a different authoritative generation with an old uncertain batch label', () => {
+  const value = {
+    ...draft('pending'),
+    generation: {
+      id: 'new-generation',
+      requestKey: 'new-key',
+      state: 'succeeded' as const,
+      stage: 'result_committed' as const,
+      stateVersion: '1',
+      progress: null,
+      errorCode: null,
+      childOperationIds: []
+    }
+  };
+  const item = planLaunchBatch([draft('pending')])[0]!;
+  expect(batchCardState(value, { ...item, state: 'deferred' })).toBeUndefined();
 });
 it('lets the authoritative generation replace local admission and earlier completed receipts', () => {
   const value = { ...draft('pending'), generationState: 'running' as const };
