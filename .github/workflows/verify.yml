@@ -39,8 +39,8 @@ jobs:
   test-macos:
     name: test-macos
     runs-on: macos-latest
-    # Leave time after the suite's own 30-minute deadline to upload diagnosis.
-    timeout-minutes: 40
+    # The suite owns 45 minutes; allow setup and evidence upload as on Windows.
+    timeout-minutes: 60
     env:
       NODE_OPTIONS: --max-old-space-size=2048
     steps:
@@ -71,7 +71,7 @@ jobs:
   coverage-macos:
     name: coverage-macos
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     continue-on-error: true
     env:
       NODE_OPTIONS: --max-old-space-size=2048

@@ -111,6 +111,13 @@ describe('gate lists', () => {
     expect(phasesFor('release').length).toBeGreaterThan(phasesFor('fast').length);
   });
 
+  it('checks bundle budgets after building the release assets', () => {
+    const gates = gateIdsFor('release');
+    expect(gates).toContain('performance:bundle');
+    expect(gates.indexOf('performance:bundle')).toBeGreaterThan(gates.indexOf('build:web'));
+    expect(gateIdsFor('fast')).not.toContain('performance:bundle');
+  });
+
   it('includes prerequisites when CI asks for an isolated group', () => {
     // Each job starts from a clean checkout. Shared output cannot leak from the
     // static job, and the browser checks cannot borrow a build from another

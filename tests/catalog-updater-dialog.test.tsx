@@ -1275,7 +1275,9 @@ it('rediscovers an unfinished hosted catalog batch after reopening without unrel
   // One panel, in the corner stack above the dialog, and the Files corner is told to leave it.
   expect(screen.getByText('Move files to trash').closest('.team-updater-dialog')).toBeNull();
   expect(screen.getByText('Move files to trash').closest('.team-process-stack')).toBeTruthy();
-  expect(hostedWorkspace.value?.bulkTrash?.claim).toHaveBeenCalledWith([group.id]);
+  await waitFor(() =>
+    expect(hostedWorkspace.value?.bulkTrash?.claim).toHaveBeenCalledWith([group.id])
+  );
   expect(screen.getAllByText('Awaiting confirmation').length).toBeGreaterThan(0);
   expect(hostedWorkspace.value?.bulkTrash?.start).not.toHaveBeenCalled();
 });

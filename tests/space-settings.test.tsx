@@ -46,8 +46,15 @@ describe('space settings surface', () => {
     // The history is its own panel, from the space's menu (024).
     expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
 
+    // Capture the browser call on the actual
+    // modal so changing rooms also proves that its previous scroll is reset.
+    const modal = screen.getByRole('heading', { name: 'Google Drive storage' }).closest('.modal');
+    expect(modal).not.toBeNull();
+    const scrollTo = vi.spyOn(modal!, 'scrollTo');
+
     // The room open is in the address, so a reload comes back to it.
     await user.click(screen.getByRole('tab', { name: 'Tags' }));
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get('tab')).toBe('tags')
     );

@@ -195,6 +195,22 @@ const PHASES = {
     gates: () => [
       script('build:web', 'build:web', 900_000),
       {
+        id: 'performance:bundle',
+        // The suite may precede the build or have no dist at all. Measure the
+        // fresh release assets as well, rather than trusting an older bundle.
+        command: process.execPath,
+        args: [
+          vitest,
+          'run',
+          '--project=unit',
+          'tests/performance-budgets.test.ts',
+          '--maxWorkers=1',
+          '--no-file-parallelism',
+          '--reporter=dot'
+        ],
+        timeoutMs: 120_000
+      },
+      {
         id: 'build:agent',
         command: npm,
         args: ['run', '--silent', 'build', '-w', '@video-compressor/agent'],

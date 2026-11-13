@@ -15,6 +15,11 @@ import {
 } from '../scripts/lib/release-channel/operations.mjs';
 import { readHistory, readState } from '../scripts/lib/release-channel/state.mjs';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { itRequiring, requirePlatform } from './support/requires.js';
+
+// Release-host writes require durable POSIX directory fsync (051 targets macOS).
+// Keep the three read-only refusal contracts below active on Windows as well.
+const itPosix = itRequiring.bind(null, requirePlatform('darwin', 'linux'));
 
 /**
  * Feature 051: the owner tests a candidate on `next`, then production gets
@@ -139,7 +144,7 @@ async function world() {
 }
 
 describe('release channel (051)', () => {
-  it('records each rebuild of one candidate at the same address and counts it', async () => {
+  itPosix('records each rebuild of one candidate at the same address and counts it', async () => {
     const w = await world();
     await w.publish('1.5.0', 'first');
     const state = await w.publish('1.5.0', 'second');
@@ -149,33 +154,36 @@ describe('release channel (051)', () => {
     expect(w.served.has(PROD)).toBe(false);
   });
 
-  it('promotes exactly the last build seen on next, without touching anything until confirmed', async () => {
-    const w = await world();
-    const before = await w.bundle('1.4.0', 'live');
-    await w.options.upload({ directory: before, branch: 'main' });
-    await adoptLive(w.options, { confirm: true, search: [before] });
-    await w.publish('1.5.0', 'candidate');
+  itPosix(
+    'promotes exactly the last build seen on next, without touching anything until confirmed',
+    async () => {
+      const w = await world();
+      const before = await w.bundle('1.4.0', 'live');
+      await w.options.upload({ directory: before, branch: 'main' });
+      await adoptLive(w.options, { confirm: true, search: [before] });
+      await w.publish('1.5.0', 'candidate');
 
-    const dry = await promote(w.options);
-    expect(dry.confirmed).toBe(false);
-    expect(w.uploads.filter(u => u.branch === 'main')).toHaveLength(1);
+      const dry = await promote(w.options);
+      expect(dry.confirmed).toBe(false);
+      expect(w.uploads.filter(u => u.branch === 'main')).toHaveLength(1);
 
-    const done = await promote(w.options, { confirm: true });
-    expect(done.confirmed).toBe(true);
-    expect(w.served.get(PROD)?.index.equals(w.served.get(NEXT)!.index)).toBe(true);
-    const state = await readState(w.options.dir);
-    expect(state.production?.version).toBe('1.5.0');
-    expect(state.previous[0]?.version).toBe('1.4.0');
-    expect(state.next?.status).toBe('promoted');
-    expect(w.smokes).toEqual(['production']);
-    expect((await readHistory(w.options.dir)).map(entry => entry.op)).toEqual([
-      'adopt',
-      'publish',
-      'promote'
-    ]);
-  });
+      const done = await promote(w.options, { confirm: true });
+      expect(done.confirmed).toBe(true);
+      expect(w.served.get(PROD)?.index.equals(w.served.get(NEXT)!.index)).toBe(true);
+      const state = await readState(w.options.dir);
+      expect(state.production?.version).toBe('1.5.0');
+      expect(state.previous[0]?.version).toBe('1.4.0');
+      expect(state.next?.status).toBe('promoted');
+      expect(w.smokes).toEqual(['production']);
+      expect((await readHistory(w.options.dir)).map(entry => entry.op)).toEqual([
+        'adopt',
+        'publish',
+        'promote'
+      ]);
+    }
+  );
 
-  it('refuses to promote when next no longer serves the recorded candidate', async () => {
+  itPosix('refuses to promote when next no longer serves the recorded candidate', async () => {
     const w = await world();
     await w.publish('1.5.0', 'candidate');
     const other = await w.bundle('1.5.0', 'someone-else');
@@ -184,7 +192,7 @@ describe('release channel (051)', () => {
     expect(w.served.has(PROD)).toBe(false);
   });
 
-  it('refuses to promote over a production that changed behind its back', async () => {
+  itPosix('refuses to promote over a production that changed behind its back', async () => {
     const w = await world();
     const live = await w.bundle('1.4.0', 'live');
     await w.options.upload({ directory: live, branch: 'main' });
@@ -200,40 +208,46 @@ describe('release channel (051)', () => {
     expect(done.state.previous[0]?.version).toBe('1.4.1');
   });
 
-  it('refuses to promote without a candidate, and records a failed upload without moving state', async () => {
-    const w = await world();
-    await expect(promote(w.options, { confirm: true })).rejects.toThrow('CHANNEL_NO_CANDIDATE');
-    await w.publish('1.5.0');
-    w.failUpload();
-    await expect(promote(w.options, { confirm: true })).rejects.toThrow('CHANNEL_DEPLOY_FAILED');
-    const state = await readState(w.options.dir);
-    expect(state.next?.status).toBe('testing');
-    expect(state.production).toBeNull();
-    expect((await readHistory(w.options.dir)).at(-1)).toMatchObject({
-      op: 'promote',
-      result: 'failed'
-    });
-  });
+  itPosix(
+    'refuses to promote without a candidate, and records a failed upload without moving state',
+    async () => {
+      const w = await world();
+      await expect(promote(w.options, { confirm: true })).rejects.toThrow('CHANNEL_NO_CANDIDATE');
+      await w.publish('1.5.0');
+      w.failUpload();
+      await expect(promote(w.options, { confirm: true })).rejects.toThrow('CHANNEL_DEPLOY_FAILED');
+      const state = await readState(w.options.dir);
+      expect(state.next?.status).toBe('testing');
+      expect(state.production).toBeNull();
+      expect((await readHistory(w.options.dir)).at(-1)).toMatchObject({
+        op: 'promote',
+        result: 'failed'
+      });
+    }
+  );
 
-  it('rolls production back to the previous promoted build, then refuses when nothing is left', async () => {
-    const w = await world();
-    const live = await w.bundle('1.4.0', 'live');
-    await w.options.upload({ directory: live, branch: 'main' });
-    await adoptLive(w.options, { confirm: true, search: [live] });
-    await w.publish('1.5.0', 'candidate');
-    await promote(w.options, { confirm: true });
+  itPosix(
+    'rolls production back to the previous promoted build, then refuses when nothing is left',
+    async () => {
+      const w = await world();
+      const live = await w.bundle('1.4.0', 'live');
+      await w.options.upload({ directory: live, branch: 'main' });
+      await adoptLive(w.options, { confirm: true, search: [live] });
+      await w.publish('1.5.0', 'candidate');
+      await promote(w.options, { confirm: true });
 
-    const back = await rollback(w.options, { confirm: true });
-    expect(back.to.version).toBe('1.4.0');
-    const served = JSON.parse(w.served.get(PROD)!.manifest.toString());
-    expect(served.version).toBe('1.4.0');
-    const state = await readState(w.options.dir);
-    expect(state.production?.version).toBe('1.4.0');
-    expect(state.previous).toHaveLength(0);
-    await expect(rollback(w.options, { confirm: true })).rejects.toThrow('CHANNEL_NO_PREVIOUS');
-  });
+      const back = await rollback(w.options, { confirm: true });
+      expect(back.to.version).toBe('1.4.0');
+      const served = JSON.parse(w.served.get(PROD)!.manifest.toString());
+      expect(served.version).toBe('1.4.0');
+      const state = await readState(w.options.dir);
+      expect(state.production?.version).toBe('1.4.0');
+      expect(state.previous).toHaveLength(0);
+      await expect(rollback(w.options, { confirm: true })).rejects.toThrow('CHANNEL_NO_PREVIOUS');
+    }
+  );
 
-  it('cancels a candidate by showing production on next again', async () => {
+  itPosix('cancels a candidate by showing production on next again', async () => {
     const w = await world();
     const live = await w.bundle('1.4.0', 'live');
     await w.options.upload({ directory: live, branch: 'main' });
@@ -274,7 +288,7 @@ describe('release channel (051)', () => {
     ).rejects.toThrow('CHANNEL_MANIFEST_INVALID');
   });
 
-  it('says where everything stands in plain words', async () => {
+  itPosix('says where everything stands in plain words', async () => {
     const w = await world();
     const live = await w.bundle('1.4.0', 'live');
     await w.options.upload({ directory: live, branch: 'main' });

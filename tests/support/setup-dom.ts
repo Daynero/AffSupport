@@ -55,6 +55,20 @@ if (typeof css.escape !== 'function') {
   css.escape = (value: string) => String(value).replace(/[^\w-]/gu, character => `\\${character}`);
 }
 
+// jsdom omits element scrolling. Preserve its observable offsets so settings
+// navigation can exercise the browser API instead of throwing an uncaught error.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollTo !== 'function') {
+  Element.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
+    if (typeof options === 'number') {
+      this.scrollLeft = options;
+      this.scrollTop = y ?? 0;
+      return;
+    }
+    if (options?.left !== undefined) this.scrollLeft = options.left;
+    if (options?.top !== undefined) this.scrollTop = options.top;
+  };
+}
+
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {
