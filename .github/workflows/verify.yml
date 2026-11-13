@@ -52,6 +52,10 @@ jobs:
       - run: npm ci
       - name: Install media test dependencies
         run: brew install ffmpeg
+      - name: Verify native Mac input contracts
+        run: |
+          npm run build -w @video-compressor/shared
+          npx vitest run tests/macos-runtime-inputs.test.ts --maxWorkers=1 --no-file-parallelism --reporter=verbose --reporter=json --outputFile.json=macos-runtime-targeted.json
       - run: node scripts/verify-all.mjs --form=fast --gates=suite
       - uses: actions/upload-artifact@v4
         if: always()
@@ -59,7 +63,9 @@ jobs:
           name: verification-result-macos
           path: |
             verification-result.json
+            verification-suite.json
             verification-progress.log
+            macos-runtime-targeted.json
           if-no-files-found: ignore
 
   coverage-macos:
@@ -84,6 +90,7 @@ jobs:
           name: verification-coverage-macos
           path: |
             verification-result.json
+            verification-suite.json
             verification-progress.log
           if-no-files-found: ignore
 

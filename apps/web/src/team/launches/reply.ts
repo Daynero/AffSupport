@@ -57,18 +57,15 @@ export async function withLaunchTransientRetry<T>(
 ): Promise<T> {
   const sleep =
     options.sleep ??
-    ((ms: number, signal: AbortSignal) =>
-      new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, ms);
-        signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(timer);
-            reject(new Error('superseded-launch-wait'));
-          },
-          { once: true }
-        );
-      }));
+    ((ms: number, signal: AbortSignal) => {
+      let timer: ReturnType<typeof setTimeout>;
+      return whileLaunchActive(
+        new Promise<void>(resolve => {
+          timer = setTimeout(resolve, ms);
+        }),
+        signal
+      ).finally(() => clearTimeout(timer));
+    });
   for (let attempt = 0; ; attempt++) {
     try {
       return await send();

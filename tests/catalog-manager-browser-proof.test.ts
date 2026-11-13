@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import path from 'node:path';
 import {
   rewriteFixtureImports,
   verifyPaintSamples,
@@ -7,14 +8,15 @@ import {
 it('freezes only relative import paths into the current common graph', () => {
   const text =
     "/* from './untouched-comment' */ const label=\"import './untouched-label'\"; import {x} from './x'; import type{Y}from'../y'; import 'react'; import './style.css'; const y=import('./lazy');";
-  const actual = rewriteFixtureImports(text, '/external/repo/ui/Dialog.tsx');
+  const root = path.resolve('external', 'repo').replaceAll('\\', '/');
+  const actual = rewriteFixtureImports(text, `${root}/ui/Dialog.tsx`);
   expect(actual).toContain("from './untouched-comment'");
   expect(actual).toContain("import './untouched-label'");
-  expect(actual).toContain("from '/external/repo/ui/x'");
-  expect(actual).toContain("from'/external/repo/y'");
+  expect(actual).toContain(`from '${root}/ui/x'`);
+  expect(actual).toContain(`from'${root}/y'`);
   expect(actual).toContain("import 'react'");
-  expect(actual).toContain("import '/external/repo/ui/style.css'");
-  expect(actual).toContain("import('/external/repo/ui/lazy')");
+  expect(actual).toContain(`import '${root}/ui/style.css'`);
+  expect(actual).toContain(`import('${root}/ui/lazy')`);
 });
 it('never converts double RAF alone into a measured paint sample', () => {
   const marks = [

@@ -53,3 +53,52 @@ it('stops repeating when the person cancels during the pause', async () => {
   });
   expect(send).toHaveBeenCalledOnce();
 });
+
+it.each([false, true])(
+  'clears the real retry pause on abort (already aborted: %s)',
+  async aborted => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      if (aborted) controller.abort();
+      const send = vi.fn().mockRejectedValue(new TeamApiError('DRIVE_UNAVAILABLE', true));
+      const pending = withLaunchTransientRetry(send, {
+        signal: controller.signal,
+        stillWanted: vi.fn()
+      });
+      const rejected = expect(pending).rejects.toThrow('superseded-launch-wait');
+      if (!aborted) {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(vi.getTimerCount()).toBe(1);
+        controller.abort();
+      }
+      await rejected;
+      expect(vi.getTimerCount()).toBe(0);
+      expect(send).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+);
+
+it('releases the abort listener after a retry pause completes', async () => {
+  vi.useFakeTimers();
+  try {
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(new TeamApiError('DRIVE_UNAVAILABLE', true))
+      .mockResolvedValue('accepted');
+    const pending = withLaunchTransientRetry(send, {
+      signal: controller.signal,
+      stillWanted: vi.fn()
+    });
+    await vi.advanceTimersByTimeAsync(LAUNCH_TRANSIENT_RETRY_DELAYS_MS[0]!);
+    await expect(pending).resolves.toBe('accepted');
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
