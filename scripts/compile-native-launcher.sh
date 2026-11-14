@@ -22,4 +22,5 @@ swiftc -j 1 "${swift_args[@]}" "${source_file:h}/main.swift" packaging/NativeUpd
   -import-objc-header packaging/NativeUpdates/SparkleDriver.h \
   -o "$output" -target "$target" -F "$app/Contents/Frameworks" \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
-  -framework AppKit -framework FinderSync -framework Security -weak_framework Sparkle
+  -framework AppKit -framework FinderSync -framework Security \
+  -Xlinker -weak_framework -Xlinker Sparkle
