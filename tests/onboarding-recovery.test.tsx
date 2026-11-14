@@ -55,6 +55,22 @@ afterEach(() => {
 });
 
 describe('the panel shown when the page cannot reach the Agent', () => {
+  it('shows four normal Mac installation steps without Gatekeeper bypass instructions', () => {
+    render(
+      <AgentContextOverride value={agentValue()}>
+        <Onboarding
+          state="not_installed_or_not_running"
+          help
+          setHelp={vi.fn()}
+          connect={vi.fn()}
+          t={t}
+        />
+      </AgentContextOverride>
+    );
+    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByText(/Відкрийте Soty з «Програм»/)).toBeTruthy();
+    expect(screen.queryByText(/Усе одно відкрити|Приватність і безпека|перевстанов/u)).toBeNull();
+  });
   it('offers the installation to a browser with no history of the Agent', () => {
     renderOnboarding('not_installed_or_not_running');
 

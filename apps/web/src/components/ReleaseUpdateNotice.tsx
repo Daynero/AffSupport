@@ -14,7 +14,8 @@ export default function ReleaseUpdateNotice() {
   const agent = useAgent();
   const native =
     agent.capabilities.includes('native-app-updates-v1') ||
-    agent.lastKnownAgent?.capabilities.includes('native-app-updates-v1') ||
+    (!['connected', 'agent_update_required'].includes(agent.connection) &&
+      agent.lastKnownAgent?.capabilities.includes('native-app-updates-v1')) ||
     agent.agentRuntime?.nativeAppUpdateStatus === 'recovery_required';
   return native ? (
     <NativeAppUpdateNotice fallback={<LegacyReleaseUpdateNotice />} />

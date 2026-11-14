@@ -91,7 +91,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('unsigned installer guidance', () => {
+describe('platform installation guidance', () => {
   it('tells a Windows visitor exactly which SmartScreen button to press', () => {
     mockNavigator('Win32', WINDOWS_X64_UA);
     renderDialog(bothPlatformsPublished());
@@ -109,11 +109,12 @@ describe('unsigned installer guidance', () => {
     expect(screen.getByText(/Виконати в будь-якому разі/u)).toBeTruthy();
   });
 
-  it('gives a macOS visitor the Gatekeeper equivalent, not the Windows one', () => {
+  it('guides normal Mac installation without asking users to bypass Gatekeeper', () => {
     mockNavigator('MacIntel', MAC_UA);
     renderDialog(bothPlatformsPublished());
 
-    expect(screen.getByText(/Open Anyway/u)).toBeTruthy();
+    expect(screen.getByText(/Drag Soty to Applications/u)).toBeTruthy();
+    expect(screen.queryByText(/Open Anyway/u)).toBeNull();
     expect(screen.queryByText(/Windows protected your PC/u)).toBeNull();
   });
 

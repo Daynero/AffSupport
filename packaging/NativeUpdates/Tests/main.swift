@@ -9,6 +9,43 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) throws {
 let root = FileManager.default.temporaryDirectory.appendingPathComponent("soty-native-probe-\(UUID().uuidString)")
 defer { try? FileManager.default.removeItem(at: root) }
 do {
+  let fixtureBundleId = NativeUpdateBuildPolicy.fixtureBundleId!
+  let fixtureSupport = NativeUpdateBuildPolicy.fixtureSupportDirectory!
+  let profileID = "10000000-0000-4000-8000-000000000001"
+  let profileInfo: [String: Any] = ["SotyUpdateFixtureProfile": profileID,
+    "SotyUpdateFixtureOrigin": "http://127.0.0.1:43141", "SotyNativeUpdatesEnabled": true,
+    "CFBundleIdentifier": fixtureBundleId]
+  let expectedProfile = "\(fixtureSupport) Updates \(profileID)"
+  for _ in 1...3 {
+    let name = try NativeUpdateFixtureProfile.supportDirectoryName(base: fixtureSupport, channel: "beta", info: profileInfo)
+    try check(name == expectedProfile, "sealed A/B/C profile survives a new host without environment")
+  }
+  for (base, channel) in [("Soty", "stable"), (fixtureSupport, "beta"), ("Soty Dev", "development")] {
+    let name = try NativeUpdateFixtureProfile.supportDirectoryName(base: base, channel: channel, info: [:])
+    try check(name == base, "ordinary profile unchanged")
+  }
+  for mutation in ["missing", "path", "production", "disabled", "remote", "bundle"] {
+    var info = profileInfo
+    var channel = "beta"
+    if mutation == "missing" { info.removeValue(forKey: "SotyUpdateFixtureProfile") }
+    if mutation == "path" { info["SotyUpdateFixtureProfile"] = "../Soty" }
+    if mutation == "production" { channel = "stable" }
+    if mutation == "disabled" { info["SotyNativeUpdatesEnabled"] = false }
+    if mutation == "remote" { info["SotyUpdateFixtureOrigin"] = "https://example.com" }
+    if mutation == "bundle" { info["CFBundleIdentifier"] = "com.wishly" }
+    var refused = false
+    do { _ = try NativeUpdateFixtureProfile.supportDirectoryName(base: fixtureSupport, channel: channel, info: info) }
+    catch { refused = true }
+    try check(refused, "invalid fixture cannot fall back to normal beta")
+  }
+  let profiles = root.appendingPathComponent("profiles")
+  try NativeUpdateFixtureProfile.prepareDirectory(root: profiles, name: expectedProfile)
+  let alias = profiles.appendingPathComponent("\(fixtureSupport) Updates alias")
+  try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: profiles.appendingPathComponent(expectedProfile))
+  var unsafeProfile = false
+  do { try NativeUpdateFixtureProfile.prepareDirectory(root: profiles, name: alias.lastPathComponent) }
+  catch { unsafeProfile = true }
+  try check(unsafeProfile, "fixture directory cannot alias owner data")
   let store = try NativeUpdateReceiptStore(directory: root)
   var state = try store.load()
   let identity = state.installationId

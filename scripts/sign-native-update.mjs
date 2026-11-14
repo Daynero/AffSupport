@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { withSparkle } from './lib/native-update-sdk.mjs';
+import { readBetaUpdateProfile } from './lib/native-update-profile.mjs';
 import {
   isNativeUpdateDescriptor,
   RELEASE_ARTIFACT_ORIGIN,
@@ -21,6 +22,7 @@ if (
 )
   throw new Error('NATIVE_UPDATE_SIGN_ARGUMENTS');
 const exec = promisify(execFile);
+await readBetaUpdateProfile(app, { required: channel === 'beta' });
 const profile = JSON.parse(
   await readFile(path.join(app, 'Contents/Resources/release.json'), 'utf8')
 );

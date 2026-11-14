@@ -86,6 +86,21 @@ afterEach(() => {
 });
 
 describe('release update notice', () => {
+  it('keeps the installer path when the connected host no longer supports native updates', () => {
+    renderNotice({
+      ...agentValue(),
+      lastKnownAgent: {
+        version: '0.6.0',
+        buildId: 'old',
+        instanceId: 'old',
+        channel: 'stable',
+        capabilities: ['native-app-updates-v1'],
+        toolContracts: {},
+        seenAt: Date.now()
+      }
+    });
+    expect(screen.getByRole('link', { name: 'Завантажити оновлення' })).toBeTruthy();
+  });
   it('shows a localized summary and the immutable release download', () => {
     const manifest = releaseManifest();
     renderNotice(agentValue(manifest));

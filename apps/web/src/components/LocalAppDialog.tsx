@@ -17,6 +17,7 @@ import {
 } from '../lib/platform';
 import { analytics } from '../analytics/service';
 import { InstallerDownload } from './InstallerDownload';
+import { openNativeAppUpdate } from '../updates/openNativeAppUpdate';
 import { Modal } from './Modal';
 import { ReconnectAction } from './ReconnectAction';
 import { SotyMark } from './SotyLogo';
@@ -43,21 +44,21 @@ export default function LocalAppDialog({
   // dropped connection cannot send anyone to download what they already have.
   const needsUpdate =
     toolAvailability(tool) === 'too_old' || connection === 'agent_update_required';
+  const nativeUpdate = capabilities.includes('native-app-updates-v1');
   const macDownloadUrl = macAppleSiliconDownloadUrl(releaseManifest.manifest);
   const intelDownload = downloadUrlForPlatform(releaseManifest.manifest, 'macos-x64');
   const windowsDownload = downloadUrlForPlatform(releaseManifest.manifest, 'windows-x64');
   // An installed agent knows the host it runs on; the browser only claims one.
   const browserPlatform = platformFromAgentCapabilities(capabilities) ?? currentBrowserPlatform();
   const windowsFirst = windowsDownload.available && browserPlatform === 'windows';
-  // Both builds ship unsigned, so every first launch meets an OS warning. The
-  // guidance has to be here, at the moment of download, rather than in a help
-  // page the user has not opened yet.
+  // Mac releases use Developer ID/notarization. Explain normal installation;
+  // Windows retains its independent signing policy.
   const installNotice = windowsFirst
     ? currentWindowsX64Supported()
       ? t('windowsUnsignedNotice')
       : t('windowsUnsupportedArchitecture')
     : browserPlatform === 'macos'
-      ? t('macUnsignedNotice')
+      ? t('macInstallNotice')
       : null;
   const toolIdentifier =
     tool === 'landingOptimizer'
@@ -97,7 +98,7 @@ export default function LocalAppDialog({
   const body = updatePending
     ? t('localAppBusyUpdateBody')
     : needsUpdate
-      ? t('localAppUpdateBody')
+      ? t(nativeUpdate ? 'appUpdateRequired' : 'localAppUpdateBody')
       : installed
         ? t('localAppOpenBody')
         : t('localAppDialogBody');
@@ -201,7 +202,11 @@ export default function LocalAppDialog({
           </a>
         )}
         <div className="platform-download-actions">
-          {needsUpdate ? (
+          {needsUpdate && nativeUpdate ? (
+            <Button color="primary" onClick={openNativeAppUpdate}>
+              {t('appUpdateDetails')}
+            </Button>
+          ) : needsUpdate ? (
             <InstallerDownload intent="update" toolIdentifier={toolIdentifier}>
               {t('downloadLatest')}
             </InstallerDownload>
@@ -219,7 +224,7 @@ export default function LocalAppDialog({
             </>
           )}
         </div>
-        {installNotice && (
+        {installNotice && !(needsUpdate && nativeUpdate) && (
           <p className="platform-install-notice">
             {installNotice}
             {windowsFirst && ` ${t('windowsRequirements')}`}

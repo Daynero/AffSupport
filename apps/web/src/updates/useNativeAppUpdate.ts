@@ -8,7 +8,7 @@ import {
 } from '@video-compressor/shared';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { commandNativeAppUpdate, readNativeAppUpdate } from '../api/native-app-updates';
-/** One snapshot + existing SSE owner. No browser timer or independent update authority. */
+/** One snapshot + existing SSE owner. Failed reads get two bounded retries, never an install replay. */
 export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId: string | null) {
   const [state, setState] = useState<NativeUpdateSnapshot | null>(null);
   const [error, setError] = useState(false);
@@ -17,6 +17,8 @@ export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId
   const generation = useRef(0);
   const read = useRef<Promise<void> | null>(null);
   const trailing = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef(0);
   const controller = useRef(new AbortController());
   const acked = useRef(new Set<string>());
   const busy = useRef(false);
@@ -28,9 +30,13 @@ export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId
     )
       return;
     current.current = next;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+    retryCount.current = 0;
     setState(next);
+    setError(false);
   }, []);
-  const refresh = useCallback(() => {
+  const refresh = useCallback((): Promise<void> => {
     if (!enabled || !connected) return Promise.resolve();
     if (read.current) {
       trailing.current = true;
@@ -49,7 +55,26 @@ export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId
             setError(false);
           }
         } catch {
-          if (!signal.aborted && epoch === generation.current) setError(true);
+          if (!signal.aborted && epoch === generation.current) {
+            setError(true);
+            const delay = [1000, 3000][retryCount.current];
+            if (
+              delay !== undefined &&
+              !retryTimer.current &&
+              document.visibilityState === 'visible'
+            ) {
+              retryCount.current++;
+              retryTimer.current = setTimeout(() => {
+                retryTimer.current = null;
+                if (
+                  !signal.aborted &&
+                  epoch === generation.current &&
+                  document.visibilityState === 'visible'
+                )
+                  void refresh();
+              }, delay);
+            }
+          }
         }
         if (!trailing.current || signal.aborted) break;
       }
@@ -108,6 +133,9 @@ export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId
   );
   useEffect(() => {
     generation.current++;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+    retryCount.current = 0;
     controller.current.abort();
     controller.current = new AbortController();
     read.current = null;
@@ -116,11 +144,18 @@ export function useNativeAppUpdate(enabled: boolean, connected: boolean, buildId
     setPending(false);
     if (enabled && connected) void refresh();
     const visible = () => {
-      if (document.visibilityState === 'visible') void refresh();
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+      if (document.visibilityState === 'visible') {
+        retryCount.current = 0;
+        void refresh();
+      }
     };
     document.addEventListener('visibilitychange', visible);
     return () => {
       generation.current++;
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = null;
       controller.current.abort();
       document.removeEventListener('visibilitychange', visible);
     };

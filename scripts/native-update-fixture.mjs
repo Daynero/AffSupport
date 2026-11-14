@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { isNativeUpdateDescriptor } from '../packages/shared/dist/native-app-updates.js';
 import { releaseManifestSigningPayload } from '../packages/shared/dist/release.js';
+import { readArchiveBetaUpdateProfile } from './lib/native-update-profile.mjs';
 const option = name =>
   process.argv
     .slice(2)
@@ -38,6 +39,13 @@ const hash = createHash('sha256');
 for await (const chunk of createReadStream(archive)) hash.update(chunk);
 if (hash.digest('hex') !== candidate.archive.sha256)
   throw new Error('NATIVE_FIXTURE_ARCHIVE_DIGEST');
+// A/B/C must share the sealed namespace, including after Sparkle relaunches.
+// Read the exact archive already matched above, never an adjacent mutable .app.
+const profile = readArchiveBetaUpdateProfile(
+  archive,
+  option('profile'),
+  `http://127.0.0.1:${port}`
+);
 const pins = JSON.parse(await readFile('config/native-updates.json', 'utf8'));
 const keyFile = path.join(
   os.homedir(),
@@ -124,6 +132,6 @@ const server = http.createServer((request, response) => {
 });
 server.listen(port, '127.0.0.1', () =>
   process.stdout.write(
-    `Beta native fixture serving ${candidate.target} ${candidate.buildId} on loopback port ${port}.\n`
+    `Beta native fixture serving ${candidate.target} ${candidate.buildId} on loopback port ${port}; profile ${profile.profileId}.\n`
   )
 );

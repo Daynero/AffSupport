@@ -13,8 +13,99 @@ vi.mock('../apps/web/src/api/useAgentEventStream', () => ({ useAgentEventStream:
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 describe('native update client synchronization', () => {
+  it('clears a failed read on valid push recovery and cancels the pending retry', async () => {
+    vi.useFakeTimers();
+    mocks.read.mockRejectedValue(new Error('network'));
+    const hook = renderHook(() => useNativeAppUpdate(true, true, 'old-build'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(hook.result.current.error).toBe(true);
+    act(() =>
+      mocks.stream.mock.calls
+        .at(-1)![0]
+        .onMessage({ type: 'app-update:state', state: nativeSnapshot() })
+    );
+    expect(hook.result.current.error).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.read).toHaveBeenCalledOnce();
+    expect(mocks.command).not.toHaveBeenCalled();
+  });
+  it('recovers one transient read failure automatically without replaying a command or polling after success', async () => {
+    vi.useFakeTimers();
+    mocks.read.mockRejectedValueOnce(new Error('network')).mockResolvedValue(nativeSnapshot());
+    const hook = renderHook(() => useNativeAppUpdate(true, true, 'old-build'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(hook.result.current.error).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(hook.result.current.state?.stage).toBe('prepared');
+    expect(hook.result.current.error).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(mocks.command).not.toHaveBeenCalled();
+  });
+
+  it('bounds repeated read failures to two retries and never resubmits install intent', async () => {
+    vi.useFakeTimers();
+    mocks.read.mockRejectedValue(new Error('offline'));
+    const hook = renderHook(() => useNativeAppUpdate(true, true, 'old-build'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.read).toHaveBeenCalledTimes(3);
+    expect(hook.result.current.error).toBe(true);
+    expect(mocks.command).not.toHaveBeenCalled();
+  });
+
+  it('cancels a scheduled retry when its owner unmounts', async () => {
+    vi.useFakeTimers();
+    mocks.read.mockRejectedValue(new Error('offline'));
+    const hook = renderHook(() => useNativeAppUpdate(true, true, 'old-build'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    hook.unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.read).toHaveBeenCalledOnce();
+  });
+
+  it('waits for visibility instead of retrying reads in a hidden tab', async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    mocks.read.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(nativeSnapshot());
+    renderHook(() => useNativeAppUpdate(true, true, 'old-build'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    visibility.mockReturnValue('hidden');
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect(mocks.read).toHaveBeenCalledOnce();
+    visibility.mockReturnValue('visible');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
   it('retains an event newer than an in-flight snapshot and coalesces one follow-up', async () => {
     let resolve!: (state: NativeUpdateSnapshot) => void;
     const old = nativeSnapshot();

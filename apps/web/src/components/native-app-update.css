@@ -1,0 +1,41 @@
+.native-update-notice[hidden] {
+  display: none;
+}
+
+.native-update-dialog .ui-modal-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.native-update-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.native-update-heading h2 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.native-update-dialog p {
+  margin: 0;
+}
+
+.native-update-secondary {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+.native-update-secondary[open] > * + * {
+  margin-top: var(--space-3);
+}
+
+.native-update-dialog .ui-modal-footer {
+  flex-wrap: wrap;
+}
+
+.native-update-dialog .ui-modal-footer .ui-button {
+  white-space: normal;
+}

@@ -10,10 +10,11 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import {
   isNativeUpdateSnapshot,
-  NATIVE_UPDATE_STAGES,
-  NATIVE_UPDATE_LIMITS
+  NATIVE_UPDATE_STAGES
 } from '../packages/shared/dist/native-app-updates.js';
 import { NATIVE_UPDATE_QUALIFICATION_CASES } from './lib/native-update-qualification.mjs';
+import { readBetaUpdateProfile } from './lib/native-update-profile.mjs';
+import { renderNativeUpdatePolicy } from './lib/native-update-policy.mjs';
 const exec = promisify(execFile);
 const args = process.argv.slice(2);
 const option = name => args.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -24,7 +25,7 @@ if (args.includes('--native-boundaries')) {
     const policy = path.join(directory, 'Policy.swift');
     await writeFile(
       policy,
-      `enum NativeUpdateBuildPolicy { static let artifactPrefix = "https://invalid.test"; static let frameBytes = ${NATIVE_UPDATE_LIMITS.frameBytes}; static let canonicalPayloadBytes = ${NATIVE_UPDATE_LIMITS.canonicalPayloadBytes}; static let historyEntries = ${NATIVE_UPDATE_LIMITS.historyEntries}; static let archiveBytes: Int64 = ${NATIVE_UPDATE_LIMITS.archiveBytes} }\n`
+      renderNativeUpdatePolicy(process.arch === 'x64' ? 'x64' : 'arm64', true)
     );
     const binary = path.join(directory, 'probe');
     await exec(
@@ -41,6 +42,7 @@ if (args.includes('--native-boundaries')) {
         'packaging/NativeUpdates/ReceiptStore.swift',
         'packaging/NativeUpdates/Recovery.swift',
         'packaging/NativeUpdates/Readiness.swift',
+        'packaging/NativeUpdates/FixtureProfile.swift',
         policy,
         'packaging/NativeUpdates/Tests/main.swift',
         '-o',
@@ -75,8 +77,27 @@ if (args.includes('--native-boundaries')) {
   const observations = [];
   let owned = null;
   let faulted = false;
-  const app = option('launch');
-  if (app) {
+  const launch = option('launch');
+  const app = launch ?? option('app');
+  if (!app || !path.isAbsolute(app) || path.basename(app) !== 'Soty Beta.app')
+    throw new Error('NATIVE_PROBE_BETA_APP_REQUIRED');
+  const profile = await readBetaUpdateProfile(app, { required: true });
+  if (!profile) throw new Error('NATIVE_UPDATE_PROFILE_REQUIRED');
+  const installationFile = path.join(
+    os.homedir(),
+    'Library',
+    'Application Support',
+    profile.supportDirectoryName,
+    'Updates/beta/installation-id'
+  );
+  if (launch) {
+    const { stdout } = await exec('/usr/sbin/lsof', ['-tiTCP:43140', '-sTCP:LISTEN']).catch(
+      error => {
+        if (error.code === 1) return { stdout: '' };
+        throw error;
+      }
+    );
+    if (stdout.trim()) throw new Error('NATIVE_PROBE_BETA_ALREADY_RUNNING');
     if (path.basename(app) !== 'Soty Beta.app') throw new Error('NATIVE_PROBE_BETA_APP_REQUIRED');
     const release = JSON.parse(
       await readFile(path.join(app, 'Contents/Resources/release.json'), 'utf8')
@@ -108,6 +129,9 @@ if (args.includes('--native-boundaries')) {
           throw new Error('NATIVE_PROBE_NON_BETA');
         const state = await read('/api/app-update');
         if (!isNativeUpdateSnapshot(state)) throw new Error('NATIVE_PROBE_INVALID_SNAPSHOT');
+        const installationId = (await readFile(installationFile, 'utf8')).trim();
+        if (state.installationId !== installationId)
+          throw new Error('NATIVE_PROBE_PROFILE_MISMATCH');
         consecutiveUnavailable = 0;
         const previous = observations.at(-1);
         if (
@@ -129,7 +153,11 @@ if (args.includes('--native-boundaries')) {
         }
         if (state.stage === until || (faulted && consecutiveUnavailable > 2)) break;
       } catch (error) {
-        if (error instanceof Error && error.message === 'NATIVE_PROBE_NON_BETA') throw error;
+        if (
+          error instanceof Error &&
+          ['NATIVE_PROBE_NON_BETA', 'NATIVE_PROBE_PROFILE_MISMATCH'].includes(error.message)
+        )
+          throw error;
         consecutiveUnavailable++;
         if (faulted && consecutiveUnavailable >= 3) break;
       }
@@ -147,6 +175,7 @@ if (args.includes('--native-boundaries')) {
       finishedAt: Date.now(),
       faulted,
       controlledRuntimeOnly: true,
+      profileId: profile.profileId,
       observations
     };
     await mkdir(path.dirname(path.resolve(output)), { recursive: true });
@@ -163,6 +192,6 @@ if (args.includes('--native-boundaries')) {
   }
 } else {
   process.stdout.write(
-    'Usage: --native-boundaries | --capture --scenario=<case> --output=<file> [--launch=<Soty Beta.app>] [--fault=<stage>] [--until=<stage>]\n'
+    'Usage: --native-boundaries | --capture --scenario=<case> --output=<file> (--app=<running Soty Beta.app> | --launch=<Soty Beta.app>) [--fault=<stage>] [--until=<stage>]\n'
   );
 }

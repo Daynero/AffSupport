@@ -13,21 +13,33 @@ Follow the [Intel quickstart](specs/049-macos-intel-support/quickstart.md) and
 actual build, mandatory automatic/Apple trust checks and first-user Intel runtime feedback. Physical Intel validation is not a release prerequisite.
 Public Intel availability must come from a verified signed target artifact.
 
-## Legacy ARM closed-test installation
+## Trusted macOS installation and updates
 
-> **Upgrading from "Local Video Compressor Agent"?** The app was renamed, so dragging Soty Agent into Applications will **not** replace the old app. First quit the old agent (menu bar film icon → **Quit**), then delete **Local Video Compressor Agent.app** from Applications, and only then install Soty Agent. Your local queue and settings are migrated automatically on the first launch.
+Use the release candidate that the maintainer has confirmed is Developer ID signed,
+Apple-notarized and stapled. These checks remain release prerequisites; a local dev
+or ad-hoc beta build is not evidence that the trusted release is ready.
 
-1. Download the uniquely versioned DMG (`Soty-Agent-v…-macOS-arm64.dmg`), open it, and drag **Soty Agent** to Applications. Choose **Replace** if macOS asks.
-2. Open the **Terminal** app (Applications → Utilities → Terminal).
-3. Paste this command and press Return:
+1. Download the installer for your Mac: Apple Silicon or Intel.
+2. Open the DMG and drag **Soty** to **Applications**, replacing the existing copy when asked.
+3. Open **Soty** from Applications. macOS may ask you to confirm the first launch of an
+   app downloaded from the internet; no Terminal command or Gatekeeper bypass is part
+   of this installation. Report a blocked or damaged-app warning to the maintainer.
 
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Soty Agent.app"
-   ```
+An older build without the native updater needs this first trusted installation once.
+Finish active work and quit that older app before replacing it. Keep your local data;
+there is no need to clear your queue or settings. If it has an older app name, quit
+that copy as well so it does not keep running alongside Soty.
 
-4. Open **Soty Agent** from the Applications folder. Its menu shows the exact product version and build number.
+For subsequent supported updates, Soty downloads and verifies the package in the
+background. Open **View update** and choose **Update when tasks finish**. Soty waits
+for current work, saves it, installs the update and reopens automatically. macOS may
+request permission or a password. Closing the update window leaves the accepted
+update running; **Later** defers it when the native updater still permits that action.
+The window reports success only after the updated app and local tools are ready.
 
-This command is required after each newly downloaded test build because the app is not yet notarized. It clears the download-quarantine flag for this single app; it does **not** disable macOS security. (macOS does not offer an “Open Anyway” button for this build because it is ad-hoc signed, so the command above is the supported way to launch it.)
+A short connection interruption does not mean installation failed. Follow the shown
+status or recovery action. Downloading an installer is reserved for an explicitly
+unavailable updater, rather than being the routine response to a lost connection.
 
 ## Connect and compress
 

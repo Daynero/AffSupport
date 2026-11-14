@@ -15,6 +15,21 @@ private let expectedBuildNumber = "__BUILD_NUMBER__"
 private let expectedBuildID = "__BUILD_ID__"
 private let expectedAPIVersion = __API_VERSION__
 private let releaseChannel = "__RELEASE_CHANNEL__"
+private let effectiveSupportDirectoryName: String = {
+  do {
+    let name = try NativeUpdateFixtureProfile.supportDirectoryName(
+      base: supportDirectoryName, channel: releaseChannel, info: Bundle.main.infoDictionary ?? [:])
+    if name != supportDirectoryName {
+      guard let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+      else { fatalError("NATIVE_UPDATE_PROFILE_UNAVAILABLE") }
+      try NativeUpdateFixtureProfile.prepareDirectory(root: root, name: name)
+    }
+    return name
+  } catch {
+    // Never fall back to the owner's normal profile on a malformed test bundle.
+    fatalError("NATIVE_UPDATE_PROFILE_INVALID")
+  }
+}()
 private let sourceRevision = "__SOURCE_REVISION__"
 private let nativeToken = [UUID(), UUID()].map(\.uuidString).joined()
 private let finderActionPasteboardType = NSPasteboard.PasteboardType("com.wishly.finder-action")
@@ -72,7 +87,7 @@ private func loadOrCreateUpdateHandoffToken() -> String? {
   guard
     let root = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
   else { return nil }
-  let directory = root.appendingPathComponent(supportDirectoryName, isDirectory: true)
+  let directory = root.appendingPathComponent(effectiveSupportDirectoryName, isDirectory: true)
   do {
     try manager.createDirectory(
       at: directory,
@@ -223,7 +238,7 @@ private struct NativeStartupRecord: Codable {
 private func recordNativeStartup(_ stage: NativeStartupStage, _ code: NativeStartupCode, _ attempt: UUID) {
   let manager = FileManager.default
   guard let base = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
-  let directory = base.appendingPathComponent(supportDirectoryName, isDirectory: true)
+  let directory = base.appendingPathComponent(effectiveSupportDirectoryName, isDirectory: true)
   let file = directory.appendingPathComponent("native-startup.json")
   do {
     try manager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -353,7 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     nativeUpdateInitializationAttempted = true
     if Bundle.main.object(forInfoDictionaryKey: "SotyNativeUpdatesEnabled") as? Bool == true {
         do {
-          let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(supportDirectoryName)
+          let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(effectiveSupportDirectoryName)
           nativeUpdates = try NativeAppUpdateCoordinator(support: support, channel: releaseChannel,
             target: NativeUpdateBuildPolicy.target, version: expectedVersion, buildId: expectedBuildID,
             revision: sourceRevision, agentURL: agentBaseURL)
@@ -927,7 +942,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       // Without this, a beta bundle falls back to production defaults.
       "SOTY_ENVIRONMENT": releaseChannel == "beta" ? "beta" : (releaseChannel == "development" ? "dev" : "production"),
       "AGENT_PORT": String(agentPort),
-      "AGENT_SUPPORT_DIRECTORY_NAME": supportDirectoryName,
+      "AGENT_SUPPORT_DIRECTORY_NAME": effectiveSupportDirectoryName,
       "PUBLIC_SITE_ORIGIN": "__PUBLIC_SITE_ORIGIN__",
       "AGENT_VERSION": expectedVersion,
       "AGENT_BUILD_NUMBER": expectedBuildNumber,
@@ -1398,6 +1413,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func scheduleFinderIntegrationOffer() {
     guard
+      // A fixture relaunch must not change the owner's Finder preference or open setup.
+      effectiveSupportDirectoryName == supportDirectoryName,
       ProcessInfo.processInfo.environment["NO_OPEN"] != "1",
       !FIFinderSyncController.isExtensionEnabled,
       !UserDefaults.standard.bool(forKey: finderIntegrationOfferKey)

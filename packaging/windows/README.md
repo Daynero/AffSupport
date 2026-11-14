@@ -139,9 +139,9 @@ runtime payload, compiles the Inno Setup installer, verifies the package and
 runs the unattended smoke harness.
 
 **Authenticode signing is a deliberate non-goal** for this release: the build
-ships unsigned, matching the macOS build's ad-hoc signature with no
-notarization. SmartScreen warnings are handled by on-screen guidance in the
-download dialog, not by a certificate.
+ships unsigned. This policy is independent of macOS Developer ID signing and
+notarization. SmartScreen warnings retain their on-screen guidance in the
+download dialog.
 
 ## Still open
 

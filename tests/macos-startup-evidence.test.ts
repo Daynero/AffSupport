@@ -73,7 +73,7 @@ describeRequiring(requirePlatform('darwin'), 'compiled native startup producer',
         source,
         `import Foundation
 import Darwin
-let supportDirectoryName="${namespace}"
+let effectiveSupportDirectoryName="${namespace}"
 let expectedBuildID="fixture+1"
 ${block}
 ${health}
@@ -156,7 +156,7 @@ require(!delegate.agentReady,"DEAD_CHILD_RESPONSE_ACCEPTED")
       const binary = path.join(root, 'fixture');
       await writeFile(
         source,
-        `import Foundation\nimport Darwin\nlet supportDirectoryName="${namespace}"\nlet expectedBuildID="fixture+1"\n${block}\nlet attempt=UUID()\nrecordNativeStartup(.boot,.begin,attempt)\nif !FileManager.default.isExecutableFile(atPath:"${root}/missing-node") { recordNativeStartup(.runtime_check,.nodeMissing,attempt) }\nlet foreign=URL(fileURLWithPath:"${root}/foreign-node")\nlet words:[UInt32]=[0xfeedface,12,0,2,0,0,0]\ntry words.withUnsafeBytes { try Data($0).write(to:foreign) }\ntry FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:foreign.path)\nlet foreignChild=Process();foreignChild.executableURL=foreign\ndo { try foreignChild.run(); foreignChild.waitUntilExit(); fatalError("Foreign CPU unexpectedly executed") } catch { recordNativeStartup(.spawn,nativeStartupFailureCode(error),UUID()) }\nlet interrupted=Process();interrupted.executableURL=URL(fileURLWithPath:"/bin/sleep");interrupted.arguments=["5"]\ntry interrupted.run()\nrecordInterruptedNativeStartup(interrupted,false,UUID())\ninterrupted.terminate();interrupted.waitUntilExit()\n`
+        `import Foundation\nimport Darwin\nlet effectiveSupportDirectoryName="${namespace}"\nlet expectedBuildID="fixture+1"\n${block}\nlet attempt=UUID()\nrecordNativeStartup(.boot,.begin,attempt)\nif !FileManager.default.isExecutableFile(atPath:"${root}/missing-node") { recordNativeStartup(.runtime_check,.nodeMissing,attempt) }\nlet foreign=URL(fileURLWithPath:"${root}/foreign-node")\nlet words:[UInt32]=[0xfeedface,12,0,2,0,0,0]\ntry words.withUnsafeBytes { try Data($0).write(to:foreign) }\ntry FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:foreign.path)\nlet foreignChild=Process();foreignChild.executableURL=foreign\ndo { try foreignChild.run(); foreignChild.waitUntilExit(); fatalError("Foreign CPU unexpectedly executed") } catch { recordNativeStartup(.spawn,nativeStartupFailureCode(error),UUID()) }\nlet interrupted=Process();interrupted.executableURL=URL(fileURLWithPath:"/bin/sleep");interrupted.arguments=["5"]\ntry interrupted.run()\nrecordInterruptedNativeStartup(interrupted,false,UUID())\ninterrupted.terminate();interrupted.waitUntilExit()\n`
       );
       execFileSync('swiftc', [source, '-o', binary], { timeout: 30000, stdio: 'pipe' });
       execFileSync(binary, [], { timeout: 10000, stdio: 'pipe' });

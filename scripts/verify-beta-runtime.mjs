@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 import { parseMacosTarget, macosPaths, nativeAcceptanceAllowed } from './lib/macos-target.mjs';
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
-import { createPrivateKey, sign } from 'node:crypto';
+import { createPrivateKey, sign, randomUUID } from 'node:crypto';
 import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
   statSync,
+  lstatSync,
   writeFileSync,
   openSync,
   closeSync
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { BETA_PROFILE } from '../packages/shared/dist/environment.js';
+import { readBetaUpdateProfile, seedFixtureSmokeQueue } from './lib/native-update-profile.mjs';
 
 /**
  * Proves the packaged beta actually works, not merely that it is shaped right.
@@ -215,8 +217,21 @@ async function main() {
   const work = mkdtempSync(path.join(tmpdir(), 'soty-beta-runtime-'));
   const home = path.join(work, 'home');
   const media = path.join(work, 'media');
-  const support = path.join(home, 'Library', 'Application Support', 'Soty Beta');
-  mkdirSync(support, { recursive: true });
+  const updateProfile = await readBetaUpdateProfile(app);
+  // A sealed fixture profile survives A/B/C and is retained for recovery evidence.
+  // Ordinary beta keeps its existing disposable runtime journey.
+  const support = path.join(
+    updateProfile ? homedir() : home,
+    'Library',
+    'Application Support',
+    updateProfile?.supportDirectoryName ?? 'Soty Beta'
+  );
+  mkdirSync(support, { recursive: true, mode: 0o700 });
+  if (updateProfile) {
+    const info = lstatSync(support);
+    if (!info.isDirectory() || info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0)
+      fail('NATIVE_UPDATE_PROFILE_UNSAFE');
+  }
   mkdirSync(media, { recursive: true });
 
   const ffmpeg = path.join(app, 'Contents/Resources/runtime/bin/ffmpeg');
@@ -248,39 +263,39 @@ async function main() {
     ],
     { shell: false, timeout: Math.min(30_000, remainingMs()) }
   );
-  const jobId = 'beta-runtime-journey';
-  writeFileSync(
-    path.join(support, 'state.json'),
-    JSON.stringify({
-      jobs: [
-        {
-          id: jobId,
-          inputPath: input,
-          outputPath: path.join(media, 'beta runtime output.mp4'),
-          fileName: 'beta runtime input.mp4',
-          durationSeconds: 3,
-          originalSize: statSync(input).size,
-          finalSize: null,
-          progress: 0,
-          status: 'queued',
-          error: null,
-          preset: 'balanced',
-          estimateStatus: 'waiting',
-          estimatePreset: 'balanced'
-        }
-      ],
-      settings: { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null }
-    })
-  );
+  const jobId = updateProfile ? `beta-runtime-${randomUUID()}` : 'beta-runtime-journey';
+  const smokeState = {
+    jobs: [
+      {
+        id: jobId,
+        inputPath: input,
+        outputPath: path.join(media, 'beta runtime output.mp4'),
+        fileName: 'beta runtime input.mp4',
+        durationSeconds: 3,
+        originalSize: statSync(input).size,
+        finalSize: null,
+        progress: 0,
+        status: 'queued',
+        error: null,
+        preset: 'balanced',
+        estimateStatus: 'waiting',
+        estimatePreset: 'balanced'
+      }
+    ],
+    settings: { preset: 'balanced', outputMode: 'next-to-originals', outputFolder: null }
+  };
+  if (updateProfile) seedFixtureSmokeQueue(support, smokeState);
+  else writeFileSync(path.join(support, 'state.json'), JSON.stringify(smokeState));
 
   const webOnlyJourney = process.argv.some(arg => arg.startsWith('--web-only-bundle='));
+  const ownedRuntime = webOnlyJourney || Boolean(updateProfile);
   /** @type {import('node:child_process').ChildProcess | null} */
   let nativeLauncher = null;
   /** @type {Error | null} */
   let launchError = null;
   // A clean environment and a private HOME: this journey must not read or write
   // the developer's own beta state.
-  if (webOnlyJourney) {
+  if (ownedRuntime) {
     // Direct launch gives us an owned PID and inherited nice priority; LaunchServices
     // cannot prove which existing application's listener it adopted.
     const log = openSync(path.join(work, 'agent.log'), 'a', 0o600);
@@ -288,7 +303,7 @@ async function main() {
       nativeLauncher = spawn(path.join(app, 'Contents/MacOS/SotyBetaAgent'), [], {
         env: {
           PATH: '/usr/bin:/bin',
-          HOME: home,
+          ...(updateProfile ? {} : { HOME: home }),
           TMPDIR: '/tmp',
           NO_OPEN: '1',
           WISHLY_ALLOW_UNINSTALLED_AGENT: '1',
@@ -345,7 +360,7 @@ async function main() {
     if (stopped) return;
     stopped = true;
     if (
-      webOnlyJourney &&
+      ownedRuntime &&
       nativeLauncher?.pid &&
       ownedMarkers.get(nativeLauncher.pid) === processMarker(nativeLauncher.pid)
     ) {
@@ -367,10 +382,7 @@ async function main() {
       }
     }
     for (const pid of launched) {
-      if (
-        webOnlyJourney &&
-        (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid))
-      )
+      if (ownedRuntime && (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid)))
         continue;
       try {
         process.kill(pid, 'SIGTERM');
@@ -384,10 +396,7 @@ async function main() {
       spawnSync('sleep', ['0.1'], { shell: false });
     }
     for (const pid of launched) {
-      if (
-        webOnlyJourney &&
-        (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid))
-      )
+      if (ownedRuntime && (!ownedMarkers.get(pid) || ownedMarkers.get(pid) !== processMarker(pid)))
         continue;
       try {
         process.kill(pid, 'SIGKILL');
@@ -420,7 +429,7 @@ async function main() {
         })
       ).ok;
     });
-    if (webOnlyJourney) {
+    if (ownedRuntime) {
       const launcherPid = nativeLauncher?.pid;
       if (!launcherPid || ownedMarkers.get(launcherPid) !== processMarker(launcherPid))
         fail('WEB_ONLY_RUNTIME_OWNERSHIP_UNPROVEN');
@@ -469,6 +478,14 @@ async function main() {
     if (!health.ok) fail('the packaged beta agent reports ok=false');
     if (health.channel && health.channel !== 'beta')
       fail(`the packaged agent reports channel ${health.channel}, not beta`);
+    if (updateProfile) {
+      const receipt = await api('/api/app-update');
+      const installationId = readFileSync(
+        path.join(support, 'Updates/beta/installation-id'),
+        'utf8'
+      ).trim();
+      if (receipt.installationId !== installationId) fail('NATIVE_PROBE_PROFILE_MISMATCH');
+    }
     if (health.entitlement?.enforced !== true)
       fail('beta must enforce the entitlement gate; an unenforced gate tests nothing');
     if (typeof health.entitlementRevision !== 'string' || !health.entitlementRevision)

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { readNativeUpdateQualification } from './lib/native-update-qualification.mjs';
+import { betaUpdateProfile } from './lib/native-update-profile.mjs';
 import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
@@ -32,6 +33,13 @@ if (mode === 'production' && signed) {
 }
 const enabled = Boolean(signed && (mode === 'production' || (mode === 'beta' && fixture)));
 if (fixture && !signed) throw new Error('NATIVE_UPDATE_FIXTURE_REQUIRES_DEVELOPER_ID');
+const profile = betaUpdateProfile({
+  mode,
+  profileId: process.env.SOTY_UPDATE_FIXTURE_PROFILE,
+  fixtureOrigin: fixture,
+  enabled,
+  bundleId: mode === 'beta' ? 'com.wishly.beta' : undefined
+});
 const channel = mode === 'production' ? 'stable' : 'beta';
 const values = {
   SotyNativeUpdatesEnabled: ['bool', enabled ? 'true' : 'false'],
@@ -46,7 +54,8 @@ const values = {
     channel === 'stable' ? RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64 : pins.beta.manifestPublicKey
   ],
   SotyUpdateManifestURL: ['string', `${PRODUCTION_SITE_ORIGIN}/.well-known/wishly/stable.json`],
-  ...(fixture ? { SotyUpdateFixtureOrigin: ['string', fixture] } : {})
+  ...(fixture ? { SotyUpdateFixtureOrigin: ['string', fixture] } : {}),
+  ...(profile ? { SotyUpdateFixtureProfile: ['string', profile.profileId] } : {})
 };
 // The only cleartext native request is the fixed read-only loopback appcast.
 // ATS remains enabled for remote origins.
