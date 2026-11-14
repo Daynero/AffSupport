@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.0",
-  "buildNumber": "85",
-  "buildId": "1.5.0+85",
+  "version": "1.5.1",
+  "buildNumber": "86",
+  "buildId": "1.5.1+86",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
   "publishedAt": "2026-11-14T00:00:00.000Z",
@@ -13,15 +13,15 @@
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.0/Soty-v1.5.0-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-macOS-arm64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.0/Soty-v1.5.0-macOS-x64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-macOS-x64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.0/Soty-v1.5.0-Windows-x64.exe",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-Windows-x64.exe",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "2K4qNG21vxNNJDpEe2Kr6pGGulel-HjRgxhC4x65Mp5UxzPbGACwQqJtsM5SUSaHCKC9WvlfaidthRekzMHJxQ"
+  "signature": "Sftz3oi67BSh3XZ8ToLjS9Uj1lkl-wJ8EPlPCVB_xjwWx2iKBgHFk1etHCl5GuVycYTf9m3n_IGVUOZqeYP_Og"
 }
