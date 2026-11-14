@@ -42,6 +42,28 @@ that absent/obsolete versions cannot preserve an old refusal. All 61 delivery,
 preparation and delegate tests pass. Failed suite attempts do not publish global
 coverage or certify the candidate.
 
+The release-form build/environment/browser groups passed all 10 gates on clean
+`8c3c2a99995f5ed32336129286b32f30eca145a8`, including the full disposable database
+chain. The subsequent static/suite invocation passed all 16 gates and all eight
+shards: 11,569 assertions passed, none failed, and 99 named skips remained. Global
+line coverage was 84.23%, above the unchanged 83.66% baseline, but the overall
+result correctly failed the critical/per-file coverage ratchet in 12 modules.
+This is not a green release verification.
+
+Additional regressions cover keyboard selection deletion and failed warning reads,
+clock storage corruption/unavailability, signed native archive identity, settings
+navigation, canceled tag gestures and preparation polling/caching failures. All
+99 checks in the six-file focused web run pass. A diagnostic union with the
+previous full coverage clears the six web-module ratchets; it is only an analysis
+aid, not a canonical verification result. Native follow-up `8d0e3358` adds the
+remaining recovery/governor/platform/storage regressions and fixes a reproduced
+stale helper-release ownership race. All 143 focused native checks and 194 power
+checks pass (the latter retains two named load-test skips); governor line coverage
+is 98.72%, above its unchanged 95% critical floor. See the
+[native follow-up record](../../056-hevc-catalog-compatibility/reviews/native-recovery-followup.md).
+The combined working tree passes all 15 canonical static gates in 110 seconds.
+Final complete release verification remains pending for the committed candidate.
+
 ## Shared policy and performance
 
 The initial shared test failed collection because the module did not yet exist; this was not a reproduced behavioral failure. After implementation, all 43 checks pass: every one of the 32 garment price bands, inclusive endpoints, matching facts, exactly 2,000 distinct variants/titles/descriptions, bounded exhaustion, neutral unknowns, independent deterministic streams and malformed random bounds. Shared TypeScript build passes.

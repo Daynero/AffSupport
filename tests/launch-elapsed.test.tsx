@@ -8,6 +8,7 @@ afterEach(() => {
   cleanup();
   sessionStorage.clear();
   localStorage.clear();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 it('keeps one clock through preparation, acceptance, new child and catalog stages, then freezes on failure', async () => {
@@ -163,4 +164,36 @@ it('keeps elapsed wall time through an observation outage instead of freezing at
   });
   view.rerender({ active: true });
   expect(view.result.current).toBe('00:30');
+});
+
+it('cleans corrupt and expired cached clocks without touching unrelated preferences', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-14T10:00:00Z'));
+  localStorage.setItem('soty:launch-elapsed:old', JSON.stringify({ started: 1 }));
+  localStorage.setItem('soty:launch-elapsed:corrupt', '{');
+  localStorage.setItem('soty:launch-elapsed:empty', 'null');
+  localStorage.setItem('theme', 'dark');
+  const view = renderHook(() =>
+    useLaunchElapsed('cleanup', { ...generation, startedAt: '2026-11-14T08:00:00Z' }, false, true)
+  );
+  expect(view.result.current).toBe('2:00:00');
+  expect(localStorage.getItem('soty:launch-elapsed:old')).toBeNull();
+  expect(localStorage.getItem('soty:launch-elapsed:corrupt')).toBeNull();
+  expect(localStorage.getItem('soty:launch-elapsed:empty')).toBeNull();
+  expect(localStorage.getItem('theme')).toBe('dark');
+});
+
+it('keeps the authoritative elapsed time when browser storage cannot be read or written', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-14T10:00:00Z'));
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('storage blocked');
+  });
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('quota exceeded');
+  });
+  const view = renderHook(() =>
+    useLaunchElapsed('private', { ...generation, startedAt: '2026-11-14T09:58:00Z' }, false, true)
+  );
+  expect(view.result.current).toBe('02:00');
 });

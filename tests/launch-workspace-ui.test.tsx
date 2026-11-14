@@ -1613,6 +1613,39 @@ it('copies selected list links and deletes the exact selection with the chosen r
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Do to all' })).toBeNull());
   expect(seams.list.mock.calls.length).toBeGreaterThan(1);
 });
+
+it('deletes the keyboard selection only after warnings are loaded and confirmed', async () => {
+  seams.delete = true;
+  const second = '79999999-0000-4000-8000-000000000003';
+  seams.list.mockResolvedValue({ items: [listLaunch(), listLaunch(second)], nextCursor: null });
+  seams.archiveWarning.mockResolvedValue({
+    hasCatalog: true,
+    hasRestitch: false,
+    suppressed: false
+  });
+  seams.archive.mockResolvedValue(undefined);
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Select loaded launches' }));
+  fireEvent.keyDown(document, { key: 'Delete' });
+  await screen.findByText('The catalog will remain in the workspace.');
+  expect(seams.archiveWarning.mock.calls.map(call => call[1])).toEqual([LAUNCH, second]);
+  expect(seams.archive).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete launch' }));
+  await waitFor(() => expect(seams.archive).toHaveBeenCalledTimes(2));
+  expect(seams.archive.mock.calls.map(call => call[1])).toEqual([LAUNCH, second]);
+});
+
+it('surfaces a warning-read failure without deleting the keyboard selection', async () => {
+  seams.delete = true;
+  seams.list.mockResolvedValue({ items: [listLaunch()], nextCursor: null });
+  seams.archiveWarning.mockRejectedValue(new Error('offline'));
+  render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Select launch' }));
+  fireEvent.keyDown(document, { key: 'Backspace' });
+  await screen.findByRole('alert');
+  expect(seams.archive).not.toHaveBeenCalled();
+  expect(screen.getByRole('checkbox', { name: 'Select launch' })).toHaveProperty('checked', true);
+});
 it('keeps a failed list deletion retry tied to its original request and exposes clipboard errors', async () => {
   seams.delete = true;
   seams.list.mockResolvedValue({ items: [listLaunch()], nextCursor: null });

@@ -7,6 +7,7 @@ import {
   type StableReleaseManifest
 } from '../packages/shared/src/release.js';
 import { loadStableReleaseManifest } from '../apps/web/src/release-manifest.js';
+import { nativeCandidate } from './support/native-app-updates';
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
 const publicKeyBase64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
@@ -58,6 +59,31 @@ function fetcherFor(manifest: unknown): typeof fetch {
 }
 
 describe('release manifest signature', () => {
+  it('accepts a signed native archive only for the same release identity and target', async () => {
+    const candidate = nativeCandidate();
+    const manifest = {
+      ...baseManifest(),
+      version: candidate.version,
+      buildNumber: candidate.buildNumber,
+      buildId: candidate.buildId,
+      nativeUpdates: { 'macos-arm64': candidate }
+    };
+    await expect(
+      loadStableReleaseManifest(fetcherFor(signManifest(manifest)), publicKeyBase64)
+    ).resolves.toMatchObject({ nativeUpdates: { 'macos-arm64': candidate } });
+    for (const nativeUpdates of [
+      { 'macos-x64': candidate },
+      { 'macos-arm64': { ...candidate, channel: 'beta' } },
+      { 'macos-arm64': { ...candidate, buildNumber: '998', buildId: '9.0.0+998' } },
+      { 'macos-arm64': { ...candidate, archive: { ...candidate.archive, length: 0 } } }
+    ]) {
+      const mismatched = { ...manifest, nativeUpdates } as StableReleaseManifest;
+      await expect(
+        loadStableReleaseManifest(fetcherFor(signManifest(mismatched)), publicKeyBase64)
+      ).rejects.toThrow('INVALID');
+    }
+  });
+
   it('accepts a correctly signed manifest', async () => {
     const manifest = signManifest(baseManifest());
     await expect(

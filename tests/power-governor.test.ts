@@ -60,6 +60,115 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
+describe('native helper lifetime ownership', () => {
+  function native(options: Partial<ConstructorParameters<typeof PowerGovernor>[0]> = {}) {
+    const pause = vi.fn<(pid: number) => boolean>(() => true),
+      resume = vi.fn<(pid: number) => boolean>(() => true);
+    // These platform seams must never signal a real PID from this fixture.
+    vi.spyOn(platform, 'pauseProcessId').mockImplementation(pause);
+    vi.spyOn(platform, 'resumeProcessId').mockImplementation(resume);
+    vi.spyOn(os, 'setPriority').mockImplementation(() => {});
+    return { pause, resume, power: governor(options) };
+  }
+  it('retains a new native helper adoption when an older release callback is called twice', () => {
+    const { power } = native();
+    const first = power.registerNativeHelper(1234);
+    first();
+    const second = power.registerNativeHelper(1234);
+    first();
+    expect(power.childPids()).toEqual([1234]);
+    expect(power.state().activeChildren).toBe(1);
+    second();
+    expect(power.childPids()).toEqual([]);
+  });
+  it('ignores invalid and duplicate adoption without taking ownership from an existing child', () => {
+    const { power, pause, resume } = native();
+    for (const pid of [0, -1, NaN, 1.5]) power.registerNativeHelper(pid)();
+    expect(power.state().activeChildren).toBe(0);
+    const release = power.registerNativeHelper(1234);
+    power.registerNativeHelper(1234)();
+    expect(power.childPids()).toEqual([1234]);
+    const { child } = fakeChild(1234);
+    power.register(child, { toolId: 'test' });
+    release();
+    expect(power.childPids()).toEqual([1234]);
+    expect(pause).not.toHaveBeenCalled();
+    expect(resume).not.toHaveBeenCalled();
+  });
+  it('resumes a throttled native helper before release and leaves killing it to its native host', async () => {
+    vi.useFakeTimers();
+    const { power, pause, resume } = native();
+    const release = power.registerNativeHelper(1234);
+    await power.setLimit(50);
+    vi.advanceTimersByTime(120);
+    expect(pause).toHaveBeenCalledWith(1234);
+    expect(power.state().activeChildren).toBe(1);
+    release();
+    expect(resume).toHaveBeenCalledWith(1234);
+    expect(power.childPids()).toEqual([]);
+    const after = resume.mock.calls.length;
+    release();
+    expect(resume).toHaveBeenCalledTimes(after);
+    power.registerNativeHelper(4321);
+    vi.advanceTimersByTime(120);
+    await power.shutdown();
+    expect(resume).toHaveBeenCalledWith(4321);
+    expect(power.childPids()).toEqual([]);
+  });
+  it('continues controlling peers when native or descendant signaling and process discovery fail', async () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    const descendantSignals = {
+      pause: vi.fn<(pid: number) => boolean>(() => {
+        throw new Error('pause unavailable');
+      }),
+      resume: vi.fn<(pid: number) => boolean>(() => {
+        throw new Error('resume unavailable');
+      }),
+      setPriority: vi.fn(() => {
+        throw new Error('priority unavailable');
+      })
+    };
+    const { power, pause, resume } = native({
+      onError,
+      descendantSignals,
+      probeProcessTable: async () => {
+        throw new Error('table unavailable');
+      }
+    });
+    const release = power.registerNativeHelper(1234);
+    power.registerNativeHelper(4321);
+    pause.mockImplementation(pid => {
+      if (pid === 1234) throw new Error('native pause unavailable');
+      return true;
+    });
+    await power.setLimit(50);
+    power.setDescendants(4321, [4322]);
+    vi.advanceTimersByTime(120);
+    expect(pause).toHaveBeenCalledWith(4321);
+    expect(descendantSignals.pause).toHaveBeenCalledWith(4322);
+    // A later successful suspension is still resumed even when one sibling fails.
+    descendantSignals.pause.mockImplementation(() => true);
+    vi.advanceTimersByTime(200);
+    resume.mockImplementation(pid => {
+      if (pid === 4321) throw new Error('native resume unavailable');
+      return true;
+    });
+    vi.advanceTimersByTime(100);
+    expect(descendantSignals.resume).toHaveBeenCalledWith(4322);
+    await power.refreshTree();
+    release();
+    expect(onError.mock.calls.map(([, message]) => message)).toEqual(
+      expect.arrayContaining([
+        'Could not suspend a managed child process',
+        'Could not suspend a descendant of a managed child process',
+        'Could not resume a managed child process',
+        'Could not resume a descendant of a managed child process',
+        'Could not walk the process tree of a managed child'
+      ])
+    );
+  });
+});
 
 describe('cpu budget', () => {
   it('scales the thread budget with the limit', () => {

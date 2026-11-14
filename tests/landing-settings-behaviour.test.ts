@@ -79,6 +79,20 @@ describe('where an optimized landing is written', () => {
 });
 
 describe('the settings survive the app closing', () => {
+  it('reports strict persistence failure while keeping ordinary settings saves best effort', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'landing-settings-failed-'));
+    roots.push(root);
+    const blockedParent = path.join(root, 'existing-file');
+    await writeFile(blockedParent, 'not a settings directory');
+    const destination = path.join(blockedParent, 'settings.json');
+    const settings = { ...defaultLandingSettings(), imageQuality: 'high' as const };
+    await expect(saveLandingSettings(settings, destination)).resolves.toBeUndefined();
+    await expect(saveLandingSettings(settings, destination, true)).rejects.toMatchObject({
+      code: expect.any(String)
+    });
+    expect(await readFile(blockedParent, 'utf8')).toBe('not a settings directory');
+    expect(await readdir(root)).toEqual(['existing-file']);
+  });
   it('reads back what was written, and fills in what an older file never had', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'landing-settings-'));
     roots.push(root);
