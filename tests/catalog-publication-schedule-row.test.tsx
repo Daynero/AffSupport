@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it, onTestFinished, vi } from 'vitest';
 import { CatalogCreationVideoFields } from '../apps/web/src/team/product-catalog/CatalogCreationVideoFields';
 import { catalogPublicationFirstDay } from '../apps/web/src/team/product-catalog/catalogPublicationDraft';
 afterEach(cleanup);
@@ -37,6 +37,14 @@ it('keeps scheduling compact and opens the shared calendar only when editing the
   expect(onChange).not.toHaveBeenCalled();
 });
 it('renders today with the shared calendar day marker while keeping the selection separate', () => {
+  // The marker follows the runtime's local day and the draft its Kyiv day. Near
+  // midnight those differ (a UTC CI runner at 22:16Z is already "tomorrow" in Kyiv),
+  // so pin an instant that is 14 November from UTC-8 to UTC+14; this test is about the marker.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-14T08:00:00.000Z'));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const today = catalogPublicationFirstDay('Europe/Kyiv');
   render(
     <CatalogCreationVideoFields
