@@ -30,6 +30,13 @@ export interface CatalogVideoR2Config {
 export const CATALOG_VIDEO_OBJECT_KEY = /^v\/[0-9a-f]{32}\.mp4$/u;
 export const CATALOG_VIDEO_MIME = 'video/mp4';
 
+/** A single strong entity tag; never allow a wildcard or a list in a proof condition. */
+export function stagingEtag(value: string | null): string {
+  if (!value || !/^"[\x21\x23-\x7e]{1,200}"$/u.test(value))
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  return value;
+}
+
 export function readCatalogVideoR2Config(
   env: (key: string) => string | undefined
 ): CatalogVideoR2Config | null {
@@ -271,6 +278,7 @@ export class CatalogVideoR2 {
         method: 'POST',
         headers: {
           'Content-Type': 'application/xml',
+          'If-None-Match': '*',
           'Content-Length': String(bytes.byteLength),
           'X-Amz-Content-Sha256': await sha256Hex(bytes)
         }
@@ -303,7 +311,10 @@ export class CatalogVideoR2 {
     if (!response.ok && response.status !== 404) providerFailure(response.status);
   }
 
-  async headStaging(key: string, signal: AbortSignal): Promise<{ sizeBytes: number } | null> {
+  async headStaging(
+    key: string,
+    signal: AbortSignal
+  ): Promise<{ sizeBytes: number; etag: string } | null> {
     const signed = await this.signer.sign(
       new Request(this.endpoint('staging', key), { method: 'HEAD' })
     );
@@ -313,14 +324,15 @@ export class CatalogVideoR2 {
     if (!response.ok) providerFailure(response.status);
     const size = Number(response.headers.get('content-length'));
     if (!Number.isSafeInteger(size) || size < 0) throw new TeamFunctionError('INVALID_RESPONSE');
-    return { sizeBytes: size };
+    return { sizeBytes: size, etag: stagingEtag(response.headers.get('etag')) };
   }
 
   async readStagingRange(
     key: string,
     start: number,
     end: number,
-    signal: AbortSignal
+    signal: AbortSignal,
+    identity: { etag: string; sizeBytes: number }
   ): Promise<Uint8Array> {
     if (
       !Number.isSafeInteger(start) ||
@@ -331,25 +343,38 @@ export class CatalogVideoR2 {
     )
       throw new TeamFunctionError('INVALID_INPUT');
     const signed = await this.signer.sign(
-      new Request(this.endpoint('staging', key), { headers: { Range: `bytes=${start}-${end}` } })
+      new Request(this.endpoint('staging', key), {
+        headers: { Range: `bytes=${start}-${end}`, 'If-Match': stagingEtag(identity.etag) }
+      })
     );
     const response = await this.send(signed, signal);
     if (response.status !== 206) {
       await response.body?.cancel();
+      if (response.status === 412) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
       if (response.status === 404)
         throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
       providerFailure(response.status);
+    }
+    const length = response.headers.get('content-length');
+    if (
+      response.headers.get('content-range') !== `bytes ${start}-${end}/${identity.sizeBytes}` ||
+      stagingEtag(response.headers.get('etag')) !== identity.etag ||
+      (length !== null && (!/^\d+$/u.test(length) || Number(length) !== end - start + 1))
+    ) {
+      await response.body?.cancel();
+      throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
     }
     return collect(response, end - start + 1);
   }
 
   /** Server-side copy of the verified staging object into the public bucket under the same key. */
-  async promote(key: string, signal: AbortSignal): Promise<void> {
+  async promote(key: string, signal: AbortSignal, etag: string): Promise<void> {
     const signed = await this.signer.sign(
       new Request(this.endpoint('public', key), {
         method: 'PUT',
         headers: {
           'x-amz-copy-source': `/${this.config.stagingBucket}/${key}`,
+          'x-amz-copy-source-if-match': stagingEtag(etag),
           'x-amz-metadata-directive': 'REPLACE',
           'Content-Type': CATALOG_VIDEO_MIME,
           'Cache-Control': 'public,max-age=31536000,immutable',
@@ -366,6 +391,7 @@ export class CatalogVideoR2 {
     }
     const text = await response.text();
     if (!response.ok) {
+      if (response.status === 412) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
       if (response.status >= 500)
         throw new TeamFunctionError('VIDEO_R2_UPLOAD_UNKNOWN', { retryable: true });
       providerFailure(response.status);

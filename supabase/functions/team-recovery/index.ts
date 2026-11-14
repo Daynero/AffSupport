@@ -18,6 +18,7 @@ import {
 } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { handleRecovery } from './handler.ts';
+import { recoveryDriveResult } from './drive-response.ts';
 
 Deno.serve(async request => {
   const preflight = corsPreflight(request);
@@ -86,10 +87,7 @@ Deno.serve(async request => {
             signal: AbortSignal.timeout(10_000)
           }
         );
-        const value: unknown = await response.json();
-        if (!response.ok || !isRecord(value) || value.ok !== true)
-          throw new TeamFunctionError('DRIVE_UNAVAILABLE');
-        return value.value;
+        return recoveryDriveResult(response);
       },
       variants: nativeRestitchEnabled({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),

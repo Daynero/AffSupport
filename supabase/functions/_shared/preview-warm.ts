@@ -81,7 +81,10 @@ export async function runPreviewWarmSlice(
       }
       // Anything else is this one file's problem, not the provider's: the
       // catalog says so and moves on rather than retrying it forever.
-      await dependencies.commit(row, { state: 'unavailable', reason: 'provider_missing' });
+      await dependencies.commit(row, {
+        state: 'unavailable',
+        reason: code === 'TOO_LARGE' ? 'too_large' : 'provider_missing'
+      });
       summary.unavailable += 1;
     }
   }

@@ -12,7 +12,12 @@
  * identity, so renaming or moving it in Drive loses nothing.
  */
 
-import type { DriveFileMetadata, GoogleDriveClient } from '../_shared/drive.ts';
+import {
+  proveLiveAncestry,
+  type DriveFileMetadata,
+  type GoogleDriveClient
+} from '../_shared/drive.ts';
+import { TeamFunctionError } from '../_shared/errors.ts';
 
 export const TASK_DROP_FOLDER_MARK = 'soty.task-drops';
 /** What a person sees in Drive. Plain, and says who put it there. */
@@ -20,7 +25,7 @@ export const TASK_DROP_FOLDER_NAME = 'Task attachments';
 
 export type TaskDropFolderDrive = Pick<
   GoogleDriveClient,
-  'findFolderByAppProperty' | 'createFolder'
+  'findFolderByAppProperty' | 'createFolder' | 'getFile'
 >;
 
 export interface TaskDropFolderResolution {
@@ -37,15 +42,41 @@ export function taskDropFolderMarker(teamId: string): string {
 export async function resolveTaskDropFolder(input: {
   teamId: string;
   rootFolderId: string;
+  workspaceRootFolderId: string;
   drive: TaskDropFolderDrive;
 }): Promise<TaskDropFolderResolution> {
   const marker = taskDropFolderMarker(input.teamId);
   const found = await input.drive.findFolderByAppProperty({
     key: TASK_DROP_FOLDER_MARK,
     value: marker,
-    driveId: null
+    parentId: input.rootFolderId
   });
   if (found && !found.trashed) return { folder: found, created: false, marker };
+
+  // The old team-only marker may still exist in a previously connected root.
+  // Keep renamed/moved legacy folders only after proving current ancestry;
+  // never move a folder from outside this connection back into the space.
+  const legacy = await input.drive.findFolderByAppProperty({
+    key: TASK_DROP_FOLDER_MARK,
+    value: marker,
+    driveId: null
+  });
+  if (legacy && !legacy.trashed) {
+    try {
+      const verified = await proveLiveAncestry({
+        client: input.drive,
+        fileId: legacy.id,
+        rootFolderId: input.workspaceRootFolderId
+      });
+      return { folder: verified, created: false, marker };
+    } catch (error) {
+      if (
+        !(error instanceof TeamFunctionError) ||
+        !['ROOT_ESCAPE', 'NOT_FOUND'].includes(error.code)
+      )
+        throw error;
+    }
+  }
 
   const created = await input.drive.createFolder({
     name: TASK_DROP_FOLDER_NAME,

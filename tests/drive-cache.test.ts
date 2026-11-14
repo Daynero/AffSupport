@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import type { DriveFileMetadata } from '../supabase/functions/_shared/drive';
+import { TeamFunctionError } from '../supabase/functions/_shared/errors';
+import {
+  resolveTaskDropFolder,
+  TASK_DROP_FOLDER_MARK,
+  taskDropFolderMarker
+} from '../supabase/functions/drive-ops/task-drop-folder';
 import {
   CACHE_FOLDER_MARK,
   CACHE_README,
@@ -69,13 +75,29 @@ function drive() {
         return file;
       }
     ),
-    listChildren: vi.fn(async (input: { parentId: string }) => ({
-      files: [...files.values()].filter(file => file.parents.includes(input.parentId)),
-      nextPageToken: null,
-      incompleteSearch: false,
-      invalidEntries: 0,
-      complete: true
-    })),
+    listChildren: vi.fn(
+      async (input: {
+        parentId: string;
+        pageToken?: string | null;
+        appProperty?: { key: string; value: string };
+      }) => {
+        const matching = [...files.values()].filter(
+          file =>
+            file.parents.includes(input.parentId) &&
+            (!input.appProperty ||
+              file.appProperties[input.appProperty.key] === input.appProperty.value)
+        );
+        const offset = Number(input.pageToken ?? 0);
+        const nextPageToken = offset + 100 < matching.length ? String(offset + 100) : null;
+        return {
+          files: matching.slice(offset, offset + 100),
+          nextPageToken,
+          incompleteSearch: false,
+          invalidEntries: 0,
+          complete: nextPageToken === null
+        };
+      }
+    ),
     createConvertedFile: vi.fn(
       async (input: {
         name: string;
@@ -112,6 +134,79 @@ function drive() {
 }
 
 const path = `ab/${'ab'.repeat(32)}.thumbnail`;
+
+describe('drop destinations stay inside the current connected root', () => {
+  it('ignores an old marked folder outside the current root and reuses the new destination', async () => {
+    const d = drive();
+    d.files.set('cache', metadata('cache'));
+    d.files.set(
+      'old-drops',
+      metadata('old-drops', {
+        parents: [],
+        appProperties: { [TASK_DROP_FOLDER_MARK]: taskDropFolderMarker('team') }
+      })
+    );
+    const first = await resolveTaskDropFolder({
+      teamId: 'team',
+      rootFolderId: 'cache',
+      workspaceRootFolderId: 'root',
+      drive: d.client
+    });
+    expect(first.folder.id).not.toBe('old-drops');
+    expect(first.folder.parents).toEqual(['cache']);
+    expect(
+      (
+        await resolveTaskDropFolder({
+          teamId: 'team',
+          rootFolderId: 'cache',
+          workspaceRootFolderId: 'root',
+          drive: d.client
+        })
+      ).folder.id
+    ).toBe(first.folder.id);
+    expect(d.client.createFolder).toHaveBeenCalledOnce();
+    expect(d.client.updateFileMetadata).not.toHaveBeenCalled();
+    expect(d.files.get('old-drops')!.parents).toEqual([]);
+  });
+  it('retains a renamed legacy folder proven inside the connected root', async () => {
+    const d = drive();
+    d.files.set(
+      'legacy',
+      metadata('legacy', {
+        name: 'Renamed attachments',
+        appProperties: { [TASK_DROP_FOLDER_MARK]: taskDropFolderMarker('team') }
+      })
+    );
+    const result = await resolveTaskDropFolder({
+      teamId: 'team',
+      rootFolderId: 'cache',
+      workspaceRootFolderId: 'root',
+      drive: d.client
+    });
+    expect(result.folder.id).toBe('legacy');
+    expect(result.created).toBe(false);
+    expect(d.client.createFolder).not.toHaveBeenCalled();
+  });
+  it('does not create a duplicate destination when legacy ancestry cannot be read temporarily', async () => {
+    const d = drive();
+    d.files.set(
+      'legacy',
+      metadata('legacy', {
+        appProperties: { [TASK_DROP_FOLDER_MARK]: taskDropFolderMarker('team') }
+      })
+    );
+    d.client.getFile.mockRejectedValueOnce(new TeamFunctionError('DRIVE_UNAVAILABLE'));
+    await expect(
+      resolveTaskDropFolder({
+        teamId: 'team',
+        rootFolderId: 'cache',
+        workspaceRootFolderId: 'root',
+        drive: d.client
+      })
+    ).rejects.toMatchObject({ code: 'DRIVE_UNAVAILABLE' });
+    expect(d.client.createFolder).not.toHaveBeenCalled();
+  });
+});
 
 describe('connected Drive media cache', () => {
   it('creates one marked root and one explanatory README, without adopting a same-name user folder', async () => {
@@ -195,6 +290,32 @@ describe('connected Drive media cache', () => {
     client.listChildren.mockRejectedValueOnce(new Error('404'));
     const result = await new DriveThumbnailCache(client, 'team-shard-stale', 'root').read(path);
     expect(new Uint8Array(await result!.body.arrayBuffer())).toEqual(data);
+  });
+
+  it('reads and reuses a thumbnail without paging through unrelated cached pictures', async () => {
+    const { client, files } = drive();
+    const cache = new DriveThumbnailCache(client, 'team-filtered-shard', 'root');
+    const data = new Uint8Array(64).fill(7);
+    await cache.store(path, data, 'image/webp');
+    const target = [...files.values()].find(file => file.appProperties['soty.thumbnail'] === path)!;
+    for (let i = 0; i < 250; i++) {
+      files.set(
+        `unrelated-${i}`,
+        metadata(`unrelated-${i}`, {
+          parents: target.parents,
+          mimeType: 'image/webp',
+          size: 64,
+          appProperties: { 'soty.thumbnail': `unrelated-${i}` }
+        })
+      );
+    }
+    client.listChildren.mockClear();
+    expect(new Uint8Array(await (await cache.read(path))!.body.arrayBuffer())).toEqual(data);
+    expect(client.listChildren).toHaveBeenCalledTimes(1);
+    client.listChildren.mockClear();
+    await cache.store(path, data, 'image/webp');
+    expect(client.listChildren).toHaveBeenCalledTimes(1);
+    expect(client.createConvertedFile).toHaveBeenCalledTimes(2);
   });
 
   it('rejects invalid paths and oversized/non-image cache payloads before creating folders', async () => {

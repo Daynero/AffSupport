@@ -3,6 +3,7 @@ import { authorizeCaller } from '../_shared/auth.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import { executeFinanceExport } from './handler.ts';
 import { financeExportErrorResponse } from './response.ts';
+import { parseJsonBody } from '../_shared/validation.ts';
 
 Deno.serve(async request => {
   const preflight = corsPreflight(request);
@@ -24,7 +25,9 @@ Deno.serve(async request => {
       auth: { persistSession: false, autoRefreshToken: false }
     });
     await authorizeCaller(request, client);
-    const result = await executeFinanceExport(await request.json(), client);
+    const parsed = await parseJsonBody(request);
+    if (!parsed.ok) throw new Error('INVALID_INPUT');
+    const result = await executeFinanceExport(parsed.value, client);
     return new Response(result.bytes, {
       headers: {
         ...headers,

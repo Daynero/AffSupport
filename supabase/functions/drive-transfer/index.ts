@@ -68,7 +68,10 @@ import {
   type PreviewMaterialRecord,
   type PreviewMode
 } from './handler.ts';
-import { thumbnailCachePath as sharedThumbnailCachePath } from '../_shared/thumbnails.ts';
+import {
+  thumbnailCachePath as sharedThumbnailCachePath,
+  readThumbnailBytes
+} from '../_shared/thumbnails.ts';
 import {
   DriveThumbnailCache,
   ensureDriveCacheRoot,
@@ -1156,7 +1159,7 @@ async function handleThumbnail(
       { retryable: false }
     );
   }
-  const body = new Uint8Array(await upstream.arrayBuffer());
+  const body = await readThumbnailBytes(upstream);
   if (body.byteLength !== contentLength) {
     throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
   }

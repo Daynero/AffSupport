@@ -1,4 +1,47 @@
-import { inspectArchive, type ArchiveInspection } from './zip-directory.ts';
+import {
+  inspectArchive,
+  ZIP_DIRECTORY_MAX_BYTES,
+  type ArchiveInspection
+} from './zip-directory.ts';
+import { BodyLimitError, readBoundedBody } from './http-body.ts';
+
+/** A provider may ignore Range; only a proven, bounded range reaches the ZIP parser. */
+export async function readArchiveRange(
+  response: Response,
+  start: number,
+  end: number,
+  fileSize: number
+): Promise<Uint8Array | null> {
+  const expected = end - start + 1;
+  const range = response.headers.get('content-range')?.match(/^bytes (\d+)-(\d+)\/(\d+)$/u);
+  const validRange =
+    response.status === 206 &&
+    range &&
+    Number(range[1]) === start &&
+    Number(range[2]) === end &&
+    Number(range[3]) === fileSize;
+  const fullSmallFile = response.status === 200 && start === 0 && end === fileSize - 1;
+  const length = response.headers.get('content-length');
+  if (
+    ![start, end, fileSize].every(Number.isSafeInteger) ||
+    start < 0 ||
+    end < start ||
+    end >= fileSize ||
+    expected > ZIP_DIRECTORY_MAX_BYTES ||
+    (!validRange && !fullSmallFile) ||
+    (length !== null && (!/^\d+$/u.test(length) || Number(length) !== expected))
+  ) {
+    void response.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  try {
+    const bytes = await readBoundedBody(response.body, expected);
+    return bytes.byteLength === expected ? bytes : null;
+  } catch (error) {
+    if (error instanceof BodyLimitError) return null;
+    throw error;
+  }
+}
 
 /** One claimed archive, as `service_claim_archive_inspections` returns it. */
 export interface ArchiveInspectionRow {

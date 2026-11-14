@@ -10,7 +10,7 @@ select has_table('private','catalog_video_r2_journal','050 journal exists');
 select has_table('public','team_catalog_video_r2_signals','050 public signals exist');
 select has_column('private','catalog_publication_link_receipts','link_kind','publication link receipts carry the link kind');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='public.team_catalog_video_r2_signals'::regclass),'signals force RLS');
-select ok((select count(*)=8 and bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname like 'catalog_video_r2_%' and c.relkind='r'),'all eight private video tables enable RLS');
+select ok((select count(*)=10 and bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='private' and c.relname like 'catalog_video_r2_%' and c.relkind='r'),'all ten private video tables enable RLS');
 select ok(not has_table_privilege('authenticated','private.catalog_video_r2_copies','SELECT'),'object keys are not browser readable');
 select ok(not has_table_privilege('service_role','private.catalog_video_r2_copies','SELECT'),'service role reaches copies only through RPC');
 select ok(not has_function_privilege('authenticated','public.service_catalog_video_r2_claim(text)','EXECUTE'),'browser cannot claim worker copies');

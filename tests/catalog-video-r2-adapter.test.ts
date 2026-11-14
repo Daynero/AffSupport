@@ -134,6 +134,8 @@ function fakeStorage(
       const source = request.headers.get('x-amz-copy-source')!.replace(/^\/[^/]+\//u, '');
       const bytes = staging.get(source);
       if (!bytes) return new Response('<Error><Code>NoSuchKey</Code></Error>', { status: 404 });
+      if (request.headers.get('x-amz-copy-source-if-match') !== '"final"')
+        return new Response(null, { status: 412 });
       publicBucket.set(key, bytes);
       return new Response('<CopyObjectResult><ETag>"copied"</ETag></CopyObjectResult>', {
         status: 200
@@ -144,7 +146,7 @@ function fakeStorage(
       if (!bytes) return new Response(null, { status: options.headAfterDelete ?? 404 });
       return new Response(null, {
         status: 200,
-        headers: { 'content-length': String(bytes.byteLength) }
+        headers: { 'content-length': String(bytes.byteLength), etag: '"final"' }
       });
     }
     if (method === 'GET') {
@@ -153,7 +155,12 @@ function fakeStorage(
       const range = request.headers.get('range');
       if (range) {
         const [, s, e] = /^bytes=(\d+)-(\d+)$/u.exec(range)!;
-        return new Response(body(bytes.slice(Number(s), Number(e) + 1)), { status: 206 });
+        if (request.headers.get('if-match') !== '"final"')
+          return new Response(null, { status: 412 });
+        return new Response(body(bytes.slice(Number(s), Number(e) + 1)), {
+          status: 206,
+          headers: { 'content-range': `bytes ${s}-${e}/${bytes.length}`, etag: '"final"' }
+        });
       }
       return new Response(body(bytes), { status: 200 });
     }
@@ -223,10 +230,13 @@ describe('catalog video R2 adapter', () => {
       ],
       signal()
     );
-    expect(await r2.headStaging(KEY, signal())).toEqual({ sizeBytes: 8_000 });
-    const back = await r2.readStagingRange(KEY, 5_000, 7_999, signal());
+    expect(await r2.headStaging(KEY, signal())).toEqual({ sizeBytes: 8_000, etag: '"final"' });
+    const back = await r2.readStagingRange(KEY, 5_000, 7_999, signal(), {
+      sizeBytes: 8000,
+      etag: '"final"'
+    });
     expect(Buffer.from(back).equals(Buffer.from(part2))).toBe(true);
-    await r2.promote(KEY, signal());
+    await r2.promote(KEY, signal(), '"final"');
     expect(await r2.publicHead(KEY, signal())).toEqual({
       sizeBytes: 8_000,
       contentType: 'video/mp4',
@@ -359,9 +369,47 @@ describe('catalog video R2 adapter', () => {
     }
     expect(caught).toBeInstanceOf(TeamFunctionError);
     expect((caught as TeamFunctionError).message).toBe('VIDEO_R2_PUBLIC_UNREACHABLE');
-    await expect(r2.readStagingRange(KEY, 0, 64 * 1024 * 1024, signal())).rejects.toMatchObject({
+    await expect(
+      r2.readStagingRange(KEY, 0, 64 * 1024 * 1024, signal(), { sizeBytes: 8000, etag: '"final"' })
+    ).rejects.toMatchObject({
       code: 'INVALID_INPUT'
     });
+  });
+
+  it.each(['range', 'length', 'etag', 'weak-etag', 'precondition'] as const)(
+    'rejects an unpinned staging read: %s',
+    async kind => {
+      const fetcher: typeof fetch = async input => {
+        const req = input as Request;
+        expect(req.headers.get('if-match')).toBe('"proof"');
+        return new Response(new Uint8Array([1, 2, 3]), {
+          status: kind === 'precondition' ? 412 : 206,
+          headers: {
+            'content-range': kind === 'range' ? 'bytes 1-3/3' : 'bytes 0-2/3',
+            'content-length': kind === 'length' ? '4' : '3',
+            etag: kind === 'etag' ? '"other"' : kind === 'weak-etag' ? 'W/"proof"' : '"proof"'
+          }
+        });
+      };
+      const r2 = new CatalogVideoR2(config(), signer, fetcher);
+      await expect(
+        r2.readStagingRange(KEY, 0, 2, signal(), { sizeBytes: 3, etag: '"proof"' })
+      ).rejects.toBeInstanceOf(TeamFunctionError);
+    }
+  );
+
+  it('pins promotion to the proven source and never falls back after a precondition failure', async () => {
+    const calls: Request[] = [];
+    const r2 = new CatalogVideoR2(config(), signer, async input => {
+      calls.push(input as Request);
+      return new Response('', { status: 412 });
+    });
+    await expect(r2.promote(KEY, signal(), '"proof"')).rejects.toMatchObject({
+      code: 'VIDEO_R2_CHECKSUM_MISMATCH'
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.headers.get('x-amz-copy-source-if-match')).toBe('"proof"');
+    expect(calls[0]!.headers.has('if-match')).toBe(false);
   });
 
   it('computes MD5 incrementally exactly like the one-shot digest', () => {

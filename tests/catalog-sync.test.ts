@@ -622,7 +622,7 @@ describe('durable catalog synchronization', () => {
     );
   });
 
-  it('normalizes incomplete Drive change metadata to an unavailable change record', async () => {
+  it('rejects incomplete Drive change metadata without treating the file as unavailable', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -636,8 +636,9 @@ describe('durable catalog synchronization', () => {
       fetchImpl as unknown as typeof fetch
     );
 
-    await expect(drive.listChanges({ pageToken: 'change-token' })).resolves.toMatchObject({
-      changes: [{ fileId: 'partial-file', removed: false, file: null }]
+    await expect(drive.listChanges({ pageToken: 'change-token' })).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+      retryable: true
     });
   });
 

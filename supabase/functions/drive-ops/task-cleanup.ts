@@ -9,7 +9,12 @@ export async function runTaskCleanupTick(
   service: ServiceRpcClient,
   driveFor: (
     credentialId: string
-  ) => Promise<Pick<GoogleDriveClient, 'getFile' | 'updateFileMetadata'>>
+  ) => Promise<
+    Pick<
+      GoogleDriveClient,
+      'getFile' | 'getProcessOutputRecoveryFile' | 'trashProcessOutputConditionally'
+    >
+  >
 ): Promise<{ completed: number; pending: number }> {
   const rpc = async (name: string, args: Record<string, unknown>) => {
     const { data, error } = await service.rpc(name, args);
@@ -33,7 +38,8 @@ export async function runTaskCleanupTick(
     const id = String(plan.id);
     try {
       const drive = await driveFor(String(plan.credentialId));
-      const file = await drive.getFile(String(plan.fileId));
+      const signal = AbortSignal.timeout(15_000);
+      const file = await drive.getProcessOutputRecoveryFile(String(plan.fileId), signal);
       if (!file.trashed) {
         // A user move or changed provider topology defeats the original ownership proof.
         if (!file.parents?.includes(String(plan.parentId))) {
@@ -49,9 +55,15 @@ export async function runTaskCleanupTick(
           await rpc('service_settle_task_cleanup', { p_id: id, p_result: 'retained' });
           continue;
         }
+        if (!file.canTrash) throw new TeamFunctionError('PERMISSION_DENIED');
         try {
-          await drive.updateFileMetadata({ fileId: file.id, trashed: true });
-        } catch {
+          await drive.trashProcessOutputConditionally(file.id, file.etag, signal);
+        } catch (cause) {
+          if (cause instanceof TeamFunctionError && cause.code === 'SOURCE_CHANGED') {
+            // A conditional refusal proves this write did not trash the changed file.
+            await rpc('service_settle_task_cleanup', { p_id: id, p_result: 'retained' });
+            continue;
+          }
           /* Reconcile a lost provider response below. */
         }
       }

@@ -4,6 +4,9 @@
  * time. The path is a digest of team, material, source version and mime, so a
  * new version of the file is a new object and a stale one is never served.
  */
+import { TeamFunctionError } from './errors.ts';
+import { BodyLimitError, readBoundedBody } from './http-body.ts';
+
 export const THUMBNAIL_CACHE_BUCKET = 'team-thumbnail-cache';
 export const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
 export const THUMBNAIL_MIME_TYPES = new Set([
@@ -21,6 +24,25 @@ export function validThumbnail(mimeType: string, contentLength: number): boolean
     contentLength >= 1 &&
     contentLength <= MAX_THUMBNAIL_BYTES
   );
+}
+
+export async function readThumbnailBytes(response: Response): Promise<Uint8Array<ArrayBuffer>> {
+  const length = response.headers.get('content-length');
+  if (length !== null && (!/^\d+$/u.test(length) || Number(length) > MAX_THUMBNAIL_BYTES)) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new TeamFunctionError(
+      Number(length) > MAX_THUMBNAIL_BYTES ? 'TOO_LARGE' : 'INVALID_RESPONSE'
+    );
+  }
+  try {
+    const bytes = await readBoundedBody(response.body, MAX_THUMBNAIL_BYTES);
+    if (length !== null && bytes.byteLength !== Number(length))
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return bytes;
+  } catch (error) {
+    if (error instanceof BodyLimitError) throw new TeamFunctionError('TOO_LARGE');
+    throw error;
+  }
 }
 
 async function sha256Hex(value: string): Promise<string> {

@@ -1,3 +1,5 @@
+import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
+
 /**
  * What the catalog sync worker writes to its log (028).
  *
@@ -30,12 +32,18 @@ export function jobResultRecord(fields: JobResultFields): Record<string, unknown
   return { ...fields };
 }
 
-const MESSAGE_LIMIT = 200;
+const SAFE_RPC_REASONS = new Set<string>([
+  ...TEAM_ERROR_CODES,
+  'INCOMPLETE_SCAN',
+  'INCOMPLETE_LISTING',
+  'LEASE_LOST',
+  'LEASE_MISMATCH',
+  'STALE_RESULT'
+]);
 
 /**
- * The database's own words, bounded and without the request behind them. A
- * SQLSTATE and a `raise exception` text like `INCOMPLETE_SCAN` are what an
- * operator needs; the RPC parameters are what they must not see.
+ * Keep a SQLSTATE and a closed raised reason, never arbitrary database prose:
+ * PostgreSQL conversion errors can echo the rejected input in their message.
  */
 export function rpcErrorRecord(
   rpc: string,
@@ -44,7 +52,13 @@ export function rpcErrorRecord(
   return {
     event: 'catalog_sync_rpc_error',
     rpc,
-    code: typeof error.code === 'string' ? error.code : null,
-    message: typeof error.message === 'string' ? error.message.slice(0, MESSAGE_LIMIT) : null
+    code:
+      typeof error.code === 'string' && /^(?:[A-Z0-9]{5}|PGRST\d{3})$/u.test(error.code)
+        ? error.code
+        : null,
+    message:
+      typeof error.message === 'string' && SAFE_RPC_REASONS.has(error.message)
+        ? error.message
+        : null
   };
 }

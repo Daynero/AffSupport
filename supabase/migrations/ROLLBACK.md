@@ -3240,3 +3240,11 @@ Launch error values to the existing analytics guard. Retain these values while a
 compatible client or queued historical event may emit them. Restoring an older
 body would silently discard those diagnostic events. No property names, payload
 limits, path/credential filters or function privileges are broadened.
+
+## 20261208123000 — pasted launch batch inputs
+
+Forward correction only. Copy retains the reviewed input expectation without results or assignment; explicit batch admission records an initial RK assignment only for a fresh unassigned copy, atomically with successful generation acceptance. Released/mismatched assignments and changed sources are refused. To disable the added behavior, ship a forward migration restoring `copy_launch` from 20261202125000 and `private.accept_launch_batch` from 20261207401000; retain all already accepted generations, assignments, event history and receipts. Never delete assignments or rewrite frozen work to roll back this behavior.
+
+## 20261208130000 — resumed R2 integrity
+
+Forward recovery only. Keep full-source verification and ready guards: restoring the old ready RPC would allow mixed resumed content to be published. Checkpoints and staging-cleanup obligations are private and may coexist with older readers. Before activation, drain legacy R2 claim invocations and deploy the matching worker plus additive schema as a coordinated cutover; a DB lease cannot cancel an already signed provider request. Keep copy object keys generation-unique and never reuse them. Do not use the public purge queue for ready staging cleanup. A rollback must pause new R2 copies or ship a compatible forward worker; existing public ready objects and diagnostic history remain intact. No production migration or rollout was performed during implementation.

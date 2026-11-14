@@ -130,6 +130,32 @@ describe('Drive reads ride out a transient failure', () => {
     expect(a.fetchImpl).not.toHaveBeenCalled();
   });
 
+  it.each(['range', 'thumbnail'] as const)(
+    'keeps the provider timeout when a %s caller supplies a cancellation signal',
+    async kind => {
+      const deadline = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+      const caller = new AbortController();
+      let providerSignal: AbortSignal | null | undefined;
+      const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+        providerSignal = init?.signal;
+        return json(200, {});
+      });
+      const client = new GoogleDriveClient(TOKEN, fetcher);
+      if (kind === 'range')
+        await client.fetchFileRange({ fileId: 'file-1', start: 0, end: 1, signal: caller.signal });
+      else
+        await client.fetchThumbnail({
+          thumbnailLink: 'https://lh3.googleusercontent.com/thumb',
+          signal: caller.signal
+        });
+      deadline.abort(new DOMException('Timed out', 'TimeoutError'));
+      expect(timeout).toHaveBeenCalledWith(15_000);
+      expect(providerSignal?.aborted).toBe(true);
+      expect(caller.signal.aborted).toBe(false);
+    }
+  );
+
   it('aborts an unanswered Google fetch at its deadline without poisoning a sibling request', async () => {
     const signals: AbortSignal[] = [];
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {

@@ -32,7 +32,7 @@ function operationRpcError(error: { code?: string; message?: string }): TeamFunc
       | 'NAME_CONFLICT'
       | 'SOURCE_CHANGED'
       | 'DRIVE_UNAVAILABLE') ?? 'DRIVE_UNAVAILABLE',
-    { retryable: code === 'DRIVE_UNAVAILABLE' }
+    { retryable: code === undefined || code === 'DRIVE_UNAVAILABLE' }
   );
 }
 

@@ -1,5 +1,6 @@
 import { corsHeadersForRequest } from '../_shared/cors.ts';
 import { signInRedirectUri } from '../_shared/google-redirect.ts';
+import { parseJsonBody } from '../_shared/validation.ts';
 import {
   SignInError,
   clientIdFromAuthorizeRedirect,
@@ -69,9 +70,9 @@ Deno.serve(async request => {
     return json(405, { ok: false, error: { code: 'INVALID_INPUT' } }, cors);
 
   try {
-    const body: unknown = await request.json().catch(() => null);
-    if (!body || typeof body !== 'object') throw new SignInError('INVALID_INPUT', 400);
-    const record = body as Record<string, unknown>;
+    const parsed = await parseJsonBody(request);
+    if (!parsed.ok) throw new SignInError('INVALID_INPUT', 400);
+    const record = parsed.value;
     if (record.action === 'start') {
       return json(
         200,

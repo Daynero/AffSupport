@@ -10,6 +10,7 @@ import {
 } from '../../../packages/shared/dist/team/recovery.js';
 import { recoveryDigest } from './digest.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { BodyLimitError, readBoundedBody } from '../_shared/http-body.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/restitch.js';
 
@@ -65,14 +66,16 @@ export async function handleRecovery(
   request: Request,
   deps: RecoveryHandlerDeps
 ): Promise<unknown> {
-  if (request.method !== 'POST' || Number(request.headers.get('content-length') ?? 0) > 262144)
+  if (request.method !== 'POST' || Number(request.headers.get('content-length') ?? 0) > 262144) {
+    void request.body?.cancel().catch(() => undefined);
     throw new TeamFunctionError('INVALID_INPUT');
-  const text = await request.text();
-  if (text.length > 262144) throw new TeamFunctionError('TOO_LARGE');
+  }
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
-  } catch {
+    const bytes = await readBoundedBody(request.body, 262144);
+    raw = JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    if (error instanceof BodyLimitError) throw new TeamFunctionError('TOO_LARGE');
     throw new TeamFunctionError('INVALID_INPUT');
   }
   const body = object(raw);

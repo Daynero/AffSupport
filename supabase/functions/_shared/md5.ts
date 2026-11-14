@@ -3,8 +3,7 @@
  *
  * WebCrypto has no MD5 and the edge runtime bundles no Node `crypto`. The
  * digest is not used for security here, only to prove that the bytes written
- * to R2 are the bytes Drive holds (FR-004), when the whole file passed through
- * one invocation.
+ * to R2 are the frozen source bytes (FR-004), including resumed verification.
  */
 const K = new Uint32Array(64);
 const S = [
@@ -14,12 +13,54 @@ const S = [
 ];
 for (let i = 0; i < 64; i += 1) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0;
 
+export interface Md5Snapshot {
+  version: 1;
+  state: number[];
+  bytes: number;
+  tail: number[];
+}
+
 export class Md5 {
   #state = new Uint32Array([0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]);
   #buffer = new Uint8Array(64);
   #buffered = 0;
   #length = 0;
   #words = new Uint32Array(16);
+
+  /** Bounded, JSON-safe state. The byte count must match the durable verified prefix. */
+  snapshot(): Md5Snapshot {
+    return {
+      version: 1,
+      state: Array.from(this.#state),
+      bytes: this.#length,
+      tail: Array.from(this.#buffer.subarray(0, this.#buffered))
+    };
+  }
+
+  static restore(raw: unknown, expectedBytes: number): Md5 {
+    const value = raw as Partial<Md5Snapshot> | null;
+    if (
+      !value ||
+      value.version !== 1 ||
+      !Number.isSafeInteger(expectedBytes) ||
+      expectedBytes < 0 ||
+      expectedBytes > Number.MAX_SAFE_INTEGER / 8 ||
+      value.bytes !== expectedBytes ||
+      !Array.isArray(value.state) ||
+      value.state.length !== 4 ||
+      value.state.some(word => !Number.isInteger(word) || word < 0 || word > 0xffffffff) ||
+      !Array.isArray(value.tail) ||
+      value.tail.length !== expectedBytes % 64 ||
+      value.tail.some(byte => !Number.isInteger(byte) || byte < 0 || byte > 255)
+    )
+      throw new Error('INVALID_MD5_SNAPSHOT');
+    const result = new Md5();
+    result.#state.set(value.state);
+    result.#buffer.set(value.tail);
+    result.#buffered = value.tail.length;
+    result.#length = expectedBytes;
+    return result;
+  }
 
   update(bytes: Uint8Array): this {
     let offset = 0;
@@ -45,8 +86,12 @@ export class Md5 {
     return this;
   }
 
-  /** Hex digest; the instance must not be updated afterwards. */
+  /** Digest a clone: callers may persist or continue the same prefix afterwards. */
   digest(): string {
+    return Md5.restore(this.snapshot(), this.#length).#finish();
+  }
+
+  #finish(): string {
     const bits = this.#length * 8;
     const tail = new Uint8Array(this.#buffered <= 55 ? 64 : 128);
     tail.set(this.#buffer.subarray(0, this.#buffered), 0);

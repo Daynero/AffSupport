@@ -7,6 +7,7 @@ import {
 } from '../supabase/functions/catalog-sync/engine';
 import { catalogFile } from './fixtures/catalog-sync';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
+import { GoogleDriveClient } from '../supabase/functions/_shared/drive';
 
 const job: CatalogSyncJob = {
   jobId: 'canonical',
@@ -53,6 +54,28 @@ function dependencies(
 }
 
 describe('catalog completeness', () => {
+  it('retains catalog rows and cursor when a provider change contains malformed metadata', async () => {
+    const client = new GoogleDriveClient(
+      'fixture-access-token-with-enough-entropy',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            changes: [{ fileId: 'existing', removed: false, file: { id: 'existing' } }],
+            newStartPageToken: 'after'
+          })
+        )
+      )
+    );
+    const { deps, complete } = dependencies([]);
+    deps.listChanges = input => client.listChanges(input);
+    await expect(runCatalogSyncJob(job, deps, { budgetMs: 1000 })).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+    expect(deps.tombstoneFiles).not.toHaveBeenCalled();
+    expect(deps.invalidateLandingRenders).not.toHaveBeenCalled();
+    expect(deps.checkpoint).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+  });
   it('walks all 50,000 initial files before finite completion', async () => {
     let token: string | null = null;
     let state: 'listing' | 'reconciling' | 'done' = 'listing';

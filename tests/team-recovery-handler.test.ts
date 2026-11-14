@@ -37,6 +37,32 @@ function request(body: unknown, origin = false) {
   });
 }
 describe('native recovery protocol', () => {
+  it('cuts off oversized native requests before authorization or cloud work', async () => {
+    const d = deps();
+    const cancel = vi.fn();
+    let sent = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          if (sent) controller.close();
+          else {
+            sent = true;
+            controller.enqueue(new Uint8Array(262145));
+          }
+        },
+        cancel
+      },
+      { highWaterMark: 0 }
+    );
+    const init: RequestInit & { duplex: 'half' } = { method: 'POST', body, duplex: 'half' };
+    await expect(
+      handleRecovery(new Request('https://synthetic.test', init), d)
+    ).rejects.toMatchObject({ code: 'TOO_LARGE' });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(d.user).not.toHaveBeenCalled();
+    expect(d.rpc).not.toHaveBeenCalled();
+    expect(d.drive).not.toHaveBeenCalled();
+  });
   it('fences automatic delegation against a browser actor change before cloud authorization', async () => {
     const d = deps();
     await expect(

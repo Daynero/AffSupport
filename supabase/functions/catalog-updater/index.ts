@@ -1,6 +1,6 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
 import { createTargetedCatalogPublicationIo } from './publication-io.ts';
-import { isRecord } from '../_shared/validation.ts';
+import { isRecord, parseJsonBody } from '../_shared/validation.ts';
 import { targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import {
   settleCatalogUpdaterVariantTargets,
@@ -80,7 +80,8 @@ Deno.serve(async request => {
     const publicationWorkerId = crypto.randomUUID();
     const workerId = `catalog-updater:${publicationWorkerId}`;
     // The ten-second deferred-publication lane runs the publication scheduler only.
-    if (isPublicationLaneRequest(await request.json().catch(() => null))) {
+    const parsed = await parseJsonBody(request);
+    if (isPublicationLaneRequest(parsed.ok ? parsed.value : null)) {
       const publications = await runCatalogPublicationLane(service, publicationWorkerId, name =>
         Deno.env.get(name)
       );

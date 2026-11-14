@@ -39,11 +39,19 @@ type CacheDrive = Pick<
   | 'updateFileMetadata'
 >;
 
-async function children(drive: CacheDrive, parentId: string): Promise<DriveFileMetadata[]> {
+async function children(
+  drive: CacheDrive,
+  parentId: string,
+  appProperty?: { key: string; value: string }
+): Promise<DriveFileMetadata[]> {
   const files: DriveFileMetadata[] = [];
   let pageToken: string | null = null;
   do {
-    const page = await drive.listChildren({ parentId, pageToken });
+    const page = await drive.listChildren({
+      parentId,
+      pageToken,
+      ...(appProperty ? { appProperty } : {})
+    });
     if (page.incompleteSearch || page.invalidEntries > 0) {
       throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
     }
@@ -261,7 +269,7 @@ export class DriveThumbnailCache {
     if (!folder) return null;
     let listed: DriveFileMetadata[];
     try {
-      listed = await children(this.drive, folder);
+      listed = await children(this.drive, folder, { key: 'soty.thumbnail', value: path });
     } catch (error) {
       if (!remembered) throw error;
       knownShards.delete(known);
@@ -315,7 +323,7 @@ export class DriveThumbnailCache {
     const folder = await this.folder(path, true);
     if (!folder) throw new TeamFunctionError('INVALID_RESPONSE');
     if (
-      (await children(this.drive, folder)).some(
+      (await children(this.drive, folder, { key: 'soty.thumbnail', value: path })).some(
         file =>
           !file.trashed &&
           file.appProperties['soty.thumbnail'] === path &&

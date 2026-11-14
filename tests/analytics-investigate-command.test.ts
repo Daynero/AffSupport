@@ -587,7 +587,9 @@ describe('investigate · (e) a user with no events', () => {
         detail: expect.stringContaining('A public HEAD and byte probes prove availability')
       }),
       expect.objectContaining({
-        detail: expect.stringContaining('did not fit into one invocation')
+        detail: expect.stringContaining(
+          'Current verification checkpoints are not reconstructed for historical as-of queries'
+        )
       }),
       expect.objectContaining({
         detail: expect.stringContaining('Deletion proves a 404')

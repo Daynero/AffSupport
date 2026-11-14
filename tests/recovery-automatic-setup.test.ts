@@ -105,3 +105,116 @@ it('does not re-enroll a revoked or retiring owner', async () => {
   ).rejects.toThrow('PERMISSION_DENIED');
   expect(state.body).not.toHaveBeenCalled();
 });
+it.each(['checkpoint_unavailable', 'retry_exhausted'])(
+  'resumes %s when the user explicitly submits new work',
+  async reason => {
+    state.request
+      .mockReset()
+      .mockResolvedValueOnce({ ...ready, state: 'blocked', reason })
+      .mockResolvedValue(ready);
+    state.body.mockReset().mockResolvedValue({ retrying: true });
+    await ensureBackgroundRecovery(INSTALL, {
+      actorId: ACTOR,
+      isCurrent: () => true,
+      resumeBlockedWork: true
+    });
+    expect(state.body).toHaveBeenCalledOnce();
+    expect(state.body).toHaveBeenCalledWith(
+      '/api/team/recovery/retry',
+      { teamId: INSTALL },
+      'POST',
+      expect.any(AbortSignal)
+    );
+    expect(state.cloud).not.toHaveBeenCalled();
+  }
+);
+it('does not waive the recovery budget during a passive ownership read', async () => {
+  state.request
+    .mockReset()
+    .mockResolvedValue({ ...ready, state: 'blocked', reason: 'retry_exhausted' });
+  await ensureBackgroundRecovery(INSTALL, { actorId: ACTOR, isCurrent: () => true });
+  expect(state.body).not.toHaveBeenCalled();
+});
+it.each(['running', 'settled'])(
+  'adopts a retry already %s in another tab after a stale blocked status',
+  async stateAfterRetry => {
+    state.request
+      .mockReset()
+      .mockResolvedValueOnce({ ...ready, state: 'blocked', reason: 'retry_exhausted' })
+      .mockResolvedValue({ ...ready, state: stateAfterRetry });
+    state.body.mockReset().mockRejectedValue(new Error('WRONG_STATE'));
+    await expect(
+      ensureBackgroundRecovery(INSTALL, {
+        actorId: ACTOR,
+        isCurrent: () => true,
+        resumeBlockedWork: true
+      })
+    ).resolves.toMatchObject({ enabled: true, state: stateAfterRetry });
+    expect(state.body).toHaveBeenCalledOnce();
+    expect(state.cloud).not.toHaveBeenCalled();
+  }
+);
+it('does not conceal a retry refusal when the authoritative state remains blocked', async () => {
+  state.request
+    .mockReset()
+    .mockResolvedValue({ ...ready, state: 'blocked', reason: 'retry_exhausted' });
+  state.body.mockReset().mockRejectedValue(new Error('WRONG_STATE'));
+  await expect(
+    ensureBackgroundRecovery(INSTALL, {
+      actorId: ACTOR,
+      isCurrent: () => true,
+      resumeBlockedWork: true
+    })
+  ).rejects.toThrow('WRONG_STATE');
+  expect(localStorage.getItem('soty.recovery.changed')).toBeNull();
+});
+it('does not resume background work after the actor changes during the status read', async () => {
+  state.request.mockReset().mockImplementation(async () => {
+    state.revision++;
+    return { ...ready, state: 'blocked', reason: 'retry_exhausted' };
+  });
+  await expect(
+    ensureBackgroundRecovery(INSTALL, {
+      actorId: ACTOR,
+      isCurrent: () => true,
+      resumeBlockedWork: true
+    })
+  ).rejects.toThrow('ENTITLEMENT_SIGNIN_REQUIRED');
+  expect(state.body).not.toHaveBeenCalled();
+});
+
+it('does not report resumed work when ownership is revoked during native retry', async () => {
+  state.request
+    .mockReset()
+    .mockResolvedValueOnce({ ...ready, state: 'blocked', reason: 'retry_exhausted' })
+    .mockResolvedValue({ ...ready, enabled: false, automaticSetup: 'retiring' });
+  state.body.mockReset().mockResolvedValue({ retrying: true });
+  const observe = vi.fn();
+  await expect(
+    ensureBackgroundRecovery(INSTALL, {
+      actorId: ACTOR,
+      isCurrent: () => true,
+      resumeBlockedWork: true,
+      onSetupStage: observe
+    })
+  ).rejects.toThrow('PERMISSION_DENIED');
+  expect(observe.mock.calls.at(-1)?.[0]).toMatchObject({ outcome: 'failed' });
+  expect(localStorage.getItem('soty.recovery.changed')).toBeNull();
+});
+it('bounds an unresponsive native retry without creating a replacement delegation', async () => {
+  vi.useFakeTimers();
+  state.request
+    .mockReset()
+    .mockResolvedValue({ ...ready, state: 'blocked', reason: 'checkpoint_unavailable' });
+  state.body.mockReset().mockImplementation(() => new Promise(() => {}));
+  const operation = ensureBackgroundRecovery(INSTALL, {
+    actorId: ACTOR,
+    isCurrent: () => true,
+    resumeBlockedWork: true
+  });
+  const failed = expect(operation).rejects.toThrow('WORKSPACE_READ_TIMEOUT');
+  await vi.advanceTimersByTimeAsync(10_000);
+  await failed;
+  expect(state.cloud).not.toHaveBeenCalled();
+  expect(state.body).toHaveBeenCalledOnce();
+});

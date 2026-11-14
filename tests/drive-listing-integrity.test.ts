@@ -10,6 +10,31 @@ function client(payload: unknown) {
 }
 
 describe('Drive listing coverage', () => {
+  it.each([{ id: 'file-1' }, providerFile({ id: 'different-file' })])(
+    'does not turn present but invalid change metadata into a deletion',
+    async file => {
+      await expect(
+        client({
+          changes: [{ fileId: 'file-1', removed: false, file }],
+          newStartPageToken: 'next'
+        }).listChanges({ pageToken: 'before' })
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE', retryable: true });
+    }
+  );
+
+  it('retains genuine removed and omitted-file change semantics', async () => {
+    const result = await client({
+      changes: [
+        { fileId: 'removed', removed: true },
+        { fileId: 'unavailable', removed: false }
+      ],
+      newStartPageToken: 'next'
+    }).listChanges({ pageToken: 'before' });
+    expect(result.changes).toEqual([
+      { fileId: 'removed', removed: true, file: null },
+      { fileId: 'unavailable', removed: false, file: null }
+    ]);
+  });
   it('captures an opaque bootstrap token in the selected Drive before recovery scanning', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

@@ -55,12 +55,26 @@ describe('catalog_sync_rpc_error', () => {
     });
   });
 
-  it('bounds a long message and tolerates a missing one', () => {
-    expect(rpcErrorRecord('x', { message: 'y'.repeat(500) }).message).toHaveLength(200);
+  it('drops unrecognized prose and tolerates a missing message', () => {
+    expect(rpcErrorRecord('x', { message: 'y'.repeat(500) }).message).toBeNull();
     expect(rpcErrorRecord('x', {})).toEqual({
       event: 'catalog_sync_rpc_error',
       rpc: 'x',
       code: null,
+      message: null
+    });
+  });
+
+  it.each([
+    'invalid input syntax for type uuid: "secret-file.mp4"',
+    'invalid input syntax for type json: "refresh_token=private-value"',
+    'permission denied for owner@example.test',
+    'PRIVATE_CUSTOMER_CONTENT'
+  ])('does not copy provider or user text into the log: %s', message => {
+    expect(
+      rpcErrorRecord('service_commit_catalog_scan_page', { code: '22P02', message })
+    ).toMatchObject({
+      code: '22P02',
       message: null
     });
   });

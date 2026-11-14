@@ -1,3 +1,5 @@
+import { readBoundedBody } from './http-body.ts';
+
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: 'INVALID_INPUT' };
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -9,13 +11,13 @@ export async function parseJsonBody(
   maximumBytes = 64 * 1024
 ): Promise<ParseResult<Record<string, unknown>>> {
   const length = Number(request.headers.get('content-length') ?? 0);
-  if (Number.isFinite(length) && length > maximumBytes)
+  if (Number.isFinite(length) && length > maximumBytes) {
+    void request.body?.cancel().catch(() => undefined);
     return { ok: false, error: 'INVALID_INPUT' };
+  }
   try {
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > maximumBytes) {
-      return { ok: false, error: 'INVALID_INPUT' };
-    }
+    const bytes = await readBoundedBody(request.body, maximumBytes);
+    const text = new TextDecoder().decode(bytes);
     const value: unknown = JSON.parse(text);
     return isRecord(value) ? { ok: true, value } : { ok: false, error: 'INVALID_INPUT' };
   } catch {

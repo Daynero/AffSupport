@@ -595,6 +595,8 @@ export class GoogleDriveClient {
     driveId?: string | null;
     /** Restrict conflict discovery without listing unrelated folder contents. */
     namePrefix?: string;
+    /** Restrict app-owned cache discovery without listing unrelated files. */
+    appProperty?: { key: string; value: string };
   }): Promise<DriveListingPage> {
     const url = new URL('https://www.googleapis.com/drive/v3/files');
     url.searchParams.set(
@@ -604,6 +606,13 @@ export class GoogleDriveClient {
     if (input.namePrefix !== undefined) {
       const prefix = input.namePrefix.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
       url.searchParams.set('q', `${url.searchParams.get('q')} and name contains '${prefix}'`);
+    }
+    if (input.appProperty) {
+      const escape = (text: string) => text.replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+      url.searchParams.set(
+        'q',
+        `${url.searchParams.get('q')} and appProperties has { key='${escape(input.appProperty.key)}' and value='${escape(input.appProperty.value)}' }`
+      );
     }
     url.searchParams.set('fields', `nextPageToken,incompleteSearch,files(${FILE_FIELDS})`);
     url.searchParams.set('pageSize', '100');
@@ -667,11 +676,13 @@ export class GoogleDriveClient {
       if (!isRecord(raw) || typeof raw.fileId !== 'string') {
         throw new TeamFunctionError('INVALID_RESPONSE');
       }
-      // Change records can legitimately carry no readable file payload (for
-      // example after a permission change).  Treat it as unavailable so the
-      // catalog tombstones the old projection instead of halting all future
-      // synchronization on this one record.
+      // An omitted payload can legitimately indicate lost access. A present
+      // but malformed or mismatched payload is not evidence of disappearance:
+      // reject the page before the catalog can tombstone rows or advance its cursor.
       const file = raw.file === undefined || raw.file === null ? null : parseMetadata(raw.file);
+      if (raw.file !== undefined && raw.file !== null && (!file || file.id !== raw.fileId)) {
+        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+      }
       changes.push({ fileId: raw.fileId, removed: raw.removed === true, file });
     }
     return {
@@ -1580,6 +1591,8 @@ export class GoogleDriveClient {
     return this.#request(url, {
       headers: { range: `bytes=${input.start}-${input.end}` },
       signal: input.signal
+        ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
+        : undefined
     });
   }
 
@@ -1607,6 +1620,8 @@ export class GoogleDriveClient {
     return this.#request(url, {
       headers: { accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8' },
       signal: input.signal
+        ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
+        : undefined
     });
   }
 

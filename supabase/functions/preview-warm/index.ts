@@ -13,12 +13,14 @@ import {
   TeamFunctionError
 } from '../_shared/errors.ts';
 import {
+  readArchiveRange,
   runArchiveInspectionSlice,
   type ArchiveInspectionRow
 } from '../_shared/archive-inspection.ts';
 import { runPreviewWarmSlice, type PreviewWarmRow } from '../_shared/preview-warm.ts';
 import { DriveThumbnailCache } from '../_shared/drive-cache.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { readThumbnailBytes } from '../_shared/thumbnails.ts';
 
 /**
  * Prepares provider thumbnails ahead of use (011, FR-014/FR-015): claims
@@ -194,7 +196,7 @@ Deno.serve(async request => {
         const upstream = await drive.fetchThumbnail({ thumbnailLink });
         const mimeType =
           upstream.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
-        const bytes = new Uint8Array(await upstream.arrayBuffer());
+        const bytes = await readThumbnailBytes(upstream);
         return { status: upstream.status, mimeType, bytes };
       },
       store: async (path, bytes, mimeType, row) => {
@@ -238,8 +240,7 @@ Deno.serve(async request => {
           end,
           acknowledgeAbuse: true
         });
-        if (response.status !== 206 && response.status !== 200) return null;
-        return new Uint8Array(await response.arrayBuffer());
+        return readArchiveRange(response, start, end, row.sizeBytes);
       },
       commit: async (row, inspection) => {
         await rpcValue(service, 'service_commit_archive_inspection', {

@@ -2594,7 +2594,12 @@ async function handleEnsureTaskDropFolder(
 
   const cacheId = await ensureDriveCacheRoot(client, teamId, root.rootFolderId);
   const drops = async () => {
-    const resolved = await resolveTaskDropFolder({ teamId, rootFolderId: cacheId, drive: client });
+    const resolved = await resolveTaskDropFolder({
+      teamId,
+      rootFolderId: cacheId,
+      workspaceRootFolderId: root.rootFolderId,
+      drive: client
+    });
     const folder = await moveGeneratedFolderToCache(
       client,
       resolved.folder,
@@ -3703,6 +3708,7 @@ Deno.serve(async request => {
     }
 
     let userId: string;
+    let recoveryBody: Record<string, unknown> | undefined;
     const recoveryCredential = request.headers.get('x-team-recovery-credential');
     if (recoveryCredential !== null) {
       // This credential cannot authorize any ordinary user or provider route.
@@ -3712,8 +3718,9 @@ Deno.serve(async request => {
         !/^[A-Za-z0-9_-]{43}$/u.test(recoveryCredential)
       )
         throw new TeamFunctionError('AUTH_REQUIRED');
-      const scoped = await parseJsonBody(request.clone());
+      const scoped = await parseJsonBody(request);
       if (!scoped.ok) throw new TeamFunctionError('INVALID_INPUT');
+      recoveryBody = scoped.value;
       const context = await rpcValue(configured.service, 'service_team_recovery', {
         p_action: path === '/updater/claim' ? 'authorize_claim' : 'authorize_execute',
         p_hash: await recoveryTokenHash(recoveryCredential),
@@ -3735,7 +3742,9 @@ Deno.serve(async request => {
       return successResponse(value, cors);
     }
 
-    const parsed = await parseJsonBody(request);
+    const parsed = recoveryBody
+      ? { ok: true as const, value: recoveryBody }
+      : await parseJsonBody(request);
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     const body = parsed.value;
     if (path === '/launches/batch')

@@ -167,6 +167,63 @@ describe('team preview transfer contract', () => {
     expect(first).toContain(`/7-${'a'.repeat(64)}/default`);
   });
 
+  it('finds an existing landing folder on a later page instead of creating a duplicate', async () => {
+    const listChildren = vi.fn(async ({ pageToken }: { pageToken?: string | null }) => ({
+      files: pageToken
+        ? ['.soty', 'landing-previews', MATERIAL_ID, `7-${'a'.repeat(64)}`, 'default'].map(
+            name => ({
+              id: name,
+              name,
+              mimeType: 'application/vnd.google-apps.folder',
+              trashed: false
+            })
+          )
+        : [],
+      nextPageToken: pageToken ? null : 'next',
+      incompleteSearch: false,
+      invalidEntries: 0
+    }));
+    const createFolder = vi.fn(async () => ({ id: 'duplicate' }));
+    const result = await ensureLandingArtifactFolder(
+      { listChildren, createFolder },
+      {
+        rootFolderId: 'root',
+        materialId: MATERIAL_ID,
+        sourceVersion: '7',
+        fingerprint: 'a'.repeat(64),
+        preset: 'default'
+      }
+    );
+    expect(result).toBe('default');
+    expect(createFolder).not.toHaveBeenCalled();
+  });
+
+  it.each(['incomplete', 'malformed', 'repeated-cursor'])(
+    'refuses to create a landing folder from a %s listing',
+    async failure => {
+      const listChildren = vi.fn(async () => ({
+        files: [],
+        nextPageToken: failure === 'repeated-cursor' ? 'same' : null,
+        incompleteSearch: failure === 'incomplete',
+        invalidEntries: failure === 'malformed' ? 1 : 0
+      }));
+      const createFolder = vi.fn(async () => ({ id: 'duplicate' }));
+      await expect(
+        ensureLandingArtifactFolder(
+          { listChildren, createFolder },
+          {
+            rootFolderId: 'root',
+            materialId: MATERIAL_ID,
+            sourceVersion: '7',
+            fingerprint: 'a'.repeat(64),
+            preset: 'default'
+          }
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+      expect(createFolder).not.toHaveBeenCalled();
+    }
+  );
+
   it('issues short-lived scoped media and agent grants without provider credentials', async () => {
     const issueGrant = vi.fn().mockResolvedValue({
       ticket: 'opaque-preview-ticket-with-enough-entropy',

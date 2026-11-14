@@ -16,6 +16,7 @@
  * equivalent, which is precisely the drift this repository's type gates exist to catch.
  */
 declare const Deno: {
+  serve(handler: (request: Request) => Response | Promise<Response>): unknown;
   readonly env: {
     get(key: string): string | undefined;
   };

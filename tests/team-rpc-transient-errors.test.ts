@@ -23,6 +23,8 @@ describe('throwRpc transient server failures', () => {
     { code: '53300', message: 'sorry, too many clients already' },
     { code: '', message: '<html><title>502 Bad Gateway</title></html>' },
     { code: '', message: 'upstream request timeout' },
+    { code: '', message: 'The upstream server is timing out' },
+    { code: '', message: 'An invalid response was received from the upstream server' },
     { code: '', message: 'supabase.co | 522: Connection timed out' }
   ])('treats %o as a retryable transport failure', error => {
     const failure = caught(error);

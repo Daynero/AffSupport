@@ -96,8 +96,15 @@ export function parseLandingArtifactGrantTool(value: unknown): LandingArtifactGr
 }
 
 export interface LandingArtifactFolderClient {
-  listChildren: (input: { parentId: string }) => Promise<{
+  listChildren: (input: {
+    parentId: string;
+    pageToken?: string | null;
+    namePrefix?: string;
+  }) => Promise<{
     files: Array<{ id: string; name: string; mimeType: string; trashed: boolean }>;
+    nextPageToken?: string | null;
+    incompleteSearch?: boolean;
+    invalidEntries?: number;
   }>;
   createFolder: (input: { name: string; parentId: string }) => Promise<{ id: string }>;
 }
@@ -107,11 +114,23 @@ async function ensureFolder(
   parentId: string,
   name: string
 ): Promise<string> {
-  const page = await client.listChildren({ parentId });
-  const existing = page.files.find(
-    file => !file.trashed && file.mimeType === FOLDER_MIME_TYPE && file.name === name
-  );
-  if (existing) return existing.id;
+  let pageToken: string | null = null;
+  const seen = new Set<string>();
+  do {
+    const page = await client.listChildren({ parentId, pageToken, namePrefix: name });
+    if (page.incompleteSearch || (page.invalidEntries ?? 0) > 0)
+      throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+    const existing = page.files.find(
+      file => !file.trashed && file.mimeType === FOLDER_MIME_TYPE && file.name === name
+    );
+    if (existing) return existing.id;
+    pageToken = page.nextPageToken ?? null;
+    if (pageToken) {
+      if (seen.has(pageToken) || seen.size >= 100)
+        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: true });
+      seen.add(pageToken);
+    }
+  } while (pageToken);
   return (await client.createFolder({ name, parentId })).id;
 }
 

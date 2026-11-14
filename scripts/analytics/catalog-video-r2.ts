@@ -46,7 +46,26 @@ export interface CatalogVideoR2EvidenceRow {
   occurred_at: string;
   received_at: string;
 }
+export interface CatalogVideoVerificationObservation {
+  copy_id: string;
+  state: string;
+  parts_checked: number | null;
+  total_parts: number;
+  bytes_checked: number | null;
+  full_source_proof: boolean;
+  staging_cleanup: 'not_queued' | 'pending' | 'complete';
+  cleanup_attempts: number | null;
+  cleanup_error: string | null;
+  verified_at: string | null;
+  cleaned_at: string | null;
+}
 export interface CatalogVideoR2Diagnosis {
+  verification: {
+    status: 'unavailable' | 'historical_unknown' | 'current_observation';
+    copies: CatalogVideoVerificationObservation[];
+    truncated: boolean;
+    note: string;
+  };
   supported: boolean;
   evidence: CatalogVideoR2EvidenceRow[];
   last_proven_stage: string | null;
@@ -82,7 +101,7 @@ export interface CatalogVideoR2Diagnosis {
 }
 const BLIND_SPOTS = [
   'A public HEAD and byte probes prove availability at the moment of the check; acceptance by an advertising platform or a specific viewer is not observed (AD-006).',
-  'When a copy did not fit into one invocation, the full source checksum was not compared: parts, size and probes are the proof, and full_hash_verified says so.',
+  'Older ready copies may have only part and probe proof; full_hash_verified identifies that limit. Current verification checkpoints are not reconstructed for historical as-of queries.',
   'Deletion proves a 404 and an accepted CDN purge; caches outside the own CDN are not observable.',
   'Storage and request billing are not measured here; any cost is an estimate from the public price list.'
 ];
@@ -104,6 +123,12 @@ export async function getCatalogVideoR2Diagnosis(
     throw new Error('Expected a positive integer row limit.');
   const schema = await getSchema();
   const base: CatalogVideoR2Diagnosis = {
+    verification: {
+      status: period.as_of ? 'historical_unknown' : 'unavailable',
+      copies: [],
+      truncated: false,
+      note: 'Current durable prefix and staging-only cleanup. Ready with pending cleanup can follow a lost ready acknowledgement or cleanup outage; the exact reply delivery is not observable.'
+    },
     supported: false,
     evidence: [],
     last_proven_stage: null,
@@ -240,8 +265,26 @@ export async function getCatalogVideoR2Diagnosis(
         deleted: Number(row.deleted)
       };
   }
+  let verification = base.verification;
+  if (!period.as_of && teams.length && schema.tables.analytics_catalog_video_r2_verification) {
+    const checkpoints = await query<CatalogVideoVerificationObservation>(
+      `select copy_id::text,state,parts_checked,total_parts,bytes_checked,full_source_proof,
+       staging_cleanup,cleanup_attempts,cleanup_error,verified_at::text,cleaned_at::text
+       from public.analytics_catalog_video_r2_verification
+       where team_id=any($1::uuid[]) and ($2::uuid is null or team_id=$2::uuid or copy_id=$2::uuid or catalog_material_id=$2::uuid or source_material_id=$2::uuid)
+       order by verified_at desc nulls last,copy_id limit $3`,
+      [teams, id, limit + 1]
+    );
+    verification = {
+      ...verification,
+      status: 'current_observation',
+      copies: checkpoints.slice(0, limit),
+      truncated: checkpoints.length > limit
+    };
+  }
   return {
     ...base,
+    verification,
     supported: true,
     evidence,
     last_proven_stage: latest?.stage ?? null,

@@ -192,7 +192,7 @@ describe('catalog video R2 contract', () => {
 });
 
 describe('local edge runtime module graph', () => {
-  it('anchors every self-typed shared module the functions import', async () => {
+  it('anchors every self-typed and explicitly typed shared module the functions import', async () => {
     // The local Supabase CLI mounts only runtime imports; a shared module that
     // names its declaration with @ts-self-types boots as "Module not found"
     // unless the anchor imports that declaration too (found on beta, 050).
@@ -213,11 +213,18 @@ describe('local edge runtime module graph', () => {
     };
     walk(path.join(root, 'supabase/functions'));
     const imported = new Set<string>();
-    for (const file of files)
-      for (const match of readFileSync(file, 'utf8').matchAll(
-        /packages\/shared\/dist\/([\w/-]+)\.js'/gu
-      ))
+    const annotated = new Set<string>();
+    for (const file of files) {
+      const contents = readFileSync(file, 'utf8');
+      for (const match of contents.matchAll(/packages\/shared\/dist\/([\w/-]+)\.js'/gu))
         imported.add(match[1]!);
+      for (const match of contents.matchAll(
+        /@deno-types=["'][^"']*packages\/shared\/dist\/([\w/-]+)\.d\.ts["']/gu
+      )) {
+        imported.add(match[1]!);
+        annotated.add(match[1]!);
+      }
+    }
     const missing = [...imported].filter(name => {
       const source = path.join(root, 'packages/shared/src', `${name}.ts`);
       let text: string;
@@ -227,7 +234,7 @@ describe('local edge runtime module graph', () => {
         return false;
       }
       return (
-        /^\/\/ @ts-self-types=/u.test(text) &&
+        (annotated.has(name) || /^\/\/ @ts-self-types=/u.test(text)) &&
         !anchor.includes(`packages/shared/dist/${name}.d.ts'`)
       );
     });

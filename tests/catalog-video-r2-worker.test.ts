@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   runCatalogVideoR2Worker,
-  type CatalogVideoR2WorkerDeps
+  type CatalogVideoR2WorkerDeps,
+  type CatalogVideoDriveReader
 } from '../supabase/functions/catalog-video-r2/worker';
 import {
   CatalogVideoR2,
   sha256Hex,
   type CatalogVideoR2Config
 } from '../supabase/functions/_shared/r2-catalog-video';
+import { catalogPublicationSourceIdentity } from '../packages/shared/src/team/catalog-publication-source';
 import { md5Hex } from '../supabase/functions/_shared/md5';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 
@@ -104,6 +106,8 @@ function fakeR2(store: Store, calls: string[]) {
       });
     if (request.method === 'PUT' && request.headers.has('x-amz-copy-source')) {
       if (!store.staging) return new Response(null, { status: 404 });
+      if (request.headers.get('x-amz-copy-source-if-match') !== '"' + md5Hex(store.staging) + '"')
+        return new Response(null, { status: 412 });
       store.publicBytes = store.staging;
       return new Response('<x><ETag>"c"</ETag></x>', { status: 200 });
     }
@@ -112,13 +116,21 @@ function fakeR2(store: Store, calls: string[]) {
       return bytes
         ? new Response(null, {
             status: 200,
-            headers: { 'content-length': String(bytes.byteLength) }
+            headers: { 'content-length': String(bytes.byteLength), etag: '"' + md5Hex(bytes) + '"' }
           })
         : new Response(null, { status: 404 });
     if (request.method === 'GET') {
       if (!bytes) return new Response(null, { status: 404 });
       const [, s, e] = /^bytes=(\d+)-(\d+)$/u.exec(request.headers.get('range')!)!;
-      return new Response(new Uint8Array(bytes.slice(Number(s), Number(e) + 1)), { status: 206 });
+      if (request.headers.get('if-match') !== '"' + md5Hex(bytes) + '"')
+        return new Response(null, { status: 412 });
+      return new Response(new Uint8Array(bytes.slice(Number(s), Number(e) + 1)), {
+        status: 206,
+        headers: {
+          'content-range': `bytes ${s}-${e}/${bytes.length}`,
+          etag: '"' + md5Hex(bytes) + '"'
+        }
+      });
     }
     if (request.method === 'DELETE') {
       if (isPublic) store.publicBytes = null;
@@ -130,9 +142,16 @@ function fakeR2(store: Store, calls: string[]) {
   return new CatalogVideoR2(config, signer, fetcher);
 }
 
+interface ProofMemory {
+  value?: Record<string, unknown>;
+  etag?: string;
+  cleanup?: boolean;
+}
+
 function harness(
   options: {
     size?: number;
+    proofMemory?: ProofMemory;
     sourceMd5?: 'match' | 'mismatch' | null;
     parts?: Array<{
       partNumber: number;
@@ -147,6 +166,7 @@ function harness(
     msPerRead?: number;
     nosniff?: boolean;
     driveChanges?: number;
+    driveRange?: (start: number, end: number, size: number) => string | null;
     route?: 'claim' | 'sweep';
     retire?: unknown[];
     purges?: unknown[];
@@ -155,6 +175,7 @@ function harness(
 ) {
   const size = options.size ?? PART * 3 + 100;
   const source = video(size);
+  const memory = options.proofMemory ?? {};
   const store: Store = {
     staging: null,
     publicBytes: null,
@@ -183,13 +204,24 @@ function harness(
           mime: 'video/mp4',
           partBytes: PART,
           sourceMd5:
-            options.sourceMd5 === 'match'
+            options.sourceMd5 === undefined || options.sourceMd5 === 'match'
               ? md5Hex(source)
               : options.sourceMd5 === 'mismatch'
                 ? 'f'.repeat(32)
                 : null,
           uploadId: options.uploadId ?? null,
-          sourceVersion: 'strict-v1:x',
+          sourceVersion: await catalogPublicationSourceIdentity(
+            {
+              materialId: TEAM,
+              connectionId: TEAM,
+              fileId: 'file-1',
+              checksum: null,
+              mimeType: 'video/mp4',
+              sizeBytes: size,
+              driveVersion: '1'
+            },
+            true
+          ),
           attempts: 1,
           catalogMaterialId: null,
           sourceMaterialId: TEAM,
@@ -201,6 +233,30 @@ function harness(
           publicOrigin: 'https://videos.test',
           parts: options.parts ?? []
         });
+      case 'service_catalog_video_r2_verification_open':
+        memory.etag ??= String(params.p_etag);
+        memory.value ??= { partsChecked: 0, bytesChecked: 0, hashState: null, finalMd5: null };
+        return ok(structuredClone(memory.value));
+      case 'service_catalog_video_r2_verification_advance':
+        if (memory.value?.partsChecked !== params.p_previous_parts)
+          return { data: null, error: { message: 'LEASE_MISMATCH' } };
+        memory.value = {
+          partsChecked: Number(params.p_previous_parts) + 1,
+          bytesChecked: (params.p_hash_state as { bytes: number }).bytes,
+          hashState: structuredClone(params.p_hash_state),
+          finalMd5: params.p_final_md5
+        };
+        return ok(null);
+      case 'service_catalog_video_r2_ready':
+        memory.cleanup = true;
+        return ok(null);
+      case 'service_catalog_video_r2_claim_staging_cleanup':
+        return ok(
+          memory.cleanup ? { copyId: COPY, objectKey: KEY, fence: 1, etag: memory.etag } : null
+        );
+      case 'service_catalog_video_r2_finish_staging_cleanup':
+        if (params.p_success) memory.cleanup = false;
+        return ok(null);
       case 'service_catalog_video_r2_renew':
         return ok(true);
       case 'service_catalog_video_r2_retire_orphans':
@@ -214,14 +270,27 @@ function harness(
     }
   });
   const driveFor = vi.fn(async () => ({
+    async getFile(): ReturnType<CatalogVideoDriveReader['getFile']> {
+      return {
+        id: 'file-1',
+        checksum: md5Hex(source),
+        mimeType: 'video/mp4',
+        size,
+        version: '1',
+        trashed: false
+      };
+    },
     async fetchFileRange(input: { start: number; end: number }) {
       driveReads += 1;
       advance(options.msPerRead ?? 0);
       if (options.driveChanges && driveReads > options.driveChanges)
         return new Response(null, { status: 416 });
+      const range = options.driveRange
+        ? options.driveRange(input.start, input.end, size)
+        : `bytes ${input.start}-${input.end}/${size}`;
       return new Response(new Uint8Array(source.slice(input.start, input.end + 1)), {
         status: 206,
-        headers: { 'content-range': `bytes ${input.start}-${input.end}/${size}` }
+        headers: range === null ? {} : { 'content-range': range }
       });
     }
   }));
@@ -247,11 +316,35 @@ function harness(
     calls,
     source,
     driveFor,
+    advance,
     names: () => trace.map(([name]) => name.replace('service_catalog_video_r2_', ''))
   };
 }
 
 describe('catalog video R2 worker', () => {
+  it.each(['missing', 'shifted', 'resized', 'unknown-total'] as const)(
+    'refuses a %s Drive range before uploading or publishing its bytes',
+    async kind => {
+      const h = harness({
+        sourceMd5: null,
+        driveRange: (start, end, size) => {
+          if (kind === 'missing') return null;
+          if (kind === 'shifted') return `bytes ${start + 1}-${end + 1}/${size}`;
+          if (kind === 'resized') return `bytes ${start}-${end}/${size + 1}`;
+          return `bytes ${start}-${end}/*`;
+        }
+      });
+      expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+        outcome: 'failed',
+        code: 'SOURCE_CHANGED'
+      });
+      expect(h.names()).not.toContain('part');
+      expect(h.names()).not.toContain('ready');
+      expect(h.store.publicBytes).toBeNull();
+      expect(h.trace.at(-1)![1]).toMatchObject({ p_code: 'SOURCE_CHANGED', p_terminal: true });
+    }
+  );
+
   it('copies a video in parts, verifies it, promotes it and marks it ready with the full hash', async () => {
     const h = harness({ sourceMd5: 'match' });
     const result = await runCatalogVideoR2Worker(h.deps);
@@ -264,7 +357,11 @@ describe('catalog video R2 worker', () => {
       'part',
       'part',
       'verifying',
-      'ready'
+      'verification_open',
+      ...Array(4).fill('verification_advance'),
+      'ready',
+      'claim_staging_cleanup',
+      'finish_staging_cleanup'
     ]);
     const partCalls = h.trace
       .filter(([name]) => name === 'service_catalog_video_r2_part')
@@ -275,7 +372,7 @@ describe('catalog video R2 worker', () => {
     ).toBe(true);
     expect(partCalls[3]!.p_size).toBe(100);
     expect(partCalls[0]!.p_sha256).toBe(await sha256Hex(h.source.subarray(0, PART)));
-    expect(h.trace.at(-1)![1]).toMatchObject({
+    expect(h.trace.find(([name]) => name === 'service_catalog_video_r2_ready')![1]).toMatchObject({
       p_full_hash_verified: true,
       p_fence: 3,
       p_worker: expect.stringMatching(/^catalog-video-r2:/u)
@@ -308,7 +405,7 @@ describe('catalog video R2 worker', () => {
     const second = harness({ sourceMd5: 'match', state: 'uploading', uploadId, parts: done });
     second.store.uploads = first.store.uploads;
     const result = await runCatalogVideoR2Worker(second.deps);
-    expect(result).toEqual({ outcome: 'ready', fullHashVerified: false, parts: 4 });
+    expect(result).toEqual({ outcome: 'ready', fullHashVerified: true, parts: 4 });
     const parts = second.trace
       .filter(([name]) => name === 'service_catalog_video_r2_part')
       .map(([, p]) => p.p_part);
@@ -380,10 +477,18 @@ describe('catalog video R2 worker', () => {
     resumed.store.staging = source;
     expect(await runCatalogVideoR2Worker(resumed.deps)).toEqual({
       outcome: 'ready',
-      fullHashVerified: false,
+      fullHashVerified: true,
       parts: 4
     });
-    expect(resumed.names()).toEqual(['claim', 'verifying', 'ready']);
+    expect(resumed.names()).toEqual([
+      'claim',
+      'verifying',
+      'verification_open',
+      ...Array(4).fill('verification_advance'),
+      'ready',
+      'claim_staging_cleanup',
+      'finish_staging_cleanup'
+    ]);
     expect(resumed.calls.some(c => c.includes('partNumber='))).toBe(false);
   });
 
@@ -434,6 +539,7 @@ describe('catalog video R2 worker', () => {
     expect(h.store.publicBytes).toBeNull();
     expect(h.store.uploads.size).toBe(0);
     expect(h.names()).toEqual([
+      'claim_staging_cleanup',
       'retire_orphans',
       'claim_retire',
       'mark_deleted',
@@ -458,5 +564,285 @@ describe('catalog video R2 worker', () => {
       code: 'VIDEO_R2_UPLOAD_UNKNOWN'
     });
     expect(h.names()).toEqual(['claim', 'begin_upload', 'release']);
+  });
+});
+
+describe('catalog video ready acknowledgement recovery', () => {
+  it.each(['before-commit', 'after-commit'] as const)(
+    'retains staging when the ready acknowledgement is lost %s',
+    async failure => {
+      const h = harness({ sourceMd5: 'match' });
+      const original = h.rpc.getMockImplementation()!;
+      let committed = false;
+      h.rpc.mockImplementation(async (name, params) => {
+        if (name !== 'service_catalog_video_r2_ready') return original(name, params);
+        if (failure === 'after-commit') {
+          await original(name, params);
+          committed = true;
+        }
+        throw new TypeError('lost database response');
+      });
+      expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+        outcome: 'retry',
+        code: 'VIDEO_R2_PROVIDER_UNAVAILABLE'
+      });
+      expect(committed).toBe(failure === 'after-commit');
+      expect(h.store.publicBytes).toEqual(h.source);
+      expect(h.store.staging).toEqual(h.source);
+      expect(h.trace.at(-1)![1]).toMatchObject({
+        p_code: 'VIDEO_R2_PROVIDER_UNAVAILABLE',
+        p_terminal: false
+      });
+      // An acknowledged commit in our fault model leaves no eligible new claim.
+      if (!committed) {
+        const parts = h.trace
+          .filter(([name]) => name === 'service_catalog_video_r2_part')
+          .map(([, p]) => ({
+            partNumber: Number(p.p_part),
+            sizeBytes: Number(p.p_size),
+            sha256: String(p.p_sha256),
+            etag: String(p.p_etag),
+            verifiedBy: 'readback' as const
+          }));
+        const retry = harness({ state: 'verifying', sourceMd5: 'match', parts });
+        retry.store.staging = h.store.staging;
+        retry.store.publicBytes = h.store.publicBytes;
+        expect(await runCatalogVideoR2Worker(retry.deps)).toMatchObject({ outcome: 'ready' });
+        expect(retry.calls.some(call => call.includes('partNumber='))).toBe(false);
+        expect(retry.store.staging).toBeNull();
+      }
+    }
+  );
+
+  it('cleans staging after acknowledged ready and keeps a cleanup outage from undoing success', async () => {
+    const h = harness();
+    let readyBeforeCleanup = false;
+    vi.spyOn(h.deps.r2, 'removeStaging').mockImplementation(async () => {
+      readyBeforeCleanup = h.names().includes('ready');
+      throw new TypeError('cleanup connection lost');
+    });
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({ outcome: 'ready' });
+    expect(readyBeforeCleanup).toBe(true);
+    expect(h.store.staging).toEqual(h.source);
+    expect(h.names()).not.toContain('release');
+  });
+});
+
+// Reproductions from the server audit, now exercising durable verification.
+describe('catalog video resumable integrity acceptance', () => {
+  it.each(['before', 'after'] as const)(
+    'reconciles a lost checkpoint reply %s commit without skipping or double hashing',
+    async when => {
+      const memory: ProofMemory = {};
+      const h = harness({ proofMemory: memory });
+      const rpc = h.rpc.getMockImplementation()!;
+      let lost = false;
+      h.rpc.mockImplementation(async (name, params) => {
+        if (name === 'service_catalog_video_r2_verification_advance' && !lost) {
+          lost = true;
+          if (when === 'after') await rpc(name, params);
+          throw new TypeError('reply lost');
+        }
+        const result = await rpc(name, params);
+        if (
+          name === 'service_catalog_video_r2_verification_open' &&
+          result.data &&
+          typeof result.data === 'object'
+        ) {
+          const row = result.data as Record<string, unknown>;
+          if (row.hashState)
+            row.hashState = Object.fromEntries(Object.entries(row.hashState).reverse());
+        }
+        return result;
+      });
+      const result = await runCatalogVideoR2Worker(h.deps);
+      expect(result).toMatchObject({ outcome: when === 'after' ? 'ready' : 'retry' });
+      if (when === 'before') {
+        expect(memory.value?.partsChecked).toBe(0);
+        expect(h.store.publicBytes).toBeNull();
+      } else expect(memory.value?.finalMd5).toBe(md5Hex(h.source));
+    }
+  );
+
+  it('completes a staged copy even when Drive disappears before final verification', async () => {
+    const first = harness({ budgetMs: 12050, msPerRead: 20 });
+    await runCatalogVideoR2Worker(first.deps);
+    // Finish the upload in another invocation, then interrupt before verification.
+    const parts = first.trace
+      .filter(([name]) => name.endsWith('_part'))
+      .map(([, p]) => ({
+        partNumber: Number(p.p_part),
+        sizeBytes: Number(p.p_size),
+        sha256: String(p.p_sha256),
+        etag: String(p.p_etag),
+        verifiedBy: 'readback' as const
+      }));
+    // Use a complete independently staged fixture, with the frozen original checksum.
+    const source = first.source;
+    for (let n = parts.length + 1; n <= 4; n++) {
+      const b = source.slice((n - 1) * PART, n * PART);
+      parts.push({
+        partNumber: n,
+        sizeBytes: b.length,
+        sha256: await sha256Hex(b),
+        etag: `"e${n}"`,
+        verifiedBy: 'readback'
+      });
+    }
+    const h = harness({ state: 'verifying', parts });
+    h.store.staging = source;
+    h.driveFor.mockRejectedValue(new Error('source removed'));
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({
+      outcome: 'ready',
+      fullHashVerified: true
+    });
+    expect(h.driveFor).not.toHaveBeenCalled();
+  });
+
+  it.each(['checksum', 'revision', 'trashed'] as const)(
+    'refuses an unverifiable fallback source: %s',
+    async missing => {
+      const h = harness({ sourceMd5: null });
+      const drive = await h.driveFor();
+      const metadata = await drive.getFile();
+      h.driveFor.mockResolvedValue({
+        ...drive,
+        getFile: async () => ({
+          ...metadata,
+          ...(missing === 'checksum'
+            ? { checksum: null }
+            : missing === 'revision'
+              ? { version: '2' }
+              : { trashed: true })
+        })
+      });
+      expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({
+        outcome: 'failed',
+        code: missing === 'checksum' ? 'VIDEO_R2_SOURCE_UNAVAILABLE' : 'SOURCE_CHANGED'
+      });
+      expect(h.names()).not.toContain('begin_upload');
+      expect(h.names()).not.toContain('ready');
+    }
+  );
+
+  it('rejects a changed staging entity between proof and promotion', async () => {
+    const h = harness();
+    const promote = h.deps.r2.promote.bind(h.deps.r2);
+    vi.spyOn(h.deps.r2, 'promote').mockImplementation(async (...args) => {
+      h.store.staging![0] ^= 1;
+      return promote(...args);
+    });
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({
+      outcome: 'failed',
+      code: 'VIDEO_R2_CHECKSUM_MISMATCH'
+    });
+    expect(h.store.publicBytes).toBeNull();
+    expect(h.names()).not.toContain('ready');
+  });
+
+  it('sweeps retained staging after an unknown ready acknowledgement without touching public bytes', async () => {
+    const memory: ProofMemory = {};
+    const h = harness({ proofMemory: memory });
+    const rpc = h.rpc.getMockImplementation()!;
+    h.rpc.mockImplementation(async (name, params) => {
+      const result = await rpc(name, params);
+      if (name === 'service_catalog_video_r2_ready') throw new Error('reply lost');
+      return result;
+    });
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({ outcome: 'retry' });
+    const sweeper = harness({ route: 'sweep', proofMemory: memory });
+    sweeper.store.staging = h.store.staging;
+    sweeper.store.publicBytes = h.store.publicBytes;
+    await runCatalogVideoR2Worker(sweeper.deps);
+    expect(sweeper.store.staging).toBeNull();
+    expect(sweeper.store.publicBytes).toEqual(h.source);
+    expect(sweeper.calls.some(call => call.startsWith('DELETE') && call.includes('-public/'))).toBe(
+      false
+    );
+    expect(memory.cleanup).toBe(false);
+  });
+  it('refuses a same-size source replacement across a resumed upload', async () => {
+    const size = 256 * 1024;
+    const original = video(size);
+    const parts = [];
+    const uploaded = new Map<number, Uint8Array>();
+    for (let n = 1; n <= 24; n++) {
+      const bytes = original.slice((n - 1) * PART, n * PART);
+      uploaded.set(n, bytes);
+      parts.push({
+        partNumber: n,
+        sizeBytes: PART,
+        sha256: await sha256Hex(bytes),
+        etag: `"e${n}"`,
+        verifiedBy: 'readback' as const
+      });
+    }
+    const h = harness({
+      size,
+      sourceMd5: 'match',
+      state: 'uploading',
+      uploadId: 'existing',
+      parts
+    });
+    h.store.uploads.set('existing', uploaded);
+    const rpc = h.rpc.getMockImplementation()!;
+    h.rpc.mockImplementation(async (name, params) => {
+      const result = await rpc(name, params);
+      if (name === 'service_catalog_video_r2_claim') {
+        // Metadata/MD5 in the claim still refers to the old source; Drive now
+        // has a replacement of equal length. Both changes are outside probes.
+        h.source[80 * 1024] ^= 1;
+        h.source[100 * 1024] ^= 1;
+      }
+      return result;
+    });
+    const result = await runCatalogVideoR2Worker(h.deps);
+    console.info(
+      'AUDIT same-size replacement',
+      JSON.stringify({
+        result,
+        publicMatchesCurrent:
+          h.store.publicBytes !== null &&
+          Buffer.from(h.store.publicBytes).equals(Buffer.from(h.source)),
+        publicMatchesOriginal:
+          h.store.publicBytes !== null &&
+          Buffer.from(h.store.publicBytes).equals(Buffer.from(original))
+      })
+    );
+    expect(result).toMatchObject({ outcome: 'failed' });
+    expect(h.names()).not.toContain('ready');
+  });
+
+  it('advances readback verification across three bounded worker invocations', async () => {
+    const source = video(PART * 3 + 100);
+    const parts = [];
+    for (let n = 1; n <= 4; n++) {
+      const bytes = source.slice((n - 1) * PART, n * PART);
+      parts.push({
+        partNumber: n,
+        sizeBytes: bytes.length,
+        sha256: await sha256Hex(bytes),
+        etag: `"e${n}"`,
+        verifiedBy: 'readback' as const
+      });
+    }
+    const reads: number[][] = [];
+    const outcomes: unknown[] = [];
+    const proofMemory: ProofMemory = {};
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const h = harness({ state: 'verifying', parts, budgetMs: 12_050, proofMemory });
+      h.store.staging = source;
+      const ranges: number[] = [];
+      const read = h.deps.r2.readStagingRange.bind(h.deps.r2);
+      vi.spyOn(h.deps.r2, 'readStagingRange').mockImplementation(async (...args) => {
+        ranges.push(args[1]);
+        h.advance(40);
+        return read(...args);
+      });
+      outcomes.push(await runCatalogVideoR2Worker(h.deps));
+      reads.push(ranges);
+    }
+    console.info('AUDIT verification restarts', JSON.stringify({ reads, outcomes }));
+    expect(outcomes.some(result => (result as { outcome: string }).outcome === 'ready')).toBe(true);
   });
 });
