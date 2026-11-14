@@ -61,6 +61,7 @@ export interface AnalyticsSchema {
     analytics_catalog_video_r2_copies?: boolean;
     analytics_catalog_video_r2_purges?: boolean;
     analytics_catalog_video_r2_coverage?: boolean;
+    analytics_catalog_video_r2_verification?: boolean;
     analytics_catalog_text_schedule?: boolean;
     analytics_catalog_text_schedule_journal?: boolean;
     analytics_catalog_text_schedule_coverage?: boolean;

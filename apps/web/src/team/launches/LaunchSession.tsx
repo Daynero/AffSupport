@@ -1439,7 +1439,6 @@ export function LaunchSession({
           <Button
             variant="ghost"
             className="launch-detail-close"
-            disabled={locked}
             onClick={close}
             aria-label={t('teamClose')}
           >

@@ -742,7 +742,7 @@ describe('creating a catalog', () => {
     renderDialog(dialogClient({ createProductCatalogVideo: vi.fn() } as Partial<DialogClient>));
     const user = userEvent.setup();
     await user.click(await screen.findByRole('switch', { name: 'Schedule the video link' }));
-    expect(await screen.findByText('Link publication date')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^Link publication date:/ })).toBeTruthy();
     expect(screen.queryByText('When local time repeats')).toBeNull();
   });
 

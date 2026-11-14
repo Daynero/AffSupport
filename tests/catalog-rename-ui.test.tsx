@@ -77,8 +77,10 @@ afterEach(() => {
 });
 async function typeName() {
   const input = await screen.findByRole('textbox', { name: 'New name' });
-  await waitFor(() => expect(input).toHaveProperty('disabled', false));
-  expect(document.activeElement).toBe(input);
+  await waitFor(() => {
+    expect(input).toHaveProperty('disabled', false);
+    expect(document.activeElement).toBe(input);
+  });
   fireEvent.change(input, { target: { value: 'New catalog' } });
 }
 it('requires explicit acknowledgement of proven bound names; Cancel performs no mutation', async () => {

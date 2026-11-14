@@ -49,8 +49,7 @@ export const uk: Record<keyof typeof en, string> = {
   appUpdateAttentionTitle: 'Оновлення Soty потребує уваги',
   appUpdateReadyTitle: 'Soty {version} готовий',
   appUpdateReconnecting: 'Відновлюємо зв’язок із Soty. Показано останній підтверджений етап.',
-  appUpdateRecovery:
-    'Результат оновлення ще не підтверджений. Оновіть статус або перевстановіть Soty з підписаного інсталятора. Оригінальні файли збережені.',
+  appUpdateRecovery: 'Результат оновлення ще не підтверджений. Оновіть статус перед новою спробою.',
   appUpdateDownloading: 'Завантажуємо й перевіряємо оновлення. Можна продовжувати роботу.',
   appUpdateWaiting:
     'Завершуємо поточні задачі та зберігаємо результати. Нові задачі будуть доступні після оновлення.',
@@ -60,13 +59,50 @@ export const uk: Record<keyof typeof en, string> = {
   appUpdateConsent:
     'Встановити після завершення поточних задач. Soty збереже роботу, оновиться та відкриється знову. macOS може попросити пароль.',
   appUpdateSteps: 'Етапи оновлення',
+  appUpdateInstallReady: 'Готове до встановлення',
   appUpdateRequestFailed: 'Не вдалося підтвердити дію. Оновіть статус перед повторною спробою.',
   appUpdateAutoDownload: 'Завантажувати оновлення автоматично',
   appUpdateDownload: 'Завантажити оновлення',
   appUpdateAccept: 'Оновити після завершення задач',
   appUpdateCancel: 'Скасувати оновлення',
-  appUpdateReinstall: 'Завантажити інсталятор',
   appUpdateRefresh: 'Оновити статус оновлення',
+  appUpdateDetails: 'Переглянути оновлення',
+  appUpdateRequired:
+    'Оновіть Soty, щоб користуватися цим інструментом. Поточні задачі можуть завершитися перед встановленням.',
+  appUpdateCheckReady:
+    'Перевірте наявність нової версії Soty. Доступні оновлення можуть завантажуватися у фоні.',
+  appUpdateDone: 'Готово',
+  appUpdateCancelled: 'Оновлення скасовано. Можна продовжувати роботу.',
+  appUpdateStatusTitle: 'Оновлення Soty',
+  appUpdateStatusUnavailable: 'Не вдалося прочитати стан оновлення. Спробуйте оновити статус.',
+  appUpdateAvailable: 'Доступна нова версія. Її можна завантажити, продовжуючи роботу.',
+  appUpdatePrepared: 'Оновлення завантажене й перевірене. Встановіть його, коли будете готові.',
+  appUpdateDeferred: 'Встановлення відкладено. Можна працювати й повернутися до оновлення пізніше.',
+  appUpdateBackground: 'Можна закрити це вікно. Soty продовжить оновлення.',
+  appUpdateCheckAgain: 'Перевірити оновлення',
+  appUpdateRetry: 'Спробувати ще раз',
+  appUpdateDiskFull:
+    'Для оновлення бракує вільного місця. Звільніть місце на Mac і спробуйте ще раз.',
+  appUpdateDownloadFailed:
+    'Не вдалося завантажити оновлення. Перевірте з’єднання з інтернетом і спробуйте ще раз.',
+  appUpdateMoveToApplications:
+    'Перемістіть Soty у «Програми» й відкрийте його звідти, щоб увімкнути оновлення.',
+  appUpdatePermissionDenied:
+    'macOS не дозволила оновлення. Спробуйте ще раз і підтвердьте системний запит, якщо він з’явиться.',
+  appUpdateSaveFailed: 'Soty не вдалося підтвердити збереження роботи. Встановлення призупинене.',
+  appUpdateVerificationFailed:
+    'Не вдалося перевірити це оновлення. Перевірте наявність нової версії перед повторною спробою.',
+  appUpdateCandidateChanged: 'Тепер доступна інша версія. Перевірте оновлення, щоб продовжити.',
+  appUpdateReadiness:
+    'Soty ще не підтвердив готовність інструментів. Оновіть статус, щоб перевірити ще раз.',
+  appUpdateRetryHelp:
+    'Оновлення не завершилося. Перевірте його стан і повторіть спробу, коли дія стане доступною.',
+  appUpdateManualRecovery: 'Додаткові способи відновлення',
+  appUpdateUpdaterUnavailable:
+    'У цій копії Soty автоматичне оновлення недоступне. Спробуйте ще раз відкрити Soty з «Програм».',
+  appUpdateManualRecoveryBody:
+    'У цій копії Soty автоматичне оновлення недоступне. Якщо повторне відкриття не допомогло, відновіть застосунок за допомогою інсталятора.',
+  appUpdateManualDownload: 'Відновити Soty',
 
   catalogWriteUnsupported:
     'Публікацію відеопосилання заблоковано: сховище не підтримує безпечне оновлення клітинок каталогу. Наявні посилання збережено.',
@@ -141,6 +177,10 @@ export const uk: Record<keyof typeof en, string> = {
     'Результат збереження ще не підтверджено. Перевірка читає початковий запит без повторного запису.',
   catalogPublicationCheck: 'Перевірити стан',
   catalogPublicationDelayed: 'Відкласти додавання відеопосилання',
+  catalogPublicationDay: 'Дата',
+  catalogTimeChoose: 'Обрати час',
+  catalogTimeHours: 'Години',
+  catalogTimeMinutes: 'Хвилини',
   catalogPublicationDate: 'Дата додавання посилання',
   catalogPublicationZone: 'Часовий пояс',
   catalogPublicationOccurrence: 'При повторенні часу',
@@ -657,7 +697,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchSettingsProducts: 'Товарів',
   launchSettingsMoreBudgets: 'Ще {count} бюджетів',
   launchSettingsBudget: 'Бюджет',
-  launchSettingsDuration: 'Тривалість відео',
+  launchSettingsDuration: 'Тривалість зашивки',
   launchesCreative: 'Креатив',
   launchesSelectCreative: 'Обрати креатив',
   launchesSelectedCreative: 'Обраний креатив',
@@ -1217,7 +1257,8 @@ export const uk: Record<keyof typeof en, string> = {
   transcriptionEmpty: 'Ще немає файлів',
   transcriptionEmptyBody: 'Додайте аудіо чи відео, щоб перетворити їх на текст.',
   transcriptionEngineUnavailable: 'Рушій транскрибації недоступний.',
-  transcriptionEngineUnavailableBody: 'Перевстановіть Soty, щоб відновити локальну мовну модель.',
+  transcriptionEngineUnavailableBody:
+    'Мовна модель недоступна в цій копії Soty. Перевірте оновлення застосунку.',
   transcriptionProcessing: 'Транскрибуємо',
   transcriptionStart: 'Транскрибувати',
   transcriptionCancel: 'Скасувати',
@@ -1453,9 +1494,7 @@ export const uk: Record<keyof typeof en, string> = {
   windowsUnsignedNotice:
     'Windows може показати синій екран «Система Windows захистила ваш ПК», бо застосунок не ' +
     'підписано. Натисніть «Докладніше», а потім «Виконати в будь-якому разі».',
-  macUnsignedNotice:
-    'macOS може написати, що не вдається перевірити розробника. Відкрийте «Системні ' +
-    'параметри» → «Конфіденційність і безпека» і натисніть «Усе одно відкрити».',
+  macInstallNotice: 'Перетягніть Soty у «Програми» й відкрийте його звідти.',
   windowsRequirements: 'Потрібна 64-бітна Windows 10 або 11.',
   windowsUnsupportedArchitecture:
     'Soty для Windows потребує 64-бітної (x64) Windows 10 або 11. ' +
@@ -1465,13 +1504,8 @@ export const uk: Record<keyof typeof en, string> = {
   install1: 'Завантажте DMG.',
   install2: 'Перетягніть Soty у Applications.',
   install3:
-    'Спробуйте відкрити Soty. macOS може повідомити, що застосунок завантажено з інтернету або його не вдалося перевірити — натисніть «Готово».',
-  install4: 'Відкрийте  → Системні параметри → Приватність і безпека.',
-  install5:
-    'Прокрутіть сторінку донизу, знайдіть повідомлення про Soty та натисніть «Усе одно відкрити».',
-  install6:
-    'У наступному вікні ще раз натисніть «Усе одно відкрити» й введіть пароль від Mac, якщо система його запитає.',
-  install7: 'Після цього Soty відкриється — поверніться на сайт і продовжуйте роботу.',
+    'Відкрийте Soty з «Програм». Якщо macOS запитає, підтвердьте відкриття завантаженого застосунку.',
+  install4: 'Коли Soty відкриється, поверніться на сайт і продовжуйте роботу.',
   compressionSettings: 'Налаштування стиснення',
   compressionMode: 'Режим',
   optimal: 'Оптимальний',
@@ -1974,7 +2008,8 @@ export const uk: Record<keyof typeof en, string> = {
   landingGalleryEmptyTitle: 'Лендінгів не знайдено',
   landingGalleryEmptyBody: 'Soty шукає папки та ZIP-архіви, що містять index.html або index.htm.',
   landingGalleryRendererMissing: 'Локальний рендерер Chromium недоступний.',
-  landingGalleryRendererMissingBody: 'Перевстановіть Soty, щоб відновити повносторінкові прев’ю.',
+  landingGalleryRendererMissingBody:
+    'Рушій прев’ю недоступний у цій копії Soty. Перевірте оновлення застосунку.',
   landingGalleryCount: 'Лендінгів: {count}',
   landingGalleryCounter: '{current} із {total}',
   landingGalleryToggleSidebar: 'Показати або сховати дерево папок',

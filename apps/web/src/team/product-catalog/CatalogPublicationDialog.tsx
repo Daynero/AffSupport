@@ -1,5 +1,4 @@
-import { CatalogPublicationSchedule } from './CatalogPublicationSchedule';
-import { CatalogTimeZoneSelect } from './CatalogTimeZoneSelect';
+import { CatalogPublicationFields } from './CatalogPublicationFields';
 import { useCatalogPublicationVerification } from './useCatalogPublicationVerification';
 import { withReadDeadline } from '../readCoordinator';
 import { withCatalogCommandDeadline } from '../catalog-updater/catalogCommandCoordinator';
@@ -14,26 +13,14 @@ import {
 import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import {
-  Button,
-  Calendar,
-  FormField,
-  Select,
-  fromCalendarDate,
-  toCalendarDate
-} from '../../components/ui/index';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
-import {
-  catalogPublicationFirstDay,
-  catalogPublicationTimeRepeats,
-  resolveCatalogPublicationDraft
-} from './catalogPublicationDraft';
+import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
 
 /** How often «Публікуємо…» reads the publication until the write is verified. */
 export const CATALOG_PUBLISH_NOW_POLL_MS = 3_000;
 const CATALOG_PUBLISH_NOW_MAX_READS = 60;
-import { CatalogTimeInput } from './CatalogTimeInput';
 export function CatalogPublicationDialog({
   teamId,
   catalogId,
@@ -49,8 +36,6 @@ export function CatalogPublicationDialog({
 }) {
   const { t } = useI18n(),
     title = useId(),
-    timeId = useId(),
-    zoneId = useId(),
     epoch = usePrivateCacheEpoch(),
     actor = privateCacheActor();
   const flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
@@ -332,80 +317,18 @@ export function CatalogPublicationDialog({
         </>
       ) : (
         <>
-          <CatalogPublicationSchedule
-            enabled={delayed}
+          <CatalogPublicationFields
+            value={{ delayed, date, time, zone, occurrence: choice }}
             disabled={pending || verification.pending || !snapshot}
-            date={date}
-            time={time}
-            zone={zone}
-            onChange={(enabled, date, time) => {
+            onChange={next => {
               setSaved(false);
-              setDelayed(enabled);
-              setDate(date);
-              setTime(time);
-              setChoice(undefined);
+              setDelayed(next.delayed);
+              setDate(next.date);
+              setTime(next.time);
+              setZone(next.zone);
+              setChoice(next.occurrence);
             }}
-          >
-            <Calendar
-              label={t('catalogPublicationDate')}
-              // Past days are unavailable; a pending save freezes the calendar rather
-              // than marking every day, the chosen one too, invalid (1.4.3).
-              minValue={catalogPublicationFirstDay(zone)}
-              isDisabled={pending || verification.pending}
-              value={toCalendarDate(date)}
-              onChange={value => {
-                setSaved(false);
-                setDate(fromCalendarDate(value) ?? '');
-                setChoice(undefined);
-              }}
-            />
-            <FormField label={t('catalogScheduleTime')} htmlFor={timeId}>
-              <CatalogTimeInput
-                id={timeId}
-                value={time}
-                disabled={pending || verification.pending}
-                onChange={next => {
-                  setSaved(false);
-                  setTime(next);
-                  setChoice(undefined);
-                }}
-              />
-            </FormField>
-            <FormField label={t('catalogPublicationZone')} htmlFor={zoneId}>
-              <CatalogTimeZoneSelect
-                id={zoneId}
-                value={zone}
-                date={date}
-                time={time}
-                disabled={pending || verification.pending}
-                onChange={zone => {
-                  setSaved(false);
-                  setZone(zone);
-                  setChoice(undefined);
-                }}
-              />
-            </FormField>
-            {(choice !== undefined || catalogPublicationTimeRepeats(`${date}T${time}`, zone)) && (
-              <FormField label={t('catalogPublicationOccurrence')}>
-                <Select
-                  aria-label={t('catalogPublicationOccurrence')}
-                  value={choice ?? ''}
-                  placeholder={t('catalogPublicationChoose')}
-                  disabled={pending || verification.pending}
-                  onChange={value => {
-                    setSaved(false);
-                    setChoice(
-                      value === 'earlier' ? 'earlier' : value === 'later' ? 'later' : undefined
-                    );
-                  }}
-                  options={[
-                    { value: 'earlier', label: t('catalogPublicationEarlier') },
-                    { value: 'later', label: t('catalogPublicationLater') }
-                  ]}
-                />
-              </FormField>
-            )}
-          </CatalogPublicationSchedule>
+          />
           <Button
             disabled={pending || verification.pending || !snapshot || saved}
             onClick={() => void save()}

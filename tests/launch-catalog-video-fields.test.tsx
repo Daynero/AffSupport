@@ -51,7 +51,8 @@ it('limits N to products and retains incomplete calendar choices in the draft', 
       })
     })
   );
-  expect(screen.queryByRole('button', { name: /Time zone/ })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: /publication date/i }));
   expect(screen.getByRole('button', { name: /Time zone/ })).toBeTruthy();
+  expect(screen.queryByRole('grid')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /publication date/i }));
+  expect(screen.getByRole('grid')).toBeTruthy();
 });

@@ -54,6 +54,7 @@ const TABLES = [
   'analytics_catalog_video_r2_copies',
   'analytics_catalog_video_r2_purges',
   'analytics_catalog_video_r2_coverage',
+  'analytics_catalog_video_r2_verification',
   'analytics_catalog_text_schedule',
   'analytics_catalog_text_schedule_journal',
   'analytics_catalog_text_schedule_coverage',
@@ -167,6 +168,9 @@ async function probe(): Promise<AnalyticsSchema> {
       ...(has('table', 'analytics_catalog_video_r2_purges')
         ? { analytics_catalog_video_r2_purges: true }
         : {}),
+      ...(has('table', 'analytics_catalog_video_r2_verification')
+        ? { analytics_catalog_video_r2_verification: true }
+        : {}),
       ...(has('table', 'analytics_catalog_video_r2_coverage')
         ? { analytics_catalog_video_r2_coverage: true }
         : {}),
@@ -255,6 +259,7 @@ export function missingObjects(schema: AnalyticsSchema): string[] {
         table !== 'analytics_catalog_renames' &&
         table !== 'analytics_catalog_video_replacements' &&
         table !== 'analytics_catalog_video_r2_coverage' &&
+        table !== 'analytics_catalog_video_r2_verification' &&
         table !== 'analytics_catalog_text_schedule' &&
         table !== 'analytics_catalog_text_schedule_journal' &&
         table !== 'analytics_catalog_text_schedule_coverage' &&

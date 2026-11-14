@@ -93,3 +93,19 @@ T048/T049 use disjoint UI files and can proceed alongside Phase11. T050 precedes
 - [x] T055 Reproduce single-budget calculation/persistence/generation and mode transition behavior; implement shared config/calculation and additive SQL profile validation (FR-024, SC-012).
 - [x] T056 Polish count labels, budget spacing, three-mode control/one amount and profile review; show actual bounded muted SUB summary (FR-021, FR-024, SC-012).
 - [x] T057 Review edge cases twice, run focused/SQL/static/build/full verification and desktop browser acceptance, update Downloads screenshots and commit on 053 (SC-006, SC-012).
+
+## Phase 14 — Combined release beta walkthrough
+
+- [x] T058 Reproduce and fix no-code gateway autosave failures while retaining the original request identity and later edits (FR-011, FR-014).
+- [x] T059 Keep the running result viewer closable without canceling accepted work; verify real close/reload/completion and timer/copy marks (FR-003, FR-020).
+- [x] T060 Resume eligible native cooldown on explicit new work; preserve actor fences, held work and server Retry-After; cover concurrent-tab resumption, revocation and timeout (FR-015, FR-018).
+- [x] T061 Preserve reviewed inputs on copied drafts and atomically assign fresh copies only at successful bulk admission; reject changed inputs/released holds and verify once-only assignment diagnostics (FR-006, FR-011, FR-013).
+- [x] T062 Walk through real-auth beta in one existing desktop browser tab: settings, real restitch/catalog, batch sibling cancellation, paste/start/close/reload, rename/old-name search and generated product content (SC-007–SC-012).
+- [ ] T063 Complete fresh combined verification after beta fixes, retain failed/interrupted evidence and exact performance measurements, then commit and align the local beta checkout (SC-006).
+
+Evidence: [manual beta walkthrough](reviews/manual-beta-2026-11-14.md). Earlier release proof is bound to its original source; this follow-up needs its own result.
+
+- [x] T064 Resolve creative upload destinations inside the active root, preserve foreign folders, distinguish provider failures and record pre-admission diagnostics; verify the reported MP4 in beta and producer-to-inspect regression.
+- [x] T065 Emphasize actual SUB values neutrally and label the duration slider as stitch duration; preserve existing settings and spacing.
+
+- [x] T066 Replace the oversized publication date panel with the design-system Calendar popover and shared time wheel; verify today/selection, keyboard/focus, DST visibility and persistence in source beta.

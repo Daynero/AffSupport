@@ -229,6 +229,10 @@
   white-space: nowrap;
   font-weight: var(--weight-body);
 }
+.launch-editor-sub-accordion .ui-accordion-aside strong {
+  color: var(--color-neutral-text);
+  font-weight: var(--weight-label);
+}
 .launch-defaults-actions {
   flex-direction: row;
   flex-wrap: wrap;

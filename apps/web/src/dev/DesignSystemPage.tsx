@@ -9,6 +9,7 @@ import {
   Alert,
   Badge,
   Calendar,
+  TimeWheel,
   RangeCalendar,
   todayHere,
   Breadcrumb,
@@ -144,6 +145,7 @@ export default function DesignSystemPage() {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
+  const [time, setTime] = useState('14:30');
   const [day, setDay] = useState(todayHere());
   const [range, setRange] = useState({ start: todayHere(), end: todayHere().add({ days: 4 }) });
 
@@ -414,6 +416,14 @@ export default function DesignSystemPage() {
       {tab === 'dates' && (
         <>
           <Section title="Calendar">
+            <Row title="Time wheel">
+              <TimeWheel
+                value={time}
+                onChange={setTime}
+                hoursLabel="Hours"
+                minutesLabel="Minutes"
+              />
+            </Row>
             <p className="prose">
               One calendar for the whole product: a day, a range, the year jump, and the keyboard
               that comes with them — arrows by day, PageUp and PageDown by month, Home and End to

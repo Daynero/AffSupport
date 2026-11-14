@@ -270,20 +270,20 @@ it('switches restitch time between a point and an independently editable interva
     );
   }
   render(<Host />);
-  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 30 min' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 30 min' }));
   expect(screen.getAllByRole('slider')).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByRole('button', { name: 'Video duration · 25–35 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 25–35 min' })).toBeTruthy();
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
-  expect(screen.getByRole('button', { name: 'Video duration · 25–36 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 25–36 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
   expect(screen.getAllByRole('slider')).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Video duration · 31 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 31 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByRole('button', { name: 'Video duration · 26–36 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 26–36 min' })).toBeTruthy();
 });
 
 it('keeps a centered random interval inside the 1–60 minute scale at the upper edge', () => {
@@ -314,14 +314,14 @@ it('keeps a centered random interval inside the 1–60 minute scale at the upper
     );
   }
   render(<Host />);
-  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 55–60 min' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 55–60 min' }));
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
-  expect(screen.getByRole('button', { name: 'Video duration · 55–59 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 55–59 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
-  expect(screen.getByRole('button', { name: 'Video duration · 57 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 57 min' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
-  expect(screen.getByRole('button', { name: 'Video duration · 52–60 min' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stitch duration · 52–60 min' })).toBeTruthy();
 });
 
 it('updates automatic budgets from both bounds and changes the heading for one campaign', () => {

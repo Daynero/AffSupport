@@ -465,6 +465,7 @@ function LaunchSpaceContent({
           const status = await ensureBackgroundRecovery(teamId, {
             actorId,
             isCurrent: current,
+            resumeBlockedWork: true,
             onSetupStage: observeBackgroundSetup
           });
           if (status.enabled) executorId = status.installationId;

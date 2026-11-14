@@ -130,8 +130,8 @@ export function LaunchEditor({
   const subPreview = config.subConfig
     ? launchSubPreview(config.subConfig, config.creativeAlias, localSources)
     : null;
-  const subSummary = Object.entries(subPreview ?? {})
-    .filter(([, value]) => value !== null)
+  const subValues = Object.entries(subPreview ?? {}).filter(([, value]) => value !== null);
+  const subSummary = subValues
     .map(([slot, value]) => `${slot.toUpperCase()} — ${value}`)
     .join(' · ');
   if (config.method === 'catalog' && config.catalog) {
@@ -183,10 +183,7 @@ export function LaunchEditor({
       validate &&
       !budgetKeys.includes(key) &&
       Boolean(errors[key]) &&
-      (submitted ||
-        touched.has(key) ||
-        ((key === 'productCount' || key === 'customFinalDurationSeconds') &&
-          touched.has('catalog')));
+      (submitted || touched.has(key) || (key === 'productCount' && touched.has('catalog')));
     return (
       <FormField
         label={t(shortLabels[key] ?? label)}
@@ -196,29 +193,19 @@ export function LaunchEditor({
         error={
           showError
             ? t(
-                key === 'budgets' || errors[key] === 'LAUNCH_BUDGET_INVALID'
-                  ? 'launchesBudgetInvalid'
-                  : key === 'creativeAlias'
-                    ? 'launchesCreativeNameInvalid'
-                    : key === 'originalUrl'
-                      ? 'launchesUrlInvalid'
-                      : submitted
-                        ? key === 'campaignCount'
-                          ? 'launchesCampaignCountInvalid'
-                          : key === 'maxBudget' || key === 'minBudget'
-                            ? 'launchesMaxBudgetInvalid'
-                            : key === 'adsCount'
-                              ? 'launchesAdsCountInvalid'
-                              : key === 'age'
-                                ? 'launchesAgeInvalid'
-                                : key === 'launchDate'
-                                  ? 'launchesDateInvalid'
-                                  : key === 'productCount'
-                                    ? 'launchesProductCountInvalid'
-                                    : key === 'customFinalDurationSeconds'
-                                      ? 'launchesDurationInvalid'
-                                      : 'launchesInvalid'
-                        : 'launchesRequired'
+                key === 'originalUrl'
+                  ? 'launchesUrlInvalid'
+                  : submitted
+                    ? key === 'campaignCount'
+                      ? 'launchesCampaignCountInvalid'
+                      : key === 'adsCount'
+                        ? 'launchesAdsCountInvalid'
+                        : key === 'age'
+                          ? 'launchesAgeInvalid'
+                          : key === 'productCount'
+                            ? 'launchesProductCountInvalid'
+                            : 'launchesInvalid'
+                    : 'launchesRequired'
               )
             : undefined
         }
@@ -227,6 +214,43 @@ export function LaunchEditor({
       </FormField>
     );
   };
+  const dictionary = (
+    key: 'offerId' | 'buyerId',
+    label: TranslationKey,
+    kind: 'offers' | 'buyers',
+    items: LaunchDictionaryItem[]
+  ) => (
+    <div className="min-w-0">
+      {field(
+        key,
+        label,
+        <div className="launch-editor-dictionary-row">
+          <LaunchSelector
+            id={`${prefix}-${key}`}
+            label={t(label)}
+            disabled={disabled}
+            value={config[key] ?? ''}
+            options={items.map(item => ({ value: item.id, label: item.value }))}
+            onChange={value => changed({ [key]: value })}
+            onCreate={onCreate ? value => onCreate(kind, value) : undefined}
+          />
+          {onDictionaryChanged && (
+            <LaunchDictionaryManager
+              teamId={teamId}
+              kind={kind}
+              items={items}
+              selected={config[key] ?? ''}
+              disabled={disabled}
+              onBusyChange={onDictionaryBusyChange}
+              onChanged={(removedId, replacement) =>
+                onDictionaryChanged(kind, removedId, replacement)
+              }
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
   const number = (
     key: 'campaignCount' | 'minBudget' | 'maxBudget' | 'adsCount' | 'age',
     label: TranslationKey,
@@ -366,66 +390,8 @@ export function LaunchEditor({
                 )}
                 {accountAssignment}
               </div>
-              <div className="min-w-0">
-                {field(
-                  'offerId',
-                  'launchesOffer',
-                  <div className="launch-editor-dictionary-row">
-                    <LaunchSelector
-                      id={`${prefix}-offerId`}
-                      label={t('launchesOffer')}
-                      disabled={disabled}
-                      value={config.offerId ?? ''}
-                      options={offers.map(x => ({ value: x.id, label: x.value }))}
-                      onChange={offerId => changed({ offerId })}
-                      onCreate={onCreate ? v => onCreate('offers', v) : undefined}
-                    />
-                    {onDictionaryChanged && (
-                      <LaunchDictionaryManager
-                        teamId={teamId}
-                        kind="offers"
-                        items={offers}
-                        selected={config.offerId ?? ''}
-                        disabled={disabled}
-                        onBusyChange={onDictionaryBusyChange}
-                        onChanged={(removedId, replacement) =>
-                          onDictionaryChanged('offers', removedId, replacement)
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0">
-                {field(
-                  'buyerId',
-                  'launchesBuyer',
-                  <div className="launch-editor-dictionary-row">
-                    <LaunchSelector
-                      id={`${prefix}-buyerId`}
-                      label={t('launchesBuyer')}
-                      disabled={disabled}
-                      value={config.buyerId ?? ''}
-                      options={buyers.map(x => ({ value: x.id, label: x.value }))}
-                      onChange={buyerId => changed({ buyerId })}
-                      onCreate={onCreate ? v => onCreate('buyers', v) : undefined}
-                    />
-                    {onDictionaryChanged && (
-                      <LaunchDictionaryManager
-                        teamId={teamId}
-                        kind="buyers"
-                        items={buyers}
-                        selected={config.buyerId ?? ''}
-                        disabled={disabled}
-                        onBusyChange={onDictionaryBusyChange}
-                        onChanged={(removedId, replacement) =>
-                          onDictionaryChanged('buyers', removedId, replacement)
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
+              {dictionary('offerId', 'launchesOffer', 'offers', offers)}
+              {dictionary('buyerId', 'launchesBuyer', 'buyers', buyers)}
               <IconButton
                 className="launch-editor-refresh"
                 label={t('launchesRefreshSources')}
@@ -502,7 +468,16 @@ export function LaunchEditor({
                   {
                     id: 'launch-sub-settings',
                     title: t('launchesSubSettings'),
-                    aside: subSummary ? <span title={subSummary}>{subSummary}</span> : undefined,
+                    aside: subSummary ? (
+                      <span title={subSummary}>
+                        {subValues.map(([slot, value], index) => (
+                          <span key={slot}>
+                            {index > 0 && ' · '}
+                            {slot.toUpperCase()} — <strong>{value}</strong>
+                          </span>
+                        ))}
+                      </span>
+                    ) : undefined,
                     content: (
                       <div className="launch-editor-sub-content">
                         <p>{t('launchesSubSettingsHelp')}</p>
@@ -813,7 +788,6 @@ export function LaunchEditor({
                           <Suspense fallback={null}>
                             <LaunchCatalogVideoFields
                               part="publication"
-                              submitted={submitted}
                               value={config.catalog!}
                               disabled={disabled}
                               onChange={catalog => changed({ catalog })}

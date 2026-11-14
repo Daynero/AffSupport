@@ -1,58 +1,55 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
-import { CatalogPublicationSchedule } from '../apps/web/src/team/product-catalog/CatalogPublicationSchedule';
-
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { CatalogCreationVideoFields } from '../apps/web/src/team/product-catalog/CatalogCreationVideoFields';
+import { catalogPublicationFirstDay } from '../apps/web/src/team/product-catalog/catalogPublicationDraft';
 afterEach(cleanup);
-
-const css = readFileSync(path.resolve(import.meta.dirname, '../apps/web/src/styles.css'), 'utf8');
-
-/** Every rule whose selector names the schedule, as `selector { body }` pairs. */
-function scheduleRules(): { selector: string; body: string }[] {
-  return [...css.matchAll(/([^{}]*catalog-publication-schedule[^{}]*)\{([^}]*)\}/gu)].map(
-    match => ({ selector: match[1]!.trim(), body: match[2]! })
-  );
-}
-
-// 1.4.3 on next: the field name was nowrap and the chosen time sat in the same row
-// with no room of its own, so «Дата додавання посилання» ran under
-// «12 лист. 2026 р., 11:39 · Київ — GMT+02:00».
-it('renders the field name and the chosen time as two separate items', () => {
+const draft = {
+  variationCount: '1',
+  delayed: true,
+  date: '2027-11-12',
+  time: '11:39',
+  zone: 'Europe/Kyiv',
+  occurrence: 'earlier' as const
+};
+it('keeps scheduling compact and opens the shared calendar only when editing the date', () => {
+  const onChange = vi.fn();
   render(
-    <CatalogPublicationSchedule
-      enabled
+    <CatalogCreationVideoFields
+      value={draft}
+      onChange={onChange}
+      restitch={false}
+      productCount={3}
       disabled={false}
-      date="2026-11-12"
-      time="11:39"
-      zone="Europe/Kyiv"
-      onChange={() => {}}
-    >
-      <span />
-    </CatalogPublicationSchedule>
+    />
   );
-  const toggle = screen.getByRole('button', { expanded: false });
-  const label = toggle.querySelector('.catalog-publication-label');
-  const when = toggle.querySelector('.catalog-publication-when');
-  expect(label).not.toBeNull();
-  expect(when).not.toBeNull();
-  expect(label).not.toBe(when);
-  expect(label!.contains(when)).toBe(false);
-  expect(when!.textContent).toContain('11:39');
-  // A clipped or wrapped time still reads in full on hover.
-  expect(when!.getAttribute('title')).toBe(when!.textContent);
+  expect(screen.queryByRole('grid')).toBeNull();
+  expect(screen.getByLabelText('Time')).toHaveProperty('value', '11:39');
+  expect(screen.getByRole('button', { name: /Time zone/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /When the clock repeats/ })).toBeNull();
+  const date = screen.getByRole('button', { name: /Link publication date:/ });
+  fireEvent.click(date);
+  expect(screen.getByRole('grid')).toBeTruthy();
+  fireEvent.keyDown(document.activeElement!, { key: 'Escape', code: 'Escape', keyCode: 27 });
+  expect(screen.queryByRole('grid')).toBeNull();
+  expect(document.activeElement).toBe(date);
+  expect(onChange).not.toHaveBeenCalled();
 });
-
-it('lets the row wrap and never forces the name onto one unshrinkable line', () => {
-  const rules = scheduleRules();
-  expect(rules.some(rule => /white-space:\s*nowrap/u.test(rule.body))).toBe(false);
-  const row = rules.find(rule =>
-    /\.catalog-publication-schedule \.settings-collapse$/u.test(rule.selector)
+it('renders today with the shared calendar day marker while keeping the selection separate', () => {
+  const today = catalogPublicationFirstDay('Europe/Kyiv');
+  render(
+    <CatalogCreationVideoFields
+      value={{ ...draft, date: today.add({ days: 1 }).toString() }}
+      onChange={vi.fn()}
+      restitch={false}
+      productCount={3}
+      disabled={false}
+    />
   );
-  expect(row?.body).toMatch(/flex-wrap:\s*wrap/u);
-  const when = rules.find(rule => rule.selector.endsWith('.catalog-publication-when'));
-  expect(when?.body).toMatch(/min-width:\s*0/u);
-  expect(when?.body).toMatch(/overflow-wrap:\s*anywhere/u);
+  fireEvent.click(screen.getByRole('button', { name: /Link publication date:/ }));
+  const marked = document.querySelector('.ui-calendar-day[data-today] .calendar__cell-button');
+  expect(marked?.textContent).toBe(String(today.day));
+  const selected = document.querySelector('.ui-calendar-day[data-selected] .calendar__cell-button');
+  expect(selected).not.toBe(marked);
 });

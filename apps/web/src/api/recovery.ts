@@ -86,6 +86,8 @@ export async function ensureBackgroundRecovery(
     isCurrent: () => boolean;
     signal?: AbortSignal;
     onSetupStage?: (event: RecoverySetupObservation) => void;
+    /** Only an explicit new-work action may waive a prior local retry cooldown. */
+    resumeBlockedWork?: boolean;
   }
 ): Promise<BackgroundRecoveryStatus> {
   const flowId = crypto.randomUUID();
@@ -126,6 +128,39 @@ export async function ensureBackgroundRecovery(
     if (ownership.automaticSetup === 'ready' && ownership.enabled) {
       observe('succeeded');
       stage = 'ready';
+      if (
+        scope.resumeBlockedWork &&
+        ownership.state === 'blocked' &&
+        ['checkpoint_unavailable', 'retry_exhausted'].includes(ownership.reason ?? '')
+      ) {
+        observe('started');
+        // The existing native retry retains the request/held grant and server
+        // Retry-After. It settles uncertain work instead of executing it again.
+        let retryRefused = false;
+        try {
+          const resumed: unknown = await bounded(signal =>
+            requestBody('/api/team/recovery/retry', { teamId }, 'POST', signal)
+          );
+          await current();
+          if (!record(resumed) || resumed.retrying !== true) throw new Error('INVALID_RESPONSE');
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'WRONG_STATE') throw error;
+          // Another tab or the worker's own timer may already have resumed it.
+          // Adopt only a fresh authoritative state, never the stale blocked read.
+          retryRefused = true;
+          await current();
+        }
+        ownership = await bounded(signal => backgroundRecoveryStatus(teamId, signal));
+        await current();
+        if (!ownership.enabled || ownership.automaticSetup !== 'ready')
+          throw new Error('PERMISSION_DENIED');
+        if (
+          retryRefused &&
+          !['idle', 'claiming', 'running', 'accepted', 'settled'].includes(ownership.state)
+        )
+          throw new Error('WRONG_STATE');
+        notifyRecoveryChanged();
+      }
       observe('succeeded');
       return ownership;
     }

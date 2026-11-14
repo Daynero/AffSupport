@@ -33,14 +33,14 @@ it('shows restitch duration only after video restitching is enabled', () => {
     />
   );
   expect(screen.queryByRole('slider')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 2 min' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 2 min' }));
   expect(
     screen.getByRole('slider', { name: 'Duration, minutes' }).getAttribute('aria-valuenow')
   ).toBe('2');
-  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 2 min' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 2 min' }));
   expect(screen.queryByRole('slider')).toBeNull();
   expect(
-    screen.getByRole('button', { name: 'Video duration · 2 min' }).getAttribute('aria-expanded')
+    screen.getByRole('button', { name: 'Stitch duration · 2 min' }).getAttribute('aria-expanded')
   ).toBe('false');
 });
 it('initializes missing catalog settings when an older draft changes launch method', () => {
@@ -92,7 +92,7 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
   };
   const view = render(<LaunchEditor {...props} config={draft} />);
   const count = screen.getByRole('spinbutton', { name: 'Products in catalog' });
-  fireEvent.click(screen.getByRole('button', { name: 'Video duration · 30 min' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 30 min' }));
   const duration = screen.getByRole('slider', { name: 'Duration, minutes' });
   expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
   expect(
@@ -140,7 +140,7 @@ it('reveals the duration editor automatically when its hidden value is invalid o
     />
   );
   expect(
-    screen.getByRole('button', { name: 'Video duration · 30 min' }).getAttribute('aria-expanded')
+    screen.getByRole('button', { name: 'Stitch duration · 30 min' }).getAttribute('aria-expanded')
   ).toBe('true');
   expect(screen.getByRole('slider', { name: 'Duration, minutes' })).toBeTruthy();
 });

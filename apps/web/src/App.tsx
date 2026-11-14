@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { openNativeAppUpdate } from './updates/openNativeAppUpdate';
 import { Ban, Broom, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
@@ -1002,7 +1003,7 @@ export function Onboarding({
   connect: () => void;
   t: Translate;
 }) {
-  const { reason } = useAgent();
+  const { reason, capabilities } = useAgent();
   // A manual connect flips the connection to "connecting" for a moment. Rather
   // than swapping the whole panel for a spinner (which read as a flicker), we
   // keep the panel mounted and let the button animate the search in place.
@@ -1024,7 +1025,9 @@ export function Onboarding({
     return (
       <BlockingMessage
         title={t('updateTitle')}
-        body={t('updateBody')}
+        body={t(
+          capabilities.includes('native-app-updates-v1') ? 'appUpdateRequired' : 'updateBody'
+        )}
         action={
           <div className="inline-actions">
             <a
@@ -1033,7 +1036,13 @@ export function Onboarding({
             >
               {t('openInstalledVersion')}
             </a>
-            <InstallerDownload intent="update">{t('downloadLatest')}</InstallerDownload>
+            {capabilities.includes('native-app-updates-v1') ? (
+              <Button color="primary" onClick={openNativeAppUpdate}>
+                {t('appUpdateDetails')}
+              </Button>
+            ) : (
+              <InstallerDownload intent="update">{t('downloadLatest')}</InstallerDownload>
+            )}
           </div>
         }
       />
@@ -1162,17 +1171,7 @@ export function Onboarding({
         <div className="installation-help">
           <h3>{t('installTitle')}</h3>
           <ol>
-            {(
-              [
-                'install1',
-                'install2',
-                'install3',
-                'install4',
-                'install5',
-                'install6',
-                'install7'
-              ] as TranslationKey[]
-            ).map(key => (
+            {(['install1', 'install2', 'install3', 'install4'] as TranslationKey[]).map(key => (
               <li key={key}>{t(key)}</li>
             ))}
           </ol>

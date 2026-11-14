@@ -1286,7 +1286,12 @@ function build(): Record<string, CodeLocation> {
     ],
     [
       'team:transfer',
-      ['apps/agent/src/team-bridge/transfer.ts', 'apps/web/src/team/catalog/useMaterialActions.ts'],
+      [
+        'apps/agent/src/team-bridge/transfer.ts',
+        'apps/web/src/team/catalog/useMaterialActions.ts',
+        'apps/web/src/team/launches/LaunchCreativePicker.tsx',
+        'supabase/functions/drive-ops/task-drop-folder.ts'
+      ],
       'Inspect source range identity, measured binary checksum and upload acknowledgements between the local app and team storage.'
     ],
     [

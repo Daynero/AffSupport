@@ -46,3 +46,21 @@ it('normalizes only what it can read without guessing', () => {
   expect(normalizeCatalogTime('9:5')).toBe('9:5');
   expect(normalizeCatalogTime('')).toBe('');
 });
+
+it('edits hours and minutes with the wheel keyboard without changing time just by opening', () => {
+  render(<Harness initial="18:30" />);
+  const trigger = screen.getByRole('button', { name: 'Choose time' });
+  fireEvent.click(trigger);
+  const hour = screen.getByRole('listbox', { name: 'Hours' });
+  const minute = screen.getByRole('listbox', { name: 'Minutes' });
+  expect(screen.getByLabelText('Time')).toHaveProperty('value', '18:30');
+  fireEvent.keyDown(hour, { key: 'ArrowUp' });
+  expect(screen.getByLabelText('Time')).toHaveProperty('value', '17:30');
+  fireEvent.keyDown(minute, { key: 'End' });
+  expect(screen.getByLabelText('Time')).toHaveProperty('value', '17:59');
+  fireEvent.keyDown(minute, { key: 'ArrowDown' });
+  expect(screen.getByLabelText('Time')).toHaveProperty('value', '17:59');
+  fireEvent.keyDown(minute, { key: 'Escape', code: 'Escape', keyCode: 27 });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+});

@@ -48,7 +48,7 @@ export const en = {
   appUpdateReadyTitle: 'Soty {version} is ready',
   appUpdateReconnecting: 'Reconnecting to Soty. The last confirmed update stage is shown.',
   appUpdateRecovery:
-    'The update outcome is not confirmed. Refresh the status or reinstall Soty from the signed installer. Your original files stay safe.',
+    'The update outcome is not confirmed yet. Refresh the status before starting another attempt.',
   appUpdateDownloading: 'Downloading and verifying the update. You can keep working.',
   appUpdateWaiting:
     'Finishing current tasks and saving their results. New tasks will be available after the update.',
@@ -57,13 +57,52 @@ export const en = {
   appUpdateConsent:
     'Install after current tasks finish. Soty will save your work, update and reopen. macOS may ask for your password.',
   appUpdateSteps: 'Update stages',
+  appUpdateInstallReady: 'Ready to install',
   appUpdateRequestFailed: 'Could not confirm the action. Refresh the status before trying again.',
   appUpdateAutoDownload: 'Download updates automatically',
   appUpdateDownload: 'Download update',
   appUpdateAccept: 'Update when tasks finish',
   appUpdateCancel: 'Cancel update',
-  appUpdateReinstall: 'Download installer',
   appUpdateRefresh: 'Refresh update status',
+  appUpdateDetails: 'View update',
+  appUpdateRequired:
+    'Update Soty to use this tool. Your current tasks can finish before installation.',
+  appUpdateCheckReady:
+    'Check for a new version of Soty. Available updates can download in the background.',
+  appUpdateDone: 'Done',
+  appUpdateCancelled: 'The update was cancelled. You can keep working.',
+  appUpdateStatusTitle: 'Soty update',
+  appUpdateStatusUnavailable: 'The update status could not be read. Try refreshing it.',
+  appUpdateAvailable: 'A new version is available. You can download it while you keep working.',
+  appUpdatePrepared: 'The update is downloaded and verified. Install it when you are ready.',
+  appUpdateDeferred:
+    'Installation is postponed. You can keep working and return to the update later.',
+  appUpdateBackground: 'You can close this window. Soty will continue the update.',
+  appUpdateCheckAgain: 'Check for updates',
+  appUpdateRetry: 'Try again',
+  appUpdateDiskFull:
+    'There is not enough free space for the update. Free up space on your Mac, then try again.',
+  appUpdateDownloadFailed:
+    'The update could not be downloaded. Check your internet connection, then try again.',
+  appUpdateMoveToApplications:
+    'Move Soty to Applications and open it from there to enable updates.',
+  appUpdatePermissionDenied:
+    'macOS did not allow the update. Try again and approve the system prompt if it appears.',
+  appUpdateSaveFailed:
+    'Soty could not confirm that your work was saved. Installation has been paused.',
+  appUpdateVerificationFailed:
+    'This update could not be verified. Check for a new version before trying again.',
+  appUpdateCandidateChanged: 'A different version is now available. Check for updates to continue.',
+  appUpdateReadiness:
+    'Soty has not yet confirmed that its tools are ready. Refresh the status to check again.',
+  appUpdateRetryHelp:
+    'The update did not finish. Check its status and try again when the action is available.',
+  appUpdateManualRecovery: 'Additional recovery options',
+  appUpdateUpdaterUnavailable:
+    'Automatic updating is unavailable in this copy of Soty. Try reopening Soty from Applications.',
+  appUpdateManualRecoveryBody:
+    'Automatic updating is unavailable in this copy of Soty. If reopening the app does not restore it, use the installer to restore the app.',
+  appUpdateManualDownload: 'Restore Soty',
 
   catalogWriteUnsupported:
     'Video-link publication is blocked because this storage cannot safely update catalog cells. Existing links are preserved.',
@@ -139,6 +178,10 @@ export const en = {
     'The save result is not confirmed. Check reads the original request without another write.',
   catalogPublicationCheck: 'Check status',
   catalogPublicationDelayed: 'Schedule the video link',
+  catalogPublicationDay: 'Date',
+  catalogTimeChoose: 'Choose time',
+  catalogTimeHours: 'Hours',
+  catalogTimeMinutes: 'Minutes',
   catalogPublicationDate: 'Link publication date',
   catalogPublicationZone: 'Time zone',
   catalogPublicationOccurrence: 'When local time repeats',
@@ -655,7 +698,7 @@ export const en = {
   launchSettingsProducts: 'Products',
   launchSettingsMoreBudgets: '{count} more budgets',
   launchSettingsBudget: 'Budget',
-  launchSettingsDuration: 'Video duration',
+  launchSettingsDuration: 'Stitch duration',
   launchesCreative: 'Creative',
   launchesSelectCreative: 'Choose creative',
   launchesSelectedCreative: 'Selected creative',
@@ -1216,7 +1259,8 @@ export const en = {
   transcriptionEmpty: 'No files yet',
   transcriptionEmptyBody: 'Add audio or video files to transcribe them into text.',
   transcriptionEngineUnavailable: 'The transcription engine is unavailable.',
-  transcriptionEngineUnavailableBody: 'Reinstall Soty to restore the local speech model.',
+  transcriptionEngineUnavailableBody:
+    'The speech model is unavailable in this copy of Soty. Check for app updates.',
   transcriptionProcessing: 'Transcribing',
   transcriptionStart: 'Transcribe',
   transcriptionCancel: 'Cancel',
@@ -1462,9 +1506,7 @@ export const en = {
   windowsUnsignedNotice:
     'Windows may show a blue “Windows protected your PC” screen because the app is not signed. ' +
     'Click “More info”, then “Run anyway” to continue.',
-  macUnsignedNotice:
-    'macOS may say the app cannot be opened because the developer cannot be verified. ' +
-    'Open System Settings → Privacy & Security and click “Open Anyway”.',
+  macInstallNotice: 'Drag Soty to Applications, then open it from there.',
   windowsRequirements: 'Requires 64-bit Windows 10 or 11.',
   windowsUnsupportedArchitecture:
     'Soty for Windows needs a 64-bit (x64) version of Windows 10 or 11. ' +
@@ -1473,12 +1515,8 @@ export const en = {
   installTitle: 'Install Soty',
   install1: 'Download the DMG.',
   install2: 'Drag Soty to Applications.',
-  install3:
-    'Try to open Soty. macOS may say the app was downloaded from the internet or could not be verified—select “Done”.',
-  install4: 'Open  → System Settings → Privacy & Security.',
-  install5: 'Scroll to the bottom, find the message about Soty, and select “Open Anyway”.',
-  install6: 'Select “Open Anyway” once more and enter your Mac password if prompted.',
-  install7: 'Once Soty opens, return to this page and continue.',
+  install3: 'Open Soty from Applications. Confirm opening the downloaded app if macOS asks.',
+  install4: 'Once Soty opens, return to this page and continue.',
   compressionSettings: 'Compression settings',
   compressionMode: 'Mode',
   optimal: 'Optimal',
@@ -1979,7 +2017,8 @@ export const en = {
   landingGalleryEmptyBody:
     'Soty looks for folders and ZIP archives that contain index.html or index.htm.',
   landingGalleryRendererMissing: 'The local Chromium renderer is unavailable.',
-  landingGalleryRendererMissingBody: 'Reinstall Soty to restore full-page previews.',
+  landingGalleryRendererMissingBody:
+    'The preview engine is unavailable in this copy of Soty. Check for app updates.',
   landingGalleryCount: '{count} landings',
   landingGalleryCounter: '{current} of {total}',
   landingGalleryToggleSidebar: 'Show or hide folder tree',

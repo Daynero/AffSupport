@@ -24,6 +24,7 @@ export { Card, Separator } from './Card';
 export type { CardProps, CardRole, SeparatorProps } from './Card';
 
 export { Alert } from './Alert';
+export { TimeWheel } from './TimeWheel';
 export type { AlertProps } from './Alert';
 
 export {

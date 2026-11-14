@@ -268,6 +268,32 @@ async function cancel(key: string) {
     )[0]!.v
   )!;
 }
+it('admits a pasted catalog draft with its reviewed inputs without opening the editor', async () => {
+  const source = await draft();
+  const copy = (
+    await db.asUser<{ v: { id: string; version: string } }>(
+      actor,
+      "select public.copy_launch($1,$2,null,$3,$4,'UTC')v",
+      [team, source.input.launchId, source.input.expectedVersion, crypto.randomUUID()]
+    )
+  )[0]!.v;
+  const accepted = await acceptLaunchBatch(service, actor, {
+    teamId: team,
+    expectedActorId: actor,
+    expectedExecutorId: executor,
+    requestKey: crypto.randomUUID(),
+    items: [
+      { launchId: copy.id, expectedVersion: copy.version, childRequestKey: crypto.randomUUID() }
+    ]
+  });
+  expect(accepted.items[0]!.admission).toBe('accepted');
+  expect(accepted.items[0]!.generation!.videoGeneration).toMatchObject({
+    requestedCount: 2,
+    registeredCount: 0,
+    state: 'accepted'
+  });
+  await cancel(accepted.requestKey);
+});
 it('normalizes catalog protocol defaults atomically and freezes one complete video plan', async () => {
   const accepted = await batch(true),
     member = accepted.items[0]!;

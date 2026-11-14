@@ -134,7 +134,7 @@ it('does not strand a definite validation refusal as an unknown mutation', async
     Object.keys(localStorage).filter(key => key.startsWith('soty:catalog-publication:v1:'))
   ).toEqual([]);
 });
-it('shows a dated collapsed summary and expands calendar and timezone without dispatch', async () => {
+it('shows a compact schedule and opens the calendar without dispatching publication', async () => {
   view();
   await waitFor(() =>
     expect(screen.getByRole('switch', { name: 'Schedule the video link' })).toHaveProperty(
@@ -143,16 +143,21 @@ it('shows a dated collapsed summary and expands calendar and timezone without di
     )
   );
   await userEvent.click(screen.getByRole('switch', { name: 'Schedule the video link' }));
-  expect(screen.queryByRole('button', { name: /Time zone/ })).toBeNull();
-  const header = screen.getByRole('button', { name: /publication date/i });
-  expect(header.textContent).toMatch(/GMT/);
-  await userEvent.click(header);
-  expect(screen.getByLabelText('Time zone')).toBeTruthy();
+  const zone = screen.getByRole('button', { name: /Time zone/ });
+  expect(zone.textContent).toMatch(/GMT/);
+  expect(screen.getByLabelText('Time')).toBeTruthy();
+  expect(screen.queryByRole('grid')).toBeNull();
+  const date = screen.getByRole('button', { name: /^Link publication date:/ });
+  await userEvent.click(date);
+  expect(screen.getByRole('grid')).toBeTruthy();
   // The repeated-hour choice is only for the hour the clocks go back (1.4.3 QA).
   expect(screen.queryByLabelText('When local time repeats')).toBeNull();
-  await userEvent.click(header);
-  expect(header.textContent).toMatch(/GMT/);
+  await userEvent.keyboard('{Escape}');
+  expect(screen.queryByRole('grid')).toBeNull();
+  await waitFor(() => expect(document.activeElement).toBe(date));
+  expect(zone.textContent).toMatch(/GMT/);
   expect(m.save).not.toHaveBeenCalled();
+  expect(m.change).not.toHaveBeenCalled();
 });
 
 it('cancels a publish-now confirmation without writing anything', async () => {

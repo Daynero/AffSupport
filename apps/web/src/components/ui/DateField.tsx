@@ -93,7 +93,13 @@ function grid() {
           )}
         </HeroCalendar.GridHeader>
         <HeroCalendar.GridBody>
-          {date => <HeroCalendar.Cell date={date} className="ui-calendar-day" />}
+          {date => (
+            <HeroCalendar.Cell date={date} className="ui-calendar-day">
+              {({ formattedDate }) => (
+                <span className="calendar__cell-button">{formattedDate}</span>
+              )}
+            </HeroCalendar.Cell>
+          )}
         </HeroCalendar.GridBody>
       </HeroCalendar.Grid>
     </>

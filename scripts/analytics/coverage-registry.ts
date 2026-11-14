@@ -641,6 +641,33 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Current source policy retires weekly replacement in favor of per-image automatic content. This does not prove the deployed worker version or historical success. Retained failures stay queryable. Content-free schedule and immutable run journal explain enabled state, next due time, claims, lease recovery, fenced atomic commit, failure and cancellation. catalog-texts reads this evidence with bounded period/as-of queries; missing capture is explicit.'
   },
   {
+    id: 'team.catalog_video_r2',
+    tool: 'team',
+    title: 'Team · resumable R2 video publication',
+    stages: [
+      'planned',
+      'uploading',
+      'part_verified',
+      'verifying',
+      'ready',
+      'confirmed',
+      'retiring',
+      'deleted'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
+    unobservable: [
+      'A ready database receipt cannot establish acknowledgement delivery to the worker or visibility in a browser. Pending staging cleanup may follow a lost ready reply or a cleanup outage; the exact cause remains unknown.',
+      'Current verification prefixes and cleanup obligations are not historical as-of evidence. Old copies may have only part/probe proof; full_hash_verified preserves that limit.',
+      'Public probes establish availability at verification time, not advertising-platform ingestion, viewer caches or provider billing.'
+    ],
+    note: 'catalog-video-r2 reads the immutable stage journal plus service-only checkpoint projections: verified prefix, total parts, full source proof and staging-only cleanup. catalog-video-r2-verification tests the actual producer RPCs through the restricted view and read-only CLI, including missing/historical evidence and privacy. worker regressions cover source replacement, bounded resume, lost replies, source deletion after staging and stale object identity; database guards reject expired fences, skipped/replayed prefixes, changed manifests and incomplete ready claims. Hash state, checksums, provider keys and media remain private.'
+  },
+  {
     id: 'team.catalog_images',
     tool: 'team',
     title: 'Team · R2 catalog image publication',
@@ -1393,7 +1420,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'Ordinary file rename rebinds cached thumbnails only after its committed result and equal checksum, size and MIME; thumbnail_ready remains version-fenced evidence, not proof the browser displayed it. Browser downloads use a separate browsing context; handoff still proves neither disk delivery nor a concurrent transcription outcome. Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery. Canonical catalog rename correlates a stable opaque UUID request flow across distinct observation attempts. inspect reads bounded analytics_catalog_renames receipts, including provider reconciliation and absence tombstones; browser absence, missing signals and historical --as-of state remain unknown. tests/catalog-rename-analytics verifies producer, ingestion, SELECT-only diagnosis and privacy.'
+    note: 'Launch creative uploads begin a correlated file attempt before resolving their destination. A finding-stage failure therefore remains diagnosable even without an upload operation. Finalizing success proves the picker accepted the material; later draft persistence is a separate launch save. Leaving the picker records skipped observation, never a false cancellation of accepted provider work. Late actor results are fenced; absent browser delivery remains unknown. tests/launch-creative-picker verifies producer-to-inspect reconstruction and privacy. Ordinary file rename rebinds cached thumbnails only after its committed result and equal checksum, size and MIME; thumbnail_ready remains version-fenced evidence, not proof the browser displayed it. Browser downloads use a separate browsing context; handoff still proves neither disk delivery nor a concurrent transcription outcome. Manager and explorer share file action lifecycle; unavailable storage metadata is emitted explicitly as unknown. Share completes after its selectable URL commits; clipboard denial retains it. Native terminals join exact operation IDs without claiming browser delivery. Canonical catalog rename correlates a stable opaque UUID request flow across distinct observation attempts. inspect reads bounded analytics_catalog_renames receipts, including provider reconciliation and absence tombstones; browser absence, missing signals and historical --as-of state remain unknown. tests/catalog-rename-analytics verifies producer, ingestion, SELECT-only diagnosis and privacy.'
   },
   {
     id: 'team.browser_folder_upload',
@@ -1778,6 +1805,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'drained',
       'install_committed',
       'replacement_started',
+      'replacement_committed',
       'relaunch_requested',
       'target_started',
       'native_ready',

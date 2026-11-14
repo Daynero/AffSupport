@@ -1656,6 +1656,14 @@ const TRANSIENT_SERVER_CODES = new Set([
 function isTransientServerFailure(error: { message: string; code?: string }): boolean {
   if (error.code && TRANSIENT_SERVER_CODES.has(error.code)) return true;
   if (error.code) return false;
+  // Kong's JSON 502/504 bodies omit the HTTP status. These exact responses are
+  // transport failures too; autosave must retain and retry the same intent.
+  if (
+    /^(?:The upstream server is timing out|An invalid response was received from the upstream server)$/u.test(
+      error.message
+    )
+  )
+    return true;
   // A gateway answer has no PostgREST code; its body names the status instead.
   return /\b(?:50[234]|52[0-4]|Bad Gateway|Service Unavailable|Gateway Time-?out|upstream (?:request )?timeout|timed out|statement timeout)\b/iu.test(
     error.message

@@ -2,6 +2,12 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { analytics } from '../apps/web/src/analytics/service';
+const track = vi.spyOn(analytics, 'track').mockImplementation(() => undefined);
+const fileEvents = () =>
+  track.mock.calls.filter(([name]) =>
+    ['team_file_attempt_started', 'team_file_attempt_completed', 'error_occurred'].includes(name)
+  ) as [string, Record<string, unknown>][];
 vi.mock('../apps/web/src/team/preview/MaterialPreview', () => ({
   MaterialPreview: ({ material, onClose }: { material: { id: string }; onClose: () => void }) => (
     <div role="dialog" aria-label="Creative viewer">
@@ -80,7 +86,7 @@ it('rejects a multi-file drop before creating a destination or uploading any fil
 });
 
 it('reports a destination failure as upload failure rather than rejecting a valid video', async () => {
-  seams.folder.mockRejectedValueOnce(new Error('DRIVE_NOT_CONNECTED'));
+  seams.folder.mockRejectedValueOnce(new Error('PERMISSION_DENIED'));
   const change = vi.fn();
   render(
     <LaunchCreativePicker
@@ -93,9 +99,18 @@ it('reports a destination failure as upload failure rather than rejecting a vali
   fireEvent.drop(screen.getByRole('button', { name: 'Choose a creative or drop it here' }), {
     dataTransfer: { files: [new File(['a'], 'a.mp4', { type: 'video/mp4' })] }
   });
-  expect((await screen.findByRole('alert')).textContent).toBe('The file could not be uploaded.');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'You do not have permission for this.'
+  );
   expect(change).not.toHaveBeenCalled();
   expect(seams.upload).not.toHaveBeenCalled();
+  const [[, started], [, completed]] = fileEvents();
+  expect(completed).toMatchObject({
+    attempt_id: started.attempt_id,
+    stage: 'finding',
+    outcome: 'blocked',
+    production_completed: false
+  });
 });
 
 it('opens the selected preview from its thumbnail and closes stale previews', () => {
@@ -177,6 +192,8 @@ it.each(['team', 'disabled', 'material', 'method', 'unmount'])(
     expect(seams.upload).not.toHaveBeenCalled();
     expect(change).not.toHaveBeenCalled();
     expect(busy.mock.calls).toEqual([[true], [false]]);
+    expect(fileEvents()).toHaveLength(2);
+    expect(fileEvents()[1][1]).toMatchObject({ outcome: 'skipped', production_completed: false });
   }
 );
 
@@ -203,7 +220,7 @@ it('keeps the old selection when replacement fails and ignores a stale successfu
 });
 
 it('accepts one video once, rejects duplicate drops while busy, and applies its name after success', async () => {
-  const folder = deferred<{ folderId: string }>();
+  const folder = deferred<{ folderId: string; materialId: string }>();
   seams.folder.mockReturnValueOnce(folder.promise);
   seams.upload.mockResolvedValueOnce({ materialId: 'new', state: 'succeeded' });
   const change = vi.fn(),
@@ -221,9 +238,78 @@ it('accepts one video once, rejects duplicate drops while busy, and applies its 
   fireEvent.drop(screen.getByRole('button', { name: 'Uploading…' }), {
     dataTransfer: { files: [new File(['a'], 'again.mp4', { type: 'video/mp4' })] }
   });
-  await act(async () => folder.resolve({ folderId: 'folder' }));
+  await act(async () => folder.resolve({ folderId: 'drive-folder', materialId: 'catalog-folder' }));
   expect(seams.folder).toHaveBeenCalledOnce();
   expect(seams.upload).toHaveBeenCalledOnce();
+  expect(seams.upload).toHaveBeenCalledWith(
+    expect.objectContaining({ destinationFolderId: 'catalog-folder' })
+  );
   expect(change).toHaveBeenCalledWith({ materialId: 'new', creativeAlias: 'video' });
   expect(busy.mock.calls).toEqual([[true], [false]]);
+  expect(fileEvents()).toHaveLength(2);
+  expect(fileEvents()[1][1]).toMatchObject({
+    outcome: 'success',
+    stage: 'finalizing',
+    production_completed: true
+  });
+  expect(JSON.stringify(fileEvents())).not.toMatch(/video\.mp4|catalog-folder|drive-folder/);
 });
+
+it('diagnoses a destination outage through the real file lifecycle and read-only inspect query', async () => {
+  const { createAnalyticsDb } = await import('./support/analytics-pglite');
+  const { getInspect } = await import('../scripts/analytics/queries');
+  const db = await createAnalyticsDb();
+  try {
+    seams.folder.mockRejectedValueOnce(
+      Object.assign(new Error('DRIVE_UNAVAILABLE'), { retryable: true })
+    );
+    render(
+      <LaunchCreativePicker teamId="private-team" config={{}} disabled={false} onChange={vi.fn()} />
+    );
+    drop();
+    await screen.findByRole('alert');
+    const events = fileEvents();
+    expect(events.map(([name]) => name)).toEqual([
+      'team_file_attempt_started',
+      'error_occurred',
+      'team_file_attempt_completed'
+    ]);
+    const attemptId = events[0][1].attempt_id as string;
+    expect(events[1][1]).toMatchObject({
+      attempt_id: attemptId,
+      error_fingerprint: 'team:transfer:DRIVE_UNAVAILABLE',
+      retryable: true
+    });
+    expect(events[2][1]).toMatchObject({
+      attempt_id: attemptId,
+      stage: 'finding',
+      outcome: 'failure',
+      production_completed: false
+    });
+    expect(JSON.stringify(events)).not.toMatch(/private-team|video\.mp4/);
+    for (const [index, [name, properties]] of events.entries()) {
+      await db.db.query(
+        `insert into public.analytics_events(user_id,event_name,attempt_id,properties,occurred_at,created_at)
+        values($1,$2,$3,$4,$5,$5)`,
+        [
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          name,
+          attemptId,
+          JSON.stringify(properties),
+          new Date(Date.UTC(2026, 10, 14, 10, 0, index)).toISOString()
+        ]
+      );
+    }
+    const result = await getInspect(attemptId, '2026-11-14T11:00:00Z');
+    expect(result.found).toBe(true);
+    if (!result.found) throw new Error('missing upload diagnosis');
+    expect(result.capability).toBe('team.file_ops');
+    expect(result.terminal?.outcome).toBe('failure');
+    expect(result.events.some(event => event.properties.error_code === 'DRIVE_UNAVAILABLE')).toBe(
+      true
+    );
+    expect(result.events.some(event => event.properties.stage === 'finding')).toBe(true);
+  } finally {
+    await db.close();
+  }
+}, 30_000);

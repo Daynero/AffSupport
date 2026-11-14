@@ -472,6 +472,35 @@ it('locks copy and deletion while an authoritative generation is active', async 
   expect(seams.archiveWarning).not.toHaveBeenCalled();
   expect(seams.archive).not.toHaveBeenCalled();
 });
+it.each(['running', 'cancel_requested'])(
+  'closes the viewer of a %s launch without changing its work',
+  async state => {
+    const { buildTeamRoute } = await import('../apps/web/src/team/routes');
+    seams.edit = true;
+    seams.detail.mockResolvedValue({
+      ...detail('SYNTHETIC_BACKGROUND_VIEW'),
+      generation: { id: 'active-generation', state, stage: 'catalog_creating' }
+    });
+    window.history.replaceState(
+      {},
+      '',
+      buildTeamRoute({ spaceId: TEAM, section: 'launches', query })
+    );
+    try {
+      render(<LaunchSpace teamId={TEAM} query={query} />);
+      await screen.findByText('SYNTHETIC_BACKGROUND_VIEW');
+      const close = document.querySelector<HTMLButtonElement>('.launch-detail-close');
+      expect(close).toHaveProperty('disabled', false);
+      clickLaunchClose();
+      expect(window.location.search).not.toContain('launch=');
+      expect(seams.save).not.toHaveBeenCalled();
+      expect(seams.archive).not.toHaveBeenCalled();
+      expect(seams.generate).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  }
+);
 it('opens a copied Launch in settings without starting generation', async () => {
   seams.edit = true;
   seams.selection.mockResolvedValue(null);

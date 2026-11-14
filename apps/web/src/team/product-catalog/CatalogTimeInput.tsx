@@ -1,4 +1,8 @@
-import { Input, type InputProps } from '../../components/ui/index';
+import { useRef, useState } from 'react';
+import { Clock3 } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { IconButton, Input, Popover, TimeWheel, type InputProps } from '../../components/ui/index';
+import { useI18n } from '../../i18n';
 
 /**
  * `930` → `09:30`, `9:5` stays as typed, `14:30` stays. Only a time that can be read without
@@ -30,21 +34,60 @@ export function CatalogTimeInput({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
   return (
-    <Input
-      {...props}
-      type="text"
-      inputMode="numeric"
-      autoComplete="off"
-      maxLength={5}
-      placeholder="18:00"
-      value={value}
-      onChange={event => onChange(event.target.value.replace(/[^\d:]/gu, ''))}
-      onBlur={event => {
-        const normalized = normalizeCatalogTime(event.target.value);
-        if (normalized !== event.target.value) onChange(normalized);
-        props.onBlur?.(event);
-      }}
-    />
+    <div className="catalog-time-input">
+      <Input
+        {...props}
+        trailing={
+          <IconButton
+            ref={anchor}
+            variant="ghost"
+            size="sm"
+            title=""
+            label={t('catalogTimeChoose')}
+            disabled={props.disabled}
+            aria-haspopup="dialog"
+            aria-expanded={open && !props.disabled}
+            onClick={() => setOpen(previous => !previous)}
+          >
+            <Clock3 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        }
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={5}
+        placeholder="18:00"
+        value={value}
+        onChange={event => onChange(event.target.value.replace(/[^\d:]/gu, ''))}
+        onBlur={event => {
+          const normalized = normalizeCatalogTime(event.target.value);
+          if (normalized !== event.target.value) onChange(normalized);
+          props.onBlur?.(event);
+        }}
+      />
+      <Popover
+        open={open && !props.disabled}
+        onClose={() => {
+          setOpen(false);
+          anchor.current?.focus();
+        }}
+        anchor={anchor}
+        placement="bottom-start"
+        label={t('catalogTimeChoose')}
+        initialFocus='[role="listbox"]'
+        frequent
+      >
+        <TimeWheel
+          value={normalizeCatalogTime(value)}
+          onChange={onChange}
+          hoursLabel={t('catalogTimeHours')}
+          minutesLabel={t('catalogTimeMinutes')}
+        />
+      </Popover>
+    </div>
   );
 }

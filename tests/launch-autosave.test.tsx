@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { useLaunchAutosave } from '../apps/web/src/team/launches/useLaunchAutosave';
 import { useLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
 import type { LaunchDetail } from '../packages/shared/src/team/launches';
+import { TeamApiError, throwRpc } from '../apps/web/src/api/team';
 const base = () => ({
   enabled: true,
   dirty: true,
@@ -84,6 +85,37 @@ it('stops on a nonretryable conflict without overwriting a newer server version'
   await act(() => vi.advanceTimersByTimeAsync(60000));
   expect(input.save).toHaveBeenCalledTimes(1);
   expect(input.onSaved).not.toHaveBeenCalled();
+});
+it('recovers a gateway timeout without losing edits or creating a second draft', async () => {
+  vi.useFakeTimers();
+  const input = base();
+  input.save.mockImplementationOnce(async () => {
+    throwRpc({ code: '', message: 'The upstream server is timing out' });
+  });
+  const props = {
+    ...input,
+    id: null as string | null,
+    version: null as string | null,
+    retryable: (error: unknown) => error instanceof TeamApiError && error.retryable
+  };
+  const hook = renderHook(p => useLaunchAutosave(p), { initialProps: props });
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  hook.rerender({ ...props, config: { maxBudget: 60 } });
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(input.save).toHaveBeenCalledTimes(2);
+  expect(input.save.mock.calls[1][0]).toBe(input.save.mock.calls[0][0]);
+  expect(input.onSaved).toHaveBeenCalledWith(input.save.mock.calls[0][0], {
+    id: 'launch',
+    version: '2'
+  });
+  hook.rerender({ ...props, id: 'launch', version: '2', config: { maxBudget: 60 } });
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(input.save).toHaveBeenCalledTimes(3);
+  expect(input.save.mock.calls[2][0]).toMatchObject({
+    id: 'launch',
+    version: '2',
+    config: { maxBudget: 60 }
+  });
 });
 it('ignores a late response after unmount or scope change', async () => {
   vi.useFakeTimers();

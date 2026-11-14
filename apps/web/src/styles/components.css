@@ -3753,7 +3753,7 @@
   box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
 }
 /* The band: every chosen day, end to end. */
-.ui-calendar-day[data-selected='true'] {
+.ui-calendar-day[data-selected='true']:has(.range-calendar__cell-button) {
   background: var(--color-secondary-soft);
   color: var(--color-secondary-text);
 }
@@ -3791,6 +3791,81 @@
   gap: var(--space-1);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-neutral-border);
+}
+
+.ui-time-wheel {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.ui-time-wheel-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: calc(var(--control-height-md) * 2);
+  min-width: 0;
+}
+.ui-time-wheel-label {
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--color-neutral-text-muted);
+}
+.ui-time-wheel-frame {
+  position: relative;
+}
+.ui-time-wheel-frame::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--control-height-md) * 2) 0 auto;
+  height: var(--control-height-md);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-softer);
+  pointer-events: none;
+}
+.ui-time-wheel-list {
+  position: relative;
+  height: calc(var(--control-height-md) * 5);
+  padding-block: calc(var(--control-height-md) * 2);
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  border-radius: var(--radius-md);
+}
+.ui-time-wheel-list::-webkit-scrollbar {
+  display: none;
+}
+.ui-time-wheel-list:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: var(--space-1);
+}
+.ui-time-wheel-option {
+  display: block;
+  width: 100%;
+  height: var(--control-height-md);
+  min-height: var(--control-height-md);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral-text-muted);
+  font-family: inherit;
+  font-size: var(--text-title);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+.ui-time-wheel-option[aria-selected='true'] {
+  color: var(--color-secondary-text);
+  font-weight: var(--weight-label);
+}
+.ui-time-wheel-separator {
+  align-self: center;
+  padding-top: calc(var(--text-caption) + var(--space-2));
+  font-size: var(--text-title);
+  color: var(--color-neutral-text-muted);
 }
 
 /* An overflow that exists only to be the right-click menu: reachable by

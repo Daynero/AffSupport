@@ -12,24 +12,23 @@ export function LaunchCatalogVideoFields({
   value,
   onChange,
   disabled,
-  part = 'all',
-  submitted = false
+  part = 'all'
 }: {
   value: LaunchCatalogConfig;
   onChange(value: LaunchCatalogConfig): void;
   disabled: boolean;
   part?: 'all' | 'variations' | 'publication';
-  submitted?: boolean;
 }) {
   const { t } = useI18n();
   const publication = value.videoPublication;
   const scheduled = publication?.mode === 'scheduled' ? publication : null;
   const local = scheduled?.localDateTime ?? '';
+  const [date = '', time = '12:00'] = local.split('T');
   const draft: CatalogCreationVideoDraft = {
     variationCount: String(value.videoVariationCount ?? 1),
     delayed: Boolean(scheduled),
-    date: local.split('T')[0] ?? '',
-    time: local.split('T')[1] ?? '12:00',
+    date,
+    time,
     zone: scheduled?.timeZone ?? (launchBrowserTimezone() || 'Europe/Kyiv')
   };
   // A stored proof determines the fold occurrence; never silently switch offsets.
@@ -88,31 +87,31 @@ export function LaunchCatalogVideoFields({
       { ...value, productCount: 400, restitchEnabled: false, videoVariationCount: 1 },
       true
     ) === null;
+  const error =
+    part === 'variations' || !CATALOG_DEFERRED_PUBLICATION_AVAILABLE
+      ? null
+      : launchPublicationTimePassed(value)
+        ? 'catalogPublicationTimePassed'
+        : invalid && scheduled && local !== 'T12:00'
+          ? 'catalogPublicationInvalid'
+          : null;
   return (
     <>
       <CatalogCreationVideoFields
         part={part}
-        revealPublicationErrors={submitted && (invalid || launchPublicationTimePassed(value))}
         value={draft}
         onChange={update}
         restitch={value.restitchEnabled}
         productCount={value.productCount}
         disabled={disabled}
       />
-      {(() => {
-        if (part === 'variations' || !CATALOG_DEFERRED_PUBLICATION_AVAILABLE) return null;
-        const passed = launchPublicationTimePassed(value);
-        if (!passed && !(invalid && scheduled && local !== 'T12:00')) return null;
-        // A real field error: Generate scrolls to the first `.ui-field-error`, so the person
-        // lands on this sentence instead of an unexplained calendar.
-        return (
-          <div className="ui-field launch-publication-error">
-            <p className="ui-field-error" role="alert">
-              {t(passed ? 'catalogPublicationTimePassed' : 'catalogPublicationInvalid')}
-            </p>
-          </div>
-        );
-      })()}
+      {error && (
+        <div className="ui-field launch-publication-error">
+          <p className="ui-field-error" role="alert">
+            {t(error)}
+          </p>
+        </div>
+      )}
     </>
   );
 }

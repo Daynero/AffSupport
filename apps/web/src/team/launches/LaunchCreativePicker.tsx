@@ -16,6 +16,17 @@ import { Button, DropdownMenu, Input, FormField } from '../../components/ui/inde
 import { useI18n } from '../../i18n.js';
 import { useThumbnailSession } from '../explorer/useThumbnailSession.js';
 import { privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
+import { teamErrorMessageFor } from '../errors.js';
+import {
+  completeTeamFileAttempt,
+  startTeamFileAttempt,
+  teamAnalyticsSizeBucket
+} from '../../analytics/service.js';
+import {
+  analyticsOutcome,
+  reportFileAttemptError,
+  retryableError
+} from '../../analytics/file-attempt-errors.js';
 
 /** One drop target, one source menu; full media is opened only on an explicit preview. */
 export function LaunchCreativePicker({
@@ -43,7 +54,9 @@ export function LaunchCreativePicker({
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<'selection' | 'upload' | null>(null);
+  const [error, setError] = useState<{ kind: 'selection' | 'upload'; cause?: unknown } | null>(
+    null
+  );
   const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
   const [aliasTouched, setAliasTouched] = useState(false);
   const [brokenThumbnail, setBrokenThumbnail] = useState<string | null>(null);
@@ -90,7 +103,7 @@ export function LaunchCreativePicker({
   const upload = async (files: File[]) => {
     if (!allowed(currentRevision) || active.current) return;
     if (files.length !== 1) {
-      setError('selection');
+      setError({ kind: 'selection' });
       return;
     }
     const file = files[0];
@@ -100,14 +113,23 @@ export function LaunchCreativePicker({
       fileExtension: file.name.split('.').pop()
     }).category;
     if (kind !== 'video' && (kind !== 'image' || config.method === 'catalog')) {
-      setError('selection');
+      setError({ kind: 'selection' });
       return;
     }
     const revision = currentRevision;
+    const attempt = startTeamFileAttempt({
+      action: 'upload',
+      storageKind: 'unknown',
+      sizeBucket: teamAnalyticsSizeBucket(file.size),
+      stage: 'finding'
+    });
+    let stage: 'finding' | 'uploading' | 'finalizing' = 'finding';
     let finished = false;
     const finish = () => {
       if (finished) return;
       finished = true;
+      // Leaving the form ends this observation, not the independently owned upload.
+      completeTeamFileAttempt(attempt, { outcome: 'skipped', retryable: false, stage });
       if (active.current?.revision === revision) active.current = null;
       if (mounted.current) setBusy(false);
       onBusyChange?.(false);
@@ -121,9 +143,10 @@ export function LaunchCreativePicker({
       const folder = await teamApi.ensureTaskDropFolder(teamId);
       // A navigation, disabled edit or actor change revokes the old form's authority.
       if (!allowed(revision)) return;
+      stage = 'uploading';
       const result = await uploadTeamFile({
         teamId,
-        destinationFolderId: folder.folderId,
+        destinationFolderId: folder.materialId,
         file,
         conflictMode: 'keep_both',
         replaceMaterialId: null,
@@ -131,10 +154,20 @@ export function LaunchCreativePicker({
       });
       if (!allowed(revision)) return;
       if (!result.materialId || result.state !== 'succeeded') throw new Error('INVALID_RESPONSE');
+      stage = 'finalizing';
       setSelected({ id: result.materialId, name: file.name });
       onChange({ materialId: result.materialId, creativeAlias: launchCreativeAlias(file.name) });
-    } catch {
-      if (allowed(revision)) setError('upload');
+      completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false, stage });
+    } catch (cause) {
+      if (allowed(revision)) {
+        reportFileAttemptError(attempt, cause);
+        completeTeamFileAttempt(attempt, {
+          outcome: analyticsOutcome(cause),
+          retryable: retryableError(cause),
+          stage
+        });
+        setError({ kind: 'upload', cause });
+      }
     } finally {
       finish();
     }
@@ -221,7 +254,7 @@ export function LaunchCreativePicker({
           onAdd={items => {
             if (!allowed(currentRevision) || active.current) return;
             if (items.length !== 1) {
-              setError('selection');
+              setError({ kind: 'selection' });
               return;
             }
             setError(null);
@@ -302,7 +335,7 @@ export function LaunchCreativePicker({
       )}
       {error && (
         <p role="alert" className="ui-field-error">
-          {t(error === 'upload' ? 'errorUploadFailed' : 'launchesOneFile')}
+          {error.kind === 'upload' ? teamErrorMessageFor(error.cause, t) : t('launchesOneFile')}
         </p>
       )}
       {previewId && previewId === config.materialId && !disabled && (

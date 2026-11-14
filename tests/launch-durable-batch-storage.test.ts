@@ -171,6 +171,94 @@ async function cancel(key: string) {
     )[0]!.v
   )!;
 }
+it('generates a pasted draft without opening it, reserving its RK only on acceptance', async () => {
+  const source = await draft();
+  const copied = (
+    await db.asUser<{ v: { id: string; version: string } }>(
+      actor,
+      "select public.copy_launch($1,$2,null,$3,$4,'UTC')v",
+      [team, source.launchId, source.expectedVersion, crypto.randomUUID()]
+    )
+  )[0]!.v;
+  expect(
+    (
+      await db.root<{ n: number }>(
+        'select count(*)::integer n from private.team_launch_assignments where launch_id=$1',
+        [copied.id]
+      )
+    )[0]!.n
+  ).toBe(0);
+  const input = command([
+    { launchId: copied.id, expectedVersion: copied.version, childRequestKey: crypto.randomUUID() }
+  ]);
+  const accepted = await acceptLaunchBatch(service, actor, input);
+  expect(accepted.items[0]!.admission).toBe('accepted');
+  expect(await acceptLaunchBatch(service, actor, input)).toEqual(accepted);
+  expect(
+    (
+      await db.root<{ n: number }>(
+        "select count(*)::integer n from public.analytics_launch_assignment_events where launch_id=$1 and action='assign'",
+        [copied.id]
+      )
+    )[0]!.n
+  ).toBe(1);
+  await cancel(accepted.requestKey);
+});
+it('rejects changed sources and explicit releases on pasted drafts without creating an RK hold', async () => {
+  for (const scenario of ['changed', 'released'] as const) {
+    const source = await draft();
+    const copied = (
+      await db.asUser<{ v: { id: string; version: string } }>(
+        actor,
+        "select public.copy_launch($1,$2,null,$3,$4,'UTC')v",
+        [team, source.launchId, source.expectedVersion, crypto.randomUUID()]
+      )
+    )[0]!.v;
+    let version = copied.version;
+    if (scenario === 'changed')
+      await db.root(
+        "update public.team_materials set checksum=repeat('b',32),drive_version='2' where id=$1",
+        [material]
+      );
+    else {
+      await db.asUser(actor, "select public.set_launch_assignment($1,$2,null,'0',$3)", [
+        team,
+        copied.id,
+        crypto.randomUUID()
+      ]);
+      version = (
+        await db.asUser<{ v: { version: string } }>(actor, 'select public.get_launch($1,$2)v', [
+          team,
+          copied.id
+        ])
+      )[0]!.v.version;
+    }
+    const result = await acceptLaunchBatch(
+      service,
+      actor,
+      command([
+        { launchId: copied.id, expectedVersion: version, childRequestKey: crypto.randomUUID() }
+      ])
+    );
+    expect(result.items[0]).toMatchObject({
+      admission: 'refused',
+      errorCode: scenario === 'changed' ? 'SOURCE_CHANGED' : 'WRONG_STATE'
+    });
+    expect(
+      (
+        await db.root<{ n: number }>(
+          "select count(*)::integer n from private.team_launch_assignments where launch_id=$1 and state='assigned'",
+          [copied.id]
+        )
+      )[0]!.n
+    ).toBe(0);
+    if (scenario === 'changed')
+      await db.root(
+        "update public.team_materials set checksum=repeat('a',32),drive_version='1' where id=$1",
+        [material]
+      );
+  }
+});
 it('atomically persists accepted and refused members and replays the exact intent after edits', async () => {
   const first = await draft(),
     second = await draft();
