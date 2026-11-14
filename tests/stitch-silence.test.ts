@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rename, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -10,6 +10,10 @@ import {
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 const runTool = vi.hoisted(() => vi.fn());
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, rename: vi.fn(actual.rename) };
+});
 vi.mock('../apps/agent/src/stitcher/run.js', () => ({
   runTool,
   toolSucceeded: (result: { code: number; cancelled: boolean }) =>
@@ -18,6 +22,10 @@ vi.mock('../apps/agent/src/stitcher/run.js', () => ({
 let root: string;
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), 'soty-silence-test-'));
+  vi.mocked(rename).mockReset();
+  vi.mocked(rename).mockImplementation(
+    (await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')).rename
+  );
   runTool.mockReset();
   runTool.mockImplementation(async (_command: string, args: string[]) => {
     await writeFile(args.at(-1)!, 'aac');
@@ -57,6 +65,21 @@ it('reuses an existing long bank after an upgrade', async () => {
     await ensureSilenceBank({ root, sampleRate: 48000, channels: 2, neededSeconds: 1 / 30 })
   ).toEqual({ ok: true, path: existing });
   expect(runTool).not.toHaveBeenCalled();
+});
+
+it('publishes atomically when the system temporary directory is on another volume', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  // Model a cache mounted separately from the OS temp directory on every test host.
+  vi.mocked(rename).mockImplementation(async (from, to) => {
+    if (!String(from).startsWith(root + path.sep))
+      throw Object.assign(new Error('Cross-device link'), { code: 'EXDEV' });
+    return actual.rename(from, to);
+  });
+  const target = silenceBankPath(48000, 2, 2, root);
+  expect(
+    await ensureSilenceBank({ root, sampleRate: 48000, channels: 2, neededSeconds: 1 / 30 })
+  ).toEqual({ ok: true, path: target });
+  expect(await readdir(silenceRoot(root))).toEqual([path.basename(target)]);
 });
 
 it('never uses a short bank for a longer screen or another audio shape', async () => {

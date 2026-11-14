@@ -8,7 +8,6 @@
  */
 
 import { mkdir, mkdtemp, rename, rm, stat } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { applicationSupportRoot } from '../files/support-dir.js';
@@ -83,7 +82,9 @@ export async function ensureSilenceBank(
   }
 
   await mkdir(path.dirname(target), { recursive: true });
-  const staging = await mkdtemp(path.join(os.tmpdir(), 'soty-silence-'));
+  // Keep publication atomic even when the system temp directory is on another
+  // volume: rename from there would fail with EXDEV after successful encoding.
+  const staging = await mkdtemp(path.join(path.dirname(target), '.staging-'));
   try {
     const staged = path.join(staging, 'silence.aac');
     const result = await runTool(

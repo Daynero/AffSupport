@@ -1,6 +1,27 @@
 # Validation — automatic catalog content
 
-Implementation is isolated on `055-automatic-catalog-content`, based on `c2d81d29`. Production publication, shared-image activation, cleanup and release identity changes are outside this work. The current integrated baseline is verified below; the owner-requested parallel replacement/HEVC handoff remains pending.
+Implementation is isolated on `055-automatic-catalog-content`, based on `c2d81d29`. Production publication, shared-image activation, cleanup and release identity changes are outside this work. The parallel replacement/HEVC handoff at `bea07536` is now merged into the integration branch; final combined verification follows the recorded baseline below.
+
+## Combined handoff and cross-volume regression
+
+The completed parallel source merged without conflicts. Public database types were
+regenerated from the full disposable migration chain; both old-finalizer/retirement
+serialization orders passed. The existing beta database remained a schema/role
+source only.
+
+The first release-form run on `b5433f6fb6436e636a694dd1f742839460de1962`
+passed all 15 static gates, then stopped in suite shard 1 with 1,364 passing,
+1 failing and 17 named skipped tests. Seven shards had not run and global coverage
+was not published. The native HEVC/restitch test exposed `SILENCE_BANK_FAILED`:
+the OS temp directory was on an external volume, so publishing its staged AAC file
+into the internal cache with `rename` failed with EXDEV.
+
+A filesystem regression reproduced that failure before the product fix. Silence
+is now staged beside the target cache so publication remains atomic on one volume.
+All 37 silence-bank, native HEVC, stitch integration and first-frame tests passed
+with the same external TMPDIR and shipped ARM binaries. The real HEVC test keeps
+its dependency on the isolated internal support profile; the fixture was not
+changed to hide the boundary. Full combined verification is being repeated.
 
 ## Shared policy and performance
 
