@@ -185,7 +185,7 @@ it('hides finished batches while the list is filtered and keeps work in progress
   vi.mocked(launchBatchApi.list).mockResolvedValue({
     items: [running, finished],
     hasMore: true,
-    nextCursor: 'next'
+    nextCursor: { createdAt: '2026-11-13T09:00:00.000Z', id: batchUuid(9) }
   });
   const input = props(null);
   const view = render(<LaunchBatch {...input} showSettled={false} />);
