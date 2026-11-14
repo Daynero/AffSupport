@@ -669,6 +669,7 @@ function LaunchSpaceContent({
           reconcileEpoch={batchPulse + revision}
           enabled={can('edit')}
           onBatches={setBatches}
+          showSettled={!filtersActive}
           onPendingChange={setBatchPending}
           onSubmissionPendingChange={pending => {
             setBatchSubmissionPending(pending);

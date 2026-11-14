@@ -176,3 +176,34 @@ it('cancels by one stable request, retains completed siblings and confirms cance
   await act(async () => {});
   expect(screen.getByRole('button', { name: /canceling/i }).hasAttribute('disabled')).toBe(true);
 });
+it('hides finished batches while the list is filtered and keeps work in progress', async () => {
+  const finished = batchReceipt(batchCommand(2, 5), 'succeeded');
+  finished.id = batchUuid(6);
+  const running = batchReceipt(batchCommand(1, 7));
+  running.id = batchUuid(8);
+  running.items[0]!.offer = 'Still Running';
+  vi.mocked(launchBatchApi.list).mockResolvedValue({
+    items: [running, finished],
+    hasMore: true,
+    nextCursor: 'next'
+  });
+  const input = props(null);
+  const view = render(<LaunchBatch {...input} showSettled={false} />);
+  await screen.findByRole('button', { name: /Still Running/ });
+  expect(screen.queryByRole('button', { name: /Nutra Balance/ })).toBeNull();
+  // History pagination belongs to the unfiltered view.
+  expect(screen.queryByRole('button', { name: /earlier/i })).toBeNull();
+  view.rerender(<LaunchBatch {...input} />);
+  expect(await screen.findAllByText(/1 of 1|2 of 2/)).toHaveLength(2);
+});
+it('renders nothing for a filtered list whose batches have all finished', async () => {
+  vi.mocked(launchBatchApi.list).mockResolvedValue({
+    items: [batchReceipt(undefined, 'succeeded')],
+    hasMore: false,
+    nextCursor: null
+  });
+  const input = props(null);
+  const view = render(<LaunchBatch {...input} showSettled={false} />);
+  await waitFor(() => expect(input.onBatches).toHaveBeenLastCalledWith([expect.anything()]));
+  expect(view.container.querySelector('section')).toBeNull();
+});

@@ -20,7 +20,8 @@ export function LaunchBatch({
   onChange,
   onPendingChange,
   onSubmissionPendingChange,
-  onBatches
+  onBatches,
+  showSettled = true
 }: {
   teamId: string;
   actorId: string;
@@ -33,6 +34,12 @@ export function LaunchBatch({
   onPendingChange: (value: boolean) => void;
   onSubmissionPendingChange: (value: boolean) => void;
   onBatches: (value: DurableLaunchBatch[]) => void;
+  /**
+   * Finished batches are history, not a list result: while the list is filtered
+   * they would sit above an empty filtered list and contradict it. Work still in
+   * progress stays visible whatever the filters.
+   */
+  showSettled?: boolean;
 }) {
   const { t, language } = useI18n();
   const state = useDurableLaunchBatches({
@@ -60,8 +67,8 @@ export function LaunchBatch({
   useEffect(() => {
     callbacks.current.onBatches(state.batches);
   }, [state.batches]);
-  if (!state.batches.length && !state.pendingCommand && !state.reconnecting && !state.error)
-    return null;
+  const visible = showSettled ? state.batches : state.batches.filter(durableBatchPending);
+  if (!visible.length && !state.pendingCommand && !state.reconnecting && !state.error) return null;
   return (
     <section aria-label={t('launchesBulkWork')} className="flex min-w-0 flex-col gap-3">
       {state.pendingCommand && (
@@ -91,7 +98,7 @@ export function LaunchBatch({
             return next;
           })
         }
-        items={state.batches.map(batch => {
+        items={visible.map(batch => {
           const done = batch.items.filter(item => !durableItemPending(item)).length;
           const ready = batch.items.filter(item => durableItemState(item) === 'ready').length;
           const pending = durableBatchPending(batch);
@@ -204,7 +211,7 @@ export function LaunchBatch({
           };
         })}
       />
-      {state.hasMore && (
+      {state.hasMore && showSettled && (
         <Button
           size="sm"
           variant="ghost"
