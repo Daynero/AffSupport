@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -102,7 +103,7 @@ describe('Developer ID build with the native updater switched off by the owner',
         nativeUpdateInputsPreflight(root, sha, { SOTY_UPDATER_KEY_PATH: path.join(root, 'x') })
       ).rejects.toThrow();
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTemporaryDirectory(root);
     }
   });
 
@@ -147,7 +148,7 @@ describe('Developer ID build with the native updater switched off by the owner',
         expect(typo.status).not.toBe(0);
         expect(typo.stderr).toContain('NATIVE_UPDATES_POLICY_INVALID');
       } finally {
-        await rm(root, { recursive: true, force: true });
+        await removeTemporaryDirectory(root);
       }
     }
   );
