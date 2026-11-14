@@ -52,7 +52,7 @@ Goal: no Catalog section or hidden creation prerequisite remains. Independent te
 - [x] T022 Update docs/DESIGN.md, docs/CATALOG_IMAGES.md and supabase/migrations/ROLLBACK.md; generate affected DB types and preserve additive/rollback compatibility.
 - [x] T023 Capture desktop settings and representative automatic catalog rows in specs/055-automatic-catalog-content/reviews/ using the existing browser fixture harness.
 - [x] T024 Run focused tests and canonical static/suite/build/disposable DB checks serially; record exact-source results and actual skips/failures in specs/055-automatic-catalog-content/reviews/validation.md.
-- [ ] T025 Integrate055and completed independent fixes into integration/next-release-2026-11-13, update docs/releases/next-2026-11-13.md, verify the final diff and push the isolated branch without publication.
+- [x] T025 Integrate 055 and completed independent fixes into integration/next-release-2026-11-13, update docs/releases/next-2026-11-13.md, verify the final diff and push the isolated branch without publication.
 
 ## Dependencies and execution order
 

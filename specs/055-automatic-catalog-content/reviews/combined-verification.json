@@ -1,0 +1,244 @@
+{
+  "source": "ebea1bede9426764327be9c5cb90b4f9d74eddc8",
+  "recordedAt": "2026-11-14T02:39:29.484Z",
+  "scope": "One complete canonical npm run verify:release invocation on a clean combined source. This is local code/build/database/browser verification, not a packaged release qualification.",
+  "invocations": [
+    {
+      "command": "npm run verify:release",
+      "reportSha256": "e91c8858e0ba7fed3859f9bdda97e69c96a12887811d60ed91adbb684250741b",
+      "result": {
+        "ok": true,
+        "command": "verify",
+        "generated_at": "2026-11-14T02:39:04.938Z",
+        "form": "release",
+        "data": {
+          "duration_ms": 2358245,
+          "totals": {
+            "gates": 25,
+            "passed": 25,
+            "failed": 0,
+            "tests": 11727,
+            "skipped_tests": 99,
+            "skip_reasons": {
+              "disposable native PostgreSQL": 16,
+              "disposable PostgreSQL container": 50,
+              "platform:darwin": 4,
+              "SOTY_TARIFF_POSTGRES_CONTAINER": 7,
+              "disposable PostgreSQL": 6,
+              "env:RUN_REAL_KARAOKE_SMOKE": 1,
+              "env:RUN_REAL_MEDIA_SMOKE": 1,
+              "ffmpeg": 2,
+              "ffprobe": 2,
+              "disposable process PostgreSQL container": 8,
+              "owned previous-schema PostgreSQL clone": 1,
+              "env:RUN_REAL_TRANSCRIPTION_COVERAGE": 1,
+              "HINDI_TRANSCRIPTION_SAMPLE": 1,
+              "SOTY_TRANSITION_REPORT": 1,
+              "env:SOTY_POWER_LOAD": 2
+            },
+            "coverage_lines": 84.38
+          },
+          "gates": [
+            {
+              "id": "build:shared",
+              "ok": true,
+              "duration_ms": 1535
+            },
+            {
+              "id": "format",
+              "ok": true,
+              "duration_ms": 24010
+            },
+            {
+              "id": "lint",
+              "ok": true,
+              "duration_ms": 23006
+            },
+            {
+              "id": "typecheck:projects",
+              "ok": true,
+              "duration_ms": 18775
+            },
+            {
+              "id": "build:catalog-image-delivery",
+              "ok": true,
+              "duration_ms": 954
+            },
+            {
+              "id": "typecheck:tests",
+              "ok": true,
+              "duration_ms": 28562
+            },
+            {
+              "id": "typecheck:scripts",
+              "ok": true,
+              "duration_ms": 3055
+            },
+            {
+              "id": "design-tokens",
+              "ok": true,
+              "duration_ms": 112
+            },
+            {
+              "id": "tailwind-classes",
+              "ok": true,
+              "duration_ms": 2196
+            },
+            {
+              "id": "migrations-additive",
+              "ok": true,
+              "duration_ms": 210
+            },
+            {
+              "id": "styles",
+              "ok": true,
+              "duration_ms": 96
+            },
+            {
+              "id": "i18n",
+              "ok": true,
+              "duration_ms": 96
+            },
+            {
+              "id": "env-registry",
+              "ok": true,
+              "duration_ms": 144
+            },
+            {
+              "id": "csp",
+              "ok": true,
+              "duration_ms": 67
+            },
+            {
+              "id": "audit",
+              "ok": true,
+              "duration_ms": 5847
+            },
+            {
+              "id": "suite",
+              "ok": true,
+              "duration_ms": 1941881
+            },
+            {
+              "id": "build:web",
+              "ok": true,
+              "duration_ms": 21769
+            },
+            {
+              "id": "performance:bundle",
+              "ok": true,
+              "duration_ms": 1217
+            },
+            {
+              "id": "build:agent",
+              "ok": true,
+              "duration_ms": 3271
+            },
+            {
+              "id": "contract:release",
+              "ok": true,
+              "duration_ms": 550
+            },
+            {
+              "id": "contract:team",
+              "ok": true,
+              "duration_ms": 1866
+            },
+            {
+              "id": "contract:web-env",
+              "ok": true,
+              "duration_ms": 162
+            },
+            {
+              "id": "database",
+              "ok": true,
+              "duration_ms": 259117
+            },
+            {
+              "id": "a11y",
+              "ok": true,
+              "duration_ms": 16738
+            },
+            {
+              "id": "csp:browser",
+              "ok": true,
+              "duration_ms": 2977
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "uniqueGates": {
+    "expected": 25,
+    "passed": 25,
+    "missing": []
+  },
+  "tests": {
+    "total": 11727,
+    "passed": 11628,
+    "failed": 0,
+    "skipped": 99,
+    "todo": 0,
+    "files": 1254
+  },
+  "shards": {
+    "plannedShards": 8,
+    "executedShards": 8,
+    "completedShards": 8,
+    "complete": true
+  },
+  "suiteReportSha256": "f092caa355cfcd288db1fe83fad78112dae45b117126db759a3ab8ab0cb71899",
+  "coverage": {
+    "total": {
+      "lines": {
+        "total": 168818,
+        "covered": 142465,
+        "skipped": 0,
+        "pct": 84.38
+      },
+      "statements": {
+        "total": 168818,
+        "covered": 142465,
+        "skipped": 0,
+        "pct": 84.38
+      },
+      "functions": {
+        "total": 8423,
+        "covered": 6330,
+        "skipped": 0,
+        "pct": 75.15
+      },
+      "branches": {
+        "total": 48855,
+        "covered": 42807,
+        "skipped": 0,
+        "pct": 87.62
+      },
+      "branchesTrue": {
+        "total": 0,
+        "covered": 0,
+        "skipped": 0,
+        "pct": 100
+      }
+    },
+    "summarySha256": "7901b9af9425a47777c5efb70d367f4d05e86eb8d1fbb5484750fad7f2a86aa6",
+    "unchangedRatchetAndCriticalFloorsPassed": true
+  },
+  "environment": {
+    "host": "macOS ARM64",
+    "heavyProcesses": "Serial gates, one test worker, nice 15, bounded 3 GiB Node heap",
+    "temporaryFiles": "External volume, exercising cross-volume cache publication",
+    "publicBuildSettings": "Production-mode ignored file only; no live-service configuration injected into unit mode",
+    "media": "Exact shipped ARM FFmpeg/FFprobe from the isolated Beta package",
+    "database": "Owned disposable loopback database with full application migration chain; local Beta schema/roles only, no application data or passwords copied"
+  },
+  "limits": [
+    "Named suite skips remain explicit in the canonical static/suite report; skipped checks are not passes.",
+    "Browser accessibility sweep covers 10 public routes in two themes; CSP checks are separate. Feature-specific desktop evidence uses actual components and synthetic local fixtures.",
+    "No Windows or Intel native runtime qualification, live Google acceptance, or exact-source packaged Beta/native update qualification is claimed.",
+    "Shared-image provider/Meta/CDN and compatible current/rollback cutover acceptance remain required before activation."
+  ],
+  "productionActionsPerformed": false,
+  "packagedReleaseQualified": false
+}

@@ -1,6 +1,22 @@
 # Validation — automatic catalog content
 
-Implementation is isolated on `055-automatic-catalog-content`, based on `c2d81d29`. Production publication, shared-image activation, cleanup and release identity changes are outside this work. The parallel replacement/HEVC handoff at `bea07536` is now merged into the integration branch; final combined verification follows the recorded baseline below.
+Implementation began on `055-automatic-catalog-content`, based on `c2d81d29`, and is now merged into `integration/next-release-2026-11-13` with the completed independent fixes. Production publication, shared-image activation, cleanup and release identity changes are outside this work. Final combined verification is recorded below.
+
+## Final combined verification — 2026-11-14
+
+Clean integration source `ebea1bede9426764327be9c5cb90b4f9d74eddc8` passes one complete canonical
+`npm run verify:release`: 25/25 gates, all 8 test shards,
+11628 passed / 0 failed / 99 named skips across 1254 files.
+Global line coverage is 84.38%; all unchanged global/critical/per-file ratchets pass.
+Builds, bundle budgets, contracts, the complete isolated database chain and browser
+checks are included in the same invocation. See
+[combined-verification.json](combined-verification.json) for the official report,
+hashes and limits. This is local integration evidence; packaged native-update and
+shared-image provider/cutover acceptance remain release prerequisites.
+
+The records below are historical checkpoints, including the failures that led to
+the additional regressions. Their pending statements describe those earlier runs,
+not the final combined verification above.
 
 ## Combined handoff and cross-volume regression
 
@@ -155,7 +171,7 @@ The owner subsequently asked the coordinator to include the parallel worktree's
 completed fixes before final combined verification. That work remains independent
 until its exact completed source is handed over.
 
-## Verified current integration baseline
+## Earlier verified integration baseline
 
 Canonical `npm run verify` on `895fa7f7088155c332c932b660c91e78f8933639`
 passes all 16 gates and all 8 test shards: **11,497 passed, 0 failed, 98 skipped**,
@@ -175,9 +191,9 @@ test sources have not changed, while the later Edge manual-sheet fix has its own
 14 passing checks. These recorded sources are retained, not relabelled as packaged
 acceptance for a newer commit.
 
-The owner subsequently expanded the parallel work to automatic HEVC compatibility
-and asked this coordinator to include the completed replacement/UI/fix work too.
-That agent owns its implementation and focused/media/browser checks; this task
-owns the merge and final combined validation after exact-source handoff. The
-current green baseline does **not** certify those unmerged changes. Production
-publication and the native-package/shared-pool release prerequisites remain pending.
+At this earlier checkpoint, the owner expanded the parallel work to automatic
+HEVC compatibility and asked this coordinator to include the completed
+replacement/UI/fix work too. That baseline did **not** certify the then-unmerged
+changes. The final combined result at the top of this document now includes their
+exact-source handoff. Production publication and the native-package/shared-pool
+release prerequisites remain pending.

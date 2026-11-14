@@ -121,5 +121,7 @@ provider fixture tests remain separate from live Google acceptance.
 - Replacement requires the verified immediate-publication baseline and one Drive
   connection. Existing spare/uncancelled variation/unresolved jobs must settle
   through their ordinary controls; legacy/held/future publications are refused.
-- Packaged beta, live Google acceptance, complete combined build/suite/database
-  gates, Windows/Intel release evidence and deployment remain integration work.
+- Complete combined build/suite/database/browser gates pass on the integration
+  candidate; see [the exact combined proof](../055-automatic-catalog-content/reviews/combined-verification.json).
+  Packaged beta, live Google acceptance, Windows/Intel release evidence and
+  deployment remain separate release work.
