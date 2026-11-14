@@ -23,6 +23,25 @@ with the same external TMPDIR and shipped ARM binaries. The real HEVC test keeps
 its dependency on the isolated internal support profile; the fixture was not
 changed to hide the boundary. Full combined verification is being repeated.
 
+The next run on `146bf7d0` completed two shards with 2,903 passing assertions,
+zero assertion failures and 24 named skips, but correctly failed on an unhandled
+jsdom/undici WebSocket error. The integration helper had injected public production
+VITE settings into unit mode, enabling the public support-goal realtime reader.
+The helper now keeps those five public settings in an ignored production-mode env
+file, matching ordinary Vite configuration; unit mode receives no live service
+configuration. No product or test workaround was added. All six page-transition
+tests passed with coverage in the corrected environment.
+
+The subsequent complete eight-shard run on the same source had 11,565 passes,
+two failures and 99 named skips, with no unhandled errors. Both failed delivery
+fixtures omitted the detector version while expecting a current cached answer.
+They now explicitly use `RESTITCH_DETECTOR_VERSION`; the unsupported-codec example
+uses VP9 because HEVC is automatically supported. Assertions retain the cached
+fast path and strengthen the specific refusal reason. Two additional cases prove
+that absent/obsolete versions cannot preserve an old refusal. All 61 delivery,
+preparation and delegate tests pass. Failed suite attempts do not publish global
+coverage or certify the candidate.
+
 ## Shared policy and performance
 
 The initial shared test failed collection because the module did not yet exist; this was not a reproduced behavioral failure. After implementation, all 43 checks pass: every one of the 32 garment price bands, inclusive endpoints, matching facts, exactly 2,000 distinct variants/titles/descriptions, bounded exhaustion, neutral unknowns, independent deterministic streams and malformed random bounds. Shared TypeScript build passes.

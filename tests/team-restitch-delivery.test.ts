@@ -4,7 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ImageEmbeddingSettings } from '../packages/shared/src/types.js';
-import type { TeamRestitchDefaults } from '../packages/shared/src/team/restitch.js';
+import {
+  RESTITCH_DETECTOR_VERSION,
+  type TeamRestitchDefaults
+} from '../packages/shared/src/team/restitch.js';
 import { ScreenCacheError } from '../apps/agent/src/team-bridge/screen-cache.js';
 import type {
   ScreenRecoveryProvider,
@@ -226,6 +229,7 @@ describe('a re-stitched delivery', () => {
       prepared: {
         materialId: 'material-1',
         driveVersion: '7',
+        detectorVersion: RESTITCH_DETECTOR_VERSION,
         detectedStartSeconds: 0.033333,
         detectedEndSeconds: 1800,
         // Prepared on somebody else's machine, so the path in it is theirs, not ours.
@@ -318,24 +322,49 @@ describe('a re-stitched delivery', () => {
   });
 
   it('refuses a material the fast path cannot serve, and says which', async () => {
-    const input = await source('hevc.mp4');
+    const input = await source('vp9.mp4');
     await expect(
       run(input, {
         defaults,
         prepared: {
           materialId: 'material-2',
           driveVersion: '7',
+          detectorVersion: RESTITCH_DETECTOR_VERSION,
           detectedStartSeconds: 0,
           detectedEndSeconds: 0,
-          profile: profile(input),
+          profile: { ...profile(input), videoCodec: 'vp9' },
           unsupportedReason: 'video-codec',
           preparedAt: '2026-09-02T00:00:00.000Z'
         }
       })
-    ).rejects.toThrow('UNSUPPORTED_MEDIA');
+    ).rejects.toMatchObject({ message: 'UNSUPPORTED_MEDIA', reason: 'video-codec' });
     // A refusal that was already known costs nothing to repeat.
     expect(probeSource).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, RESTITCH_DETECTOR_VERSION - 1])(
+    'rechecks an obsolete refusal with detector version %s before rejecting a source',
+    async detectorVersion => {
+      const input = await source();
+      const result = await run(input, {
+        defaults,
+        prepared: {
+          materialId: 'material-2',
+          driveVersion: '7',
+          detectorVersion,
+          detectedStartSeconds: 0,
+          detectedEndSeconds: 0,
+          profile: null,
+          unsupportedReason: 'video-codec',
+          preparedAt: '2026-09-02T00:00:00.000Z'
+        }
+      });
+      expect(probeSource).toHaveBeenCalledTimes(1);
+      expect(detectStitching).toHaveBeenCalledTimes(1);
+      expect(result.discovered).toMatchObject({ detectorVersion: RESTITCH_DETECTOR_VERSION });
+      expect((await stat(result.file)).size).toBeGreaterThan(0);
+    }
+  );
 
   it('says there is nothing to remove rather than calling the file unsupported', async () => {
     const input = await source();
