@@ -76,6 +76,10 @@ describe('Soty Finder image conversion integration', () => {
     const compiler = readFileSync('scripts/compile-native-launcher.sh', 'utf8');
     expect(compiler).toContain('-framework FinderSync');
     expect(compiler).toContain('-target "$target"');
+    // An ad-hoc hardened launcher cannot load a separately signed Sparkle; a strong
+    // link aborted the packaged beta in dyld before it could start (1.5.0 beta_verify).
+    expect(compiler).toContain('-weak_framework Sparkle');
+    expect(compiler).not.toMatch(/-framework Sparkle\b/u);
     const chain = readFileSync('scripts/sign-mac-app.sh', 'utf8');
     expect(chain).toContain('packaging/FinderExtension/FinderExtension.entitlements');
     expect(chain).toContain('*.finder-extension');

@@ -34,6 +34,8 @@ final class NativeAppUpdateCoordinator {
 
   init(support: URL, channel: String, target: String, version: String, buildId: String, revision: String, agentURL: URL) throws {
     guard Bundle.main.object(forInfoDictionaryKey: "SotyNativeUpdatesEnabled") as? Bool == true,
+      // Weak-linked: an updater whose framework did not load is unavailable, never half-started.
+      NSClassFromString("SPUUpdater") != nil,
       let publicKey = Bundle.main.object(forInfoDictionaryKey: "SotyUpdateManifestPublicKey") as? String,
       Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String != nil,
       channel == "stable" || channel == "beta"

@@ -14,8 +14,12 @@ fi
 clang "${clang_args[@]}" -fobjc-arc -fmodules -target "$target" -F "$app/Contents/Frameworks" \
   -c packaging/NativeUpdates/SparkleDriver.m -o "$object"
 cp "$source_file" "${source_file:h}/main.swift"
+# Sparkle is weak-linked. Under the ad-hoc identity (beta, dev, legacy pre-048) the
+# hardened runtime's library validation refuses a separately signed framework, and a
+# strong link would abort the launcher in dyld before Soty starts. Those builds keep the
+# updater switched off; a Developer ID build loads it with the app's own Team ID.
 swiftc -j 1 "${swift_args[@]}" "${source_file:h}/main.swift" packaging/NativeUpdates/*.swift "$policy" "$object" \
   -import-objc-header packaging/NativeUpdates/SparkleDriver.h \
   -o "$output" -target "$target" -F "$app/Contents/Frameworks" \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
-  -framework AppKit -framework FinderSync -framework Security -framework Sparkle
+  -framework AppKit -framework FinderSync -framework Security -weak_framework Sparkle
