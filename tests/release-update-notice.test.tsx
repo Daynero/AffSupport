@@ -8,6 +8,7 @@ import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/Ag
 import { fakeAgentValue } from './support/fake-agent.js';
 import ReleaseUpdateNotice from '../apps/web/src/components/ReleaseUpdateNotice';
 import { emptyQueueState } from './web-auth-helpers';
+import { nativeCandidate } from './support/native-app-updates.js';
 
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
@@ -100,6 +101,38 @@ describe('release update notice', () => {
       }
     });
     expect(screen.getByRole('link', { name: 'Завантажити оновлення' })).toBeTruthy();
+  });
+  it('tells an installer-only Mac to install once when the release publishes a native update', () => {
+    renderNotice({
+      ...agentValue({ ...releaseManifest(), nativeUpdates: { 'macos-arm64': nativeCandidate() } }),
+      agentRuntime: { platform: 'macos', architecture: 'arm64', packageTarget: 'macos-arm64' }
+    });
+    expect(screen.getByText(/Установіть цю версію один раз/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Завантажити оновлення' })).toBeTruthy();
+  });
+  it('keeps the usual instruction when the release has no native update for this Mac', () => {
+    renderNotice({
+      ...agentValue(),
+      agentRuntime: { platform: 'macos', architecture: 'arm64', packageTarget: 'macos-arm64' }
+    });
+    expect(screen.queryByText(/Установіть цю версію один раз/)).toBeNull();
+  });
+  it('routes a disconnected agent last seen with native updates to the native window', () => {
+    const view = renderNotice({
+      ...agentValue(),
+      connection: 'disconnected',
+      lastKnownAgent: {
+        version: '0.6.0',
+        buildId: 'old',
+        instanceId: 'old',
+        channel: 'stable',
+        capabilities: ['native-app-updates-v1'],
+        toolContracts: {},
+        seenAt: Date.now()
+      }
+    });
+    // The native window owns this state; it never falls back to the installer copy unasked.
+    expect(view.container.textContent).not.toContain('Установіть цю версію один раз');
   });
   it('shows a localized summary and the immutable release download', () => {
     const manifest = releaseManifest();
