@@ -113,6 +113,8 @@ fi
 zsh scripts/sign-mac-app.sh "$app" > "$root/signing.json"
 ditto -c -k --keepParent "$app" "$archive"; (cd "$root"; shasum -a 256 "${archive:t}" > "${archive:t}.sha256")
 
-if [[ "${SOTY_SIGNING_IDENTITY:--}" != "-" ]]; then
+# No update descriptor for a build whose updater the owner switched off: nothing
+# installed from it reads one, and stable.json must not advertise an unqualified path.
+if [[ "${SOTY_SIGNING_IDENTITY:--}" != "-" && "${SOTY_NATIVE_UPDATES:-}" != disabled ]]; then
   node scripts/sign-native-update.mjs "$archive" "$app" "macos-$arch" stable
 fi

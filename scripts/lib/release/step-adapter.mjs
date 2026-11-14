@@ -1,5 +1,5 @@
 import { inspectCatalogGlobalRelease } from './catalog-global-cutover.mjs';
-import { nativeUpdateInputsPreflight } from '../native-update-inputs.mjs';
+import { nativeUpdateInputsPreflight, nativeUpdatesDisabled } from '../native-update-inputs.mjs';
 import { writePlatformBaseline } from './platform-baseline.mjs';
 import { macosTrustPreflight } from './macos-trust-preflight.mjs';
 import {
@@ -997,6 +997,7 @@ export async function createStepAdapter({
       }
       for (const [file, platform] of [...macArtifacts, [exe, 'windows-x64']]) {
         if (platform.startsWith('macos-') && macosTrustPolicy(trustEnv.SOTY_MACOS_TRUST_POLICY) === 'developer-id' &&
+            !nativeUpdatesDisabled(trustEnv) &&
             !existsSync(path.join(cwd, `${file.replace(/\.dmg$/u, '.zip')}.native-update.json`))) return fail('GATE_FAILED', 'NATIVE_UPDATE_DESCRIPTOR_MISSING');
         const signed = await run(
           'manifest',

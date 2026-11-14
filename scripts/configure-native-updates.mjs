@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { readNativeUpdateQualification } from './lib/native-update-qualification.mjs';
 import { betaUpdateProfile } from './lib/native-update-profile.mjs';
+import { nativeUpdatesDisabled } from './lib/native-update-inputs.mjs';
 import {
   PRODUCTION_SITE_ORIGIN,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
@@ -27,11 +28,16 @@ if (fixture) {
     throw new Error('NATIVE_UPDATE_FIXTURE_NOT_LOOPBACK');
 }
 const signed = process.env.SOTY_SIGNING_IDENTITY && process.env.SOTY_SIGNING_IDENTITY !== '-';
-if (mode === 'production' && signed) {
+const disabled = nativeUpdatesDisabled(process.env);
+// A fixture exists only to exercise the updater; asking for both is a contradiction.
+if (disabled && fixture) throw new Error('NATIVE_UPDATE_FIXTURE_REQUIRES_UPDATES');
+if (mode === 'production' && signed && !disabled) {
   const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   await readNativeUpdateQualification(process.env.SOTY_NATIVE_UPDATE_QUALIFICATION, sourceSha);
 }
-const enabled = Boolean(signed && (mode === 'production' || (mode === 'beta' && fixture)));
+const enabled = Boolean(
+  signed && !disabled && (mode === 'production' || (mode === 'beta' && fixture))
+);
 if (fixture && !signed) throw new Error('NATIVE_UPDATE_FIXTURE_REQUIRES_DEVELOPER_ID');
 const profile = betaUpdateProfile({
   mode,
