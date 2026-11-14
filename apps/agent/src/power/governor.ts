@@ -378,7 +378,7 @@ export class PowerGovernor {
    */
   registerNativeHelper(pid: number): () => void {
     if (!Number.isSafeInteger(pid) || pid <= 0 || this.children.has(pid)) return () => {};
-    this.children.set(pid, {
+    const entry: ManagedChild = {
       child: null,
       pid,
       toolId: 'native-app-update',
@@ -390,12 +390,13 @@ export class PowerGovernor {
       terminating: false,
       terminationPinUntil: 0,
       live: true
-    });
+    };
+    this.children.set(pid, entry);
     this.retune();
     this.onChange?.();
     return () => {
-      const entry = this.children.get(pid);
-      if (!entry || entry.child !== null) return;
+      // A stale release belongs only to this adoption, even if the PID is reused.
+      if (this.children.get(pid) !== entry) return;
       if (this.isStopped(entry)) this.resume(entry);
       entry.live = false;
       this.children.delete(pid);

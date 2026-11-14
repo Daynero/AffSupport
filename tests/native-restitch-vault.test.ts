@@ -1,16 +1,119 @@
-import { mkdtemp, readFile, writeFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, stat, lstat, rename, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   NativeRestitchVaultFile,
   replaceFile
 } from '../apps/agent/src/team-bridge/native-restitch-vault';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { itRequiring, requirePlatform } from './support/requires.js';
+import * as updateReceipt from '../apps/agent/src/update/receipt';
+const osCredential = vi.hoisted(() => vi.fn());
+vi.mock('../apps/agent/src/platform/platform', async importOriginal => ({
+  ...(await importOriginal<typeof import('../apps/agent/src/platform/platform')>()),
+  recoveryCredential: osCredential
+}));
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, lstat: vi.fn(actual.lstat), rename: vi.fn(actual.rename) };
+});
+beforeEach(async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  vi.mocked(lstat).mockImplementation(actual.lstat);
+  vi.mocked(rename).mockImplementation(actual.rename);
+  osCredential.mockReset();
+});
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) await removeTemporaryDirectory(root);
+});
+it('uses only a fixed-size key through the default platform store and recovers the encrypted snapshot after restart', async () => {
+  const x = await setup();
+  const values = new Map<string, string>();
+  osCredential.mockImplementation(async (action: string, account: string, value?: string) => {
+    if (action === 'write') {
+      values.set(account, value!);
+      return null;
+    }
+    return values.get(account) ?? null;
+  });
+  const vault = new NativeRestitchVaultFile(x.file, x.account);
+  await vault.write({ secret: 'private retained credential' });
+  expect(osCredential).toHaveBeenCalledWith(
+    'write',
+    `${x.account}-key`,
+    expect.stringMatching(/^[A-Za-z0-9_-]{43}$/u)
+  );
+  expect([...values.keys()]).toEqual([`${x.account}-key`]);
+  expect(await new NativeRestitchVaultFile(x.file, x.account).read()).toEqual({
+    secret: 'private retained credential'
+  });
+  expect((await readFile(x.file)).includes(Buffer.from('private retained credential'))).toBe(false);
+});
+it('waits for a pending encrypted write before update flushing and permits an absent vault', async () => {
+  const x = await setup();
+  await expect(x.vault.flushForUpdate()).resolves.toBeUndefined();
+  let entered!: () => void, release!: () => void;
+  const writing = new Promise<void>(r => {
+    entered = r;
+  });
+  const canWrite = new Promise<void>(r => {
+    release = r;
+  });
+  x.store.write.mockImplementationOnce(async (key, value) => {
+    entered();
+    await canWrite;
+    x.values.set(key, value);
+  });
+  const synced = vi.spyOn(updateReceipt, 'syncUpdateStateFiles');
+  const written = x.vault.write({ secret: 'pending' });
+  await writing;
+  const flushed = x.vault.flushForUpdate();
+  try {
+    expect(synced).not.toHaveBeenCalled();
+  } finally {
+    release();
+  }
+  await Promise.all([written, flushed]);
+  expect(synced).toHaveBeenCalledWith([x.file]);
+  expect(await x.vault.read()).toEqual({ secret: 'pending' });
+});
+it('propagates unavailable update storage and does not discard retained credentials', async () => {
+  const x = await setup();
+  await x.vault.write({ secret: 'retained' });
+  const unavailable = Object.assign(new Error('synthetic storage unavailable'), { code: 'EIO' });
+  vi.mocked(lstat).mockRejectedValueOnce(unavailable);
+  await expect(x.vault.flushForUpdate()).rejects.toBe(unavailable);
+  expect(await x.vault.read()).toEqual({ secret: 'retained' });
+});
+it('refuses a nonserializable snapshot without touching the key or the committed ciphertext', async () => {
+  const x = await setup();
+  await x.vault.write({ secret: 'retained' });
+  const before = await readFile(x.file),
+    reads = x.store.read.mock.calls.length;
+  const cyclic: { self?: unknown } = {};
+  cyclic.self = cyclic;
+  await expect(x.vault.write(cyclic)).rejects.toThrow('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+  expect(await readFile(x.file)).toEqual(before);
+  expect(x.store.read).toHaveBeenCalledTimes(reads);
+});
+it('preserves the last committed ciphertext when atomic replacement fails and allows a later retry', async () => {
+  const x = await setup();
+  await x.vault.write({ secret: 'retained' });
+  const before = await readFile(x.file);
+  vi.mocked(rename).mockRejectedValueOnce(
+    Object.assign(new Error('/private/failed-path'), { code: 'EIO' })
+  );
+  await expect(x.vault.write({ secret: 'not committed' })).rejects.toThrow(
+    'RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'
+  );
+  expect(await readFile(x.file)).toEqual(before);
+  expect((await readdir(path.dirname(x.file))).filter(name => name.endsWith('.tmp'))).toEqual([]);
+  expect(await x.vault.read()).toEqual({ secret: 'retained' });
+  await x.vault.write({ secret: 'retried' });
+  expect(await x.vault.read()).toEqual({ secret: 'retried' });
 });
 async function setup() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'native-vault-'));
