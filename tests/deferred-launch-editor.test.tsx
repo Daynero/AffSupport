@@ -122,6 +122,12 @@ it('shows a local failure and retries without losing the surrounding launch sess
   await screen.findByText('Settings ready');
   expect(loader).toHaveBeenCalledTimes(2);
   expect(screen.queryByRole('alert')).toBeNull();
+  // Completion is reported from a passive effect after the DOM commit.
+  await waitFor(() =>
+    expect(
+      vi.mocked(analytics.track).mock.calls.some(([name]) => name === 'operation_completed')
+    ).toBe(true)
+  );
   const calls = vi.mocked(analytics.track).mock.calls;
   const starts = calls.filter(([name]) => name === 'operation_started');
   expect(starts).toHaveLength(2);

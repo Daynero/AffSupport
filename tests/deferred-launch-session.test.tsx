@@ -120,6 +120,13 @@ it('keeps failure local and retries the import with current permissions and rout
   await screen.findByText('team/viewer/result');
   expect(loader).toHaveBeenCalledTimes(2);
   expect(screen.queryByRole('alert')).toBeNull();
+  // Completion is reported from a passive effect after the DOM commit, which a slow
+  // runner may not have flushed by the time the text is found.
+  await waitFor(() =>
+    expect(
+      vi.mocked(analytics.track).mock.calls.some(([name]) => name === 'operation_completed')
+    ).toBe(true)
+  );
   const calls = vi.mocked(analytics.track).mock.calls;
   const starts = calls.filter(([name]) => name === 'operation_started');
   expect(starts).toHaveLength(2);
