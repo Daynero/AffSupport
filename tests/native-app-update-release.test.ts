@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
+import { itRequiring, requirePlatform } from './support/requires.js';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -107,7 +108,8 @@ describe('Developer ID build with the native updater switched off by the owner',
     }
   });
 
-  it.runIf(process.platform === 'darwin')(
+  itRequiring(
+    requirePlatform('darwin'),
     'packages a signed production app with the updater off and no qualification record',
     async () => {
       const root = await mkdtemp(path.join(os.tmpdir(), 'soty-native-off-app-'));

@@ -12,6 +12,7 @@ import {
 import { removeTemporaryDirectory } from './support/temp-dir';
 import { renderNativeUpdatePolicy } from '../scripts/lib/native-update-policy.mjs';
 import { BETA_MARKERS, BETA_PROFILE } from '../packages/shared/src/environment';
+import { describeRequiring, requirePlatform } from './support/requires.js';
 
 const profileId = '10000000-0000-4000-8000-000000000001';
 const options = {
@@ -67,7 +68,7 @@ describe('sealed native updater qualification profile', () => {
   });
 });
 
-describe.runIf(process.platform === 'darwin')('exact archive profile binding', () => {
+describeRequiring(requirePlatform('darwin'), 'exact archive profile binding', () => {
   it('preserves completed work/settings and refuses unfinished or aliased fixture state', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'soty-fixture-smoke-'));
     try {
