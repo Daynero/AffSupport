@@ -4676,10 +4676,11 @@
 .launch-card[data-state='queued'] {
   border-color: var(--color-info-border);
 }
+/* A copied note keeps the same green mark as every other copied result field. */
 .ui-button.launch-note-copy.launch-note-already-copied {
-  background: var(--color-neutral-surface-subtle);
-  color: var(--color-neutral-text-muted);
-  border-color: var(--color-neutral-border);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
 }
 .launch-copy-progress {
   display: flex;
