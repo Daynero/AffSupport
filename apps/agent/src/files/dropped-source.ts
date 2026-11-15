@@ -23,15 +23,56 @@ function journalDrop(code: 'resolve_file' | 'resolve_folder', location: DropLoca
   });
 }
 
+/**
+ * How long a drop may look for its original before the browser's copy is used.
+ *
+ * A protected folder (macOS asks before an app reads Downloads, Desktop or Documents) keeps
+ * the read waiting for as long as the question is on screen; the first launch of a newly
+ * signed app asks again. An add that waits on that question looks frozen, so after this long
+ * the drop goes ahead with the uploaded copy and the search is abandoned.
+ */
+export const DROPPED_SOURCE_LOOKUP_TIMEOUT_MS = 4_000;
+
 export async function findDroppedSource(
   fileName: string,
   expectedSize: number,
-  expectedModifiedAt: number
+  expectedModifiedAt: number,
+  timeoutMs = DROPPED_SOURCE_LOOKUP_TIMEOUT_MS
 ): Promise<string | null> {
   if (!Number.isFinite(expectedSize)) {
     diagnostics.record('drop', 'resolve_file', { location: 'none', outcome: 'invalid' });
     return null;
   }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let settled = false;
+  const expired = new Promise<null>(resolve => {
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      diagnostics.record('drop', 'resolve_file', { location: 'none', outcome: 'timeout' });
+      resolve(null);
+    }, timeoutMs);
+    timer.unref?.();
+  });
+  const search = searchDroppedSource(fileName, expectedSize, expectedModifiedAt, () => settled).then(
+    found => {
+      settled = true;
+      return found;
+    }
+  );
+  try {
+    return await Promise.race([search, expired]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function searchDroppedSource(
+  fileName: string,
+  expectedSize: number,
+  expectedModifiedAt: number,
+  abandoned: () => boolean
+): Promise<string | null> {
 
   const inCommonFolder = await findDroppedSourceInDirectories(
     await userContentFolders(),
@@ -40,18 +81,19 @@ export async function findDroppedSource(
     expectedModifiedAt
   );
   if (inCommonFolder) {
-    journalDrop('resolve_file', 'common_folder');
+    if (!abandoned()) journalDrop('resolve_file', 'common_folder');
     return inCommonFolder;
   }
+  if (abandoned()) return null;
 
   const candidates = await indexedFileSearch(os.homedir(), fileName);
   for (const candidate of candidates) {
     if (await matchesFile(candidate, expectedSize, expectedModifiedAt)) {
-      journalDrop('resolve_file', 'index');
+      if (!abandoned()) journalDrop('resolve_file', 'index');
       return candidate;
     }
   }
-  journalDrop('resolve_file', 'none');
+  if (!abandoned()) journalDrop('resolve_file', 'none');
   return null;
 }
 
