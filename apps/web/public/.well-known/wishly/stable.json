@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.1",
-  "buildNumber": "86",
-  "buildId": "1.5.1+86",
+  "version": "1.5.2",
+  "buildNumber": "87",
+  "buildId": "1.5.2+87",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-14T00:00:00.000Z",
+  "publishedAt": "2026-11-15T00:00:00.000Z",
   "summary": {
-    "uk": "Масові запуски, автоматичні назви й ціни каталогів, підписаний застосунок для macOS.",
-    "en": "Bulk launches, automatic catalog titles and prices, and an Apple-signed macOS app."
+    "uk": "Масові запуски й вибір завдань, автоматичні назви й ціни каталогів, підписаний застосунок для macOS.",
+    "en": "Bulk launches and task selection, automatic catalog titles and prices, and an Apple-signed macOS app."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-macOS-arm64.dmg",
-      "sha256": "8d1fda06c84769442e43f29aae3f81ee85976533f3ba075201f9c99a1e8fb12a"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-macOS-x64.dmg",
-      "sha256": "8e172ccd1cf45d11a3bf96043387301deb5036a35067ab8d73654785e043c6e2"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.1/Soty-v1.5.1-Windows-x64.exe",
-      "sha256": "be5e3137430f18851a0bce5a79daf6344194d5ece1416d2284e3bb8a08a39c78"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "ssXpF-Mticw9cHAQWMv8JrrFrCMPOuhXkWcFk-o9POWQ2_K3kynzAySkiWF47RZ-PNI6yc4nHPl60eXAY-WkCQ"
+  "signature": "3sb_45LY50IgDHOVg1e42oZNTX2bEOLxRGn33Uz8sSwRY5uLA7MgNfRD2I3tGoT6i-3demUUlpN8nYJa_iKAtA"
 }
