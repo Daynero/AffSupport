@@ -2123,7 +2123,8 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   const today = quickRangeValue('today', new Date());
   if (today.kind !== 'range') throw new Error('Expected range');
   await waitFor(() =>
-    expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+    // Nothing matches, so the other keyboard layout is asked too; the typed words come first.
+    expect(seams.list).toHaveBeenCalledWith(TEAM, {
       sort: 'created',
       search: 'needle',
       from: today.from,
@@ -2131,6 +2132,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
     })
   );
   first.unmount();
+  seams.list.mockClear();
   const returned = render(<LaunchSpace teamId={TEAM} query={query} />);
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true')
@@ -2139,7 +2141,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
     'needle'
   );
   await waitFor(() =>
-    expect(seams.list).toHaveBeenLastCalledWith(TEAM, {
+    expect(seams.list).toHaveBeenCalledWith(TEAM, {
       sort: 'created',
       search: 'needle',
       from: today.from,

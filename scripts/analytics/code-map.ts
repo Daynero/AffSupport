@@ -742,7 +742,13 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
   },
   'drop:resolve_file': {
     files: [AGENT_DROP, 'apps/agent/src/platform/platform.ts'],
-    check: 'Whether a dropped file was found in the usual folders or the OS index (outcome prop).'
+    check:
+      'Whether a dropped file was found in the usual folders or the OS index (outcome prop; timeout when the lookup waited past four seconds, usually on a macOS folder permission question).'
+  },
+  'drop:output_fallback': {
+    files: ['apps/agent/src/files/output-destination.ts', 'apps/agent/src/queue/queue.ts'],
+    check:
+      'Downloads could not be written for an uploaded video result (outcome: denied, or timeout while a macOS permission question was open); the result went to the Movies folder instead (Videos on Windows).'
   },
   'drop:resolve_folder': {
     files: [AGENT_DROP, 'apps/agent/src/platform/platform.ts'],

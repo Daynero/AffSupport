@@ -24,6 +24,9 @@ create table private.launch_catalog_name_reservations (
 create unique index launch_catalog_name_reserved_variant
   on private.launch_catalog_name_reservations(team_id, video_material_id, variant);
 revoke all on table private.launch_catalog_name_reservations from public, anon, authenticated;
+-- Every table naming a material keeps the attachment cleanup fence (20261205122000).
+create trigger task_cleanup_reference_fence before insert or update on private.launch_catalog_name_reservations
+  for each row execute function private.guard_task_cleanup_reference();
 
 -- One allocation rule for every caller: catalogs, live intents and live reservations.
 create function private.next_catalog_variant(p_team uuid, p_video uuid)
