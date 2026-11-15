@@ -54,12 +54,15 @@ export async function findDroppedSource(
     }, timeoutMs);
     timer.unref?.();
   });
-  const search = searchDroppedSource(fileName, expectedSize, expectedModifiedAt, () => settled).then(
-    found => {
-      settled = true;
-      return found;
-    }
-  );
+  const search = searchDroppedSource(
+    fileName,
+    expectedSize,
+    expectedModifiedAt,
+    () => settled
+  ).then(found => {
+    settled = true;
+    return found;
+  });
   try {
     return await Promise.race([search, expired]);
   } finally {
@@ -73,7 +76,6 @@ async function searchDroppedSource(
   expectedModifiedAt: number,
   abandoned: () => boolean
 ): Promise<string | null> {
-
   const inCommonFolder = await findDroppedSourceInDirectories(
     await userContentFolders(),
     fileName,

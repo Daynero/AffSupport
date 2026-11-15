@@ -3,6 +3,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { diagnostics } from '../server/diagnostics-log.js';
+import { currentPlatform } from '../platform/platform.js';
 
 /**
  * Where a result goes when "next to the original" has no original to be next to.
@@ -63,7 +64,7 @@ export async function writableUploadedOutputDir(
   if (await canWrite(preferred, timeoutMs)) return preferred;
   const fallback = path.join(
     os.homedir(),
-    process.platform === 'win32' ? 'Videos' : 'Movies',
+    currentPlatform() === 'win32' ? 'Videos' : 'Movies',
     folderName
   );
   await mkdir(fallback, { recursive: true });

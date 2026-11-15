@@ -54,10 +54,7 @@ export function useCardMarqueeSelection(
         return;
       const card = `[${latest.current.attribute}]`;
       const target = event.target instanceof Element ? event.target : null;
-      if (
-        !target ||
-        target.closest(`${card},button,a,input,[role="button"],[data-no-marquee]`)
-      )
+      if (!target || target.closest(`${card},button,a,input,[role="button"],[data-no-marquee]`))
         return;
       const container = event.currentTarget;
       const initial = new Set(latest.current.selectedIds);
