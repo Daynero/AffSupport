@@ -98,7 +98,7 @@ export function TaskCard({
    * is doing bulk work on.
    */
   selected?: boolean;
-  onSelectedChange?: (next: boolean) => void;
+  onSelectedChange?: (next: boolean, modifiers?: { shiftKey: boolean }) => void;
 }) {
   const { t, language } = useI18n();
   const menuAnchor = useRef<HTMLButtonElement>(null);
@@ -187,6 +187,12 @@ export function TaskCard({
     pressedAt.current = null;
     if (isInteractiveTarget(event.target)) return;
     if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > PRESS_SLOP) return;
+    // ⌘/Ctrl ticks one card and Shift a range, as on the launch board.
+    if ((event.metaKey || event.ctrlKey || event.shiftKey) && onSelectedChange) {
+      event.currentTarget.ownerDocument.defaultView?.getSelection()?.removeAllRanges();
+      onSelectedChange(selected !== true, { shiftKey: event.shiftKey });
+      return;
+    }
     const selection = event.currentTarget.ownerDocument.defaultView?.getSelection();
     if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) return;
     onOpen();
@@ -205,8 +211,10 @@ export function TaskCard({
     <Card
       as="article"
       interactive
+      selected={selected === true}
       className={`team-task-card${expanded ? ' is-expanded' : ''}`}
       data-status={status}
+      data-task-id={task.id}
       tabIndex={0}
       aria-label={t('teamTaskOpenCard', { name: task.title })}
       onPointerDown={event => {

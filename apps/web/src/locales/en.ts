@@ -3844,6 +3844,7 @@ export const en = {
   teamTaskBulkDeleteTitle: 'Delete {count} tasks?',
   teamTaskBulkDeleteBody:
     'They go for good — their attachments stay on the Drive, but the tasks, their tags and their progress do not come back.',
+  teamTasksSelectLoaded: 'Select loaded tasks',
   teamTaskSelectedCount: 'Selected: {count}',
   teamTaskClearSelection: 'Clear the selection ({count})',
   teamTaskSelectCard: 'Select “{name}”',

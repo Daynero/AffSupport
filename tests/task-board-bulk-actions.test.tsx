@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS, type TeamTaskSummary } from '@video-compressor/shared';
@@ -217,4 +217,60 @@ it('reads the safe assignee directory for an editor instead of private member ma
   await user.click(screen.getByText('Task a'));
   const assignee = await screen.findByLabelText('Assignee');
   expect(assignee.textContent).toContain('Editor B');
+});
+
+describe('selecting many tasks the way launches are selected', () => {
+  const card = (title: string) =>
+    screen.getAllByRole('article').find(node => node.textContent?.includes(title))!;
+
+  it('ticks one card with ⌘ and a run with Shift, without opening a task', async () => {
+    const user = userEvent.setup();
+    board(client());
+    await screen.findByText('Task a');
+
+    await user.keyboard('{Meta>}');
+    await user.click(card('Task a'));
+    await user.keyboard('{/Meta}');
+    expect(screen.getByText('Selected: 1')).toBeTruthy();
+
+    await user.keyboard('{Shift>}');
+    await user.click(card('Task c'));
+    await user.keyboard('{/Shift}');
+    expect(screen.getByText('Selected: 3')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('takes every loaded task with ⌘A or the button, clears on Escape and asks before Delete', async () => {
+    const user = userEvent.setup();
+    const api = client();
+    board(api);
+    await screen.findByText('Task a');
+
+    await user.keyboard('{Meta>}a{/Meta}');
+    expect(screen.getByText('Selected: 3')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText(/^Selected:/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Select loaded tasks' }));
+    expect(screen.getByText('Selected: 3')).toBeTruthy();
+    await user.keyboard('{Delete}');
+    expect(await screen.findByRole('heading', { name: 'Delete 3 tasks?' })).toBeTruthy();
+    expect(api.deleteTask).not.toHaveBeenCalled();
+  });
+
+  it('selects the cards a rectangle drawn from the gaps touches', async () => {
+    board(client());
+    await screen.findByText('Task a');
+    const rects: Record<string, [number, number]> = { a: [0, 100], b: [120, 220], c: [240, 340] };
+    for (const node of document.querySelectorAll<HTMLElement>('[data-task-id]')) {
+      const [top, bottom] = rects[node.getAttribute('data-task-id')!]!;
+      node.getBoundingClientRect = () =>
+        ({ left: 0, right: 300, top, bottom, width: 300, height: bottom - top }) as DOMRect;
+    }
+    const grid = document.querySelector<HTMLElement>('.team-task-grid')!;
+    fireEvent.pointerDown(grid, { button: 0, pointerType: 'mouse', clientX: 310, clientY: 10 });
+    fireEvent.pointerMove(window, { clientX: 150, clientY: 150 });
+    fireEvent.pointerUp(window, { clientX: 150, clientY: 150 });
+    expect(screen.getByText('Selected: 2')).toBeTruthy();
+  });
 });

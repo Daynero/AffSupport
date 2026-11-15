@@ -27,6 +27,8 @@ import {
 import { buildTeamRoute } from '../routes';
 import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
 import { useTaskClipboard, type TaskCopyClient } from './useTaskClipboard';
+import { useTaskListSelection } from './useTaskListSelection';
+import { useCardMarqueeSelection } from '../useCardMarqueeSelection';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 export type TaskSpaceClient = TaskCopyClient &
@@ -498,6 +500,22 @@ export function TaskSpace({
     labels: labels.labels,
     handlers: bulk
   });
+  const taskIds = useMemo(() => tasks.tasks.map(task => task.id), [tasks.tasks]);
+  const listSelection = useTaskListSelection({
+    ids: taskIds,
+    selected: selectedIds,
+    setSelected: setSelectedIds,
+    enabled: can('edit') && !effectiveOpenId && confirmingDelete.length === 0,
+    anchor: quickAddInput,
+    onDelete: () => setConfirmingDelete(selected)
+  });
+  const marquee = useCardMarqueeSelection(
+    tasks.tasks,
+    selectedIds,
+    setSelectedIds,
+    'data-task-id',
+    can('edit')
+  );
 
   const allExpanded = tasks.tasks.length > 0 && expandedIds.size >= tasks.tasks.length;
   // Nothing on the board and nothing filtering it: the empty state speaks.
@@ -648,7 +666,14 @@ export function TaskSpace({
           onConfirm={() => void removeConfirmed()}
         />
       )}
-      <div className="team-task-grid">
+      {can('edit') && tasks.tasks.length > 0 && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set(taskIds))}>
+            {t('teamTasksSelectLoaded')}
+          </Button>
+        </div>
+      )}
+      <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
         {tasks.tasks.map(task => (
           <TaskCard
             key={task.id}
@@ -676,13 +701,7 @@ export function TaskSpace({
             selected={can('edit') ? selectedIds.has(task.id) : undefined}
             onSelectedChange={
               can('edit')
-                ? next =>
-                    setSelectedIds(current => {
-                      const ids = new Set(current);
-                      if (next) ids.add(task.id);
-                      else ids.delete(task.id);
-                      return ids;
-                    })
+                ? (next, modifiers) => listSelection.select(task.id, next, modifiers?.shiftKey)
                 : undefined
             }
           />

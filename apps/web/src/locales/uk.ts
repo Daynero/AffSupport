@@ -3827,6 +3827,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskBulkDeleteTitle: 'Видалити завдань: {count}?',
   teamTaskBulkDeleteBody:
     'Назавжди. Вкладення лишаться на Диску, але самі завдання, їхні теги й прогрес не повернути.',
+  teamTasksSelectLoaded: 'Вибрати завантажені завдання',
   teamTaskSelectedCount: 'Обрано: {count}',
   teamTaskClearSelection: 'Зняти виділення ({count})',
   teamTaskSelectCard: 'Обрати «{name}»',
