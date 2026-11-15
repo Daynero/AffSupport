@@ -168,7 +168,7 @@ export function filterBySearchQuery<T>(
   const terms = searchTerms(query);
   if (terms.length === 0) return { items: [...items], query, converted: false };
   const direct = items.filter(item => matchesSearchTerms(fieldsOf(item), terms));
-  if (direct.length > 0 || countSearchLetters(query) < 3) {
+  if (direct.length > 0 || countSearchLetters(query) < 2) {
     return { items: direct, query, converted: false };
   }
   const swapped = convertKeyboardLayout(query);

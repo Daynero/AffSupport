@@ -80,8 +80,11 @@ describe('matching', () => {
       query: 'привіт',
       converted: true
     });
-    // Two letters are too few to guess a layout from.
-    expect(filterBySearchQuery(tasks.slice(0, 1), 'gh', task => [task.title]).items).toEqual([]);
+    // Two letters are enough — a geo code ("ьн" for "my") is two — one is not.
+    expect(filterBySearchQuery(tasks.slice(0, 1), 'gh', task => [task.title]).items).toEqual([
+      { title: 'Привіт світ' }
+    ]);
+    expect(filterBySearchQuery(tasks.slice(0, 1), 'g', task => [task.title]).items).toEqual([]);
   });
 });
 

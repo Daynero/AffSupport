@@ -46,6 +46,7 @@ import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchListFilter } from './LaunchListFilter';
 
 import { DeferredLaunchSession } from './DeferredLaunchSession';
+import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 
 function isOlderLaunchDetail(next: LaunchDetail, current: LaunchDetail | null): boolean {
   if (!current || current.id !== next.id) return false;
@@ -202,6 +203,7 @@ function LaunchSpaceContent({
       false,
       false
     );
+  const usedSearch = useRef('');
   const readList = useCallback(
     async (next: { id: string; date: string | null; createdAt?: string } | null = null) => {
       const f: {
@@ -229,7 +231,15 @@ function LaunchSpaceContent({
         if (next.createdAt) f.cursorCreatedAt = next.createdAt;
       }
       const seq = ++listRequest.current;
-      const result = await launchApi.list(teamId, f);
+      // The first page decides the layout; later pages keep the words that found it.
+      if (!next) usedSearch.current = search;
+      const result = next
+        ? await launchApi.list(teamId, { ...f, search: usedSearch.current })
+        : await searchWithLayoutFallback(search, async query => {
+            const page = await launchApi.list(teamId, { ...f, search: query });
+            if (page.items.length > 0) usedSearch.current = query;
+            return page;
+          });
       if (seq !== listRequest.current) return;
       setItems(old => (next ? [...old, ...result.items] : result.items));
       setCursor(result.nextCursor);

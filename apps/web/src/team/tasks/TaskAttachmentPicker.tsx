@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronLeft, FileText, FileVideo, Folder, Image, Plus, Search, X } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  FileVideo,
+  Folder,
+  Image,
+  Plus,
+  Search,
+  X
+} from 'lucide-react';
 import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import {
@@ -12,6 +23,7 @@ import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
 import { searchFieldEscape } from '../../lib/searchField';
+import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 import { useI18n } from '../../i18n';
 
 export interface TaskAttachmentCandidate {
@@ -183,7 +195,9 @@ export function TaskAttachmentPicker({
     let active = true;
     setSearching(true);
     const timer = window.setTimeout(() => {
-      void searchCatalog(teamId, { query: term, page: 1, pageSize: 50 })
+      void searchWithLayoutFallback(term, query =>
+        searchCatalog(teamId, { query, page: 1, pageSize: 50 })
+      )
         .then(response => {
           if (!active) return;
           setFound(
@@ -398,7 +412,11 @@ export function TaskAttachmentPicker({
                             </small>
                           </span>
                           <span className="team-task-picker-check" aria-hidden="true">
-                            {isFolder ? '›' : selectedMaterial ? '✓' : ''}
+                            {isFolder ? (
+                              <ChevronRight size={14} strokeWidth={ICON_STROKE} />
+                            ) : selectedMaterial ? (
+                              <Check size={14} strokeWidth={ICON_STROKE} />
+                            ) : null}
                           </span>
                         </button>
                       </li>

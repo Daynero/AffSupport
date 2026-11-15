@@ -210,7 +210,7 @@ export function useCatalogSearch(input: {
         let swap: CatalogLayoutSwap | null = null;
         const swapped =
           next.items.length === 0 &&
-          countSearchLetters(request.query) >= 3 &&
+          countSearchLetters(request.query) >= 2 &&
           literalQuery !== request.query
             ? convertKeyboardLayout(request.query)
             : null;

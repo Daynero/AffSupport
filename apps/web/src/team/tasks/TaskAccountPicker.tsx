@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Plus, Rocket, UserRound } from 'lucide-react';
+import { Check, Plus, Rocket, UserRound } from 'lucide-react';
 import {
   countTeamAccounts,
   filterTeamAccounts,
@@ -325,7 +325,9 @@ export function TaskAccountPicker({
                             </small>
                           </span>
                           <span className="team-task-picker-check" aria-hidden="true">
-                            {attached || chosen ? '✓' : ''}
+                            {attached || chosen ? (
+                              <Check size={14} strokeWidth={ICON_STROKE} />
+                            ) : null}
                           </span>
                         </button>
                       </li>

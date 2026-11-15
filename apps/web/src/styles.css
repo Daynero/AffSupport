@@ -10790,6 +10790,11 @@ body {
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--green-500);
+  line-height: 0;
+}
+.team-task-picker-check svg {
+  display: block;
+  flex: none;
 }
 .team-task-picker-results button.is-selected .team-task-picker-check {
   border-color: var(--green-500);

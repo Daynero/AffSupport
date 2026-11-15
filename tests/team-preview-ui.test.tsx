@@ -278,3 +278,44 @@ it('keeps playback and its signed URL across parent updates and category hydrati
   );
   await waitFor(() => expect(previewClient.requestPreview).toHaveBeenCalledTimes(2));
 });
+
+describe('a media stream that refuses for a moment', () => {
+  const media = (grant: string): TeamPreviewResult => ({
+    kind: 'media',
+    rangeUrl: `https://project.supabase.co/functions/v1/drive-transfer/range?grant=${grant}`,
+    mimeType: 'video/mp4',
+    expiresAt: '2026-08-01T12:05:00.000Z'
+  });
+
+  it('asks once more on its own with a fresh grant, then offers a retry', async () => {
+    const previewClient = client(media('first'));
+    (previewClient.requestPreview as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(media('first'))
+      .mockResolvedValueOnce(media('second'))
+      .mockResolvedValueOnce(media('third'));
+    render(
+      <MaterialPreview
+        teamId={TEAM_ID}
+        material={item('video')}
+        client={previewClient}
+        onClose={vi.fn()}
+      />
+    );
+    await waitFor(() =>
+      expect(document.body.querySelector('video')?.getAttribute('src')).toContain('grant=first')
+    );
+    fireEvent.error(document.body.querySelector('video')!);
+    await waitFor(() =>
+      expect(document.body.querySelector('video')?.getAttribute('src')).toContain('grant=second')
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    fireEvent.error(document.body.querySelector('video')!);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+    await waitFor(() =>
+      expect(document.body.querySelector('video')?.getAttribute('src')).toContain('grant=third')
+    );
+    expect(previewClient.requestPreview).toHaveBeenCalledTimes(3);
+  });
+});

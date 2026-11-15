@@ -6,6 +6,7 @@ import { folderPathLabel, indexFolders, type FolderPathNode } from '../explorer/
 import { translate, type Language } from '../../i18n';
 import { readRecent, readRecentQueries, rememberQuery, rememberRecent } from './recent';
 import { filterBySearchQuery } from '@video-compressor/shared';
+import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 
 /**
  * What the palette finds, and how it avoids getting in the way (024, FR-098).
@@ -161,8 +162,9 @@ export function usePaletteResults(
     setLoading(true);
     const token = ++latest.current;
     const timer = window.setTimeout(() => {
-      void teamApi
-        .searchCatalog(at.current.teamId, { query: term, page: 1, pageSize: REMOTE_PAGE })
+      void searchWithLayoutFallback(term, query =>
+        teamApi.searchCatalog(at.current.teamId, { query, page: 1, pageSize: REMOTE_PAGE })
+      )
         .then(found => {
           // A late answer to a question nobody is asking any more.
           if (token !== latest.current) return;

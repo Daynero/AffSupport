@@ -117,6 +117,9 @@ export function MaterialPreview({
   const [state, setState] = useState<DisplayState>({ kind: 'loading' });
   const [loadedMediaKey, setLoadedMediaKey] = useState<string | null>(null);
   const [failedMediaKey, setFailedMediaKey] = useState<string | null>(null);
+  /* A fresh request for the same file: a new grant and a new stream. */
+  const [attempt, setAttempt] = useState(0);
+  const autoRetried = useRef(false);
   const mediaCategory =
     state.kind === 'media'
       ? state.mimeType.startsWith('image/')
@@ -204,7 +207,7 @@ export function MaterialPreview({
       attempt.finish('cancelled');
       void closeOperation(operationId.current);
     };
-  }, [client, closeOperation, materialId, mode, teamId]);
+  }, [attempt, client, closeOperation, materialId, mode, teamId]);
 
   const close = () => {
     void closeOperation(operationId.current).finally(onClose);
@@ -219,8 +222,20 @@ export function MaterialPreview({
   const markMediaReady = () => {
     if (mediaKey) setLoadedMediaKey(mediaKey);
   };
+  /* The byte stream can refuse for a moment (Drive throttling a busy space):
+     ask once more on our own before saying the preview failed. */
   const markMediaFailed = () => {
-    if (mediaKey) setFailedMediaKey(mediaKey);
+    if (!mediaKey) return;
+    if (!autoRetried.current) {
+      autoRetried.current = true;
+      setAttempt(value => value + 1);
+      return;
+    }
+    setFailedMediaKey(mediaKey);
+  };
+  const retry = () => {
+    setFailedMediaKey(null);
+    setAttempt(value => value + 1);
   };
 
   return (
@@ -281,6 +296,12 @@ export function MaterialPreview({
           (state.code === 'PAIRING_REQUIRED' || state.code === 'CONNECTION_FAILED') && (
             <ReconnectAction surface="team_preview" />
           )}
+        {state.kind === 'error' &&
+          !['PAIRING_REQUIRED', 'CONNECTION_FAILED', 'PERMISSION_DENIED'].includes(state.code) && (
+            <Button variant="secondary" onClick={retry}>
+              {t('retry')}
+            </Button>
+          )}
         {state.kind === 'media' && (
           <>
             {mediaLoading && (
@@ -289,9 +310,14 @@ export function MaterialPreview({
               </p>
             )}
             {mediaFailed && (
-              <p className="team-inline-error" role="alert">
-                {t('teamPreviewLoadFailed')}
-              </p>
+              <>
+                <p className="team-inline-error" role="alert">
+                  {t('teamPreviewLoadFailed')}
+                </p>
+                <Button variant="secondary" onClick={retry}>
+                  {t('retry')}
+                </Button>
+              </>
             )}
             {!mediaFailed && mediaCategory === 'video' && (
               <video

@@ -525,7 +525,7 @@ export function filterTeamAccounts(
   const kept = filterTeamAccountsBy(accounts, input, searchTerms(input.search));
   /* Nothing for the words as typed: the same keys on the other keyboard layout
      ("rtnj" for "кето") get one more try, the way the file search does. */
-  if (kept.length > 0 || countSearchLetters(input.search) < 3) return kept;
+  if (kept.length > 0 || countSearchLetters(input.search) < 2) return kept;
   const swapped = convertKeyboardLayout(input.search);
   return swapped ? filterTeamAccountsBy(accounts, input, searchTerms(swapped)) : kept;
 }
