@@ -20,6 +20,14 @@ import { isRecord } from '../_shared/validation.ts';
 import { handleRecovery } from './handler.ts';
 import { recoveryDriveResult } from './drive-response.ts';
 
+/** Refusals from variant admission that are answers, not lost replies. */
+const DEFINITE_ADMISSION_REFUSALS = [
+  'SOURCE_CHANGED',
+  'WRONG_STATE',
+  'PERMISSION_DENIED',
+  'NOT_FOUND'
+] as const;
+
 Deno.serve(async request => {
   const preflight = corsPreflight(request);
   if (preflight) return preflight;
@@ -254,6 +262,18 @@ Deno.serve(async request => {
                 }
               );
               const result: unknown = await response.json();
+              // A definite refusal keeps its name: «result unknown» made a source that
+              // really changed retry forever (owner QA 2026-11-15).
+              const refused =
+                isRecord(result) && isRecord(result.error) ? result.error.code : undefined;
+              if (
+                !response.ok &&
+                typeof refused === 'string' &&
+                (DEFINITE_ADMISSION_REFUSALS as readonly string[]).includes(refused)
+              )
+                throw new TeamFunctionError(
+                  refused as (typeof DEFINITE_ADMISSION_REFUSALS)[number]
+                );
               if (
                 !response.ok ||
                 !isRecord(result) ||

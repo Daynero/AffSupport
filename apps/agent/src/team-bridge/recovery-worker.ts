@@ -1004,11 +1004,22 @@ export class TeamRecoveryWorker {
           saved.reason === 'checkpoint_unavailable' || saved.reason === 'retry_exhausted';
         if (!selfResumes) return;
         const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
-        if (recent.length >= RECOVERY_BUDGET.episodesPerHour) {
-          this.#schedule(
-            r,
-            Math.max(RECOVERY_BUDGET.probeMs, Math.min(...recent) + 3_600_000 - this.#now())
-          );
+        // Spaced, not bunched (owner QA 2026-11-15): three tries in four minutes used
+        // to spend the whole hour, so one short outage parked a launch for an hour.
+        // Each further try in the hour waits twice as long (1, 2, 4, 8, then every
+        // 15 minutes), within a larger hourly cap.
+        const spacing = Math.min(
+          RECOVERY_BUDGET.episodeBackoffMaxMs,
+          RECOVERY_BUDGET.probeMs * 2 ** Math.max(0, recent.length - 1)
+        );
+        const nextAllowed =
+          recent.length >= RECOVERY_BUDGET.episodesPerHour
+            ? Math.min(...recent) + 3_600_000
+            : recent.length > 0
+              ? Math.max(...recent) + spacing
+              : 0;
+        if (nextAllowed > this.#now()) {
+          this.#schedule(r, Math.max(RECOVERY_BUDGET.probeMs, nextAllowed - this.#now()));
           return;
         }
         const remaining = (this.#retryNotBefore.get(r.delegationId) ?? 0) - this.#now();

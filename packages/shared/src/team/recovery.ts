@@ -56,7 +56,9 @@ export const RECOVERY_BUDGET = Object.freeze({
   leaseMs: 120_000,
   requestMs: 10_000,
   episodeMs: 600_000,
-  episodesPerHour: 3,
+  /** Self-resumes per hour, spaced by a doubling pause up to episodeBackoffMaxMs. */
+  episodesPerHour: 8,
+  episodeBackoffMaxMs: 15 * 60_000,
   installationClaimsPerMinute: 12,
   installationProbesPerMinute: 6,
   retryMs: [2_000, 4_000, 8_000, 16_000, 30_000] as readonly number[]

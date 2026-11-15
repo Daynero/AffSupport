@@ -2,7 +2,7 @@ import { syncUpdateStateFiles } from '../update/receipt.js';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { isRecord } from '@video-compressor/shared';
+import { isRecord, RECOVERY_BUDGET } from '@video-compressor/shared';
 
 export interface RecoveryCheckpoint {
   delegationId: string;
@@ -52,7 +52,7 @@ export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | nu
       (typeof value.reason !== 'string' || !/^[a-z_]{1,48}$/u.test(value.reason))) ||
     (value.retryEpisodes !== undefined &&
       (!Array.isArray(value.retryEpisodes) ||
-        value.retryEpisodes.length > 3 ||
+        value.retryEpisodes.length > RECOVERY_BUDGET.episodesPerHour ||
         value.retryEpisodes.some(t => typeof t !== 'number' || !Number.isFinite(t) || t < 0))) ||
     (value.retryNotBefore !== undefined &&
       (typeof value.retryNotBefore !== 'number' ||

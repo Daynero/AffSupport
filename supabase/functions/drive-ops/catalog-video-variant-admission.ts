@@ -18,6 +18,12 @@ export async function admitCatalogVideoVariant(
   gateway: {
     restitchedFolder(teamId: string, actorId: string): Promise<string>;
     startProcess(actorId: string, body: Record<string, unknown>): Promise<{ operationId: string }>;
+    /** The source as Drive has it now (version and md5), with its row brought up to it. */
+    liveSource?(
+      teamId: string,
+      actorId: string,
+      materialId: string
+    ): Promise<{ version: string; checksum: string | null }>;
   }
 ) {
   const original = { ...input };
@@ -69,13 +75,14 @@ export async function admitCatalogVideoVariant(
     return { operationId: current.operationId };
   if (current.kind !== 'new' || JSON.stringify(current) !== JSON.stringify(first))
     throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-  try {
-    return await gateway.startProcess(first.actorId, {
+  const actorId = first.actorId;
+  const start = (sourceVersion: string) =>
+    gateway.startProcess(actorId, {
       teamId: first.teamId,
       materialId: first.materialId,
       destinationFolderId: destination,
       idempotencyKey: first.idempotencyKey,
-      expectedSourceVersion: first.sourceVersion,
+      expectedSourceVersion: sourceVersion,
       outputName: first.outputName,
       toolId: 'restitch',
       agentContractVersion: 1,
@@ -83,6 +90,8 @@ export async function admitCatalogVideoVariant(
       conflictMode: 'keep_both',
       optionsSummary: { catalogVideoSetId: original.setId, videoVariantIndex: original.index }
     });
+  try {
+    return await start(first.sourceVersion);
   } catch (cause) {
     const observed = await read();
     if (
@@ -91,6 +100,26 @@ export async function admitCatalogVideoVariant(
       UUID.test(observed.operationId)
     )
       return { operationId: observed.operationId };
-    throw cause;
+    // Drive moves a file's version on metadata-only changes (sharing by link). The
+    // same bytes under a newer version rebase the set; different bytes still refuse.
+    if (
+      !(cause instanceof TeamFunctionError && cause.code === 'SOURCE_CHANGED') ||
+      !gateway.liveSource
+    )
+      throw cause;
+    const live = await gateway.liveSource(first.teamId, first.actorId, first.materialId);
+    if (live.version === first.sourceVersion || !live.checksum) throw cause;
+    const rebased = await service.rpc('service_rebase_catalog_video_source', {
+      p_set: original.setId,
+      p_hash: original.claimHash,
+      p_native: original.nativeInstanceId,
+      p_protocol: original.protocolVersion,
+      p_version: live.version,
+      p_checksum: live.checksum
+    });
+    if (rebased.error || rebased.data !== true) throw cause;
+    const again = await read();
+    if (again.kind !== 'new' || again.sourceVersion !== live.version) throw cause;
+    return await start(live.version);
   }
 }

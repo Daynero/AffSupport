@@ -356,7 +356,7 @@ describe('background recovery worker', () => {
     const saved = await f.journal.load();
     saved.checkpoints[0] = {
       ...saved.checkpoints[0],
-      retryEpisodes: [Date.now(), Date.now(), Date.now()]
+      retryEpisodes: Array.from({ length: RECOVERY_BUDGET.episodesPerHour }, () => Date.now())
     };
     await f.journal.save(saved);
     f.fetcher.mockRejectedValueOnce(new Error('network'));
@@ -641,35 +641,53 @@ describe('background recovery worker', () => {
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
     expect(f.process.process).not.toHaveBeenCalled();
   });
-  it('keeps self-healing within the hourly episode budget', async () => {
+  it('keeps self-healing on a widening schedule within the hourly budget', async () => {
+    // Owner QA 2026-11-15: three tries in four minutes spent the whole hour, so a
+    // short outage parked a bulk launch for an hour. Tries are now spaced 1, 2, 4,
+    // 8 and then 15 minutes apart, within the hourly cap.
     const f = await fixture();
+    const at: number[] = [];
     f.fetcher.mockImplementation(async (_url, options) => {
       const action = JSON.parse(String(options?.body)).action;
+      if (action === 'claim') at.push(Date.now());
       return new Response(
         JSON.stringify({
           ok: true,
-          value: action === 'probe' ? { allowed: true } : { pending: true }
+          value:
+            action === 'probe'
+              ? { allowed: true }
+              : action === 'rotate'
+                ? {
+                    refresh: 'r'.repeat(43),
+                    claim: 'c'.repeat(43),
+                    claimExpiresAt: new Date(Date.now() + 300000).toISOString()
+                  }
+                : { pending: true }
         })
       );
     });
     await f.worker.load();
     await vi.advanceTimersByTimeAsync(0);
     await f.worker.idle();
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 60; i += 1) {
       await vi.advanceTimersByTimeAsync(RECOVERY_BUDGET.probeMs);
       await f.worker.idle();
     }
-    const claims = () =>
-      f.fetcher.mock.calls.filter(([, init]) => JSON.parse(String(init?.body)).action === 'claim')
-        .length;
-    expect(claims()).toBeLessThanOrEqual(1 + RECOVERY_BUDGET.episodesPerHour);
+    expect(at.length).toBeGreaterThan(4);
+    expect(at.length).toBeLessThanOrEqual(1 + RECOVERY_BUDGET.episodesPerHour);
+    const gaps = at.slice(1).map((t, i) => t - at[i]!);
+    // Never a burst: each pause is at least as long as the one before, up to the cap.
+    for (let i = 1; i < gaps.length; i += 1)
+      expect(gaps[i]!).toBeGreaterThanOrEqual(
+        Math.min(gaps[i - 1]!, RECOVERY_BUDGET.episodeBackoffMaxMs)
+      );
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(
+      RECOVERY_BUDGET.episodeBackoffMaxMs + 2 * RECOVERY_BUDGET.probeMs
+    );
     expect(f.worker.status(TEAM)).toMatchObject({
       state: 'blocked',
       reason: 'checkpoint_unavailable'
     });
-    await vi.advanceTimersByTimeAsync(3_600_000);
-    await f.worker.idle();
-    expect(claims()).toBeGreaterThan(1 + RECOVERY_BUDGET.episodesPerHour - 1);
     expect(f.process.process).not.toHaveBeenCalled();
   });
   it('refuses production targets from a beta installation', () => {

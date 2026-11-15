@@ -2045,6 +2045,29 @@ async function operationGrant(input: {
   };
 }
 
+/** The source as Drive has it now, with its row brought up to a metadata-only move. */
+async function liveSourceFor(
+  request: Request,
+  service: RpcClient,
+  teamId: string,
+  actorId: string,
+  materialId: string
+): Promise<{ version: string; checksum: string | null }> {
+  const source = await loadContext({ service, teamId, materialId, actorId, permission: 'process' });
+  const client = await driveClient(service, source.credentialId, request);
+  const live = await proveContext(source, client);
+  if (!live.version) throw new TeamFunctionError('SOURCE_CHANGED');
+  if (live.version !== source.driveVersion) {
+    await rpcValue(service, 'service_refresh_material_revision', {
+      p_material: materialId,
+      p_drive_file_id: live.id,
+      p_drive_version: live.version,
+      p_checksum: live.checksum
+    });
+  }
+  return { version: live.version, checksum: live.checksum ?? null };
+}
+
 async function handleProcessStart(
   request: Request,
   body: Record<string, unknown>,
@@ -3433,7 +3456,9 @@ Deno.serve(async request => {
                   { sourceVersion: body.expectedSourceVersion }
                 );
                 return { operationId: started.operationId };
-              }
+              },
+              liveSource: (teamId, actorId, materialId) =>
+                liveSourceFor(request, configured.service, teamId, actorId, materialId)
             }
           )
       );
@@ -3701,7 +3726,9 @@ Deno.serve(async request => {
               sourceVersion: body.expectedSourceVersion
             });
             return { operationId: started.operationId };
-          }
+          },
+          liveSource: (teamId, actorId, materialId) =>
+            liveSourceFor(request, configured.service, teamId, actorId, materialId)
         }
       );
       return successResponse(admitted, cors);
