@@ -848,13 +848,12 @@ export const en = {
     'For new launches in this workspace when the offer has no saved settings. Other offer profiles stay unchanged.',
   launchesDefaultsProfileHelp:
     'Saves all launch settings, including the exact date, URL, notes, budgets and SUB order. The ad account and creative are selected separately.',
-  launchesDefaultsApplyTitle: 'Apply saved settings?',
-  launchesDefaultsApplyOfferPrompt:
-    'Restore the saved values for “{value}”? The ad account and creative stay unchanged.',
-  launchesDefaultsApplyGeneralPrompt:
-    'Restore the saved general values? The ad account and creative stay unchanged.',
-  launchesDefaultsApplyYes: 'Yes, apply',
-  launchesDefaultsApplyNo: 'No',
+  launchesDefaultsApplyTitle: 'Apply the general settings?',
+  launchesDefaultsApplyOfferTitle: 'Apply the “{value}” settings?',
+  launchesDefaultsApplyBody:
+    'The launch fields are filled with the saved values. The ad account and creative stay as they are.',
+  launchesDefaultsApplyYes: 'Apply',
+  launchesDefaultsApplyNo: 'Keep as is',
   launchesDefaultsChooseOffer: 'Select an offer first',
   launchesDefaultsLoading: 'Loading default settings…',
   launchesDefaultsLoadFailed: 'Could not load default settings. Your current values are preserved.',
@@ -3841,7 +3840,9 @@ export const en = {
   teamTaskBulkActions: 'Do to all',
   teamTaskBulkDone: 'Done for {count}',
   teamTaskBulkDeleted: 'Deleted {count}',
-  teamTaskBulkDeleteTitle: 'Delete {count} tasks?',
+  teamTaskBulkDeleteTitleOne: 'Delete {count} task?',
+  teamTaskBulkDeleteTitleFew: 'Delete {count} tasks?',
+  teamTaskBulkDeleteTitleMany: 'Delete {count} tasks?',
   teamTaskBulkDeleteBody:
     'They go for good — their attachments stay on the Drive, but the tasks, their tags and their progress do not come back.',
   teamTasksSelectLoaded: 'Select loaded tasks',

@@ -46,6 +46,15 @@
   align-items: center;
   min-height: calc(var(--space-6) * 3);
 }
+.launch-editor-url {
+  width: 100%;
+  min-height: 0;
+  max-height: calc(var(--space-6) * 5);
+  overflow-y: auto;
+  resize: none;
+  field-sizing: content;
+  overflow-wrap: anywhere;
+}
 .launch-editor-compact .launch-editor-budget-values {
   max-height: calc(var(--space-6) * 6);
   overflow-y: auto;

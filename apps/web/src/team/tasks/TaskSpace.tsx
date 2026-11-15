@@ -2,7 +2,7 @@ import { withReadDeadline } from '../readCoordinator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
-import { useI18n } from '../../i18n';
+import { taskDeleteTitleKey, useI18n } from '../../i18n';
 import { Empty, Input, Switch } from '../../components/ui/index';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
@@ -95,7 +95,7 @@ export function TaskSpace({
   scope?: TaskAccountScope;
   onScopeChange?: (scope: TaskAccountScope) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { push } = useToasts();
   const {
     can,
@@ -658,7 +658,9 @@ export function TaskSpace({
       />
       {confirmingDelete.length > 0 && (
         <ConfirmDialog
-          title={t('teamTaskBulkDeleteTitle', { count: confirmingDelete.length })}
+          title={t(taskDeleteTitleKey(language, confirmingDelete.length), {
+            count: confirmingDelete.length
+          })}
           body={t('teamTaskBulkDeleteBody', { count: confirmingDelete.length })}
           confirmLabel={t('teamTaskDelete')}
           cancelLabel={t('teamCancel')}

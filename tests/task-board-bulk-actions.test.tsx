@@ -175,7 +175,7 @@ describe('the selection bar', () => {
 
     // No undo is promised, because a deleted task does not come back; the
     // question says so instead.
-    expect(await screen.findByRole('heading', { name: 'Delete 1 tasks?' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Delete 1 task?' })).toBeTruthy();
     expect(screen.getByText(/do not come back/)).toBeTruthy();
     expect(api.deleteTask).not.toHaveBeenCalled();
 

@@ -86,13 +86,12 @@ export function LaunchDefaultsActions({
         <ConfirmDialog
           nested
           tone="neutral"
-          title={t('launchesDefaultsApplyTitle')}
-          body={t(
-            proposalSource === 'offer'
-              ? 'launchesDefaultsApplyOfferPrompt'
-              : 'launchesDefaultsApplyGeneralPrompt',
-            { value: offerName ?? '' }
-          )}
+          title={
+            proposalSource === 'offer' && offerName
+              ? t('launchesDefaultsApplyOfferTitle', { value: offerName })
+              : t('launchesDefaultsApplyTitle')
+          }
+          body={t('launchesDefaultsApplyBody')}
           confirmLabel={t('launchesDefaultsApplyYes')}
           cancelLabel={t('launchesDefaultsApplyNo')}
           onConfirm={onApply}

@@ -83,6 +83,13 @@ export function catalogCountKey(language: Language, count: number): TranslationK
   return category === 'few' ? 'catalogUpdaterChipCatalogsFew' : 'catalogUpdaterChipCatalogsMany';
 }
 
+/** "Delete 1 task?" — the bulk delete question, declined like every other count. */
+export function taskDeleteTitleKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'teamTaskBulkDeleteTitleOne';
+  return category === 'few' ? 'teamTaskBulkDeleteTitleFew' : 'teamTaskBulkDeleteTitleMany';
+}
+
 export function selectedCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);
   if (category === 'one') return 'selectedOne';

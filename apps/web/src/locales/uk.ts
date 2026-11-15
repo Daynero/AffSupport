@@ -847,13 +847,12 @@ export const uk: Record<keyof typeof en, string> = {
     'Для нових запусків у цьому просторі, коли офер не має власних налаштувань. Профілі інших оферів не змінюються.',
   launchesDefaultsProfileHelp:
     'Зберігає всі параметри запуску, зокрема точну дату, URL, примітки, бюджети й порядок SUB. РК та креатив обираються окремо.',
-  launchesDefaultsApplyTitle: 'Застосувати збережені налаштування?',
-  launchesDefaultsApplyOfferPrompt:
-    'Відновити збережені значення для «{value}»? РК та креатив залишаться без змін.',
-  launchesDefaultsApplyGeneralPrompt:
-    'Відновити збережені загальні значення? РК та креатив залишаться без змін.',
-  launchesDefaultsApplyYes: 'Так, застосувати',
-  launchesDefaultsApplyNo: 'Ні',
+  launchesDefaultsApplyTitle: 'Застосувати загальні налаштування?',
+  launchesDefaultsApplyOfferTitle: 'Застосувати налаштування «{value}»?',
+  launchesDefaultsApplyBody:
+    'Поля запуску заповняться збереженими значеннями. РК і креатив не зміняться.',
+  launchesDefaultsApplyYes: 'Застосувати',
+  launchesDefaultsApplyNo: 'Залишити як є',
   launchesDefaultsChooseOffer: 'Спочатку оберіть офер',
   launchesDefaultsLoading: 'Завантаження типових налаштувань…',
   launchesDefaultsLoadFailed:
@@ -3824,7 +3823,9 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskBulkActions: 'Зробити з усіма',
   teamTaskBulkDone: 'Готово для {count}',
   teamTaskBulkDeleted: 'Видалено: {count}',
-  teamTaskBulkDeleteTitle: 'Видалити завдань: {count}?',
+  teamTaskBulkDeleteTitleOne: 'Видалити {count} завдання?',
+  teamTaskBulkDeleteTitleFew: 'Видалити {count} завдання?',
+  teamTaskBulkDeleteTitleMany: 'Видалити {count} завдань?',
   teamTaskBulkDeleteBody:
     'Назавжди. Вкладення лишаться на Диску, але самі завдання, їхні теги й прогрес не повернути.',
   teamTasksSelectLoaded: 'Вибрати завантажені завдання',

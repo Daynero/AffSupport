@@ -10,7 +10,7 @@ import {
 afterEach(cleanup);
 it('never traps a locked generation behind a disabled defaults confirmation', () => {
   setup({ proposalSource: 'offer', disabled: true });
-  expect(screen.queryByRole('dialog', { name: 'Apply saved settings?' })).toBeNull();
+  expect(screen.queryByRole('dialog', { name: /^Apply the .*settings\?$/ })).toBeNull();
 });
 function setup(overrides: Partial<LaunchDefaultsActionsProps> = {}) {
   const props: LaunchDefaultsActionsProps = {
@@ -54,12 +54,12 @@ it('opens profile help by keyboard and restores focus after Escape', async () =>
 });
 it('separates applying a saved profile from saving current values', async () => {
   const { user, props } = setup({ proposalSource: 'offer' });
-  expect(screen.getByRole('dialog', { name: 'Apply saved settings?' })).toBeTruthy();
-  await user.click(screen.getByRole('button', { name: 'No' }));
+  expect(screen.getByRole('dialog', { name: 'Apply the “Offer A” settings?' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Keep as is' }));
   expect(props.onKeep).toHaveBeenCalledOnce();
   expect(props.onApply).not.toHaveBeenCalled();
   expect(props.onSave).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('button', { name: 'Yes, apply' }));
+  await user.click(screen.getByRole('button', { name: 'Apply' }));
   expect(props.onApply).toHaveBeenCalledOnce();
 });
 it('explains missing offer and exposes a failed load retry without a stale apply action', async () => {
@@ -88,5 +88,5 @@ it('blocks both scopes during a pending save and hides save actions from non-man
   );
   rerender(<LaunchDefaultsActions {...props} manage={false} proposalSource="workspace" />);
   expect(screen.queryByRole('button', { name: 'Save for offer' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Yes, apply' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy();
 });

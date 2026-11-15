@@ -153,43 +153,72 @@ export function ConfirmDialog({
       nested={nested}
       initialFocus={initialFocus === 'cancel' ? '.ui-confirm-cancel' : undefined}
       footer={
-        <>
-          {/* The safe action carries the emphasis and sits where the eye lands
-              last; the destructive one is soft and to its left. */}
-          {holdHint ? (
-            <HoldToConfirmButton disabled={busy} hint={holdHint} onConfirm={onConfirm}>
-              {confirmLabel}
-            </HoldToConfirmButton>
-          ) : (
+        tone === 'neutral' && !holdHint ? (
+          <>
+            {/* A benign question: the answer that moves the work forward is the
+                primary button, last in the row; keeping things as they are is quiet. */}
             <Button
-              color={tone === 'destructive' ? 'error' : 'neutral'}
-              variant="soft"
-              loading={busy}
-              onClick={onConfirm}
+              className="ui-confirm-cancel"
+              color="neutral"
+              variant="ghost"
+              disabled={busy}
+              onClick={onCancel}
             >
+              {cancelLabel}
+            </Button>
+            {alternative && (
+              <Button
+                color="neutral"
+                variant="outline"
+                disabled={busy}
+                onClick={alternative.onSelect}
+              >
+                {alternative.label}
+              </Button>
+            )}
+            <Button color="primary" loading={busy} onClick={onConfirm}>
               {confirmLabel}
             </Button>
-          )}
-          {alternative && (
+          </>
+        ) : (
+          <>
+            {/* The safe action carries the emphasis and sits where the eye lands
+              last; the destructive one is soft and to its left. */}
+            {holdHint ? (
+              <HoldToConfirmButton disabled={busy} hint={holdHint} onConfirm={onConfirm}>
+                {confirmLabel}
+              </HoldToConfirmButton>
+            ) : (
+              <Button
+                color={tone === 'destructive' ? 'error' : 'neutral'}
+                variant="soft"
+                loading={busy}
+                onClick={onConfirm}
+              >
+                {confirmLabel}
+              </Button>
+            )}
+            {alternative && (
+              <Button
+                color="neutral"
+                variant="outline"
+                disabled={busy}
+                onClick={alternative.onSelect}
+              >
+                {alternative.label}
+              </Button>
+            )}
             <Button
+              className="ui-confirm-cancel"
               color="neutral"
               variant="outline"
               disabled={busy}
-              onClick={alternative.onSelect}
+              onClick={onCancel}
             >
-              {alternative.label}
+              {cancelLabel}
             </Button>
-          )}
-          <Button
-            className="ui-confirm-cancel"
-            color="neutral"
-            variant="outline"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </Button>
-        </>
+          </>
+        )
       }
     >
       <p className="prose">{body}</p>

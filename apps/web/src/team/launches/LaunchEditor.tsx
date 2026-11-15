@@ -23,6 +23,7 @@ import {
   IconButton,
   Tooltip,
   Input,
+  Textarea,
   Switch,
   SegmentedControl
 } from '../../components/ui/index';
@@ -418,19 +419,25 @@ export function LaunchEditor({
                 {field(
                   'originalUrl',
                   'launchesSectionLinks',
-                  <Input
+                  // A long tracking link wraps instead of hiding past the edge: a
+                  // one-line input cannot be scrolled sideways with a trackpad.
+                  <Textarea
                     id={`${prefix}-originalUrl`}
+                    className="launch-editor-url"
                     aria-label={t('launchesUrl')}
-                    type="text"
+                    rows={1}
                     autoComplete="off"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
                     value={config.originalUrl ?? ''}
                     disabled={disabled}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
                     onPaste={e => {
                       if (disabled) return;
-                      const raw = e.clipboardData.getData('text/plain');
+                      const raw = e.clipboardData.getData('text/plain').replace(/[\r\n]+/g, '');
                       if (!raw) return;
                       e.preventDefault();
                       const original = config.originalUrl ?? '';
@@ -440,7 +447,7 @@ export function LaunchEditor({
                         originalUrl: original.slice(0, start) + raw + original.slice(end)
                       });
                     }}
-                    onChange={e => changed({ originalUrl: e.target.value })}
+                    onChange={e => changed({ originalUrl: e.target.value.replace(/[\r\n]+/g, '') })}
                   />,
                   true,
                   'launchesUrlHelp'
