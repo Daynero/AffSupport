@@ -45,7 +45,7 @@ import { useLaunchMarqueeSelection } from './useLaunchMarqueeSelection';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchListFilter } from './LaunchListFilter';
 
-import { DeferredLaunchSession } from './DeferredLaunchSession';
+import { DeferredLaunchSession, preloadLaunchSession } from './DeferredLaunchSession';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 
 function isOlderLaunchDetail(next: LaunchDetail, current: LaunchDetail | null): boolean {
@@ -204,6 +204,11 @@ function LaunchSpaceContent({
       false
     );
   const usedSearch = useRef('');
+  // The editor's code arrives while the board is read, not when a card is opened.
+  useEffect(() => {
+    const timer = window.setTimeout(preloadLaunchSession, 1_500);
+    return () => window.clearTimeout(timer);
+  }, []);
   const readList = useCallback(
     async (next: { id: string; date: string | null; createdAt?: string } | null = null) => {
       const f: {

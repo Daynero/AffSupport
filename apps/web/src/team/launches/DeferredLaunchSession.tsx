@@ -38,6 +38,15 @@ const loadSession: LaunchSessionLoader = () => {
   return loadingSession;
 };
 
+/**
+ * Fetches the launch editor in the background once the board is on screen, so
+ * opening a launch does not wait for its code (1.5.1 QA: a small empty skeleton
+ * for several seconds). A failure is left to the modal, which reports it.
+ */
+export function preloadLaunchSession(): void {
+  void loadSession().catch(() => undefined);
+}
+
 export function DeferredLaunchSession({
   loader = loadSession,
   ...props
@@ -151,7 +160,7 @@ export function DeferredLaunchSession({
           onRetry={() => setAttempt(current => current + 1)}
         />
       ) : (
-        <LoadingState shape="block" count={1} label={t('launchesTitle')} />
+        <LoadingState shape="row" count={6} label={t('launchesTitle')} />
       )}
       <Button variant="ghost" onClick={props.onClose}>
         {t('teamClose')}
