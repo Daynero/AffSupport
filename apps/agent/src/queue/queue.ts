@@ -39,7 +39,10 @@ import {
   type MediaToolName
 } from '../ffmpeg/tools.js';
 import { fileSize, nextOutputPath } from '../files/paths.js';
-import { UPLOADED_VIDEO_OUTPUT_FOLDER, uploadedOutputDir } from '../files/output-destination.js';
+import {
+  UPLOADED_VIDEO_OUTPUT_FOLDER,
+  writableUploadedOutputDir
+} from '../files/output-destination.js';
 import {
   freezeImageEmbedding,
   outputDimensions,
@@ -1779,7 +1782,7 @@ export class JobQueue {
     // own private copy under Application Support, and writing beside it would
     // bury the result in an internal folder that gets removed with the card.
     if (!folder && current?.sourceKind === 'uploaded') {
-      folder = uploadedOutputDir(UPLOADED_VIDEO_OUTPUT_FOLDER);
+      folder = await writableUploadedOutputDir(UPLOADED_VIDEO_OUTPUT_FOLDER);
     }
     if (folder) await mkdir(folder, { recursive: true });
     const reserved = this.jobs

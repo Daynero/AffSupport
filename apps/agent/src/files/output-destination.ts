@@ -1,5 +1,8 @@
+import { randomBytes } from 'node:crypto';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { diagnostics } from '../server/diagnostics-log.js';
 
 /**
  * Where a result goes when "next to the original" has no original to be next to.
@@ -34,3 +37,64 @@ export const UPLOADED_VIDEO_OUTPUT_FOLDER = 'Soty';
 
 /** Results from the landing optimizer when the landing arrived through the browser. */
 export const UPLOADED_LANDING_OUTPUT_FOLDER = 'Soty Landings';
+
+/** How long the Downloads check may wait on an open macOS permission question. */
+export const UPLOADED_OUTPUT_CHECK_TIMEOUT_MS = 4_000;
+
+/**
+ * The folder results go to when it can be written, and a visible one that can
+ * when it cannot.
+ *
+ * macOS asks before an app writes to Downloads, and the answer can be no — or
+ * the question can still be open. A compression that cannot write its result
+ * fails at the very end, after all the work. So the folder is tried first, with
+ * a bounded wait, and when it refuses the result goes to `~/Movies/<folder>`
+ * (`~/Videos` on Windows): a folder people can find that macOS does not guard.
+ */
+export async function writableUploadedOutputDir(
+  folderName: string,
+  timeoutMs = UPLOADED_OUTPUT_CHECK_TIMEOUT_MS
+): Promise<string> {
+  const preferred = uploadedOutputDir(folderName);
+  if (process.env.AGENT_UPLOADED_OUTPUT_PATH?.trim()) {
+    await mkdir(preferred, { recursive: true });
+    return preferred;
+  }
+  if (await canWrite(preferred, timeoutMs)) return preferred;
+  const fallback = path.join(
+    os.homedir(),
+    process.platform === 'win32' ? 'Videos' : 'Movies',
+    folderName
+  );
+  await mkdir(fallback, { recursive: true });
+  return fallback;
+}
+
+async function canWrite(directory: string, timeoutMs: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<'timeout'>(resolve => {
+    timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    timer.unref?.();
+  });
+  const probe = (async (): Promise<'ok' | 'denied'> => {
+    try {
+      await mkdir(directory, { recursive: true });
+      const file = path.join(directory, `.soty-write-check-${randomBytes(6).toString('hex')}`);
+      await writeFile(file, '', { flag: 'wx' });
+      await unlink(file).catch(() => undefined);
+      return 'ok';
+    } catch {
+      return 'denied';
+    }
+  })();
+  try {
+    const outcome = await Promise.race([probe, expired]);
+    if (outcome !== 'ok')
+      diagnostics.record('drop', 'output_fallback', {
+        outcome: outcome === 'timeout' ? 'timeout' : 'denied'
+      });
+    return outcome === 'ok';
+  } finally {
+    clearTimeout(timer);
+  }
+}
