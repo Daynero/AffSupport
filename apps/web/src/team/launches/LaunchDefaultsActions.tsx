@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
-import { Info, Save, Settings2 } from 'lucide-react';
+import { Check, Info, Save, Settings2 } from 'lucide-react';
 import { Button, ConfirmDialog, IconButton, Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -15,6 +15,8 @@ export interface LaunchDefaultsActionsProps {
   proposalSource?: Scope | 'builtin';
   disabled: boolean;
   saveDisabled: Record<Scope, boolean>;
+  /** Whether the form matches the profile saved for that scope right now. */
+  savedScopes?: Record<Scope, boolean>;
   savingScope?: Scope;
   onSave: (scope: Scope) => void;
   onApply: () => void;
@@ -35,6 +37,7 @@ export function LaunchDefaultsActions({
   proposalSource,
   disabled,
   saveDisabled,
+  savedScopes,
   savingScope,
   onSave,
   onApply,
@@ -157,6 +160,19 @@ export function LaunchDefaultsActions({
                     : t('launchesDefaultsChooseOffer')
                   : t('launchesDefaultsGeneralContext')}
               </p>
+              {savedScopes?.[scope] && (
+                <p
+                  className="m-0 inline-flex items-center gap-1 text-caption text-success-text"
+                  role="status"
+                >
+                  <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t(
+                    scope === 'offer'
+                      ? 'launchesDefaultsOfferMatches'
+                      : 'launchesDefaultsGeneralMatches'
+                  )}
+                </p>
+              )}
             </div>
           ))}
         {primaryAction && <div className="launch-detail-actions">{primaryAction}</div>}

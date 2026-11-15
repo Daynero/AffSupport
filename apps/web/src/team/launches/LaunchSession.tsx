@@ -224,6 +224,9 @@ export function LaunchSession({
   const defaultsObservation = useRef<ReturnType<typeof observeLaunchDefaults> | null>(null);
   useEffect(() => () => defaultsObservation.current?.finish('cancelled'), []);
   const [defaultsVersion, setDefaultsVersion] = useState(defaults?.version ?? null);
+  /* The general profile as last saved here, so the form can say it matches it. */
+  const [generalProfile, setGeneralProfile] = useState(defaults);
+  useEffect(() => setGeneralProfile(defaults), [defaults]);
   const [versionRejected, setVersionRejected] = useState(false);
   const [conflictReview, setConflictReview] = useState<LaunchDetail | null>(null);
   const [defaultsConflict, setDefaultsConflict] = useState<{ offerId?: string } | null>(null);
@@ -1337,6 +1340,27 @@ export function LaunchSession({
                 : detail
                   ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
                   : t('launchesAutosave')));
+  /* Which saved profile the form matches right now: the buttons say so for as
+     long as it is true, not only in a message that the next edit clears. */
+  const currentDefaultValues = launchDefaultValues(draft.config);
+  const savedScopes = {
+    offer: Boolean(
+      draft.config.offerId &&
+      !offerDefaults.loading &&
+      offerDefaults.profile &&
+      launchValuesEqual(
+        currentDefaultValues,
+        launchDefaultValues(resolvedLaunchDefaults(offerDefaults.profile))
+      )
+    ),
+    workspace: Boolean(
+      generalProfile &&
+      launchValuesEqual(
+        currentDefaultValues,
+        launchDefaultValues(resolvedLaunchDefaults(generalProfile))
+      )
+    )
+  };
   const saveDefaultsDisabled = (scope: 'offer' | 'workspace') =>
     historical ||
     working ||
@@ -1386,7 +1410,14 @@ export function LaunchSession({
           },
           intended[4] ? 'offer' : 'workspace'
         );
-        if (!intended[4]) setDefaultsVersion(result.version);
+        if (!intended[4]) {
+          setDefaultsVersion(result.version);
+          setGeneralProfile({
+            version: result.version,
+            config: intended[3],
+            subConfig: intended[3].subConfig!
+          });
+        }
         toasts?.push({
           tone: 'success',
           text: t(intended[4] ? 'launchesDefaultsOfferSaved' : 'launchesDefaultsGeneralSaved')
@@ -1964,6 +1995,7 @@ export function LaunchSession({
                 offer: saveDefaultsDisabled('offer'),
                 workspace: saveDefaultsDisabled('workspace')
               }}
+              savedScopes={savedScopes}
               savingScope={working && defaultsRunning.current ? defaultsRunning.current : undefined}
               primaryAction={
                 <Button

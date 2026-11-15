@@ -837,6 +837,8 @@ export const en = {
   launchesDefaultsGeneralShort: 'As general defaults',
   launchesDefaultsOfferContext: 'Offer: {value}',
   launchesDefaultsGeneralContext: 'For offers without their own settings',
+  launchesDefaultsOfferMatches: 'Saved for the offer',
+  launchesDefaultsGeneralMatches: 'Saved as general',
   launchesDefaultsAvailableOffer: 'Saved settings for “{value}”',
   launchesDefaultsAvailableGeneral: 'Saved general settings',
   launchesDefaultsReplaceHint: 'Applying replaces the reusable settings on this form.',

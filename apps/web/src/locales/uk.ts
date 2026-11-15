@@ -836,6 +836,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesDefaultsGeneralShort: 'Як загальні',
   launchesDefaultsOfferContext: 'Офер: {value}',
   launchesDefaultsGeneralContext: 'Для оферів без власних налаштувань',
+  launchesDefaultsOfferMatches: 'Збережено для офера',
+  launchesDefaultsGeneralMatches: 'Збережено як загальні',
   launchesDefaultsAvailableOffer: 'Збережені налаштування «{value}»',
   launchesDefaultsAvailableGeneral: 'Збережені загальні налаштування',
   launchesDefaultsReplaceHint: 'Замінить поточні параметри запуску.',

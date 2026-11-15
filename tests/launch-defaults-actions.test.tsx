@@ -90,3 +90,12 @@ it('blocks both scopes during a pending save and hides save actions from non-man
   expect(screen.queryByRole('button', { name: 'Save for offer' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy();
 });
+it('says which saved profile the form matches for as long as it does', () => {
+  const { rerender, props } = setup({ savedScopes: { offer: true, workspace: false } });
+  expect(screen.getByText('Saved for the offer')).toBeTruthy();
+  expect(screen.queryByText('Saved as general')).toBeNull();
+  rerender(<LaunchDefaultsActions {...props} savedScopes={{ offer: true, workspace: true }} />);
+  expect(screen.getByText('Saved as general')).toBeTruthy();
+  rerender(<LaunchDefaultsActions {...props} savedScopes={{ offer: false, workspace: false }} />);
+  expect(screen.queryByText(/^Saved /)).toBeNull();
+});
