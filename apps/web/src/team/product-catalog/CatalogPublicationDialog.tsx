@@ -292,6 +292,7 @@ export function CatalogPublicationDialog({
   return (
     <Modal
       labelledBy={title}
+      closeLabel={t('teamClose')}
       onClose={() => {
         if (!pending && !verification.pending) onClose();
       }}

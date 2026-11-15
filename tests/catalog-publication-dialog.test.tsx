@@ -280,3 +280,16 @@ it('requests add-now explicitly without presenting its acknowledgement as public
   );
   expect(m.save).not.toHaveBeenCalled();
 });
+it('offers a visible close button that dismisses without writing anything', async () => {
+  const { close } = view();
+  await waitFor(() =>
+    expect(screen.getByRole('switch', { name: 'Schedule the video link' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(m.save).not.toHaveBeenCalled();
+  expect(m.change).not.toHaveBeenCalled();
+});
