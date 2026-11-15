@@ -1,9 +1,10 @@
-import { chmod, mkdtemp, mkdir, rm, stat } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { writableUploadedOutputDir } from '../apps/agent/src/files/output-destination.js';
 import { describeRequiring, requirePlatform } from './support/requires.js';
+import { removeTemporaryDirectory } from './support/temp-dir.js';
 
 let home: string;
 beforeEach(async () => {
@@ -15,7 +16,7 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   await chmod(path.join(home, 'Downloads'), 0o755).catch(() => undefined);
-  await rm(home, { recursive: true, force: true });
+  await removeTemporaryDirectory(home);
 });
 
 describe('where an uploaded video result goes', () => {
