@@ -171,15 +171,25 @@ try {
   if (lintable.length) step('lint changed files', 'npx', ['eslint', ...lintable]);
   step('build shared', 'npm', ['run', '--silent', 'build', '-w', '@video-compressor/shared']);
   if (web.length) step('typecheck web', 'npx', ['tsc', '-b', 'apps/web']);
-  step('tests related to the change', 'npx', [
-    'vitest',
-    'run',
-    '--changed',
-    base,
-    '--passWithNoTests',
-    '--pool=forks',
-    '--poolOptions.forks.singleFork=true'
-  ]);
+  // Tests that import what changed — not `--changed`, which would count a version bump
+  // (every module reads the release identity) and run the whole suite.
+  const related = changed.filter(
+    file =>
+      /\.(?:[cm]?[jt]sx?)$/u.test(file) &&
+      existsSync(file) &&
+      !file.startsWith('supabase/migrations/') &&
+      file !== 'packages/shared/src/release.ts'
+  );
+  if (related.length)
+    step('tests related to the change', 'npx', [
+      'vitest',
+      'related',
+      '--run',
+      '--passWithNoTests',
+      '--pool=forks',
+      '--poolOptions.forks.singleFork=true',
+      ...related
+    ]);
 
   if (backend.length) {
     mkdirSync('release/automation', { recursive: true, mode: 0o700 });

@@ -19,7 +19,8 @@
  *   4. builds, packages, signs and notarises macOS arm64 only (the same package-mac.sh
  *      and package-dmg.sh as the runner), checks the trust chain;
  *   5. publishes a GitHub *prerelease* v<version> with the DMG, ZIP and update archive;
- *   6. signs stable.json for that build — arm64 artifact and native update; the other
+ *   6. applies the server part of the change (backend plan, delivery Worker) like the runner;
+ *   7. signs stable.json for that build — arm64 artifact and native update; the other
  *      platforms keep the last full release's installers — and uploads the site to the
  *      `next` branch alias only.
  *
@@ -82,10 +83,16 @@ const tagSha = git(['rev-list', '-n', '1', tag]);
 const released = tag.slice(1);
 const [major, minor, patch] = released.split('.').map(Number);
 const upcoming = `${major}.${minor}.${patch + 1}`;
+// Every number a quick build ever took, including one that stopped after pushing its
+// branch: a branch name is never reused (no force-push).
+const pushedBuilds = git(['ls-remote', '--heads', 'origin', 'refs/heads/next-quick/*'])
+  .split('\n')
+  .map(line => Number(/-next\.(\d+)$/u.exec(line)?.[1] ?? 0));
 const buildNumber =
   Math.max(
     Number(constant('BUILD_NUMBER')),
-    ...quickLog().map(entry => Number(entry.buildNumber ?? 0))
+    ...quickLog().map(entry => Number(entry.buildNumber ?? 0)),
+    ...pushedBuilds
   ) + 1;
 const version = `${upcoming}-next.${buildNumber}`;
 const head = git(['rev-parse', 'HEAD']);
@@ -226,20 +233,30 @@ try {
     cwd
   });
   step('typecheck web', 'npx', ['tsc', '-b', 'apps/web'], { cwd });
-  step(
-    'tests related to the change',
-    'npx',
-    [
-      'vitest',
-      'run',
-      '--changed',
-      base,
-      '--passWithNoTests',
-      '--pool=forks',
-      '--poolOptions.forks.singleFork=true'
-    ],
-    { cwd }
+  // Tests that import what changed — not `--changed`, which would count the version
+  // bump (every module reads the release identity) and run the whole suite.
+  const related = changed.filter(
+    file =>
+      /\.(?:[cm]?[jt]sx?)$/u.test(file) &&
+      existsSync(path.join(cwd, file)) &&
+      !file.startsWith('supabase/migrations/') &&
+      file !== 'packages/shared/src/release.ts'
   );
+  if (related.length)
+    step(
+      'tests related to the change',
+      'npx',
+      [
+        'vitest',
+        'related',
+        '--run',
+        '--passWithNoTests',
+        '--pool=forks',
+        '--poolOptions.forks.singleFork=true',
+        ...related
+      ],
+      { cwd }
+    );
 
   // 4. macOS arm64 only.
   step(
@@ -307,6 +324,42 @@ try {
   step('push the recorded digests', 'git', ['push', '-q', 'origin', `HEAD:refs/heads/${branch}`], {
     cwd
   });
+  // Server part of the same change, before the site that may call it: the reviewed
+  // backend plan path, shared with production and gated on released-client
+  // compatibility exactly as in the runner.
+  if (changed.some(file => /^supabase\/(?:functions|migrations)\//u.test(file))) {
+    const plan = path.resolve(
+      root,
+      `release/automation/backend-plan-quick-${head.slice(0, 12)}.json`
+    );
+    step(
+      'backend plan',
+      'node',
+      ['scripts/plan-backend-release.mjs', `--since=${base}`, `--out=${plan}`],
+      {
+        cwd: root
+      }
+    );
+    step(
+      'backend apply (shared with production)',
+      'node',
+      ['scripts/apply-backend-plan.mjs', `--plan=${plan}`, '--confirm'],
+      {
+        cwd: root
+      }
+    );
+  }
+  if (changed.some(file => file.startsWith('apps/catalog-image-delivery/'))) {
+    step(
+      'build delivery Worker',
+      'npm',
+      ['run', '--silent', 'build', '-w', '@video-compressor/catalog-image-delivery'],
+      { cwd }
+    );
+    step('deploy delivery Worker', 'npx', ['--yes', WRANGLER, 'deploy'], {
+      cwd: path.join(cwd, 'apps/catalog-image-delivery')
+    });
+  }
   const binding = activeBinding();
   if (!binding.previewBranch)
     throw new Error('next:quick:app publishes only to a binding with a next preview branch');
