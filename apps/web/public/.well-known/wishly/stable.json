@@ -1,20 +1,20 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.5",
-  "buildNumber": "90",
-  "buildId": "1.5.5+90",
+  "version": "1.5.6-next.92",
+  "buildNumber": "92",
+  "buildId": "1.5.6-next.92+92",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-16T00:00:00.000Z",
+  "publishedAt": "2026-11-16T22:37:48.540Z",
   "summary": {
-    "uk": "Пілот загального пулу картинок працює в пілотних просторах, швидша заливка пулу, виправлення роздачі картинок.",
-    "en": "The shared image pool pilot works in pilot spaces, steadier pool uploads, and image delivery fixes."
+    "uk": "Тестова збірка для next (1.5.6-next.92) — лише macOS на Apple silicon.",
+    "en": "Test build for next (1.5.6-next.92) — macOS on Apple silicon only."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.5/Soty-v1.5.5-macOS-arm64.dmg",
-      "sha256": "49e4a56089497273643aa5ec364643404603f6d85aa16e4be8e520c2a8d25aec"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.6-next.92/Soty-v1.5.6-next.92-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.5/Soty-v1.5.5-macOS-x64.dmg",
@@ -47,42 +47,5 @@
       "teamWorkspace": 1
     }
   },
-  "platformSetVersion": 2,
-  "signature": "nzdBntZ4Sv4chtYle7X67ynGrVSrhPqpHlFO_0lpNrE3YG_5Xvq4Y8ANGcdI0zUHvkCfOIgxnwTmvYRQkzPzuA",
-  "nativeUpdates": {
-    "macos-arm64": {
-      "schemaVersion": 1,
-      "channel": "stable",
-      "target": "macos-arm64",
-      "version": "1.5.5",
-      "buildNumber": "90",
-      "buildId": "1.5.5+90",
-      "sourceRevision": "267de3a9d2b2ccfd89ef915b74d7e368ec9c480d",
-      "minimumSystemVersion": "15.5",
-      "publisherTeamId": "A3V2L73L2N",
-      "archive": {
-        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.5/Soty-v1.5.5-macOS-arm64.zip",
-        "length": 179879744,
-        "sha256": "6baf91579c128b4550f5169ca5836570d67cd8521e65afd9dd09cfadcc1081aa",
-        "edSignature": "ZVg3b8v/xb9irDW3YxJ68eFLKQkaSPoUYUUt63wiFS7+bomrg5d7VpNfh7rsyRsQi2IGhJCKgKZSPbnrnMdrCA=="
-      }
-    },
-    "macos-x64": {
-      "schemaVersion": 1,
-      "channel": "stable",
-      "target": "macos-x64",
-      "version": "1.5.5",
-      "buildNumber": "90",
-      "buildId": "1.5.5+90",
-      "sourceRevision": "267de3a9d2b2ccfd89ef915b74d7e368ec9c480d",
-      "minimumSystemVersion": "13.0",
-      "publisherTeamId": "A3V2L73L2N",
-      "archive": {
-        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.5/Soty-v1.5.5-macOS-x64.zip",
-        "length": 199072213,
-        "sha256": "6b52fceddc7596559b2e8e51d3db30834b86cabf3c194b94511e996d6b67ea47",
-        "edSignature": "0KJeoMPHtgkqDFIP4vfV/Q1fm5+q/uLqfBLwMxbnuLxSbJ6rpXNRq3S9UroUkd8QKQ0+pr4tEEY4G3igw+PdAQ=="
-      }
-    }
-  }
+  "platformSetVersion": 2
 }
