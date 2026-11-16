@@ -31,7 +31,7 @@ function renderEnteredSpace(
 
 describe('space settings surface', () => {
   it.each(['owner', 'viewer'] as const)(
-    'omits catalog setup and its draft guards for a %s',
+    'offers the Catalog tab without the retired text and price setup for a %s',
     async role => {
       const team = makeTeam({ role, permissions: DEFAULT_ROLE_PERMISSIONS[role] });
       const client = Object.assign(makeClient({ listTeams: vi.fn().mockResolvedValue([team]) }), {
@@ -47,8 +47,12 @@ describe('space settings surface', () => {
       const user = userEvent.setup();
       renderEnteredSpace(client, team.id);
       const dialog = await screen.findByRole('dialog', { name: 'Space settings' });
-      expect(within(dialog).queryByRole('tab', { name: 'Catalog' })).toBeNull();
-      expect(within(dialog).getAllByRole('tab')).toHaveLength(3);
+      expect(within(dialog).getAllByRole('tab')).toHaveLength(4);
+      await user.click(within(dialog).getByRole('tab', { name: 'Catalog' }));
+      expect(window.location.search).toContain('tab=product-catalog');
+      // Names, descriptions and prices are automatic since 055: nothing here asks for them.
+      expect(within(dialog).queryByRole('heading', { name: 'Catalog settings' })).toBeNull();
+      expect(within(dialog).queryByText('When names are missing')).toBeNull();
       await user.click(within(dialog).getByRole('tab', { name: 'Tags' }));
       await user.click(within(dialog).getByRole('button', { name: 'Back to space' }));
       await waitFor(() =>

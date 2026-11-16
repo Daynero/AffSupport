@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { useState } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
@@ -26,7 +26,7 @@ vi.mock('../apps/web/src/team/catalog-updater/CatalogUpdaterDialog', () => ({
             )
           }
         >
-          Open old catalog bookmark
+          Open catalog settings
         </button>
       </div>
     );
@@ -40,8 +40,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it.each(['updater=1', 'settings=1&tab=product-catalog'])(
-  'opens and retains the manager for %s without catalog settings reads or drafts',
+it.each(['updater=1', 'settings=1&tab=product-catalog&updater=1'])(
+  'opens catalog settings over the retained manager for %s without retired settings reads',
   async query => {
     const team = makeTeam();
     const api = Object.assign(makeClient({ listTeams: vi.fn().mockResolvedValue([team]) }), {
@@ -64,14 +64,25 @@ it.each(['updater=1', 'settings=1&tab=product-catalog'])(
     );
     const search = await screen.findByRole('textbox', { name: 'Manager search' });
     await user.type(search, 'EG 75');
-    await user.click(screen.getByRole('button', { name: 'Open old catalog bookmark' }));
+    await user.click(screen.getByRole('button', { name: 'Open catalog settings' }));
     await waitFor(() =>
       expect(parseTeamRoute(window.location.pathname + window.location.search)).toMatchObject({
         kind: 'space',
-        query: { folderId: 'original-folder', updater: true, settings: false, settingsTab: null }
+        query: {
+          folderId: 'original-folder',
+          updater: true,
+          settings: true,
+          settingsTab: 'product-catalog'
+        }
       })
     );
-    expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull();
+    const settings = await screen.findByRole('dialog', { name: 'Space settings' });
+    expect(within(settings).getByRole('tab', { name: 'Catalog', selected: true })).toBeTruthy();
+    // Closing the settings comes back to the manager exactly as it was left.
+    await user.click(within(settings).getByRole('button', { name: 'Back to space' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Space settings' })).toBeNull()
+    );
     expect(screen.getByRole('textbox', { name: 'Manager search' })).toBe(search);
     expect((search as HTMLInputElement).value).toBe('EG 75');
     expect(confirm).not.toHaveBeenCalled();

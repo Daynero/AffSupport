@@ -15,9 +15,12 @@ import {
  * somewhere explainable instead of throwing.
  */
 describe('parseTeamRoute', () => {
-  it.each(['', '&updater=1'])(
-    'normalizes an old catalog-settings bookmark to the manager while preserving context%s',
-    updater => {
+  it.each([
+    ['', false],
+    ['&updater=1', true]
+  ])(
+    'opens the restored Catalog settings tab while preserving context%s',
+    (updater, overManager) => {
       const route = parseTeamRoute(
         `/team/space-1/launches?settings=1&tab=product-catalog&folder=folder-1&launch=launch-1&q=needle${updater}`
       );
@@ -26,9 +29,9 @@ describe('parseTeamRoute', () => {
         spaceId: 'space-1',
         section: 'launches',
         query: {
-          settings: false,
-          settingsTab: null,
-          updater: true,
+          settings: true,
+          settingsTab: 'product-catalog',
+          updater: overManager,
           folderId: 'folder-1',
           launchId: 'launch-1',
           q: 'needle'
@@ -36,9 +39,9 @@ describe('parseTeamRoute', () => {
       });
       if (route?.kind !== 'space') throw new Error('Expected a space route');
       const canonical = buildTeamRoute(route);
-      expect(canonical).not.toContain('settings=');
-      expect(canonical).not.toContain('tab=product-catalog');
-      expect(canonical).toContain('updater=1');
+      expect(canonical).toContain('settings=1');
+      expect(canonical).toContain('tab=product-catalog');
+      expect(canonical.includes('updater=1')).toBe(overManager);
     }
   );
 

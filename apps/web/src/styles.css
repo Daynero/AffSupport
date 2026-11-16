@@ -19997,3 +19997,121 @@ a.history-subject {
 .release-testers-form .ui-field {
   flex: 1 1 260px;
 }
+
+/* 052 pilot — the shared image pool on the admin page. */
+.admin-pool {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.admin-pool-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.admin-pool-counts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.admin-pool-counts dd {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.admin-pool-teams,
+.admin-pool-jobs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pool-teams li,
+.admin-pool-jobs li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-pool-jobs li {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.admin-pool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.admin-pool-progress {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.admin-pool-progress p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.admin-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pool-grid li {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-width: 0;
+}
+
+.admin-pool-grid li[data-hidden] .admin-pool-thumb {
+  opacity: 0.4;
+}
+
+.admin-pool-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.admin-pool-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-pool-meta {
+  display: grid;
+  min-width: 0;
+  font-size: var(--text-caption);
+}
+
+.admin-pool-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-pool-meta span {
+  color: var(--color-text-muted);
+}

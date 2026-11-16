@@ -1,0 +1,15 @@
+# 052 delivery Worker: serves the signed pool aliases /g/* on the media origin and
+# fetches the canonical /g1/<image> object, which bypasses this Worker.
+# CATALOG_GLOBAL_ALIAS_KEYS is a Worker secret (wrangler secret put); it must equal
+# the Supabase secret of the same name. Never commit or print it.
+name = "soty-catalog-image-delivery"
+main = "dist/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = false
+routes = [{ pattern = "catalog-images.soty.pp.ua/g/*", zone_name = "soty.pp.ua" }]
+
+[vars]
+CATALOG_IMAGES_ENVIRONMENT = "production"
+R2_CATALOG_PUBLIC_ORIGIN = "https://catalog-images.soty.pp.ua"
+CATALOG_GLOBAL_ROUTING_REVISION = "r1"
+CATALOG_GLOBAL_DELIVERY_CONFIRMATION = "production:https://catalog-images.soty.pp.ua:r1:1"

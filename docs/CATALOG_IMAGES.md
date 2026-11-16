@@ -388,8 +388,10 @@ and price. With text refresh disabled, existing rows retain both; newly added ro
 use the automatic policy. Updater storage retains one latest recipe per catalog,
 with bounded per-attempt count receipts for historical diagnosis.
 
-The Catalog tab in space settings and its setup blockers are removed. Old bookmarks
-open the catalog manager. Per-catalog schedules, refresh controls, video/R2 and
+The Catalog setup blockers and the text/price settings are removed. The space
+settings Catalog tab (`tab=product-catalog`) later returned with only the space's
+own images (hidden behind a shared-pool note once the pool serves the space) and the
+updater defaults for new catalogs; the catalog manager menu opens it. Per-catalog schedules, refresh controls, video/R2 and
 restitch configuration remain available. The legacy text-schedule tick no longer
 runs in the new worker; historical tables and compatibility RPCs remain intact.
 Image availability still follows the existing global/R2/legacy authority. Feature055

@@ -8268,6 +8268,10 @@ export type GeneratedDatabase = {
         };
       };
       admin_add_release_tester: { Args: { p_email: string }; Returns: string };
+      admin_catalog_global_pool: {
+        Args: { p_action: string; p_payload?: Json };
+        Returns: Json;
+      };
       admin_agent_versions: {
         Args: { p_end_date: string; p_start_date: string };
         Returns: {

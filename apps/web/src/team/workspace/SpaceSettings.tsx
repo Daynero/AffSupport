@@ -1,5 +1,5 @@
 import './space-settings.css';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link2 } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui';
@@ -14,6 +14,7 @@ import { RestitchDefaultsSection, type RestitchDefaultsClient } from './Restitch
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
+import { CatalogSettingsSection, type CatalogSettingsClient } from './CatalogSettingsSection';
 import { SpaceTariffSection } from '../tariffs/SpaceTariffSection';
 import { CatalogVideoR2UsageSection } from '../tariffs/CatalogVideoR2UsageSection';
 import type { TeamSettingsTab } from '../routes';
@@ -37,6 +38,7 @@ export type SpaceSettingsClient = MemberManagementClient &
   } & RestitchDefaultsClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
+  CatalogSettingsClient &
   SpaceNameClient;
 
 /**
@@ -127,6 +129,7 @@ export function SpaceSettings({
   health,
   initialTab,
   onTabChange,
+  onBeforeCloseChange,
   onBack
 }: {
   teamId: string;
@@ -136,15 +139,31 @@ export function SpaceSettings({
   initialTab?: TeamSettingsTab | null;
   /** The room now open — so the address names it, and a reload comes back to it. */
   onTabChange?: (tab: TeamSettingsTab) => void;
+  /** Hands the dialog the question "may this close now?", asked before it does. */
+  onBeforeCloseChange?: (guard: () => boolean) => void;
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const { activeTeam, notifyStateChanged, refreshTeams, replaceTeams, teams } = useTeam();
   const [revision, setRevision] = useState(0);
+  // An unsaved update default or a running picture upload keeps the reader in the Catalog tab
+  // until they say to leave it: a click elsewhere should not cost either silently.
+  const [catalogDraft, setCatalogDraft] = useState({ dirty: false, saving: false });
+  const allowLeave = useCallback(
+    () =>
+      !catalogDraft.saving &&
+      (!catalogDraft.dirty || window.confirm(t('catalogUpdaterDiscardDraft'))),
+    [catalogDraft, t]
+  );
+  useEffect(() => {
+    onBeforeCloseChange?.(allowLeave);
+    return () => onBeforeCloseChange?.(() => true);
+  }, [allowLeave, onBeforeCloseChange]);
   const tabs = [
     { id: 'general' as const, label: t('teamSettingsTabGeneral') },
     { id: 'tags' as const, label: t('teamSettingsTabTags') },
-    { id: 'restitch' as const, label: t('teamSettingsTabRestitch') }
+    { id: 'restitch' as const, label: t('teamSettingsTabRestitch') },
+    { id: 'product-catalog' as const, label: t('teamSettingsTabProductCatalog') }
   ];
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>(() =>
     initialTab && tabs.some(item => item.id === initialTab) ? initialTab : 'general'
@@ -167,13 +186,19 @@ export function SpaceSettings({
       <div className="team-space-settings-bar">
         <header className="team-space-settings-header">
           <h2 id="team-space-settings-title">{t('teamSpaceSettings')}</h2>
-          <Button type="button" variant="secondary" onClick={onBack}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              if (allowLeave()) onBack();
+            }}
+          >
             {t('teamSpaceSettingsBack')}
           </Button>
         </header>
 
         {/*
-         * Three focused rooms rather than one wall.
+         * Four focused rooms rather than one wall.
          *
          * Every panel used to sit in a single two-column grid: link sharing
          * beside the whole re-stitch editor, members under it, the space's
@@ -187,6 +212,7 @@ export function SpaceSettings({
           label={t('teamSettingsTabsLabel')}
           value={tab}
           onChange={next => {
+            if (!allowLeave()) return;
             setTab(next);
             onTabChange?.(next);
             // A new room opens at its top, not at the depth the last one was read to.
@@ -248,6 +274,15 @@ export function SpaceSettings({
         )}
 
         {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
+
+        {tab === 'product-catalog' && (
+          <CatalogSettingsSection
+            key={teamId}
+            teamId={teamId}
+            client={client}
+            onDraftChange={setCatalogDraft}
+          />
+        )}
       </div>
     </section>
   );

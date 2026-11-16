@@ -89,6 +89,16 @@ export interface ProductCatalogSettingsClient {
   listProductCatalogPoolNames?: (teamId: string) => Promise<string[]>;
 }
 
+/**
+ * What the space's own pictures need: the R2 gallery and, for an older space, its Drive
+ * sources. Texts and prices are not part of it — 055 made them automatic.
+ */
+export type CatalogImagesSettingsClient = Pick<
+  ProductCatalogSettingsClient,
+  'catalogImages' | 'listProductCatalogImageSources' | 'setProductCatalogImageSources'
+> &
+  Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+
 const EditorContext = createContext({ open: '', toggle: (_id: string) => {} });
 function CatalogSection({
   titleId,
@@ -305,6 +315,42 @@ function updaterHref(): string {
 // Pictures
 // ---------------------------------------------------------------------------------------------
 
+/** The tab shows the gallery's own count; nothing above it sums the columns any more. */
+const ignorePoolCount = () => undefined;
+
+/**
+ * The space's own pictures, alone, for the Catalog tab of space settings.
+ *
+ * 055 took the whole Catalog tab away with the text and price setup it retired, and the gallery
+ * went with it although nothing replaced it for a space the shared pool does not serve yet. This
+ * is that gallery without the retired parts. The open panel is the tab's to hold, so it can keep
+ * one editor open at a time across this and the update defaults beside it.
+ */
+export function ProductCatalogImagesSettings({
+  teamId,
+  client,
+  open,
+  onOpenChange,
+  onBusyChange
+}: {
+  teamId: string;
+  client: CatalogImagesSettingsClient;
+  open: string;
+  onOpenChange: (id: string) => void;
+  onBusyChange: (busy: boolean) => void;
+}) {
+  return (
+    <EditorContext.Provider value={{ open, toggle: id => onOpenChange(open === id ? '' : id) }}>
+      <CatalogImagesSection
+        teamId={teamId}
+        client={client}
+        onPool={ignorePoolCount}
+        onBusyChange={onBusyChange}
+      />
+    </EditorContext.Provider>
+  );
+}
+
 function CatalogImagesSection({
   teamId,
   client,
@@ -312,7 +358,7 @@ function CatalogImagesSection({
   onBusyChange
 }: {
   teamId: string;
-  client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+  client: CatalogImagesSettingsClient;
   onBusyChange: (busy: boolean) => void;
   onPool: (count: number | null) => void;
 }) {
@@ -369,7 +415,7 @@ function LegacyCatalogImagesSection({
 }: {
   section?: typeof SettingsSection;
   teamId: string;
-  client: ProductCatalogSettingsClient & Partial<TaskAttachmentPickerClient & FolderPickerClient>;
+  client: CatalogImagesSettingsClient;
   onBusyChange: (busy: boolean) => void;
   onPool: (count: number | null) => void;
   /** How many Drive sources the space has, or null when they could not be read. */

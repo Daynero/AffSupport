@@ -307,10 +307,21 @@ it('shows all five independent controls, with video first and IDs explained by t
   expect(screen.queryByRole('dialog', { name: 'What do the icons mean?' })).toBeNull();
   expect(screen.getByRole('searchbox')).toBeTruthy();
 });
-it('omits the manager menu when it would only offer retired defaults', async () => {
+it('opens the space catalog settings over the manager from its menu', async () => {
+  window.history.replaceState(null, '', `/team/${TEAM_ID}?updater=1&folder=folder-1`);
   renderDialog(client([row('1', 'polo.mp4')], stopped));
   await screen.findByLabelText('Select polo.mp4 catalog');
-  expect(screen.queryByRole('button', { name: 'Catalog manager actions' })).toBeNull();
+  await userEvent.click(screen.getByRole('button', { name: 'Catalog manager actions' }));
+  // Nothing is selected, so the menu offers the settings and no deletion.
+  expect(screen.queryByRole('menuitem', { name: 'Delete selected' })).toBeNull();
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Catalog settings' }));
+  const address = new URLSearchParams(window.location.search);
+  expect(window.location.pathname).toBe(`/team/${TEAM_ID}`);
+  expect(address.get('settings')).toBe('1');
+  expect(address.get('tab')).toBe('product-catalog');
+  expect(address.get('updater')).toBe('1');
+  expect(address.get('folder')).toBe('folder-1');
+  window.history.replaceState(null, '', '/');
 });
 it('closes on Escape from an empty search field', async () => {
   const { onClose } = renderDialog(client([row('1', 'polo.mp4')], stopped));

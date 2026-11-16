@@ -1000,32 +1000,42 @@ function CatalogUpdaterDialogScope({
             </Button>
           )}
         </div>
-        {liveSelected.length > 0 && can('delete') && (
-          <>
-            <IconButton
-              ref={menuAnchor}
-              variant="ghost"
-              label={t('catalogUpdaterMore')}
-              onClick={() => setMenuOpen(true)}
-            >
-              <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </IconButton>
-            <DropdownMenu
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              anchor={menuAnchor}
-              label={t('catalogUpdaterMore')}
-              items={[
-                {
-                  id: 'delete',
-                  label: t('catalogUpdaterDeleteSelected'),
-                  destructive: true,
-                  onSelect: () => setConfirmDelete(liveSelected.map(row => row.catalogId))
-                }
-              ]}
-            />
-          </>
-        )}
+        {/* The space's catalog settings — its own pictures and how new catalogs update —
+            open over the manager, so closing them comes back to this list as it was. */}
+        <IconButton
+          ref={menuAnchor}
+          variant="ghost"
+          label={t('catalogUpdaterMore')}
+          onClick={() => setMenuOpen(true)}
+        >
+          <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
+        <DropdownMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          anchor={menuAnchor}
+          label={t('catalogUpdaterMore')}
+          items={[
+            {
+              id: 'settings',
+              label: t('catalogUpdaterSpaceSettings'),
+              onSelect: () =>
+                guard(() =>
+                  navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'product-catalog' }))
+                )
+            },
+            ...(liveSelected.length > 0 && can('delete')
+              ? [
+                  {
+                    id: 'delete',
+                    label: t('catalogUpdaterDeleteSelected'),
+                    destructive: true,
+                    onSelect: () => setConfirmDelete(liveSelected.map(row => row.catalogId))
+                  }
+                ]
+              : [])
+          ]}
+        />
         <IconButton
           variant="ghost"
           title=""

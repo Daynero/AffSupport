@@ -25,6 +25,7 @@ import {
 import { ToastProvider } from '../components/toast';
 import { TariffsPanel } from './admin/TariffsPanel';
 import { ReleaseTestersCard } from './admin/ReleaseTestersCard';
+import { ImagePoolPanel } from './admin/ImagePoolPanel';
 import { TariffsSkeleton } from './admin/TariffsSkeleton';
 import { formatSize } from '../format';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -400,6 +401,7 @@ export default function AdminPage() {
         panelId={id => `admin-panel-${id}`}
         items={[
           { id: 'tariffs', label: t('adminTabTariffs') },
+          { id: 'imagePool', label: t('adminTabImagePool') },
           { id: 'analytics', label: t('adminTabAnalytics') }
         ]}
       />
@@ -409,6 +411,10 @@ export default function AdminPage() {
           <ToastProvider>
             <TariffsPanel />
           </ToastProvider>
+        </div>
+      ) : tab === 'imagePool' ? (
+        <div role="tabpanel" id="admin-panel-imagePool" aria-labelledby="tab-imagePool">
+          <ImagePoolPanel />
         </div>
       ) : (
         <div role="tabpanel" id="admin-panel-analytics" aria-labelledby="tab-analytics">
@@ -740,7 +746,7 @@ export default function AdminPage() {
   );
 }
 
-type AdminTab = 'tariffs' | 'analytics';
+type AdminTab = 'tariffs' | 'imagePool' | 'analytics';
 
 type SupportGoalForm = { titleUk: string; titleEn: string; target: string; raised: string };
 
