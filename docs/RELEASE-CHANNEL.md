@@ -53,6 +53,13 @@ npm run next:quick -- --confirm # lint/typecheck/пов'язані тести �
   доки повний реліз знову не опублікує next. На прод нічого не потрапляє без повних воріт.
 - Журнал: `release/automation/next-quick.jsonl`.
 
+Зміна самого застосунку — `npm run next:quick:app [-- --confirm]` (~20–30 хв): лише macOS arm64,
+ідентичність `<наступний патч>-next.<N>` (напр. `1.5.6-next.91`) на гілці `next-quick/<версія>`,
+підпис Developer ID + нотаризація, GitHub **prerelease**, підписаний `stable.json` з автооновленням
+arm64, сайт на next. Решта платформ у маніфесті лишаються інсталяторами останнього повного релізу.
+Наступний повний реліз бере `BUILD_NUMBER` більший за всі швидкі збірки (див. журнал), інакше
+Mac на каналі next не побачить його новішим.
+
 ## Native macOS update archives
 
 Native archive metadata travels inside the same signed `stable.json` archived with the site. `next` can display the candidate installer, while the installed native host checks the promoted production origin by default. A tester's Mac opts into next's manifest at runtime — the build never carries a channel, because promote ships those very bytes to production: `defaults write local.video.compressor.test SotyUpdateChannel next`, then quit and reopen Soty (`defaults delete local.video.compressor.test SotyUpdateChannel` returns it to production). Only the two baked addresses are reachable, both verified with the same release manifest key.

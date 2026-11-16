@@ -81,6 +81,7 @@
     "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs",
     "release:web": "node scripts/release-web-only.mjs",
     "next:quick": "node scripts/next-quick.mjs",
+    "next:quick:app": "zsh scripts/next-quick-app.sh",
     "beta:verify:web": "node scripts/verify-web-only.mjs",
     "runtime:mac": "node scripts/stage-macos-inputs.mjs",
     "updates:keys": "node scripts/generate-native-update-keys.mjs",

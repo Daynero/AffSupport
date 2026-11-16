@@ -28,7 +28,7 @@
  * publishes on next again: nothing reaches production without the full gates.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { activeBinding } from './lib/release/bindings.mjs';
 import { acquireWebReleaseLock, assertWebReleaseUnlocked } from './lib/web-only-lock.mjs';
@@ -70,6 +70,28 @@ function lastPublishedSha() {
     }
   }
   return git('rev-list', '-n', '1', git('describe', '--tags', '--abbrev=0', '--match', 'v*'));
+}
+
+/** The newest quick app build, if no full release has superseded it. */
+function quickAppOnNext() {
+  if (!existsSync(LOG)) return null;
+  const app = readFileSync(LOG, 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line))
+    .filter(entry => entry.kind === 'app')
+    .at(-1);
+  if (!app) return null;
+  const tagSha = git(
+    'rev-list',
+    '-n',
+    '1',
+    git('describe', '--tags', '--abbrev=0', '--match', 'v*')
+  );
+  return spawnSync('git', ['merge-base', '--is-ancestor', tagSha, app.sourceSha]).status === 0
+    ? app
+    : null;
 }
 
 const RELEASE_IDENTITY = new Set([
@@ -187,7 +209,21 @@ try {
     if (!binding.previewBranch)
       throw new Error('next:quick publishes only to a binding with a next preview branch');
     step('verify production web env', 'node', ['scripts/verify-web-env.mjs']);
-    step('build site', 'npm', ['run', '--silent', 'build:web']);
+    // A quick app build on next newer than the last full release keeps being offered:
+    // its signed manifest rides along instead of the release line's.
+    const app = quickAppOnNext();
+    const manifestPath = 'apps/web/public/.well-known/wishly/stable.json';
+    const releaseManifest = readFileSync(manifestPath);
+    if (app) {
+      step('fetch the quick app build', 'git', ['fetch', '-q', 'origin', app.branch]);
+      writeFileSync(manifestPath, git('show', `${app.buildSha}:${manifestPath}`) + '\n');
+      process.stdout.write(`  keeping the app build ${app.version} offered on next\n`);
+    }
+    try {
+      step('build site', 'npm', ['run', '--silent', 'build:web']);
+    } finally {
+      writeFileSync(manifestPath, releaseManifest);
+    }
     step(`publish on ${binding.previewSiteOrigin}`, 'npx', [
       '--yes',
       WRANGLER,
