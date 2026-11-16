@@ -50,7 +50,9 @@ function step(title, command, args, options = {}) {
   });
   if (result.status !== 0) {
     process.stderr.write(`✗ ${title} failed; nothing further was published.\n`);
-    process.exit(result.status ?? 1);
+    // Thrown, not process.exit: the lock and the worktree are released in finally.
+    process.exitCode = result.status ?? 1;
+    throw new Error(`NEXT_QUICK_STEP_FAILED ${title}`);
   }
 }
 
@@ -163,7 +165,16 @@ if (!confirm) {
 }
 
 await assertWebReleaseUnlocked(root);
-const lock = await acquireWebReleaseLock({ root, owner: 'next-quick' });
+let lock = await acquireWebReleaseLock({ root, owner: 'next-quick' });
+/** apply-backend-plan takes the same lock itself, so it runs between two holdings. */
+async function withoutLock(work) {
+  await lock.release();
+  try {
+    work();
+  } finally {
+    lock = await acquireWebReleaseLock({ root, owner: 'next-quick' });
+  }
+}
 try {
   const lintable = changed.filter(
     file => /\.(?:[cm]?[jt]sx?)$/u.test(file) && existsSync(file) && !file.startsWith('supabase/')
@@ -199,11 +210,13 @@ try {
       `--since=${base}`,
       `--out=${plan}`
     ]);
-    step('backend apply (shared with production)', 'node', [
-      'scripts/apply-backend-plan.mjs',
-      `--plan=${plan}`,
-      '--confirm'
-    ]);
+    await withoutLock(() =>
+      step('backend apply (shared with production)', 'node', [
+        'scripts/apply-backend-plan.mjs',
+        `--plan=${plan}`,
+        '--confirm'
+      ])
+    );
   }
 
   if (worker.length) {

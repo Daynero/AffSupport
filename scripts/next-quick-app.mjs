@@ -54,7 +54,9 @@ function step(title, command, args, options = {}) {
   });
   if (result.status !== 0) {
     process.stderr.write(`✗ ${title} failed; nothing further was published.\n`);
-    process.exit(result.status ?? 1);
+    // Thrown, not process.exit: the lock and the worktree are released in finally.
+    process.exitCode = result.status ?? 1;
+    throw new Error(`NEXT_QUICK_STEP_FAILED ${title}`);
   }
 }
 
@@ -140,7 +142,16 @@ for (const name of ['SOTY_SIGNING_IDENTITY', 'NODE_BINARY', 'FFMPEG_BINARY', 'WH
   }
 
 await assertWebReleaseUnlocked(root);
-const lock = await acquireWebReleaseLock({ root, owner: 'next-quick-app' });
+let lock = await acquireWebReleaseLock({ root, owner: 'next-quick-app' });
+/** apply-backend-plan takes the same lock itself, so it runs between two holdings. */
+async function withoutLock(work) {
+  await lock.release();
+  try {
+    work();
+  } finally {
+    lock = await acquireWebReleaseLock({ root, owner: 'next-quick-app' });
+  }
+}
 const worktree = await createOwnedWorktree({ cwd: root, sourceSha: head, root: tmpdir() });
 const cwd = worktree.directory;
 let keepWorktree = true;
@@ -340,13 +351,13 @@ try {
         cwd: root
       }
     );
-    step(
-      'backend apply (shared with production)',
-      'node',
-      ['scripts/apply-backend-plan.mjs', `--plan=${plan}`, '--confirm'],
-      {
-        cwd: root
-      }
+    await withoutLock(() =>
+      step(
+        'backend apply (shared with production)',
+        'node',
+        ['scripts/apply-backend-plan.mjs', `--plan=${plan}`, '--confirm'],
+        { cwd: root }
+      )
     );
   }
   if (changed.some(file => file.startsWith('apps/catalog-image-delivery/'))) {
