@@ -30,15 +30,19 @@ describe('automatic catalog row planning', () => {
       expect(row).toMatchObject({
         contentPolicyVersion: 1,
         pictureImage: image,
-        material: '',
-        size: '',
-        pattern: '',
-        style: '',
-        gender: '',
-        shippingWeight: '',
-        shipping: '',
         color: 'black'
       });
+      // Owner decision 2026-11-16: every column is filled, as before 055.
+      for (const key of [
+        'material',
+        'size',
+        'pattern',
+        'style',
+        'gender',
+        'shippingWeight',
+        'shipping'
+      ] as const)
+        expect(row[key]).toBeTruthy();
       expect(row.title).toMatch(/black.*hoodie/iu);
       expect(row.price).toBeGreaterThanOrEqual(28);
       expect(row.price).toBeLessThanOrEqual(55);
@@ -55,7 +59,7 @@ describe('automatic catalog row planning', () => {
     ).toEqual({ garment: 'Hoodie', color: 'black' });
   });
   it.each(['IMG_001.png', 'hoodie-black_blouse-coral.png', 'tshirt.png'])(
-    'does not invent facts for %s',
+    'keeps unclassified pictures neutral in the words yet fills every column: %s',
     name => {
       const row = planCatalogRows({
         settings,
@@ -64,15 +68,16 @@ describe('automatic catalog row planning', () => {
         images: [{ link: 'https://image.invalid/a', name }],
         random: () => 0
       })![0]!;
-      expect(row).toMatchObject({
-        color: '',
-        material: '',
-        size: '',
-        pattern: '',
-        googleCategory: '',
-        fbCategory: '',
-        price: 20
-      });
+      expect(row.price).toBe(20);
+      for (const key of [
+        'color',
+        'material',
+        'size',
+        'pattern',
+        'googleCategory',
+        'fbCategory'
+      ] as const)
+        expect(row[key]).toBeTruthy();
       expect(row.title).not.toMatch(/hoodie|t-shirt|blouse|dress/iu);
     }
   );

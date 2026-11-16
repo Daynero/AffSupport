@@ -8324,7 +8324,10 @@ body:has(.public-home) {
 /* Keep every interactive control on the same large scale established by the
    tool-card actions. Component-specific shapes remain intact. */
 button,
-[role='button'] {
+[role='button'],
+/* The catalog manager entry is a link beside two buttons in the space header; it keeps
+   their height so the row reads as one set of controls. */
+.team-space-shell-utilities > a.team-space-shell-utility-link {
   min-height: 44.2px;
 }
 

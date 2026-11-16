@@ -152,10 +152,14 @@ describe('the rows of a catalog', () => {
     expect(cellAt(rows, 'L', 3)).toEqual({ t: 'number', v: 75 });
     expect(cellAt(rows, 'O', 3).v).toBe('');
     expect(cellAt(rows, 'AE', 3).v).toBe('Bodycon');
-    // 024 US21: an expired sale, a shared barcode and a placeholder disclaimer say nothing true.
-    for (const column of ['M', 'N', 'X', 'Y', 'AB']) {
+    // 024 US21: an expired sale and a shared barcode say nothing true.
+    for (const column of ['M', 'N', 'AB']) {
       expect(cellAt(rows, column, 3)).toEqual({ t: 'string', v: '' });
     }
+    // Owner decision 2026-11-16: the disclaimer columns are filled — a standard line, and the
+    // row's own product link for the full terms.
+    expect(cellAt(rows, 'X', 3).v).toBe('Valid while supplies last. Terms and conditions apply.');
+    expect(cellAt(rows, 'Y', 3).v).toBe(cellAt(rows, 'G', 3).v);
   });
 });
 

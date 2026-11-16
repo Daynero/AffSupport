@@ -79,7 +79,7 @@ describe('the workbook', () => {
     expect(sheet).toContain('<c r="L3"><v>75</v></c>');
     expect(sheet).not.toContain('<f');
     // An empty value is no cell at all: column O, and the US21 blanks.
-    for (const empty of ['O3', 'M3', 'N3', 'X3', 'Y3', 'AB3']) {
+    for (const empty of ['O3', 'M3', 'N3', 'AB3']) {
       expect(sheet).not.toContain(`r="${empty}"`);
     }
   });

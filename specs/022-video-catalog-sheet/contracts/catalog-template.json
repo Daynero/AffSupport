@@ -275,7 +275,9 @@
       "key": "offer_disclaimer",
       "description": "# Необязательно | Legal disclaimer text for product offers. This text provides important legal or regulatory information that must be displayed with the product offer. For example: \"Valid while supplies last. Terms and conditions apply.\"",
       "source": {
-        "kind": "blank"
+        "kind": "fixed",
+        "value": "Valid while supplies last. Terms and conditions apply.",
+        "cellType": "text"
       }
     },
     {
@@ -283,7 +285,7 @@
       "key": "offer_disclaimer_url",
       "description": "# Необязательно | URL linking to the full disclaimer text. This provides a link to a page containing the complete disclaimer information for the product offer. For example: \"https://example.com/terms-and-conditions\"",
       "source": {
-        "kind": "blank"
+        "kind": "dialogLink"
       }
     },
     {

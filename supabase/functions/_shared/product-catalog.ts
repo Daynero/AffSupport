@@ -168,17 +168,10 @@ export function automaticCatalogRow(input: {
     ...(input.pictureImage ? { pictureImage: input.pictureImage } : {}),
     contentPolicyVersion: selected.policyVersion,
     contentVariantId: selected.variantId,
-    material: '',
-    size: '',
-    pattern: '',
-    style: '',
-    gender: '',
-    shippingWeight: '',
-    shipping: '',
-    color: facts.color ?? '',
-    ...(!facts.garment
-      ? { googleCategory: '', fbCategory: '', tags: ['clothing', ''] as [string, string] }
-      : {})
+    /* Owner decision 2026-11-16: every column of a new catalog is filled, as it was before 055.
+       The picture still decides the colour; size, fabric, pattern, style, shipping and weight
+       are drawn per row like any other catalog's. */
+    color: facts.color ?? details.color
   };
 }
 
@@ -580,14 +573,17 @@ export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
     key: 'offer_disclaimer',
     description:
       '# Необязательно | Legal disclaimer text for product offers. This text provides important legal or regulatory information that must be displayed with the product offer. For example: "Valid while supplies last. Terms and conditions apply."',
-    source: { kind: 'blank' }
+    source: {
+      kind: 'fixed',
+      cell: { t: 'string', v: 'Valid while supplies last. Terms and conditions apply.' }
+    }
   },
   {
     column: 'Y',
     key: 'offer_disclaimer_url',
     description:
       '# Необязательно | URL linking to the full disclaimer text. This provides a link to a page containing the complete disclaimer information for the product offer. For example: "https://example.com/terms-and-conditions"',
-    source: { kind: 'blank' }
+    source: { kind: 'sourceLink' }
   },
   {
     column: 'Z',
