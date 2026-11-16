@@ -339,8 +339,10 @@ final class NativeAppUpdateCoordinator {
       installed["target"] as? String == target else { throw NativeUpdateFailure.identity }
   }
   private func manifestURL() -> String {
-    if channel == "beta", let origin = fixtureOrigin { return origin + "/stable.json" }
-    return Bundle.main.object(forInfoDictionaryKey: "SotyUpdateManifestURL") as? String ?? ""
+    // Read per hello: a Mac switched with `defaults write` follows after Soty restarts.
+    NativeUpdateManifestChannel.manifestURL(channel: channel, fixtureOrigin: fixtureOrigin,
+      info: Bundle.main.infoDictionary ?? [:],
+      preference: UserDefaults.standard.object(forKey: NativeUpdateManifestChannel.preferenceKey))
   }
   private static func signingTeam() throws -> String {
     var code: SecStaticCode?

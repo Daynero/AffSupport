@@ -38,6 +38,26 @@ do {
     catch { refused = true }
     try check(refused, "invalid fixture cannot fall back to normal beta")
   }
+  let production = "https://soty.example/.well-known/wishly/stable.json"
+  let next = "https://next.soty.example/.well-known/wishly/stable.json"
+  let channelInfo: [String: Any] = ["SotyUpdateManifestURL": production, "SotyUpdateNextManifestURL": next]
+  let pick = { (channel: String, info: [String: Any], preference: Any?) in
+    NativeUpdateManifestChannel.manifestURL(channel: channel, fixtureOrigin: nil, info: info, preference: preference)
+  }
+  try check(pick("stable", channelInfo, nil) == production, "production is the default channel")
+  try check(pick("stable", channelInfo, "next") == next, "a Mac opts into next at runtime")
+  for preference in ["Next", "beta", "https://evil.example/.well-known/wishly/stable.json", 1, true] as [Any] {
+    try check(pick("stable", channelInfo, preference) == production, "unknown channel keeps production")
+  }
+  for damaged in ["http://next.soty.example/.well-known/wishly/stable.json", "https://next.soty.example/other.json",
+    "https://next.soty.example/.well-known/wishly/stable.json?x=1", "https://u@next.soty.example/.well-known/wishly/stable.json",
+    "https://next.soty.example:8443/.well-known/wishly/stable.json", production] {
+    var info = channelInfo; info["SotyUpdateNextManifestURL"] = damaged
+    try check(pick("stable", info, "next") == production, "only the exact baked next manifest is reachable")
+  }
+  try check(pick("stable", ["SotyUpdateManifestURL": production], "next") == production, "a build without next keeps production")
+  try check(pick("beta", channelInfo, "next") == production, "beta never follows the next opt-in")
+  try check(NativeUpdateManifestChannel.manifestURL(channel: "beta", fixtureOrigin: "http://127.0.0.1:43141", info: channelInfo, preference: "next") == "http://127.0.0.1:43141/stable.json", "fixture beta keeps its loopback manifest")
   let profiles = root.appendingPathComponent("profiles")
   try NativeUpdateFixtureProfile.prepareDirectory(root: profiles, name: expectedProfile)
   let alias = profiles.appendingPathComponent("\(fixtureSupport) Updates alias")

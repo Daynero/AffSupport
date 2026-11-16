@@ -43,6 +43,7 @@ if (args.includes('--native-boundaries')) {
         'packaging/NativeUpdates/Recovery.swift',
         'packaging/NativeUpdates/Readiness.swift',
         'packaging/NativeUpdates/FixtureProfile.swift',
+        'packaging/NativeUpdates/Channel.swift',
         policy,
         'packaging/NativeUpdates/Tests/main.swift',
         '-o',

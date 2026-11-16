@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import {
   NATIVE_UPDATE_LIMITS,
+  PREVIEW_SITE_ORIGIN,
   PRODUCTION_SITE_ORIGIN,
   isNativeUpdateCommand,
   isNativeUpdateSnapshot,
@@ -28,6 +29,33 @@ import {
 import { writeUpdateReceipt } from './receipt.js';
 
 type UpdateEvent = { type: 'app-update:state'; state: NativeUpdateSnapshot | null };
+/**
+ * The manifest a native host may hand the agent. A stable host reads production
+ * by default and the next address only when that Mac opted in at runtime; both are
+ * the same signed production manifest key, and no other origin is accepted. A beta
+ * host reads only its loopback fixture.
+ */
+export function isNativeUpdateManifestUrl(channel: string, manifestURL: string): boolean {
+  if (channel === 'stable')
+    return [PRODUCTION_SITE_ORIGIN, PREVIEW_SITE_ORIGIN].some(
+      origin => manifestURL === `${origin}/.well-known/wishly/stable.json`
+    );
+  let url: URL;
+  try {
+    url = new URL(manifestURL);
+  } catch {
+    return false;
+  }
+  return (
+    channel === 'beta' &&
+    url.protocol === 'http:' &&
+    url.hostname === '127.0.0.1' &&
+    !url.username &&
+    !url.password &&
+    !url.search &&
+    !url.hash
+  );
+}
 export class NativeAppUpdateService {
   private state: NativeUpdateSnapshot | null = null;
   private hello: { url: string; publicKey: string; channel: string; target: string } | null = null;
@@ -94,17 +122,7 @@ export class NativeAppUpdateService {
       !['macos-arm64', 'macos-x64'].includes(String(value.target))
     )
       throw new AppUpdateError('APP_UPDATE_UNSUPPORTED');
-    const url = new URL(value.manifestURL);
-    if (
-      value.channel === 'stable'
-        ? value.manifestURL !== `${PRODUCTION_SITE_ORIGIN}/.well-known/wishly/stable.json`
-        : url.protocol !== 'http:' ||
-          url.hostname !== '127.0.0.1' ||
-          url.username ||
-          url.password ||
-          url.search ||
-          url.hash
-    )
+    if (!isNativeUpdateManifestUrl(String(value.channel), value.manifestURL))
       throw new AppUpdateError('APP_UPDATE_MANIFEST_INVALID');
     this.hello = {
       url: value.manifestURL,

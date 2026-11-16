@@ -2,8 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { readNativeUpdateQualification } from './lib/native-update-qualification.mjs';
 import { betaUpdateProfile } from './lib/native-update-profile.mjs';
-import { nativeUpdatesDisabled } from './lib/native-update-inputs.mjs';
+import { nativeUpdatePolicy } from './lib/native-update-inputs.mjs';
 import {
+  PREVIEW_SITE_ORIGIN,
   PRODUCTION_SITE_ORIGIN,
   RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64
 } from '../packages/shared/dist/release.js';
@@ -28,10 +29,13 @@ if (fixture) {
     throw new Error('NATIVE_UPDATE_FIXTURE_NOT_LOOPBACK');
 }
 const signed = process.env.SOTY_SIGNING_IDENTITY && process.env.SOTY_SIGNING_IDENTITY !== '-';
-const disabled = nativeUpdatesDisabled(process.env);
+const policy = nativeUpdatePolicy(process.env);
+const disabled = policy === 'disabled';
 // A fixture exists only to exercise the updater; asking for both is a contradiction.
 if (disabled && fixture) throw new Error('NATIVE_UPDATE_FIXTURE_REQUIRES_UPDATES');
-if (mode === 'production' && signed && !disabled) {
+// A deferred qualification (owner, 2026-11-16) is enforced by promote instead: the
+// signed manifest advertising this build's updater cannot reach production without it.
+if (mode === 'production' && signed && policy === 'enabled') {
   const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   await readNativeUpdateQualification(process.env.SOTY_NATIVE_UPDATE_QUALIFICATION, sourceSha);
 }
@@ -60,6 +64,17 @@ const values = {
     channel === 'stable' ? RELEASE_MANIFEST_PUBLIC_KEY_SPKI_B64 : pins.beta.manifestPublicKey
   ],
   SotyUpdateManifestURL: ['string', `${PRODUCTION_SITE_ORIGIN}/.well-known/wishly/stable.json`],
+  // The channel is never baked in: promote ships these exact bytes to production.
+  // A Mac opts into the next address at runtime (`SotyUpdateChannel` = `next` in
+  // the app's user defaults); this is the only other manifest it may read.
+  ...(channel === 'stable'
+    ? {
+        SotyUpdateNextManifestURL: [
+          'string',
+          `${PREVIEW_SITE_ORIGIN}/.well-known/wishly/stable.json`
+        ]
+      }
+    : {}),
   ...(fixture ? { SotyUpdateFixtureOrigin: ['string', fixture] } : {}),
   ...(profile ? { SotyUpdateFixtureProfile: ['string', profile.profileId] } : {})
 };

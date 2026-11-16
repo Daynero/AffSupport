@@ -3,7 +3,10 @@
  * Feature 051 — the owner's four release words, as commands.
  *
  *   status                 what is on production, on next, and what a rollback returns to
- *   promote  [--confirm]   ship exactly the build tested on next to everyone
+ *   promote  [--confirm] [--native-update-qualification=<record>]
+ *                          ship exactly the build tested on next to everyone; a build
+ *                          whose manifest ships the native macOS updater needs the
+ *                          qualification record for its exact source (owner, 2026-11-16)
  *   rollback [--confirm]   return production to the previous promoted build
  *   cancel   [--confirm]   show production again on next; the candidate is dropped
  *   adopt-live [--search=<dir>]… [--confirm]
@@ -62,7 +65,7 @@ const say = {
   promote: r =>
     r.confirmed
       ? `Готово: ${r.to.version} розкочено на всіх.${r.smoke?.ok === false ? '\nУВАГА: автоматична перевірка живого сайту не пройшла — подивіться вивід вище; якщо щось зламано, виконайте rollback.' : ''}`
-      : `${r.summary}.\nЗараз на проді: ${r.from ? r.from.version : 'не записано'}. Next віддає саме цю збірку — перевірено.\nНічого не змінено. Додайте --confirm, щоб розкотити.`,
+      : `${r.summary}.\nЗараз на проді: ${r.from ? r.from.version : 'не записано'}. Next віддає саме цю збірку — перевірено.${r.nativeUpdates ? `\nОновлювач macOS: кваліфікацію для ${r.nativeUpdates.sourceSha.slice(0, 12)} перевірено.` : ''}\nНічого не змінено. Додайте --confirm, щоб розкотити.`,
   rollback: r =>
     r.confirmed
       ? `Готово: прод повернуто на ${r.to.version}. Хто вже встановив новий агент, побачить пропозицію повернутись на стабільну версію.`
@@ -83,12 +86,24 @@ export async function main(argv = process.argv.slice(2), options = {}) {
   const confirm = rest.includes('--confirm');
   if (!COMMANDS.includes(command ?? '')) {
     process.stderr.write(
-      `Usage: release:channel -- <${COMMANDS.join('|')}> [--confirm] [--json]\n`
+      `Usage: release:channel -- <${COMMANDS.join('|')}> [--confirm] [--json] [--native-update-qualification=<record>]\n`
     );
     return 2;
   }
   const root = options.root ?? process.cwd();
-  const base = { root, binding: options.binding ?? activeBinding(), ...options };
+  const qualification = rest
+    .filter(arg => arg.startsWith('--native-update-qualification='))
+    .map(arg => arg.slice('--native-update-qualification='.length));
+  if (qualification.length > 1 || qualification[0] === '') {
+    process.stderr.write('--native-update-qualification names exactly one record\n');
+    return 2;
+  }
+  const base = {
+    root,
+    binding: options.binding ?? activeBinding(),
+    ...(qualification[0] ? { nativeUpdateQualification: path.resolve(qualification[0]) } : {}),
+    ...options
+  };
   try {
     let result;
     if (command === 'status') {

@@ -9,9 +9,10 @@
  * says it is there. Writes to production happen only with `confirm`.
  */
 import { spawnSync } from 'node:child_process';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { acquireWebReleaseLock } from '../web-only-lock.mjs';
+import { readNativeUpdateQualification } from '../native-update-qualification.mjs';
 import { liveIdentity } from './live.mjs';
 import {
   appendHistory,
@@ -26,6 +27,7 @@ import {
   pruneBundles,
   readState,
   sha256,
+  verifiedManifest,
   writeState
 } from './state.mjs';
 import { readWebFile } from '../../release-web-meta.mjs';
@@ -73,7 +75,8 @@ export function liveSmoke({ root, channel }) {
  *   root?: string, dir?: string, binding: any, env?: NodeJS.ProcessEnv,
  *   upload?: typeof wranglerUpload, fetcher?: typeof fetch, now?: () => string,
  *   sleep?: (ms: number) => Promise<void>, smoke?: typeof liveSmoke,
- *   publicKeySpki?: string, liveAttempts?: number, liveDelayMs?: number
+ *   publicKeySpki?: string, liveAttempts?: number, liveDelayMs?: number,
+ *   nativeUpdateQualification?: string
  * }} options
  */
 export async function channelContext(options) {
@@ -95,8 +98,53 @@ export async function channelContext(options) {
     smoke: options.smoke ?? liveSmoke,
     publicKeySpki: options.publicKeySpki,
     liveAttempts: options.liveAttempts ?? 36,
-    liveDelayMs: options.liveDelayMs ?? 5000
+    liveDelayMs: options.liveDelayMs ?? 5000,
+    nativeUpdateQualification: options.nativeUpdateQualification ?? null
   };
+}
+
+/**
+ * Owner decision 2026-11-16: next may carry a build whose native updater was
+ * enabled with its qualification deferred (`SOTY_NATIVE_UPDATES=
+ * qualification-deferred-until-promote`). Production may not. A candidate whose
+ * signed manifest advertises native updates is promoted only with a valid
+ * qualification record for the exact source revision those descriptors name --
+ * the revision the shipped Mac binaries were built from, which a later web-only
+ * build on top does not change. The manifest, not a mutable flag, decides, so a
+ * lost or edited channel record cannot let an unqualified updater through.
+ *
+ * @param {string} directory archived bundle
+ * @param {string | null} file qualification record path
+ * @param {string} [publicKeySpki]
+ * @returns {Promise<{sourceSha: string, recordSha256: string} | null>}
+ */
+export async function nativeUpdatePromotionGate(directory, file, publicKeySpki) {
+  const manifest = verifiedManifest(await readWebFile(directory, MANIFEST_PATH), publicKeySpki);
+  const descriptors = Object.values(manifest.nativeUpdates ?? {});
+  if (descriptors.length === 0) return null;
+  const sources = new Set(descriptors.map(candidate => candidate.sourceRevision));
+  if (sources.size !== 1)
+    throw new ChannelError(
+      'CHANNEL_NATIVE_UPDATE_INVALID',
+      'native update descriptors name different source revisions'
+    );
+  const [sourceSha] = sources;
+  if (!file)
+    throw new ChannelError(
+      'CHANNEL_NATIVE_UPDATE_QUALIFICATION_REQUIRED',
+      `${manifest.version} ships the native macOS updater; promote it with --native-update-qualification=<record> for source ${sourceSha}`
+    );
+  let bytes;
+  try {
+    bytes = await readFile(file);
+    await readNativeUpdateQualification(file, sourceSha);
+  } catch (error) {
+    throw new ChannelError(
+      'CHANNEL_NATIVE_UPDATE_QUALIFICATION_REQUIRED',
+      `the qualification record does not qualify source ${sourceSha} (${error instanceof Error ? error.message : 'unreadable'})`
+    );
+  }
+  return { sourceSha, recordSha256: sha256(bytes) };
 }
 
 /** @param {any} ctx @param {'next'|'production'} channel */
@@ -213,7 +261,7 @@ export async function promote(options, { confirm = false } = {}) {
     if (state.next?.status !== 'testing')
       throw new ChannelError('CHANNEL_NO_CANDIDATE', 'nothing is being tested on next');
     const candidate = state.next.build;
-    await archivedBundle(ctx.dir, candidate);
+    const candidateDirectory = await archivedBundle(ctx.dir, candidate);
     const onNext = await liveMatches(ctx, 'next', candidate);
     if (onNext === null)
       throw new ChannelError('CHANNEL_LIVE_UNREACHABLE', `${originOf(ctx, 'next')} did not answer`);
@@ -230,9 +278,16 @@ export async function promote(options, { confirm = false } = {}) {
         'CHANNEL_PRODUCTION_DRIFTED',
         `${ctx.binding.siteOrigin} does not serve the recorded production ${state.production.version}; run adopt-live --confirm first`
       );
+    // Checked before the dry run answers, so the owner learns it before --confirm.
+    const nativeUpdates = await nativeUpdatePromotionGate(
+      candidateDirectory,
+      ctx.nativeUpdateQualification,
+      ctx.publicKeySpki
+    );
     const plan = {
       from: state.production,
       to: candidate,
+      nativeUpdates,
       summary: `Розкатати ${candidate.version} (збірка ${candidate.buildId}) на ${ctx.binding.siteOrigin}`
     };
     if (!confirm) return { confirmed: false, ...plan, state };
@@ -263,6 +318,7 @@ export async function promote(options, { confirm = false } = {}) {
       at,
       from: plan.from,
       to: promoted,
+      ...(nativeUpdates ? { nativeUpdateQualification: nativeUpdates } : {}),
       result: 'ok'
     });
     await pruneBundles(ctx.dir, state);

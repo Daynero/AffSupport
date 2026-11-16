@@ -727,7 +727,11 @@ export async function createStepAdapter({
       // before the first build, not discovered after forty minutes of packaging.
       try {
         const inputs = await macosTrustPreflight(trustEnv);
-        const updaterInputs = await nativeUpdateInputsPreflight(cwd, sourceSha, trustEnv);
+        // A deferred updater qualification is only acceptable where promote enforces it:
+        // a run that lands on the next address first (051).
+        const updaterInputs = await nativeUpdateInputsPreflight(cwd, sourceSha, trustEnv, {
+          publishesToNext: Boolean(/** @type {{previewBranch?: string}} */ (binding).previewBranch)
+        });
         if (journal) await journal.append('native_update_preflight', updaterInputs);
         if (journal) await journal.append('macos_trust_preflight', inputs);
       } catch (error) {
