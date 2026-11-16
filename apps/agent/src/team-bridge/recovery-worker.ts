@@ -782,7 +782,12 @@ export class TeamRecoveryWorker {
     if (!this.#loaded || this.#setupRequired) throw new Error('APP_UPDATE_BUSY');
     await this.idle();
     await Promise.all(this.#retirements.values());
-    if (this.#checkpoints.some(c => c.stage !== 'settled')) throw new Error('APP_UPDATE_BUSY');
+    // A blocked space has nothing in flight: its checkpoint is durable and resumes after
+    // a restart, which is what replacing the app is. Refusing it made one blocked space
+    // refuse every app update — including the one that would unblock it (next QA,
+    // 2026-11-17). Only work between claim and settlement holds the update.
+    if (this.#checkpoints.some(c => c.stage !== 'settled' && c.stage !== 'blocked'))
+      throw new Error('APP_UPDATE_BUSY');
     await this.#save();
     await this.options.journal.flushForUpdate();
   }

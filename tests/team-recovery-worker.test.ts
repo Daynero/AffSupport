@@ -1332,6 +1332,25 @@ describe('background recovery worker', () => {
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
     expect(f.process.process).not.toHaveBeenCalled();
   });
+  it('lets the app update while a space is blocked, but not while work is claimed', async () => {
+    const f = await fixture();
+    f.fetcher.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: { code: 'AUTH_REQUIRED' } }), {
+          status: 403
+        })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked' });
+    await expect(f.worker.flushForUpdate()).resolves.toBeUndefined();
+
+    const claimed = await fixture('running');
+    claimed.fetcher.mockImplementation(() => new Promise<Response>(() => {}));
+    await claimed.worker.load();
+    await expect(claimed.worker.flushForUpdate()).rejects.toThrow('APP_UPDATE_BUSY');
+  });
   it('resumes a space an older build parked as needs_agent_setup', async () => {
     const f = await fixture();
     const saved = await f.journal.load();
