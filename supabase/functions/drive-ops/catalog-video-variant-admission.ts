@@ -120,6 +120,19 @@ export async function admitCatalogVideoVariant(
     if (rebased.error || rebased.data !== true) throw cause;
     const again = await read();
     if (again.kind !== 'new' || again.sourceVersion !== live.version) throw cause;
-    return await start(live.version);
+    try {
+      return await start(live.version);
+    } catch (retryCause) {
+      // The same lost-reply rule as the first start: an operation that was created
+      // before the failure is this variant's admission, never a reason to retry.
+      const adopted = await read();
+      if (
+        adopted.kind === 'admitted' &&
+        typeof adopted.operationId === 'string' &&
+        UUID.test(adopted.operationId)
+      )
+        return { operationId: adopted.operationId };
+      throw retryCause;
+    }
   }
 }

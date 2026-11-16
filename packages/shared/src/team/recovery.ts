@@ -55,6 +55,8 @@ export const RECOVERY_BUDGET = Object.freeze({
   heartbeatMs: 30_000,
   leaseMs: 120_000,
   requestMs: 10_000,
+  /** Variant admission works in Drive (and may rebase the set) before it answers. */
+  admitRequestMs: 45_000,
   episodeMs: 600_000,
   /** Self-resumes per hour, spaced by a doubling pause up to episodeBackoffMaxMs. */
   episodesPerHour: 8,

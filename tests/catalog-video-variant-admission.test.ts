@@ -131,3 +131,51 @@ it('keeps refusing a source whose bytes really changed', async () => {
     })
   ).rejects.toMatchObject({ code: 'SOURCE_CHANGED' });
 });
+
+it('adopts the operation a rebased start created before its reply was lost', async () => {
+  const original = {
+    setId: id(31),
+    nativeInstanceId: id(32),
+    claimHash: '\\x' + 'd'.repeat(64),
+    protocolVersion: 1 as const,
+    index: 4,
+    requestId: id(33)
+  };
+  let version = '5';
+  let created: string | null = null;
+  const service = {
+    rpc: vi.fn(async (name: string) => {
+      if (name === 'service_rebase_catalog_video_source') {
+        version = '9';
+        return { data: true, error: null };
+      }
+      return {
+        data: created
+          ? { kind: 'admitted', operationId: created }
+          : {
+              kind: 'new',
+              teamId: id(34),
+              actorId: id(35),
+              materialId: id(36),
+              outputName: 'Synthetic.mp4',
+              idempotencyKey: 'catalog-variant:' + original.requestId,
+              sourceVersion: version
+            },
+        error: null
+      };
+    })
+  };
+  const startProcess = vi.fn(async (_actor: string, body: Record<string, unknown>) => {
+    if (body.expectedSourceVersion !== '9') throw new TeamFunctionError('SOURCE_CHANGED');
+    // Admitted, then Drive refused before the answer reached the caller.
+    created = id(37);
+    throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+  });
+  expect(
+    await admitCatalogVideoVariant(service, original, {
+      restitchedFolder: async () => id(38),
+      startProcess,
+      liveSource: async () => ({ version: '9', checksum: 'f'.repeat(32) })
+    })
+  ).toEqual({ operationId: id(37) });
+});

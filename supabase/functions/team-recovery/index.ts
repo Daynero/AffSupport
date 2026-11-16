@@ -258,7 +258,9 @@ Deno.serve(async request => {
                     requestId: child.requestId
                   }),
                   redirect: 'error',
-                  signal: AbortSignal.timeout(10000)
+                  // Admission proves the source and the destination in Drive, and may
+                  // rebase the set first: ten seconds lost replies that had succeeded.
+                  signal: AbortSignal.timeout(40000)
                 }
               );
               const result: unknown = await response.json();

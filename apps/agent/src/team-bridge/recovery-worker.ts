@@ -909,7 +909,9 @@ export class TeamRecoveryWorker {
         headers: { 'content-type': 'application/json', 'x-team-recovery-credential': credential },
         body: JSON.stringify({ action, ...body, protocolVersion: TEAM_RECOVERY_PROTOCOL_VERSION }),
         redirect: 'error',
-        signal: AbortSignal.timeout(RECOVERY_BUDGET.requestMs)
+        signal: AbortSignal.timeout(
+          action === 'variant_admit' ? RECOVERY_BUDGET.admitRequestMs : RECOVERY_BUDGET.requestMs
+        )
       });
       value = await response.json();
     } catch {
