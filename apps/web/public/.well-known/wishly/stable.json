@@ -14,15 +14,15 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "cdecfb5c23751aa60aa9a6ab2a41ecac57da201ef85f17d70d5c12f8d0d7f2f1"
     },
     "macos-x64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-x64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "eee66f23899c04b73bfc5caf82b25d128f19ef784f8e98a38b8f23f5e61c0521"
     },
     "windows-x64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-Windows-x64.exe",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "a7a4f396c77d11d2ec8ca66e4905133375d9169dc90210c46a08f1324218ebe7"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,41 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "Y0RUbpQuid9QD2dRv9fadzHsVc-lF7817L4Tu6UG0PfFPRLBOQbCP1ueHn_U43V9gcSkPcfS3lqOvHkUclV1yg"
+  "signature": "zGAg4UuK87i8V2D1CeqUtB2v5-ywp8R_erq66rhpfv7-QBOZSRsQKZZi9-_wK6CVQrpT0r8ls8vUG2eFyMvmAg",
+  "nativeUpdates": {
+    "macos-arm64": {
+      "schemaVersion": 1,
+      "channel": "stable",
+      "target": "macos-arm64",
+      "version": "1.5.4",
+      "buildNumber": "89",
+      "buildId": "1.5.4+89",
+      "sourceRevision": "0bc3c2facafbb56f875d84add0eb8f0b41d47ed7",
+      "minimumSystemVersion": "15.5",
+      "publisherTeamId": "A3V2L73L2N",
+      "archive": {
+        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-arm64.zip",
+        "length": 179879838,
+        "sha256": "cc1ec1b9a99a7135455238cf9ed5dd38cc9e90b0c8922ec951a17f115cb8d194",
+        "edSignature": "hQsfjHiujgztFfhrrkLCBmcHAt7qmPl55Sz61WKuETK2NC1oYMTCP1eQE9kWz8BLDiYL/CDtRS3RrWLyTiM8BQ=="
+      }
+    },
+    "macos-x64": {
+      "schemaVersion": 1,
+      "channel": "stable",
+      "target": "macos-x64",
+      "version": "1.5.4",
+      "buildNumber": "89",
+      "buildId": "1.5.4+89",
+      "sourceRevision": "0bc3c2facafbb56f875d84add0eb8f0b41d47ed7",
+      "minimumSystemVersion": "13.0",
+      "publisherTeamId": "A3V2L73L2N",
+      "archive": {
+        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-x64.zip",
+        "length": 199072248,
+        "sha256": "b5720137c80074a5f6d333f0806b74e7c68ac19d2d87369d8f90e33cc20857f8",
+        "edSignature": "9TcvKaGfFs02nrwY5SWxTBUxAO6LOsDg31tDRwIBUx6tyIjg9q+N0dNeKRCBlKX4uk10VYJfFwSRFtGmXrJCAQ=="
+      }
+    }
+  }
 }
