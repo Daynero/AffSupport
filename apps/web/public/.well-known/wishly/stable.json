@@ -1,27 +1,27 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.2",
-  "buildNumber": "87",
-  "buildId": "1.5.2+87",
+  "version": "1.5.3",
+  "buildNumber": "88",
+  "buildId": "1.5.3+88",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-15T00:00:00.000Z",
+  "publishedAt": "2026-11-16T00:00:00.000Z",
   "summary": {
     "uk": "Масові запуски й вибір завдань, автоматичні назви й ціни каталогів, підписаний застосунок для macOS.",
     "en": "Bulk launches and task selection, automatic catalog titles and prices, and an Apple-signed macOS app."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-macOS-arm64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-macOS-x64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-macOS-x64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.2/Soty-v1.5.2-Windows-x64.exe",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-Windows-x64.exe",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "3sb_45LY50IgDHOVg1e42oZNTX2bEOLxRGn33Uz8sSwRY5uLA7MgNfRD2I3tGoT6i-3demUUlpN8nYJa_iKAtA"
+  "signature": "ufmx07MbDy5xj8AJ-lOrdfcALWix46a4lW6DwBNIzcozRCnB3whlyQHJ-3ThEZeSJuARqqqveZd55gMpVkO-hQ"
 }
