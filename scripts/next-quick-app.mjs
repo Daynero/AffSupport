@@ -102,7 +102,12 @@ process.stdout.write(
   `next:quick:app ${version} (build ${buildNumber}) from ${head.slice(0, 10)}; ` +
     `last full release ${released}; tests related to ${base.slice(0, 10)}..HEAD\n`
 );
-if (git(['status', '--porcelain', '--untracked-files=no'])) {
+// Only what the build reads must be committed; notes in specs/docs may be in progress.
+if (
+  /^.. (?:apps|packages|supabase|config|scripts)\//mu.test(
+    git(['status', '--porcelain', '--untracked-files=no'])
+  )
+) {
   process.stderr.write('\nCommit first: next:quick:app builds committed source only.\n');
   process.exit(1);
 }

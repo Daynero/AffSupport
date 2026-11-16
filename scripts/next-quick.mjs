@@ -134,7 +134,12 @@ if (agent.length) {
   );
   process.exit(1);
 }
-if (git('status', '--porcelain', '--untracked-files=no')) {
+// Only what the build reads must be committed; notes in specs/docs may be in progress.
+if (
+  /^.. (?:apps|packages|supabase|config|scripts)\//mu.test(
+    git('status', '--porcelain', '--untracked-files=no')
+  )
+) {
   process.stderr.write('\nCommit first: next:quick publishes committed source only.\n');
   process.exit(1);
 }
