@@ -15,7 +15,10 @@ enum NativeUpdateRecovery {
     }
     if state.sourceBuild == buildId && state.sourceRevision == revision && !state.targetStarted &&
       (["consented", "draining", "drained"].contains(state.stage) ||
-       (state.stage == "failed" && !state.handoffStarted && state.lastProvenStage == "drained")) { return .deferUnstarted }
+       // A failure before the handoff (e.g. APP_UPDATE_BUSY while draining) never touched the
+       // app; only a reached handoff makes the outcome uncertain (next QA, 2026-11-17).
+       (state.stage == "failed" && !state.handoffStarted &&
+        ["consented", "draining", "drained"].contains(state.lastProvenStage))) { return .deferUnstarted }
     // After target start, older code/data must never be reactivated automatically.
     return .unknown
   }

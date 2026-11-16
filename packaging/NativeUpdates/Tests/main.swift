@@ -90,6 +90,11 @@ do {
   state.candidate = NativeCandidate(schemaVersion: 1, channel: "stable", target: "macos-arm64", version: "9.0.0", buildNumber: "999", buildId: "9.0.0+999", sourceRevision: String(repeating: "b", count: 40), minimumSystemVersion: "13.0", publisherTeamId: "TESTTEAM12", archive: NativeArchive(url: "https://invalid.test", sha256: String(repeating: "a", count: 64), length: 5, edSignature: "test"))
   state.acceptedAt = 1; state.sourceBuild = "8.0.0+998"; state.sourceRevision = String(repeating: "a", count: 40); state.stage = "drained"
   try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false) == .deferUnstarted, "precommit source restart is reversible")
+  state.stage = "failed"; state.lastProvenStage = "draining"; state.handoffStarted = false
+  try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false) == .deferUnstarted, "a busy refusal while draining is not an unknown install")
+  state.handoffStarted = true
+  try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false) == .unknown, "a started handoff stays uncertain")
+  state.handoffStarted = false; state.stage = "drained"; state.lastProvenStage = "drained"
   state.targetStarted = true
   try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: true) == .unknown, "never automatically downgrade after target start")
   try check(NativeUpdateRecovery.decide(state: state, buildId: "9.0.0+999", revision: String(repeating: "b", count: 40), committedWorkload: false) == .unknown, "new version without matching work receipt is not success")
