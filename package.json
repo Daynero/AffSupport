@@ -80,6 +80,7 @@
     "verify:soty-review": "npm run verify -w @video-compressor/soty-review",
     "check:tailwind-classes": "node scripts/check-tailwind-classes.mjs",
     "release:web": "node scripts/release-web-only.mjs",
+    "next:quick": "node scripts/next-quick.mjs",
     "beta:verify:web": "node scripts/verify-web-only.mjs",
     "runtime:mac": "node scripts/stage-macos-inputs.mjs",
     "updates:keys": "node scripts/generate-native-update-keys.mjs",

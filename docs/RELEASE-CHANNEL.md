@@ -34,6 +34,25 @@ npm run release:channel -- adopt-live --confirm   # один раз: запис�
 - Прод змінює лише `promote` / `rollback`, завжди з `--confirm` і лише за командою власника.
 - Стан і архів бандлів лежать у спільному `release/automation/release-channel/` основної копії репозиторію (видно з усіх воркдерев раннера). Історія операцій: `history.jsonl` поруч.
 
+## Швидкі ревізії на next (рішення власника 2026-11-16)
+
+next — для того, щоб власник за хвилини пробував фікси на реальних даних у своєму просторі.
+Повний раннер (Windows CI, Intel, нотаризовані інсталятори, packaged-beta) — це ворота перед продом,
+а не цикл для кожного фіксу.
+
+```bash
+npm run next:quick              # що змінилось від останньої публікації на next і що буде
+npm run next:quick -- --confirm # lint/typecheck/пов'язані тести → бекенд-план → Worker → сайт на next
+```
+
+- Лише закомічений код. Зміни, які мав би нести встановлений застосунок (`apps/agent`, `packaging`,
+  `packages/shared` крім версії), відмовляються — для них повний раннер.
+- Серверна частина спільна з продом: вона йде тим самим `plan-backend-release` + `apply-backend-plan`,
+  що й у раннері, з тими самими перевірками сумісності з випущеним застосунком.
+- Швидка публікація **не** записується в канал, тому `promote` відповідає `CHANNEL_NEXT_DRIFTED`,
+  доки повний реліз знову не опублікує next. На прод нічого не потрапляє без повних воріт.
+- Журнал: `release/automation/next-quick.jsonl`.
+
 ## Native macOS update archives
 
 Native archive metadata travels inside the same signed `stable.json` archived with the site. `next` can display the candidate installer, while the installed native host checks the promoted production origin by default. A tester's Mac opts into next's manifest at runtime — the build never carries a channel, because promote ships those very bytes to production: `defaults write local.video.compressor.test SotyUpdateChannel next`, then quit and reopen Soty (`defaults delete local.video.compressor.test SotyUpdateChannel` returns it to production). Only the two baked addresses are reachable, both verified with the same release manifest key.
