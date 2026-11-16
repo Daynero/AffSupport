@@ -335,8 +335,10 @@ export function TeamProvider({
     teamId: string;
     value: GlobalImageReadiness;
   } | null>(null);
-  // The policy is global: retain its proven epoch even across failed reads or space changes.
-  const globalPolicyWatermark = useRef({ epoch: 0, observedAt: 0 });
+  // Retain each space's proven epoch even across failed reads. Per space, not global: a
+  // pilot space works in the epoch T0 will open while the others are still a step behind
+  // (20261217100000), and one shared mark would hide every other space's answer.
+  const globalPolicyWatermark = useRef(new Map<string, { epoch: number; observedAt: number }>());
   useEffect(() => {
     if (!activeTeam || !client?.getGlobalCatalogImageReadiness) return;
     let current = true;
@@ -351,13 +353,19 @@ export function TeamProvider({
         .then(value => {
           if (current && generation === readGeneration) {
             const observedAt = Date.parse(value.observedAt);
-            const previous = globalPolicyWatermark.current;
+            const previous = globalPolicyWatermark.current.get(activeTeam.id) ?? {
+              epoch: 0,
+              observedAt: 0
+            };
             if (
               value.policyEpoch < previous.epoch ||
               (value.policyEpoch === previous.epoch && observedAt < previous.observedAt)
             )
               return;
-            globalPolicyWatermark.current = { epoch: value.policyEpoch, observedAt };
+            globalPolicyWatermark.current.set(activeTeam.id, {
+              epoch: value.policyEpoch,
+              observedAt
+            });
             setGlobalPolicy({ teamId: activeTeam.id, value });
           }
         })

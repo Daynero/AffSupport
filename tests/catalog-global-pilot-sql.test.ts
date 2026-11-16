@@ -28,7 +28,7 @@ const mode = async (team: string) =>
   )[0]!.mode;
 const readiness = async (team: string) =>
   (
-    await db.root<{ r: { reason: string; usable: boolean; state: string } }>(
+    await db.root<{ r: { reason: string; usable: boolean; state: string; policyEpoch: number } }>(
       'select public.service_catalog_global_readiness($1,$2) r',
       [owner, team]
     )
@@ -44,20 +44,24 @@ it('makes the pool active for a pilot space only, without activating the policy'
   expect(await mode(pilot)).toBe('global');
   expect(await mode(other)).toBe('legacy');
   // A pilot space is past the policy gate; it waits for verified serving, not for T0.
+  // The pilot works in the epoch T0 will open (epoch + 1); clients refuse a usable pool
+  // with epoch 0, which is what the pilot answered on next before 20261217100000.
   expect(await readiness(pilot)).toMatchObject({
     state: 'active',
-    reason: 'GLOBAL_IMAGE_READINESS_UNKNOWN'
+    reason: 'GLOBAL_IMAGE_READINESS_UNKNOWN',
+    policyEpoch: 1
   });
   expect(await readiness(other)).toMatchObject({
     state: 'prepared',
-    reason: 'GLOBAL_IMAGE_POLICY_CONFLICT'
+    reason: 'GLOBAL_IMAGE_POLICY_CONFLICT',
+    policyEpoch: 0
   });
   const policy = (
-    await db.root<{ state: string; activated: boolean }>(
-      'select state, activated_at is not null activated from private.catalog_global_policy where singleton'
+    await db.root<{ state: string; activated: boolean; epoch: string }>(
+      'select state, activated_at is not null activated, epoch::text from private.catalog_global_policy where singleton'
     )
   )[0]!;
-  expect(policy).toEqual({ state: 'prepared', activated: false });
+  expect(policy).toEqual({ state: 'prepared', activated: false, epoch: '0' });
 });
 
 it('lets the platform admin manage the pilot from the admin page, and nobody else', async () => {

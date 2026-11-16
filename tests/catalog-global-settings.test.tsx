@@ -310,3 +310,56 @@ it('keeps an authoritative active epoch when an older prepared reply arrives lat
   fireEvent(window, new Event('focus'));
   expect(read).toHaveBeenCalledTimes(calls);
 });
+
+function SwitchProbe({ to }: { to: string }) {
+  const { setActiveTeamId } = useTeam();
+  return <button onClick={() => setActiveTeamId(to)}>Switch space</button>;
+}
+it('reads each space on its own: a pilot epoch does not hide a later prepared space', async () => {
+  // 052 pilot on next: the pilot answers epoch 1 (active), every other space epoch 0
+  // (prepared). One shared watermark kept the pilot's answer for the other space too.
+  const pilotId = teamId;
+  const otherId = '52000000-0000-4000-8000-000000000002';
+  const team = (id: string, name: string) => ({
+    id,
+    name,
+    role: 'owner' as const,
+    permissions: DEFAULT_ROLE_PERMISSIONS.owner,
+    connectionState: 'connected' as const
+  });
+  const read = vi.fn(async (id: string): Promise<GlobalImageReadiness> =>
+    id === pilotId
+      ? {
+          contractVersion: 3,
+          policyEpoch: 1,
+          state: 'active',
+          usable: true,
+          reason: null,
+          observedAt: new Date().toISOString()
+        }
+      : {
+          contractVersion: 3,
+          policyEpoch: 0,
+          state: 'prepared',
+          usable: false,
+          reason: 'GLOBAL_IMAGE_POLICY_CONFLICT',
+          observedAt: new Date().toISOString()
+        }
+  );
+  const teams = [team(pilotId, 'Pilot'), team(otherId, 'Other')];
+  const client = { listTeams: vi.fn(async () => teams), getGlobalCatalogImageReadiness: read };
+  localStorage.setItem('wishly.active-team.v1', pilotId);
+  render(
+    <TeamProvider initialTeams={teams} client={client} realtime={false}>
+      <PolicyProbe />
+      <SwitchProbe to={otherId} />
+    </TeamProvider>
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId('global-policy').textContent).toBe('active:hidden')
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Switch space' }));
+  await waitFor(() =>
+    expect(screen.getByTestId('global-policy').textContent).toBe('prepared:legacy')
+  );
+});
