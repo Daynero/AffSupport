@@ -49,8 +49,9 @@ describe('automatic updater content', () => {
     expect(recipe.rows[1]).toMatchObject({
       pictureImage: image,
       contentPolicyVersion: 1,
-      material: '',
-      size: ''
+      // Owner decision 2026-11-16: automatic rows fill every detail column again.
+      material: expect.stringMatching(/\S/u),
+      size: expect.stringMatching(/\S/u)
     });
     expect(drawTexts).not.toHaveBeenCalled();
     expect(drawImages.mock.calls[0]?.[2]).toMatchObject({ scope: 'growth', attemptId: 'attempt' });
