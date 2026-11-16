@@ -222,7 +222,16 @@ export class TeamRecoveryWorker {
       ...r,
       endpoint: recoveryEndpoint(r.endpoint, this.options.environment)
     }));
-    this.#checkpoints = saved.checkpoints;
+    // A verdict an older build parked as "needs setup" is re-asked once by this one
+    // (owner QA on next, 2026-11-17): a single transient server failure answered as
+    // INVALID_RESPONSE used to leave a space's background work blocked for good, with
+    // «немає дозволу» on every page, even across restarts. A verdict that still holds
+    // is recorded again after one request; one that does not resumes on its own.
+    this.#checkpoints = saved.checkpoints.map(checkpoint =>
+      checkpoint.stage === 'blocked' && checkpoint.reason === 'needs_agent_setup'
+        ? { ...checkpoint, reason: 'retry_exhausted' }
+        : checkpoint
+    );
     for (const checkpoint of this.#checkpoints) {
       if (checkpoint.retryEpisodes)
         this.#episodes.set(checkpoint.delegationId, checkpoint.retryEpisodes);
@@ -1359,7 +1368,9 @@ export class TeamRecoveryWorker {
           'AUTH_REQUIRED',
           'PERMISSION_DENIED',
           'INVALID_INPUT',
-          'INVALID_RESPONSE',
+          // INVALID_RESPONSE is not here: the server answers it for a database failure
+          // it could not classify, and a malformed reply is just as likely to be
+          // transient. It takes the bounded retry path below (hourly at worst).
           'AGENT_UPDATE_REQUIRED'
         ] as const
       ).find(candidate => candidate === code);

@@ -65,7 +65,11 @@ Deno.serve(async request => {
               | 'SPACE_BLOCKED'
               | 'RATE_LIMITED'
               | 'AGENT_UPDATE_REQUIRED'
-              | 'PROCESS_RESULT_UNCERTAIN') ?? 'INVALID_RESPONSE'
+              | 'PROCESS_RESULT_UNCERTAIN') ??
+              // An unclassified database failure (timeout, lost connection) is
+              // transient: installed agents retry DRIVE_UNAVAILABLE, but parked
+              // INVALID_RESPONSE as a permanent verdict (next QA 2026-11-17).
+              'DRIVE_UNAVAILABLE'
           );
         return data;
       },
