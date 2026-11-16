@@ -212,7 +212,8 @@ it('duplicates one card through the paste operation, sharing concurrency and ret
   expect(client.copyTasks.mock.calls[1][0].idempotencyKey).toBe(
     client.copyTasks.mock.calls[0][0].idempotencyKey
   );
-  expect(result.current.copying).toBe(false);
+  // onPasted resolves inside the request; `copying` clears in its `finally`, a tick later.
+  await waitFor(() => expect(result.current.copying).toBe(false));
   rerender({ canEdit: false });
   act(() => result.current.duplicate([IDS[0]]));
   expect(client.copyTasks).toHaveBeenCalledTimes(2);
