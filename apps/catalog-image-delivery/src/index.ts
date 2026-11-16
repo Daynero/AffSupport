@@ -52,7 +52,9 @@ async function runtime(env: GlobalImageDeliveryEnv): Promise<GlobalImageDelivery
     environment: environment satisfies GlobalAliasEnvironment,
     canonicalOrigin: origin.origin,
     keys,
-    fetcher: fetch
+    // Called as deps.fetcher(...): a bare `fetch` would get `this` = deps, which the Workers
+    // runtime rejects with "Illegal invocation" (every alias answered 503 on next).
+    fetcher: (input, init) => fetch(input, init)
   };
 }
 export default {

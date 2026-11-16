@@ -35,7 +35,9 @@ export async function handleGlobalImageDelivery(
     const response = await deps.fetcher(
       new Request(canonical, {
         method: request.method,
-        redirect: 'error',
+        // Workers fetch rejects redirect 'error' with a TypeError; 'manual' turns any
+        // redirect into a non-200 response, which is refused below all the same.
+        redirect: 'manual',
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(15_000)])
       })
     );
@@ -76,7 +78,12 @@ export async function handleGlobalImageDelivery(
       }
     });
     return new Response(response.body.pipeThrough(bounded), { status: 200, headers });
-  } catch {
+  } catch (error) {
+    // Name and message only: never the alias, which is a bearer credential for the image.
+    console.error(
+      'global image delivery failed',
+      error instanceof Error ? `${error.name}: ${error.message}` : 'unknown'
+    );
     return failure(503);
   }
 }

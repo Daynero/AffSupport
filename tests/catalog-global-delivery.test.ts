@@ -5,6 +5,7 @@ import {
   verifyGlobalImageAlias
 } from '../packages/shared/src/team/catalog-global-alias.js';
 import { handleGlobalImageDelivery } from '../apps/catalog-image-delivery/src/handler.js';
+import delivery from '../apps/catalog-image-delivery/src/index.js';
 import { globalFixtureId } from './fixtures/catalog-global.js';
 
 const claims = {
@@ -16,6 +17,62 @@ const claims = {
 } as const;
 const key = () => importGlobalAliasKey(new Uint8Array(32).fill(7));
 describe('global media aliases', () => {
+  it('calls the platform fetch unbound, as the Workers runtime requires', async () => {
+    const k = await key(),
+      token = await signGlobalImageAlias({ ...claims, environment: 'production' }, k);
+    const platformFetch = vi.fn(function (this: unknown) {
+      // Workers: "Illegal invocation" when fetch is called with a foreign `this`.
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+      return Promise.resolve(
+        new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/jpeg' } })
+      );
+    });
+    vi.stubGlobal('fetch', platformFetch);
+    try {
+      const response = await delivery.fetch(
+        new Request(`https://images.example.test/g/${token}.jpg`),
+        {
+          CATALOG_IMAGES_ENVIRONMENT: 'production',
+          R2_CATALOG_PUBLIC_ORIGIN: 'https://images.example.test',
+          CATALOG_GLOBAL_ALIAS_KEYS: JSON.stringify({
+            '1': Buffer.from(new Uint8Array(32).fill(7)).toString('base64')
+          }),
+          CATALOG_GLOBAL_ROUTING_REVISION: 'r1',
+          CATALOG_GLOBAL_DELIVERY_CONFIRMATION: 'production:https://images.example.test:r1:1'
+        }
+      );
+      expect(response.status).toBe(200);
+      expect(platformFetch).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('fetches the canonical object the way the Workers runtime allows (no redirect: error)', async () => {
+    // Workers fetch throws on redirect 'error'; that made every alias answer 503 on next.
+    const k = await key(),
+      token = await signGlobalImageAlias(claims, k);
+    const deps = (fetcher: typeof fetch) => ({
+      environment: 'beta' as const,
+      canonicalOrigin: 'https://images.example.test',
+      keys: new Map([[1, k]]),
+      fetcher
+    });
+    const workersFetch = vi.fn<typeof fetch>(async input => {
+      if ((input as Request).redirect === 'error') throw new TypeError('Invalid redirect value');
+      return new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/jpeg' } });
+    });
+    const served = await handleGlobalImageDelivery(
+      new Request(`https://images.example.test/g/${token}.jpg`),
+      deps(workersFetch)
+    );
+    expect(served.status).toBe(200);
+    const redirected = await handleGlobalImageDelivery(
+      new Request(`https://images.example.test/g/${token}.jpg`),
+      deps(async () => new Response(null, { status: 302, headers: { location: 'https://x.test' } }))
+    );
+    expect(redirected.status).toBe(503);
+    expect(redirected.headers.get('location')).toBeNull();
+  });
   it('authenticates immutable image, generation, environment and MIME without expiry', async () => {
     const k = await key(),
       token = await signGlobalImageAlias(claims, k);
