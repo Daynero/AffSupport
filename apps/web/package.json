@@ -1,6 +1,6 @@
 {
   "name": "@video-compressor/web",
-  "version": "1.5.5",
+  "version": "1.5.6-next.93",
   "private": true,
   "type": "module",
   "scripts": {
