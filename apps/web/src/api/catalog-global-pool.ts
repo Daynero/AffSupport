@@ -188,12 +188,14 @@ export async function importPoolImages(
       if (input.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       const file = fileByKey.get(entry.fileKey);
       if (!file) throw new TeamApiError('IMAGE_SOURCE_CHANGED' as never, false);
-      const grant = await withCapacity(() =>
-        control(
-          'grant',
-          { jobId: job.id, entryId: entry.id, requestKey: `${key}:${entry.id}` },
-          isCatalogImageGrant
-        )
+      const grant = await withCapacity(
+        () =>
+          control(
+            'grant',
+            { jobId: job.id, entryId: entry.id, requestKey: `${key}:${entry.id}` },
+            isCatalogImageGrant
+          ),
+        input.signal
       );
       await uploadCatalogImage(grant, file, { signal: input.signal, onProgress: () => {} });
       await control('delivered', { jobId: job.id, entryId: entry.id }, isObject);
@@ -205,8 +207,14 @@ export async function importPoolImages(
   return { jobId: job.id, uploaded: progress.uploaded };
 }
 
-/** Only a definite staging-capacity refusal waits; anything else is the caller's. */
-async function withCapacity<T>(operation: () => Promise<T>): Promise<T> {
+/**
+ * Only a definite staging-capacity refusal waits; anything else is the caller's. At most
+ * eight files are in staging at once and the background worker drains them one by one,
+ * so a large folder outruns it for minutes at a time: wait it out instead of stopping.
+ */
+export const POOL_CAPACITY_WAIT_MS = 10 * 60_000;
+async function withCapacity<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  const deadline = Date.now() + POOL_CAPACITY_WAIT_MS;
   for (let attempt = 0; ; attempt++) {
     try {
       return await operation();
@@ -214,12 +222,13 @@ async function withCapacity<T>(operation: () => Promise<T>): Promise<T> {
       if (
         !(error instanceof TeamApiError) ||
         error.code !== ('IMAGE_UPLOAD_CAPACITY_BUSY' as never) ||
-        attempt >= 30
+        Date.now() >= deadline
       )
         throw error;
       await new Promise(resolve =>
-        setTimeout(resolve, Math.min(2000, 250 * 2 ** Math.min(attempt, 3)))
+        setTimeout(resolve, Math.min(5000, 250 * 2 ** Math.min(attempt, 5)))
       );
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     }
   }
 }
