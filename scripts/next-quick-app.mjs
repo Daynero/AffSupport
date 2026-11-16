@@ -269,6 +269,16 @@ try {
       { cwd }
     );
 
+  if (changed.some(file => file.startsWith('packaging/NativeUpdates/')))
+    step(
+      'native update checks (Swift)',
+      process.execPath,
+      ['scripts/verify-native-update-probe.mjs', '--native-boundaries'],
+      {
+        cwd
+      }
+    );
+
   // 4. macOS arm64 only.
   step(
     'package, sign and notarise macOS arm64',
