@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.3",
-  "buildNumber": "88",
-  "buildId": "1.5.3+88",
+  "version": "1.5.4",
+  "buildNumber": "89",
+  "buildId": "1.5.4+89",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
   "publishedAt": "2026-11-16T00:00:00.000Z",
   "summary": {
-    "uk": "Масові запуски й вибір завдань, автоматичні назви й ціни каталогів, підписаний застосунок для macOS.",
-    "en": "Bulk launches and task selection, automatic catalog titles and prices, and an Apple-signed macOS app."
+    "uk": "Загальний пул білих картинок (пілот), вкладка «Каталог» у налаштуваннях простору, автооновлення застосунку на macOS.",
+    "en": "Shared white image pool (pilot), the space Catalog tab, and native app updates on macOS."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-macOS-arm64.dmg",
-      "sha256": "35230308f1d9ce76c9540564c3510b9c4f4158179c52caf2c882d6e55d0b7cf8"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-macOS-x64.dmg",
-      "sha256": "85108805aad009beeaa52d36ca0d8786439aa0b97f4057243c003aca23cbf852"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.3/Soty-v1.5.3-Windows-x64.exe",
-      "sha256": "380c17db30b6cae6f65548d5f23a15d74ff78b77add1163e05c7030dd4608c5f"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.4/Soty-v1.5.4-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "HGge7PRWeQhWSYM2iOCMQOYGQGfbWG5-edeBGIlLOzMeRt2I8MZPpLI0S4HFXqwrb3uajQDpymkwLyzZH5qY-A"
+  "signature": "Y0RUbpQuid9QD2dRv9fadzHsVc-lF7817L4Tu6UG0PfFPRLBOQbCP1ueHn_U43V9gcSkPcfS3lqOvHkUclV1yg"
 }

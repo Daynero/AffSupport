@@ -6,9 +6,9 @@
  * contract is incompatible, while the supported range lets a web release keep
  * working with older compatible agents.
  */
-export const PRODUCT_VERSION = '1.5.3';
-export const BUNDLE_VERSION = '1.5.3';
-export const BUILD_NUMBER = '88';
+export const PRODUCT_VERSION = '1.5.4';
+export const BUNDLE_VERSION = '1.5.4';
+export const BUILD_NUMBER = '89';
 export const RELEASE_CHANNEL = 'stable';
 
 /**
