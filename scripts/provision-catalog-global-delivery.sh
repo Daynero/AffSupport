@@ -35,7 +35,7 @@ trap 'rm -f "$env_file"' EXIT
 chmod 600 "$env_file"
 printf 'CATALOG_GLOBAL_ALIAS_KEYS=%s\n' "$(cat "$keys")" >"$env_file"
 SUPABASE_ACCESS_TOKEN="$(sed -n 's/^SUPABASE_ACCESS_TOKEN=//p' config/keys/supabase-release-cli.env)" \
-  npx supabase secrets set --project-ref "$project_ref" --env-file "$env_file"
+  npx supabase secrets set --project-ref "$project_ref" --env-file "$env_file" --yes
 
 echo "✓ serving connected. Anonymous probe of the Worker (503 until the keyring reaches it is normal for a few seconds):"
 curl -s -o /dev/null -w '  /g/ probe → HTTP %{http_code}\n' https://catalog-images.soty.pp.ua/g/probe.jpg || true
