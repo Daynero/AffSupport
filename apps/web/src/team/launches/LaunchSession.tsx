@@ -590,11 +590,26 @@ export function LaunchSession({
     [teamId, draft.config, draft.resolveSources, t]
   );
   const sourceRefreshAfterRefusal = useRef(false);
+  // A SOURCE_CHANGED refusal means something the snapshot froze moved in the background
+  // (catalog pools, restitch or video settings): nothing the member did or has to read
+  // about. The sources are refreshed and the same Generate goes again once, unasked; only
+  // a second refusal in a row is shown (next QA 2026-11-17: "press Generate again").
+  const silentRegenerations = useRef(0);
+  const regenerateAfterRefresh = useRef(false);
+  const [regenerateTick, setRegenerateTick] = useState(0);
   useEffect(() => {
     if (!sourceRefreshAfterRefusal.current || inputLocked || !editable) return;
     sourceRefreshAfterRefusal.current = false;
-    void refreshSources(true).then(() => {
-      if (inputAuthority.current.mounted) setError(t('launchesSourcesRefreshed'));
+    void refreshSources(true).then(sources => {
+      if (!inputAuthority.current.mounted) return;
+      if (regenerateAfterRefresh.current) {
+        regenerateAfterRefresh.current = false;
+        if (sources) {
+          setRegenerateTick(tick => tick + 1);
+          return;
+        }
+      }
+      setError(t('launchesSourcesRefreshed'));
     });
   }, [inputLocked, editable, refreshSources, t]);
   const sourceIds = [
@@ -881,8 +896,9 @@ export function LaunchSession({
       ? t('launchesInvalidFields', { fields: labels.join(', ') })
       : t('launchesInvalid');
   };
-  const generate = async () => {
+  const generate = async (silent = false) => {
     if (generationClick.current || generation.busy || offerDefaults.loading) return;
+    if (!silent) silentRegenerations.current = 1;
     generationClick.current = true;
     const preflight = new AbortController();
     preflightAbort.current = preflight;
@@ -892,7 +908,7 @@ export function LaunchSession({
     setRequestErrorDefinitive(false);
     setPreflighting(true);
     try {
-      await generateRequested(preflight.signal);
+      await generateRequested(preflight.signal, silent);
     } catch (failure) {
       if (inputAuthority.current.mounted) {
         generation.blocked(failure instanceof TeamApiError ? failure.code : 'UNKNOWN');
@@ -904,7 +920,7 @@ export function LaunchSession({
       if (inputAuthority.current.mounted) setPreflighting(false);
     }
   };
-  const generateRequested = async (signal: AbortSignal) => {
+  const generateRequested = async (signal: AbortSignal, silent = false) => {
     if (generation.hasUnresolvedRequest) {
       setPreflighting(false);
       try {
@@ -1012,7 +1028,8 @@ export function LaunchSession({
             )
           : null
     };
-    if (active) setChangeReview(request);
+    // The member already reviewed the change on the click that was refused.
+    if (active && !silent) setChangeReview(request);
     else await executeGeneration(request);
   };
   const executeGeneration = async (submitted: GenerationRequest) => {
@@ -1037,13 +1054,24 @@ export function LaunchSession({
       await generation.generate(request.detail, request.config, request.sources, request.version);
     } catch (e) {
       if (!inputAuthority.current.mounted) return;
-      reportError(e);
       // Restitch settings or a file changed after the sources were resolved: refresh them
-      // once the editor unlocks, so the next Generate sends a current snapshot.
-      if (e instanceof TeamApiError && e.code === 'SOURCE_CHANGED')
+      // once the editor unlocks, and send the Generate again with the current snapshot.
+      if (e instanceof TeamApiError && e.code === 'SOURCE_CHANGED') {
         sourceRefreshAfterRefusal.current = true;
+        if (silentRegenerations.current > 0) {
+          silentRegenerations.current--;
+          regenerateAfterRefresh.current = true;
+          return;
+        }
+      }
+      reportError(e);
     }
   };
+  const regenerate = useRef(generate);
+  regenerate.current = generate;
+  useEffect(() => {
+    if (regenerateTick > 0) void regenerate.current(true);
+  }, [regenerateTick]);
   const resumeGeneration = async () => {
     if (!detail || generationClick.current || generation.busy || workingRef.current) return;
     generationClick.current = true;

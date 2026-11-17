@@ -1955,9 +1955,7 @@ it.each(['unassigned', 'released', 'legacy_unknown', 'mismatch', 'unknown'] as c
   }
 );
 
-it('refreshes stale sources after a SOURCE_CHANGED refusal so the next Generate is current', async () => {
-  // Beta 2026-11-09: restitch screens changed after the snapshot; Retry resent the stale
-  // snapshot forever and the page said "the file changed, open it again".
+async function renderAfterSourceChanged(refusals: number) {
   seams.edit = true;
   seams.realGeneration = true;
   const config = launchConfig();
@@ -1982,14 +1980,30 @@ it('refreshes stale sources after a SOURCE_CHANGED refusal so the next Generate 
     sourceAgentRowId: config.agentRowId
   });
   const { TeamApiError } = await import('../apps/web/src/api/team');
-  seams.generate.mockRejectedValueOnce(new TeamApiError('SOURCE_CHANGED', false));
+  for (let i = 0; i < refusals; i++)
+    seams.generate.mockRejectedValueOnce(new TeamApiError('SOURCE_CHANGED', false));
   render(<LaunchSpace teamId={TEAM} query={query} />);
   const generate = await screen.findByRole('button', { name: 'Generate launch' });
   await waitFor(() => expect(generate).toHaveProperty('disabled', false));
   fireEvent.click(generate);
   await waitFor(() => expect(seams.refreshSources).toHaveBeenCalled());
-  expect(await screen.findByText(/Sources are refreshed — press Generate again/)).toBeTruthy();
+}
+
+it('refreshes stale sources after a SOURCE_CHANGED refusal and generates again unasked', async () => {
+  // Beta 2026-11-09: restitch screens changed after the snapshot; Retry resent the stale
+  // snapshot forever and the page said "the file changed, open it again". next QA
+  // 2026-11-17: the refreshed sources then waited for a second click behind a notice the
+  // member had to read; the one click now goes through.
+  await renderAfterSourceChanged(1);
+  await waitFor(() => expect(seams.generate).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText(/press Generate again/)).toBeNull();
   expect(screen.queryByText(/open it again/i)).toBeNull();
+});
+
+it('asks for the click itself only when the sources change again under the silent retry', async () => {
+  await renderAfterSourceChanged(2);
+  expect(await screen.findByText(/Sources are refreshed — press Generate again/)).toBeTruthy();
+  expect(seams.generate).toHaveBeenCalledTimes(2);
 });
 
 it('explains a regenerate click while the copied launch sources are still being checked', async () => {
