@@ -3016,12 +3016,14 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
           { retryable: false }
         );
     },
-    applyVideoR2Option: async ({ teamId: _team, actorId, catalogMaterialId }) => {
+    applyVideoR2Option: async ({ teamId: _team, actorId, catalogMaterialId, queueCopy }) => {
       await rpcValue(service, 'service_catalog_video_r2_apply_create_option', {
         p_actor: actorId,
         p_catalog: catalogMaterialId,
         p_enabled: true
       });
+      // A published catalog's videos are copied by the publication that writes them.
+      if (!queueCopy) return;
       // Queue the first copy from the indexed source row; the next update flips the link.
       await rpcValue(service, 'service_catalog_video_r2_resolve_current', {
         p_catalog: catalogMaterialId,

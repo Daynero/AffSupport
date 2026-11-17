@@ -169,7 +169,32 @@ describe('catalog video R2 option at creation', () => {
     expect(f.deps.applyVideoR2Option).toHaveBeenCalledWith({
       teamId: TEAM,
       actorId: ACTOR,
-      catalogMaterialId: NEW_SHEET
+      catalogMaterialId: NEW_SHEET,
+      queueCopy: true
+    });
+  });
+
+  it('leaves the first copy to the publication for a catalog whose videos a publication writes', async () => {
+    // next QA 2026-11-17: queued at creation, the copy took the uploaded original — 78 MB
+    // that a re-stitched catalog never links. The publication resolves each video it writes.
+    const f = setup({ assert: 'ok' });
+    const result = await createProductCatalog(
+      f.deps,
+      body({
+        copyVideoToR2: true,
+        catalogVideoProtocolVersion: 1,
+        restitchEnabled: false,
+        videoVariationCount: 1,
+        videoPublication: { mode: 'immediate' }
+      }),
+      ACTOR
+    );
+    expect(result.outcome).toBe('created');
+    expect(f.deps.applyVideoR2Option).toHaveBeenCalledWith({
+      teamId: TEAM,
+      actorId: ACTOR,
+      catalogMaterialId: NEW_SHEET,
+      queueCopy: false
     });
   });
 
