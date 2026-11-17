@@ -12301,6 +12301,18 @@ export type GeneratedDatabase = {
         }[];
       };
       service_list_user_restitch_objects: { Args: { p_user: string }; Returns: string[] };
+      service_list_waiting_catalog_transcripts: {
+        Args: { p_connection: string; p_limit?: number; p_waited_seconds?: number };
+        Returns: {
+          checksum: string;
+          drive_file_id: string;
+          drive_version: string;
+          file_extension: string;
+          material_id: string;
+          mime_type: string;
+          resource_key: string;
+        }[];
+      };
       service_mark_catalog_update_unknown: {
         Args: { p_error: string; p_item: string; p_worker: string };
         Returns: boolean;

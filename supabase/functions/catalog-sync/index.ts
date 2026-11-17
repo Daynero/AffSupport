@@ -134,17 +134,19 @@ function catalogRow(file: DriveFileMetadata) {
   };
 }
 
-async function ingestPendingTranscripts(input: {
+interface TranscriptIngest {
   service: RpcClient;
   drive: GoogleDriveClient;
-  connectionId: string;
-  files: DriveFileMetadata[];
   countProviderCall: () => void;
   /** Asked before each commit (028): a stale worker must not write a transcript. */
   leaseLive?: () => Promise<boolean>;
   /** The job completed first; see `leaseReleased` on the engine's dependency. */
   leaseReleased?: boolean;
-}): Promise<void> {
+}
+
+async function ingestPendingTranscripts(
+  input: TranscriptIngest & { connectionId: string; files: DriveFileMetadata[] }
+): Promise<void> {
   if (input.files.length === 0) return;
   await rpcValue(input.service, 'service_requeue_catalog_transcripts', {
     p_connection: input.connectionId,
@@ -156,18 +158,49 @@ async function ingestPendingTranscripts(input: {
       file_extension: fileExtension(file.name)
     }))
   });
+  const listed = new Set(input.files.map(file => file.id));
   const targets = rows(
     await rpcValue(input.service, 'service_list_pending_catalog_transcripts', {
       p_connection: input.connectionId,
-      p_file_ids: input.files.map(file => file.id)
+      p_file_ids: [...listed]
     })
-  );
-  const files = new Map(input.files.map(file => [file.id, file]));
+  ).filter(target => listed.has(requiredString(target, 'drive_file_id')));
+  await ingestTranscriptTargets(input, targets);
+}
+
+/**
+ * Transcripts nothing else will read (incident 2026-11-17): rows a folder walk
+ * wrote, or ones an earlier ingest could not commit. After the job completed,
+ * so there is no lease to ask for; the commit is fenced by the row's own
+ * version and checksum. Never fails the poll that carries it.
+ */
+async function sweepWaitingTranscripts(
+  input: TranscriptIngest & { connectionId: string }
+): Promise<void> {
+  try {
+    const targets = rows(
+      await rpcValue(input.service, 'service_list_waiting_catalog_transcripts', {
+        p_connection: input.connectionId,
+        p_limit: 20,
+        p_waited_seconds: 120
+      })
+    );
+    await ingestTranscriptTargets({ ...input, leaseReleased: true }, targets);
+  } catch (cause) {
+    console.warn('catalog_transcript_sweep_failed', {
+      connectionId: input.connectionId,
+      code: mapUnknownError(cause).code
+    });
+  }
+}
+
+async function ingestTranscriptTargets(
+  input: TranscriptIngest,
+  targets: Record<string, unknown>[]
+): Promise<void> {
   const ingestOne = async (target: Record<string, unknown>): Promise<void> => {
     const materialId = requiredString(target, 'material_id');
     const driveFileId = requiredString(target, 'drive_file_id');
-    const file = files.get(driveFileId);
-    if (!file) return;
     let state: 'full' | 'truncated' | 'invalid_encoding' | 'unavailable';
     let text: string | null = null;
     let indexedBytes = 0;
@@ -193,6 +226,9 @@ async function ingestPendingTranscripts(input: {
       state = 'unavailable';
       errorCode = deferredError.code;
     }
+    // No job is left to retry a passing Drive failure once the lease is back:
+    // the row stays pending, and the next sweep reads it again.
+    if (deferredError?.retryable && input.leaseReleased) return;
     if (input.leaseLive && !(await input.leaseLive())) throw new CatalogLeaseLostError();
     const committed = await rpcValue(input.service, 'service_commit_catalog_transcript', {
       p_material: materialId,
@@ -208,9 +244,7 @@ async function ingestPendingTranscripts(input: {
     if (committed !== true) {
       console.warn('catalog_transcript_commit_skipped', { materialId, driveFileId });
     }
-    // With the lease already handed back there is no job left to retry: the
-    // row says `unavailable`, and the next change to the file requeues it.
-    if (deferredError?.retryable && !input.leaseReleased) throw deferredError;
+    if (deferredError?.retryable) throw deferredError;
   };
   // Transcript downloads are independent. A serial loop made one slow Drive file hold the
   // catalog lease while the browser kept receiving progress events, so the visible counter
@@ -544,6 +578,13 @@ function dependencies(input: {
         files: request.files,
         countProviderCall,
         ...(request.leaseReleased ? { leaseReleased: true } : { leaseLive })
+      }),
+    sweepWaitingTranscripts: request =>
+      sweepWaitingTranscripts({
+        service,
+        drive,
+        connectionId: request.connectionId,
+        countProviderCall
       }),
     checkpoint: request =>
       rpcValue(service, 'service_save_catalog_sync_progress', {

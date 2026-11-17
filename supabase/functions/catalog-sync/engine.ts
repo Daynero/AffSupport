@@ -132,6 +132,12 @@ export interface CatalogSyncDependencies {
      */
     leaseReleased?: boolean;
   }) => Promise<unknown>;
+  /**
+   * Transcripts still waiting for their text after the feed's own turn: rows a
+   * folder walk wrote, which never reads them, or ones a commit missed. Asked
+   * after each completed poll; it must not fail the poll.
+   */
+  sweepWaitingTranscripts?: (input: { jobId: string; connectionId: string }) => Promise<unknown>;
   checkpoint: (input: {
     jobId: string;
     connectionId: string;
@@ -504,6 +510,10 @@ async function runChanges(
    * 2 to 3 within minutes of the upload, so the last page is where they land.
    */
   await ingestDeferredTranscripts(job, dependencies, transcripts, { leaseReleased: true });
+  await dependencies.sweepWaitingTranscripts?.({
+    jobId: job.jobId,
+    connectionId: job.connectionId
+  });
   return { phase: 'incremental', processed: page.changes.length };
 }
 

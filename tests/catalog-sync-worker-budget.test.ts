@@ -167,6 +167,10 @@ describe('a replay page checkpoints before its transcripts', () => {
       }),
       requeueTranscripts: vi.fn(async () => {
         order.push('transcripts');
+      }),
+      // What a folder walk wrote and never read is picked up after every poll.
+      sweepWaitingTranscripts: vi.fn(async () => {
+        order.push('sweep');
       })
     });
     const incremental: CatalogSyncJob = {
@@ -177,7 +181,11 @@ describe('a replay page checkpoints before its transcripts', () => {
       changeToken: 'page-1'
     };
     await runCatalogSyncJob(incremental, deps, { budgetMs: 1_000 });
-    expect(order).toEqual(['complete', 'transcripts']);
+    expect(order).toEqual(['complete', 'transcripts', 'sweep']);
+    expect(deps.sweepWaitingTranscripts).toHaveBeenCalledWith({
+      jobId: incremental.jobId,
+      connectionId: incremental.connectionId
+    });
     expect(deps.requeueTranscripts).toHaveBeenCalledWith(
       expect.objectContaining({ leaseReleased: true })
     );
