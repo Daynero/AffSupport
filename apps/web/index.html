@@ -87,12 +87,18 @@
       // HTML, and the browser keeps that answer for hours; every reload then
       // fails on the same file. So before reloading, every module the page
       // names is fetched again past the cache, which replaces the bad copy.
+      //
+      // A stylesheet poisons the same way (next 2026-11-17: the app's CSS came
+      // back as HTML for four hours), and that failure hydrates: the app runs,
+      // unstyled, and nothing above noticed. A stylesheet the browser refused
+      // has no `sheet`, so a hydrated page with one gets the same refetch and
+      // one reload; it never gets the failure screen over a working app.
       (function () {
         var recoveryKey = 'soty.boot-recovery.v1';
 
         function refetchModules(done) {
           var nodes = document.querySelectorAll(
-            'script[type="module"][src], link[rel="modulepreload"][href]'
+            'script[type="module"][src], link[rel="modulepreload"][href], link[rel="stylesheet"][href]'
           );
           var pending = [];
           for (var i = 0; i < nodes.length; i += 1) {
@@ -120,8 +126,20 @@
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (!root || root.childElementCount > 0) {
+            var styles = document.querySelectorAll('link[rel="stylesheet"][href]');
+            var unstyled = false;
+            for (var s = 0; s < styles.length; s += 1) {
+              if (!styles[s].sheet) unstyled = true;
+            }
             try {
-              sessionStorage.removeItem(recoveryKey);
+              if (!unstyled) {
+                sessionStorage.removeItem(recoveryKey);
+              } else if (!sessionStorage.getItem(recoveryKey)) {
+                sessionStorage.setItem(recoveryKey, '1');
+                refetchModules(function () {
+                  location.reload();
+                });
+              }
             } catch (e) {}
             return;
           }
