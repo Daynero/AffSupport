@@ -33,8 +33,11 @@ it('claims each re-verification in its own transaction, five minutes apart, at m
 
 it('lists genuine recovery first and registered intents only while owed, unpaced and not exhausted', async () => {
   const listing = await def('public.service_list_initial_catalog_recovery(integer)');
-  expect(listing).toContain("order by (i.state='registered'),i.next_attempt_at,i.id limit p_limit");
-  expect(listing).toContain('(r.exhausted_at is not null or r.retry_after>statement_timestamp())');
+  // Read column by column since 20261217130000; the order and the pacing are the same.
+  expect(listing).toContain("order by (o.state = 'registered'), o.next_attempt_at, o.id");
+  expect(listing).toContain(
+    '(r.exhausted_at is not null or r.retry_after > statement_timestamp())'
+  );
   const owed = await def(
     'private.initial_publication_reverify_owed(private.catalog_generation_intents)'
   );

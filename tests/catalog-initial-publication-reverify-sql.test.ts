@@ -20,11 +20,12 @@ it('lists registered intents with an open initial check and paces their retries'
       `select pg_get_functiondef('public.service_list_initial_catalog_recovery(integer)'::regprocedure) d`
     )
   )[0]!.d;
-  // 194000 moved the registered branch behind a committed pacing claim.
-  expect(listing).toContain('private.initial_publication_reverify_owed(i)');
+  // 194000 moved the registered branch behind a committed pacing claim; 20261217130000
+  // asks the owed test column by column (catalog-initial-recovery-listing-by-column-sql).
+  expect(listing).toContain('from private.catalog_initial_publication_reverify r');
   // The interrupted branch is unchanged.
-  expect(listing).toContain(
-    "(i.state in('interrupted','create_started','created','finalized') and i.next_attempt_at<=statement_timestamp()"
+  expect(listing).toMatch(
+    /\(i\.state in \('interrupted', 'create_started', 'created', 'finalized'\)\s+and i\.next_attempt_at <= statement_timestamp\(\)/u
   );
   const begin = (
     await db.root<{ d: string }>(
