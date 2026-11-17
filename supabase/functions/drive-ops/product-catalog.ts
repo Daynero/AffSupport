@@ -144,11 +144,18 @@ export interface ProductCatalogDeps {
   assertImageContract?(teamId: string, version: 2 | 3 | undefined): Promise<void>;
   /** 050: refuse `copyVideoToR2` before any side effect unless the feature is available and the actor may manage catalog settings. */
   assertVideoR2Option?(teamId: string, actorId: string): Promise<void>;
-  /** 050: record the option on the registered catalog and queue its first copy. */
+  /**
+   * 050: record the option on the registered catalog and, when `queueCopy`, queue the first
+   * copy of its current video. A catalog whose videos a publication writes (protocol 1) does
+   * not queue one: the publication resolves each video it writes, and the catalog's current
+   * video before then is the uploaded original, which a re-stitched catalog never links
+   * (next QA 2026-11-17: 78 MB copied for nothing).
+   */
   applyVideoR2Option?(input: {
     teamId: string;
     actorId: string;
     catalogMaterialId: string;
+    queueCopy: boolean;
   }): Promise<void>;
   bindGlobalImageCatalog?(teamId: string, intentId: string, materialId: string): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
@@ -776,7 +783,8 @@ export async function createProductCatalog(
         await deps.applyVideoR2Option?.({
           teamId,
           actorId,
-          catalogMaterialId: committed.materialId
+          catalogMaterialId: committed.materialId,
+          queueCopy: request.catalogVideoProtocolVersion !== 1
         });
       return {
         outcome: replaces ? 'recreated' : 'created',
