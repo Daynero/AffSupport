@@ -167,6 +167,15 @@ describe('installer upgrade path', () => {
     expect(installer).toMatch(/Flags: uninsdeletevalue/u);
   });
 
+  it('leaves a way to start Soty again without the installer', () => {
+    // Quitting from the tray, or a host that died, used to leave a Windows user
+    // nothing to click but a fresh download of this installer.
+    const icons = installer.slice(installer.indexOf('[Icons]'));
+    expect(installer).toMatch(/^\[Icons\]$/mu);
+    expect(icons).toMatch(/Name: "\{group\}\\Soty"; Filename: "\{app\}\\SotyAgentHost\.exe"/u);
+    expect(icons).toMatch(/Name: "\{autodesktop\}\\Soty"; Filename: "\{app\}\\SotyAgentHost\.exe"/u);
+  });
+
   it('stops the host on uninstall', () => {
     expect(installer).toMatch(/\[UninstallRun\]/u);
     expect(installer).toMatch(/taskkill \/IM SotyAgentHost\.exe/u);

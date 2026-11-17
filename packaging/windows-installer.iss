@@ -65,6 +65,16 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdir
 ; The compiled tray host (packaging/windows/, built with `dotnet publish`).
 Source: "{#HostDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut"
+
+[Icons]
+; Without a shortcut the only way back to a Soty someone quit from the tray, or
+; one that died, was to download and run this installer again (2026-11-17).
+; Inno removes both on uninstall.
+Name: "{group}\Soty"; Filename: "{app}\SotyAgentHost.exe"
+Name: "{autodesktop}\Soty"; Filename: "{app}\SotyAgentHost.exe"; Tasks: desktopicon
+
 [Registry]
 ; Autostart for the current user; uninsdeletevalue removes it on uninstall.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
