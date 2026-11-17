@@ -324,7 +324,7 @@ it('uses the observed-round stop RPC and never falls back to an unfenced stop on
     p_expected_round: observed.roundAt,
     p_expected_attempt: null
   });
-  rpc.mockResolvedValueOnce({ error: { message: 'STALE_RESULT', code: '40001' }, data: null });
+  rpc.mockResolvedValueOnce({ error: { message: 'STALE_RESULT', code: 'PT409' }, data: null });
   await expect(teamApi.cancelCatalogUpdate('team', 'catalog', observed)).rejects.toMatchObject({
     code: 'STALE_RESULT'
   });
