@@ -129,6 +129,14 @@
       "note": "Multi-selection opt-in for the storage list."
     },
     {
+      "name": "VITE_NEXT_BUILD_LABEL",
+      "surface": "web",
+      "required": [],
+      "secret": false,
+      "format": "any",
+      "note": "Set only by next:quick: the next badge names the offered app build and the site commit. Absent means the badge shows the release build id."
+    },
+    {
       "name": "VITE_ANALYTICS_ENABLED",
       "surface": "web",
       "required": [],

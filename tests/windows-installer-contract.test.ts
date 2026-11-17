@@ -173,7 +173,9 @@ describe('installer upgrade path', () => {
     const icons = installer.slice(installer.indexOf('[Icons]'));
     expect(installer).toMatch(/^\[Icons\]$/mu);
     expect(icons).toMatch(/Name: "\{group\}\\Soty"; Filename: "\{app\}\\SotyAgentHost\.exe"/u);
-    expect(icons).toMatch(/Name: "\{autodesktop\}\\Soty"; Filename: "\{app\}\\SotyAgentHost\.exe"/u);
+    expect(icons).toMatch(
+      /Name: "\{autodesktop\}\\Soty"; Filename: "\{app\}\\SotyAgentHost\.exe"/u
+    );
   });
 
   it('stops the host on uninstall', () => {

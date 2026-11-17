@@ -19,9 +19,7 @@ describe('migrations after the 40001 cutover', () => {
   it('never raise a business error as a serialization failure', () => {
     const offenders = readdirSync(MIGRATIONS)
       .filter(name => /^\d{14}_.*\.sql$/u.test(name) && name.slice(0, 14) > CUTOVER)
-      .filter(name =>
-        /errcode\s*=\s*'40001'/iu.test(readFileSync(join(MIGRATIONS, name), 'utf8'))
-      );
+      .filter(name => /errcode\s*=\s*'40001'/iu.test(readFileSync(join(MIGRATIONS, name), 'utf8')));
     expect(offenders).toEqual([]);
   });
 });
