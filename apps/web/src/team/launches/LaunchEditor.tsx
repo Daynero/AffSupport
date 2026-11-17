@@ -11,7 +11,6 @@ import {
   launchSubPreview,
   isLaunchUrl,
   missingLaunchSubSlots,
-  launchPixel,
   type LaunchDraft,
   type LaunchSourceSnapshot,
   type TeamAccountSummary
@@ -37,6 +36,7 @@ import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
 import { LaunchDateField } from './LaunchDateField';
+import { launchPixel } from './launchPixel';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
 import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   patchLaunchUrl,
-  launchPixel,
   normalizeLaunchSub,
   isLaunchUrl,
   missingLaunchSubSlots
 } from '../packages/shared/src/team/launches.js';
+import { launchPixel } from '../apps/web/src/team/launches/launchPixel';
 describe('lossless Launch URL', () => {
   it('changes only literal SUB values, retains duplicates and macros', () => {
     const original =
