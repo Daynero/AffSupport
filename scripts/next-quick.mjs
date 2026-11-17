@@ -247,8 +247,12 @@ try {
       writeFileSync(manifestPath, git('show', `${app.buildSha}:${manifestPath}`) + '\n');
       process.stdout.write(`  keeping the app build ${app.version} offered on next\n`);
     }
+    // The badge on next says what is served: the offered app build and this site's commit.
+    const label = `${app ? app.version : 'site'} · web ${head.slice(0, 7)}`;
     try {
-      step('build site', 'npm', ['run', '--silent', 'build:web']);
+      step('build site', 'npm', ['run', '--silent', 'build:web'], {
+        env: { ...process.env, VITE_NEXT_BUILD_LABEL: label }
+      });
     } finally {
       writeFileSync(manifestPath, releaseManifest);
     }
