@@ -14,7 +14,7 @@
   "artifacts": {
     "macos-arm64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.6-next.97/Soty-v1.5.6-next.97-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "sha256": "607a547cb5941e99a202cc8f5a14ce7c9ad86f2dc2aca6f15e37ca0b723556a2"
     },
     "macos-x64": {
       "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.5/Soty-v1.5.5-macOS-x64.dmg",
@@ -47,5 +47,25 @@
       "teamWorkspace": 1
     }
   },
-  "platformSetVersion": 2
+  "platformSetVersion": 2,
+  "nativeUpdates": {
+    "macos-arm64": {
+      "schemaVersion": 1,
+      "channel": "stable",
+      "target": "macos-arm64",
+      "version": "1.5.6-next.97",
+      "buildNumber": "97",
+      "buildId": "1.5.6-next.97+97",
+      "sourceRevision": "8741d6b715fbcafc7a2a2b4e10e92af4c9df79c7",
+      "minimumSystemVersion": "15.5",
+      "publisherTeamId": "A3V2L73L2N",
+      "archive": {
+        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.6-next.97/Soty-v1.5.6-next.97-macOS-arm64.zip",
+        "length": 179884092,
+        "sha256": "4dd8119e4fa984c70ea0724fe957ab24a3073c6cf963c839fa51ae01e9c15399",
+        "edSignature": "u1zOzWs94Nqeq2VOgq4gssIJybb/CJqTGgSYOC4jqgtXeW7wqF6aDk5/7NE0S8kMoog539Rn7tyBFUv/gct7Ag=="
+      }
+    }
+  },
+  "signature": "gvPscby8XzhBqM7h6cNygHSGeFVpB6_tnWZaCCQnmZqvW8hKUU3Z2w4vWeXkVu9ofHabCj36kt2ciDvV1o-XpA"
 }
