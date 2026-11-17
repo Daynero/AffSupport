@@ -45,6 +45,13 @@ export function ImagePoolPanel() {
   }, []);
   useEffect(() => {
     void refresh();
+    // Serving is proven every half minute and reads as stale after five: an overview
+    // read once said «Роздача не перевірена» on a page left open, while the pool served
+    // (next QA, 2026-11-17). Counts and uses move on their own too.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 60_000);
+    return () => window.clearInterval(timer);
   }, [refresh]);
 
   if (problem && !overview)
