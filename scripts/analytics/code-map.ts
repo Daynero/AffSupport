@@ -732,6 +732,11 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     check:
       'Read the correlated attempt and native receipt revision. Native readiness and browser visibility are separate; missing or delayed receipts remain unknown.'
   },
+  'update:native_update_flush_refused': {
+    files: ['apps/agent/src/index.ts', 'apps/agent/src/update/coordinator.ts'],
+    check:
+      'The participant prop names which part refused the update drain (team_recovery, catalog_foreground, native_restitch, module_<tool>); error_code is its own code, usually APP_UPDATE_BUSY.'
+  },
   'update:drain_requested': {
     files: [AGENT_QUEUE],
     check: 'An update asked the queues to drain; new work is refused until restart.'

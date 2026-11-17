@@ -993,10 +993,36 @@ async function flushUpdateWorkload() {
     saveStitcherState(stitchQueue.state(), undefined, true)
   );
   await stitcherSaveChain;
-  await teamRecoveryWorker.flushForUpdate();
-  await catalogForeground?.flushForUpdate();
-  await nativeRestitchController?.flushForUpdate();
-  for (const module of modules) await module.flushForUpdate?.();
+  // Which part refused is recorded: «APP_UPDATE_BUSY» alone left a refused update on
+  // the owner's Mac to be diagnosed by elimination (next QA, 2026-11-17).
+  const participant = async (name: string, flush: (() => Promise<void>) | undefined) => {
+    try {
+      await flush?.();
+    } catch (error) {
+      diagnosticsLog.record('update', 'native_update_flush_refused', {
+        participant: name,
+        error_code:
+          error instanceof Error && /^[A-Z_]{3,64}$/u.test(error.message)
+            ? error.message
+            : 'unknown'
+      });
+      throw error;
+    }
+  };
+  await participant('team_recovery', () => teamRecoveryWorker.flushForUpdate());
+  await participant(
+    'catalog_foreground',
+    catalogForeground && (() => catalogForeground.flushForUpdate())
+  );
+  await participant(
+    'native_restitch',
+    nativeRestitchController && (() => nativeRestitchController.flushForUpdate())
+  );
+  for (const module of modules)
+    await participant(
+      `module_${module.id}`,
+      module.flushForUpdate && (() => module.flushForUpdate!())
+    );
   await powerSaveChain;
   await savePowerLimit(powerGovernor.limitPercent());
   await diagnosticsLog.flushForUpdate();
