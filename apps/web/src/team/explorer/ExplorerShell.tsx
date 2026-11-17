@@ -37,6 +37,7 @@ import {
   X
 } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { usePaneArrival } from './usePaneArrival';
 import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -1315,6 +1316,7 @@ function ExplorerBody({
     [selectedRows]
   );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
+  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null);
 
   /**
    * The original, saved to this computer.
@@ -1653,7 +1655,7 @@ function ExplorerBody({
       /* The detail pane arrives with a selection (024, FR-091). At rest it was a
          third of the width saying "choose a file to see it here", and the list
          cut its own last column to make room for that sentence. */
-      className={`team-panel team-explorer${trash || searching || !focused ? '' : ' has-pane'}${
+      className={`team-panel team-explorer${paneShown ? ' has-pane' : ''}${
         treeOpen ? ' is-tree-open' : ''
       }`}
     >
@@ -2165,7 +2167,7 @@ function ExplorerBody({
         )}
         {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
       </div>
-      {!trash && !searching && focused && (
+      {paneShown && focused && (
         <PreviewPane
           row={focused}
           client={client}

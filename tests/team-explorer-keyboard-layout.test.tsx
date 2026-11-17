@@ -135,6 +135,22 @@ describe('explorer keyboard', () => {
       )
     );
   });
+
+  it('waits out a double-click before the pane narrows the list', async () => {
+    renderShell(makeClient([row(1)]));
+    await screen.findByText('file-1.png');
+    fireEvent.click(document.querySelector('.team-explorer-row')!);
+    await waitFor(() =>
+      expect(document.querySelector('.team-explorer-row.is-selected')).not.toBeNull()
+    );
+    // next QA 2026-11-17: the pane used to arrive with the first press, the list
+    // reflowed, and the second press of a double-click landed on the pane.
+    expect(document.querySelector('.team-explorer.has-pane')).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Selected item' })).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByRole('complementary', { name: 'Selected item' })).toBeTruthy()
+    );
+  });
 });
 
 describe('showing a file in its folder', () => {
