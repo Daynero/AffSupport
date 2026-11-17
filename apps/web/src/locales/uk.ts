@@ -651,6 +651,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesSectionAudience: 'Аудиторія й дата',
   launchesSectionMethod: 'Що створити',
   launchesSectionLinks: 'Посилання запуску',
+  launchesPixel: 'Піксель {pixel}',
   launchesPreviewHelp: 'Перевірте назви кампаній, бюджети й діапазони оголошень перед запуском.',
   launchesPreviewCount: '{count} {campaigns}',
   launchesSubSettings: 'Підстановка значень у посилання',

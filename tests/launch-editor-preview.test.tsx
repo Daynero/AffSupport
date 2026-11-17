@@ -144,6 +144,34 @@ it('keeps incomplete URL neutral until edited, then explains validation errors',
   expect(notice?.getAttribute('data-reserve')).toContain('SUB1, SUB2, SUB3');
 });
 
+it('names the pixel the launch link carries above the field, and nothing when it has none', () => {
+  function Host() {
+    const [config, setConfig] = React.useState<LaunchDraft>(() => newLaunchDraft());
+    return (
+      <LaunchEditor
+        teamId="team"
+        config={config}
+        sources={null}
+        accounts={[]}
+        offers={[]}
+        buyers={[]}
+        disabled={false}
+        onChange={patch => setConfig(current => ({ ...current, ...patch }))}
+        onRefreshSources={vi.fn()}
+      />
+    );
+  }
+  render(<Host />);
+  const url = screen.getByRole('textbox', { name: 'URL' });
+  expect(document.querySelector('.launch-editor-pixel')).toBeNull();
+  fireEvent.change(url, {
+    target: { value: 'https://example.invalid/?sub_1=a&fb_pixel=965510142880871&sub_3=c' }
+  });
+  expect(document.querySelector('.launch-editor-pixel')?.textContent).toBe('Pixel 965510142880871');
+  fireEvent.change(url, { target: { value: 'https://example.invalid/?fb_pixel={{pixel}}' } });
+  expect(document.querySelector('.launch-editor-pixel')).toBeNull();
+});
+
 it('explains an empty required Buyer after submit without tinting the field background', () => {
   render(
     <LaunchEditor

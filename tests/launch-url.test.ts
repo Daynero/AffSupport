@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   patchLaunchUrl,
+  launchPixel,
   normalizeLaunchSub,
   isLaunchUrl,
   missingLaunchSubSlots
@@ -106,4 +107,26 @@ it('never treats a question mark inside the fragment as a SUB query', () => {
   const original = 'https://example.invalid/#fragment?sub_1=x&sub_2=y&sub_3=z';
   expect(missingLaunchSubSlots(original)).toEqual(['sub1', 'sub2', 'sub3']);
   expect(patchLaunchUrl(original, { sub1: 'new', sub2: 'new', sub3: 'new' })).toBe(original);
+});
+
+describe('launchPixel', () => {
+  it('reads the Facebook pixel a launch link names', () => {
+    expect(
+      launchPixel(
+        'https://krufgoh.com?fb_ad_name={{ad.name}}&sub_3=000&fb_pixel=965510142880871&fb_capi_token=x'
+      )
+    ).toBe('965510142880871');
+    expect(launchPixel('https://example.com/?Pixel_Id=1003872552210319#fb_pixel=1')).toBe(
+      '1003872552210319'
+    );
+  });
+
+  it('shows nothing when the link names no literal pixel', () => {
+    expect(launchPixel('https://example.com/?sub_1=a&sub_2=b')).toBeNull();
+    expect(launchPixel('https://example.com/?fb_pixel={{pixel}}')).toBeNull();
+    expect(launchPixel('https://example.com/?fb_pixel=')).toBeNull();
+    expect(launchPixel('https://example.com/#?fb_pixel=965510142880871')).toBeNull();
+    expect(launchPixel('https://example.com/?fb_pixel=%E0%A4%A')).toBeNull();
+    expect(launchPixel(undefined)).toBeNull();
+  });
 });

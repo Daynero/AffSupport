@@ -36,10 +36,26 @@
   gap: var(--space-4);
 }
 .launch-editor-link-field {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: var(--space-3);
+}
+/* The pixel the link names, on the label's line at its far end. */
+.launch-editor-pixel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  max-width: 55%;
+  overflow: hidden;
+  line-height: var(--space-6);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
 }
 .launch-editor-link-field .ui-field-control {
   display: flex;

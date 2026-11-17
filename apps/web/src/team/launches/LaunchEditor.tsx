@@ -11,6 +11,7 @@ import {
   launchSubPreview,
   isLaunchUrl,
   missingLaunchSubSlots,
+  launchPixel,
   type LaunchDraft,
   type LaunchSourceSnapshot,
   type TeamAccountSummary
@@ -364,6 +365,7 @@ export function LaunchEditor({
   const missingSubSlots = isLaunchUrl(config.originalUrl)
     ? missingLaunchSubSlots(config.originalUrl)
     : [];
+  const pixel = launchPixel(config.originalUrl);
   const subOpenIds =
     subSettingsOpen || (submitted && invalidSubSettings)
       ? new Set(['launch-sub-settings'])
@@ -416,6 +418,13 @@ export function LaunchEditor({
                 />
               </div>
               <div className="launch-editor-link-field">
+                {pixel && (
+                  // The buyer checks which pixel a launch fires before it goes out; the
+                  // link is too long to find fb_pixel in by eye.
+                  <span className="launch-editor-pixel" title={pixel}>
+                    {t('launchesPixel', { pixel })}
+                  </span>
+                )}
                 {field(
                   'originalUrl',
                   'launchesSectionLinks',

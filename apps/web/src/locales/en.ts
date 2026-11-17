@@ -652,6 +652,7 @@ export const en = {
   launchesSectionAudience: 'Audience and date',
   launchesSectionMethod: 'What to create',
   launchesSectionLinks: 'Launch link',
+  launchesPixel: 'Pixel {pixel}',
   launchesPreviewHelp: 'Review the campaign names, budgets and ad number ranges before generating.',
   launchesPreviewCount: '{count} {campaigns}',
   launchesSubSettings: 'Fill values in the URL',
