@@ -499,6 +499,26 @@ export function LibraryProcessingProvider({
       summarize(counts);
       return;
     }
+    /*
+     * The queue is pinned to each file's Drive version, and Drive moves a fresh
+     * upload's version on its own while it settles. A requirement written at
+     * Start for version 9 cannot be claimed once the file says 11, so the
+     * server answers NO_WORK with those files untouched (incident 2026-11-17:
+     * seventeen of twenty-six, then "complete"). The answer to that NO_WORK is
+     * the same press of Start again: requeue at today's versions and carry on.
+     * Only after a claim, so a queue that is truly empty ends at once.
+     */
+    let claimedSinceQueue = 0;
+    const requeueDrifted = async (): Promise<number> => {
+      try {
+        const refreshed: Partial<LibraryRequirementScanResult> =
+          await client.scanLibraryRequirements(teamId, language, sources, true, pendingKinds);
+        const created = refreshed.created;
+        return (created?.transcription ?? 0) + (created?.landingOptimization ?? 0);
+      } catch {
+        return 0;
+      }
+    };
     for (;;) {
       if (control.current.stopped) return;
       let job: LibraryJobClaimEnvelope;
@@ -514,6 +534,12 @@ export function LibraryProcessingProvider({
           ...(sources.length > 0 ? { sourceMaterialIds: sources } : {})
         });
       } catch (error) {
+        if (safeErrorCode(error) === 'NO_WORK' && claimedSinceQueue > 0) {
+          claimedSinceQueue = 0;
+          const requeued = await requeueDrifted();
+          if (control.current.stopped) return;
+          if (requeued > 0) continue;
+        }
         if (safeErrorCode(error) === 'NO_WORK') {
           setActiveKind(null);
           // The result is kept before the rescan replaces the live tally: what
@@ -531,6 +557,7 @@ export function LibraryProcessingProvider({
         summarize(counts);
         return;
       }
+      claimedSinceQueue += 1;
 
       const stage = (
         action: 'accepted' | 'uploaded' | 'registered' | 'failed',

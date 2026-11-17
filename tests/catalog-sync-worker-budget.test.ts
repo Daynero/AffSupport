@@ -140,5 +140,46 @@ describe('a replay page checkpoints before its transcripts', () => {
     };
     await runCatalogSyncJob(incremental, deps, { budgetMs: 1_000 });
     expect(order).toEqual(['upsert', 'checkpoint', 'transcripts']);
+    // A checkpoint keeps the lease, so these writes stay fenced by it.
+    expect(deps.requeueTranscripts).toHaveBeenCalledWith(
+      expect.not.objectContaining({ leaseReleased: true })
+    );
+  });
+
+  /*
+   * Incident 2026-11-17: the last page of the feed completes the job first,
+   * which hands the lease back. Its transcripts were then refused by a lease
+   * check and stayed pending for good — sixteen of a batch's transcripts had
+   * files in Drive and no text in the catalog.
+   */
+  it('the last page completes, then ingests without asking for the lease it released', async () => {
+    const order: string[] = [];
+    const transcript = catalogFile({ id: 'notes', name: 'notes.txt', mimeType: 'text/plain' });
+    const deps = dependencies({
+      listChanges: vi.fn().mockResolvedValue({
+        changes: [{ fileId: 'notes', removed: false, file: transcript }],
+        nextPageToken: null,
+        newStartPageToken: 'page-2'
+      }),
+      complete: vi.fn(async () => {
+        order.push('complete');
+        return true;
+      }),
+      requeueTranscripts: vi.fn(async () => {
+        order.push('transcripts');
+      })
+    });
+    const incremental: CatalogSyncJob = {
+      ...finite,
+      jobKind: 'incremental',
+      phase: 'incremental',
+      pageToken: 'page-1',
+      changeToken: 'page-1'
+    };
+    await runCatalogSyncJob(incremental, deps, { budgetMs: 1_000 });
+    expect(order).toEqual(['complete', 'transcripts']);
+    expect(deps.requeueTranscripts).toHaveBeenCalledWith(
+      expect.objectContaining({ leaseReleased: true })
+    );
   });
 });

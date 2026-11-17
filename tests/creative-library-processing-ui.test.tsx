@@ -59,7 +59,7 @@ describe('Process Library confirmation UI', () => {
         leaseToken: 'lease-token-with-enough-entropy-123',
         leaseExpiresAt: '2026-08-14T11:00:00.000Z'
       })
-      .mockRejectedValueOnce(new Error('NO_WORK'));
+      .mockRejectedValue(new Error('NO_WORK'));
     const client: ProcessLibraryClient = {
       scanLibraryRequirements: vi.fn().mockResolvedValue({
         created: { transcription: 1, landingOptimization: 0 },
@@ -143,6 +143,107 @@ describe('Process Library confirmation UI', () => {
   });
 
   /*
+   * Incident 2026-11-17: the queue is pinned to each file's Drive version, and
+   * Drive moved nine of twenty-six files on while the batch ran. The server
+   * answered NO_WORK with those nine untouched and the window said "complete".
+   * The run now requeues at the current versions and keeps going — once per
+   * claim, so an empty queue still ends.
+   */
+  it('requeues work whose Drive version moved under the batch, then carries on', async () => {
+    const job = (attempt: string, version: string) => ({
+      teamId: TEAM_ID,
+      requirementId: REQUIREMENT_ID,
+      attemptId: attempt,
+      sourceMaterialId: SOURCE_ID,
+      sourceVersion: version,
+      kind: 'transcription' as const,
+      variant: 'original',
+      leaseToken: 'lease-token-with-enough-entropy-123',
+      leaseExpiresAt: '2026-08-14T11:00:00.000Z'
+    });
+    const claimLibraryJob = vi
+      .fn()
+      .mockResolvedValueOnce(job(ATTEMPT_ID, '9'))
+      .mockRejectedValueOnce(new Error('NO_WORK'))
+      .mockResolvedValueOnce(job(RESULT_ID, '11'))
+      .mockRejectedValue(new Error('NO_WORK'));
+    const scanResult = (created: number) => ({
+      created: { transcription: created, landingOptimization: 0 },
+      missing: { transcription: 2, landingOptimization: 0 },
+      ready: 0,
+      started: false as const
+    });
+    const scanLibraryRequirements = vi
+      .fn()
+      .mockResolvedValueOnce(scanResult(0)) // the window's dry count
+      .mockResolvedValueOnce(scanResult(2)) // Start
+      .mockResolvedValueOnce(scanResult(1)) // a version moved: one requeued
+      .mockResolvedValue(scanResult(0));
+    const client: ProcessLibraryClient = {
+      scanLibraryRequirements,
+      claimLibraryJob,
+      getLibraryProcessingContext: vi.fn().mockResolvedValue({
+        sourceMaterialId: SOURCE_ID,
+        sourceName: 'clip.mp4',
+        category: 'video',
+        destinationFolderId: 'drive-folder-material'
+      }),
+      startProcess: vi.fn().mockResolvedValue({
+        operationId: 'operation-1',
+        state: 'pending',
+        sourceGrant: grant('process_input'),
+        finalizeGrant: grant('finalize'),
+        agentContractVersion: 1
+      }),
+      heartbeatLibraryJob: vi.fn().mockResolvedValue({}),
+      cancelLibraryJob: vi.fn().mockResolvedValue(true),
+      failLibraryJob: vi.fn().mockResolvedValue(true),
+      retryFailedLibraryJobs: vi.fn().mockResolvedValue(1),
+      finalizeLibraryJob: vi.fn().mockResolvedValue({
+        state: 'accepted',
+        resultId: REQUIREMENT_ID,
+        materialId: RESULT_ID
+      }),
+      cancelOperation: vi.fn().mockResolvedValue({}),
+      findMaterialByName: vi.fn().mockResolvedValue(null)
+    };
+    const agent: ProcessLibraryAgent = {
+      process: vi.fn().mockResolvedValue({
+        operationId: 'operation-1',
+        state: 'succeeded',
+        materialId: RESULT_ID,
+        reused: false
+      }),
+      cancel: vi.fn().mockResolvedValue(true)
+    };
+
+    render(
+      <ToastProvider>
+        <LibraryProcessingProvider
+          teamId={TEAM_ID}
+          sourceMaterialIds={[SOURCE_ID]}
+          agentAvailability="ready"
+          toolContracts={{ teamWorkspace: 1, transcription: 6 }}
+          client={client}
+          agent={agent}
+          agentInstanceId={AGENT_ID}
+        >
+          <ProcessLibraryDialog scope={{ kind: 'selection', count: 1 }} onClose={vi.fn()} />
+        </LibraryProcessingProvider>
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /^Start · \d+$/u }));
+    await waitFor(() => expect(client.finalizeLibraryJob).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText(/Ready: 2 · Skipped: 0 · Failed: 0/)).toBeTruthy());
+    // Start, the requeue that found the moved file, and the one that found nothing.
+    const commits = scanLibraryRequirements.mock.calls.filter(call => call[3] === true);
+    expect(commits).toHaveLength(3);
+    expect(commits.every(call => (call[4] as string[]).includes('transcription'))).toBe(true);
+    expect(claimLibraryJob).toHaveBeenCalledTimes(4);
+  });
+
+  /*
    * The trap this closes: a run uploads a sidecar, is cut off before it can
    * finalize, and leaves the requirement pending with its output already in the
    * folder. Every later attempt asked Drive for the same deterministic name and
@@ -163,7 +264,7 @@ describe('Process Library confirmation UI', () => {
         leaseToken: 'lease-token-with-enough-entropy-123',
         leaseExpiresAt: '2026-08-14T11:00:00.000Z'
       })
-      .mockRejectedValueOnce(new Error('NO_WORK'));
+      .mockRejectedValue(new Error('NO_WORK'));
     const findMaterialByName = vi.fn().mockResolvedValue(RESULT_ID);
     const client: ProcessLibraryClient = {
       scanLibraryRequirements: vi.fn().mockResolvedValue({

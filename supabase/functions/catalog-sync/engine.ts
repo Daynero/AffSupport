@@ -125,6 +125,12 @@ export interface CatalogSyncDependencies {
     jobId: string;
     connectionId: string;
     files: DriveFileMetadata[];
+    /**
+     * The job has already completed and handed its lease back. The writes are
+     * then fenced by the file's own identity (version, checksum, type) alone:
+     * asking for a lease that `complete` just released refused every one.
+     */
+    leaseReleased?: boolean;
   }) => Promise<unknown>;
   checkpoint: (input: {
     jobId: string;
@@ -220,13 +226,15 @@ async function persistActiveFiles(
 async function ingestDeferredTranscripts(
   job: CatalogSyncJob,
   dependencies: CatalogSyncDependencies,
-  transcripts: DriveFileMetadata[]
+  transcripts: DriveFileMetadata[],
+  options: { leaseReleased?: boolean } = {}
 ): Promise<void> {
   if (transcripts.length === 0) return;
   await dependencies.requeueTranscripts({
     jobId: job.jobId,
     connectionId: job.connectionId,
-    files: transcripts
+    files: transcripts,
+    ...(options.leaseReleased ? { leaseReleased: true } : {})
   });
 }
 
@@ -487,7 +495,15 @@ async function runChanges(
     changeToken: committedToken,
     nextPhase: 'incremental'
   });
-  await ingestDeferredTranscripts(job, dependencies, transcripts);
+  /*
+   * After `complete`, which releases the lease (incident 2026-11-17). The
+   * ingest used to ask for that lease before each write, so every transcript
+   * on a feed's last page was reset to pending and never written: a batch of
+   * twenty-six transcriptions left sixteen files with no text, and the library
+   * kept offering them as untranscribed. Drive bumps a fresh .txt from version
+   * 2 to 3 within minutes of the upload, so the last page is where they land.
+   */
+  await ingestDeferredTranscripts(job, dependencies, transcripts, { leaseReleased: true });
   return { phase: 'incremental', processed: page.changes.length };
 }
 

@@ -142,6 +142,8 @@ async function ingestPendingTranscripts(input: {
   countProviderCall: () => void;
   /** Asked before each commit (028): a stale worker must not write a transcript. */
   leaseLive?: () => Promise<boolean>;
+  /** The job completed first; see `leaseReleased` on the engine's dependency. */
+  leaseReleased?: boolean;
 }): Promise<void> {
   if (input.files.length === 0) return;
   await rpcValue(input.service, 'service_requeue_catalog_transcripts', {
@@ -192,7 +194,7 @@ async function ingestPendingTranscripts(input: {
       errorCode = deferredError.code;
     }
     if (input.leaseLive && !(await input.leaseLive())) throw new CatalogLeaseLostError();
-    await rpcValue(input.service, 'service_commit_catalog_transcript', {
+    const committed = await rpcValue(input.service, 'service_commit_catalog_transcript', {
       p_material: materialId,
       p_expected_version: optionalString(target.drive_version),
       p_expected_checksum: optionalString(target.checksum),
@@ -203,7 +205,12 @@ async function ingestPendingTranscripts(input: {
       p_indexed_bytes: indexedBytes,
       p_error_code: errorCode
     });
-    if (deferredError?.retryable) throw deferredError;
+    if (committed !== true) {
+      console.warn('catalog_transcript_commit_skipped', { materialId, driveFileId });
+    }
+    // With the lease already handed back there is no job left to retry: the
+    // row says `unavailable`, and the next change to the file requeues it.
+    if (deferredError?.retryable && !input.leaseReleased) throw deferredError;
   };
   // Transcript downloads are independent. A serial loop made one slow Drive file hold the
   // catalog lease while the browser kept receiving progress events, so the visible counter
@@ -536,7 +543,7 @@ function dependencies(input: {
         connectionId: request.connectionId,
         files: request.files,
         countProviderCall,
-        leaseLive
+        ...(request.leaseReleased ? { leaseReleased: true } : { leaseLive })
       }),
     checkpoint: request =>
       rpcValue(service, 'service_save_catalog_sync_progress', {
