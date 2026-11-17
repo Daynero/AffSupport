@@ -8,6 +8,9 @@ import { isRecord } from '../_shared/validation.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { proveLiveAncestry } from '../_shared/drive.ts';
 
+/** Pauses before reading a sheet again whose version moved during the read. */
+const STABLE_READ_WAITS_MS = [1_500, 3_000, 5_000] as const;
+
 type InitialPublicationDrive = Pick<
   GoogleDriveClient,
   'getFile' | 'getNativeSpreadsheetSheets' | 'readNativeCatalogColumns'
@@ -23,7 +26,8 @@ export async function verifyInitialCatalogPublication(
     catalogMaterialId: string;
   },
   driveFor: (credentialId: string) => Promise<InitialPublicationDrive>,
-  validateTarget?: () => Promise<void>
+  validateTarget?: () => Promise<void>,
+  sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))
 ): Promise<void> {
   const args = {
     p_team: scope.teamId,
@@ -62,39 +66,52 @@ export async function verifyInitialCatalogPublication(
     })
   );
   const drive = await driveFor(context.credentialId);
-  const before = await drive.getFile(context.fileId);
-  await proveLiveAncestry({
-    client: drive,
-    fileId: context.fileId,
-    rootFolderId: context.rootFolderId,
-    maximumDepth: 16
-  });
-  const sheets = await drive.getNativeSpreadsheetSheets(context.fileId);
-  const sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME);
-  if (!sheet || sheet.columnCount !== PRODUCT_CATALOG_TEMPLATE.length)
-    throw new TeamFunctionError('SOURCE_CHANGED');
-  const actual = await drive.readNativeCatalogColumns({
-    fileId: context.fileId,
-    sheetName: PRODUCT_CATALOG_SHEET_NAME,
-    columns: [idIndex, videoIndex],
-    rowCount: sheet.rowCount,
-    expectedRows: expected[0]!.length
-  });
-  if (JSON.stringify(actual) !== JSON.stringify(expected))
-    throw new TeamFunctionError('SOURCE_CHANGED');
-  const after = await drive.getFile(context.fileId);
-  await proveLiveAncestry({
-    client: drive,
-    fileId: context.fileId,
-    rootFolderId: context.rootFolderId,
-    maximumDepth: 16
-  });
-  if (
-    !before.version ||
-    before.version !== after.version ||
-    after.capabilities.canModifyContent !== true
-  )
-    throw new TeamFunctionError('SOURCE_CHANGED');
+  // A native sheet's Drive version moves without its cells changing: sharing it, and
+  // Sheets settling a freshly converted upload, each advance it. A read that straddled
+  // such a move is read again; only different cells mean the catalog changed. next QA
+  // 2026-11-17: a launch stopped at «Реєструємо каталог» with «Файл змінився» while
+  // every cell was exactly what was written — the version moved during a slow read.
+  let actual: unknown;
+  let after: Awaited<ReturnType<InitialPublicationDrive['getFile']>> | undefined;
+  for (let round = 0; ; round += 1) {
+    const before = await drive.getFile(context.fileId);
+    await proveLiveAncestry({
+      client: drive,
+      fileId: context.fileId,
+      rootFolderId: context.rootFolderId,
+      maximumDepth: 16
+    });
+    const sheets = await drive.getNativeSpreadsheetSheets(context.fileId);
+    const sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME);
+    if (!sheet || sheet.columnCount !== PRODUCT_CATALOG_TEMPLATE.length)
+      throw new TeamFunctionError('SOURCE_CHANGED');
+    actual = await drive.readNativeCatalogColumns({
+      fileId: context.fileId,
+      sheetName: PRODUCT_CATALOG_SHEET_NAME,
+      columns: [idIndex, videoIndex],
+      rowCount: sheet.rowCount,
+      expectedRows: expected[0]!.length
+    });
+    if (JSON.stringify(actual) !== JSON.stringify(expected))
+      throw new TeamFunctionError('SOURCE_CHANGED');
+    after = await drive.getFile(context.fileId);
+    await proveLiveAncestry({
+      client: drive,
+      fileId: context.fileId,
+      rootFolderId: context.rootFolderId,
+      maximumDepth: 16
+    });
+    if (after.capabilities.canModifyContent !== true) throw new TeamFunctionError('SOURCE_CHANGED');
+    if (before.version && before.version === after.version) break;
+    if (round >= STABLE_READ_WAITS_MS.length)
+      // Still moving: not a change, an unproven read. Recovery lists this code for
+      // catalog video protocol 1 and comes back after the pause.
+      throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', {
+        retryable: true,
+        details: { retryAfterMs: 60_000 }
+      });
+    await sleep(STABLE_READ_WAITS_MS[round]!);
+  }
   const digest = Array.from(
     new Uint8Array(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(actual)))
@@ -106,7 +123,7 @@ export async function verifyInitialCatalogPublication(
   const finished = await service.rpc('service_finish_initial_catalog_publication', {
     ...args,
     p_fence: context.fence,
-    p_provider_revision: after.version,
+    p_provider_revision: after!.version,
     p_cells_digest: digest
   });
   if (finished.error || finished.data !== true)
