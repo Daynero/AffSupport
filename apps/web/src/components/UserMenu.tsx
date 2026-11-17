@@ -5,12 +5,15 @@ import {
   LayoutGrid,
   LifeBuoy,
   LogOut,
+  RefreshCw,
   ShieldCheck,
   type LucideIcon
 } from 'lucide-react';
 import { Button, DropdownMenu, type MenuEntry } from './ui/index';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useAuth } from '../auth/AuthContext';
+import { useOptionalAgentStatus } from '../AgentContext';
+import { openNativeAppUpdate } from '../updates/openNativeAppUpdate';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute } from '../lib/navigation';
 import { analytics } from '../analytics/service';
@@ -53,6 +56,14 @@ export function UserMenu() {
   const { user, profile, isAdmin, signOut, status } = useAuth();
   const { t } = useI18n();
   const route = useBrowserRoute();
+  const agent = useOptionalAgentStatus();
+  // The update dialog is otherwise reachable only while an update is under way: a
+  // cancelled optional update had no way back short of waiting for the next offer
+  // (next QA, 2026-11-17). The dialog itself offers «Перевірити оновлення».
+  const appUpdates =
+    agent?.connection === 'connected' &&
+    agent.capabilities.includes('native-app-updates-v1') &&
+    agent.agentRuntime?.nativeAppUpdateStatus !== 'unsupported';
   const [open, setOpen] = useState(false);
   const [technicalSupportOpen, setTechnicalSupportOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -110,6 +121,16 @@ export function UserMenu() {
       onSelect: () => navigateTo('/account')
     },
     'separator',
+    ...(appUpdates
+      ? [
+          {
+            id: 'app-update',
+            label: t('appUpdateMenu'),
+            icon: icon(RefreshCw),
+            onSelect: openNativeAppUpdate
+          } satisfies MenuEntry
+        ]
+      : []),
     {
       id: 'support',
       label: t('technicalSupport'),

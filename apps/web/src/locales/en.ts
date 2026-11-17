@@ -70,6 +70,9 @@ export const en = {
   appUpdateCheckReady:
     'Check for a new version of Soty. Available updates can download in the background.',
   appUpdateDone: 'Done',
+  appUpdateMenu: 'Soty updates',
+  appUpdateBusy:
+    'Soty was still finishing background work, so installation did not start. Nothing was lost — try again a little later.',
   appUpdateCancelled: 'The update was cancelled. You can keep working.',
   appUpdateStatusTitle: 'Soty update',
   appUpdateStatusUnavailable: 'The update status could not be read. Try refreshing it.',

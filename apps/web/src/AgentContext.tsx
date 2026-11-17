@@ -993,6 +993,11 @@ export function useAgentStatus() {
   return value;
 }
 
+/** The agent status where a component may also render outside the provider. */
+export function useOptionalAgentStatus() {
+  return useContext(AgentStatusContext);
+}
+
 export function useOptionalAgent() {
   return useContext(AgentContext);
 }
@@ -1004,5 +1009,9 @@ export function AgentContextOverride({
   value: AgentContextValue;
   children: ReactNode;
 }) {
-  return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
+  return (
+    <AgentStatusContext.Provider value={value}>
+      <AgentContext.Provider value={value}>{children}</AgentContext.Provider>
+    </AgentStatusContext.Provider>
+  );
 }

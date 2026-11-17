@@ -46,6 +46,8 @@ function recoveryMessage(state: NativeUpdateSnapshot | null): TranslationKey {
       return 'appUpdatePermissionDenied';
     case 'APP_UPDATE_FLUSH_FAILED':
       return 'appUpdateSaveFailed';
+    case 'APP_UPDATE_BUSY':
+      return 'appUpdateBusy';
     case 'APP_UPDATE_MANIFEST_INVALID':
     case 'APP_UPDATE_DIGEST_MISMATCH':
     case 'APP_UPDATE_IDENTITY_MISMATCH':

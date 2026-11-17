@@ -72,6 +72,9 @@ export const uk: Record<keyof typeof en, string> = {
   appUpdateCheckReady:
     'Перевірте наявність нової версії Soty. Доступні оновлення можуть завантажуватися у фоні.',
   appUpdateDone: 'Готово',
+  appUpdateMenu: 'Оновлення Soty',
+  appUpdateBusy:
+    'Soty ще завершувала фонову роботу, тому встановлення не почалося. Нічого не втрачено — спробуйте ще раз трохи згодом.',
   appUpdateCancelled: 'Оновлення скасовано. Можна продовжувати роботу.',
   appUpdateStatusTitle: 'Оновлення Soty',
   appUpdateStatusUnavailable: 'Не вдалося прочитати стан оновлення. Спробуйте оновити статус.',

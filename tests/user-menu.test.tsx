@@ -22,6 +22,9 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 }));
 
 import { UserMenu } from '../apps/web/src/components/UserMenu';
+import { AgentContextOverride } from '../apps/web/src/AgentContext';
+import { OPEN_NATIVE_APP_UPDATE } from '../apps/web/src/updates/openNativeAppUpdate';
+import { fakeAgentValue } from './support/fake-agent';
 
 beforeEach(() => {
   localStorage.clear();
@@ -54,5 +57,31 @@ describe('user menu', () => {
     expect(screen.getByRole('heading', { name: 'Technical support' })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: 'Your message' })).toBeTruthy();
     expect(screen.queryByText('Donate to development')).toBeNull();
+  });
+
+  it('reopens Soty updates from the menu, even after an update was cancelled', () => {
+    const opened = vi.fn();
+    window.addEventListener(OPEN_NATIVE_APP_UPDATE, opened);
+    render(
+      <AgentContextOverride
+        value={fakeAgentValue({ capabilities: ['event-stream', 'native-app-updates-v1'] })}
+      >
+        <UserMenu />
+      </AgentContextOverride>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Soty updates' }));
+    expect(opened).toHaveBeenCalledOnce();
+    window.removeEventListener(OPEN_NATIVE_APP_UPDATE, opened);
+  });
+
+  it('offers no updates entry without an agent that updates itself', () => {
+    render(
+      <AgentContextOverride value={fakeAgentValue({ capabilities: ['event-stream'] })}>
+        <UserMenu />
+      </AgentContextOverride>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    expect(screen.queryByRole('menuitem', { name: 'Soty updates' })).toBeNull();
   });
 });

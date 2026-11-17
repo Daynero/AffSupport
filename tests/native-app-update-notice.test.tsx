@@ -209,6 +209,29 @@ describe('native update window', () => {
     expect(mock.act).toHaveBeenCalledExactlyOnceWith('check');
   });
 
+  it('says a busy refusal kept the work and can be tried again', async () => {
+    snapshot({
+      stage: 'failed',
+      lastProvenStage: 'draining',
+      code: 'APP_UPDATE_BUSY',
+      availableActions: ['check', 'cancel']
+    });
+    show();
+    const dialog = await openUpdate();
+    expect(dialog.getByText(/still finishing background work/)).toBeTruthy();
+    expect(dialog.queryByText(/APP_UPDATE/)).toBeNull();
+  });
+  it('reopens a cancelled update on intent and checks again', async () => {
+    snapshot({ stage: 'cancelled', availableActions: ['check'] });
+    show();
+    expect(screen.queryByRole('region')).toBeNull();
+    const launch = render(<button onClick={openNativeAppUpdate}>Open updates</button>);
+    await userEvent.click(screen.getByRole('button', { name: 'Open updates' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await userEvent.click(dialog.getByRole('button', { name: 'Check for updates' }));
+    expect(mock.act).toHaveBeenCalledExactlyOnceWith('check');
+    launch.unmount();
+  });
   it('keeps an unreadable initial status visible and recoverable', async () => {
     mock.hook.mockReturnValue({
       state: null,
