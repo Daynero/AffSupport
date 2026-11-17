@@ -103,6 +103,18 @@ do {
   try check(!NativeUpdateReadiness.matches(candidate: state.candidate!, installedBuild: "9.0.0+999", installedRevision: String(repeating: "b", count: 40), payload: wrongPid, agentPid: 100, attempt: "a", installation: identity), "another runtime cannot claim readiness")
   state.nativeSuccess = true
   try check(NativeUpdateRecovery.decide(state: state, buildId: "8.0.0+998", revision: String(repeating: "a", count: 40), committedWorkload: true) == .unknown, "completed receipt cannot authorize an older app copy")
+  var stale = NativeUpdateState()
+  stale.candidate = state.candidate; stale.stage = "cancelled"
+  let olderThanRunning: (NativeCandidate) -> Bool = { _ in false }
+  let newerThanRunning: (NativeCandidate) -> Bool = { _ in true }
+  try check(NativeUpdateRecovery.obsolete(state: stale, isNewer: olderThanRunning), "a cancelled offer for a version installed by hand is forgotten")
+  try check(!NativeUpdateRecovery.obsolete(state: stale, isNewer: newerThanRunning), "a cancelled offer that is still newer is kept")
+  stale.stage = "failed"; stale.handoffStarted = true
+  try check(!NativeUpdateRecovery.obsolete(state: stale, isNewer: olderThanRunning), "a failure after the handoff is never forgotten")
+  stale.handoffStarted = false; stale.stage = "draining"
+  try check(!NativeUpdateRecovery.obsolete(state: stale, isNewer: olderThanRunning), "an attempt in flight is never forgotten")
+  stale.stage = "ui_visible"; stale.nativeSuccess = true
+  try check(!NativeUpdateRecovery.obsolete(state: stale, isNewer: olderThanRunning), "a completed update keeps its record")
   print("{\"ok\":true,\"checks\":\(checks),\"scope\":\"native-store-and-recovery\"}")
 } catch {
   fputs("Native updater boundary probe failed.\n", stderr)

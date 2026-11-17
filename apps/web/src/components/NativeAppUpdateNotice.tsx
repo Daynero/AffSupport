@@ -71,6 +71,9 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
   const opener = useRef<HTMLElement | null>(null);
   const returnToWork = useRef(false);
   const [open, setOpen] = useState(false);
+  // A check the person asked for that found nothing newer: say so, instead of leaving the
+  // same «check for updates» line as if the press had done nothing (next QA 2026-11-17).
+  const [checkedCurrent, setCheckedCurrent] = useState(false);
   const [dismissed, setDismissed] = useState<string | null>(() => {
     try {
       return localStorage.getItem(DISMISSED_NATIVE_UPDATE);
@@ -107,6 +110,7 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
       opener.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setOpen(true);
+      setCheckedCurrent(false);
       void refresh();
     };
     window.addEventListener(OPEN_NATIVE_APP_UPDATE, show);
@@ -183,7 +187,9 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
                   : state.stage === 'cancelled'
                     ? 'appUpdateCancelled'
                     : state.stage === 'idle'
-                      ? 'appUpdateCheckReady'
+                      ? checkedCurrent && !error
+                        ? 'appUpdateCurrent'
+                        : 'appUpdateCheckReady'
                       : state.stage === 'prepared'
                         ? 'appUpdatePrepared'
                         : 'appUpdateAvailable';
@@ -246,7 +252,7 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
           <span className="release-update-eyebrow">{t('releaseNoticeEyebrow')}</span>
           <h2 id={id}>{title}</h2>
           <p className="prose" role="status" aria-live="polite">
-            {t(body)}
+            {t(body, { version: agent.agentVersion ?? '' })}
           </p>
         </div>
         <div className="release-update-actions">
@@ -302,7 +308,10 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
                   variant={!canPrepare && !canAccept ? 'solid' : 'outline'}
                   loading={pending}
                   disabled={!connected}
-                  onClick={() => void (canCheck ? act('check') : refresh())}
+                  onClick={() => {
+                    setCheckedCurrent(false);
+                    void (canCheck ? act('check').then(() => setCheckedCurrent(true)) : refresh());
+                  }}
                 >
                   {t(canCheck ? 'appUpdateCheckAgain' : 'appUpdateRefresh')}
                 </Button>
@@ -342,7 +351,7 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
             </IconButton>
           </div>
           <p className="prose" role="status" aria-live="polite">
-            {t(body)}
+            {t(body, { version: agent.agentVersion ?? '' })}
           </p>
           {state && (active || attention || ready || canAccept) && (
             <StageProgress

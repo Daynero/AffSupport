@@ -69,6 +69,7 @@ export const en = {
     'Update Soty to use this tool. Your current tasks can finish before installation.',
   appUpdateCheckReady:
     'Check for a new version of Soty. Available updates can download in the background.',
+  appUpdateCurrent: 'You have the latest version of Soty — {version}.',
   appUpdateDone: 'Done',
   appUpdateMenu: 'Soty updates',
   appUpdateBusy:

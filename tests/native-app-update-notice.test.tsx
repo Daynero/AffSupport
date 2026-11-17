@@ -16,6 +16,7 @@ beforeEach(() => {
   localStorage.clear();
   localStorage.setItem('language', 'en');
   mock.act.mockReset();
+  mock.act.mockResolvedValue(undefined);
   mock.refresh.mockReset();
   snapshot();
 });
@@ -230,6 +231,21 @@ describe('native update window', () => {
     const dialog = within(screen.getByRole('dialog'));
     await userEvent.click(dialog.getByRole('button', { name: 'Check for updates' }));
     expect(mock.act).toHaveBeenCalledExactlyOnceWith('check');
+    launch.unmount();
+  });
+  it('says the installed copy is current when a check finds nothing newer', async () => {
+    // next QA 2026-11-17: after 96 was installed by hand, «Check for updates» changed nothing
+    // on screen, so the press looked broken.
+    snapshot({ stage: 'idle', candidate: null, candidateId: null, availableActions: ['check'] });
+    show({ agentVersion: '1.5.6-next.96' });
+    const launch = render(<button onClick={openNativeAppUpdate}>Open updates</button>);
+    await userEvent.click(screen.getByRole('button', { name: 'Open updates' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.queryByText(/latest version/u)).toBeNull();
+    await userEvent.click(dialog.getByRole('button', { name: 'Check for updates' }));
+    expect(
+      await dialog.findByText('You have the latest version of Soty — 1.5.6-next.96.')
+    ).toBeTruthy();
     launch.unmount();
   });
   it('keeps an unreadable initial status visible and recoverable', async () => {

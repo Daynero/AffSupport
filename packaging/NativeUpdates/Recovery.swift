@@ -22,4 +22,14 @@ enum NativeUpdateRecovery {
     // After target start, older code/data must never be reactivated automatically.
     return .unknown
   }
+
+  /// A candidate the running copy already is, or has passed — Soty was installed by hand over a
+  /// cancelled or failed offer. While nothing of that offer has started, it is forgotten, so the
+  /// app stops calling an old version cancelled and a check can answer that it is current
+  /// (next QA 2026-11-17: 96 installed by hand still showed «Оновлення скасовано» for 95).
+  static func obsolete(state: NativeUpdateState, isNewer: (NativeCandidate) -> Bool) -> Bool {
+    guard let candidate = state.candidate, !isNewer(candidate) else { return false }
+    guard !state.nativeSuccess, !state.handoffStarted, !state.targetStarted, !state.replacementRequested else { return false }
+    return ["idle", "offered", "prepared", "deferred", "cancelled", "failed"].contains(state.stage)
+  }
 }

@@ -71,6 +71,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Оновіть Soty, щоб користуватися цим інструментом. Поточні задачі можуть завершитися перед встановленням.',
   appUpdateCheckReady:
     'Перевірте наявність нової версії Soty. Доступні оновлення можуть завантажуватися у фоні.',
+  appUpdateCurrent: 'Встановлено найновішу версію Soty — {version}.',
   appUpdateDone: 'Готово',
   appUpdateMenu: 'Оновлення Soty',
   appUpdateBusy:

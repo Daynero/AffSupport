@@ -137,7 +137,13 @@ final class NativeAppUpdateCoordinator {
       let candidate = try nativeManifestCandidate(payload: encoded, signature: signature, publicKey: publicKey, channel: channel, target: target, fixtureOrigin: fixtureOrigin)
       guard candidate.publisherTeamId == publisher else { throw NativeUpdateFailure.identity }
       if let active = state.candidate, !["idle", "offered", "prepared", "deferred", "failed", "cancelled", "ui_visible", "native_ready"].contains(state.stage), candidate != active { throw NativeUpdateFailure.changed }
-      guard Self.compare(candidate.version, version) > 0 || (candidate.version == version && (Int64(candidate.buildNumber) ?? 0) > (Int64(buildId.split(separator: "+").last ?? "0") ?? 0)) else { throw NativeUpdateFailure.changed }
+      guard isNewer(candidate) else {
+        // Nothing newer than this copy: the answer is «current», not a failure. An offer left
+        // over from before a manual install is dropped on the way (Recovery.obsolete).
+        if state.candidate == nil || state.stage == "ui_visible" { break }
+        guard NativeUpdateRecovery.obsolete(state: state, isNewer: isNewer) else { throw NativeUpdateFailure.changed }
+        forgetCandidate(); try change("idle"); break
+      }
       manifestEnvelope = (encoded, signature)
       state.manifestPayload = encoded; state.manifestSignature = signature
       if state.candidate != candidate || state.stage == "cancelled" {
@@ -283,6 +289,17 @@ final class NativeAppUpdateCoordinator {
       throw NativeUpdateFailure.flush
     }
   }
+  private func isNewer(_ candidate: NativeCandidate) -> Bool {
+    Self.compare(candidate.version, version) > 0 ||
+      (candidate.version == version && (Int64(candidate.buildNumber) ?? 0) > (Int64(buildId.split(separator: "+").last ?? "0") ?? 0))
+  }
+  /// Back to a fresh idle record, keeping who this installation is and its own choices.
+  private func forgetCandidate() {
+    var fresh = NativeUpdateState(); fresh.installationId = state.installationId
+    fresh.revision = state.revision; fresh.receiptSequence = state.receiptSequence
+    fresh.automaticDownload = state.automaticDownload; fresh.acceptedKeys = state.acceptedKeys
+    state = fresh; manifestEnvelope = nil
+  }
   private func reconcileOnStartup() throws {
     // A completed receipt belongs to that exact host. Opening an older app copy
     // must not revive code after the target has already touched local state.
@@ -309,6 +326,7 @@ final class NativeAppUpdateCoordinator {
       fresh.revision = state.revision; fresh.receiptSequence = state.receiptSequence
       state = fresh; manifestEnvelope = nil; return
     }
+    if NativeUpdateRecovery.obsolete(state: state, isNewer: isNewer) { forgetCandidate(); return }
     let receipt = try? store.workload()
     let committed = receipt?["stage"] as? String == "committed" &&
       receipt?["attemptId"] as? String == state.attemptId && receipt?["candidateId"] as? String == state.candidateId &&
