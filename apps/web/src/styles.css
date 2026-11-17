@@ -13668,6 +13668,10 @@ button.team-landing-tile:hover {
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
   overflow: hidden;
+  /* The fallback glyph is sized in cqmin, as on a tile. Without a size container
+     of its own it measured an ancestor, grew to 306×910 and was drawn below the
+     clipped frame, so a folder's pane showed an empty grey box (next QA 2026-11-17). */
+  container-type: size;
 }
 .team-material-detail-visual img {
   width: 100%;
