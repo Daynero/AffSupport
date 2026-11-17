@@ -598,11 +598,13 @@ export class CatalogVideoForegroundController {
     await this.#serial;
     await Promise.all([...this.#waitingTasks, ...[...this.#running.values()].map(run => run.task)]);
     if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
-    if (
-      [...this.#entries.values()].some(
-        entry => entry.state === 'unknown' || entry.state === 'running'
-      )
-    )
+    // An unknown entry at rest is not work in flight: it is durable in the vault and
+    // the next process reconciles it exactly as after the restart that made it unknown,
+    // which is what replacing the app is. Refusing it held every app update for a day,
+    // and past the 24-hour authority an unknown entry never resolves at all, so one
+    // interrupted catalog update refused every update for good (next QA, 2026-11-17).
+    // Only a run that has not settled holds the update.
+    if (this.#running.size || [...this.#entries.values()].some(entry => entry.state === 'running'))
       throw new Error('APP_UPDATE_BUSY');
     if (this.#entries.size) await this.#persist();
     await this.options.vault.flushForUpdate?.();

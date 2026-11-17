@@ -785,8 +785,10 @@ export class TeamRecoveryWorker {
     // A blocked space has nothing in flight: its checkpoint is durable and resumes after
     // a restart, which is what replacing the app is. Refusing it made one blocked space
     // refuse every app update — including the one that would unblock it (next QA,
-    // 2026-11-17). Only work between claim and settlement holds the update.
-    if (this.#checkpoints.some(c => c.stage !== 'settled' && c.stage !== 'blocked'))
+    // 2026-11-17). A claim waiting out a transient failure has nothing in flight either:
+    // the next process asks again under the same request id. Only work the server has
+    // handed this computer (accepted, running) holds the update.
+    if (this.#checkpoints.some(c => c.stage === 'accepted' || c.stage === 'running'))
       throw new Error('APP_UPDATE_BUSY');
     await this.#save();
     await this.options.journal.flushForUpdate();

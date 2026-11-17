@@ -1351,6 +1351,22 @@ describe('background recovery worker', () => {
     await claimed.worker.load();
     await expect(claimed.worker.flushForUpdate()).rejects.toThrow('APP_UPDATE_BUSY');
   });
+  it('lets the app update while a claim waits out a transient failure', async () => {
+    const f = await fixture();
+    f.fetcher.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: { code: 'DRIVE_UNAVAILABLE' } }), {
+          status: 503
+        })
+    );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'claiming' });
+    const resume = f.worker.pauseForUpdate();
+    await expect(f.worker.flushForUpdate()).resolves.toBeUndefined();
+    resume();
+  });
   it('resumes a space an older build parked as needs_agent_setup', async () => {
     const f = await fixture();
     const saved = await f.journal.load();

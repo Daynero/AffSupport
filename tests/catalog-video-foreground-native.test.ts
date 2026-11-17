@@ -1007,3 +1007,78 @@ it('native update flush waits for the separate foreground preparation queue', as
     await controller.shutdown();
   }
 });
+
+it('an unknown entry at rest rides across an app update and is kept for the next process', async () => {
+  // next QA 2026-11-17: a restart in the middle of a catalog update left one entry
+  // unknown, and every app update answered APP_UPDATE_BUSY until it resolved — past
+  // its 24-hour authority it never does.
+  let saved: unknown = null;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => saved,
+      write: async value => {
+        saved = structuredClone(value);
+      }
+    },
+    redeem: fixture().redeem,
+    resumeDelaysMs: [],
+    run: async () => {
+      throw new Error('PROCESS_RESULT_UNCERTAIN');
+    }
+  });
+  const receipt = await controller.prepare(binding);
+  await controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(7),
+    enrollmentId: receipt.enrollmentId,
+    nativeInstanceId: receipt.nativeInstanceId
+  });
+  await vi.waitFor(() => expect(controller.busy()).toBe(false));
+  expect((saved as Array<{ state: string }>)[0]?.state).toBe('unknown');
+  const resume = controller.pauseForUpdate();
+  await controller.flushForUpdate();
+  expect((saved as Array<{ state: string; setId: string }>)[0]).toMatchObject({
+    state: 'unknown',
+    setId: id(7)
+  });
+  resume();
+  await controller.shutdown();
+});
+
+it('a run still in flight holds the app update', async () => {
+  let finish!: () => void;
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: { read: async () => null, write: async () => {} },
+    redeem: fixture().redeem,
+    run: () =>
+      new Promise<void>(resolve => {
+        finish = resolve;
+      })
+  });
+  const receipt = await controller.prepare(binding);
+  await controller.attach({
+    protocolVersion: 1,
+    teamId: binding.teamId,
+    setId: id(7),
+    enrollmentId: receipt.enrollmentId,
+    nativeInstanceId: receipt.nativeInstanceId
+  });
+  const resume = controller.pauseForUpdate();
+  let flushed = false;
+  const flushing = controller.flushForUpdate().then(() => {
+    flushed = true;
+  });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  expect(flushed).toBe(false);
+  finish();
+  await flushing;
+  resume();
+  await controller.shutdown();
+});
