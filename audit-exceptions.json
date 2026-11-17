@@ -3,17 +3,57 @@
     "Dependency advisories deliberately not fixed yet, each with a review date.",
     "",
     "The verification command blocks on any high or critical advisory in a shipped",
-    "dependency. An entry here suppresses one — but only until its `expires` date, after",
-    "which the gate fails on the exception itself. That is the point: a deferral becomes a",
-    "decision with a review date rather than a permanent hole nobody revisits.",
+    "dependency. An entry under `advisories` (keyed by package name, read by",
+    "scripts/audit-dependencies.mjs) suppresses one — but only until its `expires` date,",
+    "after which the gate fails on the exception itself. That is the point: a deferral",
+    "becomes a decision with a review date rather than a permanent hole nobody revisits.",
     "",
     "Add an entry only when the advisory is genuinely unreachable from how this project",
-    "uses the package, and say why in `rationale` — 'not exploitable here' is not a",
-    "rationale, it is a claim. Name the code path.",
+    "uses the package, and say why in `reason` — 'not exploitable here' is not a",
+    "reason, it is a claim. Name the code path.",
     "",
-    "The list is empty because the tree is clean: `npm audit` reports zero vulnerabilities",
-    "including devDependencies. Keep it that way; an empty list is the goal state, not a",
-    "placeholder."
+    "2026-11-17 (1.5.6): picomatch <=4.0.7 ReDoS (GHSA-fc5q-39xc-vjpf) has no patched",
+    "release, and every package below reaches it only as a build or test tool. npm audit no",
+    "longer marks devDependencies, and apps/web lists vite and its plugins under",
+    "`dependencies`, so the gate counts them as shipped. What ships is the static bundle in",
+    "apps/web/dist and the agent; `npm ls --omit=dev -w apps/agent` holds none of them."
   ],
-  "exceptions": []
+  "advisories": {
+    "picomatch": {
+      "reason": "GHSA-fc5q-39xc-vjpf, no fixed version exists. Reached only through vite, vitest, tinyglobby, unplugin and the eslint parser, at build and test time, matching globs this repository writes itself; nothing evaluates a user-supplied glob.",
+      "expires": "2026-12-17"
+    },
+    "fdir": {
+      "reason": "Flagged only for its picomatch dependency; used by tinyglobby inside vite and vitest at build and test time.",
+      "expires": "2026-12-17"
+    },
+    "tinyglobby": {
+      "reason": "Flagged only for picomatch and fdir; globbing inside vite, vitest and the eslint parser over this repository's own files.",
+      "expires": "2026-12-17"
+    },
+    "unplugin": {
+      "reason": "Flagged only for picomatch; runs inside @react-aria/optimize-locales-plugin during the web build.",
+      "expires": "2026-12-17"
+    },
+    "@react-aria/optimize-locales-plugin": {
+      "reason": "Vite build plugin (apps/web/vite.config.ts); flagged only through unplugin -> picomatch. Not present in the built bundle.",
+      "expires": "2026-12-17"
+    },
+    "vite": {
+      "reason": "Build tool for apps/web and soty-review, flagged only through picomatch, fdir and tinyglobby. Users receive the static output in apps/web/dist; no vite dev server is exposed beyond the developer's machine.",
+      "expires": "2026-12-17"
+    },
+    "@vitejs/plugin-react": {
+      "reason": "Vite build plugin, flagged only through vite.",
+      "expires": "2026-12-17"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "reason": "ESLint parser run by `npm run lint` over this repository's sources; flagged through minimatch and tinyglobby glob matching of its own project globs.",
+      "expires": "2026-12-17"
+    },
+    "vitest": {
+      "reason": "Test runner only (scripts/run-unit-suite.mjs, `vitest run`). GHSA-82fw-gwwq-j7x9 is a path traversal through @vitest/mocker's redirect in a served browser or UI session; this repository runs vitest headless from the CLI and never serves it. The fix is vitest 4.1.11, a major upgrade scheduled before the expiry.",
+      "expires": "2026-12-17"
+    }
+  }
 }
