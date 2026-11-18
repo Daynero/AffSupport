@@ -55,8 +55,8 @@
 
 ## Phase 7: Polish
 
-- [ ] T027 `node scripts/check-design-tokens.mjs`, `check-tailwind-classes.mjs`, `verify-styles.mjs`, lint, typecheck веба
-- [ ] T028 Смок на беті за quickstart §3 (обидві теми, вузьке вікно), фікси
+- [x] T027 `node scripts/check-design-tokens.mjs`, `check-tailwind-classes.mjs`, `verify-styles.mjs`, lint, typecheck веба
+- [x] T028 Смок на беті за quickstart §3 (обидві теми, вузьке вікно), фікси
 - [ ] T029 `npm run verify`, коли машина вільна; коміт і пуш гілки `059-creative-ranks`
 
 ## Dependencies
