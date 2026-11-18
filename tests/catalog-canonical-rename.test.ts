@@ -334,6 +334,32 @@ it('commits one canonical operation, exhaustive old-name aliases/search and idem
     'REQUEST_REUSE_CONFLICT'
   );
 });
+it('renames a freshly written catalog whose Drive content version is ahead of the last sync', async () => {
+  // Prod 2026-11-18: registered at version 4, already at 8-10 while rows landed.
+  const f = await fixture('Fresh catalog');
+  const command = await f.command();
+  f.state.version = '9';
+  await db.root(
+    "update public.team_materials set drive_version='6',updated_at=clock_timestamp()+interval '1 second'where id=$1",
+    [f.material]
+  );
+  expect(await f.apply(command)).toMatchObject({
+    state: 'confirmed',
+    currentName: command.newName,
+    errorCode: null
+  });
+  expect(f.patch).toHaveBeenCalledOnce();
+  expect(await f.aliases()).toEqual([{ name: 'Fresh catalog' }]);
+});
+it('still refuses a rename whose source name moved after the dialog read it', async () => {
+  const f = await fixture('Seen name');
+  const command = await f.command();
+  await db.root("update public.team_materials set name='Renamed elsewhere'where id=$1", [
+    f.material
+  ]);
+  await expect(f.apply(command)).rejects.toThrow('SOURCE_CHANGED');
+  expect(f.patch).not.toHaveBeenCalled();
+});
 it('reconciles a lost PATCH reply through readback with no second provider mutation', async () => {
   const f = await fixture();
   const command = await f.command();
