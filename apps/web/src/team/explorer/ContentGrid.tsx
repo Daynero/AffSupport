@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { EmptyState, ErrorState, Popover, FadeImage } from '../../components/ui/index';
+import { EmptyState, ErrorState, Popover, FadeImage, Reveal } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -152,9 +152,6 @@ export function ContentGrid({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.loading && page.rows.length === 0 && (
-        <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
-      )}
       {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
@@ -175,32 +172,45 @@ export function ContentGrid({
           action={emptyState ? undefined : emptyAction}
         />
       )}
-      <ul className="team-explorer-grid" role="list">
-        {rows.map(row => (
-          <Tile
-            key={row.id}
-            row={row}
-            session={session}
-            client={client}
-            render={renders.get(row.id) ?? null}
-            selected={selectedId === row.id}
-            checked={selectedIds.has(row.id)}
-            drag={drag.dragProps(row)}
-            dropTarget={drag.dropTarget === row.id}
-            onOpenFolder={openFolder}
-            onSelect={select}
-            onPress={press}
-            onToggle={toggleSelected}
-            onPreview={onPreview}
-            actions={actions}
-            tagging={tagging}
-            companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
-            companionSelected={Boolean(
-              companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
-            )}
+      {/* Tiles stand in for tiles (058): rows here made the grid change shape twice. */}
+      <Reveal
+        busy={page.loading && page.rows.length === 0}
+        placeholder={
+          <LabeledSkeleton
+            label="teamMaterialsLoading"
+            rows={8}
+            shape="tile"
+            className="team-explorer-grid"
           />
-        ))}
-      </ul>
+        }
+      >
+        <ul className="team-explorer-grid" role="list">
+          {rows.map(row => (
+            <Tile
+              key={row.id}
+              row={row}
+              session={session}
+              client={client}
+              render={renders.get(row.id) ?? null}
+              selected={selectedId === row.id}
+              checked={selectedIds.has(row.id)}
+              drag={drag.dragProps(row)}
+              dropTarget={drag.dropTarget === row.id}
+              onOpenFolder={openFolder}
+              onSelect={select}
+              onPress={press}
+              onToggle={toggleSelected}
+              onPreview={onPreview}
+              actions={actions}
+              tagging={tagging}
+              companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
+              companionSelected={Boolean(
+                companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
+              )}
+            />
+          ))}
+        </ul>
+      </Reveal>
       <MorePages
         hasMore={page.hasMore}
         loading={page.loading}

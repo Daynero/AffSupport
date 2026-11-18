@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { crossfadeLayout } from '../../lib/navigation';
 
 /**
  * How long the first press waits before the detail pane takes its width.
@@ -22,7 +23,8 @@ export function usePaneArrival(present: boolean, delayMs = PANE_ARRIVAL_MS): boo
       return;
     }
     if (shown) return;
-    const timer = window.setTimeout(() => setShown(true), delayMs);
+    // The pane narrows the list by a third: the reflow crossfades rather than jumps (058).
+    const timer = window.setTimeout(() => crossfadeLayout(() => setShown(true)), delayMs);
     return () => window.clearTimeout(timer);
   }, [present, shown, delayMs]);
   return present && shown;

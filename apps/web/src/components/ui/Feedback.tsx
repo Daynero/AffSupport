@@ -100,6 +100,63 @@ export function Skeleton({ shape = 'text', count = 1, label, className, ...props
   );
 }
 
+/** Longer than the fade and the cascade it starts: twelve steps and the last item's rise. */
+export const REVEAL_ARRIVAL_MS = 800;
+
+export interface RevealProps {
+  /** The content is still loading what it shows first. */
+  busy: boolean;
+  /** What stands in meanwhile — a skeleton in the content's own shape. */
+  placeholder: ReactNode;
+  children: ReactNode;
+  /** Classes for the content's box (it replaces the parent's flow for its children). */
+  className?: string;
+}
+
+/**
+ * Loading → content, in one piece and without a cut (058, beta feedback).
+ *
+ * While `busy`, the placeholder is shown and the content is mounted but
+ * hidden, so everything inside it — lists, lazy parts, their own reads — can
+ * load at once instead of popping in one after another. When it is ready it
+ * replaces the placeholder whole. If the placeholder was actually on screen
+ * the content fades in over it; if it was ready before anything was painted
+ * (a transition held the old screen meanwhile) it simply is there.
+ *
+ * The box is `aria-busy` while loading, which is also what a route
+ * transition waits for before it reveals the new screen.
+ */
+export function Reveal({ busy, placeholder, children, className }: RevealProps) {
+  const [placeholderPainted, setPlaceholderPainted] = useState(false);
+  useEffect(() => {
+    if (!busy || typeof requestAnimationFrame !== 'function') return;
+    // Frames do not run while a transition holds the old screen, so content
+    // that is ready by then never had a placeholder to fade over.
+    const frame = requestAnimationFrame(() => setPlaceholderPainted(true));
+    return () => cancelAnimationFrame(frame);
+  }, [busy]);
+  const arriving = !busy && placeholderPainted;
+  // The arrival lasts as long as the cascade inside it (components.css), then the box is
+  // ordinary again.
+  useEffect(() => {
+    if (!arriving) return;
+    const timer = setTimeout(() => setPlaceholderPainted(false), REVEAL_ARRIVAL_MS);
+    return () => clearTimeout(timer);
+  }, [arriving]);
+  return (
+    <>
+      {busy && placeholder}
+      <div
+        className={uiClasses('reveal', { className, states: { arriving } })}
+        hidden={busy}
+        aria-busy={busy || undefined}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 export interface RouteSkeletonProps {
   /** The shape of the screen that is coming (lib/motion-registry.ts). */
   variant: RouteSkeletonVariant;

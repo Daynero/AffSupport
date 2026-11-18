@@ -29,7 +29,9 @@ import {
   Modal,
   Popover,
   SelectionBar,
-  LoadingState
+  LoadingState,
+  Reveal,
+  Skeleton
 } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -69,6 +71,7 @@ type ArchiveCandidate = {
   suppressed: boolean;
 };
 type ArchiveTarget = { items: ArchiveCandidate[]; suppress?: boolean };
+const BATCH_READ_WAIT_MS = 4_000;
 export function LaunchSpace({ teamId, query }: { teamId: string; query: TeamRouteQuery }) {
   const actorId = useOptionalAuth()?.user?.id ?? null;
   const { can } = useTeam();
@@ -109,6 +112,18 @@ function LaunchSpaceContent({
   const [buyers, setBuyers] = useState<LaunchDictionaryItem[]>([]);
   const [defaults, setDefaults] = useState<Awaited<ReturnType<typeof launchApi.defaults>>>(null);
   const [ready, setReady] = useState(false);
+  // The first page of the list has been read (or failed). Until then "no launches yet" would be
+  // a lie that flashes before the cards (058, beta feedback).
+  const [listLoaded, setListLoaded] = useState(false);
+  // The batch block has read what it shows: it sits above the cards, and arriving later it
+  // pushed the whole grid down.
+  const [batchesRead, setBatchesRead] = useState(actorId === null);
+  // The batch read has its own deadline and retries; the board does not wait past this for it.
+  useEffect(() => {
+    if (batchesRead) return;
+    const timer = window.setTimeout(() => setBatchesRead(true), BATCH_READ_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [batchesRead]);
   const [setupRetry, setSetupRetry] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Awaited<ReturnType<typeof launchApi.list>>['items']>([]);
@@ -290,7 +305,9 @@ function LaunchSpaceContent({
     };
   }, [teamId, t, revision, setupRetry]);
   useEffect(() => {
-    void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
+    void refresh()
+      .catch(e => setError(teamErrorMessageFor(e, t)))
+      .finally(() => setListLoaded(true));
   }, [refresh, revision, t]);
   const hasRunningLaunch =
     batchPending || items.some(item => ['running', 'queued'].includes(launchCardState(item)));
@@ -524,6 +541,9 @@ function LaunchSpaceContent({
     detailRead.current.revisionId === (query.revisionId ?? null)
       ? detail
       : null;
+  // Everything the board shows first, read before any of it is shown (058): the cards, the
+  // dictionaries their labels come from, and the batch block above them.
+  const busy = !error && (!ready || !listLoaded || (Boolean(actorId) && !batchesRead));
   return (
     <section
       className="team-panel team-launch-space flex min-w-0 flex-col gap-4"
@@ -650,298 +670,316 @@ function LaunchSpaceContent({
       )}
       {!ready && error && <Button onClick={() => setSetupRetry(n => n + 1)}>{t('retry')}</Button>}
       {pending && !open && <p role="status">{t('launchesBusy')}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-label text-ink-muted">
-        <span>{t('launchesBulkNewest')}</span>
-        <div className="flex gap-2">
-          {items.length > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setSelectedIds(new Set(items.map(i => i.id)))}
-            >
-              {t('launchesBulkSelectAll')}
-            </Button>
-          )}
-          {selection.canPaste && can('edit') && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={selection.busy}
-              onClick={() => void selection.paste()}
-            >
-              {t('launchesBulkPaste', { count: selection.pasteCount })}
-            </Button>
-          )}
-        </div>
-      </div>
-      {batchLoading && <LoadingState shape="block" count={1} label={t('launchesBusy')} />}
-      {actorId && BatchComponent && (
-        <BatchComponent
-          key={`${teamId}:${actorId}:${privateCacheActorEpoch()}`}
-          teamId={teamId}
-          actorId={actorId}
-          command={batch}
-          reconcileEpoch={batchPulse + revision}
-          enabled={can('edit')}
-          onBatches={setBatches}
-          showSettled={!filtersActive}
-          onPendingChange={setBatchPending}
-          onSubmissionPendingChange={pending => {
-            setBatchSubmissionPending(pending);
-            batchRunning.current = pending;
-          }}
-          onSubmitted={key => {
-            setBatch(current => (current?.requestKey === key ? null : current));
-            batchRunning.current = false;
-          }}
-          onChange={() => {
-            void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
-          }}
-          onOpen={id => route(id, 'result')}
-        />
-      )}
-      <SelectionBar
-        count={selectedIds.size}
-        label={t('teamTaskSelectedCount', { count: selectedIds.size })}
-        clearLabel={t('teamTaskClearSelection', { count: selectedIds.size })}
-        onClear={() => setSelectedIds(new Set())}
-        actions={
-          <div ref={bulkAnchor} className="team-task-bulk flex flex-wrap gap-2">
-            {can('edit') && (
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={!eligible.length || batchSubmissionPending || batchLoading}
-                title={!eligible.length ? t('launchesBulkDraftsOnly') : undefined}
-                loading={batchLoading}
-                onClick={() => void startBatch()}
-              >
-                <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('launchesBulkGenerate', { count: eligible.length })}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={selection.busy}
-              onClick={selection.copySelected}
-            >
-              <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {t('launchesBulkCopy', { count: selectedIds.size })}
-            </Button>
-            {can('delete') && (
+      <Reveal
+        busy={busy}
+        className="flex min-w-0 flex-col gap-4"
+        placeholder={
+          <Skeleton
+            shape="tile"
+            count={8}
+            label={t('launchesBusy')}
+            className="team-task-grid launch-grid"
+          />
+        }
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 text-label text-ink-muted">
+          <span>{t('launchesBulkNewest')}</span>
+          <div className="flex gap-2">
+            {items.length > 0 && (
               <Button
                 size="sm"
                 variant="ghost"
-                color="error"
-                disabled={
-                  archiveBusy ||
-                  items.some(i => selectedIds.has(i.id) && launchInputsLocked(i.generationState))
-                }
-                onClick={deleteSelected}
+                onClick={() => setSelectedIds(new Set(items.map(i => i.id)))}
               >
-                <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('launchesArchiveSelected', { count: selectedIds.size })}
+                {t('launchesBulkSelectAll')}
               </Button>
             )}
-            <Button
-              size="sm"
-              color="neutral"
-              variant="outline"
-              onClick={() => setBulkOpen(current => !current)}
-            >
-              {t('teamTaskBulkActions')}
-            </Button>
-            <DropdownMenu
-              open={bulkOpen}
-              onClose={() => setBulkOpen(false)}
-              anchor={bulkAnchor}
-              placement="top-start"
-              label={t('teamTaskBulkActions')}
-              items={[
-                {
-                  id: 'copy-links',
-                  label: t('launchesCopySelectedLinks'),
-                  icon: <Link2 size={ICON_SIZE} />,
-                  onSelect: () => {
-                    const links = items
-                      .filter(item => selectedIds.has(item.id))
-                      .map(item => {
-                        const path = buildTeamRoute({
-                          spaceId: teamId,
-                          section: 'launches',
-                          query: { ...emptyTeamRouteQuery(), launchId: item.id }
-                        });
-                        return new URL(path, window.location.origin).href;
-                      });
-                    void navigator.clipboard.writeText(links.join('\n')).catch(() => {
-                      setError(t('launchesCopyFailed'));
-                    });
-                    setBulkOpen(false);
-                  }
-                },
-                ...(can('delete')
-                  ? [
-                      {
-                        id: 'archive-selected',
-                        label: t('launchesArchiveSelected', { count: selectedIds.size }),
-                        icon: (
-                          <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                        ),
-                        destructive: true,
-                        disabled: items.some(
-                          item =>
-                            selectedIds.has(item.id) && launchInputsLocked(item.generationState)
-                        ),
-                        onSelect: () => {
-                          const selected = items.filter(item => selectedIds.has(item.id));
-                          void Promise.all(
-                            selected.map(async item => {
-                              const warning = await launchApi.archiveWarning(teamId, item.id);
-                              return {
-                                id: item.id,
-                                version: item.version,
-                                requestKey: crypto.randomUUID(),
-                                hasCatalog: warning.hasCatalog,
-                                hasRestitch: warning.hasRestitch,
-                                suppressed: warning.suppressed
-                              };
-                            })
-                          )
-                            .then(targets => {
-                              requestArchive(targets);
-                            })
-                            .catch(e => setError(teamErrorMessageFor(e, t)));
-                          setBulkOpen(false);
-                        }
-                      }
-                    ]
-                  : [])
-              ]}
-            />
-          </div>
-        }
-      />
-      <div className="team-task-grid launch-grid" onPointerDown={launchMarquee.onPointerDown}>
-        {items.map(value => (
-          <LaunchCard
-            key={value.id}
-            value={durableCardValue(value, batchItemFor(value.id))}
-            onOpen={() => route(value.id)}
-            selected={selectedIds.has(value.id)}
-            onSelectedChange={(selected, modifiers) =>
-              selection.select(value.id, selected, modifiers?.shiftKey)
-            }
-            queueState={(() => {
-              const item = batchItemFor(value.id);
-              if (!item || (value.generation && value.generation.id !== item.generationId))
-                return undefined;
-              if (
-                value.generation &&
-                item.generation &&
-                BigInt(value.generation.stateVersion) > BigInt(item.generation.stateVersion)
-              )
-                return undefined;
-              if (!value.generation && value.version !== item.expectedVersion) return undefined;
-              return durableItemState(item);
-            })()}
-            onCopyLink={() => {
-              const path = buildTeamRoute({
-                spaceId: teamId,
-                section: 'launches',
-                query: { ...emptyTeamRouteQuery(), launchId: value.id }
-              });
-              void navigator.clipboard
-                .writeText(new URL(path, window.location.origin).href)
-                .catch(() => setError(t('launchesCopyFailed')));
-            }}
-            onDelete={
-              can('delete')
-                ? () => {
-                    void launchApi
-                      .archiveWarning(teamId, value.id)
-                      .then(warning => {
-                        requestArchive([
-                          {
-                            id: value.id,
-                            version: value.version,
-                            requestKey: crypto.randomUUID(),
-                            hasCatalog: warning.hasCatalog,
-                            hasRestitch: warning.hasRestitch,
-                            suppressed: warning.suppressed
-                          }
-                        ]);
-                      })
-                      .catch(e => setError(teamErrorMessageFor(e, t)));
-                  }
-                : undefined
-            }
-            actionsDisabled={archiveBusy || launchInputsLocked(value.generationState)}
-          />
-        ))}
-      </div>
-      {archiveTarget && (
-        <Modal title={t('launchesArchive')} onClose={() => setArchiveTarget(null)}>
-          <div className="flex flex-col gap-3 p-4">
-            {archiveTarget.items.some(item => item.hasCatalog || item.hasRestitch) && (
-              <p>
-                {t(
-                  archiveTarget.items.some(item => item.hasRestitch)
-                    ? 'launchesRetentionVideo'
-                    : 'launchesRetention'
-                )}
-              </p>
-            )}
-            <Checkbox
-              label={t('launchesSuppress')}
-              checked={archiveSuppress}
-              onChange={setArchiveSuppress}
-              disabled={archiveBusy || archiveTarget.suppress !== undefined}
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" disabled={archiveBusy} onClick={() => setArchiveTarget(null)}>
-                {t('teamCancel')}
-              </Button>
+            {selection.canPaste && can('edit') && (
               <Button
-                variant="danger"
-                disabled={archiveBusy}
+                size="sm"
+                variant="outline"
+                disabled={selection.busy}
+                onClick={() => void selection.paste()}
+              >
+                {t('launchesBulkPaste', { count: selection.pasteCount })}
+              </Button>
+            )}
+          </div>
+        </div>
+        {batchLoading && <LoadingState shape="block" count={1} label={t('launchesBusy')} />}
+        {actorId && BatchComponent && (
+          <BatchComponent
+            key={`${teamId}:${actorId}:${privateCacheActorEpoch()}`}
+            teamId={teamId}
+            actorId={actorId}
+            command={batch}
+            reconcileEpoch={batchPulse + revision}
+            enabled={can('edit')}
+            onBatches={setBatches}
+            onInitialRead={() => setBatchesRead(true)}
+            showSettled={!filtersActive}
+            onPendingChange={setBatchPending}
+            onSubmissionPendingChange={pending => {
+              setBatchSubmissionPending(pending);
+              batchRunning.current = pending;
+            }}
+            onSubmitted={key => {
+              setBatch(current => (current?.requestKey === key ? null : current));
+              batchRunning.current = false;
+            }}
+            onChange={() => {
+              void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
+            }}
+            onOpen={id => route(id, 'result')}
+          />
+        )}
+        <SelectionBar
+          count={selectedIds.size}
+          label={t('teamTaskSelectedCount', { count: selectedIds.size })}
+          clearLabel={t('teamTaskClearSelection', { count: selectedIds.size })}
+          onClear={() => setSelectedIds(new Set())}
+          actions={
+            <div ref={bulkAnchor} className="team-task-bulk flex flex-wrap gap-2">
+              {can('edit') && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!eligible.length || batchSubmissionPending || batchLoading}
+                  title={!eligible.length ? t('launchesBulkDraftsOnly') : undefined}
+                  loading={batchLoading}
+                  onClick={() => void startBatch()}
+                >
+                  <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('launchesBulkGenerate', { count: eligible.length })}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={selection.busy}
+                onClick={selection.copySelected}
+              >
+                <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('launchesBulkCopy', { count: selectedIds.size })}
+              </Button>
+              {can('delete') && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  color="error"
+                  disabled={
+                    archiveBusy ||
+                    items.some(i => selectedIds.has(i.id) && launchInputsLocked(i.generationState))
+                  }
+                  onClick={deleteSelected}
+                >
+                  <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('launchesArchiveSelected', { count: selectedIds.size })}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                color="neutral"
+                variant="outline"
+                onClick={() => setBulkOpen(current => !current)}
+              >
+                {t('teamTaskBulkActions')}
+              </Button>
+              <DropdownMenu
+                open={bulkOpen}
+                onClose={() => setBulkOpen(false)}
+                anchor={bulkAnchor}
+                placement="top-start"
+                label={t('teamTaskBulkActions')}
+                items={[
+                  {
+                    id: 'copy-links',
+                    label: t('launchesCopySelectedLinks'),
+                    icon: <Link2 size={ICON_SIZE} />,
+                    onSelect: () => {
+                      const links = items
+                        .filter(item => selectedIds.has(item.id))
+                        .map(item => {
+                          const path = buildTeamRoute({
+                            spaceId: teamId,
+                            section: 'launches',
+                            query: { ...emptyTeamRouteQuery(), launchId: item.id }
+                          });
+                          return new URL(path, window.location.origin).href;
+                        });
+                      void navigator.clipboard.writeText(links.join('\n')).catch(() => {
+                        setError(t('launchesCopyFailed'));
+                      });
+                      setBulkOpen(false);
+                    }
+                  },
+                  ...(can('delete')
+                    ? [
+                        {
+                          id: 'archive-selected',
+                          label: t('launchesArchiveSelected', { count: selectedIds.size }),
+                          icon: (
+                            <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                          ),
+                          destructive: true,
+                          disabled: items.some(
+                            item =>
+                              selectedIds.has(item.id) && launchInputsLocked(item.generationState)
+                          ),
+                          onSelect: () => {
+                            const selected = items.filter(item => selectedIds.has(item.id));
+                            void Promise.all(
+                              selected.map(async item => {
+                                const warning = await launchApi.archiveWarning(teamId, item.id);
+                                return {
+                                  id: item.id,
+                                  version: item.version,
+                                  requestKey: crypto.randomUUID(),
+                                  hasCatalog: warning.hasCatalog,
+                                  hasRestitch: warning.hasRestitch,
+                                  suppressed: warning.suppressed
+                                };
+                              })
+                            )
+                              .then(targets => {
+                                requestArchive(targets);
+                              })
+                              .catch(e => setError(teamErrorMessageFor(e, t)));
+                            setBulkOpen(false);
+                          }
+                        }
+                      ]
+                    : [])
+                ]}
+              />
+            </div>
+          }
+        />
+        <div className="team-task-grid launch-grid" onPointerDown={launchMarquee.onPointerDown}>
+          {items.map(value => (
+            <LaunchCard
+              key={value.id}
+              value={durableCardValue(value, batchItemFor(value.id))}
+              onOpen={() => route(value.id)}
+              selected={selectedIds.has(value.id)}
+              onSelectedChange={(selected, modifiers) =>
+                selection.select(value.id, selected, modifiers?.shiftKey)
+              }
+              queueState={(() => {
+                const item = batchItemFor(value.id);
+                if (!item || (value.generation && value.generation.id !== item.generationId))
+                  return undefined;
+                if (
+                  value.generation &&
+                  item.generation &&
+                  BigInt(value.generation.stateVersion) > BigInt(item.generation.stateVersion)
+                )
+                  return undefined;
+                if (!value.generation && value.version !== item.expectedVersion) return undefined;
+                return durableItemState(item);
+              })()}
+              onCopyLink={() => {
+                const path = buildTeamRoute({
+                  spaceId: teamId,
+                  section: 'launches',
+                  query: { ...emptyTeamRouteQuery(), launchId: value.id }
+                });
+                void navigator.clipboard
+                  .writeText(new URL(path, window.location.origin).href)
+                  .catch(() => setError(t('launchesCopyFailed')));
+              }}
+              onDelete={
+                can('delete')
+                  ? () => {
+                      void launchApi
+                        .archiveWarning(teamId, value.id)
+                        .then(warning => {
+                          requestArchive([
+                            {
+                              id: value.id,
+                              version: value.version,
+                              requestKey: crypto.randomUUID(),
+                              hasCatalog: warning.hasCatalog,
+                              hasRestitch: warning.hasRestitch,
+                              suppressed: warning.suppressed
+                            }
+                          ]);
+                        })
+                        .catch(e => setError(teamErrorMessageFor(e, t)));
+                    }
+                  : undefined
+              }
+              actionsDisabled={archiveBusy || launchInputsLocked(value.generationState)}
+            />
+          ))}
+        </div>
+        {archiveTarget && (
+          <Modal title={t('launchesArchive')} onClose={() => setArchiveTarget(null)}>
+            <div className="flex flex-col gap-3 p-4">
+              {archiveTarget.items.some(item => item.hasCatalog || item.hasRestitch) && (
+                <p>
+                  {t(
+                    archiveTarget.items.some(item => item.hasRestitch)
+                      ? 'launchesRetentionVideo'
+                      : 'launchesRetention'
+                  )}
+                </p>
+              )}
+              <Checkbox
+                label={t('launchesSuppress')}
+                checked={archiveSuppress}
+                onChange={setArchiveSuppress}
+                disabled={archiveBusy || archiveTarget.suppress !== undefined}
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  disabled={archiveBusy}
+                  onClick={() => setArchiveTarget(null)}
+                >
+                  {t('teamCancel')}
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={archiveBusy}
+                  onClick={() => {
+                    executeArchive(archiveTarget, archiveSuppress);
+                  }}
+                >
+                  {t('launchesArchive')}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {ready && !items.length && (
+          <div className="flex flex-wrap items-center gap-2">
+            <p>{t(filtersActive ? 'launchesFilterEmpty' : 'launchesEmpty')}</p>
+            {filtersActive && (
+              <Button
+                variant="ghost"
                 onClick={() => {
-                  executeArchive(archiveTarget, archiveSuppress);
+                  resetListCursor();
+                  setSearch('');
+                  setAccountFilter('');
+                  setAssigneeFilter('');
+                  setOfferFilter('');
+                  setDates({ kind: 'all' });
                 }}
               >
-                {t('launchesArchive')}
+                {t('launchesFiltersClearAll')}
               </Button>
-            </div>
+            )}
           </div>
-        </Modal>
-      )}
-      {ready && !items.length && (
-        <div className="flex flex-wrap items-center gap-2">
-          <p>{t(filtersActive ? 'launchesFilterEmpty' : 'launchesEmpty')}</p>
-          {filtersActive && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                resetListCursor();
-                setSearch('');
-                setAccountFilter('');
-                setAssigneeFilter('');
-                setOfferFilter('');
-                setDates({ kind: 'all' });
-              }}
-            >
-              {t('launchesFiltersClearAll')}
-            </Button>
-          )}
-        </div>
-      )}
-      {cursor && (
-        <Button
-          onClick={() => void readList(cursor).catch(e => setError(teamErrorMessageFor(e, t)))}
-        >
-          {t('teamExplorerLoadMore')}
-        </Button>
-      )}
+        )}
+        {cursor && (
+          <Button
+            onClick={() => void readList(cursor).catch(e => setError(teamErrorMessageFor(e, t)))}
+          >
+            {t('teamExplorerLoadMore')}
+          </Button>
+        )}
+      </Reveal>
       {open && ready && (open === 'new' || visibleDetail) && (
         <Modal
           labelledBy="team-launch-dialog-title"

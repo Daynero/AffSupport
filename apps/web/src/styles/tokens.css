@@ -373,6 +373,31 @@
 
   /* Interactive feedback: a press is felt, not watched. */
   --press-scale: 0.97;
+  /* The same for a whole surface — a card, a tile: it is bigger, so it gives less. */
+  --press-scale-surface: 0.985;
+  /* Feel (058). A press goes down at once and comes back on a spring: the way
+     down is the reply to the finger and may not lag, the way back is where the
+     surface shows it has weight. The spring's tail runs past the 300ms ceiling
+     on purpose — nobody waits for it, the control is already usable. */
+  --motion-press: 90ms;
+  --motion-spring: 450ms;
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  /* How far apart the items of an arriving grid start, so they land as a
+     cascade rather than a slab. */
+  --stagger-step: 28ms;
+  /* The light a pointer carries over a card. */
+  --glow-size: 340px;
+
+  /* Hints (058). One small dark label, the same in both themes — a hint is a
+     footnote to a control, not a panel of its own: caption-sized type, a
+     hairline edge, almost no shadow. It waits before it shows, so sweeping the
+     pointer across a toolbar raises nothing; once one is up, its neighbours
+     answer at once. Mirrored by TIP_DELAY_MS in components/InstantTips.tsx. */
+  --tooltip-surface: color-mix(in oklab, var(--purple-950) 94%, var(--purple-50));
+  --tooltip-text: var(--purple-50);
+  --tooltip-border: color-mix(in oklab, var(--purple-50) 24%, var(--purple-950));
+  --tooltip-width: 320px;
+  --delay-tooltip: 450ms;
 
   /* The one exception to the ceiling: a spinner is not a transition a person
      waits through, it is the signal that work is still running. Under reduced
@@ -659,6 +684,34 @@
     --motion-slow: 1ms;
     --motion-spin: var(--motion-spin-reduced);
     --press-scale: 1;
+    --press-scale-surface: 1;
+    --motion-press: 1ms;
+    --motion-spring: 1ms;
+    --stagger-step: 0ms;
+  }
+}
+
+/* A real spring where the engine can draw one: a damped curve sampled into
+   `linear()`, with a small overshoot. Elsewhere the cubic-bezier above stands in. */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(
+      0,
+      0.006,
+      0.025 2.8%,
+      0.101 6.1%,
+      0.539 18.9%,
+      0.721 25.3%,
+      0.849 31.5%,
+      0.937 38.1%,
+      0.968 41.8%,
+      0.991 45.7%,
+      1.006 50.1%,
+      1.015 55%,
+      1.017 63.9%,
+      1.001 85.9%,
+      1
+    );
   }
 }
 

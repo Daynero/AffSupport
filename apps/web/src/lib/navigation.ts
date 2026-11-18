@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { isLiteMotion, reportAnimatedTransition } from './motion-quality';
-import { motionBetween, screenOf, type MotionKind } from './motion-registry';
+import { motionBetween, screenOf, type MotionKind, type ScreenKind } from './motion-registry';
 import {
   beginNavigationAttempt,
   type NavHistory,
@@ -281,7 +281,8 @@ function screenSettled(motion: Exclude<MotionKind, 'none'>, id: number): Promise
     (motion === 'section' ? document.querySelector('.team-space-shell-body') : null) ??
     document.querySelector('.page-viewport') ??
     document.body;
-  if (!isLoading(scope)) return Promise.resolve();
+  // The first look waits a tick: state a component derives from the new route in an effect
+  // (a folder, a selection) renders right after the commit, not inside it.
   return new Promise(resolve => {
     const startedAt = now();
     const check = () => {
@@ -314,8 +315,11 @@ function commitRouteChange(
   apply: () => void,
   motion: MotionKind,
   scrollTop: number,
-  attempt: NavigationAttempt | null
+  attempt: NavigationAttempt | null,
+  history: NavHistory = 'push'
 ) {
+  const from = committedRoute ?? currentRoute();
+  const to = currentRoute();
   lastCommitAt = now();
   if (motion === 'none' || typeof document === 'undefined') {
     apply();
@@ -339,6 +343,10 @@ function commitRouteChange(
   activeTransition?.skipTransition();
   root.classList.remove(PAGE_TRANSITION_CLASS, SECTION_TRANSITION_CLASS);
   root.classList.add(motion === 'section' ? SECTION_TRANSITION_CLASS : PAGE_TRANSITION_CLASS);
+  root.dataset.navDir = directionOf(from, to, motion, history);
+  const hero = motion === 'page' ? heroFor(from, to) : null;
+  if (hero?.from) hero.from.style.viewTransitionName = HERO_NAME;
+  let heroTarget: HTMLElement | null = null;
   routeTransitionActive = true;
   attempt?.committed('animated', 'none');
   // flushSync commits the React route state inside the transition callback, so
@@ -346,14 +354,24 @@ function commitRouteChange(
   // (mirrors the synchronous applyTheme commit in theme.ts).
   const transition = document.startViewTransition(async () => {
     flushSync(apply);
+    if (hero) {
+      if (hero.from?.isConnected) hero.from.style.viewTransitionName = '';
+      heroTarget = hero.to();
+      if (heroTarget) heroTarget.style.viewTransitionName = HERO_NAME;
+    }
     await screenSettled(motion, id);
   });
   activeTransition = transition;
   const finish = () => {
+    // The hero's name comes off whoever wore it, even when a newer transition took over:
+    // two elements under one name would cancel that one.
+    if (hero?.from) hero.from.style.viewTransitionName = '';
+    if (heroTarget) heroTarget.style.viewTransitionName = '';
     if (id !== transitionSeq) return;
     routeTransitionActive = false;
     activeTransition = null;
     root.classList.remove(PAGE_TRANSITION_CLASS, SECTION_TRANSITION_CLASS);
+    delete root.dataset.navDir;
     reportAnimatedTransition(attempt?.animationDone() ?? 0);
   };
   transition.finished.then(finish, finish);
@@ -361,9 +379,149 @@ function commitRouteChange(
   // which a newer navigation does on purpose. Nothing awaits them, so each
   // rejection would surface as an uncaught `InvalidStateError`.
   transition.ready.then(
-    () => attempt?.animationStarted(),
+    () => {
+      attempt?.animationStarted();
+      markStagger();
+    },
     () => {}
   );
+  transition.updateCallbackDone.catch(() => {});
+}
+
+/* ---------------------------------------------------------------------------
+ * Feel (058): which way a move goes, what lands as a cascade, and the card
+ * that becomes its screen. Styles are in styles.css and components.css; this
+ * only names the facts they key on.
+ * ------------------------------------------------------------------------- */
+
+export type NavDirection = 'forward' | 'back' | 'none';
+
+/** Sections in the order their tabs stand, left to right. */
+const SECTION_ORDER: readonly ScreenKind[] = [
+  'team_explorer',
+  'team_tasks',
+  'team_launches',
+  'team_accounts',
+  'team_members',
+  'team_trash'
+];
+
+/**
+ * A section to the right of the current one is `forward`, to the left `back`;
+ * the same section with another folder has no side to come from. A page that
+ * is gone into is `forward`; the browser's Back (and Forward — the history
+ * does not say which) is `back`.
+ */
+export function directionOf(
+  from: string,
+  to: string,
+  motion: Exclude<MotionKind, 'none'>,
+  history: NavHistory
+): NavDirection {
+  if (motion === 'section') {
+    const a = SECTION_ORDER.indexOf(screenOf(from));
+    const b = SECTION_ORDER.indexOf(screenOf(to));
+    if (a === -1 || b === -1 || a === b) return 'none';
+    return b > a ? 'forward' : 'back';
+  }
+  return history === 'pop' ? 'back' : 'forward';
+}
+
+const STAGGER_CLEAR_MS = 900;
+let staggerTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** The screen has just arrived: its grids may land as a cascade, once. */
+function markStagger() {
+  const root = document.documentElement;
+  root.dataset.navStagger = 'true';
+  if (staggerTimer) clearTimeout(staggerTimer);
+  staggerTimer = setTimeout(() => {
+    delete root.dataset.navStagger;
+    staggerTimer = null;
+  }, STAGGER_CLEAR_MS);
+}
+
+const HERO_NAME = 'wishly-hero';
+
+/** What a card on the launcher is the card of: a tool's path, or a space's. */
+function heroKey(route: string): string | null {
+  const pathname = route.split(/[?#]/u, 1)[0] ?? '';
+  const screen = screenOf(route);
+  if (screen === 'tool') return pathname;
+  const space = /^\/team\/[^/]+/u.exec(pathname);
+  return space ? space[0] : null;
+}
+
+function onScreen(node: HTMLElement): boolean {
+  const rect = node.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+}
+
+function pageSurface(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.page-viewport > main');
+}
+
+function heroCard(key: string): HTMLElement | null {
+  for (const node of document.querySelectorAll<HTMLElement>('[data-morph]')) {
+    if (node.dataset.morph === key && onScreen(node)) return node;
+  }
+  return null;
+}
+
+/**
+ * The pair that morphs into each other, between the launcher and what its
+ * cards open: going in, the pressed card grows into the page; coming back, the
+ * page folds into its card. Null for every other move, and when the card is
+ * not on screen to start from.
+ */
+function heroFor(
+  from: string,
+  to: string
+): { from: HTMLElement | null; to: () => HTMLElement | null } | null {
+  const leaving = screenOf(from);
+  const arriving = screenOf(to);
+  if (leaving === 'tools_home' && arriving !== 'tools_home') {
+    const key = heroKey(to);
+    const card = key ? heroCard(key) : null;
+    return card ? { from: card, to: pageSurface } : null;
+  }
+  if (arriving === 'tools_home' && leaving !== 'tools_home') {
+    const key = heroKey(from);
+    const surface = key ? pageSurface() : null;
+    return surface && key ? { from: surface, to: () => heroCard(key) } : null;
+  }
+  return null;
+}
+
+/**
+ * A change of layout within a screen — a side pane arriving, the grid beside
+ * it reflowing to make room — crossfaded on the section's clock instead of
+ * cut (058, beta feedback: "something changes size"). Applied at once when
+ * motion is off, and never while a route transition runs: starting a
+ * transition would skip that one.
+ */
+export function crossfadeLayout(apply: () => void) {
+  if (
+    typeof document === 'undefined' ||
+    activeTransition ||
+    routeTransitionActive ||
+    instantMode('section')
+  ) {
+    apply();
+    return;
+  }
+  const root = document.documentElement;
+  const id = ++transitionSeq;
+  root.classList.add(SECTION_TRANSITION_CLASS);
+  const transition = document.startViewTransition(() => flushSync(apply));
+  activeTransition = transition;
+  const finish = () => {
+    if (id !== transitionSeq) return;
+    activeTransition = null;
+    root.classList.remove(SECTION_TRANSITION_CLASS);
+  };
+  transition.finished.then(finish, finish);
+  transition.ready.catch(() => {});
   transition.updateCallbackDone.catch(() => {});
 }
 
@@ -447,7 +605,12 @@ export function navigateTo(
   const from = currentRoute();
   if (path === from) return;
   const replace = options.replace ?? false;
-  const redirect = replace && (routeTransitionActive || now() - lastCommitAt < REDIRECT_WINDOW_MS);
+  // A replace right after a navigation is a redirect finishing it, not a move of its own —
+  // unless the caller said how it moves (a folder opened soon after arriving).
+  const redirect =
+    replace &&
+    options.motion === undefined &&
+    (routeTransitionActive || now() - lastCommitAt < REDIRECT_WINDOW_MS);
   const motion: MotionKind = redirect ? 'none' : (options.motion ?? motionBetween(from, path));
   const historyKind: NavHistory = replace ? 'replace' : 'push';
   const start =
@@ -568,7 +731,13 @@ function applyRouteToListeners() {
 function onNavigationEvent(event: Event) {
   const detail = (event as CustomEvent<Partial<NavigationDetail>>).detail ?? {};
   const motion: MotionKind = detail.motion ?? (detail.animate === false ? 'none' : 'page');
-  commitRouteChange(applyRouteToListeners, motion, 0, detail.attempt ?? null);
+  commitRouteChange(
+    applyRouteToListeners,
+    motion,
+    0,
+    detail.attempt ?? null,
+    detail.history ?? 'push'
+  );
 }
 
 function onPopStateEvent() {
@@ -595,7 +764,7 @@ function onPopStateEvent() {
         });
   attempt?.prepared();
   const scrollTop = scrollPositions.get(currentEntryKey()) ?? 0;
-  commitRouteChange(applyRouteToListeners, motion, scrollTop, attempt);
+  commitRouteChange(applyRouteToListeners, motion, scrollTop, attempt, 'pop');
 }
 
 function subscribeRoute(listener: (route: string) => void): () => void {
@@ -668,11 +837,15 @@ export function resetNavigationForTests() {
   navWaitedTimer = null;
   if (navRecentTimer) clearTimeout(navRecentTimer);
   navRecentTimer = null;
+  if (staggerTimer) clearTimeout(staggerTimer);
+  staggerTimer = null;
   routePreparers.clear();
   if (typeof document !== 'undefined') {
     delete document.documentElement.dataset.navEnter;
     delete document.documentElement.dataset.navWaited;
     delete document.documentElement.dataset.navRecent;
+    delete document.documentElement.dataset.navStagger;
+    delete document.documentElement.dataset.navDir;
   }
 }
 
@@ -683,4 +856,6 @@ declare global {
   }
 }
 
-if (import.meta.env.DEV && typeof window !== 'undefined') window.__sotyNavigate = navigateTo;
+// The beta also runs as a production build, so motion is judged at production speed (058).
+if ((import.meta.env.DEV || import.meta.env.MODE === 'beta') && typeof window !== 'undefined')
+  window.__sotyNavigate = navigateTo;

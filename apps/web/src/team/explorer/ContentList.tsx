@@ -4,6 +4,7 @@ import type { TeamMaterialSummary } from '../../api/team';
 import {
   EmptyState,
   ErrorState,
+  Reveal,
   Table,
   TableCell,
   TableHeader,
@@ -109,9 +110,6 @@ export function ContentList({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.loading && page.rows.length === 0 && (
-        <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
-      )}
       {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
@@ -132,60 +130,65 @@ export function ContentList({
           action={emptyState ? undefined : emptyAction}
         />
       )}
-      {rows.length > 0 && (
-        <Table
-          stickyHeader
-          size="sm"
-          className="team-explorer-rows"
-          aria-labelledby="team-explorer-content-title"
-        >
-          {/* The columns were ruled to read as a table before they were one;
-              now they are named, so a reader arriving at "17.2 MB" is told
-              which column that is. */}
-          <TableHeader>
-            <TableHeaderCell className="team-explorer-row-check" />
-            <TableHeaderCell className="team-explorer-row-name">
-              {t('teamExplorerSortName')}
-            </TableHeaderCell>
-            <TableHeaderCell className="team-explorer-row-kind">
-              {t('teamExplorerPaneKind')}
-            </TableHeaderCell>
-            <TableHeaderCell className="team-explorer-row-date">
-              {t('teamExplorerSortModified')}
-            </TableHeaderCell>
-            <TableHeaderCell className="team-explorer-row-meta">
-              {t('teamExplorerPaneSize')}
-            </TableHeaderCell>
-            {actions && (
-              <TableHeaderCell className="team-explorer-row-actions">
-                {/* Named for a screen reader; a sighted reader sees the "…" (Drive
-                    does not caption its row actions either). */}
-                <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+      <Reveal
+        busy={page.loading && page.rows.length === 0}
+        placeholder={<LabeledSkeleton label="teamMaterialsLoading" rows={4} />}
+      >
+        {rows.length > 0 && (
+          <Table
+            stickyHeader
+            size="sm"
+            className="team-explorer-rows"
+            aria-labelledby="team-explorer-content-title"
+          >
+            {/* The columns were ruled to read as a table before they were one;
+                now they are named, so a reader arriving at "17.2 MB" is told
+                which column that is. */}
+            <TableHeader>
+              <TableHeaderCell className="team-explorer-row-check" />
+              <TableHeaderCell className="team-explorer-row-name">
+                {t('teamExplorerSortName')}
               </TableHeaderCell>
-            )}
-          </TableHeader>
-          {rows.map(row => (
-            <Row
-              key={row.id}
-              row={row}
-              selected={selectedId === row.id}
-              checked={selectedIds.has(row.id)}
-              drag={drag.dragProps(row)}
-              dropTarget={drag.dropTarget === row.id}
-              onPress={press}
-              onToggle={toggleSelected}
-              onOpenFolder={openFolder}
-              onPreview={onPreview}
-              actions={actions}
-              tagging={tagging}
-              companions={companionCounts?.get(row.id) ?? 0}
-              companionsOpen={openedCompanions?.has(row.id) ?? false}
-              onToggleCompanions={onToggleCompanions}
-              nested={Boolean(companionOf(row))}
-            />
-          ))}
-        </Table>
-      )}
+              <TableHeaderCell className="team-explorer-row-kind">
+                {t('teamExplorerPaneKind')}
+              </TableHeaderCell>
+              <TableHeaderCell className="team-explorer-row-date">
+                {t('teamExplorerSortModified')}
+              </TableHeaderCell>
+              <TableHeaderCell className="team-explorer-row-meta">
+                {t('teamExplorerPaneSize')}
+              </TableHeaderCell>
+              {actions && (
+                <TableHeaderCell className="team-explorer-row-actions">
+                  {/* Named for a screen reader; a sighted reader sees the "…" (Drive
+                      does not caption its row actions either). */}
+                  <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
+                </TableHeaderCell>
+              )}
+            </TableHeader>
+            {rows.map(row => (
+              <Row
+                key={row.id}
+                row={row}
+                selected={selectedId === row.id}
+                checked={selectedIds.has(row.id)}
+                drag={drag.dragProps(row)}
+                dropTarget={drag.dropTarget === row.id}
+                onPress={press}
+                onToggle={toggleSelected}
+                onOpenFolder={openFolder}
+                onPreview={onPreview}
+                actions={actions}
+                tagging={tagging}
+                companions={companionCounts?.get(row.id) ?? 0}
+                companionsOpen={openedCompanions?.has(row.id) ?? false}
+                onToggleCompanions={onToggleCompanions}
+                nested={Boolean(companionOf(row))}
+              />
+            ))}
+          </Table>
+        )}
+      </Reveal>
       <MorePages
         hasMore={page.hasMore}
         loading={page.loading}

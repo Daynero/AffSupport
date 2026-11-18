@@ -34,6 +34,28 @@ describe('transition frame metric (058, FR-027)', () => {
     expect(result.settledMs).toBe(200);
   });
 
+  it('does not call a crossfade a pop', () => {
+    const frames = Array.from({ length: 12 }, (_, index) => ({
+      at: (index + 1) * 16,
+      luma: mix(start, end, (index + 1) / 12)
+    }));
+    const result = analyzeTransition({ start, end, frames });
+    expect(result.popped).toBe(false);
+    expect(result.popShare).toBeLessThan(0.2);
+  });
+
+  it('fails content that appears at once, though no frame is blank', () => {
+    const frames = [
+      ...Array.from({ length: 6 }, (_, index) => ({ at: (index + 1) * 16, luma: start })),
+      { at: 112, luma: end },
+      ...Array.from({ length: 6 }, (_, index) => ({ at: 128 + index * 16, luma: end }))
+    ];
+    const result = analyzeTransition({ start, end, frames });
+    expect(result.dipped).toBe(false);
+    expect(result.popped).toBe(true);
+    expect(result.largestStepAt).toBe(112);
+  });
+
   it('fails a blank frame in the middle', () => {
     const frames = [
       { at: 40, luma: mix(start, end, 0.3) },

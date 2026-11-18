@@ -37,6 +37,10 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const VIEWPORT = { width: 1440, height: 900 };
 const BUDGET_MS = { page: 900, section: 700, overlay: 700, pop: 900 };
 const SHIFT_MAX = 0.05;
+/** Two display frames; a longer silence before a frame is the recorder's, not the page's. */
+const RECORDER_GAP_MS = 40;
+/** Fewer frames than this over the whole recording: the recorder was starved, judge by eye. */
+const RECORDER_MIN_FRAMES = 16;
 const RECORD_MS = 1_600;
 /**
  * A flash is looked for inside the transition itself: the prepare wait, the
@@ -260,6 +264,16 @@ async function record(page, cdp, out, transition, backgroundShot) {
     if (transition.strictSettle) failures.push(message);
     else warnings.push(message);
   }
+  if (whole.popped) {
+    const message = `frame ${whole.largestStepAt}ms changes at once (${Math.round(whole.popShare * 100)}% of all movement in one frame)`;
+    // Two frames further apart than the display draws them mean the recorder skipped the
+    // ones between: the jump is in the recording, and the picture after it is a blend.
+    if (whole.largestStepGapMs > RECORDER_GAP_MS)
+      warnings.push(`${message} — after a ${whole.largestStepGapMs}ms gap in the recording`);
+    else if (usable.length < RECORDER_MIN_FRAMES)
+      warnings.push(`${message} — only ${usable.length} frames were recorded`);
+    else failures.push(message);
+  }
   if (shift > SHIFT_MAX) failures.push(`layout shifts ${shift.toFixed(3)} after landing`);
 
   const slug = transition.name.replace(/[^a-z0-9]+/giu, '-').toLowerCase();
@@ -267,6 +281,13 @@ async function record(page, cdp, out, transition, backgroundShot) {
   writeFileSync(path.join(out, `${slug}-end.png`), endShot);
   if (result.worstIndex >= 0)
     writeFileSync(path.join(out, `${slug}-worst.png`), usable[result.worstIndex].buffer);
+  if (whole.popped && whole.largestStepIndex > 0) {
+    writeFileSync(
+      path.join(out, `${slug}-pop-before.png`),
+      usable[whole.largestStepIndex - 1].buffer
+    );
+    writeFileSync(path.join(out, `${slug}-pop-after.png`), usable[whole.largestStepIndex].buffer);
+  }
   return {
     name: transition.name,
     kind: transition.kind,
@@ -311,6 +332,15 @@ function transitions(space) {
     { name: 'launches to accounts', kind: 'section', trigger: tab('accounts') },
     { name: 'accounts to members', kind: 'section', trigger: tab('members') },
     { name: 'members to files', kind: 'section', trigger: tab('explorer') },
+    {
+      name: 'open a folder',
+      kind: 'section',
+      trigger: async page => {
+        const tile = page.locator('.team-explorer-tile.is-folder .team-explorer-tile-visual');
+        if (await tile.count()) await tile.first().dblclick();
+        else await page.locator('.team-explorer-row.is-folder').first().dblclick();
+      }
+    },
     {
       name: 'open space settings',
       kind: 'overlay',

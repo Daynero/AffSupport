@@ -1,7 +1,8 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Activity, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo, registerRoutePreparer } from '../../lib/navigation';
-import { screenOf, type ScreenKind } from '../../lib/motion-registry';
+import { screenOf, type MotionKind, type ScreenKind } from '../../lib/motion-registry';
 import { recoverableLazy } from '../../lib/recoverable-lazy';
 import { PaletteHost } from '../palette/PaletteHost';
 import { HistoryDialog } from './HistoryDialog';
@@ -122,6 +123,10 @@ registerRoutePreparer(path => {
 
 /** How long after the space is up the other sections' code starts loading. */
 const SECTION_PRELOAD_DELAY_MS = 600;
+/** How long a tab press waits for its section to fill, out of sight, before going anyway. */
+const PENDING_SECTION_MAX_MS = 1_200;
+/** What a section that is still reading shows (Reveal, Skeleton, RouteSkeleton). */
+const SECTION_BUSY = '[aria-busy="true"], .ui-skeleton, .ui-route-skeleton';
 
 export type WorkspaceShellClient = TeamCatalogClient &
   SpaceSettingsClient &
@@ -322,7 +327,64 @@ export function WorkspaceShell({
    * from state alone, the first frame after a tab press had the old section hidden and the new
    * one not yet mounted — an empty page, with the honeycomb behind it flashing through.
    */
-  const visited = remembered.has(section) ? remembered : new Set(remembered).add(section);
+  /*
+   * The section a tab press is heading for (058). The press is answered at once — the tab's
+   * mark travels to it — while the section itself is mounted out of sight and reads what it
+   * shows first; the screen changes when that is ready, already filled. The page stays live
+   * meanwhile, which a transition holding the old picture could not offer.
+   */
+  const [pendingSection, setPendingSection] = useState<TeamSection | null>(null);
+  useEffect(() => {
+    setPendingSection(null);
+  }, [section]);
+  useEffect(() => {
+    if (!pendingSection) return;
+    // A navigation that was refused (unsaved work) leaves the mark where the screen is.
+    const timer = window.setTimeout(() => setPendingSection(null), PENDING_SECTION_MAX_MS);
+    return () => window.clearTimeout(timer);
+  }, [pendingSection]);
+  const visited = new Set(remembered).add(section);
+  if (pendingSection) visited.add(pendingSection);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const openSection = useCallback(
+    (next: TeamSection, route: string) => {
+      if (next === section) return;
+      // Mounted before the navigation asks whether it is ready — and remembered from now on:
+      // a second tab pressed before this one arrived must not throw away what it has built.
+      flushSync(() => {
+        setPendingSection(next);
+        setVisited(previous => (previous.has(next) ? previous : new Set(previous).add(next)));
+      });
+      navigateTo(route, {
+        motion: 'section',
+        prepare: () => {
+          const code = SECTION_PRELOAD[next]?.();
+          const panel = () =>
+            bodyRef.current?.querySelector<HTMLElement>(`[data-section-panel="${next}"]`) ?? null;
+          const mounted = panel();
+          // Seen before and at rest: nothing to wait for, the move happens now.
+          if (!code && mounted && !mounted.querySelector(SECTION_BUSY)) return;
+          return Promise.resolve(code).then(
+            () =>
+              new Promise<void>(resolve => {
+                const startedAt = Date.now();
+                const check = () => {
+                  const node = panel();
+                  if (
+                    (node && !node.querySelector(SECTION_BUSY)) ||
+                    Date.now() - startedAt > PENDING_SECTION_MAX_MS
+                  )
+                    resolve();
+                  else window.setTimeout(check, 16);
+                };
+                window.setTimeout(check, 16);
+              })
+          );
+        }
+      });
+    },
+    [section]
+  );
   // The other sections' code, fetched once the explorer is up, so a first visit does not wait on
   // a chunk with nothing on screen.
   useEffect(() => {
@@ -518,7 +580,7 @@ export function WorkspaceShell({
    * section (SC-003).
    */
   const updateQuery = useCallback(
-    (target: TeamSection, patch: Partial<TeamRouteQuery>) => {
+    (target: TeamSection, patch: Partial<TeamRouteQuery>, motion: MotionKind = 'none') => {
       // Sections stay mounted while hidden, so a stray report from one of them
       // must not move the address out from under the section being looked at.
       // Every caller reports its own state, so "only the visible one writes"
@@ -538,8 +600,7 @@ export function WorkspaceShell({
           section: toFiles ? 'explorer' : section,
           query: { ...query, ...patch, ...(toFiles ? { trash: false } : {}) }
         }),
-        !toFiles,
-        false
+        { replace: !toFiles, motion }
       );
     },
     [query, section, teamId, trashOver]
@@ -550,7 +611,10 @@ export function WorkspaceShell({
       // The way back to the task that sent you here stays through folder moves (024): picking
       // creatives means opening a folder or two, and the pill vanished on the first press, which
       // is what sent people to a second browser tab. Leaving Files, or the pill itself, ends it.
-      updateQuery('explorer', { folderId, itemId: null }),
+      // Another folder is another page of the explorer: it crossfades like a section, and the
+      // old folder stays on screen while the new one is read, instead of cutting to a skeleton
+      // and then to the files (058, beta feedback).
+      updateQuery('explorer', { folderId, itemId: null }, 'section'),
     [updateQuery]
   );
 
@@ -892,23 +956,26 @@ export function WorkspaceShell({
                     <Tabs
                       className="team-space-tabs"
                       label={t('teamSectionsNavLabel')}
-                      value={section}
+                      value={pendingSection ?? section}
                       /* A section move (058): the header and the tabs stay where they are
                      and only the body crossfades. The whole-page fade of 024 let the
                      honeycomb flash through, so sections had no motion at all; the
                      body crossfade is complementary and short. */
-                      onChange={next =>
-                        navigateTo(sectionRoute(next), {
-                          motion: 'section',
-                          prepare: SECTION_PRELOAD[next]
-                        })
-                      }
-                      onNavigate={(event, tab) =>
-                        internalLink(event, sectionRoute(tab.id), {
-                          motion: 'section',
-                          prepare: SECTION_PRELOAD[tab.id]
-                        })
-                      }
+                      onChange={next => openSection(next, sectionRoute(next))}
+                      onNavigate={(event, tab) => {
+                        // A modified click is the browser's: a new tab, a copied link.
+                        if (
+                          event.defaultPrevented ||
+                          event.button !== 0 ||
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        )
+                          return;
+                        event.preventDefault();
+                        openSection(tab.id, sectionRoute(tab.id));
+                      }}
                       items={CONTENT_TABS.map(tab => ({
                         id: tab.section,
                         label: t(tab.label),
@@ -938,14 +1005,14 @@ export function WorkspaceShell({
                     </div>
                   }
                 >
-                  <div className="team-space-shell-body">
+                  <div className="team-space-shell-body" ref={bodyRef}>
                     {/* Every section behaves the way the explorer already did: mounted
             on its first visit and hidden afterwards, never unmounted. A filter
             in Tasks, a scroll position in Accounts, a half-typed invitation in
             Members — all of it is still there on the way back, because none of
             it was thrown away. */}
                     {visited.has('members') && (
-                      <div hidden={section !== 'members' || trashOver}>
+                      <div hidden={section !== 'members' || trashOver} data-section-panel="members">
                         <MembersSection
                           key={`members:${teamId}`}
                           teamId={teamId}
@@ -955,7 +1022,7 @@ export function WorkspaceShell({
                       </div>
                     )}
                     {visited.has('tasks') && (
-                      <div hidden={section !== 'tasks' || trashOver}>
+                      <div hidden={section !== 'tasks' || trashOver} data-section-panel="tasks">
                         <Suspense fallback={<RouteSkeleton variant="board" label={t('loading')} />}>
                           <TaskSpace
                             key={`tasks:${teamId}`}
@@ -973,17 +1040,43 @@ export function WorkspaceShell({
                         </Suspense>
                       </div>
                     )}
-                    {section === 'launches' && !trashOver && (
-                      <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
-                        <LaunchSpace
-                          key={`launches:${teamId}`}
-                          teamId={teamId}
-                          query={query ?? emptyTeamRouteQuery()}
-                        />
-                      </Suspense>
+                    {/* Launches stays too, but asleep while hidden (058): its polling and
+            batch watching stop, and the board it drew is there at once on the way
+            back, brought up to date in place. Its query — an open launch is a
+            dialog — is only passed while it is the section on screen. */}
+                    {visited.has('launches') && (
+                      <Activity
+                        mode={
+                          (section === 'launches' && !trashOver) || pendingSection === 'launches'
+                            ? 'visible'
+                            : 'hidden'
+                        }
+                      >
+                        <div
+                          hidden={section !== 'launches' || trashOver}
+                          data-section-panel="launches"
+                        >
+                          <Suspense
+                            fallback={<RouteSkeleton variant="list" label={t('loading')} />}
+                          >
+                            <LaunchSpace
+                              key={`launches:${teamId}`}
+                              teamId={teamId}
+                              query={
+                                section === 'launches'
+                                  ? (query ?? emptyTeamRouteQuery())
+                                  : emptyTeamRouteQuery()
+                              }
+                            />
+                          </Suspense>
+                        </div>
+                      </Activity>
                     )}
                     {visited.has('accounts') && (
-                      <div hidden={section !== 'accounts' || trashOver}>
+                      <div
+                        hidden={section !== 'accounts' || trashOver}
+                        data-section-panel="accounts"
+                      >
                         <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
                           <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
                         </Suspense>
@@ -1005,6 +1098,7 @@ export function WorkspaceShell({
             shown wherever it is asked for — including from Tasks or Accounts,
             which is where a file you deleted from a task actually went. */}
                     <div
+                      data-section-panel="explorer"
                       hidden={
                         (section !== 'explorer' && !query?.trash) ||
                         (!browsable && Boolean(activeTeam))

@@ -192,8 +192,12 @@ export function ExplorerProvider({
 
   const openFolder = useCallback(
     (next: string | null) => {
-      setCurrentFolderId(next);
-      onFolderChange?.(next);
+      // With an address to write to, the folder changes through it — inside the route
+      // transition, so the old folder stays on screen until the new one is read and the two
+      // crossfade (058). Changed here first, the explorer cut to a skeleton before the
+      // transition had anything to hold.
+      if (onFolderChange) onFolderChange(next);
+      else setCurrentFolderId(next);
     },
     [onFolderChange]
   );

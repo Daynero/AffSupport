@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { useState } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
@@ -91,17 +91,28 @@ async function enterSpace() {
 const tab = (name: 'Explorer' | 'Tasks' | 'Accounts' | 'Members') =>
   screen.getByRole('link', { name });
 
+/**
+ * A section is built out of sight when its tab is pressed and shown once it is ready (058), so
+ * "it exists" is not "it is on screen": wait for the one that is shown.
+ */
+const shown = (label: string) =>
+  waitFor(() => {
+    const field = screen.getByLabelText(label);
+    expect(field.closest('[hidden]')).toBeNull();
+    return field;
+  });
+
 describe('switching workspace sections', () => {
   it('keeps what was typed in a section after a trip to another one', async () => {
     const { user } = await enterSpace();
 
     await user.click(tab('Tasks'));
-    const filter = await screen.findByLabelText('tasks filter');
+    const filter = await shown('tasks filter');
     await user.type(filter, 'geo:ua');
     expect((filter as HTMLInputElement).value).toBe('geo:ua');
 
     await user.click(tab('Accounts'));
-    await screen.findByLabelText('accounts filter');
+    await shown('accounts filter');
 
     await user.click(tab('Tasks'));
     // The same element, with the same value: nothing was thrown away and
@@ -116,7 +127,7 @@ describe('switching workspace sections', () => {
     for (const name of ['Tasks', 'Accounts', 'Members'] as const) await user.click(tab(name));
     for (const name of ['Explorer', 'Tasks', 'Accounts', 'Members'] as const)
       await user.click(tab(name));
-    await screen.findByLabelText('members filter');
+    await shown('members filter');
 
     expect(mounts).toEqual({ tasks: 1, accounts: 1, members: 1 });
   });
@@ -133,9 +144,9 @@ describe('switching workspace sections', () => {
     const { user } = await enterSpace();
 
     await user.click(tab('Tasks'));
-    await screen.findByLabelText('tasks filter');
+    await shown('tasks filter');
     await user.click(tab('Accounts'));
-    await screen.findByLabelText('accounts filter');
+    await shown('accounts filter');
 
     // Still mounted, but out of the page: not visible, and not announced.
     expect(screen.getByLabelText('tasks filter').closest('[hidden]')).toBeTruthy();
@@ -149,11 +160,11 @@ describe('switching workspace sections', () => {
     // the section used to drop it, because the tab link was rebuilt empty.
     window.history.pushState(null, '', `/team/${team.id}/tasks?account=acc-7`);
     window.dispatchEvent(new PopStateEvent('popstate'));
-    await screen.findByLabelText('tasks filter');
+    await shown('tasks filter');
     expect(window.location.search).toBe('?account=acc-7');
 
     await user.click(tab('Accounts'));
-    await screen.findByLabelText('accounts filter');
+    await shown('accounts filter');
     expect(window.location.search).toBe('');
 
     await user.click(tab('Tasks'));
@@ -192,10 +203,10 @@ it('discards mounted workspace content when authoritative view permission is rev
   const user = userEvent.setup();
   await screen.findByRole('heading', { name: 'Media buyers' });
   await user.click(tab('Tasks'));
-  await user.type(await screen.findByLabelText('tasks filter'), 'private retained draft');
+  await user.type(await shown('tasks filter'), 'private retained draft');
   await user.click(screen.getByRole('button', { name: 'Revoke view' }));
   expect(screen.queryByLabelText('tasks filter')).toBeNull();
   expect(screen.getByRole('alert').textContent).toMatch(/permission|дозвол/i);
   await user.click(screen.getByRole('button', { name: 'Restore view' }));
-  expect(((await screen.findByLabelText('tasks filter')) as HTMLInputElement).value).toBe('');
+  expect(((await shown('tasks filter')) as HTMLInputElement).value).toBe('');
 });

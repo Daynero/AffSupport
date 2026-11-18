@@ -228,6 +228,11 @@ function Tile({
       as="li"
       interactive={Boolean(href)}
       className={`${quiet ? 'home-tile is-quiet' : 'home-tile'}${artwork ? ' has-artwork' : ''}`}
+      /* The card of what it opens (058): going there it grows into the page,
+         and the page folds back into it (lib/navigation.ts, heroFor). */
+      data-morph={
+        href ? (/^\/team\/[^/?#]+/u.exec(href)?.[0] ?? href.split(/[?#]/u, 1)[0]) : undefined
+      }
     >
       {artwork && (
         <span className="home-tile-artwork" aria-hidden="true">

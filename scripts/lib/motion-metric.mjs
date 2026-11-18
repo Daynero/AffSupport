@@ -10,6 +10,10 @@
  *   ends at once, and the excess jumps. When start and end look alike (a
  *   section with the same frame) the denominator is floored, so a flash
  *   between two similar screens still counts.
+ * - **Pop** — how much of all the change between consecutive frames happens
+ *   in one of them. A crossfade or a fade-in spreads the change over a dozen
+ *   frames; content that appears at once puts most of it into one frame, which
+ *   is what reads as a jolt even when no frame is blank (058, beta feedback).
  * - **Settle** — the time from the trigger to the first frame after which
  *   every frame matches the end. A screen that keeps an old layer on top, or
  *   keeps shifting, settles late.
@@ -47,7 +51,7 @@ export function lumaOf(rgba, width, rect, step = 2) {
   return Float32Array.from(out);
 }
 
-/** @typedef {{ excess: number, same: number, floor: number, background: number }} Thresholds */
+/** @typedef {{ excess: number, same: number, floor: number, background: number, popShare: number, popStep: number }} Thresholds */
 
 /** @type {Readonly<Thresholds>} */
 export const DEFAULT_THRESHOLDS = Object.freeze({
@@ -66,7 +70,14 @@ export const DEFAULT_THRESHOLDS = Object.freeze({
    * honeycomb) than both the screen it left and the one it reached — content
    * gone, canvas showing through. Below this ratio of distances it failed.
    */
-  background: 0.55
+  background: 0.55,
+  /**
+   * One frame-to-frame step carrying more than this share of all the movement
+   * is a cut, not a crossfade…
+   */
+  popShare: 0.5,
+  /** …provided the step is visible at all (mean luma). */
+  popStep: 4
 });
 
 /**
@@ -100,6 +111,20 @@ export function analyzeTransition(
     });
   }
   const flashed = bare.ratio < thresholds.background;
+  /** @type {{ step: number, at: number | null, index: number, gapMs: number }} */
+  let largest = { step: 0, at: null, index: -1, gapMs: 0 };
+  let travelled = 0;
+  let previous = start;
+  let previousAt = 0;
+  frames.forEach((frame, index) => {
+    const step = distance(previous, frame.luma);
+    travelled += step;
+    if (step > largest.step) largest = { step, at: frame.at, index, gapMs: frame.at - previousAt };
+    previous = frame.luma;
+    previousAt = frame.at;
+  });
+  const popShare = travelled > 0 ? largest.step / travelled : 0;
+  const popped = largest.step > thresholds.popStep && popShare > thresholds.popShare;
   let settledAt = 0;
   for (let index = perFrame.length - 1; index >= 0; index -= 1) {
     if (perFrame[index].toEnd > thresholds.same) {
@@ -116,6 +141,13 @@ export function analyzeTransition(
     backgroundRatio: Number.isFinite(bare.ratio) ? Math.round(bare.ratio * 100) / 100 : null,
     flashed,
     settledMs: settledAt,
-    dipped: flashed || worst.excess > thresholds.excess
+    dipped: flashed || worst.excess > thresholds.excess,
+    largestStep: Math.round(largest.step * 100) / 100,
+    largestStepAt: largest.at,
+    largestStepIndex: largest.index,
+    /** Time since the frame before it: a long gap is the recorder missing frames, not a cut. */
+    largestStepGapMs: largest.gapMs,
+    popShare: Math.round(popShare * 100) / 100,
+    popped
   };
 }

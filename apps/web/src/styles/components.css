@@ -72,7 +72,7 @@
     background-color var(--motion-fast) var(--ease-out-curve),
     border-color var(--motion-fast) var(--ease-out-curve),
     color var(--motion-fast) var(--ease-out-curve),
-    transform var(--motion-fast) var(--ease-out-curve);
+    transform var(--motion-spring) var(--ease-spring);
 }
 
 .ui-button:disabled,
@@ -85,6 +85,8 @@
    token to 1, so this rule needs no media query of its own. */
 .ui-button:active:not(:disabled) {
   transform: scale(var(--press-scale));
+  /* Down at once, back on the spring (058). */
+  transition-duration: var(--motion-press);
 }
 
 .ui-button--xs {
@@ -1620,7 +1622,10 @@
 }
 .ui-card.is-interactive {
   cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease-out-curve);
+  transition:
+    border-color var(--motion-fast) var(--ease-out-curve),
+    box-shadow var(--motion-base) var(--ease-out-curve),
+    transform var(--motion-spring) var(--ease-spring);
 }
 .ui-card.is-interactive:hover {
   border-color: var(--color-secondary-border);
@@ -2490,6 +2495,13 @@
 /* Route skeleton (058): the outline of a screen whose code is on its way. It
    waits out --delay-skeleton invisible and then fades in over the slow step,
    so a skeleton replaced right after it began is barely drawn. */
+/* Reveal (058): content that replaces a placeholder already on screen fades
+   in over the same place instead of cutting to it. Opacity only — the box is
+   in its final place from the first frame. */
+.ui-reveal.is-arriving {
+  animation: ui-fade-in var(--motion-base) var(--ease-in-out-curve) both;
+}
+
 .ui-route-skeleton {
   display: grid;
   gap: var(--space-5);
@@ -2608,13 +2620,18 @@
 }
 .ui-tooltip {
   z-index: var(--layer-tooltip);
-  max-width: 280px;
-  padding: var(--space-1) var(--space-2);
+  /* The same small dark label as an instant hint (058): one look for every
+     hint in the product. */
+  max-width: var(--tooltip-width);
+  padding: 3px var(--space-2);
+  border: 1px solid var(--tooltip-border);
   border-radius: var(--radius-sm);
-  background: var(--color-neutral-surface-raised);
-  color: var(--color-neutral-text);
-  box-shadow: var(--shadow-menu);
+  background: var(--tooltip-surface);
+  color: var(--tooltip-text);
+  box-shadow: var(--shadow-sm);
   font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
   white-space: normal;
   /* HeroUI's own tooltip class breaks anywhere, which split Ukrainian words in
      half; wrap between words and only break a word that alone is too wide. */
@@ -2644,18 +2661,21 @@
 
 /* Leaving (058): the static copy Overlay.tsx leaves in a closed surface's
    place plays the opening in reverse, faster, and then removes itself. */
+/* An even curve, not the entering one: on ease-out four fifths of a fade
+   happen in its first frames, and a dialog that large read as cut off rather
+   than leaving (058, frame-by-frame smoke). */
 .ui-overlay.is-closing,
 .modal-backdrop.is-closing {
   pointer-events: none;
-  animation: ui-fade-out var(--motion-fast) var(--ease-out-curve) both;
+  animation: ui-fade-out var(--motion-base) var(--ease-in-out-curve) both;
 }
 .ui-overlay.is-closing > .ui-modal,
 .modal-backdrop.is-closing > .modal {
-  animation: ui-surface-out var(--motion-fast) var(--ease-out-curve) both;
+  animation: ui-surface-out var(--motion-base) var(--ease-in-out-curve) both;
 }
 .ui-popover.is-closing {
   pointer-events: none;
-  animation: ui-surface-out var(--motion-fast) var(--ease-out-curve) both;
+  animation: ui-surface-out var(--motion-fast) var(--ease-in-out-curve) both;
 }
 @keyframes ui-fade-out {
   to {
@@ -2924,12 +2944,14 @@
    Navigation
    ============================================================ */
 .ui-tabs {
+  position: relative;
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
   scrollbar-width: thin;
 }
 .ui-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -2939,6 +2961,47 @@
   color: var(--color-neutral-text-muted);
   font-weight: var(--weight-emphasis);
   cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-out-curve),
+    transform var(--motion-spring) var(--ease-spring);
+}
+.ui-tab:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  transition-duration: var(--motion-press);
+}
+/* The mark of the chosen tab is one object that travels to the next tab
+   instead of going out here and coming on there (058). It is a layer as wide
+   as the strip, cut down to the chosen tab with `clip-path` — which animates
+   without moving anything in the layout and keeps a pill's corners round the
+   whole way. Drawn only once the strip has been measured; until then, and
+   wherever nothing can be measured, the tab keeps its own mark. */
+.ui-tabs-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--tabs-width, 100%);
+  height: 100%;
+  pointer-events: none;
+  clip-path: inset(0 var(--tab-right, 100%) 0 var(--tab-left, 0) round var(--tab-round, 0));
+}
+.ui-tabs.is-measured .ui-tabs-indicator {
+  transition: clip-path var(--motion-spring) var(--ease-spring);
+}
+.ui-tabs--underline .ui-tabs-indicator {
+  top: auto;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-secondary-solid);
+}
+.ui-tabs--pill .ui-tabs-indicator {
+  --tab-round: var(--radius-full);
+  background: var(--color-secondary-soft);
+}
+.ui-tabs.has-indicator.ui-tabs--underline .ui-tab.is-selected {
+  border-bottom-color: transparent;
+}
+.ui-tabs.has-indicator.ui-tabs--pill .ui-tab.is-selected {
+  background: none;
 }
 .ui-tabs--sm .ui-tab {
   min-height: var(--control-height-sm);
@@ -4894,4 +4957,120 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-2);
+}
+
+/* ============================================================
+   Feel (058)
+   What a surface does under a pointer and a finger, and how a
+   grid arrives. One place, so a new card inherits it.
+   ============================================================ */
+
+/* A press on a whole surface: it gives a little, at once, and comes back on
+   the spring. Not while the press is on a control inside it — that control
+   answers for itself. */
+.team-task-card:active:not(:has(:is(button, input, label, select, [aria-haspopup]):active)),
+.ui-card.is-interactive:active:not(:has(:is(button, input, label, select):active)) {
+  transform: scale(var(--press-scale-surface));
+  transition-duration: var(--motion-press);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* A tool or a space on the launcher lifts towards the pointer. */
+  .home .home-tile.is-interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .home .home-tile.is-interactive:active {
+    transform: scale(var(--press-scale-surface));
+  }
+
+  /* The light under the pointer (lib/pointer-glow.ts). It sits between the
+     surface and what is written on it, so words never dim. */
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow]) {
+    isolation: isolate;
+  }
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow])::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(
+      var(--glow-size) circle at var(--glow-x, 50%) var(--glow-y, 50%),
+      color-mix(in oklab, var(--color-secondary-solid) 18%, transparent),
+      transparent 72%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-slow) var(--ease-out-curve);
+  }
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow]):hover::before {
+    opacity: 1;
+  }
+}
+.team-task-card {
+  position: relative;
+}
+
+/* A grid lands as a cascade (058): its first items rise in one after another,
+   a step apart, instead of the whole slab appearing at once. Only when the
+   screen has just arrived (`data-nav-stagger`, lib/navigation.ts) or its
+   content has just replaced a placeholder — never on a live update, which
+   changes rows in place. From the twelfth item on they land together. */
+:root[data-nav-stagger] :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > *,
+.ui-reveal.is-arriving > :is(.team-task-grid, .team-explorer-grid) > *,
+.ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
+  /* `backwards` only: once landed, the item is its own again — hover and press
+     move it, and a finished animation that still held `transform` would not let them. */
+  animation: ui-cascade-in var(--motion-slow) var(--ease-out-curve) backwards;
+  animation-delay: calc(var(--stagger-step) * var(--stagger-i, 12));
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(1) {
+  --stagger-i: 0;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(2) {
+  --stagger-i: 1;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(3) {
+  --stagger-i: 2;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(4) {
+  --stagger-i: 3;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(5) {
+  --stagger-i: 4;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(6) {
+  --stagger-i: 5;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(7) {
+  --stagger-i: 6;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(8) {
+  --stagger-i: 7;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(9) {
+  --stagger-i: 8;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(10) {
+  --stagger-i: 9;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(11) {
+  --stagger-i: 10;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(12) {
+  --stagger-i: 11;
+}
+@keyframes ui-cascade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-nav-stagger] :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > *,
+  .ui-reveal.is-arriving > :is(.team-task-grid, .team-explorer-grid) > *,
+  .ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
+    animation: none;
+  }
 }

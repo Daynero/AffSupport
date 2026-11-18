@@ -6717,6 +6717,112 @@ body:has(.public-home) {
   }
 }
 
+/* Direction (058). Where the next screen sits decides which way things move:
+   a section to the right comes in from the right and pushes the old one left,
+   and the way back mirrors it; a page you go into rises towards you while the
+   one you leave steps back, and Back plays that in reverse. The fade is the
+   same complementary pair; only the travel differs, and it is short — the
+   screens are neighbours, not far apart. */
+:root[data-nav-dir='forward']::view-transition-old(wishly-section) {
+  animation-name: wishly-out-left;
+}
+:root[data-nav-dir='forward']::view-transition-new(wishly-section) {
+  animation-name: wishly-in-right;
+}
+:root[data-nav-dir='back']::view-transition-old(wishly-section) {
+  animation-name: wishly-out-right;
+}
+:root[data-nav-dir='back']::view-transition-new(wishly-section) {
+  animation-name: wishly-in-left;
+}
+:root[data-nav-dir='forward']::view-transition-old(wishly-page) {
+  animation-name: wishly-out-away;
+}
+:root[data-nav-dir='forward']::view-transition-new(wishly-page) {
+  animation-name: wishly-in-rise;
+}
+:root[data-nav-dir='back']::view-transition-old(wishly-page) {
+  animation-name: wishly-out-sink;
+}
+:root[data-nav-dir='back']::view-transition-new(wishly-page) {
+  animation-name: wishly-in-near;
+}
+@keyframes wishly-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+@keyframes wishly-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes wishly-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes wishly-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+@keyframes wishly-out-away {
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+@keyframes wishly-in-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes wishly-out-sink {
+  to {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes wishly-in-near {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+/* The hero (058): the card that was pressed becomes the screen it opens, and
+   on the way back the screen folds into its card. One group carries both; it
+   is clipped to a card's corners so the growing screen stays inside a surface
+   the whole way. The old picture leaves early — stretched, it is only a hint
+   of where the motion began. */
+::view-transition-group(wishly-hero) {
+  animation-duration: var(--motion-spring);
+  animation-timing-function: var(--ease-spring);
+  overflow: clip;
+  border-radius: var(--radius-xl);
+}
+::view-transition-old(wishly-hero) {
+  animation: wishly-route-out var(--motion-fast) var(--ease-out-curve) both;
+}
+::view-transition-new(wishly-hero) {
+  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) both;
+}
+/* Folding back: the screen is seen shrinking into its card, and the card only
+   shows once the group is nearly its size — at the start it would be the card
+   blown up to a whole page. */
+:root[data-nav-dir='back']::view-transition-old(wishly-hero) {
+  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
+}
+:root[data-nav-dir='back']::view-transition-new(wishly-hero) {
+  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) var(--motion-base) both;
+}
+
 /* The frame around the moving content. The root (honeycomb, canvas) and the
    topbar are the same before and after, so they do not crossfade: the old
    picture is dropped and the live page shows through at once. The topbar's
@@ -10069,7 +10175,7 @@ body {
   transition:
     border-color var(--motion-fast) ease,
     box-shadow var(--motion-fast) ease,
-    transform var(--motion-fast) ease;
+    transform var(--motion-spring) var(--ease-spring);
 }
 .team-task-card:hover {
   border-color: color-mix(in oklab, var(--color-accent) 42%, var(--color-border));
@@ -13373,7 +13479,7 @@ button.team-landing-tile:hover {
   overflow: visible;
   transition:
     border-color var(--dur-control) var(--ease-standard),
-    transform var(--dur-control) var(--ease-standard),
+    transform var(--motion-spring) var(--ease-spring),
     box-shadow var(--dur-control) var(--ease-standard);
 }
 /* The compressor's card, in the space.
@@ -13385,8 +13491,9 @@ button.team-landing-tile:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
-.team-explorer-tile:active {
-  transform: translateY(-1px) scale(0.992);
+.team-explorer-tile:active:not(:has(:is(input, label, [aria-haspopup]):active)) {
+  transform: scale(var(--press-scale-surface));
+  transition-duration: var(--motion-press);
 }
 .team-explorer-tile:focus-within {
   border-color: var(--color-accent);
@@ -15389,27 +15496,28 @@ input[type='number'] {
 .instant-tip {
   position: fixed;
   z-index: var(--layer-toast);
-  /* Wide enough for a long file name, wrapping (and breaking a single
-     unbroken run of characters) rather than running off the screen. */
-  max-width: min(560px, calc(100vw - 32px));
-  padding: 9px 12px;
+  /* A hint is a footnote (058): caption-sized, a hairline edge, tight to its
+     words. It was the size of a card and arrived on every hover. Still wraps —
+     and breaks a single unbroken run, a long file name — rather than running
+     off the screen. */
+  max-width: min(var(--tooltip-width), calc(100vw - 32px));
+  padding: 3px var(--space-2);
   transform: translateX(-50%);
-  border: 1px solid var(--purple-700);
+  border: 1px solid var(--tooltip-border);
   border-radius: var(--radius-sm);
-  /* Light words on the dark plum, in both themes. It was the accent's own
-     "on" colour, which is dark — dark on dark, and "Готово" over a status
-     button could not be read (024). */
-  color: var(--purple-50);
-  background: var(--purple-900);
-  box-shadow: var(--shadow-menu);
-  font-size: var(--text-md);
-  font-weight: 500;
+  /* Light words on a dark ground, in both themes. */
+  color: var(--tooltip-text);
+  background: var(--tooltip-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-caption);
+  font-weight: 400;
   line-height: 1.35;
   text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
   pointer-events: none;
+  animation: ui-fade-in var(--motion-fast) var(--ease-out-curve);
 }
 
 /* Light theme flips the intake zone: purple field, honey type and dashes. */

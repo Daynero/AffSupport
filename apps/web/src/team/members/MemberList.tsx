@@ -160,8 +160,12 @@ export function MemberList({
           onRetry={() => setRetry(value => value + 1)}
         />
       )}
-      {loading && <LoadingState shape="row" count={2} label={t('teamMemberLoading')} />}
-      {!loading && !error && client && teamId && (
+      {/* Only the first read stands in a placeholder; a re-read after a live change keeps the
+          list on screen and updates it in place, instead of blanking it to rows of shimmer (058). */}
+      {loading && members.length === 0 && (
+        <LoadingState shape="row" count={2} label={t('teamMemberLoading')} />
+      )}
+      {(!loading || members.length > 0) && !error && client && teamId && (
         <ul className="team-member-list">
           {members.map(member => {
             const name = memberName(member, t('teamFormerMember'));

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { taskDeleteTitleKey, useI18n } from '../../i18n';
-import { Empty, Input, Switch } from '../../components/ui/index';
+import { Empty, Input, Reveal, Switch } from '../../components/ui/index';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { useTeam } from '../TeamContext';
@@ -605,12 +605,6 @@ export function TaskSpace({
           {t('teamTaskCreateFailed')}
         </p>
       )}
-      {/* The shape of the board that is coming, so the cards do not push the
-          filters when they land — with the sentence still there, because a
-          shimmer alone is indistinguishable from a stuck screen. */}
-      {tasks.loading && tasks.tasks.length === 0 && (
-        <LabeledSkeleton label="teamTasksLoadingList" rows={3} />
-      )}
       {tasks.error && (
         <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
       )}
@@ -675,40 +669,57 @@ export function TaskSpace({
           </Button>
         </div>
       )}
-      <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
-        {tasks.tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            canEdit={can('edit')}
-            showProgress={progressShown}
-            expanded={expandedIds.has(task.id)}
-            onExpandedChange={next =>
-              setExpandedIds(current => {
-                const ids = new Set(current);
-                if (next) ids.add(task.id);
-                else ids.delete(task.id);
-                return ids;
-              })
-            }
-            onDuplicate={
-              can('edit') && client.copyTasks ? () => taskClipboard.duplicate([task.id]) : undefined
-            }
-            duplicating={taskClipboard.copying}
-            onOpen={() => setOpenTask(task)}
-            onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
-            members={members}
-            labels={labels.labels}
-            actions={can('edit') ? cardActions(task) : undefined}
-            selected={can('edit') ? selectedIds.has(task.id) : undefined}
-            onSelectedChange={
-              can('edit')
-                ? (next, modifiers) => listSelection.select(task.id, next, modifiers?.shiftKey)
-                : undefined
-            }
+      {/* The shape of the board that is coming — cards, not rows — so the cards
+          do not push the filters when they land, with the sentence still there,
+          because a shimmer alone is indistinguishable from a stuck screen. */}
+      <Reveal
+        busy={tasks.loading && tasks.tasks.length === 0}
+        placeholder={
+          <LabeledSkeleton
+            label="teamTasksLoadingList"
+            rows={6}
+            shape="tile"
+            className="team-task-grid"
           />
-        ))}
-      </div>
+        }
+      >
+        <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
+          {tasks.tasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              canEdit={can('edit')}
+              showProgress={progressShown}
+              expanded={expandedIds.has(task.id)}
+              onExpandedChange={next =>
+                setExpandedIds(current => {
+                  const ids = new Set(current);
+                  if (next) ids.add(task.id);
+                  else ids.delete(task.id);
+                  return ids;
+                })
+              }
+              onDuplicate={
+                can('edit') && client.copyTasks
+                  ? () => taskClipboard.duplicate([task.id])
+                  : undefined
+              }
+              duplicating={taskClipboard.copying}
+              onOpen={() => setOpenTask(task)}
+              onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
+              members={members}
+              labels={labels.labels}
+              actions={can('edit') ? cardActions(task) : undefined}
+              selected={can('edit') ? selectedIds.has(task.id) : undefined}
+              onSelectedChange={
+                can('edit')
+                  ? (next, modifiers) => listSelection.select(task.id, next, modifiers?.shiftKey)
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+      </Reveal>
       {tasks.hasMore && (
         <Button
           type="button"

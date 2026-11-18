@@ -4,8 +4,8 @@
  * Two browser signals, both optional: long animation frames (or long tasks
  * where that entry type is missing) while a transition runs, and layout shift
  * after it settles. Frames are counted from the moment the animation starts,
- * not from the render before it. A machine that dropped two or more long
- * frames in each of three animations in a row is put in `lite` mode for the rest of the session: page transitions
+ * not from the render before it. A machine that dropped three or more long
+ * frames in each of four animations in a row is put in `lite` mode for a minute: page transitions
  * become instant swaps instead of stuttering crossfades. Section moves keep
  * their motion — they are the cheaper one and the one people make most.
  *
@@ -15,9 +15,14 @@
 
 /** A frame longer than this is a frame someone can see stall. */
 export const LONG_FRAME_MS = 50;
-const LITE_AFTER_STUTTERS = 3;
+const LITE_AFTER_STUTTERS = 4;
 /** Long frames within one animation that make it a stutter, not a hiccup. */
-const STUTTER_LONG_FRAMES = 2;
+const STUTTER_LONG_FRAMES = 3;
+/**
+ * Lite mode is a spell, not a sentence: a build running beside the browser makes any
+ * machine stutter for a minute, and motion comes back when it is over.
+ */
+export const LITE_SPELL_MS = 60_000;
 
 interface Tally {
   longFrames: number;
@@ -25,7 +30,7 @@ interface Tally {
 }
 
 let observing = false;
-let lite = false;
+let liteUntil = 0;
 let stutterStreak = 0;
 const tallies = new Set<Tally>();
 
@@ -88,16 +93,19 @@ export function beginMeasure(): MeasureWindow {
  */
 export function reportAnimatedTransition(longFrames: number) {
   stutterStreak = longFrames >= STUTTER_LONG_FRAMES ? stutterStreak + 1 : 0;
-  if (stutterStreak >= LITE_AFTER_STUTTERS) lite = true;
+  if (stutterStreak >= LITE_AFTER_STUTTERS) {
+    liteUntil = Date.now() + LITE_SPELL_MS;
+    stutterStreak = 0;
+  }
 }
 
 export function isLiteMotion(): boolean {
-  return lite;
+  return Date.now() < liteUntil;
 }
 
 /** Tests only. */
 export function resetMotionQualityForTests() {
-  lite = false;
+  liteUntil = 0;
   stutterStreak = 0;
   tallies.clear();
 }

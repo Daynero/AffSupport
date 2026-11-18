@@ -21,6 +21,7 @@ import PublicHomePage from './PublicHomePage';
 import { DRIVE_OAUTH_CALLBACK_PATH, DriveOAuthForwardPage } from './auth/DriveOAuthForward';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
+import { installPointerGlow } from './lib/pointer-glow';
 import { useI18n } from './i18n';
 
 const ProtectedSoty = lazy(() => import('./ProtectedSoty'));
@@ -77,6 +78,7 @@ export default function Root() {
 
 function Routes() {
   const route = useBrowserRoute();
+  useEffect(installPointerGlow, []);
   const path = new URL(route, location.origin).pathname;
   const auth = useAuth();
 

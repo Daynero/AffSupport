@@ -1,4 +1,11 @@
-import { type AnchorHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type AnchorHTMLAttributes,
+  type MouseEvent,
+  type ReactNode
+} from 'react';
 import { Breadcrumbs as HeroBreadcrumbs } from '@heroui/react/breadcrumbs';
 import { uiClasses, type UiSize } from './types';
 
@@ -58,6 +65,45 @@ export function Tabs<T extends string>({
   panelId,
   onNavigate
 }: TabsProps<T>) {
+  const strip = useRef<HTMLElement | null>(null);
+  const [measured, setMeasured] = useState(false);
+  /*
+   * Where the chosen tab is, handed to the stylesheet (058): the indicator is
+   * one layer that travels there. Measured after every render that could have
+   * moved it and whenever the strip changes size — a font landing, a language
+   * switch, a badge appearing. An engine that lays nothing out (tests) reports
+   * no width, and the tab keeps its own mark.
+   */
+  useLayoutEffect(() => {
+    const node = strip.current;
+    if (!node) return;
+    const place = () => {
+      const tab = node.querySelector<HTMLElement>('.ui-tab.is-selected');
+      if (!tab || tab.offsetWidth === 0) {
+        node.classList.remove('has-indicator');
+        return;
+      }
+      const width = node.scrollWidth;
+      node.style.setProperty('--tabs-width', `${width}px`);
+      node.style.setProperty('--tab-left', `${tab.offsetLeft}px`);
+      node.style.setProperty('--tab-right', `${width - tab.offsetLeft - tab.offsetWidth}px`);
+      node.classList.add('has-indicator');
+    };
+    place();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(place);
+    observer.observe(node);
+    node.querySelectorAll('.ui-tab').forEach(tab => observer.observe(tab));
+    return () => observer.disconnect();
+  });
+  // The first placement is not a journey: the indicator only starts travelling
+  // once it has been somewhere.
+  useLayoutEffect(() => {
+    if (typeof requestAnimationFrame !== 'function') return;
+    const frame = requestAnimationFrame(() => setMeasured(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const enabled = () => items.filter(item => !item.disabled);
   const go = (index: number) => {
     const list = enabled();
@@ -97,13 +143,16 @@ export function Tabs<T extends string>({
 
   return (
     <Strip
+      ref={strip as never}
       className={uiClasses('tabs', {
         size,
+        states: { measured },
         className: [`ui-tabs--${variant}`, className].filter(Boolean).join(' ')
       })}
       role={addresses ? undefined : 'tablist'}
       aria-label={label}
     >
+      <span className="ui-tabs-indicator" aria-hidden="true" />
       {items.map(item =>
         item.href !== undefined ? (
           <a

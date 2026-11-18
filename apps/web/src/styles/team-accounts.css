@@ -2314,8 +2314,7 @@ button.team-task-agent-chip.is-selected {
 .instant-tip.is-multiline {
   white-space: pre-line;
   text-align: left;
-  font-size: var(--text-lg);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 /* ===========================================================================

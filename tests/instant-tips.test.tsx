@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { InstantTips } from '../apps/web/src/components/InstantTips';
+import { InstantTips, TIP_DELAY_MS } from '../apps/web/src/components/InstantTips';
 afterEach(cleanup);
 it('clears stationary background hints when a modal opens and blocks subsequent background hover', async () => {
   const view = render(
@@ -12,7 +12,7 @@ it('clears stationary background hints when a modal opens and blocks subsequent 
     </>
   );
   fireEvent.mouseOver(screen.getByRole('button'));
-  expect(screen.getByText('Background hint')).toBeTruthy();
+  expect(await screen.findByText('Background hint')).toBeTruthy();
   view.rerender(
     <>
       <InstantTips />
@@ -26,12 +26,12 @@ it('clears stationary background hints when a modal opens and blocks subsequent 
   fireEvent.mouseOver(screen.getByText('Background'));
   expect(screen.queryByText('Background hint')).toBeNull();
   fireEvent.mouseOver(screen.getByText('Inside'));
-  expect(screen.getByText('Dialog hint')).toBeTruthy();
+  expect(await screen.findByText('Dialog hint')).toBeTruthy();
   fireEvent.mouseOver(screen.getByRole('dialog'));
   expect(screen.queryByText('Dialog hint')).toBeNull();
 });
 
-it('only shows an overflow hint when the name is clipped, rechecking after resize', () => {
+it('only shows an overflow hint when the name is clipped, rechecking after resize', async () => {
   render(
     <>
       <InstantTips />
@@ -48,7 +48,7 @@ it('only shows an overflow hint when the name is clipped, rechecking after resiz
   expect(screen.queryByText('Full launch name')).toBeNull();
   available = 100;
   fireEvent.mouseOver(name);
-  expect(screen.getByText('Full launch name')).toBeTruthy();
+  expect(await screen.findByText('Full launch name')).toBeTruthy();
   available = 120;
   fireEvent.mouseOver(name);
   expect(screen.queryByText('Full launch name')).toBeNull();
@@ -64,7 +64,7 @@ it('dismisses a row hint when a nonmodal panel opens and does not inherit it thr
     </>
   );
   fireEvent.mouseOver(screen.getByText('Open schedule'));
-  expect(screen.getByText('Row stage')).toBeTruthy();
+  expect(await screen.findByText('Row stage')).toBeTruthy();
   rerender(
     <>
       <InstantTips />
@@ -89,7 +89,7 @@ it('clears the stationary progress hint when its operation finishes', async () =
     </>
   );
   fireEvent.mouseOver(screen.getByText('Catalog'));
-  expect(screen.getByText('Checking Drive')).toBeTruthy();
+  expect(await screen.findByText('Checking Drive')).toBeTruthy();
   rerender(
     <>
       <InstantTips />
@@ -97,4 +97,69 @@ it('clears the stationary progress hint when its operation finishes', async () =
     </>
   );
   await waitFor(() => expect(screen.queryByText('Checking Drive')).toBeNull());
+});
+
+const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+it('waits on a still pointer, then answers the neighbouring control at once', async () => {
+  render(
+    <>
+      <InstantTips />
+      <button data-tip="Compress" aria-label="Compress" />
+      <button data-tip="Delete" aria-label="Delete" />
+    </>
+  );
+  const [first, second] = screen.getAllByRole('button');
+  fireEvent.mouseOver(first!);
+  // Crossing a control raises nothing.
+  expect(screen.queryByText('Compress')).toBeNull();
+  await pause(TIP_DELAY_MS / 2);
+  expect(screen.queryByText('Compress')).toBeNull();
+  expect(await screen.findByText('Compress')).toBeTruthy();
+  fireEvent.mouseOut(first!);
+  fireEvent.mouseOver(second!);
+  expect(screen.getByText('Delete')).toBeTruthy();
+});
+
+it('drops the wait when the pointer leaves before the hint shows', async () => {
+  render(
+    <>
+      <InstantTips />
+      <button data-tip="Compress" aria-label="Compress" />
+    </>
+  );
+  const button = screen.getByRole('button');
+  fireEvent.mouseOver(button);
+  fireEvent.mouseOut(button);
+  await pause(TIP_DELAY_MS + 80);
+  expect(screen.queryByText('Compress')).toBeNull();
+});
+
+it('does not repeat what the control already says in full', async () => {
+  render(
+    <>
+      <InstantTips />
+      <button title="Add files">Add files</button>
+      <button title="Uploads the selection to the open folder">Add more</button>
+    </>
+  );
+  fireEvent.mouseOver(screen.getByText('Add files'));
+  await pause(TIP_DELAY_MS + 80);
+  expect(document.querySelector('.instant-tip')).toBeNull();
+  fireEvent.mouseOver(screen.getByText('Add more'));
+  expect(await screen.findByText('Uploads the selection to the open folder')).toBeTruthy();
+});
+
+it('still names in full a label that is cut off', async () => {
+  render(
+    <>
+      <InstantTips />
+      <span title="A very long file name.mp4">A very long file name.mp4</span>
+    </>
+  );
+  const name = screen.getByText('A very long file name.mp4');
+  Object.defineProperty(name, 'clientWidth', { get: () => 60 });
+  Object.defineProperty(name, 'scrollWidth', { get: () => 240 });
+  fireEvent.mouseOver(name);
+  await waitFor(() => expect(document.querySelector('.instant-tip')).not.toBeNull());
 });
