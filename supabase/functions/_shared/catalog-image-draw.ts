@@ -16,8 +16,11 @@ export async function assertCatalogImageContract(
   const mode = await call('service_catalog_image_mode_v2', { p_team: teamId });
   if (mode !== 'legacy' && mode !== 'v2' && mode !== 'global')
     throw new TeamFunctionError('INVALID_RESPONSE');
+  // A client below contract 3 predates the GLOBAL_* codes and would show
+  // "unexpected response" (prod 2026-11-18: 1.4.4 tabs left open across the
+  // 1.5.7 promotion). It knows this older code and asks to reload the page.
   if (mode === 'global' && version !== 3)
-    throw new TeamFunctionError('GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED');
+    throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   if (mode === 'v2' && version !== 2 && version !== 3)
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
 }

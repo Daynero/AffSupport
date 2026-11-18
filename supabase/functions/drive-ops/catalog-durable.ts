@@ -333,8 +333,9 @@ export async function createDurableProductCatalog(
   if (acceptedVersion === 2 && ![2, 3].includes(request.catalogImageContractVersion ?? 0))
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   if (acceptedVersion === 2) request.catalogImageContractVersion = 2;
+  // Same reason as assertCatalogImageContract: only a code an older client knows.
   if (acceptedVersion === 3 && request.catalogImageContractVersion !== 3)
-    throw new TeamFunctionError('GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED');
+    throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   // Accepted old receipts can be read after T0; SQL refuses unfinished legacy work.
   if (acceptedVersion !== 1 && acceptedVersion !== 2)
     await deps.assertImageContract?.(request.teamId, request.catalogImageContractVersion);

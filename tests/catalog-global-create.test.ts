@@ -41,7 +41,10 @@ describe('global producer boundary', () => {
   it('requires the current client contract after activation', async () => {
     await expect(
       assertCatalogImageContract(async () => 'global', globalFixtureId(2), 2)
-    ).rejects.toMatchObject({ code: 'GLOBAL_IMAGE_CLIENT_UPGRADE_REQUIRED' });
+    ).rejects.toMatchObject({ code: 'CATALOG_IMAGE_UPGRADE_REQUIRED' });
+    await expect(
+      assertCatalogImageContract(async () => 'global', globalFixtureId(2), undefined)
+    ).rejects.toMatchObject({ code: 'CATALOG_IMAGE_UPGRADE_REQUIRED' });
     await expect(
       assertCatalogImageContract(async () => 'global', globalFixtureId(2), 3)
     ).resolves.toBeUndefined();
