@@ -1,8 +1,9 @@
 begin;
-select plan(29);
+select plan(36);
 
 -- Deferred crediting fires at commit; a test transaction never commits, so make it immediate.
-set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank immediate;
+set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
+ public.team_launch_revision_catalogs_credit_rank immediate;
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
  ('c5900000-0000-4000-8000-000000000001','authenticated','authenticated','ranks-owner@test.invalid','{}','{}'),
@@ -26,7 +27,11 @@ insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,ki
  ('c5900000-0000-4000-8000-000000000042','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-v2','V2','file','video','video/mp4','1'),
  ('c5900000-0000-4000-8000-000000000051','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c1','C1','file','other','application/vnd.google-apps.spreadsheet','1'),
  ('c5900000-0000-4000-8000-000000000052','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c2','C2','file','other','application/vnd.google-apps.spreadsheet','1'),
- ('c5900000-0000-4000-8000-000000000053','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c3','C3','file','other','application/vnd.google-apps.spreadsheet','1');
+ ('c5900000-0000-4000-8000-000000000053','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c3','C3','file','other','application/vnd.google-apps.spreadsheet','1'),
+ ('c5900000-0000-4000-8000-000000000054','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c4','C4','file','other','application/vnd.google-apps.spreadsheet','1'),
+ ('c5900000-0000-4000-8000-000000000055','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c5','C5','file','other','application/vnd.google-apps.spreadsheet','1'),
+ ('c5900000-0000-4000-8000-000000000056','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c6','C6','file','other','application/vnd.google-apps.spreadsheet','1'),
+ ('c5900000-0000-4000-8000-000000000057','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c7','C7','file','other','application/vnd.google-apps.spreadsheet','1');
 
 -- Fixture helpers: a Launch with one revision for a video, and a generation in a given state.
 create function pg_temp.launch(p_launch uuid, p_video uuid) returns void language sql as $$
@@ -47,6 +52,10 @@ create function pg_temp.finish(p_generation uuid, p_state text) returns void lan
 $$;
 create function pg_temp.count_of(p_video uuid) returns integer language sql as $$
  select coalesce((select launch_count from public.team_creative_ranks where team_id='c5900000-0000-4000-8000-000000000011' and material_id=p_video),0);
+$$;
+create function pg_temp.attach(p_revision uuid, p_sheet uuid) returns void language sql as $$
+ insert into public.team_launch_revision_catalogs(team_id,revision_id,catalog_id,material_id,variant,name_snapshot,sheet_url,settings_snapshot)
+ values('c5900000-0000-4000-8000-000000000011',p_revision,p_sheet,p_sheet,1,'sheet','https://docs.google.com/spreadsheets/d/'||p_sheet::text||'/edit','{}');
 $$;
 create function pg_temp.catalog(p_sheet uuid, p_video uuid) returns void language sql as $$
  insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot)
@@ -120,6 +129,55 @@ select pg_temp.finish('c5900000-0000-4000-8000-000000000305','succeeded');
 select pg_temp.catalog('c5900000-0000-4000-8000-000000000053','c5900000-0000-4000-8000-000000000042');
 select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),1,'Launch success then its catalog counts once');
 
+-- A regeneration makes a new sheet: the sheet is registered first, attached to the Launch later.
+select pg_temp.revision('c5900000-0000-4000-8000-000000000221','c5900000-0000-4000-8000-000000000104','c5900000-0000-4000-8000-000000000042',2);
+select pg_temp.catalog('c5900000-0000-4000-8000-000000000054','c5900000-0000-4000-8000-000000000042');
+select pg_temp.attach('c5900000-0000-4000-8000-000000000221','c5900000-0000-4000-8000-000000000054');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),1,'a regeneration''s new sheet is absorbed when attached');
+select pg_temp.generation('c5900000-0000-4000-8000-000000000321','c5900000-0000-4000-8000-000000000104','c5900000-0000-4000-8000-000000000221');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000321','succeeded');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),1,'regenerating with a new sheet is still one launch');
+
+-- The other order: attached first, the sheet's own row afterwards.
+select pg_temp.revision('c5900000-0000-4000-8000-000000000222','c5900000-0000-4000-8000-000000000104','c5900000-0000-4000-8000-000000000042',3);
+select pg_temp.attach('c5900000-0000-4000-8000-000000000222','c5900000-0000-4000-8000-000000000055');
+select pg_temp.catalog('c5900000-0000-4000-8000-000000000055','c5900000-0000-4000-8000-000000000042');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),1,'a regeneration sheet registered after attaching is absorbed');
+
+-- A sheet from a canceled first attempt belongs to the Launch that later succeeds without one.
+select pg_temp.launch('c5900000-0000-4000-8000-000000000106','c5900000-0000-4000-8000-000000000042');
+select pg_temp.revision('c5900000-0000-4000-8000-000000000223','c5900000-0000-4000-8000-000000000106','c5900000-0000-4000-8000-000000000042',1);
+select pg_temp.catalog('c5900000-0000-4000-8000-000000000056','c5900000-0000-4000-8000-000000000042');
+select pg_temp.attach('c5900000-0000-4000-8000-000000000223','c5900000-0000-4000-8000-000000000056');
+select pg_temp.generation('c5900000-0000-4000-8000-000000000323','c5900000-0000-4000-8000-000000000106','c5900000-0000-4000-8000-000000000223');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000323','canceled');
+select pg_temp.revision('c5900000-0000-4000-8000-000000000224','c5900000-0000-4000-8000-000000000106','c5900000-0000-4000-8000-000000000042',2);
+select pg_temp.generation('c5900000-0000-4000-8000-000000000324','c5900000-0000-4000-8000-000000000106','c5900000-0000-4000-8000-000000000224');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000324','succeeded');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),2,'a canceled attempt''s sheet and the later success are one launch');
+
+-- Deferred, as in production: sheet, attachment and success in one transaction, credited at commit.
+set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
+ public.team_launch_revision_catalogs_credit_rank deferred;
+select pg_temp.launch('c5900000-0000-4000-8000-000000000107','c5900000-0000-4000-8000-000000000042');
+select pg_temp.revision('c5900000-0000-4000-8000-000000000225','c5900000-0000-4000-8000-000000000107','c5900000-0000-4000-8000-000000000042',1);
+select pg_temp.catalog('c5900000-0000-4000-8000-000000000057','c5900000-0000-4000-8000-000000000042');
+select pg_temp.attach('c5900000-0000-4000-8000-000000000225','c5900000-0000-4000-8000-000000000057');
+select pg_temp.generation('c5900000-0000-4000-8000-000000000325','c5900000-0000-4000-8000-000000000107','c5900000-0000-4000-8000-000000000225');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000325','succeeded');
+set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
+ public.team_launch_revision_catalogs_credit_rank immediate;
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),3,'deferred crediting counts the pair once at commit');
+
+-- A video id written in capitals is still the video.
+select pg_temp.launch('c5900000-0000-4000-8000-000000000108','c5900000-0000-4000-8000-000000000042');
+insert into public.team_launch_revisions(id,team_id,launch_id,revision_no,result_kind,config,sources,original_url,generated_url,sub_values,created_by)
+values('c5900000-0000-4000-8000-000000000226','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000108',1,'generated',
+  jsonb_build_object('materialId','C5900000-0000-4000-8000-000000000042','method','other'),'{}','https://offer.example.invalid/','https://offer.example.invalid/?s=1','{}','c5900000-0000-4000-8000-000000000001');
+select pg_temp.generation('c5900000-0000-4000-8000-000000000326','c5900000-0000-4000-8000-000000000108','c5900000-0000-4000-8000-000000000226');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000326','succeeded');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000042'),4,'an upper-case video id is credited');
+
 -- Archiving a Launch and replaying an event change nothing.
 update public.team_launches set archived_at=now() where id='c5900000-0000-4000-8000-000000000101';
 select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000041'),7,'archiving a Launch keeps the record');
@@ -159,6 +217,21 @@ select is((public.demote_creative_rank('c5900000-0000-4000-8000-000000000011','c
  (select version from rank_before),'owner-attempt-1')->>'rankCredit')::integer,5,'a repeated demotion request is the same demotion');
 reset role;
 select is((select launch_count from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000041'),7,'demotion keeps the launch count');
+
+-- The backfill run again over the same history changes nothing, demotion included.
+create temporary table ranks_before_backfill as
+ select material_id, launch_count, rank_credit, last_launched_at from public.team_creative_ranks
+  where team_id='c5900000-0000-4000-8000-000000000011';
+select private.backfill_creative_ranks();
+select is_empty($$
+ (select material_id, launch_count, rank_credit, last_launched_at from public.team_creative_ranks
+   where team_id='c5900000-0000-4000-8000-000000000011'
+  except select * from ranks_before_backfill)
+ union all
+ (select * from ranks_before_backfill
+  except select material_id, launch_count, rank_credit, last_launched_at from public.team_creative_ranks
+   where team_id='c5900000-0000-4000-8000-000000000011')
+$$,'rerunning the backfill agrees with what the triggers built');
 
 -- New launches lift a demoted creative again from its new credit.
 select pg_temp.launch('c5900000-0000-4000-8000-000000000105','c5900000-0000-4000-8000-000000000041');

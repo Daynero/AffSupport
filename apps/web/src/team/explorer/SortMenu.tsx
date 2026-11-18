@@ -28,11 +28,13 @@ export function SortMenu({
       ? t('teamExplorerSortName')
       : key === 'modified'
         ? t('teamExplorerSortModified')
-        : t('teamExplorerSortTag');
+        : key === 'tag'
+          ? t('teamExplorerSortTag')
+          : t('teamExplorerSortRank');
 
   const items: MenuEntry[] = [
     { heading: t('teamExplorerSortBy') },
-    ...(['name', 'modified', 'tag'] as SortKey[]).map(key => ({
+    ...(['name', 'modified', 'tag', 'rank'] as SortKey[]).map(key => ({
       id: `key-${key}`,
       label: keyLabel(key),
       checked: sort.key === key,

@@ -50,6 +50,9 @@ launch succeeded (перший для launch) ─┬─ revision має ката
                                       └─ інакше → launch.counted = true
 catalog inserted ─┬─ C уже в ревізії Launch з зарахованою подією launch → counted = false, absorbed
                   └─ інакше → counted = true
+revision catalog attached (C до ревізії Launch L) ─ L уже зарахований, подія C непоглинута, той самий креатив
+                  → C.absorbed_by_launch_id = L, counted = false, проєкція −1 (перегенерація = той самий запуск)
+launch succeeded  → також поглинаються каталоги всіх інших ревізій L (скасована перша спроба)
 counted = true   → launch_count += 1, rank_credit += 1
 будь-яка подія   → last_launched_at = greatest(last_launched_at, occurred_at), version += 1
 поглинання C     → якщо C.counted був true, а launch.counted = false — проєкція не змінюється (+1 уже є)
@@ -59,7 +62,7 @@ demote(target_credit, reason) → rank_credit = target_credit (< поточно�
 ## Ліга і свіжість (`apps/web/src/team/ranks/creativeRanks.ts`, не в БД)
 
 ```text
-CREATIVE_RANK_LEAGUES   = wax 0 · bronze 1 · silver 5 · gold 15 · diamond 40   (за rank_credit)
+CREATIVE_RANK_LEAGUES   = wax 0 · bronze 1 · silver 5 · gold 12 · diamond 25   (за rank_credit)
 CREATIVE_RANK_FRESHNESS = fresh ≤ 14 д · dusty ≤ 60 д · cobweb > 60 д          (за last_launched_at)
 reason disappointed   → target = поріг ліги на одну нижче поточної
 reason never_launched → target = 0 (Віск)

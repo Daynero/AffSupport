@@ -5,11 +5,16 @@ import {
   demotionTarget,
   emblemSrc,
   freshnessOf,
+  isShelfRank,
   leagueOf,
   parseCreativeRank,
   parseCreativeRankList,
   rankFromErrorDetail
 } from '../apps/web/src/team/ranks/creativeRanks';
+import type { CreativeRank } from '../apps/web/src/team/ranks/creativeRanks';
+import { launchedAgo } from '../apps/web/src/team/ranks/RankFacts';
+import { sortRows, DEFAULT_SORT } from '../apps/web/src/team/explorer/sort';
+import type { TeamMaterialRow } from '@video-compressor/shared';
 
 /**
  * Feature 059: a creative's honey league comes from its league credit, its freshness from the
@@ -25,10 +30,10 @@ describe('leagues', () => {
     [1, 'bronze'],
     [4, 'bronze'],
     [5, 'silver'],
-    [14, 'silver'],
-    [15, 'gold'],
-    [39, 'gold'],
-    [40, 'diamond'],
+    [11, 'silver'],
+    [12, 'gold'],
+    [24, 'gold'],
+    [25, 'diamond'],
     [1000, 'diamond']
   ])('credit %i is %s', (credit, league) => {
     expect(leagueOf(credit)).toBe(league);
@@ -125,5 +130,67 @@ describe('parsing the server answer', () => {
     expect(rankFromErrorDetail(JSON.stringify(good))?.version).toBe(81);
     expect(rankFromErrorDetail('{not json')).toBeNull();
     expect(rankFromErrorDetail(undefined)).toBeNull();
+  });
+});
+
+describe('on a shelf', () => {
+  const base: CreativeRank = {
+    materialId: 'v1',
+    launchCount: 0,
+    rankCredit: 0,
+    lastLaunchedAt: null,
+    version: 0,
+    demotion: null
+  };
+
+  it('marks a launched creative and leaves wax unmarked', () => {
+    expect(isShelfRank({ ...base, launchCount: 1, rankCredit: 1 })).toBe(true);
+    expect(isShelfRank(base)).toBe(false);
+    // Demoted to wax: launched, but the owner says it never really ran.
+    expect(isShelfRank({ ...base, launchCount: 9, rankCredit: 0 })).toBe(false);
+  });
+});
+
+describe('sorting by rank', () => {
+  const row = (id: string, name: string, kind = 'video') =>
+    ({ id, name, kind, modifiedAt: null, tagColor: null }) as unknown as TeamMaterialRow;
+  const rank = (id: string, credit: number, days: number): [string, CreativeRank] => [
+    id,
+    {
+      materialId: id,
+      launchCount: credit,
+      rankCredit: credit,
+      lastLaunchedAt: daysAgo(days),
+      version: 1,
+      demotion: null
+    }
+  ];
+  const rows = [
+    row('a', 'a.mp4'),
+    row('b', 'b.mp4'),
+    row('c', 'c.mp4'),
+    row('d', 'd.mp4'),
+    row('f', 'Folder', 'folder')
+  ];
+  const ranks = new Map([rank('b', 3, 40), rank('c', 30, 5), rank('d', 3, 2)]);
+
+  it('puts the strongest first, the most recent launch breaking a tie', () => {
+    const sorted = sortRows(rows, { ...DEFAULT_SORT, key: 'rank', direction: 'desc' }, ranks);
+    expect(sorted.map(r => r.id)).toEqual(['f', 'c', 'd', 'b', 'a']);
+  });
+
+  it('keeps never-launched videos last in either direction', () => {
+    const sorted = sortRows(rows, { key: 'rank', direction: 'asc', foldersSeparate: false }, ranks);
+    expect(sorted.map(r => r.id).slice(-2)).toEqual(['a', 'f']);
+    expect(sorted[0].id).toBe('b');
+  });
+});
+
+describe('how long ago', () => {
+  it('counts days up to the end of dusty, then months', () => {
+    expect(launchedAgo(daysAgo(1), 'uk', NOW)).toBe('учора');
+    expect(launchedAgo(daysAgo(32), 'uk', NOW)).toBe('32 дні тому');
+    expect(launchedAgo(daysAgo(60), 'en', NOW)).toBe('60 days ago');
+    expect(launchedAgo(daysAgo(95), 'en', NOW)).toBe('3 months ago');
   });
 });

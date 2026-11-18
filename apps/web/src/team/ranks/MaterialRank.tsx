@@ -7,6 +7,7 @@ import type { TranslationKey } from '../../i18n';
 import { teamApi, TeamApiError } from '../../api/team';
 import { creativeRankDemoteFinished, creativeRankDemoteStarted } from './analytics';
 import {
+  CREATIVE_RANK_LEAGUES,
   CreativeRankDemoteError,
   demotionTarget,
   emptyRank,
@@ -69,6 +70,9 @@ export function MaterialRank({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<TranslationKey | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  // A retry of a demotion that never got an answer reuses its key: if the first one did land, the
+  // server answers with that same demotion instead of calling the retry a conflict.
+  const retry = useRef<{ attempt: string; key: string } | null>(null);
 
   if (!read.known) return null;
   const fetched = read.ranks.get(materialId) ?? emptyRank(materialId);
@@ -81,7 +85,9 @@ export function MaterialRank({
   const demote = async (reason: CreativeRankDemoteReason) => {
     const target = demotionTarget(rank.rankCredit, reason);
     if (!target || !client.demoteCreativeRank) return;
-    const flowId = newFlowId();
+    const attempt = `${rank.version}:${reason}:${target.credit}`;
+    const flowId = retry.current?.attempt === attempt ? retry.current.key : newFlowId();
+    retry.current = { attempt, key: flowId };
     const trace = { flowId, reason, from: league, to: target.league };
     creativeRankDemoteStarted(trace);
     setPending(true);
@@ -107,6 +113,8 @@ export function MaterialRank({
       }
       setMessage(MESSAGE[result] ?? 'creativeRankDemoteFailed');
     } finally {
+      // Only an unanswered attempt is retried with its key; any answer settles it.
+      if (result !== 'failed') retry.current = null;
       setPending(false);
       creativeRankDemoteFinished({ ...trace, result });
     }
@@ -121,6 +129,13 @@ export function MaterialRank({
           <span className="creative-rank-card-state"> · {t(FRESHNESS_LABEL[freshness])}</span>
         </p>
         <RankFacts rank={rank} now={read.now} />
+        <p className="creative-rank-card-legend">
+          {t('creativeRankLegend', {
+            steps: CREATIVE_RANK_LEAGUES.filter(step => step.min > 0)
+              .map(step => `${t(LEAGUE_LABEL[step.id])} ${step.min}+`)
+              .join(' · ')
+          })}
+        </p>
         {isOwner && client.demoteCreativeRank && (
           <>
             <Button

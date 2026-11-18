@@ -561,7 +561,17 @@ function ExplorerBody({
     preserveOnEmpty: contentsPending,
     beforeRowsReplace: () => captureAnchorRef.current()
   });
-  const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  // 059 — the honey leagues of the videos on this page: one read, again when a rank changes;
+  // the sort by rank reads them too.
+  const rankVideoIds = useMemo(
+    () => page.rows.filter(row => row.kind === 'video').map(row => row.id),
+    [page.rows]
+  );
+  const ranks = useCreativeRanks(teamId, rankVideoIds, ranksRevision, client);
+  const allRows = useMemo(
+    () => sortRows(page.rows, sort, ranks.ranks),
+    [page.rows, sort, ranks.ranks]
+  );
   /*
    * A transcript and a catalog belong to their video (024, US25): the folder shows the video with
    * a count, and they come out under it on a press. Opened ones are remembered per folder only.
@@ -684,12 +694,6 @@ function ExplorerBody({
       active = false;
     };
   }, [teamId, page.rows]);
-  // 059 — the honey leagues of the videos on this page: one read, again when a rank changes.
-  const rankVideoIds = useMemo(
-    () => page.rows.filter(row => row.kind === 'video').map(row => row.id),
-    [page.rows]
-  );
-  const ranks = useCreativeRanks(teamId, rankVideoIds, ranksRevision, client);
   // Drive has no picture for some videos and never will. The paired app makes
   // one, for what is on screen, one at a time.
   usePosterFrames({

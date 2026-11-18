@@ -13,13 +13,16 @@
 export const CREATIVE_RANK_LEAGUE_IDS = ['wax', 'bronze', 'silver', 'gold', 'diamond'] as const;
 export type CreativeRankLeague = (typeof CREATIVE_RANK_LEAGUE_IDS)[number];
 
-/** Minimum league credit for each league, lowest first. */
+/**
+ * Minimum league credit for each league, lowest first. Diamond sits at about 25 launches: past
+ * that a creative is usually reworked (made unique) and lives on as a different video.
+ */
 export const CREATIVE_RANK_LEAGUES: readonly { id: CreativeRankLeague; min: number }[] = [
   { id: 'wax', min: 0 },
   { id: 'bronze', min: 1 },
   { id: 'silver', min: 5 },
-  { id: 'gold', min: 15 },
-  { id: 'diamond', min: 40 }
+  { id: 'gold', min: 12 },
+  { id: 'diamond', min: 25 }
 ];
 
 export const CREATIVE_RANK_FRESHNESS_IDS = ['fresh', 'dusty', 'cobweb'] as const;
@@ -48,6 +51,15 @@ export function leagueOf(credit: number): CreativeRankLeague {
     if (credit >= step.min) league = step.id;
   }
   return league;
+}
+
+/**
+ * Whether a rank is worth a mark on a shelf (tile, list row). Wax — never launched, or demoted to
+ * the bottom — is the default state of every video; marking it on each one is noise. The video's
+ * card still shows it.
+ */
+export function isShelfRank(rank: CreativeRank): boolean {
+  return leagueOf(rank.rankCredit) !== 'wax';
 }
 
 /** Whole days since `lastLaunchedAt`; a future time (clock skew) is today. */

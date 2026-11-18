@@ -83,13 +83,13 @@ describe('a tile', () => {
     grid({ ranks: new Map([['v1', rank()]]), known: true, now: NOW }, [row('v1', 'clip.mp4')]);
     const emblem = screen.getByRole('img', { name: 'Rank: Gold, fresh' });
     expect(emblem.getAttribute('src')).toBe('/creative-ranks/4_gold_fresh-128.webp');
-    expect(screen.getByText('16× · 3 days ago')).toBeTruthy();
+    expect(screen.getByText('16 launches · 3 days ago')).toBeTruthy();
   });
 
-  it('draws wax for a video never launched, and invents no date', () => {
+  it('leaves a video never launched unmarked, and invents no date', () => {
     grid({ ranks: new Map(), known: true, now: NOW }, [row('v1', 'clip.mp4')]);
-    expect(screen.getByRole('img', { name: 'Rank: Wax, fresh' })).toBeTruthy();
-    expect(screen.queryByText(/×/)).toBeNull();
+    expect(screen.queryByRole('img', { name: /Rank:/ })).toBeNull();
+    expect(screen.queryByText(/launch/)).toBeNull();
   });
 
   it('gathers cobwebs on the emblem, never on the text', () => {
@@ -104,7 +104,7 @@ describe('a tile', () => {
       [row('v1', 'clip.mp4')]
     );
     expect(screen.getByRole('img', { name: 'Rank: Silver, in cobwebs' })).toBeTruthy();
-    expect(screen.getByText(/^6× · /).className).toBe('creative-rank-facts');
+    expect(screen.getByText(/^6 launches · /).className).toBe('creative-rank-facts');
   });
 
   it('draws nothing while ranks are unknown, and nothing on what is not a video', () => {
@@ -141,7 +141,40 @@ describe('the card', () => {
     expect(demoteCreativeRank).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'disappointed', targetCredit: 5, expectedVersion: 4 })
     );
-    expect(screen.getByText(/^16× · /)).toBeTruthy();
+    expect(screen.getByText(/^16 launches · /)).toBeTruthy();
+    expect(
+      screen.getByText('Leagues by launches: Bronze 1+ · Silver 5+ · Gold 12+ · Diamond 25+')
+    ).toBeTruthy();
+  });
+
+  it('retries an unanswered demotion with the same key', async () => {
+    const demoteCreativeRank = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('network'))
+      .mockResolvedValueOnce(rank({ rankCredit: 5, version: 5 }));
+    render(
+      <MaterialRank
+        teamId="team-1"
+        materialId="v1"
+        isOwner
+        ranksRevision={0}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])),
+          demoteCreativeRank
+        }}
+      />
+    );
+    const user = userEvent.setup();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await user.click(await screen.findByRole('button', { name: 'Lower the rank' }));
+      await user.click(await screen.findByRole('menuitem', { name: /Disappointed/ }));
+      await waitFor(() => expect(demoteCreativeRank).toHaveBeenCalledTimes(attempt + 1));
+    }
+    const keys = demoteCreativeRank.mock.calls.map(
+      call => (call[0] as { requestKey: string }).requestKey
+    );
+    expect(keys[0]).toBe(keys[1]);
+    await waitFor(() => expect(screen.getByText('Silver')).toBeTruthy());
   });
 
   it('offers no way down to a member who is not the owner', async () => {

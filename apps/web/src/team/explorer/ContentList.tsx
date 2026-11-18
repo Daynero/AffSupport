@@ -28,8 +28,14 @@ import type { Modifiers } from './selectionGestures';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
 import { RankEmblem } from '../ranks/RankEmblem';
-import { rankFactsText } from '../ranks/RankFacts';
-import { emptyRank, freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
+import { launchCountText, rankFactsText } from '../ranks/RankFacts';
+import {
+  emptyRank,
+  freshnessOf,
+  isShelfRank,
+  leagueOf,
+  type CreativeRank
+} from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
@@ -356,10 +362,11 @@ function Row({
             hover and focus, rather than a second line under every such row. */}
         {reason && <KindNote text={t(reason)} />}
       </TableCell>
-      {/* Its own column right after the names, so the combs line up down the list; the exact
-          count and date are on hover. */}
+      {/* Its own column right after the names, so the combs line up down the list; the launch
+          count sits beside the comb, the date on hover. Wax is left blank: it is every video's
+          starting state. */}
       <TableCell className="team-explorer-row-rank">
-        {rank && (
+        {rank && isShelfRank(rank) && (
           <span className="creative-rank-list-mark">
             <RankEmblem
               league={leagueOf(rank.rankCredit)}
@@ -367,6 +374,7 @@ function Row({
               size="list"
               facts={rankFactsText(rank, t, language, rankNow)}
             />
+            <span className="creative-rank-list-count">{launchCountText(rank)}</span>
           </span>
         )}
       </TableCell>

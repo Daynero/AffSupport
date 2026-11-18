@@ -13,7 +13,13 @@ import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { RankFacts } from '../ranks/RankFacts';
-import { emptyRank, freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
+import {
+  emptyRank,
+  freshnessOf,
+  isShelfRank,
+  leagueOf,
+  type CreativeRank
+} from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
@@ -349,9 +355,9 @@ function Tile({
       {companions.length > 0 && (
         <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
       )}
-      {rank && (
-        // Bottom right of the picture: the companions' badge holds bottom left, selection and
-        // the menu hold the top. A picture, not a control — presses go to the tile beneath.
+      {rank && isShelfRank(rank) && (
+        // Top left of the picture, where the checkbox appears on hover (it steps aside then);
+        // bottom right on touch. A picture, not a control — presses go to the tile beneath.
         <span className="team-explorer-tile-badge-layer creative-rank-tile-layer">
           <RankEmblem
             league={leagueOf(rank.rankCredit)}

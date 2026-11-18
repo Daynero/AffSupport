@@ -1,6 +1,7 @@
 import { teamMaterialTagRank, type TeamMaterialRow } from '@video-compressor/shared';
+import type { CreativeRank } from '../ranks/creativeRanks';
 
-export type SortKey = 'name' | 'modified' | 'tag';
+export type SortKey = 'name' | 'modified' | 'tag' | 'rank';
 export type SortDirection = 'asc' | 'desc';
 
 export interface ExplorerSort {
@@ -27,7 +28,11 @@ export const compareNames = (a: string, b: string): number => nameCollator.compa
  * folder fits a page; a large folder's full-order sort is a server concern
  * tracked separately.
  */
-export function sortRows(rows: readonly TeamMaterialRow[], sort: ExplorerSort): TeamMaterialRow[] {
+export function sortRows(
+  rows: readonly TeamMaterialRow[],
+  sort: ExplorerSort,
+  ranks: ReadonlyMap<string, CreativeRank> = new Map()
+): TeamMaterialRow[] {
   const factor = sort.direction === 'asc' ? 1 : -1;
   const compare = (a: TeamMaterialRow, b: TeamMaterialRow): number => {
     if (sort.foldersSeparate) {
@@ -53,6 +58,20 @@ export function sortRows(rows: readonly TeamMaterialRow[], sort: ExplorerSort): 
         return (at - bt) * factor;
       }
     }
+    /* By rank (059), like by tag: never-launched videos and everything that is not a video go
+       last either way — they have no rank to order by. Same league credit: the more recent
+       launch first in the descending order. */
+    if (sort.key === 'rank') {
+      const ar = ranks.get(a.id);
+      const br = ranks.get(b.id);
+      const ac = ar?.rankCredit ?? 0;
+      const bc = br?.rankCredit ?? 0;
+      if ((ac === 0) !== (bc === 0)) return ac === 0 ? 1 : -1;
+      if (ac !== bc) return (ac - bc) * factor;
+      const at = ar?.lastLaunchedAt ? Date.parse(ar.lastLaunchedAt) : 0;
+      const bt = br?.lastLaunchedAt ? Date.parse(br.lastLaunchedAt) : 0;
+      if (at !== bt) return (at - bt) * factor;
+    }
     return compareNames(a.name, b.name) * factor;
   };
   return [...rows].sort(compare);
@@ -64,7 +83,10 @@ export function readRememberedSort(): ExplorerSort {
     if (!raw) return DEFAULT_SORT;
     const parsed = JSON.parse(raw) as Partial<ExplorerSort>;
     return {
-      key: parsed.key === 'modified' || parsed.key === 'tag' ? parsed.key : 'name',
+      key:
+        parsed.key === 'modified' || parsed.key === 'tag' || parsed.key === 'rank'
+          ? parsed.key
+          : 'name',
       direction: parsed.direction === 'desc' ? 'desc' : 'asc',
       foldersSeparate: parsed.foldersSeparate !== false
     };

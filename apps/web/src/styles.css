@@ -18687,6 +18687,13 @@ a.history-subject {
 .creative-rank-list-mark {
   display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.creative-rank-list-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
 }
 /* The list gives the emblem its own column right after the names: the name column is as wide as
    the longest name, so the combs line up in one vertical run beside them, and the free width
@@ -18725,6 +18732,13 @@ a.history-subject {
 .creative-rank-card-state {
   color: var(--color-text-muted);
   font-weight: var(--weight-body);
+}
+/* How the leagues are earned, in launches: small print under the facts. */
+.creative-rank-card-legend {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
 }
 .creative-rank-card-message {
   margin: 0;

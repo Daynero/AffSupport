@@ -167,6 +167,7 @@ export function PreviewPane({
         rank={
           row.kind === 'video' ? (
             <MaterialRank
+              key={row.id}
               teamId={teamId}
               materialId={row.id}
               isOwner={isOwner}
