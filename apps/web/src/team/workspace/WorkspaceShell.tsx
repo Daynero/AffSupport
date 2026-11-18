@@ -1210,7 +1210,16 @@ export function WorkspaceShell({
                       }
                     >
                       <Suspense fallback={<RouteSkeleton variant="tiles" label={t('loading')} />}>
-                        <Keep deps={section === 'explorer' || query?.trash ? LIVE() : [teamId]}>
+                        {/* Out of sight it is still told when the space's files change — the
+                            one thing it takes from this shell rather than from context — so
+                            it is up to date when it is shown, not a moment after. */}
+                        <Keep
+                          deps={
+                            section === 'explorer' || query?.trash
+                              ? LIVE()
+                              : [teamId, client, revision + browserRevision]
+                          }
+                        >
                           <ExplorerShell
                             key={`explorer:${teamId}`}
                             teamId={teamId}

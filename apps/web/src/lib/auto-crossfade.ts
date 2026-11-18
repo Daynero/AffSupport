@@ -72,8 +72,12 @@ function scopeOf(control: Element): HTMLElement | null {
   if (control.closest(OPT_OUT)) return null;
   const floating = control.closest(FLOATING);
   const dialog = control.closest<HTMLElement>(DIALOG);
-  // Inside a dialog (and not in a menu opened from it): the dialog redraws itself.
-  if (dialog && !floating) return dialog;
+  // Inside a dialog (and not in a menu opened from it): the dialog redraws itself. A tick box
+  // in a form is not a redraw — and the copy would sit over the field typed in next.
+  if (dialog && !floating) {
+    const tick = control.matches('input[type="checkbox"], input[type="radio"]');
+    return tick && control.getAttribute('role') !== 'switch' ? null : dialog;
+  }
   if (!floating && !control.closest('.page-viewport')) return null;
   // On the page, or in a menu over it: the section on screen, else the page.
   if (dialog) return dialog;
@@ -186,10 +190,22 @@ function copyOf(scope: HTMLElement): HTMLElement | null {
   copy.setAttribute('inert', '');
   copy.setAttribute('data-auto-ghost', '');
   copy.classList.add('auto-ghost');
-  copy.style.left = `${scope.offsetLeft}px`;
-  copy.style.top = `${scope.offsetTop}px`;
-  copy.style.width = `${scope.offsetWidth}px`;
-  copy.style.height = `${scope.offsetHeight}px`;
+  // To the fraction of a pixel: `offsetTop` is rounded, and a copy a third of a pixel off its
+  // original made every line of text under it step by one when it arrived and again when it
+  // left — a jiggle on each press.
+  const rect = scope.getBoundingClientRect();
+  const anchor = scope.offsetParent instanceof HTMLElement ? scope.offsetParent : null;
+  const base = anchor?.getBoundingClientRect();
+  const left = base
+    ? rect.left - base.left - anchor!.clientLeft + anchor!.scrollLeft
+    : rect.left + window.scrollX;
+  const top = base
+    ? rect.top - base.top - anchor!.clientTop + anchor!.scrollTop
+    : rect.top + window.scrollY;
+  copy.style.left = `${left}px`;
+  copy.style.top = `${top}px`;
+  copy.style.width = `${rect.width}px`;
+  copy.style.height = `${rect.height}px`;
   for (const image of copy.querySelectorAll('img')) {
     image.loading = 'eager';
     image.decoding = 'sync';

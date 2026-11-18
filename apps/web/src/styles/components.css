@@ -2677,9 +2677,15 @@
   pointer-events: none;
   animation: ui-surface-out var(--motion-fast) var(--ease-fade) both;
 }
+/* A list of options is the same kind of surface: it is opened all day, and it
+   arrived in a single frame. */
+.ui-select-popover[data-entering] {
+  animation: ui-fade-in var(--motion-press) var(--ease-linear);
+}
 /* A frequent one leaves as it came: opacity only, five frames. The library's
    own menus say when they are leaving, and are waited for. */
 .ui-popover.is-frequent.is-closing,
+.ui-select-popover[data-exiting],
 .ui-menu-popover[data-exiting] {
   pointer-events: none;
   animation: ui-fade-out var(--motion-press) var(--ease-linear) both;
@@ -2701,6 +2707,8 @@
   .ui-overlay.is-closing > .ui-modal,
   .modal-backdrop.is-closing > .modal,
   .ui-menu-popover[data-exiting],
+  .ui-select-popover[data-entering],
+  .ui-select-popover[data-exiting],
   .ui-popover.is-closing {
     animation: none;
   }
@@ -5109,4 +5117,10 @@
 .team-task-card {
   content-visibility: auto;
   contain-intrinsic-size: auto 280px;
+}
+/* In the copy a press leaves (auto-crossfade) the cards are already cut down to
+   the ones on screen, and those must be their true size from its first frame —
+   a card standing at its placeholder height for one frame would be a jump. */
+.auto-ghost .team-task-card {
+  content-visibility: visible;
 }

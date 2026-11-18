@@ -6681,14 +6681,14 @@ body:has(.public-home) {
   pointer-events: none;
 }
 ::view-transition-group(wishly-page) {
-  animation-duration: var(--motion-slow);
+  animation-duration: var(--motion-base);
   animation-timing-function: var(--ease-fade);
 }
 ::view-transition-old(wishly-page) {
-  animation: wishly-page-out var(--motion-slow) var(--ease-fade) both;
+  animation: wishly-page-out var(--motion-base) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-page) {
-  animation: wishly-page-in var(--motion-slow) var(--ease-fade) both;
+  animation: wishly-page-in var(--motion-base) var(--ease-fade) both;
 }
 /* Pages fade *through* (058, second pass): the one leaving is gone in the
    first two fifths, the one arriving starts a moment before that ends. Two
@@ -6905,16 +6905,16 @@ body:has(.public-home) {
 }
 ::view-transition-group(wishly-topbar-lead),
 ::view-transition-group(wishly-topbar-actions) {
-  animation-duration: var(--motion-slow);
+  animation-duration: var(--motion-base);
   animation-timing-function: var(--ease-fade);
 }
 ::view-transition-old(wishly-topbar-lead),
 ::view-transition-old(wishly-topbar-actions) {
-  animation: wishly-route-out var(--motion-slow) var(--ease-fade) both;
+  animation: wishly-route-out var(--motion-base) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-topbar-lead),
 ::view-transition-new(wishly-topbar-actions) {
-  animation: ui-content-enter var(--motion-slow) var(--ease-fade) both;
+  animation: ui-content-enter var(--motion-base) var(--ease-fade) both;
 }
 
 /* ============================================================

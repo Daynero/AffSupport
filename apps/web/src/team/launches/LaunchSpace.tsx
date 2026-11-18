@@ -72,6 +72,10 @@ type ArchiveCandidate = {
 };
 type ArchiveTarget = { items: ArchiveCandidate[]; suppress?: boolean };
 const BATCH_READ_WAIT_MS = 4_000;
+/** How long a launch read ahead of its press is good for. */
+const DETAIL_WARM_MS = 8_000;
+/** How long the pointer rests on a card before its launch is read ahead. */
+const DETAIL_DWELL_MS = 110;
 export function LaunchSpace({
   teamId,
   query,
@@ -127,6 +131,8 @@ function LaunchSpaceContent({
   // The first page of the list has been read (or failed). Until then "no launches yet" would be
   // a lie that flashes before the cards (058, beta feedback).
   const [listLoaded, setListLoaded] = useState(false);
+  // The last read of the list failed: what is on screen is not "an empty list".
+  const [listFailed, setListFailed] = useState(false);
   // The batch block has read what it shows: it sits above the cards, and arriving later it
   // pushed the whole grid down.
   const [batchesRead, setBatchesRead] = useState(actorId === null);
@@ -247,6 +253,41 @@ function LaunchSpaceContent({
       false,
       false
     );
+  /*
+   * A launch that is about to be opened, read ahead (058).
+   *
+   * The dialog shows only once the launch is read, so a press on a card was a quarter of a
+   * second with nothing on screen. The pointer rests on a card before it presses it; the read
+   * starts then, and the press finds it done or nearly. One read, used once: whatever opens
+   * later reads again.
+   */
+  const warmDetails = useRef(new Map<string, { at: number; promise: Promise<LaunchDetail> }>());
+  const warmDetail = (id: string) => {
+    const now = Date.now();
+    const hit = warmDetails.current.get(id);
+    if (hit && now - hit.at < DETAIL_WARM_MS) return;
+    const promise = launchApi.detail(teamId, id, null);
+    promise.catch(() => {
+      if (warmDetails.current.get(id)?.promise === promise) warmDetails.current.delete(id);
+    });
+    warmDetails.current.set(id, { at: now, promise });
+    for (const [key, value] of warmDetails.current) {
+      if (now - value.at >= DETAIL_WARM_MS) warmDetails.current.delete(key);
+    }
+  };
+  const readDetail = (id: string, revisionId: string | null) => {
+    const warm = revisionId ? undefined : warmDetails.current.get(id);
+    if (warm) {
+      warmDetails.current.delete(id);
+      if (Date.now() - warm.at < DETAIL_WARM_MS) return warm.promise;
+    }
+    return launchApi.detail(teamId, id, revisionId);
+  };
+  const dwell = useRef<number | null>(null);
+  const cardUnder = (target: EventTarget | null) =>
+    target instanceof Element
+      ? (target.closest<HTMLElement>('[data-launch-id]')?.dataset.launchId ?? null)
+      : null;
   const usedSearch = useRef('');
   // The editor's code arrives while the board is read, not when a card is opened.
   useEffect(() => {
@@ -337,7 +378,11 @@ function LaunchSpaceContent({
     // The read that answers the filter change waiting on it — not one already under way.
     const waiting = listAnswered.current;
     void refresh()
-      .catch(e => setError(teamErrorMessageFor(e, t)))
+      .then(() => setListFailed(false))
+      .catch(e => {
+        setListFailed(true);
+        setError(teamErrorMessageFor(e, t));
+      })
       .finally(() => {
         setListLoaded(true);
         if (waiting && listAnswered.current === waiting) {
@@ -376,8 +421,7 @@ function LaunchSpaceContent({
       return;
     }
     setPending(true);
-    void launchApi
-      .detail(teamId, open, query.revisionId ?? null)
+    void readDetail(open, query.revisionId ?? null)
       .then(d => {
         if (seq === sessionRequest.current) {
           const sameRevision = detailRead.current?.revisionId === (query.revisionId ?? null);
@@ -882,7 +926,23 @@ function LaunchSpaceContent({
             </div>
           }
         />
-        <div className="team-task-grid launch-grid" onPointerDown={launchMarquee.onPointerDown}>
+        <div
+          className="team-task-grid launch-grid"
+          onPointerDown={event => {
+            const id = cardUnder(event.target);
+            if (id) warmDetail(id);
+            launchMarquee.onPointerDown(event);
+          }}
+          onPointerOver={event => {
+            const id = cardUnder(event.target);
+            if (dwell.current !== null) window.clearTimeout(dwell.current);
+            dwell.current = id ? window.setTimeout(() => warmDetail(id), DETAIL_DWELL_MS) : null;
+          }}
+          onPointerLeave={() => {
+            if (dwell.current !== null) window.clearTimeout(dwell.current);
+            dwell.current = null;
+          }}
+        >
           {items.map(value => (
             <LaunchCard
               key={value.id}
@@ -979,7 +1039,9 @@ function LaunchSpaceContent({
             </div>
           </Modal>
         )}
-        {ready && !items.length && (
+        {/* Not under an error: "no launches yet" below "the server answered unexpectedly"
+            said the list was read and empty when it had not been read at all. */}
+        {ready && !items.length && !listFailed && (
           <div className="flex flex-wrap items-center gap-2">
             <p>{t(filtersActive ? 'launchesFilterEmpty' : 'launchesEmpty')}</p>
             {filtersActive && (

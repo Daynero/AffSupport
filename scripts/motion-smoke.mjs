@@ -272,7 +272,8 @@ async function record(page, cdp, out, transition, backgroundShot) {
     if (transition.strictSettle) failures.push(message);
     else warnings.push(message);
   }
-  if (whole.popped) {
+  // Under reduced motion a change at once is what was asked for.
+  if (whole.popped && !transition.instant) {
     const message = `frame ${whole.largestStepAt}ms changes at once (${Math.round(whole.popShare * 100)}% of all movement in one frame)`;
     // Two frames further apart than the display draws them mean the recorder skipped the
     // ones between: the jump is in the recording, and the picture after it is a blend.
@@ -425,7 +426,8 @@ async function runPass(browser, args, supabase, label) {
   });
 
   const results = [];
-  for (const transition of transitions(space)) {
+  for (const step of transitions(space)) {
+    const transition = { ...step, instant: Boolean(args.reduced) };
     try {
       results.push(await record(page, cdp, out, transition, backgroundShot));
     } catch (error) {

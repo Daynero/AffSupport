@@ -140,6 +140,19 @@ describe('switching workspace sections', () => {
     expect(mounts).toEqual({ tasks: 0, accounts: 0, members: 0 });
   });
 
+  it('builds the other sections out of sight once the space is idle', async () => {
+    await enterSpace();
+    expect(mounts).toEqual({ tasks: 0, accounts: 0, members: 0 });
+
+    // A tab pressed after that finds its board already there (058).
+    await waitFor(() => expect(mounts).toEqual({ tasks: 1, accounts: 1, members: 1 }), {
+      timeout: 9_000,
+      interval: 200
+    });
+    for (const label of ['tasks filter', 'accounts filter', 'members filter'])
+      expect(screen.getByLabelText(label).closest('[hidden]')).toBeTruthy();
+  }, 12_000);
+
   it('hides the sections that are not being looked at', async () => {
     const { user } = await enterSpace();
 
