@@ -21,6 +21,7 @@ import PublicHomePage from './PublicHomePage';
 import { DRIVE_OAUTH_CALLBACK_PATH, DriveOAuthForwardPage } from './auth/DriveOAuthForward';
 import { loginUrl } from './lib/redirects';
 import { navigateTo, useBrowserRoute } from './lib/navigation';
+import { installAutoCrossfade } from './lib/auto-crossfade';
 import { installPointerGlow } from './lib/pointer-glow';
 import { useI18n } from './i18n';
 
@@ -79,6 +80,7 @@ export default function Root() {
 function Routes() {
   const route = useBrowserRoute();
   useEffect(installPointerGlow, []);
+  useEffect(installAutoCrossfade, []);
   const path = new URL(route, location.origin).pathname;
   const auth = useAuth();
 

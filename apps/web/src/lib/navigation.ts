@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
+import { dropAutoGhost } from './auto-crossfade';
 import { fetchPendingSince } from './fetch-activity';
 import { isLiteMotion, reportAnimatedTransition } from './motion-quality';
 import { motionBetween, screenOf, type MotionKind, type ScreenKind } from './motion-registry';
@@ -279,13 +280,20 @@ function isLoading(scope: ParentNode): boolean {
  * skeleton, then the content, each in its own shape (058, beta feedback).
  * Rendering is paused meanwhile, so this polls on timers, not frames.
  */
-function screenSettled(motion: Exclude<MotionKind, 'none'>, id: number): Promise<void> {
+function screenSettled(
+  motion: Exclude<MotionKind, 'none'>,
+  id: number,
+  sameScreen: boolean
+): Promise<void> {
   const scope =
     (motion === 'section' ? document.querySelector('.team-space-shell-body') : null) ??
     document.querySelector('.page-viewport') ??
     document.body;
-  // The first look waits a tick: state a component derives from the new route in an effect
-  // (a folder, a selection) renders right after the commit, not inside it.
+  // Another screen that is already filled is shown now: every tick spent here is a frame the
+  // press goes unanswered. Within one screen the first look waits a tick — state a component
+  // derives from the new route in an effect (a folder, a selection) renders right after the
+  // commit, not inside it.
+  if (!sameScreen && !isLoading(scope)) return Promise.resolve();
   return new Promise(resolve => {
     const startedAt = now();
     const check = () => {
@@ -356,13 +364,15 @@ function commitRouteChange(
   // the "new" snapshot is captured only after the next page has rendered
   // (mirrors the synchronous applyTheme commit in theme.ts).
   const transition = document.startViewTransition(async () => {
+    // This transition carries the change; the copy a press left (auto-crossfade) steps aside.
+    dropAutoGhost();
     flushSync(apply);
     if (hero) {
       if (hero.from?.isConnected) hero.from.style.viewTransitionName = '';
       heroTarget = hero.to();
       if (heroTarget) heroTarget.style.viewTransitionName = HERO_NAME;
     }
-    await screenSettled(motion, id);
+    await screenSettled(motion, id, screenOf(from) === screenOf(to));
   });
   activeTransition = transition;
   const finish = () => {
@@ -384,7 +394,8 @@ function commitRouteChange(
   transition.ready.then(
     () => {
       attempt?.animationStarted();
-      markStagger();
+      // A cascade is for arriving somewhere; between sections it is only a wait.
+      if (motion === 'page') markStagger();
     },
     () => {}
   );
@@ -550,6 +561,7 @@ export function crossfadeLayout(apply: () => void, settled?: Promise<unknown> | 
   root.classList.add(SECTION_TRANSITION_CLASS);
   const transition = document.startViewTransition(async () => {
     const since = now();
+    dropAutoGhost();
     flushSync(apply);
     if (!settled) return;
     // The change asks for data (a filter, a period): the old picture stays until the answer

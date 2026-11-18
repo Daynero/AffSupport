@@ -2499,7 +2499,7 @@
    in over the same place instead of cutting to it. Opacity only — the box is
    in its final place from the first frame. */
 .ui-reveal.is-arriving {
-  animation: ui-fade-in var(--motion-base) var(--ease-in-out-curve) both;
+  animation: ui-fade-in var(--motion-base) var(--ease-fade) both;
 }
 
 .ui-route-skeleton {
@@ -2667,15 +2667,22 @@
 .ui-overlay.is-closing,
 .modal-backdrop.is-closing {
   pointer-events: none;
-  animation: ui-fade-out var(--motion-base) var(--ease-in-out-curve) both;
+  animation: ui-fade-out var(--motion-base) var(--ease-fade) both;
 }
 .ui-overlay.is-closing > .ui-modal,
 .modal-backdrop.is-closing > .modal {
-  animation: ui-surface-out var(--motion-base) var(--ease-in-out-curve) both;
+  animation: ui-surface-out var(--motion-base) var(--ease-fade) both;
 }
 .ui-popover.is-closing {
   pointer-events: none;
-  animation: ui-surface-out var(--motion-fast) var(--ease-in-out-curve) both;
+  animation: ui-surface-out var(--motion-fast) var(--ease-fade) both;
+}
+/* A frequent one leaves as it came: opacity only, five frames. The library's
+   own menus say when they are leaving, and are waited for. */
+.ui-popover.is-frequent.is-closing,
+.ui-menu-popover[data-exiting] {
+  pointer-events: none;
+  animation: ui-fade-out var(--motion-press) var(--ease-linear) both;
 }
 @keyframes ui-fade-out {
   to {
@@ -2693,6 +2700,7 @@
   .modal-backdrop.is-closing,
   .ui-overlay.is-closing > .ui-modal,
   .modal-backdrop.is-closing > .modal,
+  .ui-menu-popover[data-exiting],
   .ui-popover.is-closing {
     animation: none;
   }
@@ -2794,7 +2802,7 @@
   background: var(--color-neutral-surface-raised);
   box-shadow: var(--shadow-menu);
   transform-origin: top left;
-  animation: ui-surface-in var(--motion-fast) var(--ease-out-curve);
+  animation: ui-surface-in var(--motion-fast) var(--ease-soft-out);
   overflow: auto;
   overscroll-behavior: contain;
   grid-auto-rows: max-content;
@@ -2810,9 +2818,11 @@
   bottom: 100%;
   transform-origin: bottom left;
 }
-/* Opened dozens of times an hour: no animation at all. */
+/* Opened dozens of times an hour: nothing to wait for — no travel, no scale —
+   but not a hard cut either (058): five frames of opacity, over before the
+   pointer has reached the first item. */
 .ui-popover.is-frequent {
-  animation: none;
+  animation: ui-fade-in var(--motion-press) var(--ease-linear);
 }
 
 /* React Aria owns the menu's coordinates and available height. Scroll the
@@ -5016,14 +5026,16 @@
    a step apart, instead of the whole slab appearing at once. Only when the
    screen has just arrived (`data-nav-stagger`, lib/navigation.ts) or its
    content has just replaced a placeholder — never on a live update, which
-   changes rows in place. From the twelfth item on they land together. */
+   changes rows in place — and never on a move between sections, where a full
+   board landing card by card was half a second of waiting. From the eighth
+   item on they land together. */
 :root[data-nav-stagger] :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > *,
 .ui-reveal.is-arriving > :is(.team-task-grid, .team-explorer-grid) > *,
 .ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
   /* `backwards` only: once landed, the item is its own again — hover and press
      move it, and a finished animation that still held `transform` would not let them. */
-  animation: ui-cascade-in var(--motion-slow) var(--ease-out-curve) backwards;
-  animation-delay: calc(var(--stagger-step) * var(--stagger-i, 12));
+  animation: ui-cascade-in var(--motion-base) var(--ease-out-curve) backwards;
+  animation-delay: calc(var(--stagger-step) * var(--stagger-i, 8));
 }
 :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(1) {
   --stagger-i: 0;
@@ -5049,18 +5061,6 @@
 :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(8) {
   --stagger-i: 7;
 }
-:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(9) {
-  --stagger-i: 8;
-}
-:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(10) {
-  --stagger-i: 9;
-}
-:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(11) {
-  --stagger-i: 10;
-}
-:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(12) {
-  --stagger-i: 11;
-}
 @keyframes ui-cascade-in {
   from {
     opacity: 0;
@@ -5078,4 +5078,35 @@
 /* The launch editor's stand-in, the editor's own height (DeferredLaunchEditor). */
 .launch-editor-loading .ui-skeleton {
   height: 62dvh;
+}
+
+/* The copy a press leaves over the part of the screen it is about to change
+   (lib/auto-crossfade.ts). It stands exactly where the original does, takes no
+   input and plays nothing of its own — the script fades it out once the new
+   state is ready underneath. */
+.auto-ghost {
+  position: absolute;
+  /* Over everything the section draws on itself — a sticky toolbar, an inline
+     menu — or those would show the new state while the rest still showed the
+     old. Its parent is a stacking context, so this is not over dialogs. */
+  z-index: var(--layer-overlay);
+  margin: 0;
+  /* `clip`, not `hidden`: a scroll container here would unstick the copy's own
+     sticky bars from the window. */
+  overflow: clip;
+  pointer-events: none;
+}
+.auto-ghost,
+.auto-ghost * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* A board of cards is long and mostly off screen (058): cards outside the
+   window are not laid out or painted until they are scrolled to, so showing a
+   full section costs what the visible dozen cost. Only cards that clip their
+   own content anyway — containment would cut a menu that hangs out of one. */
+.team-task-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
 }

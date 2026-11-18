@@ -375,6 +375,12 @@
      window read as appearing at once; this one spends its time evenly enough
      to be seen arriving and still starts without a lag. */
   --ease-soft-out: cubic-bezier(0.33, 1, 0.68, 1);
+  /* For a fade — one picture dissolving into another, a surface leaving (058).
+     Opacity is read by the eye almost linearly, so a fade wants an almost even
+     curve: on `--ease-in-out-curve` three quarters of the change sit in the
+     middle two fifths of the time, and a 220ms crossfade looked like a 90ms
+     one after a pause. This spends the whole duration, with soft ends. */
+  --ease-fade: cubic-bezier(0.4, 0, 0.6, 1);
 
   /* Interactive feedback: a press is felt, not watched. */
   --press-scale: 0.97;
@@ -389,7 +395,7 @@
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   /* How far apart the items of an arriving grid start, so they land as a
      cascade rather than a slab. */
-  --stagger-step: 28ms;
+  --stagger-step: 16ms;
   /* The light a pointer carries over a card. */
   --glow-size: 340px;
 

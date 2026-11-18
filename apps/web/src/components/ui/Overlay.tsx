@@ -161,10 +161,16 @@ export function playExitMotion(node: HTMLElement) {
   // An engine without Web Animations (jsdom) cannot play the motion, and a copy
   // that never animates would only sit in the document until its timeout.
   if (typeof document.getAnimations !== 'function') return;
-  if (node.classList.contains('is-frequent')) return;
   const fixedRoot =
     node.classList.contains('ui-overlay') || node.classList.contains('modal-backdrop');
-  if (!fixedRoot && window.getComputedStyle(node).position !== 'fixed') return;
+  // The copy goes to the page's root, so it only stands where the original did if that is
+  // where the original was placed from: a fixed surface, or one portalled to the body. A
+  // menu opened often leaves too (058) — in five frames of opacity, not at a cut.
+  const placedFromRoot =
+    node.offsetParent === null ||
+    node.offsetParent === document.body ||
+    window.getComputedStyle(node).position === 'fixed';
+  if (!fixedRoot && !placedFromRoot) return;
   if (node.querySelector('video, audio, iframe, canvas')) return;
   const ghost = node.cloneNode(true) as HTMLElement;
   ghost.classList.add(EXIT_CLASS);
@@ -691,6 +697,8 @@ export function DropdownMenu({
 }: DropdownMenuProps) {
   const rows = items.filter((item): item is MenuItem => item !== 'separator' && !isHeading(item));
   const byId = new Map(rows.map(item => [item.id, item]));
+  // The library removes a closed menu at once; the copy left in its place fades (058).
+  const leaving = useExitMotionRef<HTMLDivElement>();
 
   /*
    * The flat list, folded into sections.
@@ -724,6 +732,7 @@ export function DropdownMenu({
 
   return (
     <HeroPopover.Content
+      ref={leaving as never}
       triggerRef={anchor as RefObject<HTMLElement>}
       isOpen={open}
       onOpenChange={next => {

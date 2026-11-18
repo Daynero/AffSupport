@@ -72,7 +72,16 @@ type ArchiveCandidate = {
 };
 type ArchiveTarget = { items: ArchiveCandidate[]; suppress?: boolean };
 const BATCH_READ_WAIT_MS = 4_000;
-export function LaunchSpace({ teamId, query }: { teamId: string; query: TeamRouteQuery }) {
+export function LaunchSpace({
+  teamId,
+  query,
+  shown = true
+}: {
+  teamId: string;
+  query: TeamRouteQuery;
+  /** False while the section is kept mounted but another one is on screen (058). */
+  shown?: boolean;
+}) {
   const actorId = useOptionalAuth()?.user?.id ?? null;
   const { can } = useTeam();
   const { t } = useI18n();
@@ -83,17 +92,20 @@ export function LaunchSpace({ teamId, query }: { teamId: string; query: TeamRout
       teamId={teamId}
       query={query}
       actorId={actorId}
+      shown={shown}
     />
   );
 }
 function LaunchSpaceContent({
   teamId,
   query,
-  actorId
+  actorId,
+  shown
 }: {
   teamId: string;
   query: TeamRouteQuery;
   actorId: string | null;
+  shown: boolean;
 }) {
   const { t } = useI18n();
   const { revision, can } = useTeam();
@@ -337,7 +349,9 @@ function LaunchSpaceContent({
   const hasRunningLaunch =
     batchPending || items.some(item => ['running', 'queued'].includes(launchCardState(item)));
   useEffect(() => {
-    if (!hasRunningLaunch) return;
+    // Out of sight the board is not watched on a clock; live signals still reach it, and the
+    // clock starts again when it is shown.
+    if (!hasRunningLaunch || !shown) return;
     const reconcile = () => {
       // Observe durable work with the existing workspace cadence, independent of list filters.
       setBatchPulse(value => value + 1);
@@ -353,7 +367,7 @@ function LaunchSpaceContent({
       window.removeEventListener('focus', reconcile);
       window.removeEventListener('online', reconcile);
     };
-  }, [hasRunningLaunch, refresh]);
+  }, [hasRunningLaunch, refresh, shown]);
   useEffect(() => {
     const seq = ++sessionRequest.current;
     if (!open || open === 'new') {

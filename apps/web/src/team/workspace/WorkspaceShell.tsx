@@ -1,4 +1,12 @@
-import { Activity, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Suspense,
+  startTransition,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 import { flushSync } from 'react-dom';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo, registerRoutePreparer } from '../../lib/navigation';
@@ -123,10 +131,45 @@ registerRoutePreparer(path => {
 
 /** How long after the space is up the other sections' code starts loading. */
 const SECTION_PRELOAD_DELAY_MS = 600;
+/** How long after the space is up the other sections start being built out of sight… */
+const SECTION_WARM_DELAY_MS = 1_800;
+/** …and the pause between one and the next, so they never arrive as one long task. */
+const SECTION_WARM_STEP_MS = 700;
 /** How long a tab press waits for its section to fill, out of sight, before going anyway. */
 const PENDING_SECTION_MAX_MS = 1_200;
 /** What a section that is still reading shows (Reveal, Skeleton, RouteSkeleton). */
 const SECTION_BUSY = '[aria-busy="true"], .ui-skeleton, .ui-route-skeleton';
+
+/**
+ * Keeps a section's element as it was until `deps` change (058).
+ *
+ * Every section of a space stays mounted, and each change of address renders
+ * the shell again. Handed a fresh element every time, React went through all
+ * of them — four boards nobody was looking at, thousands of rows — inside the
+ * one frame the press was waiting on: 165–270ms on a full space. An element
+ * that is the same object as last time is skipped whole, so a section that is
+ * not on screen costs a tab press nothing. Its own state, its context and its
+ * live updates still reach it; only the shell's re-render does not.
+ *
+ * A section on screen passes `LIVE()` and is always rendered. The first
+ * render after it leaves the screen still goes through — that is the one that
+ * tells it so (an open task closes, a board stops its clock) — and from then
+ * on it is kept.
+ */
+function Keep({ deps, children }: { deps: readonly unknown[]; children: ReactNode }) {
+  const kept = useRef<{ deps: readonly unknown[]; node: ReactNode } | null>(null);
+  const previous = kept.current;
+  if (
+    !previous ||
+    previous.deps.length !== deps.length ||
+    previous.deps.some((value, index) => !Object.is(value, deps[index]))
+  )
+    kept.current = { deps, node: children };
+  return kept.current!.node;
+}
+
+/** Deps that never equal the last ones: the section is on screen and always rendered. */
+const LIVE = (): readonly unknown[] => [{}];
 
 export type WorkspaceShellClient = TeamCatalogClient &
   SpaceSettingsClient &
@@ -314,9 +357,9 @@ export function WorkspaceShell({
    *
    * A section stays mounted after its first visit — hidden, not unmounted — so
    * a filter, a search, a scroll position and a half-finished edit are all
-   * still there when somebody comes back. Mounting only on first visit is the
-   * other half of that deal: a space that is opened and never leaves the
-   * explorer must not pay for loading three sections nobody asked for.
+   * still there when somebody comes back. Nothing but the section asked for is
+   * built with the space; the rest follow in idle time (below), so a press on a
+   * tab finds its board already there.
    */
   const [remembered, setVisited] = useState<ReadonlySet<TeamSection>>(() => new Set([section]));
   useEffect(() => {
@@ -392,6 +435,59 @@ export function WorkspaceShell({
       Object.values(SECTION_PRELOAD).forEach(preload => void preload?.());
     }, SECTION_PRELOAD_DELAY_MS);
     return () => window.clearTimeout(idle);
+  }, []);
+  /*
+   * And the sections themselves, built out of sight while the space is idle (058).
+   *
+   * A first visit used to start from nothing at the press — code, then the first read, then
+   * the render — and on a full space that was most of a second with only the tab's mark to
+   * show for it. Now, a moment after the space is up, the other sections are mounted one at a
+   * time, hidden, each as a transition React may interrupt for anything the reader does; by
+   * the time a tab is pressed its board is already there. Not on a metered connection, and
+   * not in a background tab: there the old bargain holds, and a section costs nothing until
+   * it is asked for.
+   */
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    if (connection?.saveData) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const queue = CONTENT_TABS.map(tab => tab.section);
+    const next = () => {
+      if (cancelled) return;
+      const target = queue.shift();
+      if (!target) return;
+      const mount = () => {
+        if (cancelled) return;
+        if (document.visibilityState === 'hidden') {
+          timer = window.setTimeout(mount, SECTION_WARM_STEP_MS);
+          return;
+        }
+        void Promise.resolve(SECTION_PRELOAD[target]?.()).then(
+          () => {
+            if (cancelled) return;
+            startTransition(() =>
+              setVisited(previous =>
+                previous.has(target) ? previous : new Set(previous).add(target)
+              )
+            );
+            timer = window.setTimeout(next, SECTION_WARM_STEP_MS);
+          },
+          () => {
+            timer = window.setTimeout(next, SECTION_WARM_STEP_MS);
+          }
+        );
+      };
+      if (typeof window.requestIdleCallback === 'function')
+        window.requestIdleCallback(mount, { timeout: 2_000 });
+      else mount();
+    };
+    timer = window.setTimeout(next, SECTION_WARM_DELAY_MS);
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, []);
   // Switching spaces needs no reset here: TeamSpace keys this shell on the
   // team, so another space arrives as a new shell with an empty memory.
@@ -1021,64 +1117,63 @@ export function WorkspaceShell({
             it was thrown away. */}
                     {visited.has('members') && (
                       <div hidden={section !== 'members' || trashOver} data-section-panel="members">
-                        <MembersSection
-                          key={`members:${teamId}`}
-                          teamId={teamId}
-                          client={client}
-                          directAddMode={directAddMode}
-                        />
+                        <Keep deps={[teamId, client, directAddMode]}>
+                          <MembersSection
+                            key={`members:${teamId}`}
+                            teamId={teamId}
+                            client={client}
+                            directAddMode={directAddMode}
+                          />
+                        </Keep>
                       </div>
                     )}
                     {visited.has('tasks') && (
                       <div hidden={section !== 'tasks' || trashOver} data-section-panel="tasks">
                         <Suspense fallback={<RouteSkeleton variant="board" label={t('loading')} />}>
-                          <TaskSpace
-                            key={`tasks:${teamId}`}
-                            teamId={teamId}
-                            /* The editor is a dialog, portalled to the page: while Tasks is
+                          <Keep deps={section === 'tasks' ? LIVE() : [teamId]}>
+                            <TaskSpace
+                              key={`tasks:${teamId}`}
+                              teamId={teamId}
+                              /* The editor is a dialog, portalled to the page: while Tasks is
                       hidden it would float over whatever section is showing — "Show
                       in folder" opened Files under a task that stayed on top of it.
                       The open task is remembered either way, and comes back with
                       the tab or the way-back chip. */
-                            openTaskId={section === 'tasks' ? (taskQuery?.taskId ?? null) : null}
-                            onOpenTaskChange={onOpenTaskChange}
-                            scope={taskScope}
-                            onScopeChange={onTaskScopeChange}
-                          />
+                              openTaskId={section === 'tasks' ? (taskQuery?.taskId ?? null) : null}
+                              onOpenTaskChange={onOpenTaskChange}
+                              scope={taskScope}
+                              onScopeChange={onTaskScopeChange}
+                            />
+                          </Keep>
                         </Suspense>
                       </div>
                     )}
-                    {/* Launches stays too, but asleep while hidden (058): its polling and
-            batch watching stop, and the board it drew is there at once on the way
-            back, brought up to date in place. Its query — an open launch is a
-            dialog — is only passed while it is the section on screen. */}
+                    {/* Launches stays too (058): the board it drew is there at once on the
+            way back. It is hidden like the others, not put to sleep — waking a
+            board of fifty cards re-ran every effect on it and cost a 170ms frame
+            on each visit; its own polling stops while it is not shown instead.
+            Its query — an open launch is a dialog — is only passed while it is
+            the section on screen. */}
                     {visited.has('launches') && (
-                      <Activity
-                        mode={
-                          (section === 'launches' && !trashOver) || pendingSection === 'launches'
-                            ? 'visible'
-                            : 'hidden'
-                        }
+                      <div
+                        hidden={section !== 'launches' || trashOver}
+                        data-section-panel="launches"
                       >
-                        <div
-                          hidden={section !== 'launches' || trashOver}
-                          data-section-panel="launches"
-                        >
-                          <Suspense
-                            fallback={<RouteSkeleton variant="list" label={t('loading')} />}
-                          >
+                        <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
+                          <Keep deps={section === 'launches' ? LIVE() : [teamId]}>
                             <LaunchSpace
                               key={`launches:${teamId}`}
                               teamId={teamId}
+                              shown={section === 'launches' && !trashOver}
                               query={
                                 section === 'launches'
                                   ? (query ?? emptyTeamRouteQuery())
                                   : emptyTeamRouteQuery()
                               }
                             />
-                          </Suspense>
-                        </div>
-                      </Activity>
+                          </Keep>
+                        </Suspense>
+                      </div>
                     )}
                     {visited.has('accounts') && (
                       <div
@@ -1086,7 +1181,9 @@ export function WorkspaceShell({
                         data-section-panel="accounts"
                       >
                         <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
-                          <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                          <Keep deps={[teamId]}>
+                            <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                          </Keep>
                         </Suspense>
                       </div>
                     )}
@@ -1113,53 +1210,58 @@ export function WorkspaceShell({
                       }
                     >
                       <Suspense fallback={<RouteSkeleton variant="tiles" label={t('loading')} />}>
-                        <ExplorerShell
-                          key={`explorer:${teamId}`}
-                          teamId={teamId}
-                          client={client}
-                          revision={revision + browserRevision}
-                          query={
-                            (section === 'explorer' || query?.trash) && query
-                              ? query
-                              : explorerQuery
-                          }
-                          onQueryChange={onExplorerQuery}
-                          onFolderChange={onExplorerFolderChange}
-                          onSearched={onSearched}
-                          onReset={resetExplorer}
-                          trashReturnLabel={
-                            trashOver
-                              ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
-                              : undefined
-                          }
-                          onPreview={openPreview}
-                          onCreateTask={asset =>
-                            void createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
-                          }
-                          onCreateTaskFromSelection={assets => {
-                            if (assets.length === 0) return;
-                            void createTaskFrom({
-                              ids: assets.map(asset => asset.id),
-                              name: taskTitleFor(assets, t)
-                            });
-                          }}
-                          /* The file in hand, not the whole space: the dialog opens on
+                        <Keep deps={section === 'explorer' || query?.trash ? LIVE() : [teamId]}>
+                          <ExplorerShell
+                            key={`explorer:${teamId}`}
+                            teamId={teamId}
+                            client={client}
+                            revision={revision + browserRevision}
+                            query={
+                              (section === 'explorer' || query?.trash) && query
+                                ? query
+                                : explorerQuery
+                            }
+                            onQueryChange={onExplorerQuery}
+                            onFolderChange={onExplorerFolderChange}
+                            onSearched={onSearched}
+                            onReset={resetExplorer}
+                            trashReturnLabel={
+                              trashOver
+                                ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
+                                : undefined
+                            }
+                            onPreview={openPreview}
+                            onCreateTask={asset =>
+                              void createTaskFrom({
+                                ids: [asset.id],
+                                name: taskTitleFor([asset], t)
+                              })
+                            }
+                            onCreateTaskFromSelection={assets => {
+                              if (assets.length === 0) return;
+                              void createTaskFrom({
+                                ids: assets.map(asset => asset.id),
+                                name: taskTitleFor(assets, t)
+                              });
+                            }}
+                            /* The file in hand, not the whole space: the dialog opens on
                    the material that was chosen. */
-                          onProcessSelection={(materialIds, scope) => {
-                            setBatchSources(materialIds);
-                            setBatchScope(
-                              scope ?? { kind: 'selection', count: materialIds.length }
-                            );
-                            setBatchSelectionOpen(true);
-                          }}
-                          onProcessLibrary={() => {
-                            setBatchSources([]);
-                            setBatchScope({ kind: 'space' });
-                            navigateTo(hereRoute({ process: true }));
-                          }}
-                          onChanged={() => setBrowserRevision(value => value + 1)}
-                          readOnly={storageAttention}
-                        />
+                            onProcessSelection={(materialIds, scope) => {
+                              setBatchSources(materialIds);
+                              setBatchScope(
+                                scope ?? { kind: 'selection', count: materialIds.length }
+                              );
+                              setBatchSelectionOpen(true);
+                            }}
+                            onProcessLibrary={() => {
+                              setBatchSources([]);
+                              setBatchScope({ kind: 'space' });
+                              navigateTo(hereRoute({ process: true }));
+                            }}
+                            onChanged={() => setBrowserRevision(value => value + 1)}
+                            readOnly={storageAttention}
+                          />
+                        </Keep>
                       </Suspense>
                     </div>
                   </div>

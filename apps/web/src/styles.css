@@ -6675,15 +6675,20 @@ body:has(.public-home) {
    the new one was transparent and vanished in the last frame: two screens on
    top of each other, then a blink. With plus-lighter it also brightened
    wherever both were opaque. */
+/* A transition's pictures take no input: a second press during one lands on
+   the live page under them instead of being swallowed for a third of a second. */
+::view-transition {
+  pointer-events: none;
+}
 ::view-transition-group(wishly-page) {
   animation-duration: var(--motion-slow);
-  animation-timing-function: var(--ease-in-out-curve);
+  animation-timing-function: var(--ease-fade);
 }
 ::view-transition-old(wishly-page) {
-  animation: wishly-page-out var(--motion-slow) var(--ease-in-out-curve) both;
+  animation: wishly-page-out var(--motion-slow) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-page) {
-  animation: wishly-page-in var(--motion-slow) var(--ease-in-out-curve) both;
+  animation: wishly-page-in var(--motion-slow) var(--ease-fade) both;
 }
 /* Pages fade *through* (058, second pass): the one leaving is gone in the
    first two fifths, the one arriving starts a moment before that ends. Two
@@ -6712,19 +6717,21 @@ body:has(.public-home) {
   }
 }
 
-/* Sections of a space: the same crossfade, shorter — it is the move people
-   make most — and with less travel. Both kinds run on an even in-out curve:
+/* Sections of a space: the same crossfade, on the short clock — it is the
+   move people make most, and with a full board on either side every extra
+   frame of it reads as lag (owner, beta: "pressed and waited a second"). The
+   even curve is what keeps 150ms a fade and not a cut. Less travel, too. Both kinds run on an even in-out curve:
    with the steep ease-out the whole change happened in the first few frames
    and read as a cut, not a crossfade (058, beta feedback). */
 ::view-transition-group(wishly-section) {
-  animation-duration: var(--motion-base);
-  animation-timing-function: var(--ease-in-out-curve);
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--ease-fade);
 }
 ::view-transition-old(wishly-section) {
-  animation: wishly-route-out var(--motion-base) var(--ease-in-out-curve) both;
+  animation: wishly-route-out var(--motion-fast) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-section) {
-  animation: wishly-section-in var(--motion-base) var(--ease-in-out-curve) both;
+  animation: wishly-section-in var(--motion-fast) var(--ease-fade) both;
 }
 @keyframes wishly-section-in {
   from {
@@ -6846,18 +6853,68 @@ body:has(.public-home) {
 :root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-new(wishly-topbar) {
   animation: none;
 }
+/* The topbar's clusters only travel when the shell changes width — between
+   pages. Inside a section they would run their full clock for nothing and keep
+   the transition open twice as long as the fade anyone sees. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-topbar-actions
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-topbar-actions
+  ) {
+  animation: none;
+}
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-topbar-actions
+  ) {
+  display: none;
+}
+/* The page's own box changes height with the section in it; that follows on
+   the section's clock, not the page's, or the transition stays open — and the
+   next press waits — for twice as long as anything is seen to move. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-page
+  ) {
+  animation-duration: var(--motion-fast);
+}
+/* A move inside a section — a tab, a filter, a folder — leaves the page around
+   it as it was: the space's header, the panel's own ground. Its two pictures
+   are the same, and they must dissolve as one: the page's fade-through (out,
+   then in) played here took the whole ground away for a moment and showed the
+   honeycomb through it (owner, beta). A plain complementary pair: where both
+   are opaque the sum stays opaque. The class is named twice to stand above
+   the rules that pick a direction. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-page
+  ) {
+  animation: wishly-route-out var(--motion-base) var(--ease-fade) both;
+}
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-page
+  ) {
+  animation: ui-content-enter var(--motion-base) var(--ease-fade) both;
+}
 ::view-transition-group(wishly-topbar-lead),
 ::view-transition-group(wishly-topbar-actions) {
   animation-duration: var(--motion-slow);
-  animation-timing-function: var(--ease-in-out-curve);
+  animation-timing-function: var(--ease-fade);
 }
 ::view-transition-old(wishly-topbar-lead),
 ::view-transition-old(wishly-topbar-actions) {
-  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
+  animation: wishly-route-out var(--motion-slow) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-topbar-lead),
 ::view-transition-new(wishly-topbar-actions) {
-  animation: ui-content-enter var(--motion-slow) var(--ease-in-out-curve) both;
+  animation: ui-content-enter var(--motion-slow) var(--ease-fade) both;
 }
 
 /* ============================================================
