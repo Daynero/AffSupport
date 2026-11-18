@@ -452,6 +452,12 @@
   --icon-plate-tile: 34px;
   --icon-plate-row-width: 44px;
   --icon-plate-row-height: 38px;
+
+  /* 059: a creative's honey-league emblem. The pictures share one scale — wings and crown reach
+     past the comb — so every league sits in the same box and nothing jumps when it changes. */
+  --rank-emblem-tile: 40px;
+  --rank-emblem-list: 24px;
+  --rank-emblem-detail: 128px;
 }
 
 /* ============================================================

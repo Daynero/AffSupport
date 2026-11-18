@@ -59,6 +59,7 @@ import {
 import type { TeamRouteQuery, ExplorerView } from '../routes';
 import { Breadcrumb } from './Breadcrumb';
 import { ContentGrid, type ContentGridClient } from './ContentGrid';
+import { useCreativeRanks, type CreativeRanksClient } from '../ranks/useCreativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
@@ -127,6 +128,7 @@ const PROGRESS_REFRESH_MIN_MS = 5_000;
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
+  CreativeRanksClient &
   ContentGridClient &
   TeamCatalogClient &
   FolderPickerClient &
@@ -360,7 +362,12 @@ function ExplorerBody({
     if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
     settingsWasOpen.current = settingsOpen;
   }, [settingsOpen, restitch]);
-  const { permissions: loadedPermissions, activeTeam, notifyStateChanged } = useTeam();
+  const {
+    permissions: loadedPermissions,
+    activeTeam,
+    notifyStateChanged,
+    ranksRevision = 0
+  } = useTeam();
   const lastProgressRefresh = useRef(0);
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
@@ -677,6 +684,12 @@ function ExplorerBody({
       active = false;
     };
   }, [teamId, page.rows]);
+  // 059 — the honey leagues of the videos on this page: one read, again when a rank changes.
+  const rankVideoIds = useMemo(
+    () => page.rows.filter(row => row.kind === 'video').map(row => row.id),
+    [page.rows]
+  );
+  const ranks = useCreativeRanks(teamId, rankVideoIds, ranksRevision, client);
   // Drive has no picture for some videos and never will. The paired app makes
   // one, for what is on screen, one at a time.
   usePosterFrames({
@@ -2144,6 +2157,7 @@ function ExplorerBody({
                 actions={actions}
                 rows={sortedRows}
                 companionRows={folded.children}
+                ranks={ranks}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
@@ -2158,6 +2172,7 @@ function ExplorerBody({
                 companionCounts={folded.counts}
                 openedCompanions={openedCompanions}
                 onToggleCompanions={toggleCompanions}
+                ranks={ranks}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}

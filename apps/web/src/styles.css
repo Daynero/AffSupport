@@ -18641,6 +18641,70 @@ a.history-subject {
   padding: var(--space-2);
   pointer-events: none;
 }
+/* 059: the honey-league emblem shares the picture's corner box with the companions' badge, on
+   the other side. It is a picture, not a control: presses fall through to the tile. */
+.creative-rank-tile-layer {
+  justify-content: flex-end;
+}
+.creative-rank-emblem {
+  display: block;
+  flex: none;
+  object-fit: contain;
+  user-select: none;
+}
+.creative-rank-emblem-tile {
+  width: var(--rank-emblem-tile);
+  height: var(--rank-emblem-tile);
+  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--color-black) 45%, transparent));
+}
+.creative-rank-emblem-list {
+  width: var(--rank-emblem-list);
+  height: var(--rank-emblem-list);
+}
+.creative-rank-list-mark {
+  display: inline-flex;
+  flex: none;
+}
+.creative-rank-emblem-detail {
+  width: var(--rank-emblem-detail);
+  height: var(--rank-emblem-detail);
+}
+/* A video's card shows its league large, beside the words that say it. */
+.creative-rank-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+.creative-rank-card-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.creative-rank-card-league {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.creative-rank-card-state {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-body);
+}
+.creative-rank-card-message {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The exact facts never fade with the emblem's dust: full-strength meta text. */
+.creative-rank-facts {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .team-explorer-tile-badge {
   pointer-events: auto;
   display: inline-flex;

@@ -204,6 +204,14 @@ import type { Database, Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 import { memberAttempt } from '../team/members/diagnostics';
+import {
+  CreativeRankDemoteError,
+  parseCreativeRank,
+  parseCreativeRankList,
+  rankFromErrorDetail,
+  type CreativeRank,
+  type CreativeRankDemoteReason
+} from '../team/ranks/creativeRanks';
 
 /**
  * The same address, as this browser can reach it.
@@ -6475,6 +6483,64 @@ export const teamApi = {
     );
     throwRpc(error);
     const parsed = parseRestitchDrawResult(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /**
+   * 059 — the ranks of the given videos, one read per explorer page. A video without a row has
+   * never been launched; it is simply absent from the map.
+   */
+  async listCreativeRanks(teamId: string, materialIds: string[]): Promise<Map<string, CreativeRank>> {
+    const found = new Map<string, CreativeRank>();
+    const ids = [...new Set(materialIds)];
+    if (!ids.length) return found;
+    for (let start = 0; start < ids.length; start += 500) {
+      const { data, error } = await withFreshSession(() =>
+        requireSupabaseClient().rpc('list_creative_ranks', {
+          p_team: teamId,
+          p_materials: ids.slice(start, start + 500)
+        })
+      );
+      throwRpc(error);
+      const parsed = parseCreativeRankList(data);
+      if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+      for (const rank of parsed.value) found.set(rank.materialId, rank);
+    }
+    return found;
+  },
+
+  /**
+   * 059 — the owner lowers a video's league. `requestKey` makes a retried press the same
+   * demotion; a rank someone else changed first comes back as a conflict with its current state.
+   */
+  async demoteCreativeRank(input: {
+    teamId: string;
+    materialId: string;
+    reason: CreativeRankDemoteReason;
+    targetCredit: number;
+    expectedVersion: number;
+    requestKey: string;
+  }): Promise<CreativeRank> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('demote_creative_rank', {
+        p_team: input.teamId,
+        p_material: input.materialId,
+        p_reason: input.reason,
+        p_target_credit: input.targetCredit,
+        p_expected_version: input.expectedVersion,
+        p_request_key: input.requestKey
+      })
+    );
+    if (error) {
+      const detail = (error as { details?: unknown }).details;
+      if (/\bRANK_CONFLICT\b/u.test(error.message))
+        throw new CreativeRankDemoteError('conflict', rankFromErrorDetail(detail));
+      if (/\bRANK_NOT_LOWER\b/u.test(error.message))
+        throw new CreativeRankDemoteError('not_lower', rankFromErrorDetail(detail));
+    }
+    throwRpc(error);
+    const parsed = parseCreativeRank(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed.value;
   },

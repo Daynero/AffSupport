@@ -27,6 +27,10 @@ import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures'
 import type { Modifiers } from './selectionGestures';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
+import { RankEmblem } from '../ranks/RankEmblem';
+import { rankFactsText } from '../ranks/RankFacts';
+import { freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
+import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
 export interface TaggingProps {
@@ -50,7 +54,8 @@ export function ContentList({
   companionCounts,
   openedCompanions,
   onToggleCompanions,
-  onDropMaterials
+  onDropMaterials,
+  ranks
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
@@ -87,6 +92,8 @@ export function ContentList({
   onToggleCompanions?: (rowId: string) => void;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
+  /** 059 — the videos' honey leagues; a row shows one only once the video was launched. */
+  ranks?: CreativeRanksState;
 }) {
   const { t } = useI18n();
   const { openFolder, selectedId, selectedIds, toggleSelected } = useExplorer();
@@ -182,6 +189,10 @@ export function ContentList({
               companionsOpen={openedCompanions?.has(row.id) ?? false}
               onToggleCompanions={onToggleCompanions}
               nested={Boolean(companionOf(row))}
+              rank={
+                ranks?.known && row.kind === 'video' ? (ranks.ranks.get(row.id) ?? null) : null
+              }
+              rankNow={ranks?.now ?? 0}
             />
           ))}
         </Table>
@@ -210,7 +221,9 @@ function Row({
   companions = 0,
   companionsOpen = false,
   onToggleCompanions,
-  nested = false
+  nested = false,
+  rank = null,
+  rankNow = 0
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -229,6 +242,8 @@ function Row({
   companionsOpen?: boolean;
   onToggleCompanions?: (rowId: string) => void;
   nested?: boolean;
+  rank?: CreativeRank | null;
+  rankNow?: number;
 }) {
   const { t, language } = useI18n();
   const reason = KIND_REASON[row.kind];
@@ -336,6 +351,17 @@ function Row({
         />
         {/* A fact about the kind, not about this file: an icon that says it on
             hover and focus, rather than a second line under every such row. */}
+        {rank && rank.launchCount > 0 && (
+          // A row is a line to scan: the small emblem for launched videos only, its facts on hover.
+          <span className="creative-rank-list-mark">
+            <RankEmblem
+              league={leagueOf(rank.rankCredit)}
+              freshness={freshnessOf(rank.lastLaunchedAt, rankNow)}
+              size="list"
+              facts={rankFactsText(rank, t, language, rankNow)}
+            />
+          </span>
+        )}
         {reason && <KindNote text={t(reason)} />}
       </TableCell>
       <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>

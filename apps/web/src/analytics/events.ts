@@ -137,6 +137,14 @@ export const analyticsEventNames = [
   'space_showcase_viewed',
   'space_contact_clicked',
   'space_tariff_granted',
+  // 059 — creative ranks. Demotion is a two-step act of the space owner: `started` when the
+  // reason is chosen, `finished` with the server's answer (`outcome` + `error_code`), both
+  // sharing `flow_id`. `feature_identifier` = creative-rank (tokens never carry `_`), `action_identifier` = reason,
+  // `source_kind` / `input_method` = league before / after. A failed page read of ranks is
+  // `creative_rank_read_failed` with `item_count` = videos asked about.
+  'creative_rank_demote_started',
+  'creative_rank_demote_finished',
+  'creative_rank_read_failed',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
 
