@@ -6675,14 +6675,14 @@ body:has(.public-home) {
    top of each other, then a blink. With plus-lighter it also brightened
    wherever both were opaque. */
 ::view-transition-group(wishly-page) {
-  animation-duration: var(--motion-base);
-  animation-timing-function: var(--ease-out-curve);
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease-in-out-curve);
 }
 ::view-transition-old(wishly-page) {
-  animation: wishly-route-out var(--motion-base) var(--ease-out-curve) both;
+  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
 }
 ::view-transition-new(wishly-page) {
-  animation: wishly-page-in var(--motion-base) var(--ease-out-curve) both;
+  animation: wishly-page-in var(--motion-slow) var(--ease-in-out-curve) both;
 }
 @keyframes wishly-page-in {
   from {
@@ -6697,16 +6697,18 @@ body:has(.public-home) {
 }
 
 /* Sections of a space: the same crossfade, shorter — it is the move people
-   make most — and with less travel. */
+   make most — and with less travel. Both kinds run on an even in-out curve:
+   with the steep ease-out the whole change happened in the first few frames
+   and read as a cut, not a crossfade (058, beta feedback). */
 ::view-transition-group(wishly-section) {
-  animation-duration: var(--motion-fast);
-  animation-timing-function: var(--ease-out-curve);
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-in-out-curve);
 }
 ::view-transition-old(wishly-section) {
-  animation: wishly-route-out var(--motion-fast) var(--ease-out-curve) both;
+  animation: wishly-route-out var(--motion-base) var(--ease-in-out-curve) both;
 }
 ::view-transition-new(wishly-section) {
-  animation: wishly-section-in var(--motion-fast) var(--ease-out-curve) both;
+  animation: wishly-section-in var(--motion-base) var(--ease-in-out-curve) both;
 }
 @keyframes wishly-section-in {
   from {
@@ -6729,16 +6731,16 @@ body:has(.public-home) {
 }
 ::view-transition-group(wishly-topbar-lead),
 ::view-transition-group(wishly-topbar-actions) {
-  animation-duration: var(--motion-base);
-  animation-timing-function: var(--ease-out-curve);
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease-in-out-curve);
 }
 ::view-transition-old(wishly-topbar-lead),
 ::view-transition-old(wishly-topbar-actions) {
-  animation: wishly-route-out var(--motion-base) var(--ease-out-curve) both;
+  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
 }
 ::view-transition-new(wishly-topbar-lead),
 ::view-transition-new(wishly-topbar-actions) {
-  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) both;
+  animation: ui-content-enter var(--motion-slow) var(--ease-in-out-curve) both;
 }
 
 /* ============================================================

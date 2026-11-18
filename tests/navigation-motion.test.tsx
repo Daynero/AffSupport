@@ -9,6 +9,7 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 
 import {
   BEFORE_NAVIGATION_EVENT,
+  SETTLE_BEFORE_REVEAL_MS,
   WAIT_BEFORE_SKELETON_MS,
   navigateTo,
   registerRoutePreparer,
@@ -119,6 +120,42 @@ describe('motion kinds', () => {
 });
 
 describe('one transition at a time', () => {
+  it('starts one transition for a navigation however many components read the route', () => {
+    const { startViewTransition } = installViewTransitionStub();
+    render(
+      <>
+        <RouteProbe />
+        <RouteProbe />
+        <RouteProbe />
+      </>
+    );
+    act(() => navigateTo('/compressor'));
+    expect(startViewTransition).toHaveBeenCalledOnce();
+    expect(screen.getAllByTestId('route').map(node => node.textContent)).toEqual([
+      '/compressor',
+      '/compressor',
+      '/compressor'
+    ]);
+  });
+
+  it('commits Back once for every reader of the route', () => {
+    const { startViewTransition } = installViewTransitionStub();
+    render(
+      <>
+        <RouteProbe />
+        <RouteProbe />
+      </>
+    );
+    act(() => navigateTo('/compressor'));
+    startViewTransition.mockClear();
+    history.replaceState(null, '', '/');
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(startViewTransition).toHaveBeenCalledOnce();
+    expect(screen.getAllByTestId('route').map(node => node.textContent)).toEqual(['/', '/']);
+  });
+
   it('skips the running transition when a newer navigation starts', () => {
     const { startViewTransition, transitions } = installViewTransitionStub();
     render(<RouteProbe />);
@@ -298,5 +335,82 @@ describe('cancelled navigations', () => {
       nav_from_screen: 'tools_home',
       nav_to_screen: 'tool'
     });
+  });
+});
+
+describe('revealing a filled screen', () => {
+  function captureUpdate() {
+    let done: Promise<unknown> | null = null;
+    const startViewTransition = vi.fn((update: () => Promise<unknown> | void) => {
+      done = Promise.resolve(update());
+      const finished = done.then(() => undefined);
+      return {
+        finished,
+        ready: Promise.resolve(),
+        updateCallbackDone: finished,
+        skipTransition: vi.fn()
+      };
+    });
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: startViewTransition
+    });
+    return () => done;
+  }
+
+  function Loading({ route }: { route: string }) {
+    return route === '/compressor' ? (
+      <div className="page-viewport">
+        <span className="ui-skeleton" data-testid="placeholder" />
+      </div>
+    ) : (
+      <div className="page-viewport" />
+    );
+  }
+
+  function Probe() {
+    return <Loading route={useBrowserRoute()} />;
+  }
+
+  it('holds the old screen while the new one shows placeholders, then reveals it', async () => {
+    vi.useFakeTimers();
+    const update = captureUpdate();
+    // jsdom lays nothing out; count every node as on screen.
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
+      {}
+    ] as unknown as DOMRectList);
+    render(<Probe />);
+    act(() => navigateTo('/compressor'));
+    let revealed = false;
+    void update()!.then(() => {
+      revealed = true;
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(revealed).toBe(false);
+    screen.getByTestId('placeholder').remove();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
+    expect(revealed).toBe(true);
+  });
+
+  it('stops holding after the cap even if placeholders stay', async () => {
+    vi.useFakeTimers();
+    const update = captureUpdate();
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
+      {}
+    ] as unknown as DOMRectList);
+    render(<Probe />);
+    act(() => navigateTo('/compressor'));
+    let revealed = false;
+    void update()!.then(() => {
+      revealed = true;
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SETTLE_BEFORE_REVEAL_MS + 40);
+    });
+    expect(revealed).toBe(true);
   });
 });

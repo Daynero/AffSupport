@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { isLiteMotion, reportAnimatedTransition } from './motion-quality';
 import { motionBetween, screenOf, type MotionKind } from './motion-registry';
@@ -252,6 +252,54 @@ function markFallbackEnter(motion: Exclude<MotionKind, 'none'>) {
 }
 
 /**
+ * How long a transition may hold the old screen while the new one finishes
+ * loading what it shows at once (a lazy section, an access check, the first
+ * page of a list). Long enough for a warm load, short enough not to feel stuck.
+ */
+export const SETTLE_BEFORE_REVEAL_MS = 350;
+const SETTLE_POLL_MS = 16;
+const LOADING_SELECTOR = '.ui-route-skeleton, .ui-skeleton, [aria-busy="true"]';
+
+function isLoading(scope: ParentNode): boolean {
+  for (const node of scope.querySelectorAll<HTMLElement>(LOADING_SELECTOR)) {
+    if (node.closest('[hidden], [inert], .is-closing')) continue;
+    if (node.getClientRects().length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolves when the arrived screen shows content rather than placeholders, or
+ * after `SETTLE_BEFORE_REVEAL_MS`. While a view transition's update is
+ * pending the browser keeps the old screen on display, so the new one is
+ * revealed once, already filled — instead of a route skeleton, then a data
+ * skeleton, then the content, each in its own shape (058, beta feedback).
+ * Rendering is paused meanwhile, so this polls on timers, not frames.
+ */
+function screenSettled(motion: Exclude<MotionKind, 'none'>, id: number): Promise<void> {
+  const scope =
+    (motion === 'section' ? document.querySelector('.team-space-shell-body') : null) ??
+    document.querySelector('.page-viewport') ??
+    document.body;
+  if (!isLoading(scope)) return Promise.resolve();
+  return new Promise(resolve => {
+    const startedAt = now();
+    const check = () => {
+      if (
+        id !== transitionSeq ||
+        !isLoading(scope) ||
+        now() - startedAt >= SETTLE_BEFORE_REVEAL_MS
+      ) {
+        resolve();
+        return;
+      }
+      setTimeout(check, SETTLE_POLL_MS);
+    };
+    setTimeout(check, SETTLE_POLL_MS);
+  });
+}
+
+/**
  * Applies a route state change, wrapped in a View Transition when the browser
  * supports it and nothing argues against motion.
  *
@@ -296,7 +344,10 @@ function commitRouteChange(
   // flushSync commits the React route state inside the transition callback, so
   // the "new" snapshot is captured only after the next page has rendered
   // (mirrors the synchronous applyTheme commit in theme.ts).
-  const transition = document.startViewTransition(() => flushSync(apply));
+  const transition = document.startViewTransition(async () => {
+    flushSync(apply);
+    await screenSettled(motion, id);
+  });
   activeTransition = transition;
   const finish = () => {
     if (id !== transitionSeq) return;
@@ -309,7 +360,10 @@ function commitRouteChange(
   // `ready` and `updateCallbackDone` reject when the transition is skipped —
   // which a newer navigation does on purpose. Nothing awaits them, so each
   // rejection would surface as an uncaught `InvalidStateError`.
-  transition.ready.catch(() => {});
+  transition.ready.then(
+    () => attempt?.animationStarted(),
+    () => {}
+  );
   transition.updateCallbackDone.catch(() => {});
 }
 
@@ -490,59 +544,92 @@ function installScrollTracking() {
   );
 }
 
+/* ---------------------------------------------------------------------------
+ * One router for every listener.
+ *
+ * Several components read the route (the shell, the team space, the menus).
+ * They used to subscribe to navigation each on its own, and each committed the
+ * change itself — so one click started as many view transitions as there were
+ * listeners, every one skipping the one before it, and the screen jumped
+ * instead of crossfading (058, beta feedback). Now the window listeners are
+ * installed once, a navigation is committed once, and every listener's state
+ * is set inside that one commit.
+ * ------------------------------------------------------------------------- */
+
+const routeListeners = new Set<(route: string) => void>();
+let committedRoute: string | null = null;
+
+function applyRouteToListeners() {
+  const next = currentRoute();
+  committedRoute = next;
+  routeListeners.forEach(listener => listener(next));
+}
+
+function onNavigationEvent(event: Event) {
+  const detail = (event as CustomEvent<Partial<NavigationDetail>>).detail ?? {};
+  const motion: MotionKind = detail.motion ?? (detail.animate === false ? 'none' : 'page');
+  commitRouteChange(applyRouteToListeners, motion, 0, detail.attempt ?? null);
+}
+
+function onPopStateEvent() {
+  const next = currentRoute();
+  const from = committedRoute ?? next;
+  if (next === from) return;
+  if (!navigationAllowed(next, false, true)) {
+    // popstate arrives after the URL moves. Restore the visible route without
+    // applying it, so a dirty editor remains mounted after a canceled Back.
+    history.pushState({ [ENTRY_KEY_FIELD]: newEntryKey() }, '', from);
+    return;
+  }
+  // A navigation still waiting for its chunk loses to Back.
+  navigationSeq += 1;
+  const motion = motionBetween(from, next);
+  const attempt =
+    motion === 'none'
+      ? null
+      : beginNavigationAttempt({
+          from: screenOf(from),
+          to: screenOf(next),
+          motion,
+          history: 'pop'
+        });
+  attempt?.prepared();
+  const scrollTop = scrollPositions.get(currentEntryKey()) ?? 0;
+  commitRouteChange(applyRouteToListeners, motion, scrollTop, attempt);
+}
+
+function subscribeRoute(listener: (route: string) => void): () => void {
+  if (routeListeners.size === 0) {
+    committedRoute = currentRoute();
+    window.addEventListener('popstate', onPopStateEvent);
+    window.addEventListener(NAVIGATION_EVENT, onNavigationEvent);
+  }
+  routeListeners.add(listener);
+  return () => {
+    routeListeners.delete(listener);
+    if (routeListeners.size > 0) return;
+    window.removeEventListener('popstate', onPopStateEvent);
+    window.removeEventListener(NAVIGATION_EVENT, onNavigationEvent);
+    committedRoute = null;
+  };
+}
+
 export function useBrowserRoute() {
   const [route, setRoute] = useState(currentRoute);
-  const routeRef = useRef(route);
 
   // Runs after the new route's DOM is committed and before it is painted (and,
-  // inside a view transition, before the new snapshot is taken).
+  // inside a view transition, before the new snapshot is taken). Only the
+  // first listener to run finds the arrival; the rest see it settled.
   useLayoutEffect(() => {
     settleArrival();
   }, [route]);
 
   useEffect(() => {
     installScrollTracking();
-    const apply = () => {
-      const next = currentRoute();
-      routeRef.current = next;
-      setRoute(next);
-    };
-    const onNavigation = (event: Event) => {
-      const detail = (event as CustomEvent<Partial<NavigationDetail>>).detail ?? {};
-      const motion: MotionKind = detail.motion ?? (detail.animate === false ? 'none' : 'page');
-      commitRouteChange(apply, motion, 0, detail.attempt ?? null);
-    };
-    const onPopState = () => {
-      const next = currentRoute();
-      if (next === routeRef.current) return;
-      if (!navigationAllowed(next, false, true)) {
-        // popstate arrives after the URL moves. Restore the visible route without
-        // applying it, so a dirty editor remains mounted after a canceled Back.
-        history.pushState({ [ENTRY_KEY_FIELD]: newEntryKey() }, '', routeRef.current);
-        return;
-      }
-      // A navigation still waiting for its chunk loses to Back.
-      navigationSeq += 1;
-      const motion = motionBetween(routeRef.current, next);
-      const attempt =
-        motion === 'none'
-          ? null
-          : beginNavigationAttempt({
-              from: screenOf(routeRef.current),
-              to: screenOf(next),
-              motion,
-              history: 'pop'
-            });
-      attempt?.prepared();
-      const scrollTop = scrollPositions.get(currentEntryKey()) ?? 0;
-      commitRouteChange(apply, motion, scrollTop, attempt);
-    };
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener(NAVIGATION_EVENT, onNavigation);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      window.removeEventListener(NAVIGATION_EVENT, onNavigation);
-    };
+    const unsubscribe = subscribeRoute(setRoute);
+    // A navigation committed between this component's render and now.
+    setRoute(currentRoute());
+    return unsubscribe;
   }, []);
   return route;
 }

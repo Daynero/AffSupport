@@ -45,6 +45,12 @@ export interface AttemptStart {
 export interface NavigationAttempt {
   prepared(): void;
   committed(mode: NavMode, skipReason: NavSkipReason): void;
+  /**
+   * The animation began — after the new screen rendered. Frames are counted
+   * from here: the render before it is one long frame on almost any machine,
+   * and counting it called every machine slow (058, beta feedback).
+   */
+  animationStarted(): void;
   /** The animated part ended; returns the long frames seen during it. */
   animationDone(): number;
   /** The navigation ended before it settled. */
@@ -201,7 +207,6 @@ export function beginNavigationAttempt(
       totalWindow = beginMeasure();
       if (nextMode === 'animated') {
         phase = 'animating';
-        animationWindow = beginMeasure();
         return;
       }
       phase = 'waiting';
@@ -213,6 +218,10 @@ export function beginNavigationAttempt(
       if (typeof requestAnimationFrame === 'function') requestAnimationFrame(settle);
       else settle();
       timers.push(setTimeout(contentReadyOrGiveUp, NAV_CONTENT_WAIT_MAX_MS));
+    },
+    animationStarted() {
+      animationWindow?.end();
+      animationWindow = beginMeasure();
     },
     animationDone() {
       const measured = animationWindow?.end() ?? { longFrames: 0, layoutShift: 0 };

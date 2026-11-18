@@ -3,8 +3,9 @@
  *
  * Two browser signals, both optional: long animation frames (or long tasks
  * where that entry type is missing) while a transition runs, and layout shift
- * after it settles. A machine that dropped a long frame in two transitions in
- * a row is put in `lite` mode for the rest of the session: page transitions
+ * after it settles. Frames are counted from the moment the animation starts,
+ * not from the render before it. A machine that dropped two or more long
+ * frames in each of three animations in a row is put in `lite` mode for the rest of the session: page transitions
  * become instant swaps instead of stuttering crossfades. Section moves keep
  * their motion — they are the cheaper one and the one people make most.
  *
@@ -14,7 +15,9 @@
 
 /** A frame longer than this is a frame someone can see stall. */
 export const LONG_FRAME_MS = 50;
-const LITE_AFTER_STUTTERS = 2;
+const LITE_AFTER_STUTTERS = 3;
+/** Long frames within one animation that make it a stutter, not a hiccup. */
+const STUTTER_LONG_FRAMES = 2;
 
 interface Tally {
   longFrames: number;
@@ -84,7 +87,7 @@ export function beginMeasure(): MeasureWindow {
  * Instant swaps are not reported: they say nothing about animation cost.
  */
 export function reportAnimatedTransition(longFrames: number) {
-  stutterStreak = longFrames > 0 ? stutterStreak + 1 : 0;
+  stutterStreak = longFrames >= STUTTER_LONG_FRAMES ? stutterStreak + 1 : 0;
   if (stutterStreak >= LITE_AFTER_STUTTERS) lite = true;
 }
 
