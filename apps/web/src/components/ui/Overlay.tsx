@@ -1,5 +1,13 @@
 import { OVERLAY_OPEN_EVENT } from '../../lib/overlayTips';
-import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  type ReactNode,
+  type Ref,
+  type RefObject
+} from 'react';
 import { createPortal } from 'react-dom';
 import { Menu as HeroMenu } from '@heroui/react/menu';
 import { MenuItem as HeroMenuItem } from '@heroui/react/menu-item';
@@ -97,6 +105,116 @@ function unlockPageScroll(): void {
   if (openStack.length > 0 || lockedOverflow === null || typeof document === 'undefined') return;
   document.body.style.overflow = lockedOverflow;
   lockedOverflow = null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Leaving (058, FR-019…FR-021).
+ *
+ * A surface that is closed is usually removed in the same render — most
+ * dialogs in the product are written `{open && <Dialog />}` — so there is no
+ * component left to play a closing motion. Instead, at the moment React
+ * detaches the surface (a callback ref's cleanup runs before the node leaves
+ * the document, while its scroll and field values are still there), a static
+ * copy takes its place for one short mirrored motion and then removes itself.
+ * The copy is inert and hidden from assistive technology, so nothing can be
+ * pressed or read in it; it carries the live scroll positions and field
+ * values, so the content does not jump while it fades.
+ *
+ * Skipped where a copy would not look like the original: under reduced motion,
+ * for a surface not fixed to the viewport, and for one holding media or a
+ * canvas (a cloned video is a black box).
+ * ------------------------------------------------------------------------- */
+
+const EXIT_CLASS = 'is-closing';
+/** Upper bound; the copy normally leaves on its own animationend. */
+const EXIT_REMOVE_MS = 400;
+
+function reducedMotion(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+function copyLiveState(from: HTMLElement, to: HTMLElement) {
+  const sources = [from, ...from.querySelectorAll<HTMLElement>('*')];
+  const targets = [to, ...to.querySelectorAll<HTMLElement>('*')];
+  sources.forEach((source, index) => {
+    const target = targets[index];
+    if (!target) return;
+    if (source.scrollTop) target.scrollTop = source.scrollTop;
+    if (source.scrollLeft) target.scrollLeft = source.scrollLeft;
+    if (
+      source instanceof HTMLInputElement ||
+      source instanceof HTMLTextAreaElement ||
+      source instanceof HTMLSelectElement
+    ) {
+      (target as HTMLInputElement).value = source.value;
+      if (source instanceof HTMLInputElement) (target as HTMLInputElement).checked = source.checked;
+    }
+  });
+}
+
+export function playExitMotion(node: HTMLElement) {
+  if (typeof document === 'undefined' || !node.isConnected || reducedMotion()) return;
+  // An engine without Web Animations (jsdom) cannot play the motion, and a copy
+  // that never animates would only sit in the document until its timeout.
+  if (typeof document.getAnimations !== 'function') return;
+  if (node.classList.contains('is-frequent')) return;
+  const fixedRoot =
+    node.classList.contains('ui-overlay') || node.classList.contains('modal-backdrop');
+  if (!fixedRoot && window.getComputedStyle(node).position !== 'fixed') return;
+  if (node.querySelector('video, audio, iframe, canvas')) return;
+  const ghost = node.cloneNode(true) as HTMLElement;
+  ghost.classList.add(EXIT_CLASS);
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.setAttribute('inert', '');
+  ghost.dataset.exitCopy = 'true';
+  // A copy is a picture: no ids to clash with the next dialog, no roles or
+  // names for code or assistive technology to find a dialog in.
+  for (const element of [ghost, ...ghost.querySelectorAll<HTMLElement>('*')]) {
+    for (const attribute of ['id', 'role', 'aria-modal', 'aria-labelledby', 'aria-label']) {
+      element.removeAttribute(attribute);
+    }
+  }
+  document.body.appendChild(ghost);
+  copyLiveState(node, ghost);
+  let removed = false;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    ghost.remove();
+  };
+  ghost.addEventListener('animationend', event => {
+    if (event.target === ghost) remove();
+  });
+  window.setTimeout(remove, EXIT_REMOVE_MS);
+}
+
+/**
+ * A callback ref that plays the leaving motion when its element is removed.
+ * Pass the other ref the element needs as `forward`; it is set as usual.
+ */
+export function useExitMotionRef<T extends HTMLElement>(
+  forward?: Ref<T | null>
+): (node: T | null) => (() => void) | void {
+  const live = useRef(forward);
+  live.current = forward;
+  return useCallback((node: T | null) => {
+    assignRef(live.current, node);
+    if (!node) return;
+    return () => {
+      playExitMotion(node);
+      assignRef(live.current, null);
+    };
+  }, []);
+}
+
+function assignRef<T>(ref: Ref<T | null> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === 'function') ref(value);
+  else (ref as { current: T | null }).current = value;
 }
 
 export interface DialogBehaviour {
@@ -287,11 +405,13 @@ export function Modal({
   const generatedId = useId();
   const close = useCallback(() => onClose(), [onClose]);
   useDialogBehaviour({ surface, active: open, onClose: close, initialFocus, returnFocus });
+  const leaving = useExitMotionRef<HTMLDivElement>();
 
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
+      ref={leaving}
       className={uiClasses('overlay', { states: { nested } })}
       onMouseDown={event => {
         if (event.target === event.currentTarget) close();
@@ -397,6 +517,7 @@ export function Popover({
   const surface = useRef<HTMLDivElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
   useDialogBehaviour({ surface, active: open, onClose: close, modal: false });
+  const leaving = useExitMotionRef<HTMLDivElement>(surface);
   const placed = useAnchoredLayer(anchor ?? emptyAnchor, surface, open && Boolean(anchor), {
     align: placement.endsWith('end') ? 'end' : 'start',
     side: placement.startsWith('top') ? 'top' : 'bottom',
@@ -445,7 +566,7 @@ export function Popover({
 
   const surfaceElement = (
     <div
-      ref={surface}
+      ref={leaving}
       role={surfaceRole === 'none' ? undefined : 'dialog'}
       aria-label={surfaceRole === 'none' ? undefined : label}
       className={uiClasses('popover', {

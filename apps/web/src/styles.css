@@ -137,6 +137,10 @@
 html {
   min-width: 320px;
   background: var(--color-bg);
+  /* The scrollbar's room is kept even when a dialog locks the page (058,
+     FR-021): on systems with classic scrollbars the page used to shift
+     sideways by the bar's width each time a dialog opened and closed. */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -242,12 +246,54 @@ a {
 }
 
 /* Route content swaps inside the persistent shell; the topbar stays mounted.
-   During a route view transition (navigation.ts adds .wishly-page-transition
-   to <html>) the viewport forms its own `wishly-page` group, so only the page
-   content crossfades — never the header. The class gate keeps route and theme
+   During a route view transition navigation.ts puts one class on <html> (058):
+
+   - .wishly-page-transition — the page viewport is the `wishly-page` group, so
+     the page content crossfades and the header does not;
+   - .wishly-section-transition — only the space body (`wishly-section`) moves;
+     the space header, banners and tabs stay where they are.
+
+   In both, the topbar is its own group so it stays painted above the moving
+   content (content scrolled under the fixed bar must not slide over it), and
+   its two clusters are groups of their own so that, when the shell width
+   changes at the workspace boundary, the logo and the actions glide to their
+   new places instead of jumping. The class gate keeps route and theme
    transitions independent. */
 :root.wishly-page-transition .page-viewport {
   view-transition-name: wishly-page;
+}
+:root.wishly-section-transition .team-space-shell-body {
+  view-transition-name: wishly-section;
+}
+:root:is(.wishly-page-transition, .wishly-section-transition) .topbar {
+  view-transition-name: wishly-topbar;
+}
+:root.wishly-page-transition .topbar-lead {
+  view-transition-name: wishly-topbar-lead;
+}
+:root.wishly-page-transition .topbar-actions {
+  view-transition-name: wishly-topbar-actions;
+}
+
+/* A screen the router moved focus to (058, FR-024) is not a control; the
+   ring would only say that the page changed, which the page already says. */
+.page-viewport > main[tabindex='-1']:focus,
+.page-viewport[tabindex='-1']:focus,
+.team-space-shell-body[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* Browsers without the View Transitions API: what was just mounted fades in
+   (navigation.ts sets data-nav-enter for one motion). The old screen is
+   already gone, the new one fills the same place on the next frame. */
+:root[data-nav-enter='page'] .page-viewport > *,
+:root[data-nav-enter='section'] .team-space-shell-body > :not([hidden]) {
+  animation: ui-content-enter var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes ui-content-enter {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Entrance for freshly mounted pages: first load, browsers without the View
@@ -3840,6 +3886,9 @@ body:has(.public-home) {
 
 .modal-backdrop-nested {
   z-index: var(--layer-modal-nested);
+  /* One veil for a stack of dialogs (058, FR-020). */
+  background: transparent;
+  backdrop-filter: none;
 }
 
 /* Shared dialog surface for the Modal primitive. The size classes below set
@@ -5102,6 +5151,18 @@ body:has(.public-home) {
   ::view-transition-new(theme-toggle),
   ::view-transition-old(wishly-page),
   ::view-transition-new(wishly-page),
+  ::view-transition-group(wishly-page),
+  ::view-transition-old(wishly-section),
+  ::view-transition-new(wishly-section),
+  ::view-transition-group(wishly-section),
+  ::view-transition-old(wishly-topbar-lead),
+  ::view-transition-new(wishly-topbar-lead),
+  ::view-transition-group(wishly-topbar-lead),
+  ::view-transition-old(wishly-topbar-actions),
+  ::view-transition-new(wishly-topbar-actions),
+  ::view-transition-group(wishly-topbar-actions),
+  :root[data-nav-enter] .page-viewport > *,
+  :root[data-nav-enter] .team-space-shell-body > *,
   .page-enter {
     animation: none !important;
   }
@@ -6595,20 +6656,82 @@ body:has(.public-home) {
    Route transitions — a short crossfade of the page content
    only; the persistent topbar remains mounted.
    ============================================================ */
-/* The old page stays opaque under the new one while it fades in (024): fading both at once left
-   each half transparent mid-way, and the honeycomb behind the page flashed through. */
+/* A complementary crossfade (058, R1). Old and new change opacity over the
+   same time on the same curve, and the browser blends the pair with
+   plus-lighter: where both screens are opaque the sum stays at 100% for the
+   whole transition, so nothing behind them — the honeycomb — shows through,
+   and where only one has a card the card fades rather than pops.
+
+   The 024 version held the old page opaque under the new one instead. That
+   kept the honeycomb hidden, but the old page stayed fully visible wherever
+   the new one was transparent and vanished in the last frame: two screens on
+   top of each other, then a blink. With plus-lighter it also brightened
+   wherever both were opaque. */
+::view-transition-group(wishly-page) {
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-out-curve);
+}
 ::view-transition-old(wishly-page) {
-  animation: none;
-  opacity: 1;
+  animation: wishly-route-out var(--motion-base) var(--ease-out-curve) both;
 }
 ::view-transition-new(wishly-page) {
-  animation: wishly-page-in var(--dur-section) var(--ease-standard) both;
+  animation: wishly-page-in var(--motion-base) var(--ease-out-curve) both;
 }
 @keyframes wishly-page-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
+}
+@keyframes wishly-route-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Sections of a space: the same crossfade, shorter — it is the move people
+   make most — and with less travel. */
+::view-transition-group(wishly-section) {
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--ease-out-curve);
+}
+::view-transition-old(wishly-section) {
+  animation: wishly-route-out var(--motion-fast) var(--ease-out-curve) both;
+}
+::view-transition-new(wishly-section) {
+  animation: wishly-section-in var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes wishly-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+/* The frame around the moving content. The root (honeycomb, canvas) and the
+   topbar are the same before and after, so they do not crossfade: the old
+   picture is dropped and the live page shows through at once. The topbar's
+   clusters glide (group transform) on the page's clock. */
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-old(root),
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-old(wishly-topbar) {
+  display: none;
+}
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-new(root),
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-new(wishly-topbar) {
+  animation: none;
+}
+::view-transition-group(wishly-topbar-lead),
+::view-transition-group(wishly-topbar-actions) {
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-out-curve);
+}
+::view-transition-old(wishly-topbar-lead),
+::view-transition-old(wishly-topbar-actions) {
+  animation: wishly-route-out var(--motion-base) var(--ease-out-curve) both;
+}
+::view-transition-new(wishly-topbar-lead),
+::view-transition-new(wishly-topbar-actions) {
+  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) both;
 }
 
 /* ============================================================
@@ -12236,20 +12359,6 @@ button.team-landing-tile:hover {
   justify-content: center;
   margin-top: var(--space-4);
   font-size: var(--text-label);
-}
-
-/* The access check happens over a dimmed backdrop, so its caption sits above
-   that layer rather than behind it. */
-.team-workspace-gate-checking {
-  position: fixed;
-  z-index: var(--layer-modal);
-  inset: 50% auto auto 50%;
-  margin: 0;
-  color: var(--color-text);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  transform: translate(-50%, -50%);
 }
 
 /* Discard control on an unfinished space card (010 US4). Quiet by default so a

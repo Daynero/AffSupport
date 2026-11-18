@@ -2487,6 +2487,48 @@
   }
 }
 
+/* Route skeleton (058): the outline of a screen whose code is on its way. It
+   waits out --delay-skeleton invisible and then fades in over the slow step,
+   so a skeleton replaced right after it began is barely drawn. */
+.ui-route-skeleton {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  animation: ui-route-skeleton-in var(--motion-slow) var(--ease-out-curve) var(--delay-skeleton)
+    both;
+}
+.ui-route-skeleton-head {
+  width: 40%;
+  min-width: 160px;
+}
+.ui-route-skeleton-head .ui-skeleton--text {
+  height: var(--space-6);
+}
+.ui-route-skeleton-body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ui-route-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+.ui-route-skeleton-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+/* The navigation already kept the old screen through the delay (058). */
+:root[data-nav-waited] .ui-route-skeleton {
+  animation-delay: initial;
+}
+@keyframes ui-route-skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .ui-progress {
   width: 100%;
   overflow: hidden;
@@ -2594,6 +2636,45 @@
 }
 .ui-overlay.is-nested {
   z-index: var(--layer-modal-nested);
+  /* The page is already dimmed by the dialog underneath; a second veil made
+     every nested confirmation darken the screen again (058, FR-020). */
+  background: transparent;
+}
+
+/* Leaving (058): the static copy Overlay.tsx leaves in a closed surface's
+   place plays the opening in reverse, faster, and then removes itself. */
+.ui-overlay.is-closing,
+.modal-backdrop.is-closing {
+  pointer-events: none;
+  animation: ui-fade-out var(--motion-fast) var(--ease-out-curve) both;
+}
+.ui-overlay.is-closing > .ui-modal,
+.modal-backdrop.is-closing > .modal {
+  animation: ui-surface-out var(--motion-fast) var(--ease-out-curve) both;
+}
+.ui-popover.is-closing {
+  pointer-events: none;
+  animation: ui-surface-out var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes ui-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ui-surface-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-overlay.is-closing,
+  .modal-backdrop.is-closing,
+  .ui-overlay.is-closing > .ui-modal,
+  .modal-backdrop.is-closing > .modal,
+  .ui-popover.is-closing {
+    animation: none;
+  }
 }
 @keyframes ui-fade-in {
   from {
@@ -4804,4 +4885,12 @@
     top: var(--space-2);
     transform: none;
   }
+}
+
+/* A screen whose code did not load (058, FR-009): two ways forward, side by side. */
+.chunk-failed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
 }

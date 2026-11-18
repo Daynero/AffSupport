@@ -137,6 +137,9 @@ export const analyticsEventNames = [
   'space_showcase_viewed',
   'space_contact_clicked',
   'space_tariff_granted',
+  // 058 — one event per route change: how it moved, how long the content took,
+  // whether a skeleton or a blank stood in, and how steady the result was.
+  'navigation_attempt_finished',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;
 
@@ -179,6 +182,41 @@ export const LINK_ORIGINS = ['hosted', 'local_copy'] as const;
 export type LinkOrigin = (typeof LINK_ORIGINS)[number];
 
 export const BROWSER_FAMILIES = ['safari', 'chrome', 'firefox', 'edge', 'other'] as const;
+
+/* 058 — navigation smoothness. `NAV_SCREENS` is the motion registry's screen
+   list (lib/motion-registry.ts), held equal by a test. */
+export const NAV_SCREENS = [
+  'public_home',
+  'public_legal',
+  'auth',
+  'tools_home',
+  'tool',
+  'account',
+  'admin',
+  'team_lobby',
+  'team_explorer',
+  'team_tasks',
+  'team_launches',
+  'team_accounts',
+  'team_members',
+  'team_trash',
+  'other'
+] as const;
+export const NAV_MOTIONS = ['page', 'section'] as const;
+export const NAV_MODES = [
+  'animated',
+  'instant_reduced',
+  'instant_lite',
+  'instant_hidden',
+  'fallback_enter',
+  'skipped'
+] as const;
+export const NAV_SKIP_REASONS = ['none', 'theme_active', 'unsupported'] as const;
+export const NAV_FINALS = ['settled', 'superseded', 'cancelled', 'chunk_failed'] as const;
+export const NAV_HISTORY = ['push', 'replace', 'pop'] as const;
+export const NAV_DURATION_MAX_MS = 60_000;
+export const NAV_LAYOUT_SHIFT_MILLI_MAX = 100_000;
+export const NAV_LONG_FRAME_MAX = 1_000;
 
 export const LINK_REASONS = [
   'not_running',
@@ -359,6 +397,18 @@ export type AnalyticsProperties = {
   rejected_events?: string;
   evicted_events?: string;
   report_window_ms?: number;
+  // 058 — `navigation_attempt_finished`.
+  nav_from_screen?: (typeof NAV_SCREENS)[number];
+  nav_to_screen?: (typeof NAV_SCREENS)[number];
+  nav_motion?: (typeof NAV_MOTIONS)[number];
+  nav_mode?: (typeof NAV_MODES)[number];
+  nav_skip_reason?: (typeof NAV_SKIP_REASONS)[number];
+  nav_final?: (typeof NAV_FINALS)[number];
+  nav_history?: (typeof NAV_HISTORY)[number];
+  prepare_ms?: number;
+  skeleton_ms?: number;
+  layout_shift_milli?: number;
+  long_frame_count?: number;
 } & TeamAnalyticsProperties;
 
 export interface TeamFileAttemptStartedProperties {
@@ -443,6 +493,24 @@ export interface AnalyticsDeliveryReportProperties {
   report_window_ms: number;
 }
 
+/** `navigation_attempt_finished` — one route change, start to settled (058). */
+export interface NavigationAttemptProperties {
+  flow_id: string;
+  nav_from_screen: (typeof NAV_SCREENS)[number];
+  nav_to_screen: (typeof NAV_SCREENS)[number];
+  nav_motion: (typeof NAV_MOTIONS)[number];
+  nav_mode: (typeof NAV_MODES)[number];
+  nav_skip_reason: (typeof NAV_SKIP_REASONS)[number];
+  nav_final: (typeof NAV_FINALS)[number];
+  nav_history: (typeof NAV_HISTORY)[number];
+  prepare_ms: number;
+  duration_ms: number;
+  skeleton_ms: number;
+  layout_shift_milli: number;
+  long_frame_count: number;
+  browser_family: BrowserFamily;
+}
+
 type TeamEventProperties<Event extends TeamAnalyticsEventName> =
   Event extends 'team_file_attempt_started'
     ? TeamFileAttemptStartedProperties
@@ -474,7 +542,9 @@ export type AnalyticsEventProperties = {
       ? ToolReadyProperties
       : Event extends 'analytics_delivery_report'
         ? AnalyticsDeliveryReportProperties
-        : AnalyticsProperties;
+        : Event extends 'navigation_attempt_finished'
+          ? NavigationAttemptProperties
+          : AnalyticsProperties;
 };
 
 /* ---------------------------------------------------------------------------
@@ -631,7 +701,19 @@ export const ANALYTICS_PROPERTY_RULES: Readonly<
   expired_count: { kind: 'number', range: [0, DELIVERY_REPORT_COUNT_MAX] },
   rejected_events: { kind: 'event_list' },
   evicted_events: { kind: 'event_list' },
-  report_window_ms: { kind: 'number', range: [0, DELIVERY_REPORT_WINDOW_MAX_MS] }
+  report_window_ms: { kind: 'number', range: [0, DELIVERY_REPORT_WINDOW_MAX_MS] },
+  // 058 — navigation smoothness.
+  nav_from_screen: { kind: 'enum', values: NAV_SCREENS },
+  nav_to_screen: { kind: 'enum', values: NAV_SCREENS },
+  nav_motion: { kind: 'enum', values: NAV_MOTIONS },
+  nav_mode: { kind: 'enum', values: NAV_MODES },
+  nav_skip_reason: { kind: 'enum', values: NAV_SKIP_REASONS },
+  nav_final: { kind: 'enum', values: NAV_FINALS },
+  nav_history: { kind: 'enum', values: NAV_HISTORY },
+  prepare_ms: { kind: 'number', range: [0, NAV_DURATION_MAX_MS] },
+  skeleton_ms: { kind: 'number', range: [0, NAV_DURATION_MAX_MS] },
+  layout_shift_milli: { kind: 'number', range: [0, NAV_LAYOUT_SHIFT_MILLI_MAX] },
+  long_frame_count: { kind: 'number', range: [0, NAV_LONG_FRAME_MAX] }
 };
 
 type AnalyticsPropertyKey = keyof AnalyticsProperties;

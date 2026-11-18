@@ -34,7 +34,7 @@
 | `nav_from_screen`, `nav_to_screen` | `ScreenKind` |
 | `nav_motion` | `page \| section` |
 | `nav_mode` | `animated \| instant_reduced \| instant_lite \| instant_hidden \| fallback_enter \| skipped` |
-| `nav_skip_reason` | `none \| theme_active \| superseded_in_flight \| unsupported \| redirect` |
+| `nav_skip_reason` | `none \| theme_active \| unsupported` |
 | `nav_final` | `settled \| superseded \| cancelled \| chunk_failed` |
 | `nav_history` | `push \| replace \| pop` |
 | `prepare_ms` | час до коміту (очікування чанка) |
@@ -44,10 +44,11 @@
 | `long_frame_count` | кадри > 50 мс протягом переходу |
 | `browser_family` | наявний ключ |
 
-Переходи станів: `superseded` — нова навігація до `settled`; `cancelled` —
-`BEFORE_NAVIGATION_EVENT` скасовано (незбережені зміни); `chunk_failed` —
-завантаження розділу кинуло помилку; редирект впродовж спроби фіксується як
-`nav_skip_reason=redirect` у тій самій спробі.
+Переходи станів: `superseded` — нова навігація до `settled` (у тому числі
+та, що перервала анімацію в польоті); `cancelled` — `BEFORE_NAVIGATION_EVENT`
+скасовано (незбережені зміни); `chunk_failed` — завантаження розділу кинуло
+помилку. Редирект (`replace` під час переходу або впродовж 1 с після коміту)
+не відкриває нової спроби й застосовується миттєво всередині поточної.
 
 Вибірка: подія завжди надсилається при `skeleton_ms>0`, `nav_mode∈{instant_lite,skipped}`,
 `nav_final≠settled`, `layout_shift_milli>50`, `long_frame_count>0`; інакше 10 %.

@@ -18,6 +18,8 @@ import {
   type SyntheticEvent
 } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
+import { skeletonVisible } from '../../lib/navigation-analytics';
+import type { RouteSkeletonVariant } from '../../lib/motion-registry';
 
 /**
  * Feedback (021, T021, T024).
@@ -94,6 +96,70 @@ export function Skeleton({ shape = 'text', count = 1, label, className, ...props
       {Array.from({ length: count }, (_, index) => (
         <span key={index} className={`ui-skeleton ui-skeleton--${shape}`} aria-hidden="true" />
       ))}
+    </div>
+  );
+}
+
+export interface RouteSkeletonProps {
+  /** The shape of the screen that is coming (lib/motion-registry.ts). */
+  variant: RouteSkeletonVariant;
+  /** What is loading, for a reader who cannot see the shimmer. */
+  label?: string;
+  className?: string;
+}
+
+const ROUTE_SKELETON_ROWS = 6;
+const ROUTE_SKELETON_TILES = 8;
+const ROUTE_SKELETON_COLUMNS = 3;
+
+/**
+ * The stand-in for a screen whose code is still on its way (058, FR-006).
+ *
+ * It has the screen's outline — a heading, a toolbar, rows or tiles or
+ * columns — so that when the screen lands nothing around it moves. It does
+ * not appear at once: a navigation keeps the current screen for
+ * `--delay-skeleton` first, and the skeleton itself then fades in slowly, so
+ * one replaced a moment after it appeared is barely there rather than a
+ * flash (FR-008). It also tells navigation analytics how long it stood.
+ */
+export function RouteSkeleton({ variant, label, className }: RouteSkeletonProps) {
+  useEffect(() => skeletonVisible(), []);
+  const bar = (shape: SkeletonProps['shape'], key?: number) => (
+    <span key={key} className={`ui-skeleton ui-skeleton--${shape}`} aria-hidden="true" />
+  );
+  const repeat = (count: number, shape: SkeletonProps['shape']) =>
+    Array.from({ length: count }, (_, index) => bar(shape, index));
+  return (
+    <div
+      className={uiClasses('route-skeleton', { variant: undefined, className })}
+      data-variant={variant}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      {label && <span className="visually-hidden">{label}</span>}
+      {(variant === 'tool' || variant === 'settings' || variant === 'lobby') && (
+        <div className="ui-route-skeleton-head">{bar('text')}</div>
+      )}
+      {(variant === 'list' || variant === 'tiles' || variant === 'board') && (
+        <div className="ui-route-skeleton-toolbar">{bar('row')}</div>
+      )}
+      {variant === 'tool' && <div className="ui-route-skeleton-body">{repeat(2, 'block')}</div>}
+      {(variant === 'settings' || variant === 'list') && (
+        <div className="ui-route-skeleton-body">{repeat(ROUTE_SKELETON_ROWS, 'row')}</div>
+      )}
+      {(variant === 'lobby' || variant === 'tiles') && (
+        <div className="ui-route-skeleton-grid">{repeat(ROUTE_SKELETON_TILES, 'tile')}</div>
+      )}
+      {variant === 'board' && (
+        <div className="ui-route-skeleton-columns">
+          {Array.from({ length: ROUTE_SKELETON_COLUMNS }, (_, column) => (
+            <div key={column} className="ui-route-skeleton-body">
+              {repeat(3, 'block')}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

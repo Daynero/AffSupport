@@ -388,6 +388,11 @@
      says it is still coming. Under it a quiet holder is enough, and a sentence
      that flashes for a moment reads as a flicker. */
   --delay-patience: 1200ms;
+  /* How long a navigation keeps the current screen while the next one's code
+     loads (058). Past it the destination's skeleton fades in — slowly enough
+     that one which is replaced a moment later never reads as a flash. Mirrors
+     WAIT_BEFORE_SKELETON_MS in lib/navigation.ts. */
+  --delay-skeleton: 300ms;
 
   /* ---- Layers -------------------------------------------------------------
      One ladder, in the order things actually sit. Two rules decide the top of

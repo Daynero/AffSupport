@@ -1,6 +1,6 @@
 import { useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { FOCUSABLE_SELECTOR, useDialogBehaviour } from './ui/Overlay';
+import { FOCUSABLE_SELECTOR, useDialogBehaviour, useExitMotionRef } from './ui/Overlay';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -114,6 +114,7 @@ export function Modal({
     initialFocus,
     returnFocus
   });
+  const leaving = useExitMotionRef<HTMLDivElement>();
 
   const backdropClasses = (
     bare
@@ -132,6 +133,7 @@ export function Modal({
 
   return createPortal(
     <div
+      ref={leaving}
       className={backdropClasses}
       aria-hidden={backdropAriaHidden || undefined}
       onPointerDown={event => {

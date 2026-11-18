@@ -1,17 +1,18 @@
 import { workspaceAnnouncementEnabled } from '../lib/feature-flags';
 import { SpaceComingSoon } from './SpaceComingSoon';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
-import { Alert, Empty } from '../components/ui/index';
+import { Alert, Empty, RouteSkeleton } from '../components/ui/index';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { spaceTariffApi, teamApi } from '../api/team';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation';
+import { recoverableLazy } from '../lib/recoverable-lazy';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
 import { readDriveAuthorization, type DriveAuthorizationTarget } from './drive/authorizationReturn';
@@ -40,9 +41,15 @@ import { TariffToastNotice } from './tariffs/TariffBanner';
 import { formatTariffDay, planName } from './tariffs/format';
 import type { TariffContactChannel } from '@video-compressor/shared';
 
-const WorkspaceShell = lazy(() =>
-  import('./workspace/WorkspaceShell').then(module => ({ default: module.WorkspaceShell }))
+const workspaceShell = recoverableLazy(() =>
+  import('./workspace/WorkspaceShell').then(module => module.WorkspaceShell)
 );
+const WorkspaceShell = workspaceShell.Component;
+
+/** Starts loading the workspace shell's code; nothing once it is in (058). */
+export function preloadWorkspaceShell(): Promise<unknown> | void {
+  return workspaceShell.preload();
+}
 
 export type TeamSpaceClient = {
   listTeams: () => Promise<TeamContextSnapshot[]>;
@@ -418,7 +425,7 @@ export function TeamSpace({
         <ToastProvider>
           <MembershipLostNotice />
           <TariffToastNotice />
-          <Suspense fallback={<section className="team-space-lobby" aria-busy="true" />}>
+          <Suspense fallback={<RouteSkeleton variant="lobby" label={t('loading')} />}>
             {node}
           </Suspense>
         </ToastProvider>
@@ -450,14 +457,10 @@ export function TeamSpace({
   const contactEmail = access?.showcase?.email || authEmail || '';
 
   if (workspaceAccess === 'checking') {
-    // Labeled: an unexplained dimmed screen is indistinguishable from a hang.
-    return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p className="team-workspace-gate-checking" aria-live="polite">
-          {t('teamAccessChecking')}
-        </p>
-      </section>
-    );
+    // Labeled for a reader: an unexplained dimmed screen is indistinguishable
+    // from a hang. Drawn as the lobby's outline (058): the check usually takes
+    // a moment, and a sentence that flashes for a moment reads as a flicker.
+    return wrap(<RouteSkeleton variant="lobby" label={t('teamAccessChecking')} />);
   }
 
   if (showsShowcase && !workspaceAnnouncementEnabled) {

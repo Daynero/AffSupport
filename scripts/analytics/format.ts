@@ -28,6 +28,7 @@ import type {
   ConnectionData
 } from './types.js';
 import { isUnsupported } from './types.js';
+import type { NavigationData } from './queries.js';
 
 /** Aggregating commands carry `delivery_lag_ms`; formatters accept it as optional so a bare query result still prints. */
 type WithLag = { delivery_lag_ms?: DeliveryLag };
@@ -815,4 +816,82 @@ export function formatInvestigate(data: InvestigateData, period: ResolvedPeriod)
     );
   }
   return lines.join('\n');
+}
+
+/** 058 — route-change smoothness. */
+export function formatNavigation(data: NavigationData & WithLag, period: ResolvedPeriod): string {
+  const ms = (value: number | null) => (value == null ? '—' : `${Math.round(value)}ms`);
+  return [
+    header('Navigation', period),
+    kv([
+      ['Attempts sent', num(data.attempts)],
+      ['Users', num(data.users)],
+      ['Sampling', data.sampling]
+    ]),
+    '',
+    '  By motion, destination, mode and final:',
+    data.slices.length
+      ? table(
+          ['Motion', 'To', 'Mode', 'Final', 'Attempts', 'p50', 'p95', 'Skeleton', 'Shift', 'Stall'],
+          data.slices.map(row => [
+            row.motion,
+            row.screen,
+            row.mode,
+            row.final,
+            num(row.attempts),
+            ms(row.p50_ms),
+            ms(row.p95_ms),
+            num(row.with_skeleton),
+            num(row.shifted),
+            num(row.stalled)
+          ])
+        )
+      : '  (no navigation attempts in this period)',
+    '',
+    '  By build, browser and platform:',
+    data.cohorts.length
+      ? table(
+          [
+            'Build',
+            'Browser',
+            'Platform',
+            'Attempts',
+            'Animated',
+            'Skeleton',
+            'Shift',
+            'Stall',
+            'Not settled'
+          ],
+          data.cohorts.map(row => [
+            row.web_build_id,
+            row.browser_family,
+            row.platform,
+            num(row.attempts),
+            num(row.animated),
+            num(row.with_skeleton),
+            num(row.shifted),
+            num(row.stalled),
+            num(row.not_settled)
+          ])
+        )
+      : '  (none)',
+    '',
+    '  Recent attempts worth a look:',
+    data.examples.length
+      ? table(
+          ['When', 'Flow', 'From → to', 'Motion', 'Mode', 'Final', 'Skeleton', 'Shift', 'Stall'],
+          data.examples.map(row => [
+            row.occurred_at,
+            row.flow_id ?? '—',
+            `${row.from_screen} → ${row.to_screen}`,
+            row.motion,
+            row.mode,
+            row.final,
+            ms(row.skeleton_ms),
+            num(row.layout_shift_milli),
+            num(row.long_frame_count)
+          ])
+        )
+      : '  (none)'
+  ].join('\n');
 }

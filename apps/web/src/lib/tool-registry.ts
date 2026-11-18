@@ -4,7 +4,7 @@ import type { AnalyticsTool } from '../analytics/events';
 import type { TranslationKey } from '../i18n';
 import { isProtected, type FeatureId } from './feature-flags';
 import { AudioLines, Combine, Eye, KeyRound, Shrink, SlidersHorizontal } from 'lucide-react';
-import { lazy } from 'react';
+import { recoverableLazy } from './recoverable-lazy';
 
 /**
  * Tool pages are loaded when a tool is opened, not when the application is.
@@ -15,15 +15,27 @@ import { lazy } from 'react';
  * justify that: each page is reached by its own route, and the router already
  * renders one at a time.
  *
- * `lazy` needs a Suspense boundary, which ProtectedSoty provides around the
- * viewport where these render.
+ * Each page can be loaded ahead (058): a navigation to a tool waits for its
+ * code (up to the skeleton delay) before it moves, and a page whose code is in
+ * renders without suspending — so the route change never captures an empty
+ * viewport.
  */
-const CompressorPage = lazy(() => import('../App'));
-const LandingOptimizerPage = lazy(() => import('../landing/LandingOptimizerPage'));
-const LandingPreviewPage = lazy(() => import('../landing-preview/LandingPreviewPage'));
-const TranscriptionPage = lazy(() => import('../transcription/TranscriptionPage'));
-const StitcherPage = lazy(() => import('../stitcher/StitcherPage'));
-const TwoFactorPage = lazy(() => import('../two-factor/TwoFactorPage'));
+const compressor = recoverableLazy(() => import('../App').then(module => module.default));
+const landingOptimizer = recoverableLazy(() =>
+  import('../landing/LandingOptimizerPage').then(module => module.default)
+);
+const landingPreview = recoverableLazy(() =>
+  import('../landing-preview/LandingPreviewPage').then(module => module.default)
+);
+const transcription = recoverableLazy(() =>
+  import('../transcription/TranscriptionPage').then(module => module.default)
+);
+const stitcher = recoverableLazy(() =>
+  import('../stitcher/StitcherPage').then(module => module.default)
+);
+const twoFactor = recoverableLazy(() =>
+  import('../two-factor/TwoFactorPage').then(module => module.default)
+);
 
 // The single source of truth for the Soty web tools. Adding a tool here
 // registers its route (ProtectedSoty), its home-page tile (HomePage) and its
@@ -89,8 +101,10 @@ type WebToolShared = {
   /** Web-only acknowledgment gate; null when the tool has no flag. */
   featureFlag: FeatureId | null;
   status: WebToolStatus;
-  /** Rendered synchronously inside the ProtectedSoty chunk. */
+  /** Rendered inside the ProtectedSoty chunk; its code arrives on demand. */
   page: ComponentType;
+  /** Starts loading the page's code; returns nothing once it is in (058). */
+  preload: () => Promise<unknown> | void;
 };
 
 export type AgentWebTool = WebToolShared & {
@@ -148,7 +162,8 @@ export const webTools: readonly WebTool[] = [
     featureFlag: 'videoCompressor',
     status: statusFor('videoCompressor'),
     capability: null,
-    page: CompressorPage
+    page: compressor.Component,
+    preload: compressor.preload
   },
   {
     // Placed next to the compressor: the two share a screen library and answer the same
@@ -164,7 +179,8 @@ export const webTools: readonly WebTool[] = [
     featureFlag: 'videoStitcher',
     status: statusFor('videoStitcher'),
     capability: 'stitcher',
-    page: StitcherPage
+    page: stitcher.Component,
+    preload: stitcher.preload
   },
   {
     id: 'transcription',
@@ -178,7 +194,8 @@ export const webTools: readonly WebTool[] = [
     featureFlag: 'transcription',
     status: statusFor('transcription'),
     capability: null,
-    page: TranscriptionPage
+    page: transcription.Component,
+    preload: transcription.preload
   },
   {
     // The Landing Optimizer stays visible in the catalogue before the local
@@ -196,7 +213,8 @@ export const webTools: readonly WebTool[] = [
     featureFlag: 'landingOptimizer',
     status: statusFor('landingOptimizer'),
     capability: 'landing',
-    page: LandingOptimizerPage
+    page: landingOptimizer.Component,
+    preload: landingOptimizer.preload
   },
   {
     // The only tool in the catalogue that runs entirely in the browser, and it
@@ -212,7 +230,8 @@ export const webTools: readonly WebTool[] = [
     icon: KeyRound,
     featureFlag: 'twoFactorNotebook',
     status: statusFor('twoFactorNotebook'),
-    page: TwoFactorPage
+    page: twoFactor.Component,
+    preload: twoFactor.preload
   },
   {
     id: 'landingPreview',
@@ -226,7 +245,8 @@ export const webTools: readonly WebTool[] = [
     featureFlag: 'landingPreview',
     status: statusFor('landingPreview'),
     capability: 'landing-preview',
-    page: LandingPreviewPage
+    page: landingPreview.Component,
+    preload: landingPreview.preload
   }
 ];
 

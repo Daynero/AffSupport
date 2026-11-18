@@ -1,15 +1,8 @@
-import {
-  createElement,
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentType
-} from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { internalLink, navigateTo } from '../../lib/navigation';
+import { internalLink, navigateTo, registerRoutePreparer } from '../../lib/navigation';
+import { screenOf, type ScreenKind } from '../../lib/motion-registry';
+import { recoverableLazy } from '../../lib/recoverable-lazy';
 import { PaletteHost } from '../palette/PaletteHost';
 import { HistoryDialog } from './HistoryDialog';
 import { rememberRecent } from '../palette/recent';
@@ -75,50 +68,60 @@ import {
   type TeamSection
 } from '../routes';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
-import { Tabs } from '../../components/ui/index';
+import { RouteSkeleton, Tabs } from '../../components/ui/index';
 
 /**
- * A section loaded on demand, drawn at once when its code is already here (024).
+ * The sections loaded on demand (024, 058).
  *
- * `lazy` suspends for a tick on its first render even when the module has long been fetched, so
- * a first visit to Tasks painted an empty page between the tab press and the board. The code is
- * fetched in the background after the explorer is up; a section that finds it rendered directly,
- * and one that does not falls back to `lazy` for good (switching mid-life would remount it).
+ * Each is drawn at once when its code is already here, and its code is
+ * fetched in the background once the space is up, so a first visit does not
+ * wait on a chunk. A tab press passes the section's `preload` to the router
+ * as `prepare`: the current section stays on screen while the code finishes
+ * arriving (up to the skeleton delay), and only then do the two crossfade. A
+ * chunk that will not load says so and offers to try again instead of leaving
+ * the body empty.
  */
-function preloadable<Module, Props extends object>(
-  load: () => Promise<Module>,
-  pick: (module: Module) => ComponentType<Props>
-) {
-  let loaded: Module | null = null;
-  const fetch = () =>
-    load().then(module => {
-      loaded = module;
-      return module;
-    });
-  const Lazy = lazy(() => fetch().then(module => ({ default: pick(module) })));
-  function Section(props: Props) {
-    const [ready] = useState(() => loaded !== null);
-    return ready && loaded ? createElement(pick(loaded), props) : createElement(Lazy, props);
-  }
-  return { Section, fetch };
-}
+const taskSection = recoverableLazy(() =>
+  import('../tasks/TaskSpace').then(module => module.TaskSpace)
+);
+const accountSection = recoverableLazy(() =>
+  import('../accounts/AccountSpace').then(module => module.AccountSpace)
+);
+const launchSection = recoverableLazy(() =>
+  import('../launches/LaunchSpace').then(module => module.LaunchSpace)
+);
+const explorerSection = recoverableLazy(() =>
+  import('../explorer/ExplorerShell').then(module => module.ExplorerShell)
+);
+const TaskSpace = taskSection.Component;
+const AccountSpace = accountSection.Component;
+const LaunchSpace = launchSection.Component;
+const ExplorerShell = explorerSection.Component;
 
-const taskSection = preloadable(
-  () => import('../tasks/TaskSpace'),
-  module => module.TaskSpace
-);
-const accountSection = preloadable(
-  () => import('../accounts/AccountSpace'),
-  module => module.AccountSpace
-);
-const TaskSpace = taskSection.Section;
-const AccountSpace = accountSection.Section;
-const LaunchSpace = lazy(() =>
-  import('../launches/LaunchSpace').then(module => ({ default: module.LaunchSpace }))
-);
-const ExplorerShell = lazy(() =>
-  import('../explorer/ExplorerShell').then(module => ({ default: module.ExplorerShell }))
-);
+const SECTION_PRELOAD: Partial<Record<TeamSection, () => Promise<unknown> | void>> = {
+  explorer: explorerSection.preload,
+  tasks: taskSection.preload,
+  launches: launchSection.preload,
+  accounts: accountSection.preload
+};
+
+const SCREEN_SECTION: Partial<Record<ScreenKind, TeamSection>> = {
+  team_explorer: 'explorer',
+  team_trash: 'explorer',
+  team_tasks: 'tasks',
+  team_launches: 'launches',
+  team_accounts: 'accounts'
+};
+
+// Any way into a section — a tab, "Show in folder", a task chip, a palette
+// result — waits for that section's code before the route changes.
+registerRoutePreparer(path => {
+  const section = SCREEN_SECTION[screenOf(path)];
+  return section ? SECTION_PRELOAD[section]?.() : undefined;
+});
+
+/** How long after the space is up the other sections' code starts loading. */
+const SECTION_PRELOAD_DELAY_MS = 600;
 
 export type WorkspaceShellClient = TeamCatalogClient &
   SpaceSettingsClient &
@@ -324,9 +327,8 @@ export function WorkspaceShell({
   // a chunk with nothing on screen.
   useEffect(() => {
     const idle = window.setTimeout(() => {
-      void taskSection.fetch();
-      void accountSection.fetch();
-    }, 1500);
+      Object.values(SECTION_PRELOAD).forEach(preload => void preload?.());
+    }, SECTION_PRELOAD_DELAY_MS);
     return () => window.clearTimeout(idle);
   }, []);
   // Switching spaces needs no reset here: TeamSpace keys this shell on the
@@ -891,11 +893,22 @@ export function WorkspaceShell({
                       className="team-space-tabs"
                       label={t('teamSectionsNavLabel')}
                       value={section}
-                      /* No page crossfade between sections (the owner, 024): the header and
-                     the tabs stay where they are, and fading the whole page out and
-                     back in let the honeycomb behind it flash through on every switch. */
-                      onChange={next => navigateTo(sectionRoute(next), false, false)}
-                      onNavigate={(event, tab) => internalLink(event, sectionRoute(tab.id), false)}
+                      /* A section move (058): the header and the tabs stay where they are
+                     and only the body crossfades. The whole-page fade of 024 let the
+                     honeycomb flash through, so sections had no motion at all; the
+                     body crossfade is complementary and short. */
+                      onChange={next =>
+                        navigateTo(sectionRoute(next), {
+                          motion: 'section',
+                          prepare: SECTION_PRELOAD[next]
+                        })
+                      }
+                      onNavigate={(event, tab) =>
+                        internalLink(event, sectionRoute(tab.id), {
+                          motion: 'section',
+                          prepare: SECTION_PRELOAD[tab.id]
+                        })
+                      }
                       items={CONTENT_TABS.map(tab => ({
                         id: tab.section,
                         label: t(tab.label),
@@ -918,7 +931,13 @@ export function WorkspaceShell({
                   </div>
                 </div>
 
-                <Suspense fallback={<div className="team-space-shell-body" aria-busy="true" />}>
+                <Suspense
+                  fallback={
+                    <div className="team-space-shell-body">
+                      <RouteSkeleton variant="tiles" label={t('loading')} />
+                    </div>
+                  }
+                >
                   <div className="team-space-shell-body">
                     {/* Every section behaves the way the explorer already did: mounted
             on its first visit and hidden afterwards, never unmounted. A filter
@@ -937,7 +956,7 @@ export function WorkspaceShell({
                     )}
                     {visited.has('tasks') && (
                       <div hidden={section !== 'tasks' || trashOver}>
-                        <Suspense fallback={null}>
+                        <Suspense fallback={<RouteSkeleton variant="board" label={t('loading')} />}>
                           <TaskSpace
                             key={`tasks:${teamId}`}
                             teamId={teamId}
@@ -955,7 +974,7 @@ export function WorkspaceShell({
                       </div>
                     )}
                     {section === 'launches' && !trashOver && (
-                      <Suspense fallback={null}>
+                      <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
                         <LaunchSpace
                           key={`launches:${teamId}`}
                           teamId={teamId}
@@ -965,7 +984,7 @@ export function WorkspaceShell({
                     )}
                     {visited.has('accounts') && (
                       <div hidden={section !== 'accounts' || trashOver}>
-                        <Suspense fallback={null}>
+                        <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
                           <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
                         </Suspense>
                       </div>
@@ -991,49 +1010,55 @@ export function WorkspaceShell({
                         (!browsable && Boolean(activeTeam))
                       }
                     >
-                      <ExplorerShell
-                        key={`explorer:${teamId}`}
-                        teamId={teamId}
-                        client={client}
-                        revision={revision + browserRevision}
-                        query={
-                          (section === 'explorer' || query?.trash) && query ? query : explorerQuery
-                        }
-                        onQueryChange={onExplorerQuery}
-                        onFolderChange={onExplorerFolderChange}
-                        onSearched={onSearched}
-                        onReset={resetExplorer}
-                        trashReturnLabel={
-                          trashOver
-                            ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
-                            : undefined
-                        }
-                        onPreview={openPreview}
-                        onCreateTask={asset =>
-                          void createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
-                        }
-                        onCreateTaskFromSelection={assets => {
-                          if (assets.length === 0) return;
-                          void createTaskFrom({
-                            ids: assets.map(asset => asset.id),
-                            name: taskTitleFor(assets, t)
-                          });
-                        }}
-                        /* The file in hand, not the whole space: the dialog opens on
+                      <Suspense fallback={<RouteSkeleton variant="tiles" label={t('loading')} />}>
+                        <ExplorerShell
+                          key={`explorer:${teamId}`}
+                          teamId={teamId}
+                          client={client}
+                          revision={revision + browserRevision}
+                          query={
+                            (section === 'explorer' || query?.trash) && query
+                              ? query
+                              : explorerQuery
+                          }
+                          onQueryChange={onExplorerQuery}
+                          onFolderChange={onExplorerFolderChange}
+                          onSearched={onSearched}
+                          onReset={resetExplorer}
+                          trashReturnLabel={
+                            trashOver
+                              ? t(CONTENT_TABS.find(tab => tab.section === section)!.label)
+                              : undefined
+                          }
+                          onPreview={openPreview}
+                          onCreateTask={asset =>
+                            void createTaskFrom({ ids: [asset.id], name: taskTitleFor([asset], t) })
+                          }
+                          onCreateTaskFromSelection={assets => {
+                            if (assets.length === 0) return;
+                            void createTaskFrom({
+                              ids: assets.map(asset => asset.id),
+                              name: taskTitleFor(assets, t)
+                            });
+                          }}
+                          /* The file in hand, not the whole space: the dialog opens on
                    the material that was chosen. */
-                        onProcessSelection={(materialIds, scope) => {
-                          setBatchSources(materialIds);
-                          setBatchScope(scope ?? { kind: 'selection', count: materialIds.length });
-                          setBatchSelectionOpen(true);
-                        }}
-                        onProcessLibrary={() => {
-                          setBatchSources([]);
-                          setBatchScope({ kind: 'space' });
-                          navigateTo(hereRoute({ process: true }));
-                        }}
-                        onChanged={() => setBrowserRevision(value => value + 1)}
-                        readOnly={storageAttention}
-                      />
+                          onProcessSelection={(materialIds, scope) => {
+                            setBatchSources(materialIds);
+                            setBatchScope(
+                              scope ?? { kind: 'selection', count: materialIds.length }
+                            );
+                            setBatchSelectionOpen(true);
+                          }}
+                          onProcessLibrary={() => {
+                            setBatchSources([]);
+                            setBatchScope({ kind: 'space' });
+                            navigateTo(hereRoute({ process: true }));
+                          }}
+                          onChanged={() => setBrowserRevision(value => value + 1)}
+                          readOnly={storageAttention}
+                        />
+                      </Suspense>
                     </div>
                   </div>
                 </Suspense>

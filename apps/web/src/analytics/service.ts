@@ -138,7 +138,10 @@ const PROGRESS_EVENT_NAMES = new Set<string>([
   'home_viewed',
   'screen_viewed',
   'team_account_stage',
-  'team_launch_stage'
+  'team_launch_stage',
+  // 058: frequent and sampled — under queue pressure it goes before anything a
+  // journey's diagnosis depends on.
+  'navigation_attempt_finished'
 ]);
 const TERMINAL_EVENT_NAMES = new Set<string>([
   'operation_cancelled',

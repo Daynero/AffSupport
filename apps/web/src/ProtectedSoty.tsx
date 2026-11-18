@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType, useEffect } from 'react';
+import { Suspense, type ComponentType, useEffect, useState } from 'react';
 import { InstantTips } from './components/InstantTips';
 import { AgentProvider, useAgent, useAgentStatus } from './AgentContext';
 import { Header } from './App';
@@ -9,7 +9,9 @@ import { useFeatureLock, type FeatureId } from './lib/feature-flags';
 import { toolByPath, type WebTool } from './lib/tool-registry';
 import type { SotyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
-import { navigateTo, usePageEntrance } from './lib/navigation';
+import { navigateTo, registerRoutePreparer, usePageEntrance } from './lib/navigation';
+import { recoverableLazy } from './lib/recoverable-lazy';
+import { RouteSkeleton } from './components/ui/index';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
@@ -22,7 +24,26 @@ import { PowerProvider } from './lib/power';
 import { TeamProvider } from './team/TeamContext';
 import { parseTeamRoute } from './team/routes';
 
-const TeamSpace = lazy(() => import('./team/TeamSpace'));
+const teamSpace = recoverableLazy(() => import('./team/TeamSpace').then(module => module.default));
+const TeamSpace = teamSpace.Component;
+
+/*
+ * Every navigation into a tool or a space waits for that screen's code (up to
+ * the skeleton delay) before the route changes (058, FR-007). For a space that
+ * is the space screen and the workspace shell behind it — the shell is what
+ * fills the screen, and arriving without it would crossfade into a skeleton.
+ */
+registerRoutePreparer(path => {
+  const pathname = path.split(/[?#]/u, 1)[0] ?? path;
+  const tool = toolByPath(pathname);
+  if (tool) return tool.preload();
+  if (pathname !== '/team' && !pathname.startsWith('/team/')) return;
+  const pending = [
+    teamSpace.preload(),
+    import('./team/TeamSpace').then(module => module.preloadWorkspaceShell())
+  ].filter(Boolean);
+  return pending.length > 0 ? Promise.all(pending) : undefined;
+});
 
 export default function ProtectedSoty({ path, route = path }: { path: string; route?: string }) {
   return (
@@ -78,7 +99,13 @@ function ProtectedApplication({ path, route }: { path: string; route: string }) 
   const teamRoute = parseTeamRoute(route);
   if (teamRoute)
     return (
-      <Suspense fallback={<main className="page-container" />}>
+      <Suspense
+        fallback={
+          <main className="page-container team-space-page">
+            <RouteSkeleton variant="lobby" />
+          </main>
+        }
+      >
         <TeamSpace route={teamRoute} />
       </Suspense>
     );
@@ -118,7 +145,41 @@ function ToolRoute({ tool }: { tool: WebTool }) {
   // software they are already running. Anyone who has connected once keeps
   // their page.
   if (connectedOnce && connection !== 'agent_update_required') return <ToolPage tool={tool} />;
-  return <ToolSetupScreen tool={tool.id} connection={connection} />;
+  return <ToolSetupGate tool={tool.id} connection={connection} />;
+}
+
+/**
+ * How long the first connection check may take before the setup dialog is
+ * shown (058, FR-008). The check usually answers in well under a second; the
+ * dialog used to open for that moment and close again as the tool appeared.
+ * Mirrors `--delay-patience` in tokens.css.
+ */
+const FIRST_CHECK_PATIENCE_MS = 1_200;
+
+function ToolSetupGate({
+  tool,
+  connection
+}: {
+  tool: SotyToolId;
+  connection: ReturnType<typeof useAgent>['connection'];
+}) {
+  const checking = connection === 'checking';
+  const [patient, setPatient] = useState(checking);
+  useEffect(() => {
+    if (!checking) {
+      setPatient(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setPatient(false), FIRST_CHECK_PATIENCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [checking]);
+  if (checking && patient)
+    return (
+      <main className="page-container">
+        <RouteSkeleton variant="tool" />
+      </main>
+    );
+  return <ToolSetupScreen tool={tool} connection={connection} />;
 }
 
 /**
@@ -178,13 +239,20 @@ function FeatureLockScreen({ feature }: { feature: FeatureId }) {
  * Renders a tool page behind a Suspense boundary.
  *
  * The pages are loaded on demand, so React needs somewhere to wait while the
- * chunk arrives. The fallback is an empty viewport rather than a spinner: the
- * chunk is served from the same origin and is usually already cached, so a
- * spinner would flash for a frame and read as jank rather than as progress.
+ * chunk arrives. A navigation waits for the chunk first (058), so this is
+ * rarely reached; when it is, the tool's skeleton fades in — after the
+ * skeleton delay, so a chunk that is only a moment late shows nothing at all
+ * rather than a flash.
  */
 function ToolPage({ tool }: { tool: { page: ComponentType } }) {
   return (
-    <Suspense fallback={<main className="page-container" />}>
+    <Suspense
+      fallback={
+        <main className="page-container">
+          <RouteSkeleton variant="tool" />
+        </main>
+      }
+    >
       <tool.page />
     </Suspense>
   );

@@ -551,7 +551,7 @@ it('switches to the result without a page view transition', async () => {
     await screen.findByRole('tab', { name: 'Result' });
     fireEvent.click(screen.getByRole('tab', { name: 'Result' }));
     expect(navigate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ detail: { animate: false } })
+      expect.objectContaining({ detail: expect.objectContaining({ motion: 'none' }) })
     );
   } finally {
     window.removeEventListener('wishly-navigation', navigate);

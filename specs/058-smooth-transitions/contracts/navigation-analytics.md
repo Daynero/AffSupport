@@ -1,6 +1,6 @@
 # Contract: аналітика навігації
 
-Подія: `navigation_attempt_finished` (terminal), кореляція — `flow_id`.
+Подія: `navigation_attempt_finished` (клас `progress` у черзі: часта й вибіркова, під тиском черги витісняється першою), кореляція — `flow_id`.
 Поля — [data-model.md](../data-model.md#navigationattempt-у-пам'яті--одна-подія).
 
 ## Місця реєстрації
@@ -10,7 +10,7 @@
    `NAV_HISTORY`; типи властивостей; правила в `ANALYTICS_PROPERTY_RULES`
    (enum або number із межами: `prepare_ms` 0–60000, `skeleton_ms` 0–60000,
    `layout_shift_milli` 0–100000, `long_frame_count` 0–1000).
-2. `apps/web/src/analytics/service.ts` — подія в `TERMINAL_EVENT_NAMES`.
+2. `apps/web/src/analytics/service.ts` — подія в `PROGRESS_EVENT_NAMES`.
 3. `supabase/migrations/<ts>_navigation_analytics_guard.sql` — повне тіло
    `analytics_properties_are_safe_v2` з новими ключами, enum-клаузами й межами;
    `ROLLBACK.md`; pgTAP `analytics-guard-contract.test.sql` (+ `plan`).

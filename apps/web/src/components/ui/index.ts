@@ -57,8 +57,14 @@ export type {
   SwitchProps
 } from './Choice';
 
-export { Empty, FadeImage, Progress, Skeleton, Spinner, Tooltip } from './Feedback';
-export type { EmptyProps, ProgressProps, SkeletonProps, TooltipProps } from './Feedback';
+export { Empty, FadeImage, Progress, RouteSkeleton, Skeleton, Spinner, Tooltip } from './Feedback';
+export type {
+  EmptyProps,
+  ProgressProps,
+  RouteSkeletonProps,
+  SkeletonProps,
+  TooltipProps
+} from './Feedback';
 
 export { Drawer, DropdownMenu, Modal, Popover } from './Overlay';
 export type {

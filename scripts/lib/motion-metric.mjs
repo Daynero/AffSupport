@@ -1,0 +1,88 @@
+/**
+ * Frame metrics for the transition smoke test (058, FR-027, research R9).
+ *
+ * A transition is judged on the content area only, frame by frame:
+ *
+ * - **Dip** — the triangle excess `(d(start, f) + d(f, end)) / d(start, end)`.
+ *   Any frame of a crossfade is a blend of start and end, so the two distances
+ *   add up to the direct one and the excess stays near 1. A blank frame, the
+ *   background flashing through or an unrelated placeholder is far from both
+ *   ends at once, and the excess jumps. When start and end look alike (a
+ *   section with the same frame) the denominator is floored, so a flash
+ *   between two similar screens still counts.
+ * - **Settle** — the time from the trigger to the first frame after which
+ *   every frame matches the end. A screen that keeps an old layer on top, or
+ *   keeps shifting, settles late.
+ *
+ * Frames are luminance arrays of equal length (`lumaOf`), already cropped to
+ * the content area.
+ */
+
+/** Mean absolute luminance difference, 0–255. */
+export function distance(a, b) {
+  if (a.length !== b.length) throw new Error('frames differ in size');
+  if (a.length === 0) return 0;
+  let sum = 0;
+  for (let index = 0; index < a.length; index += 1) sum += Math.abs(a[index] - b[index]);
+  return sum / a.length;
+}
+
+/**
+ * Rec. 601 luma of an RGBA buffer, cropped to `rect` and sampled every
+ * `step` pixels in both directions (enough to see a flash, cheap to compare).
+ */
+export function lumaOf(rgba, width, rect, step = 2) {
+  const x0 = Math.max(0, Math.floor(rect.x));
+  const y0 = Math.max(0, Math.floor(rect.y));
+  const x1 = Math.min(width, Math.floor(rect.x + rect.width));
+  const height = Math.floor(rgba.length / 4 / width);
+  const y1 = Math.min(height, Math.floor(rect.y + rect.height));
+  const out = [];
+  for (let y = y0; y < y1; y += step) {
+    for (let x = x0; x < x1; x += step) {
+      const at = (y * width + x) * 4;
+      out.push(0.299 * rgba[at] + 0.587 * rgba[at + 1] + 0.114 * rgba[at + 2]);
+    }
+  }
+  return Float32Array.from(out);
+}
+
+export const DEFAULT_THRESHOLDS = Object.freeze({
+  /** Above this a frame is not on the way from start to end. */
+  excess: 1.6,
+  /** Two frames closer than this (mean luma) are the same picture. */
+  same: 1.5,
+  /** Floor for d(start, end), so similar screens still expose a flash. */
+  floor: 6
+});
+
+/**
+ * @param {{ start: Float32Array, end: Float32Array, frames: Array<{ at: number, luma: Float32Array }> }} input
+ *   `at` is milliseconds after the trigger.
+ */
+export function analyzeTransition({ start, end, frames }, thresholds = DEFAULT_THRESHOLDS) {
+  const direct = Math.max(distance(start, end), thresholds.floor);
+  /** @type {{ excess: number, at: number | null, index: number }} */
+  let worst = { excess: 1, at: null, index: -1 };
+  const perFrame = frames.map((frame, index) => {
+    const excess = (distance(start, frame.luma) + distance(frame.luma, end)) / direct;
+    if (excess > worst.excess) worst = { excess, at: frame.at, index };
+    return { at: frame.at, excess, toEnd: distance(frame.luma, end) };
+  });
+  let settledAt = 0;
+  for (let index = perFrame.length - 1; index >= 0; index -= 1) {
+    if (perFrame[index].toEnd > thresholds.same) {
+      settledAt = index + 1 < perFrame.length ? perFrame[index + 1].at : perFrame[index].at;
+      break;
+    }
+  }
+  return {
+    frames: frames.length,
+    direct: Math.round(direct * 100) / 100,
+    worstExcess: Math.round(worst.excess * 100) / 100,
+    worstAt: worst.at,
+    worstIndex: worst.index,
+    settledMs: settledAt,
+    dipped: worst.excess > thresholds.excess
+  };
+}

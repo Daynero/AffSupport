@@ -29,6 +29,7 @@ import {
   formatAudit,
   formatCompressor,
   formatConnection,
+  formatNavigation,
   formatEvents,
   formatFunnel,
   formatCohorts,
@@ -62,6 +63,7 @@ import {
   getErrors,
   getFeatures,
   getThemeUsage,
+  getNavigation,
   getFriction,
   getInspect,
   getJourney,
@@ -130,6 +132,7 @@ Commands:
   friction            Sessions where users became stuck
   features            Feature discovery and use
   themes              Users by latest observed light/dark theme
+  navigation          Route-change smoothness: motion, skeletons, layout shift, stalls (058)
   journey <email>     Ordered diagnostic timeline for one user (--period, default 30d)
   run <uuid>          Timeline for one operation
   inspect <id>        One attempt across every tool: stages, terminal, lag (flow/run/attempt id)
@@ -436,6 +439,14 @@ export async function executeCommand(
       const [features, delivery_lag_ms] = await Promise.all([getFeatures(period), lag()]);
       const full = { features, unsupported: featureUnsupportedSignals(), delivery_lag_ms };
       return done(full, formatFeatures(full, period));
+    }
+    case 'navigation': {
+      const [data, delivery_lag_ms] = await Promise.all([
+        getNavigation(period, args.limit ?? 10),
+        lag()
+      ]);
+      const full = { ...data, delivery_lag_ms };
+      return done(full, formatNavigation(full, period));
     }
     case 'themes': {
       const [usage, delivery_lag_ms] = await Promise.all([getThemeUsage(period), lag()]);
