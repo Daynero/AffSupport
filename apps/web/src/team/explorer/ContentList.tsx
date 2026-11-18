@@ -189,9 +189,7 @@ export function ContentList({
               companionsOpen={openedCompanions?.has(row.id) ?? false}
               onToggleCompanions={onToggleCompanions}
               nested={Boolean(companionOf(row))}
-              rank={
-                ranks?.known && row.kind === 'video' ? (ranks.ranks.get(row.id) ?? null) : null
-              }
+              rank={ranks?.known && row.kind === 'video' ? (ranks.ranks.get(row.id) ?? null) : null}
               rankNow={ranks?.now ?? 0}
             />
           ))}

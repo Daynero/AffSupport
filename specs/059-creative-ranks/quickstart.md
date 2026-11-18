@@ -7,6 +7,7 @@ single-worker. Міграцію на бету — через psql + запис �
 ## 1. SQL (pgTAP)
 
 `supabase/tests/database/creative-ranks.test.sql` доводить:
+
 - перший `succeeded` Launch → +1; другий успіх того самого Launch → 0; `failed`/`canceled` → 0;
 - 4 Launch пачкою → +4;
 - каталог напряму → +1; каталог Launch-а + успіх Launch → +1 (обидва порядки подій);
@@ -14,7 +15,7 @@ single-worker. Міграцію на бету — через psql + запис �
 - бекфіл двічі → ті самі числа;
 - `demote` від не-owner → 42501; не нижче → PT409; стара версія → PT409; повтор ключа → той самий стан;
 - `list_creative_ranks` чужого простору → 42501;
-- `analytics_properties_are_safe_v2` пропускає нові ключі й відхиляє чужі.
+- (guard аналітики не змінюється: події користуються наявними ключами)
 
 ## 2. Unit (vitest, single-worker)
 

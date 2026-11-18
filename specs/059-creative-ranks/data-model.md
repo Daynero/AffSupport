@@ -6,18 +6,18 @@
 
 ## `public.team_creative_launch_events` — журнал (append-only)
 
-| Колонка | Тип | Примітка |
-|---|---|---|
-| `id` | bigint identity PK | |
-| `team_id` | uuid not null → teams on delete cascade | |
-| `material_id` | uuid not null | креатив (відео). Без FK на `team_materials`: журнал переживає жорстке видалення матеріалу |
-| `source_kind` | text not null | `launch` або `catalog`; бекфіл позначається окремо `backfilled` |
-| `source_id` | uuid not null | launch id або catalog material id |
-| `occurred_at` | timestamptz not null | час успіху / створення каталогу |
-| `counted` | boolean not null | чи дала подія +1 у проєкцію |
-| `absorbed_by_launch_id` | uuid null | каталог, поглинутий Launch-ом (R3) |
-| `backfilled` | boolean not null default false | подія з бекфілу (R5) |
-| `created_at` | timestamptz default now() | |
+| Колонка                 | Тип                                     | Примітка                                                                                  |
+| ----------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `id`                    | bigint identity PK                      |                                                                                           |
+| `team_id`               | uuid not null → teams on delete cascade |                                                                                           |
+| `material_id`           | uuid not null                           | креатив (відео). Без FK на `team_materials`: журнал переживає жорстке видалення матеріалу |
+| `source_kind`           | text not null                           | `launch` або `catalog`; бекфіл позначається окремо `backfilled`                           |
+| `source_id`             | uuid not null                           | launch id або catalog material id                                                         |
+| `occurred_at`           | timestamptz not null                    | час успіху / створення каталогу                                                           |
+| `counted`               | boolean not null                        | чи дала подія +1 у проєкцію                                                               |
+| `absorbed_by_launch_id` | uuid null                               | каталог, поглинутий Launch-ом (R3)                                                        |
+| `backfilled`            | boolean not null default false          | подія з бекфілу (R5)                                                                      |
+| `created_at`            | timestamptz default now()               |                                                                                           |
 
 Обмеження: `unique (team_id, source_kind, source_id)`; `check (source_kind in ('launch','catalog'))`;
 `check (absorbed_by_launch_id is null or source_kind = 'catalog')`.
@@ -27,18 +27,18 @@
 
 ## `public.team_creative_ranks` — проєкція
 
-| Колонка | Тип | Примітка |
-|---|---|---|
-| `team_id`, `material_id` | uuid, PK разом | |
-| `launch_count` | integer not null default 0, ≥ 0 | лише зростає |
-| `rank_credit` | integer not null default 0, ≥ 0 | рахунок ліги; зростає з `counted`-подіями, падає лише пониженням |
-| `last_launched_at` | timestamptz null | max(occurred_at) усіх подій, включно з поглинутими |
-| `demoted_at` | timestamptz null | |
-| `demoted_by` | uuid null → auth.users on delete set null | |
-| `demote_reason` | text null check in (`disappointed`, `never_launched`) | |
-| `demote_request_key` | text null | ідемпотентність останнього пониження |
-| `version` | bigint not null default 1 | CAS для пониження, +1 на кожну зміну |
-| `updated_at` | timestamptz not null default now() | |
+| Колонка                  | Тип                                                   | Примітка                                                         |
+| ------------------------ | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `team_id`, `material_id` | uuid, PK разом                                        |                                                                  |
+| `launch_count`           | integer not null default 0, ≥ 0                       | лише зростає                                                     |
+| `rank_credit`            | integer not null default 0, ≥ 0                       | рахунок ліги; зростає з `counted`-подіями, падає лише пониженням |
+| `last_launched_at`       | timestamptz null                                      | max(occurred_at) усіх подій, включно з поглинутими               |
+| `demoted_at`             | timestamptz null                                      |                                                                  |
+| `demoted_by`             | uuid null → auth.users on delete set null             |                                                                  |
+| `demote_reason`          | text null check in (`disappointed`, `never_launched`) |                                                                  |
+| `demote_request_key`     | text null                                             | ідемпотентність останнього пониження                             |
+| `version`                | bigint not null default 1                             | CAS для пониження, +1 на кожну зміну                             |
+| `updated_at`             | timestamptz not null default now()                    |                                                                  |
 
 Доступ: RLS on, `revoke all`; читання — RPC `list_creative_ranks`; запис — лише тригери й RPC пониження.
 

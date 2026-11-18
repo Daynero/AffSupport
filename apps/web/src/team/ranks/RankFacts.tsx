@@ -2,7 +2,11 @@ import { useI18n } from '../../i18n';
 import { daysSince, type CreativeRank } from './creativeRanks';
 
 /** "2 days ago", "3 months ago" — short, in the reader's language; today reads as today. */
-export function launchedAgo(lastLaunchedAt: string | null, language: string, now: number): string | null {
+export function launchedAgo(
+  lastLaunchedAt: string | null,
+  language: string,
+  now: number
+): string | null {
   const days = daysSince(lastLaunchedAt, now);
   if (days === null) return null;
   const format = new Intl.RelativeTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
@@ -27,7 +31,9 @@ export function rankFactsText(
   if (rank.launchCount === 0) return t('creativeRankNever');
   const count = rank.launchCount > COUNT_CAP ? `${COUNT_CAP}+` : String(rank.launchCount);
   const ago = launchedAgo(rank.lastLaunchedAt, language, now);
-  return ago ? `${t('creativeRankLaunches', { count })} · ${ago}` : t('creativeRankLaunches', { count });
+  return ago
+    ? `${t('creativeRankLaunches', { count })} · ${ago}`
+    : t('creativeRankLaunches', { count });
 }
 
 /**

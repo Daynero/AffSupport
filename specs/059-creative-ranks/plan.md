@@ -20,7 +20,7 @@
 
 **Primary Dependencies**: React 19 + HeroUI v3 design system (`apps/web/src/components/ui`), Supabase JS, realtime через `team_catalog_events`
 
-**Storage**: дві нові таблиці (журнал, проєкція), переозначення `team_catalog_events_kind_check` і `analytics_properties_are_safe_v2`
+**Storage**: дві нові таблиці (журнал, проєкція), переозначення `team_catalog_events_kind_check`
 
 **Testing**: pgTAP (`supabase/tests/database/creative-ranks.test.sql`), vitest single-worker (`tests/*.test.ts(x)`), ручний смок на беті через Playwright-драйвер
 
@@ -36,15 +36,15 @@
 
 ## Constitution Check
 
-| Принцип | Як дотримано |
-|---|---|
-| I. Type-safe contracts | Відповіді RPC — `unknown` → `parseCreativeRankList` з discriminated result; стани ліг/свіжості — string-literal unions |
-| II. Release contract | `release.ts`, `packages/shared`, агент не змінюються; міграція адитивна; веб-деплой швидким шляхом next |
-| III. Least privilege | RLS + `revoke all` на обох таблицях; лише security-definer RPC з `search_path=''`; owner через `private.team_role`; analytics RO — лише `select`; ключі аналітики — закритий перелік у guard |
-| IV. Child processes | Не зачіпається (лише одноразова конвертація асетів `cwebp` під час розробки) |
-| V. HTTP/errors | Коди `PERMISSION_DENIED`/42501, `RANK_CONFLICT`/`RANK_NOT_LOWER`/PT409, `INVALID_INPUT`/22023 |
-| VI. Frontend composition | Компоненти з `components/ui`, токени з `tokens.css`, слот у `MaterialDetail`, пакетне читання за зразком restitch prep |
-| Gates | pgTAP + vitest локально single-worker; `npm run verify` лише коли машина вільна |
+| Принцип                  | Як дотримано                                                                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Type-safe contracts   | Відповіді RPC — `unknown` → `parseCreativeRankList` з discriminated result; стани ліг/свіжості — string-literal unions                                                                       |
+| II. Release contract     | `release.ts`, `packages/shared`, агент не змінюються; міграція адитивна; веб-деплой швидким шляхом next                                                                                      |
+| III. Least privilege     | RLS + `revoke all` на обох таблицях; лише security-definer RPC з `search_path=''`; owner через `private.team_role`; analytics RO — лише `select`; ключі аналітики — закритий перелік у guard |
+| IV. Child processes      | Не зачіпається (лише одноразова конвертація асетів `cwebp` під час розробки)                                                                                                                 |
+| V. HTTP/errors           | Коди `PERMISSION_DENIED`/42501, `RANK_CONFLICT`/`RANK_NOT_LOWER`/PT409, `INVALID_INPUT`/22023                                                                                                |
+| VI. Frontend composition | Компоненти з `components/ui`, токени з `tokens.css`, слот у `MaterialDetail`, пакетне читання за зразком restitch prep                                                                       |
+| Gates                    | pgTAP + vitest локально single-worker; `npm run verify` лише коли машина вільна                                                                                                              |
 
 Порушень немає; Complexity Tracking порожній.
 
@@ -63,10 +63,8 @@ specs/059-creative-ranks/
 ### Source Code
 
 ```text
-supabase/migrations/<next>_creative_ranks.sql                  # таблиці, тригери, RPC, бекфіл, realtime kind
-supabase/migrations/<next+1>_creative_rank_analytics_guard.sql
+supabase/migrations/20261218200000_creative_ranks.sql                 # таблиці, тригери, RPC, бекфіл, realtime kind
 supabase/tests/database/creative-ranks.test.sql
-supabase/tests/database/analytics-guard-contract.test.sql      # нові ключі
 
 apps/web/public/creative-ranks/*.webp                          # 30 файлів (готові)
 apps/web/src/team/ranks/
@@ -81,7 +79,7 @@ apps/web/src/team/explorer/ExplorerShell.tsx, ContentGrid.tsx, ContentList.tsx, 
 apps/web/src/team/materials/MaterialDetail.tsx  # слот rank
 apps/web/src/styles/tokens.css, styles.css      # розміри емблеми, позиція
 apps/web/src/locales/*                          # тексти uk/en
-apps/web/src/analytics/events.ts, guard-contract.ts
+apps/web/src/analytics/events.ts               # три події, наявні ключі
 apps/web/src/lib/database.types.ts              # нові RPC
 scripts/analytics/coverage-registry.ts, scripts/analytics/creative-ranks.ts, cli.ts
 tests/creative-ranks.test.ts, tests/creative-rank-ui.test.tsx
@@ -95,7 +93,7 @@ tests/creative-ranks.test.ts, tests/creative-rank-ui.test.tsx
 2. **Веб-ядро** — константи/парсер/API/realtime-домен + unit-тести.
 3. **US1** — плитка й список (емблема, факти), пакетне читання.
 4. **US3** — детальний перегляд і пониження.
-5. **Аналітика** — події, guard-міграція, coverage registry, CLI `creative-rank`.
+5. **Аналітика** — події (наявні ключі, без guard-міграції), coverage registry, CLI `creative-rank`.
 6. **Перевірка** — смок на беті за quickstart, фікси, `npm run verify` коли машина вільна, коміт і пуш гілки.
    Деплой на next — окремим рішенням власника.
 

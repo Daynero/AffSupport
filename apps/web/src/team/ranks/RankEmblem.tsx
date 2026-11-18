@@ -1,10 +1,6 @@
 import { useI18n } from '../../i18n';
 import type { TranslationKey } from '../../i18n';
-import {
-  emblemSrc,
-  type CreativeRankFreshness,
-  type CreativeRankLeague
-} from './creativeRanks';
+import { emblemSrc, type CreativeRankFreshness, type CreativeRankLeague } from './creativeRanks';
 
 export const LEAGUE_LABEL: Record<CreativeRankLeague, TranslationKey> = {
   wax: 'creativeRankLeagueWax',

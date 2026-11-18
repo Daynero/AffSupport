@@ -94,7 +94,13 @@ describe('a tile', () => {
 
   it('gathers cobwebs on the emblem, never on the text', () => {
     grid(
-      { ranks: new Map([['v1', rank({ rankCredit: 6, launchCount: 6, lastLaunchedAt: daysAgo(70) })]]), known: true, now: NOW },
+      {
+        ranks: new Map([
+          ['v1', rank({ rankCredit: 6, launchCount: 6, lastLaunchedAt: daysAgo(70) })]
+        ]),
+        known: true,
+        now: NOW
+      },
       [row('v1', 'clip.mp4')]
     );
     expect(screen.getByRole('img', { name: 'Rank: Silver, in cobwebs' })).toBeTruthy();
@@ -121,7 +127,10 @@ describe('the card', () => {
         materialId="v1"
         isOwner
         ranksRevision={0}
-        client={{ listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])), demoteCreativeRank }}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])),
+          demoteCreativeRank
+        }}
       />
     );
     expect(await screen.findByText('Gold')).toBeTruthy();
@@ -142,7 +151,10 @@ describe('the card', () => {
         materialId="v1"
         isOwner={false}
         ranksRevision={0}
-        client={{ listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])), demoteCreativeRank: vi.fn() }}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])),
+          demoteCreativeRank: vi.fn()
+        }}
       />
     );
     expect(await screen.findByText('Gold')).toBeTruthy();

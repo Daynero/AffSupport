@@ -5,11 +5,7 @@ type AnalyticsTracker = Pick<typeof analytics, 'track'>;
 
 /** What the server said about a demotion, in the closed words the CLI reads back. */
 export type CreativeRankDemoteResult =
-  | 'applied'
-  | 'rank_conflict'
-  | 'rank_not_lower'
-  | 'permission_denied'
-  | 'failed';
+  'applied' | 'rank_conflict' | 'rank_not_lower' | 'permission_denied' | 'failed';
 
 /** Analytics tokens allow `[a-z0-9._:-]`, never `_`: `never_launched` travels as `never-launched`. */
 const token = (value: string) => value.replaceAll('_', '-');

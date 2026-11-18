@@ -75,7 +75,8 @@ export function demotionTarget(
 ): { league: CreativeRankLeague; credit: number } | null {
   const index = CREATIVE_RANK_LEAGUE_IDS.indexOf(leagueOf(credit));
   if (index <= 0) return null;
-  const target = reason === 'never_launched' ? CREATIVE_RANK_LEAGUES[0] : CREATIVE_RANK_LEAGUES[index - 1];
+  const target =
+    reason === 'never_launched' ? CREATIVE_RANK_LEAGUES[0] : CREATIVE_RANK_LEAGUES[index - 1];
   return { league: target.id, credit: target.min };
 }
 
@@ -91,7 +92,14 @@ export function emblemSrc(
 
 /** A video with no rank row has never been launched. */
 export function emptyRank(materialId: string): CreativeRank {
-  return { materialId, launchCount: 0, rankCredit: 0, lastLaunchedAt: null, version: 0, demotion: null };
+  return {
+    materialId,
+    launchCount: 0,
+    rankCredit: 0,
+    lastLaunchedAt: null,
+    version: 0,
+    demotion: null
+  };
 }
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -124,7 +132,14 @@ export function parseCreativeRank(value: unknown): ParseResult<CreativeRank> {
   }
   return {
     ok: true,
-    value: { materialId, launchCount, rankCredit, lastLaunchedAt, version, demotion: parsedDemotion }
+    value: {
+      materialId,
+      launchCount,
+      rankCredit,
+      lastLaunchedAt,
+      version,
+      demotion: parsedDemotion
+    }
   };
 }
 

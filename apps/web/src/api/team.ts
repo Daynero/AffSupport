@@ -6491,7 +6491,10 @@ export const teamApi = {
    * 059 — the ranks of the given videos, one read per explorer page. A video without a row has
    * never been launched; it is simply absent from the map.
    */
-  async listCreativeRanks(teamId: string, materialIds: string[]): Promise<Map<string, CreativeRank>> {
+  async listCreativeRanks(
+    teamId: string,
+    materialIds: string[]
+  ): Promise<Map<string, CreativeRank>> {
     const found = new Map<string, CreativeRank>();
     const ids = [...new Set(materialIds)];
     if (!ids.length) return found;

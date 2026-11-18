@@ -32,6 +32,7 @@
 ## R3. Дедуплікація «каталог із Launch»
 
 **Decision**: симетричне поглинання, незалежне від порядку подій.
+
 - Подія `launch`: якщо ревізія має `team_launch_revision_catalogs.catalog_id = C`, і подія
   `('catalog', C)` існує й ще не поглинута — позначити її `absorbed_by_launch_id`, а сама подія
   `launch` проєкцію **не** збільшує (лише оновлює `last_launched_at`).
@@ -61,6 +62,7 @@
 ## R5. Бекфіл
 
 **Decision**: у тій самій міграції після створення тригерів:
+
 1. подія `launch` на кожен Launch з хоча б однією `succeeded` генерацією; `occurred_at` = `updated_at`
    найпершої такої генерації; креатив — з її ревізії;
 2. подія `catalog` на кожен рядок `team_product_catalogs` (`occurred_at` = `created_at`);
@@ -79,6 +81,7 @@
 ## R7. Плитки і детальний перегляд
 
 **Decision**:
+
 - Ранги читаються пачкою на сторінку провідника за зразком `getMaterialRestitchPrep`
   (`ExplorerShell.tsx:645–679`): один виклик `teamApi.listCreativeRanks(teamId, videoIds)` на
   `[teamId, page.rows, ranksRevision]`, результат — `Map`, що йде в `ContentGrid`/`ContentList`.
@@ -115,12 +118,15 @@
 ## R10. Аналітика і діагностика
 
 **Decision**:
+
 - Веб-події в `apps/web/src/analytics/events.ts` (не в `packages/shared`, щоб лишитись на швидкому шляху веб + бекенд): `creative_rank_demote_started`
   (reason, from_league, to_league, flow id) і `creative_rank_demote_finished` (+ outcome
   `applied|rejected_role|rejected_not_lower|conflict|failed`), `creative_rank_read_failed`
   (tile_count). Seam `team/ranks/analytics.ts` за зразком `team/launches/analytics.ts`.
-- Нові ключі/енуми → міграція з `create or replace public.analytics_properties_are_safe_v2`
-  (повне тіло з останньої версії `20261207092000_…`) + `guard-contract.ts` + pgTAP.
+- Нових ключів немає: події несуть наявні `flow_id`, `feature_identifier`, `action_identifier`,
+  `source_kind`, `input_method`, `outcome`, `error_code`, `item_count` (значення-токени без `_`).
+  Тож `analytics_properties_are_safe_v2` не переозначається — і не конфліктує з 058, яка
+  переозначає його у `20261218100000_navigation_analytics_guard.sql`.
 - `coverage-registry.ts`: capability `creative_rank_demote` (start → terminal) і
   `creative_rank_credit` (фонова, доказ — журнал).
 - CLI: `npm run analytics -- creative-rank --team <id> --material <id>` читає журнал і проєкцію через

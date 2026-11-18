@@ -13,12 +13,7 @@ import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { RankFacts } from '../ranks/RankFacts';
-import {
-  emptyRank,
-  freshnessOf,
-  leagueOf,
-  type CreativeRank
-} from '../ranks/creativeRanks';
+import { emptyRank, freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';

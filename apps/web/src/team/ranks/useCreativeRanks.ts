@@ -29,7 +29,11 @@ export function useCreativeRanks(
   client: CreativeRanksClient = teamApi
 ): CreativeRanksState {
   const key = useMemo(() => [...new Set(videoIds)].sort().join(','), [videoIds]);
-  const [state, setState] = useState<CreativeRanksState>(() => ({ ranks: EMPTY, known: false, now: Date.now() }));
+  const [state, setState] = useState<CreativeRanksState>(() => ({
+    ranks: EMPTY,
+    known: false,
+    now: Date.now()
+  }));
 
   useEffect(() => {
     const ids = key ? key.split(',') : [];

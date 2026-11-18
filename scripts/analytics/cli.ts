@@ -5,6 +5,7 @@ import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidenc
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
 import { getCatalogVideoR2Diagnosis } from './catalog-video-r2.js';
+import { getCreativeRankDiagnosis } from './creative-ranks.js';
 /**
  * Soty analytics CLI — argument parsing and command dispatch, kept apart from
  * the process entry (`index.ts`) so tests can run a command end to end against
@@ -142,6 +143,7 @@ Commands:
   global-images [--image UUID] [--at-least N] [--sort id|uses] [--cleanup]  Global image status
   catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
   catalog-video-r2 <team-id|catalog-id|copy-id>  Catalog video copies to R2: stages, proof limits, reasons, cleanup
+  creative-rank <material-id|launch-id|catalog-id|team-id>  Why a creative has its launch count and league (059)
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
   catalog team <team-id>  Recent catalog attempts and video preparation in one space
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
@@ -540,6 +542,11 @@ export async function executeCommand(
         limit: args.limit,
         cursor: args.cursor
       });
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'creative-rank': {
+      const id = requireArg(args, 0, 'creative-rank <material-id|launch-id|catalog-id|team-id>');
+      const data = await getCreativeRankDiagnosis(id);
       return done(data, JSON.stringify(data, null, 2));
     }
     case 'global-images': {
