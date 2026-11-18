@@ -3888,7 +3888,7 @@ body:has(.public-home) {
   padding: var(--space-4);
   background: var(--overlay-backdrop);
   backdrop-filter: blur(5px);
-  animation: fade-in var(--dur-section) var(--ease-enter);
+  animation: fade-in var(--dur-section) var(--ease-soft-out);
 }
 
 .modal-backdrop-nested {
@@ -3919,7 +3919,8 @@ body:has(.public-home) {
   border-radius: var(--radius-xl);
   background: var(--color-surface);
   box-shadow: var(--shadow-xl);
-  animation: modal-rise var(--dur-layout) var(--ease-enter);
+  /* The soft curve (058): on the steep one a dialog this size was there in three frames. */
+  animation: modal-rise var(--dur-layout) var(--ease-soft-out);
 }
 
 /* The same fit guarantees for every other dialog surface. Matching the role
@@ -6679,13 +6680,28 @@ body:has(.public-home) {
   animation-timing-function: var(--ease-in-out-curve);
 }
 ::view-transition-old(wishly-page) {
-  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
+  animation: wishly-page-out var(--motion-slow) var(--ease-in-out-curve) both;
 }
 ::view-transition-new(wishly-page) {
   animation: wishly-page-in var(--motion-slow) var(--ease-in-out-curve) both;
 }
+/* Pages fade *through* (058, second pass): the one leaving is gone in the
+   first two fifths, the one arriving starts a moment before that ends. Two
+   pages have nothing in common but the shell, and a plain crossfade showed
+   both at half strength on top of each other for a third of the move — the
+   overlap this feature exists to remove. Between them the shell's own ground
+   is seen for a few frames; it is the same before and after, so nothing
+   blinks. Sections keep the plain crossfade: they share a panel, and where
+   both are opaque nothing shows through. */
+@keyframes wishly-page-out {
+  40%,
+  to {
+    opacity: 0;
+  }
+}
 @keyframes wishly-page-in {
-  from {
+  from,
+  30% {
     opacity: 0;
     transform: translateY(4px);
   }
@@ -6771,36 +6787,41 @@ body:has(.public-home) {
     transform: translateX(-18px);
   }
 }
+/* No scale on a page: it is scaled about the middle of a box that can be
+   several screens tall, which moved its top by tens of pixels — the space was
+   seen being resized on the way out (owner, beta). Travel is by distance. */
 @keyframes wishly-out-away {
+  40%,
   to {
     opacity: 0;
-    transform: scale(0.985);
   }
 }
 @keyframes wishly-in-rise {
-  from {
+  from,
+  30% {
     opacity: 0;
     transform: translateY(14px);
   }
 }
 @keyframes wishly-out-sink {
+  40%,
   to {
     opacity: 0;
     transform: translateY(14px);
   }
 }
 @keyframes wishly-in-near {
-  from {
+  from,
+  30% {
     opacity: 0;
-    transform: scale(0.985);
   }
 }
 
-/* The hero (058): the card that was pressed becomes the screen it opens, and
-   on the way back the screen folds into its card. One group carries both; it
-   is clipped to a card's corners so the growing screen stays inside a surface
-   the whole way. The old picture leaves early — stretched, it is only a hint
-   of where the motion began. */
+/* The hero (058): a tool's card on the launcher becomes the tool's screen. One
+   group carries both; it is clipped to a card's corners so the growing screen
+   stays inside a surface the whole way. The old picture leaves early —
+   stretched, it is only a hint of where the motion began. There is no way
+   back through it: a screen folding into its card read as being resized. */
 ::view-transition-group(wishly-hero) {
   animation-duration: var(--motion-spring);
   animation-timing-function: var(--ease-spring);
@@ -6813,16 +6834,6 @@ body:has(.public-home) {
 ::view-transition-new(wishly-hero) {
   animation: ui-content-enter var(--motion-base) var(--ease-out-curve) both;
 }
-/* Folding back: the screen is seen shrinking into its card, and the card only
-   shows once the group is nearly its size — at the start it would be the card
-   blown up to a whole page. */
-:root[data-nav-dir='back']::view-transition-old(wishly-hero) {
-  animation: wishly-route-out var(--motion-slow) var(--ease-in-out-curve) both;
-}
-:root[data-nav-dir='back']::view-transition-new(wishly-hero) {
-  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) var(--motion-base) both;
-}
-
 /* The frame around the moving content. The root (honeycomb, canvas) and the
    topbar are the same before and after, so they do not crossfade: the old
    picture is dropped and the live page shows through at once. The topbar's

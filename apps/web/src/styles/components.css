@@ -2650,7 +2650,7 @@
   place-items: center;
   padding: var(--space-4);
   background: var(--color-overlay-backdrop);
-  animation: ui-fade-in var(--motion-base) var(--ease-out-curve);
+  animation: ui-fade-in var(--motion-base) var(--ease-soft-out);
 }
 .ui-overlay.is-nested {
   z-index: var(--layer-modal-nested);
@@ -2715,7 +2715,7 @@
   background: var(--color-neutral-surface-raised);
   box-shadow: var(--shadow-lg);
   /* From 0.95, never from nothing (docs/DESIGN-PRINCIPLES.md). */
-  animation: ui-surface-in var(--motion-base) var(--ease-out-curve);
+  animation: ui-surface-in var(--motion-base) var(--ease-soft-out);
 }
 .ui-modal--xs {
   --ui-modal-width: 380px;
@@ -5073,4 +5073,9 @@
   .ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
     animation: none;
   }
+}
+
+/* The launch editor's stand-in, the editor's own height (DeferredLaunchEditor). */
+.launch-editor-loading .ui-skeleton {
+  height: 62dvh;
 }

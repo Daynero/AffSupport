@@ -37,6 +37,8 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const VIEWPORT = { width: 1440, height: 900 };
 const BUDGET_MS = { page: 900, section: 700, overlay: 700, pop: 900 };
 const SHIFT_MAX = 0.05;
+/** How long a page move may show the shell's bare ground between the two pages. */
+const FADE_THROUGH_MAX_MS = 180;
 /** Two display frames; a longer silence before a frame is the recorder's, not the page's. */
 const RECORDER_GAP_MS = 40;
 /** Fewer frames than this over the whole recording: the recorder was starved, judge by eye. */
@@ -247,12 +249,18 @@ async function record(page, cdp, out, transition, backgroundShot) {
     worstIndex: moving.worstIndex >= 0 ? usable.indexOf(windowed[moving.worstIndex]) : -1,
     backgroundRatio: moving.backgroundRatio,
     flashed: moving.flashed,
+    bareMs: moving.bareMs,
     dipped: moving.dipped
   };
   const budget = BUDGET_MS[transition.kind];
   const failures = [];
   const warnings = [];
-  if (result.flashed)
+  // Pages fade through the shell's ground on purpose (styles.css): a few frames of it are
+  // the move, a longer stay is the flash.
+  const fadesThrough = transition.kind === 'page' || transition.kind === 'pop';
+  if (result.flashed && fadesThrough && result.bareMs <= FADE_THROUGH_MAX_MS) {
+    // The intended dip.
+  } else if (result.flashed)
     failures.push(
       `frame ${result.worstAt}ms shows the bare background (ratio ${result.backgroundRatio})`
     );

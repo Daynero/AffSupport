@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { taskDeleteTitleKey, useI18n } from '../../i18n';
+import { crossfadeLayout } from '../../lib/navigation';
 import { Empty, Input, Reveal, Switch } from '../../components/ui/index';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
@@ -565,17 +566,21 @@ export function TaskSpace({
         query={tasks.query}
         onQueryChange={tasks.setQuery}
         date={tasks.filter}
-        onDateChange={tasks.setFilter}
+        /* A filter, a scope or a sort is one move (058): the board that was there stays
+           until the one that answers is ready, and the two crossfade — it used to cut to
+           the new cards in a single frame. Typing in the search is not held: letters must
+           land as they are typed. */
+        onDateChange={next => crossfadeLayout(() => tasks.setFilter(next), true)}
         status={tasks.statusFilter}
-        onStatusChange={tasks.setStatusFilter}
+        onStatusChange={next => crossfadeLayout(() => tasks.setStatusFilter(next), true)}
         accounts={accounts}
         scope={scope}
-        onScopeChange={setScope}
+        onScopeChange={next => crossfadeLayout(() => setScope(next), true)}
         labels={labels.labels}
         labelIds={tasks.labelIds}
-        onLabelIdsChange={tasks.setLabelIds}
+        onLabelIdsChange={next => crossfadeLayout(() => tasks.setLabelIds(next), true)}
         sort={tasks.sort}
-        onSortChange={tasks.setSort}
+        onSortChange={next => crossfadeLayout(() => tasks.setSort(next), true)}
         /* The eye and "Unfold all" lived in the heading beside the title — an icon nobody could
            name and a button that looked like an action on the board (024). They are how the
            cards are drawn, so they sit with the order, as Linear's Display does. */

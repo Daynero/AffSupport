@@ -100,6 +100,7 @@ export function analyzeTransition(
   });
   /** @type {{ ratio: number, at: number | null, index: number }} */
   let bare = { ratio: Infinity, at: null, index: -1 };
+  let bareMs = 0;
   if (background) {
     const reference = Math.max(
       Math.min(distance(start, background), distance(end, background)),
@@ -108,6 +109,12 @@ export function analyzeTransition(
     frames.forEach((frame, index) => {
       const ratio = distance(frame.luma, background) / reference;
       if (ratio < bare.ratio) bare = { ratio, at: frame.at, index };
+      // How long the canvas stood bare: each such frame counts until the next one, capped —
+      // a gap in the recording is not time the screen was seen empty.
+      if (ratio < thresholds.background) {
+        const next = frames[index + 1];
+        bareMs += Math.min(next ? next.at - frame.at : 16, 50);
+      }
     });
   }
   const flashed = bare.ratio < thresholds.background;
@@ -140,6 +147,8 @@ export function analyzeTransition(
     worstIndex: flashed ? bare.index : worst.index,
     backgroundRatio: Number.isFinite(bare.ratio) ? Math.round(bare.ratio * 100) / 100 : null,
     flashed,
+    /** For how long, in all, a frame was closer to the bare canvas than to either screen. */
+    bareMs,
     settledMs: settledAt,
     dipped: flashed || worst.excess > thresholds.excess,
     largestStep: Math.round(largest.step * 100) / 100,

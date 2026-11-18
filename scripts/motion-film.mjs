@@ -59,8 +59,8 @@ const cdp = await context.newCDPSession(page);
 await signIn(page, base, supabaseEnv(), args.email ?? 'beta@soty.local');
 await page.goto(`${base}/team/${args.space}`);
 await page.waitForTimeout(4000);
-for (const step of steps) {
-  const dir = path.join(out, String(steps.indexOf(step)).padStart(2, '0'));
+for (const [stepIndex, step] of steps.entries()) {
+  const dir = path.join(out, String(stepIndex).padStart(2, '0'));
   mkdirSync(dir, { recursive: true });
   /** @type {Array<{ wall: number, buffer: Buffer }>} */
   const frames = [];
@@ -80,19 +80,28 @@ for (const step of steps) {
     /** @type {any} */ (window).__vt = [];
     return performance.now();
   });
-  if (step === 'idle') {
-    // Nothing pressed: whatever moves is the page updating itself.
-  } else if (step.startsWith('dbl:')) {
-    await page.locator(step.slice(4)).first().dblclick();
-  } else if (step.startsWith('key:')) {
-    await page.keyboard.press(step.slice(4));
-  } else if (step.startsWith('click:')) {
-    await page.locator(step.slice(6)).first().click();
-  } else if (step === 'back') {
-    await page.goBack();
-  } else if (step.startsWith('/'))
-    await page.evaluate(p => /** @type {any} */ (window).__sotyNavigate?.(p), step);
-  else await page.locator('a.ui-tab').nth(TAB[step]).click();
+  try {
+    if (step === 'idle') {
+      // Nothing pressed: whatever moves is the page updating itself.
+    } else if (step.startsWith('dbl:')) {
+      await page.locator(step.slice(4)).first().dblclick({ timeout: 3000 });
+    } else if (step.startsWith('key:')) {
+      await page.keyboard.press(step.slice(4));
+    } else if (step.startsWith('click:')) {
+      await page.locator(step.slice(6)).first().click({ timeout: 3000 });
+    } else if (step === 'back') {
+      await page.goBack();
+    } else if (step.startsWith('/'))
+      await page.evaluate(p => /** @type {any} */ (window).__sotyNavigate?.(p), step);
+    else await page.locator('.team-space-tabs a.ui-tab').nth(TAB[step]).click({ timeout: 3000 });
+  } catch (error) {
+    await cdp.send('Page.stopScreencast');
+    cdp.off('Page.screencastFrame', onFrame);
+    console.log(
+      `SKIP  ${String(stepIndex).padStart(2, '0')} ${step} — ${String(error).split('\n')[0]}`
+    );
+    continue;
+  }
   await page.waitForTimeout(Number(args.ms ?? 2500));
   await cdp.send('Page.stopScreencast');
   cdp.off('Page.screencastFrame', onFrame);
@@ -119,11 +128,33 @@ for (const step of steps) {
     );
   }, perf0);
   const total = rows.reduce((sum, row) => sum + row.step, 0);
-  const big = rows.filter(row => row.step > 1).map(row => `${row.index}@${row.at}ms:${row.step}`);
+  // Bursts: runs of visible change with a pause between them. One burst spread over many
+  // frames is a transition; one frame carrying most of the change is a cut; two bursts are
+  // a screen that changed, and then changed again.
+  /** @type {Array<{ from: number, to: number, sum: number, peak: number, frames: number }>} */
+  const bursts = [];
+  for (const row of rows) {
+    if (row.at < 0 || row.step <= 0.6) continue;
+    const last = bursts.at(-1);
+    if (last && row.at - last.to <= 90) {
+      last.to = row.at;
+      last.sum += row.step;
+      last.peak = Math.max(last.peak, row.step);
+      last.frames += 1;
+    } else bursts.push({ from: row.at, to: row.at, sum: row.step, peak: row.step, frames: 1 });
+  }
+  const real = bursts.filter(burst => burst.sum > 3);
+  const cuts = real.filter(burst => burst.peak / burst.sum > 0.6 && burst.frames <= 3);
+  const verdict = cuts.length ? 'CUT' : real.length > 1 ? 'TWICE' : 'ok';
   console.log(
-    `${step}: ${rows.length} frames, total change ${total.toFixed(1)}, steps>1: ${big.join(' ')}`
+    `${verdict.padEnd(5)} ${String(stepIndex).padStart(2, '0')} ${step} — ${rows.length} frames, change ${total.toFixed(1)}; ${real
+      .map(
+        burst =>
+          `${burst.from}–${burst.to}ms Σ${burst.sum.toFixed(1)} peak ${burst.peak.toFixed(1)} (${burst.frames}f)`
+      )
+      .join(' | ')}`
   );
-  if (phases.length) console.log(`  ${phases.join(' | ')}`);
+  if (phases.length) console.log(`      ${phases.join(' | ')}`);
   writeFileSync(path.join(dir, 'frames.json'), JSON.stringify(rows));
   await page.waitForTimeout(600);
 }

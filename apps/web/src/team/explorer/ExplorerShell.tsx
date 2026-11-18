@@ -99,7 +99,7 @@ import {
 } from './UploadConflictDialog';
 import { BulkTrashPanel } from './BulkTrashPanel';
 import { ProcessPanel } from './ProcessPanel';
-import { internalLink, navigateTo } from '../../lib/navigation';
+import { crossfadeLayout, internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
@@ -1714,7 +1714,11 @@ function ExplorerBody({
             {!trash && !searching && (
               <div className="team-explorer-list-controls">
                 <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
-                <SortMenu sort={sort} onChange={setSort} />
+                {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
+                <SortMenu
+                  sort={sort}
+                  onChange={next => crossfadeLayout(() => setSort(next), true)}
+                />
               </div>
             )}
             {!trash && (

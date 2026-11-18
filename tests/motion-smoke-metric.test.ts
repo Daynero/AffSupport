@@ -56,6 +56,22 @@ describe('transition frame metric (058, FR-027)', () => {
     expect(result.largestStepAt).toBe(112);
   });
 
+  it('measures how long the canvas stood bare, not counting gaps in the recording', () => {
+    const background = solid(100);
+    const frames = [
+      { at: 16, luma: mix(start, background, 0.5) },
+      { at: 32, luma: background },
+      { at: 48, luma: background },
+      // The recorder stalls here; the stall is not time the screen was seen empty.
+      { at: 400, luma: mix(background, end, 0.6) },
+      { at: 416, luma: end }
+    ];
+    const result = analyzeTransition({ start, end, frames, background });
+    expect(result.flashed).toBe(true);
+    expect(result.bareMs).toBeGreaterThanOrEqual(32);
+    expect(result.bareMs).toBeLessThan(120);
+  });
+
   it('fails a blank frame in the middle', () => {
     const frames = [
       { at: 40, luma: mix(start, end, 0.3) },

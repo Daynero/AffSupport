@@ -11,6 +11,7 @@ import {
 import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
 import { compareNames } from './sort';
+import { crossfadeLayout } from '../../lib/navigation';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
 import { settleRead, type ReadResult } from './readSettle';
 
@@ -190,6 +191,16 @@ export function ExplorerProvider({
     [childrenByParent]
   );
 
+  // Letting go of the selection takes the details pane away, and the list widens by a third:
+  // that reflow crossfades like the pane's arrival does (usePaneArrival), instead of jumping.
+  const selectedRef = useRef(selectedId);
+  selectedRef.current = selectedId;
+  const select = useCallback((materialId: string | null) => {
+    if (materialId === null && selectedRef.current !== null)
+      crossfadeLayout(() => setSelectedId(null));
+    else setSelectedId(materialId);
+  }, []);
+
   const openFolder = useCallback(
     (next: string | null) => {
       // With an address to write to, the folder changes through it — inside the route
@@ -233,7 +244,7 @@ export function ExplorerProvider({
       refresh: read,
       refreshStrict: () => read(true),
       selectedId,
-      select: setSelectedId,
+      select,
       selectedIds,
       selectedRows,
       toggleSelected: (row: TeamMaterialRow) =>

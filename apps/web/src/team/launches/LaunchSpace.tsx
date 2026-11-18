@@ -38,7 +38,7 @@ import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { teamErrorMessageFor } from '../errors';
 import { buildTeamRoute, emptyTeamRouteQuery, type TeamRouteQuery } from '../routes';
-import { navigateTo } from '../../lib/navigation';
+import { crossfadeLayout, navigateTo } from '../../lib/navigation';
 import { TaskDateFilterControl } from '../tasks/TaskDateFilter';
 import { encodeDateFilter, parseStoredDateFilter, type TaskDateFilter } from '../tasks/useTasks';
 import { boundedText, persistedViewKey, usePersistedState } from '../persistedView';
@@ -168,6 +168,23 @@ function LaunchSpaceContent({
   const resetListCursor = () => {
     listRequest.current++;
     setCursor(null);
+  };
+  /*
+   * A filter changes three things — the toolbar gains or loses a chip, the finished batches
+   * step aside, and then the list answers — and each used to land in its own frame: the board
+   * jerked up, sideways and then collapsed (owner, beta). They are one move now: the old board
+   * stays until the list has answered and the two crossfade.
+   */
+  const listAnswered = useRef<(() => void) | null>(null);
+  const changeFilters = (apply: () => void) => {
+    listAnswered.current?.();
+    const answered = new Promise<void>(resolve => {
+      listAnswered.current = resolve;
+    });
+    crossfadeLayout(() => {
+      resetListCursor();
+      apply();
+    }, answered);
   };
   const filtersActive =
     Boolean(search.trim() || accountFilter || offerFilter || assigneeFilter) ||
@@ -305,9 +322,17 @@ function LaunchSpaceContent({
     };
   }, [teamId, t, revision, setupRetry]);
   useEffect(() => {
+    // The read that answers the filter change waiting on it — not one already under way.
+    const waiting = listAnswered.current;
     void refresh()
       .catch(e => setError(teamErrorMessageFor(e, t)))
-      .finally(() => setListLoaded(true));
+      .finally(() => {
+        setListLoaded(true);
+        if (waiting && listAnswered.current === waiting) {
+          listAnswered.current = null;
+          waiting();
+        }
+      });
   }, [refresh, revision, t]);
   const hasRunningLaunch =
     batchPending || items.some(item => ['running', 'queued'].includes(launchCardState(item)));
@@ -556,18 +581,15 @@ function LaunchSpaceContent({
             placeholder={t('launchesSearch')}
             value={search}
             onChange={e => {
-              resetListCursor();
-              setSearch(e.target.value);
+              const next = e.target.value;
+              changeFilters(() => setSearch(next));
             }}
           />
         </div>
         <div className="w-full min-w-0 sm:w-auto sm:flex-1">
           <TaskDateFilterControl
             value={dates}
-            onChange={next => {
-              resetListCursor();
-              setDates(next);
-            }}
+            onChange={next => changeFilters(() => setDates(next))}
             status="all"
             onStatusChange={() => {}}
             showStatus={false}
@@ -615,10 +637,7 @@ function LaunchSpaceContent({
                     label={t('launchesFilterAccount')}
                     allLabel={t('launchesFilterAllAccounts')}
                     value={accountFilter}
-                    onChange={next => {
-                      resetListCursor();
-                      setAccountFilter(next);
-                    }}
+                    onChange={next => changeFilters(() => setAccountFilter(next))}
                     options={accounts
                       .map(account => ({ value: account.id, label: account.name }))
                       .sort((a, b) => a.label.localeCompare(b.label))}
@@ -627,10 +646,7 @@ function LaunchSpaceContent({
                     label={t('launchesOffer')}
                     allLabel={t('launchesAllOffers')}
                     value={offerFilter}
-                    onChange={next => {
-                      resetListCursor();
-                      setOfferFilter(next);
-                    }}
+                    onChange={next => changeFilters(() => setOfferFilter(next))}
                     options={offers
                       .map(offer => ({ value: offer.id, label: offer.value }))
                       .sort((a, b) => a.label.localeCompare(b.label))}
@@ -639,10 +655,7 @@ function LaunchSpaceContent({
                     label={t('launchesFilterAssignee')}
                     allLabel={t('launchesFilterAllAssignees')}
                     value={assigneeFilter}
-                    onChange={next => {
-                      resetListCursor();
-                      setAssigneeFilter(next);
-                    }}
+                    onChange={next => changeFilters(() => setAssigneeFilter(next))}
                     options={assignees
                       .map(member => ({ value: member.userId, label: member.label }))
                       .sort((a, b) => a.label.localeCompare(b.label))}
@@ -958,14 +971,15 @@ function LaunchSpaceContent({
             {filtersActive && (
               <Button
                 variant="ghost"
-                onClick={() => {
-                  resetListCursor();
-                  setSearch('');
-                  setAccountFilter('');
-                  setAssigneeFilter('');
-                  setOfferFilter('');
-                  setDates({ kind: 'all' });
-                }}
+                onClick={() =>
+                  changeFilters(() => {
+                    setSearch('');
+                    setAccountFilter('');
+                    setAssigneeFilter('');
+                    setOfferFilter('');
+                    setDates({ kind: 'all' });
+                  })
+                }
               >
                 {t('launchesFiltersClearAll')}
               </Button>

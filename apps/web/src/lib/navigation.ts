@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
+import { fetchPendingSince } from './fetch-activity';
 import { isLiteMotion, reportAnimatedTransition } from './motion-quality';
 import { motionBetween, screenOf, type MotionKind, type ScreenKind } from './motion-registry';
 import {
@@ -258,6 +259,8 @@ function markFallbackEnter(motion: Exclude<MotionKind, 'none'>) {
  */
 export const SETTLE_BEFORE_REVEAL_MS = 350;
 const SETTLE_POLL_MS = 16;
+/** After data lands in state, how long its render is given before the screen is shown. */
+const COMMIT_AFTER_DATA_MS = 24;
 const LOADING_SELECTOR = '.ui-route-skeleton, .ui-skeleton, [aria-busy="true"]';
 
 function isLoading(scope: ParentNode): boolean {
@@ -469,38 +472,70 @@ function heroCard(key: string): HTMLElement | null {
 }
 
 /**
- * The pair that morphs into each other, between the launcher and what its
- * cards open: going in, the pressed card grows into the page; coming back, the
- * page folds into its card. Null for every other move, and when the card is
- * not on screen to start from.
+ * The pair that morphs into each other: a tool's card on the launcher grows
+ * into the tool's page. Null for every other move, and when the card is not
+ * on screen to start from.
  */
 function heroFor(
   from: string,
   to: string
 ): { from: HTMLElement | null; to: () => HTMLElement | null } | null {
-  const leaving = screenOf(from);
-  const arriving = screenOf(to);
-  if (leaving === 'tools_home' && arriving !== 'tools_home') {
-    const key = heroKey(to);
-    const card = key ? heroCard(key) : null;
-    return card ? { from: card, to: pageSurface } : null;
-  }
-  if (arriving === 'tools_home' && leaving !== 'tools_home') {
-    const key = heroKey(from);
-    const surface = key ? pageSurface() : null;
-    return surface && key ? { from: surface, to: () => heroCard(key) } : null;
-  }
-  return null;
+  // Only into a tool, and only forwards. Folding a whole space back into its card read as
+  // the space being resized on the way out (owner, beta), and a space is too large and too
+  // late with its data to grow out of a card either.
+  if (screenOf(from) !== 'tools_home' || screenOf(to) !== 'tool') return null;
+  const key = heroKey(to);
+  const card = key ? heroCard(key) : null;
+  return card ? { from: card, to: pageSurface } : null;
+}
+
+const QUIET_MS = 40;
+
+/**
+ * Resolves when the screen has stopped changing after a change made at
+ * `since`: nothing marked as loading, no request begun since then still
+ * unanswered, and the page untouched for a few frames — or at the cap. For a
+ * list that answers a filter without saying when (most of them).
+ */
+function viewSettled(since: number): Promise<void> {
+  const scope =
+    document.querySelector('.team-space-shell-body') ??
+    document.querySelector('.page-viewport') ??
+    document.body;
+  return new Promise(resolve => {
+    let lastChange = now();
+    const observer =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver(() => {
+            lastChange = now();
+          });
+    observer?.observe(scope, { subtree: true, childList: true, characterData: true });
+    const check = () => {
+      const at = now();
+      const waiting = isLoading(scope) || fetchPendingSince(since);
+      if ((!waiting && at - lastChange >= QUIET_MS) || at - since >= SETTLE_BEFORE_REVEAL_MS) {
+        observer?.disconnect();
+        resolve();
+        return;
+      }
+      setTimeout(check, SETTLE_POLL_MS);
+    };
+    setTimeout(check, SETTLE_POLL_MS);
+  });
 }
 
 /**
  * A change of layout within a screen — a side pane arriving, the grid beside
- * it reflowing to make room — crossfaded on the section's clock instead of
- * cut (058, beta feedback: "something changes size"). Applied at once when
- * motion is off, and never while a route transition runs: starting a
- * transition would skip that one.
+ * it reflowing to make room, a list answering a filter — crossfaded on the
+ * section's clock instead of cut (058, beta feedback: "something changes
+ * size", "it jerks when I change a filter"). Given `settled`, the old picture
+ * is held until that promise resolves — or, for `true`, until the screen has
+ * stopped changing (`viewSettled`) — capped, so a change that waits for data
+ * is one move. Applied at once when motion is off, and never while a
+ * route transition runs: starting a transition would skip that one.
  */
-export function crossfadeLayout(apply: () => void) {
+export function crossfadeLayout(apply: () => void, settled?: Promise<unknown> | boolean) {
   if (
     typeof document === 'undefined' ||
     activeTransition ||
@@ -513,7 +548,25 @@ export function crossfadeLayout(apply: () => void) {
   const root = document.documentElement;
   const id = ++transitionSeq;
   root.classList.add(SECTION_TRANSITION_CLASS);
-  const transition = document.startViewTransition(() => flushSync(apply));
+  const transition = document.startViewTransition(async () => {
+    const since = now();
+    flushSync(apply);
+    if (!settled) return;
+    // The change asks for data (a filter, a period): the old picture stays until the answer
+    // is on the page, so the screen changes once — not to an in-between state and then again.
+    if (settled === true) {
+      await viewSettled(since);
+      return;
+    }
+    await Promise.race([
+      settled.then(
+        // One more turn of the task queue: the answer is in state, the commit follows it.
+        () => new Promise(resolve => setTimeout(resolve, COMMIT_AFTER_DATA_MS)),
+        () => undefined
+      ),
+      new Promise(resolve => setTimeout(resolve, SETTLE_BEFORE_REVEAL_MS))
+    ]);
+  });
   activeTransition = transition;
   const finish = () => {
     if (id !== transitionSeq) return;

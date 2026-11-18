@@ -370,6 +370,11 @@
   --ease-out-curve: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-curve: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-linear: linear;
+  /* Entering, for a large surface (058). On the steep curve above four fifths
+     of a fade happen in its first three frames, and a dialog the size of the
+     window read as appearing at once; this one spends its time evenly enough
+     to be seen arriving and still starts without a lag. */
+  --ease-soft-out: cubic-bezier(0.33, 1, 0.68, 1);
 
   /* Interactive feedback: a press is felt, not watched. */
   --press-scale: 0.97;

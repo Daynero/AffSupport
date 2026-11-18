@@ -600,7 +600,15 @@ export function WorkspaceShell({
           section: toFiles ? 'explorer' : section,
           query: { ...query, ...patch, ...(toFiles ? { trash: false } : {}) }
         }),
-        { replace: !toFiles, motion }
+        {
+          replace: !toFiles,
+          // Tiles or rows, another kind of file, the trash: the list becomes a different list,
+          // and it crossfades like a folder change instead of being swapped in one frame (058).
+          motion:
+            motion === 'none' && ('view' in patch || 'kinds' in patch || 'trash' in patch)
+              ? 'section'
+              : motion
+        }
       );
     },
     [query, section, teamId, trashOver]
