@@ -260,6 +260,37 @@ async function requireEveryFunctionBoots() {
   );
 }
 
+const STACK_HEALTH_DEADLINE_MS = 300_000;
+
+/**
+ * Waits until every container of this project that declares a health check
+ * reports healthy. A container without a health check counts once running.
+ * Returns false at the deadline or when a container exits.
+ */
+async function waitForStackHealth() {
+  const deadline = Date.now() + STACK_HEALTH_DEADLINE_MS;
+  while (Date.now() < deadline) {
+    const listing = spawnSync(
+      'docker',
+      [
+        'ps',
+        '--all',
+        '--filter',
+        `label=com.supabase.cli.project=${projectId()}`,
+        '--format',
+        '{{.Names}}\t{{.Status}}'
+      ],
+      { shell: false, encoding: 'utf8' }
+    );
+    const rows = (listing.stdout ?? '').split('\n').filter(Boolean);
+    if (rows.some(row => /\tExited/u.test(row))) return false;
+    const waiting = rows.filter(row => /\(health: starting\)|\(unhealthy\)|\tCreated/u.test(row));
+    if (rows.length > 0 && waiting.length === 0) return true;
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+  }
+  return false;
+}
+
 function projectId() {
   const config = readFileSync('supabase/config.toml', 'utf8');
   return /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? 'wishly';
@@ -396,15 +427,32 @@ const bringStackUp = async () => {
   // not available inside the VM's containers; excluding both services keeps
   // the auth, database, and Edge Function stack usable on the documented
   // Colima runtime.
+  // The CLI's own health deadline is fixed and shorter than a cold start on the
+  // documented Colima VM: storage and pg-meta were reported unhealthy, and the
+  // stack torn down, in the same second they logged "listening". The CLI is
+  // told not to judge; Docker's own health checks are waited out below, with a
+  // deadline that fits the VM, and an unhealthy service still fails the start.
   const stack = spawnSync(
     'npx',
-    ['supabase', 'start', '--network-id', network.name, '--exclude', 'studio,logflare,vector'],
+    [
+      'supabase',
+      'start',
+      '--network-id',
+      network.name,
+      '--exclude',
+      'studio,logflare,vector',
+      '--ignore-health-check'
+    ],
     {
       shell: false,
       stdio: 'inherit'
     }
   );
   if (stack.status !== 0) fail('the local Supabase stack did not start.');
+  if (!(await waitForStackHealth())) {
+    spawnSync('npx', ['supabase', 'stop'], { shell: false, stdio: 'inherit' });
+    fail('the local Supabase stack did not become healthy within 5 minutes.');
+  }
   try {
     stackNetwork = { name: network.name, ...verifyBetaLoopbackBindings(projectId(), network.name) };
   } catch {
