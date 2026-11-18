@@ -6,6 +6,7 @@ import { Reveal } from '../apps/web/src/components/ui/index';
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -57,7 +58,8 @@ describe('Reveal (058)', () => {
     expect(box.classList.contains('is-arriving')).toBe(false);
   });
 
-  it('fades the content in over a placeholder that was on screen, once', async () => {
+  it('fades the content in over a placeholder that was on screen, once', () => {
+    vi.useFakeTimers();
     const paint = frames();
     const { rerender } = render(
       <Reveal busy placeholder={<span>placeholder</span>}>
@@ -72,7 +74,7 @@ describe('Reveal (058)', () => {
     );
     const box = screen.getByText('cards').parentElement!;
     expect(box.classList.contains('is-arriving')).toBe(true);
-    await act(() => new Promise(resolve => setTimeout(resolve, 900)));
+    act(() => void vi.advanceTimersByTime(900));
     expect(box.classList.contains('is-arriving')).toBe(false);
   });
 });
