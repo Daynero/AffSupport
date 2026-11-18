@@ -82,7 +82,7 @@ describe('a tile', () => {
   it('shows the league, its state and the exact facts', () => {
     grid({ ranks: new Map([['v1', rank()]]), known: true, now: NOW }, [row('v1', 'clip.mp4')]);
     const emblem = screen.getByRole('img', { name: 'Rank: Gold, fresh' });
-    expect(emblem.getAttribute('src')).toBe('/creative-ranks/4_gold_fresh-64.webp');
+    expect(emblem.getAttribute('src')).toBe('/creative-ranks/4_gold_fresh-128.webp');
     expect(screen.getByText('16× · 3 days ago')).toBeTruthy();
   });
 

@@ -40,7 +40,7 @@ export function RankEmblem({
   return (
     <img
       className={`creative-rank-emblem creative-rank-emblem-${size}`}
-      src={emblemSrc(league, freshness, size === 'detail' ? 128 : 64)}
+      src={emblemSrc(league, freshness, size === 'detail' ? 256 : 128)}
       alt={label}
       title={facts ? `${label} · ${facts}` : label}
       draggable={false}

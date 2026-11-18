@@ -29,7 +29,7 @@ import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { rankFactsText } from '../ranks/RankFacts';
-import { freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
+import { emptyRank, freshnessOf, leagueOf, type CreativeRank } from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
@@ -154,6 +154,7 @@ export function ContentList({
             <TableHeaderCell className="team-explorer-row-name">
               {t('teamExplorerSortName')}
             </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-rank" />
             <TableHeaderCell className="team-explorer-row-kind">
               {t('teamExplorerPaneKind')}
             </TableHeaderCell>
@@ -189,7 +190,11 @@ export function ContentList({
               companionsOpen={openedCompanions?.has(row.id) ?? false}
               onToggleCompanions={onToggleCompanions}
               nested={Boolean(companionOf(row))}
-              rank={ranks?.known && row.kind === 'video' ? (ranks.ranks.get(row.id) ?? null) : null}
+              rank={
+                ranks?.known && row.kind === 'video'
+                  ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
+                  : null
+              }
               rankNow={ranks?.now ?? 0}
             />
           ))}
@@ -349,8 +354,12 @@ function Row({
         />
         {/* A fact about the kind, not about this file: an icon that says it on
             hover and focus, rather than a second line under every such row. */}
-        {rank && rank.launchCount > 0 && (
-          // A row is a line to scan: the small emblem for launched videos only, its facts on hover.
+        {reason && <KindNote text={t(reason)} />}
+      </TableCell>
+      {/* Its own column right after the names, so the combs line up down the list; the exact
+          count and date are on hover. */}
+      <TableCell className="team-explorer-row-rank">
+        {rank && (
           <span className="creative-rank-list-mark">
             <RankEmblem
               league={leagueOf(rank.rankCredit)}
@@ -360,7 +369,6 @@ function Row({
             />
           </span>
         )}
-        {reason && <KindNote text={t(reason)} />}
       </TableCell>
       <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>
       <TableCell className="team-explorer-row-date">

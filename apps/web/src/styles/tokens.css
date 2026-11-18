@@ -453,11 +453,14 @@
   --icon-plate-row-width: 44px;
   --icon-plate-row-height: 38px;
 
-  /* 059: a creative's honey-league emblem. The pictures share one scale — wings and crown reach
-     past the comb — so every league sits in the same box and nothing jumps when it changes. */
-  --rank-emblem-tile: 48px;
-  --rank-emblem-list: 24px;
-  --rank-emblem-detail: 128px;
+  /* 059: a creative's honey-league emblem. Every picture is the same square with the comb at its
+     centre, the comb a little over half its edge and the same size in all five leagues; wings,
+     crown and laurels fill the rest. So the box is one size, the comb never moves, and a higher
+     league reads larger by what it wears. Tile ≈ 34px comb, list ≈ 17px, detail ≈ 65px. */
+  --rank-emblem-tile: 66px;
+  --rank-emblem-list: 32px;
+  --rank-emblem-detail: 124px;
+  --rank-emblem-tile-inset: 2px;
 }
 
 /* ============================================================

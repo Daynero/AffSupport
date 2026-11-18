@@ -80,11 +80,17 @@ export function demotionTarget(
   return { league: target.id, credit: target.min };
 }
 
-/** The emblem file for a league and state; files sit in `apps/web/public/creative-ranks/`. */
+/**
+ * The emblem file for a league and state; files sit in `apps/web/public/creative-ranks/`.
+ *
+ * Every file is the same square canvas with the honeycomb at its centre and the same size in all
+ * five leagues: a higher league is not a bigger cell, it wears more around it (wings, crown,
+ * laurels), which is what makes it read larger. `size` is the canvas edge in pixels.
+ */
 export function emblemSrc(
   league: CreativeRankLeague,
   freshness: CreativeRankFreshness,
-  size: 64 | 128
+  size: 128 | 256
 ): string {
   const order = CREATIVE_RANK_LEAGUE_IDS.indexOf(league) + 1;
   return `/creative-ranks/${order}_${league}_${freshness}-${size}.webp`;

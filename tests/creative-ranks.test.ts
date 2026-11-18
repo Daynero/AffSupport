@@ -85,8 +85,8 @@ describe('demotion', () => {
 
 describe('emblems', () => {
   it('names the file by league order, league and state', () => {
-    expect(emblemSrc('gold', 'dusty', 64)).toBe('/creative-ranks/4_gold_dusty-64.webp');
-    expect(emblemSrc('wax', 'fresh', 128)).toBe('/creative-ranks/1_wax_fresh-128.webp');
+    expect(emblemSrc('gold', 'dusty', 128)).toBe('/creative-ranks/4_gold_dusty-128.webp');
+    expect(emblemSrc('wax', 'fresh', 256)).toBe('/creative-ranks/1_wax_fresh-256.webp');
   });
 });
 
