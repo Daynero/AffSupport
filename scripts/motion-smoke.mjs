@@ -20,9 +20,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
-import { analyzeTransition, lumaOf } from './lib/motion-metric.mjs';
+import { DEFAULT_THRESHOLDS, analyzeTransition, lumaOf } from './lib/motion-metric.mjs';
 
 /**
  * What the page under test carries for this script: the dev-only router hook
@@ -37,6 +38,15 @@ const VIEWPORT = { width: 1440, height: 900 };
 const BUDGET_MS = { page: 900, section: 700, overlay: 700, pop: 900 };
 const SHIFT_MAX = 0.05;
 const RECORD_MS = 1_600;
+/**
+ * A flash is looked for inside the transition itself: the prepare wait, the
+ * crossfade and the first frames after it. Later frames are the destination
+ * receiving its data (a list skeleton filling in), judged by layout shift.
+ */
+const TRANSITION_WINDOW_MS = 450;
+/** A dialog's backdrop blurs, which no two-picture blend can explain exactly. */
+const OVERLAY_EXCESS = 3.5;
+const SECTION_ORDER = ['explorer', 'tasks', 'launches', 'accounts', 'members'];
 
 function parseArgs(argv) {
   const args = {
@@ -61,7 +71,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function chromeExecutable() {
+export function chromeExecutable() {
   if (process.env.PLAYWRIGHT_CHROME) return process.env.PLAYWRIGHT_CHROME;
   const cache =
     process.env.PLAYWRIGHT_BROWSERS_PATH ?? path.join(homedir(), 'Library/Caches/ms-playwright');
@@ -82,7 +92,7 @@ function chromeExecutable() {
   return undefined;
 }
 
-function supabaseEnv() {
+export function supabaseEnv() {
   const output = execFileSync('npx', ['supabase', 'status', '-o', 'env'], {
     cwd: ROOT,
     encoding: 'utf8',
@@ -110,7 +120,7 @@ function agentToken() {
   }
 }
 
-async function signIn(page, base, supabase, email) {
+export async function signIn(page, base, supabase, email) {
   const response = await fetch(`${supabase.api}/auth/v1/admin/generate_link`, {
     method: 'POST',
     headers: {
@@ -158,7 +168,7 @@ async function contentRect(page) {
   });
 }
 
-async function record(page, cdp, out, transition) {
+async function record(page, cdp, out, transition, backgroundShot) {
   const frames = [];
   const onFrame = ({ data, metadata, sessionId }) => {
     frames.push({ wall: metadata.timestamp * 1000, buffer: Buffer.from(data, 'base64') });
@@ -182,18 +192,22 @@ async function record(page, cdp, out, transition) {
   const endShot = await page.screenshot();
   await cdp.send('Page.stopScreencast');
   cdp.off('Page.screencastFrame', onFrame);
-  const shift = await page.evaluate(
-    since =>
-      (/** @type {SmokeWindow} */ (/** @type {unknown} */ (window)).__motionShifts ?? [])
-        .filter(entry => entry.t >= since)
-        .reduce((sum, entry) => sum + entry.v, 0),
-    triggerPerf + 500
-  );
+  const shift = await page.evaluate(since => {
+    const target = /** @type {SmokeWindow} */ (/** @type {unknown} */ (window));
+    return (target.__motionShifts ?? [])
+      .filter(entry => entry.t >= since)
+      .reduce((sum, entry) => sum + entry.v, 0);
+  }, triggerPerf + 500);
 
   const start = decode(startShot);
   const end = decode(endShot);
   const lumaStart = lumaOf(start.data, start.width, rect);
   const lumaEnd = lumaOf(end.data, end.width, rect);
+  const bare = decode(backgroundShot);
+  const background =
+    bare.width === start.width && bare.height === start.height
+      ? lumaOf(bare.data, bare.width, rect)
+      : undefined;
   const usable = [];
   let skipped = 0;
   for (const frame of frames) {
@@ -209,13 +223,43 @@ async function record(page, cdp, out, transition) {
       buffer: frame.buffer
     });
   }
-  const result = analyzeTransition({ start: lumaStart, end: lumaEnd, frames: usable });
+  const thresholds =
+    transition.kind === 'overlay'
+      ? { ...DEFAULT_THRESHOLDS, excess: OVERLAY_EXCESS }
+      : DEFAULT_THRESHOLDS;
+  const whole = analyzeTransition(
+    { start: lumaStart, end: lumaEnd, frames: usable, background },
+    thresholds
+  );
+  const windowed = usable.filter(frame => frame.at <= TRANSITION_WINDOW_MS);
+  const moving = analyzeTransition(
+    { start: lumaStart, end: lumaEnd, frames: windowed, background },
+    thresholds
+  );
+  const result = {
+    ...whole,
+    worstExcess: moving.worstExcess,
+    worstAt: moving.worstAt,
+    worstIndex: moving.worstIndex >= 0 ? usable.indexOf(windowed[moving.worstIndex]) : -1,
+    backgroundRatio: moving.backgroundRatio,
+    flashed: moving.flashed,
+    dipped: moving.dipped
+  };
   const budget = BUDGET_MS[transition.kind];
   const failures = [];
-  if (result.dipped)
+  const warnings = [];
+  if (result.flashed)
+    failures.push(
+      `frame ${result.worstAt}ms shows the bare background (ratio ${result.backgroundRatio})`
+    );
+  else if (result.dipped)
     failures.push(`frame ${result.worstAt}ms leaves the path (excess ${result.worstExcess})`);
-  if (result.settledMs > budget)
-    failures.push(`settles at ${result.settledMs}ms (budget ${budget}ms)`);
+  if (result.settledMs > budget) {
+    const message = `settles at ${result.settledMs}ms (budget ${budget}ms)`;
+    // A closing dialog has no data to wait for; anything else may be waiting on the server.
+    if (transition.strictSettle) failures.push(message);
+    else warnings.push(message);
+  }
   if (shift > SHIFT_MAX) failures.push(`layout shifts ${shift.toFixed(3)} after landing`);
 
   const slug = transition.name.replace(/[^a-z0-9]+/giu, '-').toLowerCase();
@@ -231,7 +275,8 @@ async function record(page, cdp, out, transition) {
     layoutShift: Math.round(shift * 1000) / 1000,
     budgetMs: budget,
     ok: failures.length === 0,
-    failures
+    failures,
+    warnings
   };
 }
 
@@ -242,7 +287,7 @@ const go = route => page =>
   );
 
 const tab = section => async page => {
-  await page.locator(`.team-space-tabs a[href*="/${section}"]`).first().click();
+  await page.locator('.team-space-tabs a').nth(SECTION_ORDER.indexOf(section)).click();
 };
 
 async function spaceBase(page) {
@@ -274,6 +319,7 @@ function transitions(space) {
     {
       name: 'close space settings',
       kind: 'overlay',
+      strictSettle: true,
       trigger: page => page.keyboard.press('Escape')
     },
     { name: 'space to compressor', kind: 'page', trigger: go('/compressor') },
@@ -313,16 +359,37 @@ async function runPass(browser, args, supabase, label) {
     /** @type {SmokeWindow} */ (/** @type {unknown} */ (window)).__sotyNavigate?.('/team')
   );
   await page.waitForURL(/\/team\/[^/?#]+/u, { timeout: 20_000 }).catch(() => undefined);
-  const space = await spaceBase(page);
+  let space = await spaceBase(page);
+  if (!space) {
+    // Several spaces and none remembered: the lobby asks. Enter the first ready one.
+    await page.screenshot({ path: path.join(out, 'team-entry.png') });
+    const card = page.locator('.team-space-card.is-ready').first();
+    if (await card.count()) {
+      await card.click();
+      await page.waitForURL(/\/team\/[^/?#]+/u, { timeout: 20_000 }).catch(() => undefined);
+      space = await spaceBase(page);
+    }
+  }
   await page.evaluate(() =>
     /** @type {SmokeWindow} */ (/** @type {unknown} */ (window)).__sotyNavigate?.('/')
   );
   await page.waitForTimeout(800);
+  // The canvas with no content on it: what a flash would show.
+  await page.evaluate(() => {
+    const viewport = /** @type {HTMLElement | null} */ (document.querySelector('.page-viewport'));
+    if (viewport) viewport.style.visibility = 'hidden';
+  });
+  await page.waitForTimeout(200);
+  const backgroundShot = await page.screenshot();
+  await page.evaluate(() => {
+    const viewport = /** @type {HTMLElement | null} */ (document.querySelector('.page-viewport'));
+    if (viewport) viewport.style.visibility = '';
+  });
 
   const results = [];
   for (const transition of transitions(space)) {
     try {
-      results.push(await record(page, cdp, out, transition));
+      results.push(await record(page, cdp, out, transition, backgroundShot));
     } catch (error) {
       results.push({
         name: transition.name,
@@ -334,11 +401,14 @@ async function runPass(browser, args, supabase, label) {
         worstIndex: -1,
         settledMs: 0,
         dipped: false,
+        backgroundRatio: null,
+        flashed: false,
         skippedFrames: 0,
         layoutShift: 0,
         budgetMs: BUDGET_MS[transition.kind],
         ok: false,
-        failures: [error instanceof Error ? error.message : String(error)]
+        failures: [error instanceof Error ? error.message : String(error)],
+        warnings: []
       });
     }
   }
@@ -371,8 +441,9 @@ async function main() {
     );
     for (const result of pass.results) {
       if (!result.ok) failed += 1;
+      const note = result.warnings.length ? ` · note: ${result.warnings.join('; ')}` : '';
       const detail = result.ok
-        ? `excess ${result.worstExcess} · settled ${result.settledMs}ms · shift ${result.layoutShift} · ${result.frames} frames`
+        ? `excess ${result.worstExcess} · settled ${result.settledMs}ms · shift ${result.layoutShift} · ${result.frames} frames${note}`
         : result.failures.join('; ');
       console.log(`  ${result.ok ? 'ok  ' : 'FAIL'} ${result.name.padEnd(24)} ${detail}`);
     }
@@ -381,7 +452,8 @@ async function main() {
   process.exitCode = failed > 0 ? 1 : 0;
 }
 
-main().catch(error => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  main().catch(error => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });

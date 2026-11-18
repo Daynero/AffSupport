@@ -2520,8 +2520,9 @@
   gap: var(--space-4);
 }
 /* The navigation already kept the old screen through the delay (058). */
-:root[data-nav-waited] .ui-route-skeleton {
-  animation-delay: initial;
+:root[data-nav-waited] .ui-route-skeleton,
+:root[data-nav-recent] .ui-route-skeleton {
+  animation: ui-route-skeleton-in var(--motion-fast) var(--ease-out-curve) both;
 }
 @keyframes ui-route-skeleton-in {
   from {

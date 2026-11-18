@@ -43,7 +43,8 @@ export type ScreenKind = (typeof SCREEN_KINDS)[number];
  */
 export type MotionKind = 'page' | 'section' | 'none';
 
-export type RouteSkeletonVariant = 'tool' | 'settings' | 'lobby' | 'list' | 'tiles' | 'board';
+export type RouteSkeletonVariant =
+  'tool' | 'settings' | 'lobby' | 'workspace' | 'list' | 'tiles' | 'board';
 
 export interface RegistryEntry {
   screen: ScreenKind;

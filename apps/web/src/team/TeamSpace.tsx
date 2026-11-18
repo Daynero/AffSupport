@@ -425,7 +425,14 @@ export function TeamSpace({
         <ToastProvider>
           <MembershipLostNotice />
           <TariffToastNotice />
-          <Suspense fallback={<RouteSkeleton variant="lobby" label={t('loading')} />}>
+          <Suspense
+            fallback={
+              <RouteSkeleton
+                variant={route.kind === 'space' ? 'workspace' : 'lobby'}
+                label={t('loading')}
+              />
+            }
+          >
             {node}
           </Suspense>
         </ToastProvider>
@@ -460,7 +467,12 @@ export function TeamSpace({
     // Labeled for a reader: an unexplained dimmed screen is indistinguishable
     // from a hang. Drawn as the lobby's outline (058): the check usually takes
     // a moment, and a sentence that flashes for a moment reads as a flicker.
-    return wrap(<RouteSkeleton variant="lobby" label={t('teamAccessChecking')} />);
+    return wrap(
+      <RouteSkeleton
+        variant={route.kind === 'space' ? 'workspace' : 'lobby'}
+        label={t('teamAccessChecking')}
+      />
+    );
   }
 
   if (showsShowcase && !workspaceAnnouncementEnabled) {
@@ -554,11 +566,15 @@ export function TeamSpace({
   }
 
   if (entry.kind === 'checking' || entry.kind === 'redirect') {
-    // Labeled, not a bare ellipsis: the reader is told what is being waited on.
+    // Labeled for a reader: they are told what is being waited on. Drawn as
+    // the outline of what is coming (058) — a space, or the list of spaces —
+    // because this lasts a moment, and a caption that flashes for a moment is
+    // a flicker between the transition and the screen.
+    const intoSpace =
+      route.kind === 'space' ||
+      (entry.kind === 'redirect' && parseTeamRoute(entry.to)?.kind === 'space');
     return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p aria-live="polite">{t('teamSpaceResolving')}</p>
-      </section>
+      <RouteSkeleton variant={intoSpace ? 'workspace' : 'lobby'} label={t('teamSpaceResolving')} />
     );
   }
 
@@ -629,11 +645,9 @@ export function TeamSpace({
 
   if (entry.kind === 'space') {
     // The address resolved but TeamContext has not caught up for one render.
-    return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p aria-live="polite">{t('teamSpaceResolving')}</p>
-      </section>
-    );
+    // Drawn as the space's outline (058): a caption here flashed between the
+    // transition and the space.
+    return wrap(<RouteSkeleton variant="workspace" label={t('teamSpaceResolving')} />);
   }
 
   return wrap(

@@ -47,6 +47,25 @@ const FALLBACK_ENTER_CLEAR_MS = 400;
 const NAV_WAITED_CLEAR_MS = 1_500;
 let navWaitedTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Right after a route change the destination is often still asking for its
+ * data. A skeleton that appears then must appear at once — a delayed one
+ * leaves the transition crossfading into an empty viewport with the honeycomb
+ * showing (058, beta smoke). `data-nav-recent` on <html> marks that window.
+ */
+const NAV_RECENT_CLEAR_MS = 1_500;
+let navRecentTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markNavigationRecent() {
+  const root = document.documentElement;
+  root.dataset.navRecent = 'true';
+  if (navRecentTimer) clearTimeout(navRecentTimer);
+  navRecentTimer = setTimeout(() => {
+    delete root.dataset.navRecent;
+    navRecentTimer = null;
+  }, NAV_RECENT_CLEAR_MS);
+}
+
 function markNavigationWaited() {
   const root = document.documentElement;
   root.dataset.navWaited = 'true';
@@ -255,6 +274,7 @@ function commitRouteChange(
     return;
   }
   pendingArrival = { motion, scrollTop };
+  markNavigationRecent();
   const instant = instantMode(motion);
   if (instant) {
     activeTransition?.skipTransition();
@@ -301,7 +321,12 @@ function commitRouteChange(
  * the API, connection-state branch swaps) fade-rise in via `.page-enter`.
  */
 export function usePageEntrance(): boolean {
-  const [entering] = useState(() => !routeTransitionActive);
+  // A page mounted by an instant route change (reduced or lite motion, a
+  // browser without the API) arrives as it is: fading it in from nothing put
+  // the honeycomb on screen for the first frames (058, beta smoke).
+  const [entering] = useState(
+    () => !routeTransitionActive && now() - lastCommitAt > REDIRECT_WINDOW_MS
+  );
   return entering;
 }
 
@@ -554,10 +579,13 @@ export function resetNavigationForTests() {
   fallbackEnterTimer = null;
   if (navWaitedTimer) clearTimeout(navWaitedTimer);
   navWaitedTimer = null;
+  if (navRecentTimer) clearTimeout(navRecentTimer);
+  navRecentTimer = null;
   routePreparers.clear();
   if (typeof document !== 'undefined') {
     delete document.documentElement.dataset.navEnter;
     delete document.documentElement.dataset.navWaited;
+    delete document.documentElement.dataset.navRecent;
   }
 }
 

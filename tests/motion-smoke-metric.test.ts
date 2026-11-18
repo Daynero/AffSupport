@@ -54,6 +54,27 @@ describe('transition frame metric (058, FR-027)', () => {
     expect(analyzeTransition({ start: similar, end: similar, frames }).dipped).toBe(true);
   });
 
+  it('fails a frame that shows the bare background between two screens', () => {
+    const background = solid(100);
+    const frames = [
+      { at: 40, luma: mix(start, background, 0.8) },
+      { at: 120, luma: end }
+    ];
+    const result = analyzeTransition({ start, end, frames, background });
+    expect(result.flashed).toBe(true);
+    expect(result.dipped).toBe(true);
+    expect(result.worstAt).toBe(40);
+  });
+
+  it('passes a crossfade that never shows more background than its ends', () => {
+    const background = solid(100);
+    const frames = [0.25, 0.5, 0.75, 1].map((t, index) => ({
+      at: (index + 1) * 40,
+      luma: mix(start, end, t)
+    }));
+    expect(analyzeTransition({ start, end, frames, background }).flashed).toBe(false);
+  });
+
   it('reports a late settle when the old screen lingers on top', () => {
     const frames = [
       { at: 40, luma: mix(start, end, 0.5) },

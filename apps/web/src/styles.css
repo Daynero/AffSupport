@@ -288,7 +288,14 @@ a {
    already gone, the new one fills the same place on the next frame. */
 :root[data-nav-enter='page'] .page-viewport > *,
 :root[data-nav-enter='section'] .team-space-shell-body > :not([hidden]) {
-  animation: ui-content-enter var(--motion-fast) var(--ease-out-curve) both;
+  /* A rise, not a fade: the old screen is already gone, and any opacity
+     below 1 would show the honeycomb through the new one. */
+  animation: ui-content-rise var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes ui-content-rise {
+  from {
+    transform: translateY(4px);
+  }
 }
 @keyframes ui-content-enter {
   from {
@@ -7939,6 +7946,12 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-5);
   min-width: 0;
+  /* One frame for every section (058): the space fills the window below the
+     topbar, and the body takes what the chrome leaves. Each section used to be
+     as tall as its content, so the panel's bottom edge jumped with every tab —
+     from the explorer's 520px to the tasks' 400px and back. */
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: calc(100dvh - var(--app-header-height) - 98px);
 }
 .team-space-shell-header {
   display: flex;
@@ -8146,6 +8159,16 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
+  /* The open section fills the body (058); its panel keeps its own rows at
+     the top and grows only at the bottom. */
+  grid-template-rows: minmax(0, 1fr);
+}
+.team-space-shell-body > div:not([hidden]) {
+  display: grid;
+  min-height: 0;
+}
+.team-space-shell-body :is(.team-panel, .team-space-settings) {
+  align-content: start;
 }
 
 /* Live Drive-sync indicator. Uses semantic tokens so it adapts to the dark

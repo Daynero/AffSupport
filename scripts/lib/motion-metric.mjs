@@ -47,20 +47,38 @@ export function lumaOf(rgba, width, rect, step = 2) {
   return Float32Array.from(out);
 }
 
+/** @typedef {{ excess: number, same: number, floor: number, background: number }} Thresholds */
+
+/** @type {Readonly<Thresholds>} */
 export const DEFAULT_THRESHOLDS = Object.freeze({
-  /** Above this a frame is not on the way from start to end. */
-  excess: 1.6,
+  /**
+   * Above this a frame is an unrelated picture, not a blend of start and end.
+   * Loose on purpose: a list skeleton filling in is off the straight path
+   * without being a flash; the background test below is the sharp one.
+   */
+  excess: 3,
   /** Two frames closer than this (mean luma) are the same picture. */
   same: 1.5,
   /** Floor for d(start, end), so similar screens still expose a flash. */
-  floor: 6
+  floor: 6,
+  /**
+   * The flash people see: a frame much closer to the bare background (the
+   * honeycomb) than both the screen it left and the one it reached — content
+   * gone, canvas showing through. Below this ratio of distances it failed.
+   */
+  background: 0.55
 });
 
 /**
- * @param {{ start: Float32Array, end: Float32Array, frames: Array<{ at: number, luma: Float32Array }> }} input
- *   `at` is milliseconds after the trigger.
+ * @param {{ start: Float32Array, end: Float32Array, frames: Array<{ at: number, luma: Float32Array }>, background?: Float32Array }} input
+ *   `at` is milliseconds after the trigger; `background` is the content area
+ *   with no content in it, when the caller could capture one.
+ * @param {Readonly<Thresholds>} [thresholds]
  */
-export function analyzeTransition({ start, end, frames }, thresholds = DEFAULT_THRESHOLDS) {
+export function analyzeTransition(
+  { start, end, frames, background },
+  thresholds = DEFAULT_THRESHOLDS
+) {
   const direct = Math.max(distance(start, end), thresholds.floor);
   /** @type {{ excess: number, at: number | null, index: number }} */
   let worst = { excess: 1, at: null, index: -1 };
@@ -69,6 +87,19 @@ export function analyzeTransition({ start, end, frames }, thresholds = DEFAULT_T
     if (excess > worst.excess) worst = { excess, at: frame.at, index };
     return { at: frame.at, excess, toEnd: distance(frame.luma, end) };
   });
+  /** @type {{ ratio: number, at: number | null, index: number }} */
+  let bare = { ratio: Infinity, at: null, index: -1 };
+  if (background) {
+    const reference = Math.max(
+      Math.min(distance(start, background), distance(end, background)),
+      thresholds.floor
+    );
+    frames.forEach((frame, index) => {
+      const ratio = distance(frame.luma, background) / reference;
+      if (ratio < bare.ratio) bare = { ratio, at: frame.at, index };
+    });
+  }
+  const flashed = bare.ratio < thresholds.background;
   let settledAt = 0;
   for (let index = perFrame.length - 1; index >= 0; index -= 1) {
     if (perFrame[index].toEnd > thresholds.same) {
@@ -80,9 +111,11 @@ export function analyzeTransition({ start, end, frames }, thresholds = DEFAULT_T
     frames: frames.length,
     direct: Math.round(direct * 100) / 100,
     worstExcess: Math.round(worst.excess * 100) / 100,
-    worstAt: worst.at,
-    worstIndex: worst.index,
+    worstAt: flashed ? bare.at : worst.at,
+    worstIndex: flashed ? bare.index : worst.index,
+    backgroundRatio: Number.isFinite(bare.ratio) ? Math.round(bare.ratio * 100) / 100 : null,
+    flashed,
     settledMs: settledAt,
-    dipped: worst.excess > thresholds.excess
+    dipped: flashed || worst.excess > thresholds.excess
   };
 }

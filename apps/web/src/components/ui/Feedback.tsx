@@ -138,9 +138,11 @@ export function RouteSkeleton({ variant, label, className }: RouteSkeletonProps)
       aria-busy="true"
     >
       {label && <span className="visually-hidden">{label}</span>}
-      {(variant === 'tool' || variant === 'settings' || variant === 'lobby') && (
-        <div className="ui-route-skeleton-head">{bar('text')}</div>
-      )}
+      {(variant === 'tool' ||
+        variant === 'settings' ||
+        variant === 'lobby' ||
+        variant === 'workspace') && <div className="ui-route-skeleton-head">{bar('text')}</div>}
+      {variant === 'workspace' && <div className="ui-route-skeleton-toolbar">{bar('row')}</div>}
       {(variant === 'list' || variant === 'tiles' || variant === 'board') && (
         <div className="ui-route-skeleton-toolbar">{bar('row')}</div>
       )}
@@ -148,7 +150,7 @@ export function RouteSkeleton({ variant, label, className }: RouteSkeletonProps)
       {(variant === 'settings' || variant === 'list') && (
         <div className="ui-route-skeleton-body">{repeat(ROUTE_SKELETON_ROWS, 'row')}</div>
       )}
-      {(variant === 'lobby' || variant === 'tiles') && (
+      {(variant === 'lobby' || variant === 'tiles' || variant === 'workspace') && (
         <div className="ui-route-skeleton-grid">{repeat(ROUTE_SKELETON_TILES, 'tile')}</div>
       )}
       {variant === 'board' && (

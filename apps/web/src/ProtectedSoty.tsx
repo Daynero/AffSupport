@@ -102,7 +102,7 @@ function ProtectedApplication({ path, route }: { path: string; route: string }) 
       <Suspense
         fallback={
           <main className="page-container team-space-page">
-            <RouteSkeleton variant="lobby" />
+            <RouteSkeleton variant={teamRoute.kind === 'space' ? 'workspace' : 'lobby'} />
           </main>
         }
       >
