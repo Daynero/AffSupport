@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { launchCopyMarksApi, type LaunchCopyScope } from '../../api/launch-copy-marks';
+import { registerPrivateCache } from '../private-cache-scope';
 
 interface History {
   seen: (field: string, value: string) => boolean;
@@ -20,6 +21,29 @@ export function useLaunchCopyMark(field: string | undefined, value: string) {
   };
 }
 type Pending = { value: string; copied: boolean; epoch: number };
+/**
+ * The marks last read for each launch, for as long as the page lives (058).
+ *
+ * They were read again on every opening of a launch, and until the answer came the result
+ * stood unmarked: a quarter of a second in, every copied row turned green and "reset marks"
+ * pushed the card down — each time the same launch was opened (owner, beta: "it rebuilds
+ * itself on every open"). What was read last is now shown at once and the same read brings
+ * it up to date underneath. In memory only, as the marks themselves are, per signed-in
+ * person and launch, and dropped with the other private caches when the access changes.
+ */
+const REMEMBERED_LAUNCHES = 60;
+const rememberedMarks = new Map<string, Record<string, string>>();
+registerPrivateCache(() => rememberedMarks.clear());
+function rememberMarks(identity: string, marks: Record<string, string>) {
+  rememberedMarks.delete(identity);
+  rememberedMarks.set(identity, marks);
+  while (rememberedMarks.size > REMEMBERED_LAUNCHES)
+    rememberedMarks.delete(rememberedMarks.keys().next().value!);
+}
+/** Tests only. */
+export function forgetLaunchCopyMarks() {
+  rememberedMarks.clear();
+}
 /** Protected server receipts; copied content exists only in the already-authorized UI's RAM. */
 export function LaunchCopyHistory({
   scope,
@@ -49,13 +73,15 @@ export function LaunchCopyHistory({
   const signature = JSON.stringify(eligible);
   const current = useRef({ identity, owner, scope, values });
   current.current = { identity, owner, scope, values: eligible };
-  const [state, setState] = useState<{ identity: string; marks: Record<string, string> }>({
+  const [state, setState] = useState<{ identity: string; marks: Record<string, string> }>(() => ({
     identity,
-    marks: {}
-  });
+    marks: (scope && rememberedMarks.get(identity)) || {}
+  }));
   const [loading, setLoading] = useState(Boolean(scope));
   const [readFailed, setReadFailed] = useState(false);
-  const [readyIdentity, setReadyIdentity] = useState<string | null>(null);
+  const [readyIdentity, setReadyIdentity] = useState<string | null>(() =>
+    scope && rememberedMarks.has(identity) ? identity : null
+  );
   const [writeFailed, setWriteFailed] = useState(false);
   const [undo, setUndo] = useState<Record<string, string> | null>(null);
   const queueRef = useRef<{
@@ -149,12 +175,19 @@ export function LaunchCopyHistory({
     setLoading(Boolean(scope));
     setReadFailed(false);
     setWriteFailed(false);
-    setState({ identity, marks: {} });
+    const seen = scope ? rememberedMarks.get(identity) : undefined;
+    setState({ identity, marks: seen ?? {} });
+    if (seen) setReadyIdentity(identity);
     return () => {
       mounted.current = false;
       ++request.current;
     };
   }, [identity]);
+  // What a read answered, and every mark made since, is what the next opening starts from.
+  useEffect(() => {
+    if (scope && state.identity === identity && readyIdentity === identity)
+      rememberMarks(identity, state.marks);
+  }, [identity, readyIdentity, state, Boolean(scope)]);
   const lastRead = useRef<{ identity: string; revisionId: string | undefined } | null>(null);
   useEffect(() => {
     const initial =

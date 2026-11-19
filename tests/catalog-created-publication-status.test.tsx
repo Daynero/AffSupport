@@ -3,7 +3,10 @@ import React from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setPrivateCacheScope } from '../apps/web/src/team/private-cache-scope';
-import { CatalogCreatedPublicationStatus } from '../apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus';
+import {
+  CatalogCreatedPublicationStatus,
+  forgetCatalogPublications
+} from '../apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus';
 import type { CatalogPublicationSnapshot } from '@video-compressor/shared';
 const actor = '47000000-0000-4000-8000-000000000001',
   catalog = '47000000-0000-4000-8000-000000000002';
@@ -25,7 +28,30 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  forgetCatalogPublications();
   localStorage.clear();
+});
+it('keeps the line’s room while it is read, and shows what was read last at once next time', async () => {
+  // Beta 2026-11-19 (058): the line arrived half a second into every opening of a launch
+  // and pushed the rest of the result down.
+  let answer!: (value: CatalogPublicationSnapshot) => void;
+  const read = vi.fn().mockImplementation(() => new Promise(resolve => (answer = resolve)));
+  const first = render(
+    <CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />
+  );
+  const pending = first.container.querySelector('.catalog-publication-line')!;
+  expect(pending.classList.contains('is-pending')).toBe(true);
+  expect(pending.getAttribute('aria-busy')).toBe('true');
+  await waitFor(() => expect(read).toHaveBeenCalledOnce());
+  await act(async () => answer({ ...snapshot, writerMode: 'video_columns' }));
+  expect(screen.getByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  first.unmount();
+
+  // Opened again: the line is there in the first frame, and the read still runs under it.
+  const again = vi.fn().mockImplementation(() => new Promise(() => {}));
+  render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={again} />);
+  expect(screen.getByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  await waitFor(() => expect(again).toHaveBeenCalledOnce());
 });
 it('shows source-only scheduled publication separately from the created table', async () => {
   const read = vi.fn().mockResolvedValue(snapshot);

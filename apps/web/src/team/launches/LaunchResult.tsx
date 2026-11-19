@@ -262,7 +262,15 @@ export function LaunchResult({
                 {teamId &&
                   revision.catalog.available !== false &&
                   revision.config.catalog?.catalogVideoProtocolVersion === 1 && (
-                    <Suspense fallback={null}>
+                    /* The line's room is kept while its code and its answer are on their
+                       way (058): it used to arrive under the link and push the rest down. */
+                    <Suspense
+                      fallback={
+                        <p className="catalog-publication-line is-pending" aria-busy="true">
+                          &nbsp;
+                        </p>
+                      }
+                    >
                       <CatalogCreatedPublicationStatus
                         teamId={teamId}
                         catalogId={revision.catalog.materialId}

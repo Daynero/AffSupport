@@ -3563,6 +3563,12 @@
   font-size: var(--text-caption);
   line-height: var(--leading-caption);
 }
+/* The words arrive in a line that was already there. */
+@media (prefers-reduced-motion: no-preference) {
+  .catalog-publication-line:not(.is-pending) {
+    animation: ui-content-enter var(--motion-fast) var(--ease-fade);
+  }
+}
 
 /* Empty states — the shape the Empty component draws (cleared by C1–C14). */
 .team-empty-state {
@@ -4856,6 +4862,9 @@
 }
 .launch-copy-progress {
   display: flex;
+  /* As tall as the "reset marks" button that joins it once the marks are read, so that its
+     arrival moves nothing under it. */
+  min-height: calc(var(--control-height-sm) + 2 * var(--border-width));
   min-width: 0;
   align-items: center;
   justify-content: space-between;

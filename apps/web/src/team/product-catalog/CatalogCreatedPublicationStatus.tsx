@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { CatalogPublicationSnapshot } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { useI18n } from '../../i18n';
-import { privateCacheActor, privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope';
+import {
+  privateCacheActor,
+  privateCacheEpoch,
+  registerPrivateCache,
+  usePrivateCacheEpoch
+} from '../private-cache-scope';
 import { useOptionalTeam } from '../TeamContext';
 import { withReadDeadline } from '../readCoordinator';
 import { catalogTimeZoneCity } from './catalogTimeZones';
@@ -13,6 +18,30 @@ export const CATALOG_PUBLICATION_STATUS_POLL_MS = 15_000;
 export const CATALOG_PUBLICATION_DUE_POLL_MS = 5_000;
 /** The time the server normally takes to publish once it can. */
 const PUBLICATION_GRACE_MS = 60_000;
+
+/**
+ * The publication last read for each catalog, for as long as the page lives (058). The line
+ * was read anew on every opening of a launch and arrived half a second into it, pushing
+ * everything under it down a line — each time. What was read last is shown at once; the same
+ * read still runs and corrects it. Dropped with the other private caches.
+ */
+const REMEMBERED_PUBLICATIONS = 100;
+const rememberedPublications = new Map<
+  string,
+  { snapshot: CatalogPublicationSnapshot; observedAt: number }
+>();
+registerPrivateCache(() => rememberedPublications.clear());
+function rememberPublication(scope: string, snapshot: CatalogPublicationSnapshot | null) {
+  rememberedPublications.delete(scope);
+  if (!snapshot) return;
+  rememberedPublications.set(scope, { snapshot, observedAt: performance.now() });
+  while (rememberedPublications.size > REMEMBERED_PUBLICATIONS)
+    rememberedPublications.delete(rememberedPublications.keys().next().value!);
+}
+/** Tests only. */
+export function forgetCatalogPublications() {
+  rememberedPublications.clear();
+}
 
 /** Nothing more will change on its own: published, held, or no job at all. */
 function settled(snapshot: CatalogPublicationSnapshot): boolean {
@@ -50,21 +79,26 @@ export function CatalogCreatedPublicationStatus({
     actor = privateCacheActor(),
     workspace = useOptionalTeam();
   const scope = `${actor}:${epoch}:${teamId}:${catalogId}`;
-  const [observation, setObservation] = useState<{
+  const recalled = (): {
     scope: string;
     snapshot: CatalogPublicationSnapshot | null;
     observedAt: number;
     unknown: boolean;
-  }>({ scope, snapshot: null, observedAt: 0, unknown: false });
+  } => {
+    const seen = rememberedPublications.get(scope);
+    return seen
+      ? { scope, snapshot: seen.snapshot, observedAt: seen.observedAt, unknown: false }
+      : { scope, snapshot: null, observedAt: 0, unknown: false };
+  };
+  const [observation, setObservation] = useState(recalled);
   const [poll, setPoll] = useState(0);
   const snapshot = observation.scope === scope ? observation.snapshot : null,
     unknown = observation.scope === scope && observation.unknown;
   useEffect(() => {
     const controller = new AbortController();
-    // A new catalog starts blank; a re-read of the same one keeps the line it has.
-    setObservation(current =>
-      current.scope === scope ? current : { scope, snapshot: null, observedAt: 0, unknown: false }
-    );
+    // A new catalog starts from what was last read of it, or blank; a re-read of the same
+    // one keeps the line it has.
+    setObservation(current => (current.scope === scope ? current : recalled()));
     if (!actor) return;
     void withReadDeadline(
       signal => read(teamId, catalogId, undefined, { signal }),
@@ -77,6 +111,7 @@ export function CatalogCreatedPublicationStatus({
           privateCacheEpoch() !== epoch
         )
           return;
+        rememberPublication(scope, value);
         setObservation({
           scope,
           snapshot: value,
@@ -132,12 +167,21 @@ export function CatalogCreatedPublicationStatus({
     setReadySince({ scope, at: snapshot.serverNow });
     targetReady.current?.();
   }, [scope, snapshot, targetPreparing]);
-  if (!snapshot)
-    return unknown ? (
-      <p role="status" className="catalog-publication-line">
-        {t('catalogPublicationStatusUnknown')}
+  if (!snapshot) {
+    if (unknown)
+      return (
+        <p role="status" className="catalog-publication-line">
+          {t('catalogPublicationStatusUnknown')}
+        </p>
+      );
+    // Being read. Every answer is a line, so the line's room is kept from the start (058):
+    // it used to arrive under the link and push the rest of the result down.
+    return actor ? (
+      <p className="catalog-publication-line is-pending" aria-busy="true">
+        &nbsp;
       </p>
     ) : null;
+  }
   let date = snapshot.dueAt ?? '';
   if (snapshot.dueAt)
     try {

@@ -2,7 +2,10 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { LaunchCopyHistory } from '../apps/web/src/team/launches/LaunchCopyHistory';
+import {
+  LaunchCopyHistory,
+  forgetLaunchCopyMarks
+} from '../apps/web/src/team/launches/LaunchCopyHistory';
 import { CopyResultField } from '../apps/web/src/team/launches/CopyResultField';
 import { LaunchNotesResult } from '../apps/web/src/team/launches/LaunchNotes';
 import { launchCopyMarksApi, type LaunchCopyScope } from '../apps/web/src/api/launch-copy-marks';
@@ -77,12 +80,48 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  forgetLaunchCopyMarks();
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.mocked(launchCopyMarksApi.read).mockReset();
   vi.mocked(launchCopyMarksApi.write).mockReset();
   if (original) Object.defineProperty(navigator, 'clipboard', original);
   else Reflect.deleteProperty(navigator, 'clipboard');
+});
+it('shows the marks read last at once when the launch is opened again, and still reads them', async () => {
+  // Beta 2026-11-19 (058): on every opening the rows stood unmarked for a quarter of a second,
+  // then all turned green and "reset marks" pushed the card down.
+  stored.set(key(scope, 'campaign:1'), 'Alpha');
+  const first = render(<Host />);
+  expect(screen.getByText('Loading copy marks…')).toBeTruthy();
+  await tick();
+  expect(screen.getByText('Copied 1 of 1')).toBeTruthy();
+  first.unmount();
+
+  // The answer to this opening's read is held back: what is shown is what was read before.
+  let answer!: (fields: string[]) => void;
+  vi.mocked(launchCopyMarksApi.read).mockImplementation(
+    () => new Promise(resolve => (answer = resolve))
+  );
+  render(<Host />);
+  expect(screen.getByText('Copied 1 of 1')).toBeTruthy();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Reset copy marks' })).toBeTruthy();
+  // The marks were reset elsewhere meanwhile: the read corrects what was remembered.
+  await act(async () => answer([]));
+  expect(screen.getByText('Copied 0 of 1')).toBeTruthy();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(false);
+});
+it('does not show one person’s remembered marks to another', async () => {
+  stored.set(key(scope, 'campaign:1'), 'Alpha');
+  const first = render(<Host />);
+  await tick();
+  expect(screen.getByText('Copied 1 of 1')).toBeTruthy();
+  first.unmount();
+  vi.mocked(launchCopyMarksApi.read).mockImplementation(() => new Promise(() => {}));
+  render(<Host actor="actor-b" />);
+  expect(screen.queryByText('Copied 1 of 1')).toBeNull();
+  expect(row().classList.contains('launch-result-already-copied')).toBe(false);
 });
 it('flashes green then remains quiet, survives remount and resets when text, actor or generation changes', async () => {
   vi.useFakeTimers();
