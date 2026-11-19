@@ -4994,7 +4994,8 @@ export const uk: Record<keyof typeof en, string> = {
   creativeRankDemoteWhy: 'Чому?',
   creativeRankReasonDisappointed: 'Розчарувався',
   creativeRankReasonNeverLaunched: 'Так і не запустив',
-  creativeRankDemoteNowhere: 'Віск — найнижчий ранг.',
+  creativeRankDemoteNowhere: 'Рангу ще немає — понижувати нікуди.',
+  creativeRankUnranked: 'Без рангу',
   creativeRankDemoteConflict: 'Ранг щойно змінився. Показуємо актуальний.',
   creativeRankDemoteDenied: 'Понизити ранг може лише власник простору.',
   creativeRankDemoteFailed: 'Не вдалося понизити ранг. Спробуйте ще раз.'

@@ -86,6 +86,33 @@ describe('a tile', () => {
     expect(screen.getByText('16 launches · 3 days ago')).toBeTruthy();
   });
 
+  it('marks a single launch as Wax', () => {
+    grid(
+      {
+        ranks: new Map([
+          ['v1', rank({ rankCredit: 1, launchCount: 1, lastLaunchedAt: daysAgo(1) })]
+        ]),
+        known: true,
+        now: NOW
+      },
+      [row('v1', 'clip.mp4')]
+    );
+    expect(screen.getByRole('img', { name: 'Rank: Wax, fresh' })).toBeTruthy();
+    expect(screen.getByText('1 launch · yesterday')).toBeTruthy();
+  });
+
+  it('ranks an image the same way as a video', () => {
+    grid({ ranks: new Map([['i1', rank({ materialId: 'i1' })]]), known: true, now: NOW }, [
+      row('i1', 'banner.png', {
+        kind: 'image',
+        category: 'image',
+        mimeType: 'image/png',
+        fileExtension: 'png'
+      } as never)
+    ]);
+    expect(screen.getByRole('img', { name: 'Rank: Gold, fresh' })).toBeTruthy();
+  });
+
   it('leaves a video never launched unmarked, and invents no date', () => {
     grid({ ranks: new Map(), known: true, now: NOW }, [row('v1', 'clip.mp4')]);
     expect(screen.queryByRole('img', { name: /Rank:/ })).toBeNull();
@@ -120,7 +147,7 @@ describe('a tile', () => {
 
 describe('the card', () => {
   it('lets the owner lower a rank with a reason, keeping the launch count', async () => {
-    const demoteCreativeRank = vi.fn(async () => rank({ rankCredit: 5, version: 5 }));
+    const demoteCreativeRank = vi.fn(async () => rank({ rankCredit: 6, version: 5 }));
     render(
       <MaterialRank
         teamId="team-1"
@@ -139,11 +166,13 @@ describe('the card', () => {
     await user.click(await screen.findByRole('menuitem', { name: /Disappointed/ }));
     await waitFor(() => expect(screen.getByText('Silver')).toBeTruthy());
     expect(demoteCreativeRank).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'disappointed', targetCredit: 5, expectedVersion: 4 })
+      expect.objectContaining({ reason: 'disappointed', targetCredit: 6, expectedVersion: 4 })
     );
     expect(screen.getByText(/^16 launches · /)).toBeTruthy();
     expect(
-      screen.getByText('Leagues by launches: Bronze 1+ · Silver 5+ · Gold 12+ · Diamond 25+')
+      screen.getByText(
+        'Leagues by launches: Wax 1+ · Bronze 3+ · Silver 6+ · Gold 12+ · Diamond 25+'
+      )
     ).toBeTruthy();
   });
 
@@ -151,7 +180,7 @@ describe('the card', () => {
     const demoteCreativeRank = vi
       .fn()
       .mockRejectedValueOnce(new TypeError('network'))
-      .mockResolvedValueOnce(rank({ rankCredit: 5, version: 5 }));
+      .mockResolvedValueOnce(rank({ rankCredit: 6, version: 5 }));
     render(
       <MaterialRank
         teamId="team-1"
@@ -177,6 +206,43 @@ describe('the card', () => {
     await waitFor(() => expect(screen.getByText('Silver')).toBeTruthy());
   });
 
+  it('says "No rank" without an emblem for a creative never launched', async () => {
+    render(
+      <MaterialRank
+        teamId="team-1"
+        materialId="v1"
+        isOwner
+        ranksRevision={0}
+        client={{ listCreativeRanks: vi.fn(async () => new Map()), demoteCreativeRank: vi.fn() }}
+      />
+    );
+    expect(await screen.findByText('No rank')).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /Rank:/ })).toBeNull();
+    expect(screen.getByText('Not launched yet')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Lower the rank' })).toBeNull();
+  });
+
+  it('lowers a Wax creative to no rank', async () => {
+    const demoteCreativeRank = vi.fn(async () => rank({ rankCredit: 0, version: 5 }));
+    render(
+      <MaterialRank
+        teamId="team-1"
+        materialId="v1"
+        isOwner
+        ranksRevision={0}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', rank({ rankCredit: 2 })]])),
+          demoteCreativeRank
+        }}
+      />
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Lower the rank' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Disappointed/ }));
+    expect(demoteCreativeRank).toHaveBeenCalledWith(expect.objectContaining({ targetCredit: 0 }));
+    await waitFor(() => expect(screen.getByText('No rank')).toBeTruthy());
+  });
+
   it('offers no way down to a member who is not the owner', async () => {
     render(
       <MaterialRank
@@ -195,7 +261,7 @@ describe('the card', () => {
   });
 
   it('shows the current rank when someone changed it first', async () => {
-    const current = rank({ rankCredit: 1, version: 9 });
+    const current = rank({ rankCredit: 3, version: 9 });
     render(
       <MaterialRank
         teamId="team-1"

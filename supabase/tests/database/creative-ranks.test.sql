@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(40);
 
 -- Deferred crediting fires at commit; a test transaction never commits, so make it immediate.
 set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
@@ -25,6 +25,8 @@ insert into public.team_drive_connections(id,team_id,credential_id,root_folder_i
 insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) values
  ('c5900000-0000-4000-8000-000000000041','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-v1','V1','file','video','video/mp4','1'),
  ('c5900000-0000-4000-8000-000000000042','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-v2','V2','file','video','video/mp4','1'),
+ ('c5900000-0000-4000-8000-000000000044','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-v3','V3','file','video','video/mp4','1'),
+ ('c5900000-0000-4000-8000-000000000043','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-i1','I1','file','image','image/png','1'),
  ('c5900000-0000-4000-8000-000000000051','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c1','C1','file','other','application/vnd.google-apps.spreadsheet','1'),
  ('c5900000-0000-4000-8000-000000000052','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c2','C2','file','other','application/vnd.google-apps.spreadsheet','1'),
  ('c5900000-0000-4000-8000-000000000053','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c3','C3','file','other','application/vnd.google-apps.spreadsheet','1'),
@@ -218,6 +220,21 @@ select is((public.demote_creative_rank('c5900000-0000-4000-8000-000000000011','c
 reset role;
 select is((select launch_count from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000041'),7,'demotion keeps the launch count');
 
+-- An image Launch with three campaigns: images rank like videos, and one Launch is one launch
+-- however many campaigns it carries (a different ad account is a different Launch).
+select pg_temp.launch('c5900000-0000-4000-8000-000000000109','c5900000-0000-4000-8000-000000000043');
+select pg_temp.revision('c5900000-0000-4000-8000-000000000227','c5900000-0000-4000-8000-000000000109','c5900000-0000-4000-8000-000000000043',1);
+insert into public.team_launch_campaigns(team_id,revision_id,ordinal,budget_usd,ad_start,ad_end,name)
+ select 'c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000227',n,10,1,1,'campaign '||n from generate_series(1,3) n;
+select pg_temp.generation('c5900000-0000-4000-8000-000000000327','c5900000-0000-4000-8000-000000000109','c5900000-0000-4000-8000-000000000227');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000327','succeeded');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000043'),1,'an image Launch credits the image once, whatever its campaign count');
+set local role authenticated;
+set local request.jwt.claim.sub = 'c5900000-0000-4000-8000-000000000002';
+select is((public.list_creative_ranks('c5900000-0000-4000-8000-000000000011',
+ array['c5900000-0000-4000-8000-000000000043']::uuid[]) -> 0 ->> 'launchCount')::integer,1,'a member reads an image''s rank');
+reset role;
+
 -- The backfill run again over the same history changes nothing, demotion included.
 create temporary table ranks_before_backfill as
  select material_id, launch_count, rank_credit, last_launched_at from public.team_creative_ranks
@@ -240,6 +257,24 @@ select pg_temp.generation('c5900000-0000-4000-8000-000000000306','c5900000-0000-
 select pg_temp.finish('c5900000-0000-4000-8000-000000000306','succeeded');
 select is((select array[launch_count,rank_credit] from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000041'),
  array[8,6],'a new launch after demotion grows both numbers');
+
+-- The owner's case: 60 launches (Diamond), demoted by hand to Gold (credit 12), then launched
+-- once more. The count says 61, the credit 13: still Gold. It climbs back to Diamond (25) only
+-- after twelve more launches — a demotion is not undone by the next launch.
+select private.bump_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',60,now() - interval '1 day');
+create temporary table rank_v3 as select version from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000044';
+grant select on rank_v3 to authenticated;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c5900000-0000-4000-8000-000000000001';
+select is((public.demote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044','disappointed',12,
+ (select version from rank_v3),'owner-demote-sixty') ->> 'rankCredit')::integer,12,'Diamond at 60 is demoted to Gold');
+reset role;
+select pg_temp.launch('c5900000-0000-4000-8000-00000000010a','c5900000-0000-4000-8000-000000000044');
+select pg_temp.revision('c5900000-0000-4000-8000-000000000228','c5900000-0000-4000-8000-00000000010a','c5900000-0000-4000-8000-000000000044',1);
+select pg_temp.generation('c5900000-0000-4000-8000-000000000328','c5900000-0000-4000-8000-00000000010a','c5900000-0000-4000-8000-000000000228');
+select pg_temp.finish('c5900000-0000-4000-8000-000000000328','succeeded');
+select is((select array[launch_count,rank_credit] from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000044'),
+ array[61,13],'the next launch after the demotion: 61 launches, credit 13 — still Gold');
 
 select * from finish();
 rollback;

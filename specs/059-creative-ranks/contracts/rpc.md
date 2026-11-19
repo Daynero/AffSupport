@@ -15,13 +15,13 @@
    "demotion": null | { "reason": "disappointed" | "never_launched", "at": "ISO" } }]
 ```
 
-Відсутній id = `wax`, без запусків. `demoted_by` не віддається.
+Відсутній id = без рангу, без запусків. `demoted_by` не віддається.
 
 ## `public.demote_creative_rank(p_team uuid, p_material uuid, p_reason text, p_target_credit integer, p_expected_version bigint, p_request_key text) returns jsonb`
 
 - Право: `private.team_role(p_team, auth.uid()) = 'owner'`, інакше `PERMISSION_DENIED` (42501).
 - `p_reason` ∈ `disappointed | never_launched`; `p_request_key` 8…200 символів; інакше `INVALID_INPUT` (22023).
-- Немає рядка проєкції → `RANK_NOT_LOWER` (PT409) — Віск нікуди понижувати.
+- Немає рядка проєкції → `RANK_NOT_LOWER` (PT409) — без рангу понижувати нікуди.
 - `p_request_key` = збережений `demote_request_key` → повертає поточний стан (ідемпотентний повтор).
 - `version <> p_expected_version` → `RANK_CONFLICT` (PT409) з актуальним станом у `detail`.
 - `p_target_credit < 0` або `>= rank_credit` → `RANK_NOT_LOWER` (PT409).

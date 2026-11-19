@@ -1,6 +1,9 @@
 import { analytics } from '../../analytics/service';
 import type { CreativeRankDemoteReason, CreativeRankLeague } from './creativeRanks';
 
+/** A league, or `unranked` below Wax (never launched, or demoted all the way down). */
+export type CreativeRankStanding = CreativeRankLeague | 'unranked';
+
 type AnalyticsTracker = Pick<typeof analytics, 'track'>;
 
 /** What the server said about a demotion, in the closed words the CLI reads back. */
@@ -23,8 +26,8 @@ export function creativeRankDemoteStarted(
   input: {
     flowId: string;
     reason: CreativeRankDemoteReason;
-    from: CreativeRankLeague;
-    to: CreativeRankLeague;
+    from: CreativeRankStanding;
+    to: CreativeRankStanding;
   },
   tracker: AnalyticsTracker = analytics
 ) {
@@ -43,8 +46,8 @@ export function creativeRankDemoteFinished(
   input: {
     flowId: string;
     reason: CreativeRankDemoteReason;
-    from: CreativeRankLeague;
-    to: CreativeRankLeague;
+    from: CreativeRankStanding;
+    to: CreativeRankStanding;
     result: CreativeRankDemoteResult;
   },
   tracker: AnalyticsTracker = analytics

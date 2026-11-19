@@ -162,7 +162,7 @@ export async function getCreativeRankDiagnosis(id: string): Promise<CreativeRank
   }
   if (result.matched === 'none') {
     result.explanation.push(
-      'No rank, ledger row or team matched: a video never launched has no row (it shows as wax), and a Launch appears only after its first successful generation.'
+      'No rank, ledger row or team matched: a video never launched has no row (it has no rank), and a Launch appears only after its first successful generation.'
     );
   }
   return result;

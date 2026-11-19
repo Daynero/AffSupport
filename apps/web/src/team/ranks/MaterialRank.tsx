@@ -19,7 +19,7 @@ import {
 import { FRESHNESS_LABEL, LEAGUE_LABEL, RankEmblem } from './RankEmblem';
 import { RankFacts } from './RankFacts';
 import { useCreativeRanks, type CreativeRanksClient } from './useCreativeRanks';
-import type { CreativeRankDemoteResult } from './analytics';
+import type { CreativeRankDemoteResult, CreativeRankStanding } from './analytics';
 
 export interface MaterialRankClient extends CreativeRanksClient {
   demoteCreativeRank?: (typeof teamApi)['demoteCreativeRank'];
@@ -88,7 +88,12 @@ export function MaterialRank({
     const attempt = `${rank.version}:${reason}:${target.credit}`;
     const flowId = retry.current?.attempt === attempt ? retry.current.key : newFlowId();
     retry.current = { attempt, key: flowId };
-    const trace = { flowId, reason, from: league, to: target.league };
+    const trace: {
+      flowId: string;
+      reason: CreativeRankDemoteReason;
+      from: CreativeRankStanding;
+      to: CreativeRankStanding;
+    } = { flowId, reason, from: league ?? 'unranked', to: target.league ?? 'unranked' };
     creativeRankDemoteStarted(trace);
     setPending(true);
     setMessage(null);
@@ -122,21 +127,24 @@ export function MaterialRank({
 
   return (
     <section className="creative-rank-card" aria-label={t('creativeRankTitle')}>
-      <RankEmblem league={league} freshness={freshness} size="detail" />
+      {league && <RankEmblem league={league} freshness={freshness} size="detail" />}
       <div className="creative-rank-card-body">
         <p className="creative-rank-card-league">
-          {t(LEAGUE_LABEL[league])}
-          <span className="creative-rank-card-state"> · {t(FRESHNESS_LABEL[freshness])}</span>
+          {league ? t(LEAGUE_LABEL[league]) : t('creativeRankUnranked')}
+          {league && (
+            <span className="creative-rank-card-state"> · {t(FRESHNESS_LABEL[freshness])}</span>
+          )}
         </p>
         <RankFacts rank={rank} now={read.now} />
         <p className="creative-rank-card-legend">
           {t('creativeRankLegend', {
-            steps: CREATIVE_RANK_LEAGUES.filter(step => step.min > 0)
-              .map(step => `${t(LEAGUE_LABEL[step.id])} ${step.min}+`)
-              .join(' · ')
+            steps: CREATIVE_RANK_LEAGUES.map(
+              step => `${t(LEAGUE_LABEL[step.id])} ${step.min}+`
+            ).join(' · ')
           })}
         </p>
-        {isOwner && client.demoteCreativeRank && (
+        {/* No rank, nothing to lower: the card says "No rank" and offers no way down. */}
+        {isOwner && league && client.demoteCreativeRank && (
           <>
             <Button
               ref={trigger}
@@ -166,7 +174,11 @@ export function MaterialRank({
                     id: reason.id,
                     label: t(reason.label),
                     disabled: target === null,
-                    trailing: target ? t(LEAGUE_LABEL[target.league]) : undefined,
+                    trailing: target
+                      ? target.league
+                        ? t(LEAGUE_LABEL[target.league])
+                        : t('creativeRankUnranked')
+                      : undefined,
                     note: target === null ? t('creativeRankDemoteNowhere') : undefined,
                     onSelect: () => void demote(reason.id)
                   };

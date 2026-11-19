@@ -10,7 +10,7 @@
 | ----------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `id`                    | bigint identity PK                      |                                                                                           |
 | `team_id`               | uuid not null → teams on delete cascade |                                                                                           |
-| `material_id`           | uuid not null                           | креатив (відео). Без FK на `team_materials`: журнал переживає жорстке видалення матеріалу |
+| `material_id`           | uuid not null                           | креатив (відео чи зображення). Без FK на `team_materials`: журнал переживає жорстке видалення матеріалу |
 | `source_kind`           | text not null                           | `launch` або `catalog`; бекфіл позначається окремо `backfilled`                           |
 | `source_id`             | uuid not null                           | launch id або catalog material id                                                         |
 | `occurred_at`           | timestamptz not null                    | час успіху / створення каталогу                                                           |
@@ -62,10 +62,11 @@ demote(target_credit, reason) → rank_credit = target_credit (< поточно�
 ## Ліга і свіжість (`apps/web/src/team/ranks/creativeRanks.ts`, не в БД)
 
 ```text
-CREATIVE_RANK_LEAGUES   = wax 0 · bronze 1 · silver 5 · gold 12 · diamond 25   (за rank_credit)
+CREATIVE_RANK_LEAGUES   = (0 — без рангу) · wax 1 · bronze 3 · silver 6 · gold 12 · diamond 25   (за rank_credit)
 CREATIVE_RANK_FRESHNESS = fresh ≤ 14 д · dusty ≤ 60 д · cobweb > 60 д          (за last_launched_at)
-reason disappointed   → target = поріг ліги на одну нижче поточної
-reason never_launched → target = 0 (Віск)
+reason disappointed   → target = поріг ліги на одну нижче поточної (з wax → 0, без рангу)
+reason never_launched → target = 0 (без рангу)
 ```
 
-Креатив без рядка проєкції = `wax`, `fresh`, `launch_count = 0`, без дати.
+Креатив без рядка проєкції = без рангу, `launch_count = 0`, без дати. Креатив — відео або зображення:
+зарахування бере `materialId` Launch-а без перевірки типу.

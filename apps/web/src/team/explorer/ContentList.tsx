@@ -30,9 +30,9 @@ import { TagDot } from './TagDot';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { launchCountText, rankFactsText } from '../ranks/RankFacts';
 import {
+  carriesRank,
   emptyRank,
   freshnessOf,
-  isShelfRank,
   leagueOf,
   type CreativeRank
 } from '../ranks/creativeRanks';
@@ -197,7 +197,7 @@ export function ContentList({
               onToggleCompanions={onToggleCompanions}
               nested={Boolean(companionOf(row))}
               rank={
-                ranks?.known && row.kind === 'video'
+                ranks?.known && carriesRank(row)
                   ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
                   : null
               }
@@ -255,6 +255,7 @@ function Row({
   rankNow?: number;
 }) {
   const { t, language } = useI18n();
+  const rankLeague = rank ? leagueOf(rank.rankCredit) : null;
   const reason = KIND_REASON[row.kind];
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
   const open = () => {
@@ -363,13 +364,13 @@ function Row({
         {reason && <KindNote text={t(reason)} />}
       </TableCell>
       {/* Its own column right after the names, so the combs line up down the list; the launch
-          count sits beside the comb, the date on hover. Wax is left blank: it is every video's
-          starting state. */}
+          count sits beside the comb, the date on hover. A video with no rank (never launched) is left
+          blank: that is every video's starting state. */}
       <TableCell className="team-explorer-row-rank">
-        {rank && isShelfRank(rank) && (
+        {rankLeague && rank && (
           <span className="creative-rank-list-mark">
             <RankEmblem
-              league={leagueOf(rank.rankCredit)}
+              league={rankLeague}
               freshness={freshnessOf(rank.lastLaunchedAt, rankNow)}
               size="list"
               facts={rankFactsText(rank, t, language, rankNow)}

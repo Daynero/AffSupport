@@ -5,7 +5,6 @@ import {
   demotionTarget,
   emblemSrc,
   freshnessOf,
-  isShelfRank,
   leagueOf,
   parseCreativeRank,
   parseCreativeRankList,
@@ -26,10 +25,12 @@ const daysAgo = (days: number) => new Date(NOW - days * 86_400_000).toISOString(
 
 describe('leagues', () => {
   it.each([
-    [0, 'wax'],
-    [1, 'bronze'],
-    [4, 'bronze'],
-    [5, 'silver'],
+    [0, null],
+    [1, 'wax'],
+    [2, 'wax'],
+    [3, 'bronze'],
+    [5, 'bronze'],
+    [6, 'silver'],
     [11, 'silver'],
     [12, 'gold'],
     [24, 'gold'],
@@ -42,7 +43,8 @@ describe('leagues', () => {
   it('keeps the thresholds in one ascending table', () => {
     const mins = CREATIVE_RANK_LEAGUES.map(step => step.min);
     expect(mins).toEqual([...mins].sort((a, b) => a - b));
-    expect(mins[0]).toBe(0);
+    // Wax is the first launch: below it there is no rank.
+    expect(mins[0]).toBe(1);
   });
 });
 
@@ -57,7 +59,7 @@ describe('freshness', () => {
     expect(freshnessOf(daysAgo(days), NOW)).toBe(freshness);
   });
 
-  it('reads a never-launched creative as fresh wax, not as dust', () => {
+  it('reads a never-launched creative as fresh, not as dust', () => {
     expect(freshnessOf(null, NOW)).toBe('fresh');
   });
 
@@ -73,16 +75,28 @@ describe('freshness', () => {
 
 describe('demotion', () => {
   it('drops one league when disappointed', () => {
-    expect(demotionTarget(20, 'disappointed')).toEqual({ league: 'silver', credit: 5 });
-    expect(demotionTarget(5, 'disappointed')).toEqual({ league: 'bronze', credit: 1 });
-    expect(demotionTarget(1, 'disappointed')).toEqual({ league: 'wax', credit: 0 });
+    expect(demotionTarget(20, 'disappointed')).toEqual({ league: 'silver', credit: 6 });
+    expect(demotionTarget(6, 'disappointed')).toEqual({ league: 'bronze', credit: 3 });
+    expect(demotionTarget(3, 'disappointed')).toEqual({ league: 'wax', credit: 1 });
+    expect(demotionTarget(2, 'disappointed')).toEqual({ league: null, credit: 0 });
   });
 
-  it('drops to wax when the creative was never launched', () => {
-    expect(demotionTarget(74, 'never_launched')).toEqual({ league: 'wax', credit: 0 });
+  it('climbs back from a demotion launch by launch, not at once', () => {
+    // 60 launches is Diamond; the owner lowers it to Gold, then it is launched once more.
+    const target = demotionTarget(60, 'disappointed');
+    expect(target).toEqual({ league: 'gold', credit: 12 });
+    expect(leagueOf(target!.credit + 1)).toBe('gold');
+    // Diamond again only after 25 − 12 = 13 launches since the demotion.
+    expect(leagueOf(target!.credit + 12)).toBe('gold');
+    expect(leagueOf(target!.credit + 13)).toBe('diamond');
   });
 
-  it('has nowhere to go from wax', () => {
+  it('takes the rank away when the creative was never launched', () => {
+    expect(demotionTarget(74, 'never_launched')).toEqual({ league: null, credit: 0 });
+    expect(demotionTarget(1, 'never_launched')).toEqual({ league: null, credit: 0 });
+  });
+
+  it('has nowhere to go without a rank', () => {
     expect(demotionTarget(0, 'disappointed')).toBeNull();
     expect(demotionTarget(0, 'never_launched')).toBeNull();
   });
@@ -143,11 +157,11 @@ describe('on a shelf', () => {
     demotion: null
   };
 
-  it('marks a launched creative and leaves wax unmarked', () => {
-    expect(isShelfRank({ ...base, launchCount: 1, rankCredit: 1 })).toBe(true);
-    expect(isShelfRank(base)).toBe(false);
-    // Demoted to wax: launched, but the owner says it never really ran.
-    expect(isShelfRank({ ...base, launchCount: 9, rankCredit: 0 })).toBe(false);
+  it('marks a creative launched once as Wax and leaves one with no rank unmarked', () => {
+    expect(leagueOf({ ...base, launchCount: 1, rankCredit: 1 }.rankCredit)).toBe('wax');
+    expect(leagueOf(base.rankCredit)).toBeNull();
+    // Demoted all the way down: launched, but the owner says it never really ran.
+    expect(leagueOf({ ...base, launchCount: 9, rankCredit: 0 }.rankCredit)).toBeNull();
   });
 });
 

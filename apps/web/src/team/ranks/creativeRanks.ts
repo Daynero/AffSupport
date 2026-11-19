@@ -14,13 +14,14 @@ export const CREATIVE_RANK_LEAGUE_IDS = ['wax', 'bronze', 'silver', 'gold', 'dia
 export type CreativeRankLeague = (typeof CREATIVE_RANK_LEAGUE_IDS)[number];
 
 /**
- * Minimum league credit for each league, lowest first. Diamond sits at about 25 launches: past
- * that a creative is usually reworked (made unique) and lives on as a different video.
+ * Minimum league credit for each league, lowest first. Wax is the first launch: below it a video
+ * has no rank at all. Diamond sits at about 25 launches: past that a creative is usually reworked
+ * (made unique) and lives on as a different video.
  */
 export const CREATIVE_RANK_LEAGUES: readonly { id: CreativeRankLeague; min: number }[] = [
-  { id: 'wax', min: 0 },
-  { id: 'bronze', min: 1 },
-  { id: 'silver', min: 5 },
+  { id: 'wax', min: 1 },
+  { id: 'bronze', min: 3 },
+  { id: 'silver', min: 6 },
   { id: 'gold', min: 12 },
   { id: 'diamond', min: 25 }
 ];
@@ -45,8 +46,12 @@ export interface CreativeRank {
 
 const DAY_MS = 86_400_000;
 
-export function leagueOf(credit: number): CreativeRankLeague {
-  let league: CreativeRankLeague = 'wax';
+/**
+ * The league a credit has earned, or null below Wax: a video never launched — or demoted all the
+ * way down — has no rank, and a shelf (tile, list row) shows nothing for it.
+ */
+export function leagueOf(credit: number): CreativeRankLeague | null {
+  let league: CreativeRankLeague | null = null;
   for (const step of CREATIVE_RANK_LEAGUES) {
     if (credit >= step.min) league = step.id;
   }
@@ -54,12 +59,11 @@ export function leagueOf(credit: number): CreativeRankLeague {
 }
 
 /**
- * Whether a rank is worth a mark on a shelf (tile, list row). Wax — never launched, or demoted to
- * the bottom — is the default state of every video; marking it on each one is noise. The video's
- * card still shows it.
+ * What can carry a rank: the creatives a Launch puts in front of an audience — videos, and images
+ * (image Launches are coming; the database already credits whatever material a Launch names).
  */
-export function isShelfRank(rank: CreativeRank): boolean {
-  return leagueOf(rank.rankCredit) !== 'wax';
+export function carriesRank(row: { kind: string }): boolean {
+  return row.kind === 'video' || row.kind === 'image';
 }
 
 /** Whole days since `lastLaunchedAt`; a future time (clock skew) is today. */
@@ -70,7 +74,7 @@ export function daysSince(lastLaunchedAt: string | null, now: number): number | 
   return Math.max(0, Math.floor((now - at) / DAY_MS));
 }
 
-/** A creative never launched is an empty comb, not a dusty one: it reads as fresh wax. */
+/** No launch date is not dust: a creative is dusty only once a launch has gone stale. */
 export function freshnessOf(lastLaunchedAt: string | null, now: number): CreativeRankFreshness {
   const days = daysSince(lastLaunchedAt, now);
   if (days === null || days <= CREATIVE_RANK_FRESHNESS_DAYS.fresh) return 'fresh';
@@ -78,17 +82,18 @@ export function freshnessOf(lastLaunchedAt: string | null, now: number): Creativ
 }
 
 /**
- * Where a demotion lands. "Disappointed" drops one league; "never launched" drops to wax.
- * Null when there is nowhere lower to go.
+ * Where a demotion lands. "Disappointed" drops one league (from Wax: to no rank); "never launched"
+ * takes the rank away. Null when there is no rank to lower. `league: null` is "no rank".
  */
 export function demotionTarget(
   credit: number,
   reason: CreativeRankDemoteReason
-): { league: CreativeRankLeague; credit: number } | null {
-  const index = CREATIVE_RANK_LEAGUE_IDS.indexOf(leagueOf(credit));
-  if (index <= 0) return null;
-  const target =
-    reason === 'never_launched' ? CREATIVE_RANK_LEAGUES[0] : CREATIVE_RANK_LEAGUES[index - 1];
+): { league: CreativeRankLeague | null; credit: number } | null {
+  const league = leagueOf(credit);
+  if (league === null) return null;
+  const index = CREATIVE_RANK_LEAGUE_IDS.indexOf(league);
+  if (reason === 'never_launched' || index === 0) return { league: null, credit: 0 };
+  const target = CREATIVE_RANK_LEAGUES[index - 1];
   return { league: target.id, credit: target.min };
 }
 

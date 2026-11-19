@@ -60,6 +60,7 @@ import type { TeamRouteQuery, ExplorerView } from '../routes';
 import { Breadcrumb } from './Breadcrumb';
 import { ContentGrid, type ContentGridClient } from './ContentGrid';
 import { useCreativeRanks, type CreativeRanksClient } from '../ranks/useCreativeRanks';
+import { carriesRank } from '../ranks/creativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
@@ -561,13 +562,10 @@ function ExplorerBody({
     preserveOnEmpty: contentsPending,
     beforeRowsReplace: () => captureAnchorRef.current()
   });
-  // 059 — the honey leagues of the videos on this page: one read, again when a rank changes;
-  // the sort by rank reads them too.
-  const rankVideoIds = useMemo(
-    () => page.rows.filter(row => row.kind === 'video').map(row => row.id),
-    [page.rows]
-  );
-  const ranks = useCreativeRanks(teamId, rankVideoIds, ranksRevision, client);
+  // 059 — the honey leagues of the videos and images on this page: one read, again when a rank
+  // changes; the sort by rank reads them too.
+  const rankedIds = useMemo(() => page.rows.filter(carriesRank).map(row => row.id), [page.rows]);
+  const ranks = useCreativeRanks(teamId, rankedIds, ranksRevision, client);
   const allRows = useMemo(
     () => sortRows(page.rows, sort, ranks.ranks),
     [page.rows, sort, ranks.ranks]

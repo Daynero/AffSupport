@@ -14,9 +14,9 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { RankFacts } from '../ranks/RankFacts';
 import {
+  carriesRank,
   emptyRank,
   freshnessOf,
-  isShelfRank,
   leagueOf,
   type CreativeRank
 } from '../ranks/creativeRanks';
@@ -209,7 +209,7 @@ export function ContentGrid({
             tagging={tagging}
             companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
             rank={
-              ranks?.known && row.kind === 'video'
+              ranks?.known && carriesRank(row)
                 ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
                 : null
             }
@@ -276,6 +276,7 @@ function Tile({
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
+  const rankLeague = rank ? leagueOf(rank.rankCredit) : null;
   useEffect(() => setBroken(false), [row.id, row.driveVersion]);
 
   const thumbnail =
@@ -355,12 +356,12 @@ function Tile({
       {companions.length > 0 && (
         <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
       )}
-      {rank && isShelfRank(rank) && (
+      {rankLeague && rank && (
         // Top left of the picture, where the checkbox appears on hover (it steps aside then);
         // bottom right on touch. A picture, not a control — presses go to the tile beneath.
         <span className="team-explorer-tile-badge-layer creative-rank-tile-layer">
           <RankEmblem
-            league={leagueOf(rank.rankCredit)}
+            league={rankLeague}
             freshness={freshnessOf(rank.lastLaunchedAt, rankNow)}
             size="tile"
           />

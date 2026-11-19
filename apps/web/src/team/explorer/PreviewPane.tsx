@@ -30,6 +30,7 @@ import { MaterialCatalogFacts } from '../materials/MaterialCatalogFacts';
 import { MaterialTasks } from '../materials/MaterialTasks';
 import { useTeam } from '../TeamContext';
 import { MaterialRank } from '../ranks/MaterialRank';
+import { carriesRank } from '../ranks/creativeRanks';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -165,7 +166,7 @@ export function PreviewPane({
         }}
         companions={companions}
         rank={
-          row.kind === 'video' ? (
+          carriesRank(row) ? (
             <MaterialRank
               key={row.id}
               teamId={teamId}

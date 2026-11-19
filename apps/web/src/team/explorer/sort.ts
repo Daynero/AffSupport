@@ -58,8 +58,8 @@ export function sortRows(
         return (at - bt) * factor;
       }
     }
-    /* By rank (059), like by tag: never-launched videos and everything that is not a video go
-       last either way — they have no rank to order by. Same league credit: the more recent
+    /* By rank (059), like by tag: never-launched creatives and everything that carries no rank
+       (folders, documents) go last either way — they have no rank to order by. Same league credit: the more recent
        launch first in the descending order. */
     if (sort.key === 'rank') {
       const ar = ranks.get(a.id);

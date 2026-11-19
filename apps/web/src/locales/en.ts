@@ -5017,7 +5017,8 @@ export const en = {
   creativeRankDemoteWhy: 'Why?',
   creativeRankReasonDisappointed: 'Disappointed',
   creativeRankReasonNeverLaunched: 'Never actually launched',
-  creativeRankDemoteNowhere: 'Wax is the lowest rank.',
+  creativeRankDemoteNowhere: 'No rank yet — nothing to lower.',
+  creativeRankUnranked: 'No rank',
   creativeRankDemoteConflict: 'The rank just changed. Showing the current one.',
   creativeRankDemoteDenied: 'Only the space owner can lower a rank.',
   creativeRankDemoteFailed: 'Could not lower the rank. Try again.'

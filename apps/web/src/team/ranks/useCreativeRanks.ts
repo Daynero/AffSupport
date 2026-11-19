@@ -10,7 +10,7 @@ export interface CreativeRanksClient {
 export interface CreativeRanksState {
   /** Ranks of the asked videos that have one; a missing id was never launched. */
   ranks: ReadonlyMap<string, CreativeRank>;
-  /** False until the first answer and after a failed read: then nothing is drawn, not wax. */
+  /** False until the first answer and after a failed read: then nothing is drawn, not "no rank". */
   known: boolean;
   /** When the answer arrived; freshness is measured from it so tiles do not tick on every render. */
   now: number;
